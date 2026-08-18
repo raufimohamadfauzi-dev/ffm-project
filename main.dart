@@ -1,0 +1,126 @@
+import 'package:flutter/material.dart';
+
+import 'core/database/app_database.dart';
+import 'core/di/injection.dart';
+import 'core/theme/theme_preference.dart';
+import 'features/advisor/presentation/pages/analysis_page.dart';
+import 'features/advisor/presentation/pages/summary_page.dart';
+import 'features/budget/presentation/pages/budget_page.dart';
+import 'features/settings/presentation/pages/other_menu_page.dart';
+import 'features/transaction/presentation/pages/transaction_pages.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await configureDependencies();
+  final isDark = await ThemePreference.isDark();
+  runApp(FfmApp(initialDarkMode: isDark));
+}
+
+class FfmApp extends StatefulWidget {
+  const FfmApp({
+    super.key,
+    bool? initialDarkMode,
+    this.database,
+    this.onboardingComplete,
+    this.pinEnabled,
+    bool? isDarkMode,
+  }) : initialDarkMode = initialDarkMode ?? isDarkMode ?? false;
+
+  final bool initialDarkMode;
+  final AppDatabase? database;
+  final bool? onboardingComplete;
+  final bool? pinEnabled;
+
+  @override
+  State<FfmApp> createState() => _FfmAppState();
+}
+
+class _FfmAppState extends State<FfmApp> {
+  late var _isDark = widget.initialDarkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.database != null && !getIt.isRegistered<AppDatabase>()) {
+      configureDependencies(database: widget.database);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        title: 'FFM',
+        debugShowCheckedModeBanner: false,
+        themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
+        theme: _buildTheme(Brightness.light),
+        darkTheme: _buildTheme(Brightness.dark),
+        home: AppShell(
+          isDark: _isDark,
+          onThemeChanged: (value) async {
+            setState(() => _isDark = value);
+            await ThemePreference.saveDark(value);
+          },
+        ),
+      );
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF0F766E),
+      brightness: brightness,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: brightness == Brightness.light
+          ? const Color(0xFFF7FAF9)
+          : null,
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
+        filled: true,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      ),
+    );
+  }
+}
+
+class AppShell extends StatefulWidget {
+  const AppShell({super.key, required this.isDark, required this.onThemeChanged});
+
+  final bool isDark;
+  final ValueChanged<bool> onThemeChanged;
+
+  @override
+  State<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends State<AppShell> {
+  var _index = 0;
+
+  List<Widget> get _pages => [
+        const SummaryPage(),
+        const TransactionListPage(),
+        const EnvelopeBudgetPage(),
+        const AnalysisPage(),
+                  const OtherMenuPage(),
+
+      ];
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: IndexedStack(index: _index, children: _pages),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _index,
+          onDestinationSelected: (value) => setState(() => _index = value),
+          destinations: const [
+            NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Beranda'),
+            NavigationDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long), label: 'Transaksi'),
+            NavigationDestination(icon: Icon(Icons.track_changes_outlined), selectedIcon: Icon(Icons.track_changes), label: 'Anggaran'),
+            NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights), label: 'Analisa'),
+            NavigationDestination(icon: Icon(Icons.more_horiz), selectedIcon: Icon(Icons.more), label: 'Lainnya'),
+          ],
+        ),
+      );
+}
