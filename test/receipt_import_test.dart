@@ -103,4 +103,22 @@ Kembali : 10,000
     expect(prompt, contains('items'));
     expect(prompt, contains('unit_price'));
   });
+
+  test('template JSON kosong memakai schema FFM dan bisa diimpor', () {
+    final template = ReceiptImportService.templateJson();
+    final result = ReceiptImportService.parseJson(template);
+
+    expect(template, contains('ffm-receipt-draft-v1'));
+    expect(template, contains('unit_price'));
+    expect(result.items, hasLength(1));
+    expect(result.items.single.name, 'Nama barang');
+  });
+
+  test('OCR teks kosong memberi warning yang dapat ditindaklanjuti', () {
+    final result = ReceiptOcrService().parseText('');
+
+    expect(result.rawText, isEmpty);
+    expect(result.items, isEmpty);
+    expect(result.warnings, contains('Teks nota kosong atau belum terbaca.'));
+  });
 }

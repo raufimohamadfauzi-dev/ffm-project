@@ -27,8 +27,26 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     if (result.isEmpty || result.single.path == null) return;
     await _runTask(() async {
       final value = await ReceiptOcrService().recognize(result.single.path!);
-      if (mounted) setState(() => _result = value);
+      if (!mounted) return;
+      setState(() => _result = value);
+      _showOcrStatus(value);
     });
+  }
+
+  void _showOcrStatus(ReceiptOcrResult value) {
+    if (value.rawText.trim().isEmpty) {
+      _showMessage(
+        'Foto berhasil dipilih, tapi tulisan belum terbaca. Coba foto lebih terang dan tidak miring.',
+      );
+    } else if (value.items.isEmpty) {
+      _showMessage(
+        'Teks nota terbaca, tetapi item belum dikenali. Buka teks mentah atau tambahkan item manual.',
+      );
+    } else {
+      _showMessage(
+        'OCR selesai: ${value.items.length} item terbaca. Cek draft sebelum dipakai.',
+      );
+    }
   }
 
   Future<void> _importJson() async {
@@ -162,6 +180,15 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     );
   }
 
+  Future<void> _copyTemplateJson() async {
+    await Clipboard.setData(
+      ClipboardData(text: ReceiptImportService.templateJson()),
+    );
+    _showMessage(
+      'Template JSON kosong sudah disalin. Isi atau minta LLM mengisinya tanpa mengubah format.',
+    );
+  }
+
   Future<void> _shareJson() async {
     final result = _result;
     if (result == null) return;
@@ -174,6 +201,18 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
       ShareParams(
         files: [XFile(file.path)],
         text: 'Draft nota FFM. Periksa JSON sebelum diimpor.',
+      ),
+    );
+  }
+
+  Future<void> _shareTemplateJson() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/ffm-receipt-template-v1.json');
+    await file.writeAsString(ReceiptImportService.templateJson());
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path)],
+        text: 'Template JSON nota FFM untuk diisi oleh Gemini atau LLM.',
       ),
     );
   }
@@ -207,7 +246,9 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.photo_library_outlined),
-            label: Text(_working ? 'Membaca nota...' : 'Pilih foto nota'),
+            label: Text(
+              _working ? 'Membaca nota...' : 'Pilih foto nota dari galeri',
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -245,24 +286,28 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                   'Bagikan foto atau salin prompt ke Gemini. Setelah mendapat JSON, impor kembali ke sini. Hasilnya tetap draft dan belum tersimpan sebelum kamu menekan tombol konfirmasi.',
                 ),
                 const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    OutlinedButton.icon(
-                      onPressed: _pasteJson,
-                      icon: const Icon(Icons.content_paste_go_outlined),
-                      label: const Text('Tempel JSON Gemini'),
-                    ),
                     OutlinedButton.icon(
                       onPressed: _copyPrompt,
                       icon: const Icon(Icons.copy_all_outlined),
-                      label: const Text('Salin prompt Gemini'),
+                      label: const Text('1. Salin prompt Gemini/LLM'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _copyTemplateJson,
+                      icon: const Icon(Icons.data_object_outlined),
+                      label: const Text('2. Salin template JSON kosong'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _pasteJson,
+                      icon: const Icon(Icons.content_paste_go_outlined),
+                      label: const Text('3. Tempel JSON hasil LLM'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _importJson,
                       icon: const Icon(Icons.file_open_outlined),
-                      label: const Text('Impor file JSON'),
+                      label: const Text('4. Impor file JSON'),
                     ),
                   ],
                 ),
@@ -308,6 +353,8 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                       _copyPrompt();
                     case 'json':
                       _shareJson();
+                    case 'template':
+                      _shareTemplateJson();
                     case 'paste':
                       _pasteJson();
                   }
@@ -324,6 +371,10 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                   PopupMenuItem(
                     value: 'json',
                     child: Text('Bagikan JSON draft'),
+                  ),
+                  PopupMenuItem(
+                    value: 'template',
+                    child: Text('Bagikan template JSON kosong'),
                   ),
                   PopupMenuItem(
                     value: 'paste',
@@ -346,6 +397,25 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
           if (result.receiptNumber != null)
             Text('Nomor nota: ${result.receiptNumber}'),
           const Divider(height: 24),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            title: const Text('Lihat teks mentah hasil OCR'),
+            subtitle: Text(
+              result.rawText.trim().isEmpty
+                  ? 'Belum ada teks yang terbaca'
+                  : '${result.rawText.split(RegExp(r'\\r?\\n')).length} baris teks terbaca',
+            ),
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: SelectableText(
+                  result.rawText.trim().isEmpty
+                      ? 'Teks OCR kosong. Coba foto lebih terang atau gunakan teks manual.'
+                      : result.rawText,
+                ),
+              ),
+            ],
+          ),
           if (result.items.isEmpty)
             const Text(
               'Belum ada item. Tambahkan manual dari tombol di bawah.',

@@ -113,6 +113,32 @@ class ReceiptImportService {
   static String toJson(ReceiptOcrResult result) =>
       const JsonEncoder.withIndent('  ').convert(toMap(result));
 
+  static Map<String, dynamic> templateMap() => {
+    'format': format,
+    'receipt': {
+      'merchant': null,
+      'receipt_number': null,
+      'date': null,
+      'time': null,
+      'total': 0,
+      'paid_amount': null,
+      'change_amount': null,
+      'raw_text': '',
+      'items': [
+        {
+          'name': 'Nama barang',
+          'quantity': 1,
+          'unit': 'PCS',
+          'unit_price': 0,
+          'amount': 0,
+        },
+      ],
+    },
+  };
+
+  static String templateJson() =>
+      const JsonEncoder.withIndent('  ').convert(templateMap());
+
   static String buildGeminiPrompt({required String rawText}) {
     final source = rawText.trim();
     return '''Kamu membantu menyiapkan draft nota untuk aplikasi Family Finance Manager (FFM).
