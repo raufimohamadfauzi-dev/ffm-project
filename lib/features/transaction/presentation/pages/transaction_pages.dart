@@ -314,15 +314,115 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _openForm() async {
+    await _showNewEntrySheet();
+  }
+
+  Future<void> _showNewEntrySheet() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Mau mencatat apa?',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Pilih alurnya dulu supaya kolom yang muncul tidak campur-aduk.',
+              ),
+              const SizedBox(height: 16),
+              _NewEntryChoiceTile(
+                icon: Icons.north_east_rounded,
+                color: AppColors.negative,
+                title: 'Pengeluaran',
+                subtitle: 'Uang keluar dari tunai, rekening, atau dompet.',
+                onTap: () => Navigator.pop(sheetContext, 'expense'),
+              ),
+              const SizedBox(height: 8),
+              _NewEntryChoiceTile(
+                icon: Icons.south_west_rounded,
+                color: AppColors.positive,
+                title: 'Pemasukan',
+                subtitle: 'Uang masuk ke tunai, rekening, atau dompet.',
+                onTap: () => Navigator.pop(sheetContext, 'income'),
+              ),
+              const SizedBox(height: 8),
+              _NewEntryChoiceTile(
+                icon: Icons.flag_outlined,
+                color: AppColors.primary,
+                title: 'Isi target uang terkumpul',
+                subtitle: 'Memindahkan sebagian uang ke progres target. Bukan pengeluaran belanja.',
+                onTap: () => Navigator.pop(sheetContext, 'goal'),
+              ),
+              const Divider(height: 24),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(sheetContext, 'quick'),
+                    icon: const Icon(Icons.playlist_add_rounded),
+                    label: const Text('Input banyak transaksi'),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(sheetContext, 'scan'),
+                    icon: const Icon(Icons.document_scanner_outlined),
+                    label: const Text('Scan nota'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    switch (choice) {
+      case 'expense':
+        await _openTransactionForm(TransactionType.expense);
+      case 'income':
+        await _openTransactionForm(TransactionType.income);
+      case 'goal':
+        await _openGoalContribution();
+      case 'quick':
+        await _openQuickEntry();
+      case 'scan':
+        await _openScan();
+    }
+  }
+
+  Future<void> _openTransactionForm(TransactionType type) async {
     final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
       MaterialPageRoute(
         builder: (_) => TransactionFormPage(
-          showFirstTransactionGuide: _transactions.isEmpty,
+          initialType: type,
+          showFirstTransactionGuide:
+              _transactions.isEmpty && type == TransactionType.expense,
         ),
       ),
     );
     if (!mounted || drafts == null || drafts.isEmpty) return;
     await _saveDrafts(drafts);
+  }
+
+  Future<void> _openGoalContribution({TransactionWithItems? existing}) async {
+    final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+      MaterialPageRoute(
+        builder: (_) => GoalContributionFormPage(existingTransaction: existing),
+      ),
+    );
+    if (!mounted || drafts == null || drafts.isEmpty) return;
+    if (existing == null) {
+      await _saveDrafts(drafts);
+    } else {
+      await _saveDraft(drafts.first, transactionId: existing.transaction.id);
+    }
   }
 
   Future<void> _openQuickEntry() async {
@@ -357,6 +457,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       MaterialPageRoute(
         builder: (_) => TransactionFormPage(
           initialScan: result,
+          initialType: TransactionType.expense,
           showFirstTransactionGuide: isFirstTransaction,
         ),
       ),
@@ -366,6 +467,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _openEdit(TransactionWithItems entry) async {
+    if (entry.transaction.goalId != null) {
+      await _openGoalContribution(existing: entry);
+      return;
+    }
     final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
       MaterialPageRoute(
         builder: (_) => TransactionFormPage(existingTransaction: entry),
@@ -881,13 +986,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     visibleTransactions[transferIndex - _transfers.length];
                 final item = entry.transaction;
                 final isIncome = item.amount >= 0;
+                final isGoalContribution = item.goalId != null;
                 final merchantName = _merchantLabel(item.merchantId);
                 final itemSummary = entry.items.isEmpty
                     ? null
                     : entry.items
                           .map((receiptItem) => receiptItem.itemName)
                           .join(', ');
-                final color = isIncome
+                final color = isGoalContribution
+                    ? AppColors.primary
+                    : isIncome
                     ? AppColors.positive
                     : AppColors.negative;
                 return AppCard(
@@ -922,7 +1030,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                               runSpacing: 4,
                               children: [
                                 AppStatusChip(
-                                  label: isIncome
+                                  label: isGoalContribution
+                                      ? 'Isi target'
+                                      : isIncome
                                       ? 'Uang masuk'
                                       : 'Uang keluar',
                                   color: color,
@@ -941,7 +1051,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                             ),
                             const SizedBox(height: 7),
                             Text(
-                              _categoryLabel(item.categoryId),
+                              isGoalContribution
+                                  ? 'Uang terkumpul untuk target'
+                                  : _categoryLabel(item.categoryId),
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                             if (merchantName.isNotEmpty) ...[
@@ -1072,7 +1184,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
     for (final category in _categories) {
       if (categoryId != null && category.id == categoryId) return category.name;
     }
-    return 'Lainnya';
+    return 'Target uang terkumpul';
   }
 
   String _accountTypeLabel(String type) {
@@ -1100,7 +1212,6 @@ class TransactionFormPage extends StatefulWidget {
     this.initialScan,
     this.existingTransaction,
     this.initialType,
-    this.initialGoalId,
     this.initialNote,
     this.showFirstTransactionGuide = false,
   });
@@ -1108,7 +1219,6 @@ class TransactionFormPage extends StatefulWidget {
   final ReceiptOcrResult? initialScan;
   final TransactionWithItems? existingTransaction;
   final TransactionType? initialType;
-  final String? initialGoalId;
   final String? initialNote;
   final bool showFirstTransactionGuide;
 
@@ -1133,14 +1243,11 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   var _masterTags = <Tag>[];
   var _accounts = <Account>[];
   var _parties = <TransactionParty>[];
-  var _goals = <GoalEntity>[];
   String? _categoryId;
   String? _merchantId;
   String? _accountId;
-  String? _goalId;
   var _categoriesLoading = true;
   var _partiesLoading = true;
-  var _goalsLoading = true;
   var _partyName = '';
   var _source = 'manual';
   String? _receiptRawText;
@@ -1162,7 +1269,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     super.initState();
     final existing = widget.existingTransaction;
     _type = widget.initialType ?? TransactionType.expense;
-    _goalId = widget.initialGoalId;
     if (existing != null) {
       _type = existing.transaction.amount >= 0
           ? TransactionType.income
@@ -1170,7 +1276,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       _categoryId = existing.transaction.categoryId;
       _merchantId = existing.transaction.merchantId;
       _accountId = existing.transaction.accountId;
-      _goalId = existing.transaction.goalId;
       _partyName = existing.transaction.partyName ?? '';
       _source = existing.transaction.source ?? 'manual';
       _receiptRawText = existing.transaction.receiptRawText;
@@ -1200,7 +1305,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     _loadMerchants();
     _loadMasterTags();
     _loadAccounts();
-    _loadGoals();
     _loadParties();
     if (existing != null) _loadMetadata(existing.transaction.id);
     final scan = widget.initialScan;
@@ -1233,15 +1337,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           ),
         )
         .toList();
-  }
-
-  Future<void> _loadGoals() async {
-    final goals = await getIt<GetGoals>()(AppContext.householdId);
-    if (!mounted) return;
-    setState(() {
-      _goals = goals;
-      _goalsLoading = false;
-    });
   }
 
   Future<void> _loadParties() async {
@@ -1482,13 +1577,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     );
   }
 
-  Future<void> _openGoalForm() async {
-    await Navigator.of(context)
-        .push<void>(MaterialPageRoute(builder: (_) => const GoalFormPage()));
-    if (!mounted) return;
-    await _loadGoals();
-  }
-
   Future<void> _startVoiceInput() async {
     if (_listening) {
       if (_offlineAi.isWhisperRecording) {
@@ -1667,7 +1755,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       _partyName = review.partyName;
       _noteController.text = review.note;
       _tags = review.tags;
-      _goalId = review.type == TransactionType.expense ? _goalId : null;
       _source = 'voice';
     });
   }
@@ -1755,7 +1842,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         source: _source,
         merchantId: _merchantId,
         accountId: _accountId,
-        goalId: _type == TransactionType.expense ? _goalId : null,
+        goalId: null,
         partyName: _partyName.trim().isEmpty ? null : _partyName.trim(),
         receiptRawText: _receiptRawText,
         receiptNumber: _receiptNumber,
@@ -1767,8 +1854,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       ),
     ]);
   }
-
-  static const _noGoalSelection = '__no_goal__';
 
   Widget _buildAccountBalancePreview({required bool isExpense}) {
     if (_accountBalanceLoading) {
@@ -1784,7 +1869,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     final afterColor = after < 0 ? AppColors.negative : AppColors.positive;
     return Container(
       margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
@@ -1795,10 +1880,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Saldo sekarang',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                const Text('Saldo sekarang'),
                 AppMoneyText(balance, compact: true),
               ],
             ),
@@ -1808,10 +1890,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(
-                  'Setelah transaksi',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                const Text('Saldo setelah disimpan'),
                 AppMoneyText(after, compact: true, color: afterColor),
                 if (after < 0)
                   Text(
@@ -1902,7 +1981,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             ],
           ),
           const SizedBox(height: 8),
-          SearchableDropdown(
+          SearchableDropdown<Account>(
             items: _accounts,
             selectedItem: selectedAccounts.isEmpty
                 ? null
@@ -1910,7 +1989,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             itemLabel: (account) =>
                 '${account.name} · ${_accountTypeLabel(account.type)}',
             itemId: (account) => account.id,
-            labelText: 'Rekening atau dompet',
+            labelText: isExpense
+                ? 'Rekening sumber pengeluaran'
+                : 'Rekening tujuan pemasukan',
             helperText: isExpense
                 ? 'Pengeluaran akan mengurangi saldo rekening ini.'
                 : 'Pemasukan akan menambah saldo rekening ini.',
@@ -1984,7 +2065,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     final selectedParties = options
         .where((party) => party.name == _partyName)
         .toList(growable: false);
-    return SearchableDropdown(
+    return SearchableDropdown<TransactionParty>(
       items: options,
       selectedItem: selectedParties.isEmpty ? null : selectedParties.first,
       itemLabel: (party) => party.details?.trim().isNotEmpty == true
@@ -1999,132 +2080,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       validator: isIncome
           ? (party) => party == null ? 'Pilih sumber pemasukan dulu.' : null
           : null,
-    );
-  }
-
-  Widget _buildGoalSelector(BuildContext context) {
-    if (_goalsLoading) return const LinearProgressIndicator();
-    final activeGoals = _goals
-        .where(
-          (goal) =>
-              goal.currentAmount < goal.targetAmount || goal.id == _goalId,
-        )
-        .toList(growable: false);
-    final selectedGoal = activeGoals
-        .where((goal) => goal.id == _goalId)
-        .firstOrNull;
-    final amount = parseRupiah(_amountController.text);
-    final projectedGoalAmount = selectedGoal == null
-        ? null
-        : selectedGoal.currentAmount + amount;
-    final progress = selectedGoal == null || selectedGoal.targetAmount <= 0
-        ? 0.0
-        : (selectedGoal.currentAmount / selectedGoal.targetAmount).clamp(
-            0.0,
-            1.0,
-          );
-    final projectedProgress =
-        selectedGoal == null ||
-            selectedGoal.targetAmount <= 0 ||
-            projectedGoalAmount == null
-        ? 0.0
-        : (projectedGoalAmount / selectedGoal.targetAmount).clamp(0.0, 1.0);
-
-    return AppCard(
-      color: AppColors.primarySoft.withValues(alpha: .52),
-      border: BorderSide(color: AppColors.primary.withValues(alpha: .35)),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.flag_outlined),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Uang terkumpul untuk target',
-                  style: Theme.of(context).textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              TextButton(
-                onPressed: _openGoalForm,
-                child: const Text('Buat target'),
-              ),
-            ],
-          ),
-          Text(
-            'Opsional. Target cuma mencatat progres; saldo rekening tetap berkurang satu kali.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 10),
-          if (activeGoals.isEmpty)
-            const Text('Belum ada target aktif. Kamu bisa melewati bagian ini.')
-          else ...[
-            DropdownButtonFormField<String>(
-              initialValue: _goalId ?? _noGoalSelection,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Pilih target (opsional)',
-                prefixIcon: Icon(Icons.track_changes_outlined),
-              ),
-              items: [
-                const DropdownMenuItem<String>(
-                  value: _noGoalSelection,
-                  child: Text('Tidak dialokasikan ke target'),
-                ),
-                ...activeGoals.map(
-                  (goal) => DropdownMenuItem<String>(
-                    value: goal.id,
-                    child: Text(
-                      '${goal.name} · ${formatRupiahInput(goal.currentAmount.toString())}/${formatRupiahInput(goal.targetAmount.toString())}',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-              onChanged: (value) => setState(
-                () => _goalId = value == _noGoalSelection ? null : value,
-              ),
-            ),
-            if (selectedGoal != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Terkumpul sekarang',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                  Text(
-                    '${(progress * 100).round()}%',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              LinearProgressIndicator(value: progress),
-              const SizedBox(height: 5),
-              Text(
-                '${formatRupiahInput(selectedGoal.currentAmount.toString())} dari ${formatRupiahInput(selectedGoal.targetAmount.toString())}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              if (amount > 0) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Setelah disimpan: ${formatRupiahInput(projectedGoalAmount!.toString())} (${(projectedProgress * 100).round()}%).',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ],
-          ],
-        ],
-      ),
     );
   }
 
@@ -2234,8 +2189,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       appBar: AppBar(
         title: Text(
           widget.existingTransaction == null
-              ? AppCopy.tambahTransaksi
-              : 'Ubah transaksi',
+              ? (isIncome ? 'Tambah pemasukan' : 'Tambah pengeluaran')
+              : (isIncome ? 'Ubah pemasukan' : 'Ubah pengeluaran'),
         ),
       ),
       body: Form(
@@ -2321,31 +2276,23 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                         ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 14),
-                  SegmentedButton<TransactionType>(
-                    expandedInsets: EdgeInsets.zero,
-                    segments: const [
-                      ButtonSegment(
-                        value: TransactionType.expense,
-                        label: Text(AppCopy.pengeluaran),
-                        icon: Icon(Icons.north_east_rounded),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: flowColor.withValues(alpha: .10),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Jenis transaksi: $flowLabel',
+                      style: TextStyle(
+                        color: flowColor,
+                        fontWeight: FontWeight.w900,
                       ),
-                      ButtonSegment(
-                        value: TransactionType.income,
-                        label: Text(AppCopy.pemasukan),
-                        icon: Icon(Icons.south_west_rounded),
-                      ),
-                    ],
-                    selected: {_type},
-                    onSelectionChanged: (value) {
-                      final nextType = value.first;
-                      setState(() {
-                        _type = nextType;
-                        _categoryId = null;
-                        if (nextType == TransactionType.income) {
-                          _goalId = null;
-                        }
-                      });
-                    },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
@@ -2475,13 +2422,26 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 ),
               ),
             if (_voiceText != null) const SizedBox(height: 12),
-            const AppSectionHeader(
-              title: 'Detail transaksi',
-              helpText: 'Pilih dulu rekening tempat uang masuk atau keluar, lalu lengkapi rincian lainnya.',
+            AppSectionHeader(
+              title: isIncome
+                  ? '1. Lokasi uang masuk'
+                  : '1. Lokasi uang keluar',
+              helpText: isIncome
+                  ? 'Pilih rekening tujuan. Saldo rekening ini akan bertambah setelah disimpan.'
+                  : 'Pilih rekening sumber. Saldo rekening ini akan berkurang setelah disimpan.',
             ),
             const SizedBox(height: 8),
             _buildAccountSelector(),
             const SizedBox(height: 16),
+            AppSectionHeader(
+              title: isIncome
+                  ? '2. Kategori pemasukan'
+                  : '2. Kategori pengeluaran',
+              helpText: isIncome
+                  ? 'Contoh: gaji, panen, bonus, atau pemberian.'
+                  : 'Contoh: belanja, listrik, BBM, makan, atau biaya admin.',
+            ),
+            const SizedBox(height: 8),
             if (_categoriesLoading)
               const LinearProgressIndicator()
             else if (categoryOptions.isEmpty)
@@ -2541,10 +2501,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 validator: (category) =>
                     category == null ? 'Pilih kategori dulu.' : null,
               ),
-            if (_type == TransactionType.expense) ...[
-              const SizedBox(height: 16),
-              _buildGoalSelector(context),
-              const SizedBox(height: 8),
+            if (_type == TransactionType.expense)
               AppCard(
                 color: Theme.of(context).colorScheme.primaryContainer
                     .withValues(alpha: .45),
@@ -2560,15 +2517,19 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Kategori ini akan dihitung otomatis ke pos Anggaran yang sesuai. Tidak perlu memilih pos lagi.',
+                        'Kategori ini akan dihitung otomatis ke pos Anggaran yang sesuai. Target uang terkumpul dicatat lewat menu khusus, bukan di sini.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ),
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            AppSectionHeader(
+              title: '3. Rincian tambahan',
+              helpText: 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
+            ),
+            const SizedBox(height: 4),
             ExpansionTile(
               initiallyExpanded:
                   _merchantId != null ||
@@ -2577,7 +2538,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               tilePadding: EdgeInsets.zero,
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               leading: const Icon(Icons.tune_outlined),
-              title: const Text('Rincian tambahan'),
+              title: const Text('Buka rincian tambahan'),
               subtitle: const Text(
                 'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
               ),
@@ -2663,6 +2624,11 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ],
             ),
             const SizedBox(height: 16),
+            const AppSectionHeader(
+              title: '4. Tag dan lampiran',
+              helpText: 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
+            ),
+            const SizedBox(height: 4),
             AppCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -2763,6 +2729,11 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ),
             ),
             const SizedBox(height: 16),
+            const AppSectionHeader(
+              title: '5. Rincian nota dan banyak item',
+              helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
+            ),
+            const SizedBox(height: 4),
             AppCard(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -2901,6 +2872,535 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   String _dateLabel(DateTime date) => formatTanggalLengkap(date);
 }
 
+class _NewEntryChoiceTile extends StatelessWidget {
+  const _NewEntryChoiceTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: .10),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: color.withValues(alpha: .16),
+                foregroundColor: color,
+                child: Icon(icon),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(subtitle),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: color),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class GoalContributionFormPage extends StatefulWidget {
+  const GoalContributionFormPage({super.key, this.existingTransaction});
+
+  final TransactionWithItems? existingTransaction;
+
+  @override
+  State<GoalContributionFormPage> createState() =>
+      _GoalContributionFormPageState();
+}
+
+class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
+  var _goals = <GoalEntity>[];
+  var _accounts = <Account>[];
+  String? _goalId;
+  String? _accountId;
+  DateTime _date = DateTime.now();
+  int? _accountBalance;
+  var _goalsLoading = true;
+  var _accountsLoading = true;
+  var _balanceLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existingTransaction;
+    if (existing != null) {
+      _goalId = existing.transaction.goalId;
+      _accountId = existing.transaction.accountId;
+      _date = existing.transaction.date;
+      _amountController.text = formatRupiahInput(
+        existing.transaction.amount.abs().toString(),
+      );
+      _noteController.text = existing.transaction.note ?? '';
+    }
+    _loadGoals();
+    _loadAccounts();
+  }
+
+  Future<void> _loadGoals() async {
+    final goals = await getIt<GetGoals>()(AppContext.householdId);
+    if (!mounted) return;
+    setState(() {
+      _goals = goals
+          .where(
+            (goal) =>
+                goal.currentAmount < goal.targetAmount || goal.id == _goalId,
+          )
+          .toList(growable: false);
+      _goalsLoading = false;
+    });
+  }
+
+  Future<void> _loadAccounts() async {
+    final accounts =
+        await (getIt<AppDatabase>().select(getIt<AppDatabase>().accounts)
+              ..where(
+                (table) =>
+                    table.householdId.equals(AppContext.householdId) &
+                    table.isArchived.equals(false),
+              )
+              ..orderBy([(table) => OrderingTerm.asc(table.name)]))
+            .get();
+    if (!mounted) return;
+    setState(() {
+      _accounts = accounts;
+      _accountsLoading = false;
+    });
+    await _loadBalance(_accountId);
+  }
+
+  Future<void> _loadBalance(String? accountId) async {
+    if (accountId == null) {
+      if (mounted) setState(() => _accountBalance = null);
+      return;
+    }
+    setState(() => _balanceLoading = true);
+    var balance = await getIt<GetAccountBookBalance>()(
+      AppContext.householdId,
+      accountId,
+    );
+    final existing = widget.existingTransaction;
+    if (existing != null && existing.transaction.accountId == accountId) {
+      balance -= existing.transaction.amount;
+    }
+    if (!mounted) return;
+    setState(() {
+      _accountBalance = balance;
+      _balanceLoading = false;
+    });
+  }
+
+  Future<void> _openGoalForm() async {
+    await Navigator.of(context)
+        .push<void>(MaterialPageRoute(builder: (_) => const GoalFormPage()));
+    if (!mounted) return;
+    await _loadGoals();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: _date,
+      helpText: 'Pilih tanggal alokasi',
+      cancelText: AppCopy.batal,
+      confirmText: AppCopy.selesai,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _date = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        _date.hour,
+        _date.minute,
+        _date.second,
+      );
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_date),
+      helpText: 'Pilih jam alokasi',
+      cancelText: AppCopy.batal,
+      confirmText: AppCopy.selesai,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _date = DateTime(
+        _date.year,
+        _date.month,
+        _date.day,
+        picked.hour,
+        picked.minute,
+        _date.second,
+      );
+    });
+  }
+
+  void _save() {
+    if (!_formKey.currentState!.validate()) return;
+    final amount = parseRupiah(_amountController.text);
+    final goal = _goals.where((item) => item.id == _goalId).firstOrNull;
+    if (goal == null || _accountId == null || amount <= 0) return;
+    Navigator.of(context).pop([
+      TransactionDraft(
+        type: TransactionType.expense,
+        categoryId: null,
+        owner: OwnerLabels.family,
+        date: _date,
+        amount: -amount,
+        note: _noteController.text.trim(),
+        source: 'goal_contribution',
+        accountId: _accountId,
+        goalId: goal.id,
+        items: const [],
+      ),
+    ]);
+  }
+
+  Widget _buildBalancePreview() {
+    if (_balanceLoading) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 10),
+        child: LinearProgressIndicator(minHeight: 3),
+      );
+    }
+    final balance = _accountBalance;
+    if (balance == null) return const SizedBox.shrink();
+    final amount = parseRupiah(_amountController.text);
+    final after = balance - amount;
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Saldo sebelum alokasi'),
+                AppMoneyText(balance, compact: true),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_rounded, size: 18),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text('Saldo setelah alokasi'),
+                AppMoneyText(
+                  after,
+                  compact: true,
+                  color: after < 0 ? AppColors.negative : AppColors.positive,
+                ),
+                if (after < 0)
+                  Text(
+                    'Saldo jadi minus',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: AppColors.negative,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedGoal = _goals.where((goal) => goal.id == _goalId).firstOrNull;
+    final amount = parseRupiah(_amountController.text);
+    final projected = selectedGoal == null
+        ? null
+        : selectedGoal.currentAmount + amount;
+    final progress = selectedGoal == null || selectedGoal.targetAmount <= 0
+        ? 0.0
+        : (selectedGoal.currentAmount / selectedGoal.targetAmount).clamp(
+            0.0,
+            1.0,
+          );
+    final projectedProgress =
+        selectedGoal == null || selectedGoal.targetAmount <= 0
+        ? 0.0
+        : (projected! / selectedGoal.targetAmount).clamp(0.0, 1.0);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          widget.existingTransaction == null
+              ? 'Isi target uang terkumpul'
+              : 'Ubah isi target',
+        ),
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            AppCard(
+              color: AppColors.primarySoft.withValues(alpha: .55),
+              border: BorderSide(color: AppColors.primary, width: 1.5),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Alokasi target',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Ini khusus untuk menambah progres target. Bukan transaksi belanja, bukan pemasukan, dan tidak menggandakan saldo rekening.',
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            AppSectionHeader(
+              title: '1. Pilih target',
+              helpText: 'Tentukan target yang ingin kamu tambah progresnya.',
+            ),
+            const SizedBox(height: 8),
+            if (_goalsLoading)
+              const LinearProgressIndicator()
+            else if (_goals.isEmpty)
+              AppCard(
+                color: Theme.of(context).colorScheme.primaryContainer
+                    .withValues(alpha: .45),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Belum ada target aktif',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Buat target dulu, misalnya dana darurat, sekolah, atau kebutuhan tertentu.',
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _openGoalForm,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Buat target sekarang'),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              DropdownButtonFormField<String>(
+                initialValue: _goalId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Target uang terkumpul · wajib dipilih',
+                  helperText: 'Target tidak mengubah saldo keluarga menjadi saldo kedua.',
+                  prefixIcon: Icon(Icons.flag_outlined),
+                ),
+                items: _goals
+                    .map(
+                      (goal) => DropdownMenuItem<String>(
+                        value: goal.id,
+                        child: Text(goal.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => setState(() => _goalId = value),
+                validator: (value) =>
+                    value == null ? 'Pilih target dulu.' : null,
+              ),
+              if (selectedGoal != null) ...[
+                const SizedBox(height: 12),
+                AppCard(
+                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Progress ${selectedGoal.name}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(value: progress),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${formatRupiahInput(selectedGoal.currentAmount.toString())} dari ${formatRupiahInput(selectedGoal.targetAmount.toString())} · ${(progress * 100).round()}%',
+                      ),
+                      if (amount > 0) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Setelah disimpan: ${formatRupiahInput(projected!.toString())} · ${(projectedProgress * 100).round()}%',
+                          style: TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 18),
+            AppSectionHeader(
+              title: '2. Ambil dana dari rekening',
+              helpText: 'Pilih lokasi uang yang dipakai untuk alokasi target.',
+            ),
+            const SizedBox(height: 8),
+            if (_accountsLoading)
+              const LinearProgressIndicator()
+            else if (_accounts.isEmpty)
+              const Text('Tambahkan rekening atau tunai di Data Utama dulu.')
+            else
+              AppCard(
+                color: AppColors.negativeSoft.withValues(alpha: .28),
+                border: const BorderSide(color: AppColors.negative, width: 1.4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Rekening sumber dana · wajib dipilih',
+                      style: TextStyle(
+                        color: AppColors.negative,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SearchableDropdown<Account>(
+                      items: _accounts,
+                      selectedItem: _accounts
+                          .where((account) => account.id == _accountId)
+                          .firstOrNull,
+                      itemLabel: (account) => account.name,
+                      itemId: (account) => account.id,
+                      labelText: 'Uang diambil dari',
+                      helperText: 'Saldo rekening ini berkurang satu kali saat disimpan.',
+                      searchHintText: 'Cari rekening atau dompet',
+                      cacheKey: 'target.rekening_sumber',
+                      onChanged: (account) {
+                        setState(() => _accountId = account?.id);
+                        _loadBalance(account?.id);
+                      },
+                      validator: (account) => account == null
+                          ? 'Pilih rekening sumber dulu.'
+                          : null,
+                    ),
+                    _buildBalancePreview(),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 18),
+            AppSectionHeader(
+              title: '3. Isi nominal alokasi',
+              helpText: 'Masukkan jumlah uang yang mau ditambahkan ke target.',
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              inputFormatters: const [RupiahInputFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'Nominal yang dialokasikan · wajib diisi',
+                prefixText: 'Rp ',
+                hintText: '0',
+                helperText: 'Nominal ini mengurangi rekening sumber dan menambah progress target.',
+              ),
+              onChanged: (_) => setState(() {}),
+              validator: (value) => parseRupiah(value ?? '') <= 0
+                  ? 'Isi nominal alokasi dulu.'
+                  : null,
+            ),
+            const SizedBox(height: 18),
+            AppSectionHeader(
+              title: '4. Waktu dan catatan',
+              helpText: 'Tanggal bisa diubah kalau alokasi dicatat belakangan.',
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: const Text('Tanggal kejadian alokasi'),
+              subtitle: Text(formatTanggalLengkap(_date)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _pickDate,
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_outlined),
+              title: const Text('Jam kejadian alokasi'),
+              subtitle: Text(formatJam(_date)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _pickTime,
+            ),
+            TextFormField(
+              controller: _noteController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Catatan target · opsional',
+                hintText: 'Contoh: sisihan dari pemasukan minggu ini',
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _goals.isEmpty || _accounts.isEmpty ? null : _save,
+              icon: const Icon(Icons.check_rounded),
+              label: const Text('Simpan alokasi target'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 enum TransactionType { income, expense }
 
 class TransactionDraft {
@@ -2927,7 +3427,7 @@ class TransactionDraft {
   });
 
   final TransactionType type;
-  final String categoryId;
+  final String? categoryId;
   final String owner;
   final DateTime date;
   final int amount;
