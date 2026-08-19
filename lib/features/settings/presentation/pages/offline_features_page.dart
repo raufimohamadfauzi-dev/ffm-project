@@ -358,7 +358,7 @@ class OfflineFeaturesPage extends StatelessWidget {
           'Buka tab Anggaran atau Menu lainnya > Anggaran berbasis pos.',
           'Ketuk pos yang mau diatur, lalu isi uang yang dibagi ke pos tersebut.',
           'Cek status Aman, Hampir habis, atau Melewati batas.',
-          'Pakai Pindah dana kalau perlu menggeser uang antarpos.',
+          'Pakai Atur ulang pos kalau perlu menggeser alokasi antarpos. Ini tidak memindahkan saldo Tunai, Rekening, atau Dompet digital.',
         ],
         actionLabel: 'Buka Anggaran berbasis pos',
         onOpen: (context) =>

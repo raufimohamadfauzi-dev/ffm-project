@@ -887,7 +887,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Transfer antar rekening',
+            tooltip: 'Transfer saldo antar tempat',
             onPressed: _openTransfer,
             icon: const Icon(Icons.swap_horiz_rounded),
           ),
@@ -3688,7 +3688,7 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
         children: [
           Icon(Icons.swap_horiz_rounded),
           SizedBox(width: 8),
-          Text('Transfer antar rekening'),
+          Text('Transfer saldo antar tempat'),
         ],
       ),
       content: SizedBox(
@@ -3701,7 +3701,7 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Pindahkan uang dari satu tempat ke tempat lain. Transfer tidak dihitung sebagai pemasukan atau pengeluaran.',
+                  'Pindahkan saldo dari Rekening, Tunai, atau Dompet digital ke tempat lain. Transfer tidak dihitung sebagai pemasukan atau pengeluaran.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 16),
@@ -3712,9 +3712,9 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
                       .firstOrNull,
                   itemLabel: _accountLabel,
                   itemId: (account) => account.id,
-                  labelText: 'Dari rekening',
-                  searchHintText: 'Cari rekening asal',
-                  cacheKey: 'transfer.rekening_asal',
+                  labelText: 'Dari tempat uang',
+                  searchHintText: 'Cari rekening, tunai, atau dompet',
+                  cacheKey: 'transfer.tempat_asal',
                   onChanged: (account) =>
                       setState(() => _fromAccountId = account?.id),
                   validator: (account) =>
@@ -3728,9 +3728,9 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
                       .firstOrNull,
                   itemLabel: _accountLabel,
                   itemId: (account) => account.id,
-                  labelText: 'Ke rekening',
-                  searchHintText: 'Cari rekening tujuan',
-                  cacheKey: 'transfer.rekening_tujuan',
+                  labelText: 'Ke tempat uang',
+                  searchHintText: 'Cari rekening, tunai, atau dompet',
+                  cacheKey: 'transfer.tempat_tujuan',
                   onChanged: (account) =>
                       setState(() => _toAccountId = account?.id),
                   validator: (account) =>

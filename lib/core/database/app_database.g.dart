@@ -7541,6 +7541,21 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _createdAtMeta = const VerificationMeta(
     'createdAt',
   );
@@ -7572,6 +7587,7 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
     value,
     placement,
     note,
+    isArchived,
     createdAt,
     updatedAt,
   ];
@@ -7637,6 +7653,12 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         note.isAcceptableOrUnknown(data['note']!, _noteMeta),
       );
     }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
     if (data.containsKey('created_at')) {
       context.handle(
         _createdAtMeta,
@@ -7688,6 +7710,10 @@ class $AssetsTable extends Assets with TableInfo<$AssetsTable, Asset> {
         DriftSqlType.string,
         data['${effectivePrefix}note'],
       ),
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
       createdAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
@@ -7713,6 +7739,7 @@ class Asset extends DataClass implements Insertable<Asset> {
   final int value;
   final String placement;
   final String? note;
+  final bool isArchived;
   final DateTime createdAt;
   final DateTime? updatedAt;
   const Asset({
@@ -7723,6 +7750,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     required this.value,
     required this.placement,
     this.note,
+    required this.isArchived,
     required this.createdAt,
     this.updatedAt,
   });
@@ -7738,6 +7766,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    map['is_archived'] = Variable<bool>(isArchived);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || updatedAt != null) {
       map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -7754,6 +7783,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       value: Value(value),
       placement: Value(placement),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      isArchived: Value(isArchived),
       createdAt: Value(createdAt),
       updatedAt: updatedAt == null && nullToAbsent
           ? const Value.absent()
@@ -7774,6 +7804,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       value: serializer.fromJson<int>(json['value']),
       placement: serializer.fromJson<String>(json['placement']),
       note: serializer.fromJson<String?>(json['note']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
     );
@@ -7789,6 +7820,7 @@ class Asset extends DataClass implements Insertable<Asset> {
       'value': serializer.toJson<int>(value),
       'placement': serializer.toJson<String>(placement),
       'note': serializer.toJson<String?>(note),
+      'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
     };
@@ -7802,6 +7834,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     int? value,
     String? placement,
     Value<String?> note = const Value.absent(),
+    bool? isArchived,
     DateTime? createdAt,
     Value<DateTime?> updatedAt = const Value.absent(),
   }) => Asset(
@@ -7812,6 +7845,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     value: value ?? this.value,
     placement: placement ?? this.placement,
     note: note.present ? note.value : this.note,
+    isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
   );
@@ -7826,6 +7860,9 @@ class Asset extends DataClass implements Insertable<Asset> {
       value: data.value.present ? data.value.value : this.value,
       placement: data.placement.present ? data.placement.value : this.placement,
       note: data.note.present ? data.note.value : this.note,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -7841,6 +7878,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           ..write('value: $value, ')
           ..write('placement: $placement, ')
           ..write('note: $note, ')
+          ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -7856,6 +7894,7 @@ class Asset extends DataClass implements Insertable<Asset> {
     value,
     placement,
     note,
+    isArchived,
     createdAt,
     updatedAt,
   );
@@ -7870,6 +7909,7 @@ class Asset extends DataClass implements Insertable<Asset> {
           other.value == this.value &&
           other.placement == this.placement &&
           other.note == this.note &&
+          other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
 }
@@ -7882,6 +7922,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
   final Value<int> value;
   final Value<String> placement;
   final Value<String?> note;
+  final Value<bool> isArchived;
   final Value<DateTime> createdAt;
   final Value<DateTime?> updatedAt;
   final Value<int> rowid;
@@ -7893,6 +7934,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.value = const Value.absent(),
     this.placement = const Value.absent(),
     this.note = const Value.absent(),
+    this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7905,6 +7947,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     this.value = const Value.absent(),
     this.placement = const Value.absent(),
     this.note = const Value.absent(),
+    this.isArchived = const Value.absent(),
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -7921,6 +7964,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Expression<int>? value,
     Expression<String>? placement,
     Expression<String>? note,
+    Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -7933,6 +7977,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       if (value != null) 'value': value,
       if (placement != null) 'placement': placement,
       if (note != null) 'note': note,
+      if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -7947,6 +7992,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     Value<int>? value,
     Value<String>? placement,
     Value<String?>? note,
+    Value<bool>? isArchived,
     Value<DateTime>? createdAt,
     Value<DateTime?>? updatedAt,
     Value<int>? rowid,
@@ -7959,6 +8005,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
       value: value ?? this.value,
       placement: placement ?? this.placement,
       note: note ?? this.note,
+      isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -7989,6 +8036,9 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
@@ -8011,6 +8061,7 @@ class AssetsCompanion extends UpdateCompanion<Asset> {
           ..write('value: $value, ')
           ..write('placement: $placement, ')
           ..write('note: $note, ')
+          ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -13578,24 +13629,26 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
-  required String id,
-  required String name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$HouseholdsTableCreateCompanionBuilder =
+    HouseholdsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$HouseholdsTableUpdateCompanionBuilder =
+    HouseholdsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -13794,26 +13847,28 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<String?> parentId,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<String?> parentId,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$CategoriesTableCreateCompanionBuilder =
+    CategoriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<String?> parentId,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$CategoriesTableUpdateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<String?> parentId,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -14026,24 +14081,26 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> details,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> details,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$MerchantsTableCreateCompanionBuilder =
+    MerchantsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> details,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$MerchantsTableUpdateCompanionBuilder =
+    MerchantsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> details,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -14239,22 +14296,24 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$TagsTableCreateCompanionBuilder =
+    TagsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$TagsTableUpdateCompanionBuilder =
+    TagsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -14433,28 +14492,30 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$AccountsTableCreateCompanionBuilder =
+    AccountsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AccountsTableUpdateCompanionBuilder =
+    AccountsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -16201,38 +16262,40 @@ typedef $$AttachmentsTableProcessedTableManager =
       Attachment,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
-  required String id,
-  required String householdId,
-  required String fromAccountId,
-  required String toAccountId,
-  required int amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  required DateTime date,
-  required DateTime recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> fromAccountId,
-  Value<String> toAccountId,
-  Value<int> amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  Value<DateTime> date,
-  Value<DateTime> recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$TransfersTableCreateCompanionBuilder =
+    TransfersCompanion Function({
+      required String id,
+      required String householdId,
+      required String fromAccountId,
+      required String toAccountId,
+      required int amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      required DateTime date,
+      required DateTime recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TransfersTableUpdateCompanionBuilder =
+    TransfersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> fromAccountId,
+      Value<String> toAccountId,
+      Value<int> amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      Value<DateTime> date,
+      Value<DateTime> recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -17277,30 +17340,34 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -17343,6 +17410,11 @@ class $$AssetsTableFilterComposer
 
   ColumnFilters<String> get note => $composableBuilder(
     column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17401,6 +17473,11 @@ class $$AssetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
@@ -17444,6 +17521,11 @@ class $$AssetsTableAnnotationComposer
   GeneratedColumn<String> get note =>
       $composableBuilder(column: $table.note, builder: (column) => column);
 
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
@@ -17486,6 +17568,7 @@ class $$AssetsTableTableManager
                 Value<int> value = const Value.absent(),
                 Value<String> placement = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17497,6 +17580,7 @@ class $$AssetsTableTableManager
                 value: value,
                 placement: placement,
                 note: note,
+                isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -17510,6 +17594,7 @@ class $$AssetsTableTableManager
                 Value<int> value = const Value.absent(),
                 Value<String> placement = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17521,6 +17606,7 @@ class $$AssetsTableTableManager
                 value: value,
                 placement: placement,
                 note: note,
+                isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -17547,30 +17633,32 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required int targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<int> targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$GoalsTableCreateCompanionBuilder =
+    GoalsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required int targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$GoalsTableUpdateCompanionBuilder =
+    GoalsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<int> targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({

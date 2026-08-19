@@ -8,7 +8,7 @@ import 'package:ffm_manager/features/transaction/domain/usecases/transaction_cru
 
 void main() {
   test(
-    'aset bisa disimpan, diubah, dibaca, lalu dihapus dari database',
+    'aset bisa disimpan, diubah, dibaca, lalu diarsipkan tanpa hapus permanen',
     () async {
       final database = createInMemoryDatabaseForTests();
       addTearDown(database.close);
@@ -51,8 +51,12 @@ void main() {
       expect(assets.single.value, 16500000);
       expect(assets.single.placement, 'Garasi');
 
-      await DeleteAsset(database)(AppContext.householdId, 'asset-motor');
+      await ArchiveAsset(database)(AppContext.householdId, 'asset-motor');
       expect(await GetAssets(database)(AppContext.householdId), isEmpty);
+      final archived = await (database.select(
+        database.assets,
+      )..where((row) => row.id.equals('asset-motor'))).getSingle();
+      expect(archived.isArchived, isTrue);
     },
   );
 

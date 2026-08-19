@@ -10,7 +10,11 @@ class GetAssets {
   Future<List<AssetEntity>> call(String householdId) async {
     final rows =
         await (database.select(database.assets)
-              ..where((row) => row.householdId.equals(householdId))
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false),
+              )
               ..orderBy([(row) => OrderingTerm.asc(row.name)]))
             .get();
     return rows
@@ -25,6 +29,7 @@ class GetAssets {
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             note: row.note,
+            isArchived: row.isArchived,
           ),
         )
         .toList(growable: false);
@@ -49,19 +54,25 @@ class SaveAsset {
             note: Value(entity.note),
             createdAt: entity.createdAt,
             updatedAt: Value(entity.updatedAt ?? DateTime.now()),
+            isArchived: Value(entity.isArchived),
           ),
         );
   }
 }
 
-class DeleteAsset {
-  const DeleteAsset(this.database);
+class ArchiveAsset {
+  const ArchiveAsset(this.database);
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
-    await (database.delete(database.assets)..where(
+    await (database.update(database.assets)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
-        .go();
+        .write(
+          AssetsCompanion(
+            isArchived: const Value(true),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
   }
 }

@@ -205,6 +205,7 @@ class Assets extends Table {
   IntColumn get value => integer().withDefault(const Constant(0))();
   TextColumn get placement => text().withDefault(const Constant('Keluarga'))();
   TextColumn get note => text().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
 

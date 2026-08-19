@@ -9,6 +9,7 @@ class AssetEntity {
     required this.createdAt,
     this.updatedAt,
     this.note,
+    this.isArchived = false,
   });
 
   final String id;
@@ -20,4 +21,5 @@ class AssetEntity {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final String? note;
+  final bool isArchived;
 }

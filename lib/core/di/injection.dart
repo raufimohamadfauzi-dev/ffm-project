@@ -22,7 +22,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
   getIt.registerLazySingleton<GetAssets>(() => GetAssets(db));
   getIt.registerLazySingleton<SaveAsset>(() => SaveAsset(db));
-  getIt.registerLazySingleton<DeleteAsset>(() => DeleteAsset(db));
+  getIt.registerLazySingleton<ArchiveAsset>(() => ArchiveAsset(db));
   getIt.registerLazySingleton<GetGoals>(() => GetGoals(db));
   getIt.registerLazySingleton<GetGoal>(() => GetGoal(db));
   getIt.registerLazySingleton<SaveGoal>(() => SaveGoal(db));

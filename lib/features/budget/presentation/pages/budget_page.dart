@@ -293,11 +293,11 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     await showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Riwayat pindah dana'),
+        title: const Text('Riwayat atur ulang alokasi'),
         content: SizedBox(
           width: double.maxFinite,
           child: _transfers.isEmpty
-              ? const Text('Belum ada dana yang dipindahkan bulan ini.')
+              ? const Text('Belum ada alokasi yang diatur ulang bulan ini.')
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: _transfers.length,
@@ -424,7 +424,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
             ],
           ),
           IconButton(
-            tooltip: 'Riwayat pindah dana',
+            tooltip: 'Riwayat atur ulang alokasi',
             onPressed: _loading ? null : _showTransfers,
             icon: const Icon(Icons.history_outlined),
           ),
@@ -548,7 +548,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _loading ? null : _transferFunds,
         icon: const Icon(Icons.swap_horiz),
-        label: const Text('Pindah dana'),
+        label: const Text('Atur ulang pos'),
       ),
     );
   }
@@ -958,7 +958,7 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Pindah dana antarpos'),
+      title: const Text('Atur ulang alokasi antarpos'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -970,8 +970,8 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
                   .firstOrNull,
               itemLabel: (envelope) => envelope.name,
               itemId: (envelope) => envelope.id,
-              labelText: 'Dari pos',
-              searchHintText: 'Cari pos asal',
+              labelText: 'Dari pos anggaran',
+              searchHintText: 'Cari pos anggaran asal',
               cacheKey: 'anggaran.pos_asal',
               onChanged: (envelope) => setState(() => _fromId = envelope?.id),
             ),
@@ -983,8 +983,8 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
                   .firstOrNull,
               itemLabel: (envelope) => envelope.name,
               itemId: (envelope) => envelope.id,
-              labelText: 'Ke pos',
-              searchHintText: 'Cari pos tujuan',
+              labelText: 'Ke pos anggaran',
+              searchHintText: 'Cari pos anggaran tujuan',
               cacheKey: 'anggaran.pos_tujuan',
               onChanged: (envelope) => setState(() => _toId = envelope?.id),
             ),
@@ -994,7 +994,7 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
               keyboardType: TextInputType.number,
               inputFormatters: const [RupiahInputFormatter()],
               decoration: const InputDecoration(
-                labelText: 'Nominal yang dipindah',
+                labelText: 'Nominal alokasi yang diatur ulang',
                 prefixText: 'Rp ',
               ),
             ),
@@ -1007,7 +1007,7 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Nominal tidak boleh lebih besar dari sisa pos asal. Pemindahan ini hanya mengatur pembagian anggaran, bukan membuat saldo baru.',
+              'Nominal tidak boleh lebih besar dari sisa pos asal. Fitur ini hanya mengatur ulang batas antarpos anggaran; uang di Tunai, Rekening, dan Dompet digital tidak berpindah.',
             ),
           ],
         ),
@@ -1017,7 +1017,10 @@ class _EnvelopeTransferDialogState extends State<EnvelopeTransferDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Batal'),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Pindahkan')),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Atur ulang alokasi'),
+        ),
       ],
     );
   }
@@ -1257,7 +1260,7 @@ class _EnvelopeCard extends StatelessWidget {
               ),
               if (transferredIn > 0 || transferredOut > 0)
                 Text(
-                  'Pindah +${_money(transferredIn)} / -${_money(transferredOut)}',
+                  'Atur ulang +${_money(transferredIn)} / -${_money(transferredOut)}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
             ],

@@ -50,13 +50,13 @@ class _AssetListPageState extends State<AssetListPage> {
     if (saved == true) await _load();
   }
 
-  Future<void> _delete(AssetEntity item) async {
+  Future<void> _archive(AssetEntity item) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Hapus aset?'),
+        title: const Text('Arsipkan aset?'),
         content: Text(
-          'Aset “${item.name}” akan dihapus dari daftar. Aset tidak mengubah saldo rekening dan tidak terkait transaksi kas.',
+          'Aset “${item.name}” akan disembunyikan dari daftar aktif, tetapi datanya tetap tersimpan. Aset tidak mengubah saldo rekening dan tidak terkait transaksi kas.',
         ),
         actions: [
           TextButton(
@@ -65,16 +65,16 @@ class _AssetListPageState extends State<AssetListPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Hapus'),
+            child: const Text('Arsipkan'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    await getIt<DeleteAsset>()(AppContext.householdId, item.id);
+    await getIt<ArchiveAsset>()(AppContext.householdId, item.id);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Aset sudah dihapus dari daftar.')),
+      const SnackBar(content: Text('Aset sudah diarsipkan. Data tetap aman.')),
     );
     await _load();
   }
@@ -166,8 +166,8 @@ class _AssetListPageState extends State<AssetListPage> {
                             onSelected: (value) {
                               if (value == 'edit') {
                                 _edit(item);
-                              } else if (value == 'delete') {
-                                _delete(item);
+                              } else if (value == 'archive') {
+                                _archive(item);
                               }
                             },
                             itemBuilder: (_) => const [
@@ -180,11 +180,11 @@ class _AssetListPageState extends State<AssetListPage> {
                                 ),
                               ),
                               PopupMenuItem(
-                                value: 'delete',
+                                value: 'archive',
                                 child: ListTile(
                                   contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.delete_outline),
-                                  title: Text('Hapus aset'),
+                                  leading: Icon(Icons.archive_outlined),
+                                  title: Text('Arsipkan aset'),
                                 ),
                               ),
                             ],

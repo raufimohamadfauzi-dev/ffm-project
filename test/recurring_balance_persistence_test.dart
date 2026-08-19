@@ -125,4 +125,89 @@ void main() {
       expect(balance, 125000);
     },
   );
+
+  test('transfer rekening ke Tunai mengubah lokasi uang dan memisahkan biaya admin', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    await DatabaseSeed.ensure(database);
+
+    final now = DateTime(2026, 8, 20, 11);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account-seabank-transfer',
+            householdId: AppContext.householdId,
+            name: 'SeaBank',
+            type: 'bank',
+            openingBalance: const Value(1000000),
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'account-cash-transfer',
+            householdId: AppContext.householdId,
+            name: 'Tunai',
+            type: 'cash',
+            createdAt: now,
+          ),
+        );
+
+    final feeId = 'transfer-fee-test';
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: feeId,
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -1000,
+            accountId: const Value('account-seabank-transfer'),
+            source: const Value('transfer_fee'),
+            note: const Value('Biaya admin pencairan ke Tunai'),
+            date: now,
+            recordedAt: now,
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.transfers)
+        .insert(
+          TransfersCompanion.insert(
+            id: 'transfer-to-cash-test',
+            householdId: AppContext.householdId,
+            fromAccountId: 'account-seabank-transfer',
+            toAccountId: 'account-cash-transfer',
+            amount: 250000,
+            adminFee: const Value(1000),
+            feeTransactionId: Value(feeId),
+            date: now,
+            recordedAt: now,
+          ),
+        );
+
+    final sourceBalance = await GetAccountBookBalance(database)(
+      AppContext.householdId,
+      'account-seabank-transfer',
+      asOf: now.add(const Duration(minutes: 1)),
+    );
+    final cashBalance = await GetAccountBookBalance(database)(
+      AppContext.householdId,
+      'account-cash-transfer',
+      asOf: now.add(const Duration(minutes: 1)),
+    );
+    final fee = await (database.select(
+      database.transactions,
+    )..where((row) => row.id.equals(feeId))).getSingle();
+
+    expect(sourceBalance, 749000);
+    expect(cashBalance, 250000);
+    expect(fee.type, 'expense');
+    expect(fee.amount, -1000);
+    expect(fee.accountId, 'account-seabank-transfer');
+    expect(fee.source, 'transfer_fee');
+  });
 }

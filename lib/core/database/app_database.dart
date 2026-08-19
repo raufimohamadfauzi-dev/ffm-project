@@ -42,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 25;
+  int get schemaVersion => 26;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -83,6 +83,9 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 25) {
         await _seedInitialData();
+      }
+      if (from < 26) {
+        await m.addColumn(assets, assets.isArchived);
       }
       if (from < 20) {
         await _seedInitialData();
