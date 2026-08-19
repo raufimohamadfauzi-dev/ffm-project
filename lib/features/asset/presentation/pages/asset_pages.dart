@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/entities/asset_entity.dart';
 import '../../domain/usecases/asset_crud_usecases.dart';
 
@@ -279,6 +280,17 @@ class _AssetFormPageState extends State<AssetFormPage> {
               icon: Icons.info_outline,
             ),
             const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.event_note_outlined),
+              title: const Text('Tanggal dicatat'),
+              subtitle: HijriDateText(
+                date: widget.initial?.createdAt ?? DateTime.now(),
+                includeSeconds: true,
+                compact: true,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _name,
               textInputAction: TextInputAction.next,

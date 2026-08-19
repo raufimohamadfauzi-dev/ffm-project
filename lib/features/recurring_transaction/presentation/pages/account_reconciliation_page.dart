@@ -7,6 +7,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/usecases/recurring_transaction_crud_usecases.dart';
 
 class AccountReconciliationPage extends StatefulWidget {
@@ -145,9 +146,16 @@ class _AccountReconciliationPageState extends State<AccountReconciliationPage> {
                         child: Icon(Icons.account_balance_wallet_outlined),
                       ),
                       title: Text(item.account.name),
-                      subtitle: Text(
-                        'Saldo buku\n${_balanceLabel(item.bookBalance)}'
-                        '${item.latest == null ? '' : '\nTerakhir dicek ${_stamp(item.latest!.checkedAt)}\nSaldo nyata ${_balanceLabel(item.latest!.actualBalance)} · Selisih ${_balanceLabel(item.latest!.difference)}'}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Saldo buku\n${_balanceLabel(item.bookBalance)}'
+                            '${item.latest == null ? '' : '\nTerakhir dicek ${_stamp(item.latest!.checkedAt)}\nSaldo nyata ${_balanceLabel(item.latest!.actualBalance)} · Selisih ${_balanceLabel(item.latest!.difference)}'}',
+                          ),
+                          if (item.latest != null)
+                            HijriDateLabel(date: item.latest!.checkedAt),
+                        ],
                       ),
                       isThreeLine: item.latest != null,
                       trailing: const Icon(Icons.chevron_right),
@@ -189,8 +197,14 @@ class _AccountReconciliationPageState extends State<AccountReconciliationPage> {
                         title: Text(
                           '${_balanceLabel(log.actualBalance)} · Selisih ${_balanceLabel(log.difference)}',
                         ),
-                        subtitle: Text(
-                          '${_accountName(overview.balances, log.accountId)} · ${_stamp(log.checkedAt)}\nID ${log.id}',
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_accountName(overview.balances, log.accountId)} · ${_stamp(log.checkedAt)}\nID ${log.id}',
+                            ),
+                            HijriDateLabel(date: log.checkedAt),
+                          ],
                         ),
                         isThreeLine: true,
                       ),
@@ -408,8 +422,14 @@ class _ReconciliationDialogState extends State<_ReconciliationDialog> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_outlined),
                   title: const Text('Tanggal pemeriksaan'),
-                  subtitle: Text(
-                    '${formatTanggalLengkap(_date)} ${_stamp(_date).substring(11)}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${formatTanggalLengkap(_date)} ${_stamp(_date).substring(11)}',
+                      ),
+                      HijriDateLabel(date: _date),
+                    ],
                   ),
                   trailing: TextButton(
                     onPressed: _pickDate,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/entities/liability_entity.dart';
 
 class LiabilityDetailPage extends StatelessWidget {
@@ -62,6 +63,7 @@ class LiabilityDetailPage extends StatelessWidget {
                 ),
                 ListTile(
                   title: const Text('Jatuh tempo'),
+                  subtitle: HijriDateLabel(date: liability.dueDate),
                   trailing: Text(
                     '${liability.dueDate.day}/${liability.dueDate.month}/${liability.dueDate.year}',
                   ),

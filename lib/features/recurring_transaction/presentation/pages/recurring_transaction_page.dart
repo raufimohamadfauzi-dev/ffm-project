@@ -6,6 +6,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/usecases/recurring_transaction_crud_usecases.dart';
 
 class RecurringTransactionPage extends StatefulWidget {
@@ -206,9 +207,15 @@ class _RecurringTransactionPageState extends State<RecurringTransactionPage> {
                           ),
                         ),
                         title: Text(rule.name),
-                        subtitle: Text(
-                          '${_typeLabel(rule.type)} · ${_periodLabel(rule.periodType)}\n'
-                          '${_amountLabel(rule)} · Mulai ${formatTanggalLengkap(rule.startDate)}',
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${_typeLabel(rule.type)} · ${_periodLabel(rule.periodType)}\n'
+                              '${_amountLabel(rule)} · Mulai ${formatTanggalLengkap(rule.startDate)}',
+                            ),
+                            HijriDateLabel(date: rule.startDate),
+                          ],
                         ),
                         isThreeLine: true,
                         trailing: PopupMenuButton<String>(
@@ -640,7 +647,13 @@ class _RecurringEditorDialogState extends State<_RecurringEditorDialog> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_outlined),
                   title: const Text('Mulai berlaku'),
-                  subtitle: Text(formatTanggalLengkap(_startDate)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(formatTanggalLengkap(_startDate)),
+                      HijriDateLabel(date: _startDate),
+                    ],
+                  ),
                   trailing: TextButton(
                     onPressed: _pickDate,
                     child: const Text('Ganti'),

@@ -13,6 +13,7 @@ import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 
 enum _BudgetSort {
   nominalTerbesar,
@@ -843,10 +844,12 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
               ),
             ),
             const SizedBox(height: 6),
+            HijriDateLabel(date: _startDate),
             Text(
               'Selesai: ${formatTanggalLengkap(_endDate, includeSeconds: false)} (${_periodName(_periodType)})',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            HijriDateLabel(date: _endDate),
             const SizedBox(height: 12),
             SearchableDropdown<int>(
               items: const [70, 80, 90],
@@ -1207,9 +1210,18 @@ class _EnvelopeCard extends StatelessWidget {
           ),
           if (envelope.allocated > 0) ...[
             const SizedBox(height: 4),
-            Text(
-              '${envelope.periodLabel} • ${(progressValue * 100).toStringAsFixed(1)}% terpakai',
-              style: Theme.of(context).textTheme.bodySmall,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${envelope.periodLabel} • ${(progressValue * 100).toStringAsFixed(1)}% terpakai',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                HijriDateRangeLabel(
+                  start: envelope.startDate,
+                  end: envelope.endDate,
+                ),
+              ],
             ),
           ],
           const SizedBox(height: 8),

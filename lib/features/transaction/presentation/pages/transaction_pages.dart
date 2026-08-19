@@ -16,6 +16,7 @@ import '../../../../core/ownership/owner_labels.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../data/services/offline_ai_engine_service.dart';
 import '../../data/services/receipt_ocr_service.dart';
 import '../../data/services/voice_transaction_parser.dart';
@@ -1107,9 +1108,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
                             ],
                             const SizedBox(height: 4),
                             Text(
-                              'Dipakai oleh: ${item.owner} • ${_dateLabel(item.date)}',
+                              'Dipakai oleh: ${item.owner}',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.inkMuted),
+                            ),
+                            const SizedBox(height: 2),
+                            HijriDateText(
+                              date: item.date,
+                              includeSeconds: true,
+                              compact: true,
+                              color: AppColors.inkMuted,
                             ),
                           ],
                         ),
@@ -2588,7 +2596,13 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.calendar_today_outlined),
                   title: const Text('Tanggal kejadian'),
-                  subtitle: Text(_dateLabel(_date)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_dateLabel(_date)),
+                      HijriDateLabel(date: _date),
+                    ],
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _pickDate,
                 ),
@@ -3368,7 +3382,13 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.calendar_today_outlined),
               title: const Text('Tanggal kejadian alokasi'),
-              subtitle: Text(formatTanggalLengkap(_date)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(formatTanggalLengkap(_date)),
+                  HijriDateLabel(date: _date),
+                ],
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _pickDate,
             ),
@@ -3752,8 +3772,14 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.event_outlined),
                   title: const Text('Tanggal'),
-                  subtitle: Text(
-                    '${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}/${_date.year}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}/${_date.year}',
+                      ),
+                      HijriDateLabel(date: _date),
+                    ],
                   ),
                   trailing: TextButton(
                     onPressed: _pickDate,
@@ -3854,10 +3880,11 @@ class _TransferHistoryCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 4),
-                Text(
-                  dateLabel(transfer.date),
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.inkMuted),
+                HijriDateText(
+                  date: transfer.date,
+                  includeSeconds: true,
+                  compact: true,
+                  color: AppColors.inkMuted,
                 ),
               ],
             ),
@@ -5600,9 +5627,16 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
                   const Icon(Icons.event_outlined),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      'Tanggal kejadian\n${formatTanggalLengkap(_day, includeSeconds: false)}',
-                      style: Theme.of(context).textTheme.titleSmall,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tanggal kejadian',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        Text(formatTanggalLengkap(_day, includeSeconds: false)),
+                        HijriDateLabel(date: _day),
+                      ],
                     ),
                   ),
                   OutlinedButton(

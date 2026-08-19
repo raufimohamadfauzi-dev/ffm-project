@@ -5,6 +5,7 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
 import '../../../receivable/presentation/pages/receivable_pages.dart';
 import '../../domain/entities/liability_entity.dart';
@@ -167,8 +168,14 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                     child: Icon(Icons.credit_card_outlined),
                   ),
                   title: Text(item.name),
-                  subtitle: Text(
-                    'Cicilan ${_moneyLabel(item.monthlyInstallment)} per bulan\nJatuh tempo ${_dateLabel(item.dueDate)}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cicilan ${_moneyLabel(item.monthlyInstallment)} per bulan\nJatuh tempo ${_dateLabel(item.dueDate)}',
+                      ),
+                      HijriDateLabel(date: item.dueDate),
+                    ],
                   ),
                   trailing: AppMoneyText(item.remainingBalance, compact: true),
                 ),
@@ -458,7 +465,13 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.event_outlined),
               title: const Text('Tanggal jatuh tempo'),
-              subtitle: Text(_dateLabel(_dueDate)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_dateLabel(_dueDate)),
+                  HijriDateLabel(date: _dueDate),
+                ],
+              ),
               trailing: const Icon(Icons.chevron_right),
               onTap: _pickDueDate,
             ),

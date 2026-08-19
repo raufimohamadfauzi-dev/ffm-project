@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../shared/widgets/app_components.dart';
-import '../../../../shared/widgets/date_time_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../data/services/receipt_import_service.dart';
 import '../../data/services/receipt_ocr_service.dart';
 
@@ -338,7 +338,11 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
             style: Theme.of(context).textTheme.titleMedium,
           ),
           if (result.date != null)
-            Text('Tanggal nota: ${formatTanggalLengkap(result.date!)}'),
+            HijriDateText(
+              date: result.date!,
+              includeSeconds: true,
+              compact: true,
+            ),
           if (result.receiptNumber != null)
             Text('Nomor nota: ${result.receiptNumber}'),
           const Divider(height: 24),

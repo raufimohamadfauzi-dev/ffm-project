@@ -5,6 +5,7 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
 import '../../domain/entities/receivable_entity.dart';
 import '../../domain/usecases/receivable_crud_usecases.dart';
@@ -124,8 +125,14 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                     child: Icon(Icons.request_quote_outlined),
                   ),
                   title: Text(item.name),
-                  subtitle: Text(
-                    'Cicilan ${_moneyLabel(item.monthlyInstallment)} per bulan\nJatuh tempo ${_dateLabel(item.dueDate)}',
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cicilan ${_moneyLabel(item.monthlyInstallment)} per bulan\nJatuh tempo ${_dateLabel(item.dueDate)}',
+                      ),
+                      HijriDateLabel(date: item.dueDate),
+                    ],
                   ),
                   trailing: AppMoneyText(item.remainingBalance, compact: true),
                 ),
@@ -434,7 +441,13 @@ class _ReceivableFormPageState extends State<ReceivableFormPage> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Jatuh tempo'),
-              subtitle: Text(_dateLabel(_dueDate)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(_dateLabel(_dueDate)),
+                  HijriDateLabel(date: _dueDate),
+                ],
+              ),
               trailing: OutlinedButton(
                 onPressed: _pickDueDate,
                 child: const Text('Pilih tanggal'),
@@ -514,6 +527,7 @@ class ReceivableDetailPage extends StatelessWidget {
                   label: 'Jatuh tempo',
                   value: _dateLabel(receivable.dueDate),
                 ),
+                HijriDateLabel(date: receivable.dueDate),
                 _ReceivableInfoRow(
                   label: 'Bunga',
                   value: receivable.interestRate == null

@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/entities/goal_entity.dart';
 import '../../domain/usecases/goal_crud_usecases.dart';
 
@@ -83,6 +84,7 @@ class _GoalListPageState extends State<GoalListPage> {
                     Text(
                       '${(progress * 100).round()}% dari ${formatRupiahInput(item.targetAmount.toString())} • target ${item.targetDate.day}/${item.targetDate.month}/${item.targetDate.year}',
                     ),
+                    HijriDateLabel(date: item.targetDate),
                   ],
                 ),
               );
@@ -151,8 +153,14 @@ class _GoalFormPageState extends State<GoalFormPage> {
         const SizedBox(height: 12),
         ListTile(
           title: const Text('Batas waktu'),
-          subtitle: Text(
-            '${_targetDate.day}/${_targetDate.month}/${_targetDate.year}',
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_targetDate.day}/${_targetDate.month}/${_targetDate.year}',
+              ),
+              HijriDateLabel(date: _targetDate),
+            ],
           ),
           trailing: const Icon(Icons.calendar_month_outlined),
           onTap: () async {
