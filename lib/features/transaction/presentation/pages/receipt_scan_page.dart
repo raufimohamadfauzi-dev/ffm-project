@@ -149,17 +149,17 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
   }
 
   Future<void> _copyPrompt() async {
-    final result = _result;
-    if (result == null) {
-      _showMessage('Pilih foto atau masukkan teks nota dulu.');
-      return;
-    }
+    final rawText = _result?.rawText ?? '';
     await Clipboard.setData(
       ClipboardData(
-        text: ReceiptImportService.buildGeminiPrompt(rawText: result.rawText),
+        text: ReceiptImportService.buildGeminiPrompt(rawText: rawText),
       ),
     );
-    _showMessage('Prompt Gemini sudah disalin. Tinggal tempel di Gemini.');
+    _showMessage(
+      rawText.isEmpty
+          ? 'Template prompt Gemini sudah disalin. Tambahkan teks atau foto nota di Gemini.'
+          : 'Prompt Gemini sudah disalin. Tinggal tempel di Gemini.',
+    );
   }
 
   Future<void> _shareJson() async {
@@ -229,11 +229,45 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _pasteJson,
-            icon: const Icon(Icons.content_paste_go_outlined),
-            label: const Text('Tempel balasan JSON Gemini'),
+          const SizedBox(height: 12),
+          AppCard(
+            color: Theme.of(context).colorScheme.secondaryContainer
+                .withValues(alpha: .45),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pakai Gemini secara manual (opsional)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Bagikan foto atau salin prompt ke Gemini. Setelah mendapat JSON, impor kembali ke sini. Hasilnya tetap draft dan belum tersimpan sebelum kamu menekan tombol konfirmasi.',
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _pasteJson,
+                      icon: const Icon(Icons.content_paste_go_outlined),
+                      label: const Text('Tempel JSON Gemini'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _copyPrompt,
+                      icon: const Icon(Icons.copy_all_outlined),
+                      label: const Text('Salin prompt Gemini'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _importJson,
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Impor file JSON'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           if (result != null) ...[
             const SizedBox(height: 16),

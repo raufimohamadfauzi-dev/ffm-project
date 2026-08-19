@@ -95,4 +95,12 @@ Kembali : 10,000
     expect(prompt, contains('Balas HANYA dengan JSON valid'));
     expect(prompt, contains('Mie Sakura'));
   });
+
+  test('template prompt Gemini tetap tersedia sebelum nota diproses', () {
+    final prompt = ReceiptImportService.buildGeminiPrompt(rawText: '');
+
+    expect(prompt, contains('ffm-receipt-draft-v1'));
+    expect(prompt, contains('items'));
+    expect(prompt, contains('unit_price'));
+  });
 }

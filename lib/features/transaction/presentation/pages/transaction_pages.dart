@@ -357,25 +357,26 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 icon: Icons.flag_outlined,
                 color: AppColors.primary,
                 title: 'Isi target uang terkumpul',
-                subtitle: 'Memindahkan sebagian uang ke progres target. Bukan pengeluaran belanja.',
+                subtitle: 'Pilih target dan tempat uang. Tidak ada kategori belanja di sini.',
                 onTap: () => Navigator.pop(sheetContext, 'goal'),
               ),
               const Divider(height: 24),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => Navigator.pop(sheetContext, 'quick'),
-                    icon: const Icon(Icons.playlist_add_rounded),
-                    label: const Text('Input banyak transaksi'),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => Navigator.pop(sheetContext, 'scan'),
-                    icon: const Icon(Icons.document_scanner_outlined),
-                    label: const Text('Scan nota'),
-                  ),
-                ],
+              _NewEntryChoiceTile(
+                icon: Icons.playlist_add_rounded,
+                color: AppColors.primary,
+                title: 'Input banyak transaksi',
+                subtitle:
+                    'Catat beberapa pemasukan atau pengeluaran sekaligus.',
+                onTap: () => Navigator.pop(sheetContext, 'quick'),
+              ),
+              const SizedBox(height: 8),
+              _NewEntryChoiceTile(
+                icon: Icons.document_scanner_outlined,
+                color: AppColors.primary,
+                title: 'Nota: OCR / Gemini JSON',
+                subtitle:
+                    'Baca foto secara offline atau impor JSON dari Gemini.',
+                onTap: () => Navigator.pop(sheetContext, 'scan'),
               ),
             ],
           ),
@@ -3193,19 +3194,19 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Alokasi target',
+                    'Isi target tanpa kategori',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                   ),
                   SizedBox(height: 6),
                   Text(
-                    'Ini khusus untuk menambah progres target. Bukan transaksi belanja, bukan pemasukan, dan tidak menggandakan saldo rekening.',
+                    'Pilih target, tempat uang, dan nominal alokasi. Ini bukan transaksi belanja, jadi tidak perlu memilih kategori.',
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 16),
             AppSectionHeader(
-              title: '1. Pilih target',
+              title: '1. Target tujuan',
               helpText: 'Tentukan target yang ingin kamu tambah progresnya.',
             ),
             const SizedBox(height: 8),
@@ -3264,7 +3265,7 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Progress ${selectedGoal.name}',
+                        'Progres ${selectedGoal.name}',
                         style: const TextStyle(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 8),
@@ -3290,8 +3291,8 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
             ],
             const SizedBox(height: 18),
             AppSectionHeader(
-              title: '2. Ambil dana dari rekening',
-              helpText: 'Pilih lokasi uang yang dipakai untuk alokasi target.',
+              title: '2. Tempat uang',
+              helpText: 'Pilih tempat uang yang dipakai untuk alokasi target: tunai, bank, atau dompet digital.',
             ),
             const SizedBox(height: 8),
             if (_accountsLoading)
@@ -3306,7 +3307,7 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Rekening sumber dana · wajib dipilih',
+                      'Tempat uang yang dipakai · wajib dipilih',
                       style: TextStyle(
                         color: AppColors.negative,
                         fontWeight: FontWeight.w900,
@@ -3320,10 +3321,10 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                           .firstOrNull,
                       itemLabel: (account) => account.name,
                       itemId: (account) => account.id,
-                      labelText: 'Uang diambil dari',
-                      helperText: 'Saldo rekening ini berkurang satu kali saat disimpan.',
+                      labelText: 'Ambil uang dari',
+                      helperText: 'Saldo tempat uang ini berkurang satu kali; progres target bertambah satu kali.',
                       searchHintText: 'Cari rekening atau dompet',
-                      cacheKey: 'target.rekening_sumber',
+                      cacheKey: 'target.tempat_uang',
                       onChanged: (account) {
                         setState(() => _accountId = account?.id);
                         _loadBalance(account?.id);
