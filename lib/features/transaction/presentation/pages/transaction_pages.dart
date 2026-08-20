@@ -2648,63 +2648,76 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ),
             const SizedBox(height: 16),
             AppSectionHeader(
-              title: '3. Rincian tambahan',
-              helpText: 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
+              title: isIncome
+                  ? '3. Waktu dan catatan pemasukan'
+                  : '3. Rincian tambahan',
+              helpText: isIncome
+                  ? 'Catat kapan uang diterima dan tambahkan keterangan bila perlu.'
+                  : 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
             ),
             const SizedBox(height: 4),
             ExpansionTile(
               initiallyExpanded:
+                  isIncome ||
                   _merchantId != null ||
                   _locationController.text.trim().isNotEmpty ||
                   _partyName.trim().isNotEmpty,
               tilePadding: EdgeInsets.zero,
               childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              leading: const Icon(Icons.tune_outlined),
-              title: const Text('Buka rincian tambahan'),
-              subtitle: const Text(
-                'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
+              leading: Icon(
+                isIncome ? Icons.event_note_outlined : Icons.tune_outlined,
+              ),
+              title: Text(
+                isIncome ? 'Atur waktu dan catatan' : 'Buka rincian tambahan',
+              ),
+              subtitle: Text(
+                isIncome
+                    ? 'Tanggal, jam, sumber pemasukan, dan catatan'
+                    : 'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
               ),
               children: [
-                if (_merchants.isNotEmpty)
-                  SearchableDropdown(
-                    items: _merchants,
-                    selectedItem: _merchants
-                        .where((merchant) => merchant.id == _merchantId)
-                        .firstOrNull,
-                    itemLabel: (merchant) =>
-                        merchant.details?.trim().isNotEmpty == true
-                        ? '${merchant.name} · ${merchant.details}'
-                        : merchant.name,
-                    itemId: (merchant) => merchant.id,
-                    labelText: 'Toko / tempat',
-                    helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
-                    searchHintText: 'Cari toko atau tempat',
-                    cacheKey: 'transaksi.toko',
-                    allowClear: true,
-                    onChanged: (merchant) =>
-                        setState(() => _merchantId = merchant?.id),
-                  )
-                else
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton.icon(
-                      onPressed: _openMasterData,
-                      icon: const Icon(Icons.tune_rounded),
-                      label: const Text('Atur toko di Data Utama'),
+                if (!isIncome) ...[
+                  if (_merchants.isNotEmpty)
+                    SearchableDropdown(
+                      items: _merchants,
+                      selectedItem: _merchants
+                          .where((merchant) => merchant.id == _merchantId)
+                          .firstOrNull,
+                      itemLabel: (merchant) =>
+                          merchant.details?.trim().isNotEmpty == true
+                          ? '${merchant.name} · ${merchant.details}'
+                          : merchant.name,
+                      itemId: (merchant) => merchant.id,
+                      labelText: 'Toko / tempat',
+                      helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
+                      searchHintText: 'Cari toko atau tempat',
+                      cacheKey: 'transaksi.toko',
+                      allowClear: true,
+                      onChanged: (merchant) =>
+                          setState(() => _merchantId = merchant?.id),
+                    )
+                  else
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _openMasterData,
+                        icon: const Icon(Icons.tune_rounded),
+                        label: const Text('Atur toko di Data Utama'),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _locationController,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Lokasi transaksi',
+                      hintText: 'Misalnya pasar, rumah, atau kantor',
+                      helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian.',
+                      prefixIcon: Icon(Icons.location_on_outlined),
                     ),
                   ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _locationController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Lokasi transaksi',
-                    hintText: 'Misalnya pasar, rumah, atau kantor',
-                    helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian.',
-                    prefixIcon: Icon(Icons.location_on_outlined),
-                  ),
-                ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
+                ],
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.calendar_today_outlined),
@@ -2752,9 +2765,13 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ],
             ),
             const SizedBox(height: 16),
-            const AppSectionHeader(
-              title: '4. Tag dan lampiran',
-              helpText: 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
+            AppSectionHeader(
+              title: isIncome
+                  ? '4. Opsi tambahan pemasukan (opsional)'
+                  : '4. Tag dan lampiran',
+              helpText: isIncome
+                  ? 'Tag untuk menandai sumber pemasukan. Lampiran untuk bukti penerimaan bila ada.'
+                  : 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
             ),
             const SizedBox(height: 4),
             AppCard(
@@ -2764,9 +2781,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Tag dan lampiran',
+                          isIncome ? 'Bukti dan penanda' : 'Tag dan lampiran',
                           style: AppTextStyles.labelCaps,
                         ),
                       ),
@@ -2781,7 +2798,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   Text(
                     _masterTags.isEmpty
                         ? 'Belum ada tag. Atur dulu dari Data Utama.'
-                        : 'Pilih penanda dari Data Utama. Tag tidak mengubah saldo.',
+                        : (isIncome
+                              ? 'Opsional. Tag tidak mengubah saldo; lampiran hanya sebagai bukti penerimaan.'
+                              : 'Pilih penanda dari Data Utama. Tag tidak mengubah saldo.'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if (_masterTags.isNotEmpty) ...[
@@ -2828,7 +2847,11 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   OutlinedButton.icon(
                     onPressed: _pickAttachments,
                     icon: const Icon(Icons.attach_file_rounded),
-                    label: const Text('Tambah foto atau PDF nota'),
+                    label: Text(
+                      isIncome
+                          ? 'Tambah bukti penerimaan (foto/PDF)'
+                          : 'Tambah foto atau PDF nota',
+                    ),
                   ),
                   if (_attachmentPaths.isNotEmpty) ...[
                     const SizedBox(height: 8),
@@ -2857,70 +2880,73 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ),
             ),
             const SizedBox(height: 16),
-            const AppSectionHeader(
-              title: '5. Rincian nota dan banyak item',
-              helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
-            ),
-            const SizedBox(height: 4),
-            AppCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Rincian nota',
-                          style: AppTextStyles.labelCaps,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: _showAddItemSheet,
-                        icon: const Icon(Icons.add),
-                        label: const Text(AppCopy.tambah),
-                      ),
-                    ],
-                  ),
-                  if (_items.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Belum ada item nota. Bagian ini boleh dilewati.',
-                      ),
-                    )
-                  else
-                    ..._items.map(
-                      (item) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item.name),
-                        subtitle: item.qty == 1
-                            ? null
-                            : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AppMoneyText(item.price, compact: true),
-                            IconButton(
-                              tooltip: 'Ubah item',
-                              onPressed: () => _editItem(_items.indexOf(item)),
-                              icon: const Icon(Icons.edit_outlined),
-                            ),
-                            IconButton(
-                              tooltip: 'Hapus item',
-                              onPressed: () => setState(() {
-                                _items.remove(item);
-                                _syncAmountFromItems();
-                              }),
-                              icon: const Icon(Icons.delete_outline),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+            if (!isIncome) ...[
+              const AppSectionHeader(
+                title: '5. Rincian nota dan banyak item',
+                helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
               ),
-            ),
+              const SizedBox(height: 4),
+              AppCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Rincian nota',
+                            style: AppTextStyles.labelCaps,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _showAddItemSheet,
+                          icon: const Icon(Icons.add),
+                          label: const Text(AppCopy.tambah),
+                        ),
+                      ],
+                    ),
+                    if (_items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Belum ada item nota. Bagian ini boleh dilewati.',
+                        ),
+                      )
+                    else
+                      ..._items.map(
+                        (item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(item.name),
+                          subtitle: item.qty == 1
+                              ? null
+                              : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppMoneyText(item.price, compact: true),
+                              IconButton(
+                                tooltip: 'Ubah item',
+                                onPressed: () =>
+                                    _editItem(_items.indexOf(item)),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Hapus item',
+                                onPressed: () => setState(() {
+                                  _items.remove(item);
+                                  _syncAmountFromItems();
+                                }),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             SizedBox(
               width: double.infinity,
