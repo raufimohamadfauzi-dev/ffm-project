@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -21,12 +22,71 @@ class ReceiptScanPage extends StatefulWidget {
 class _ReceiptScanPageState extends State<ReceiptScanPage> {
   var _working = false;
   ReceiptOcrResult? _result;
+  String? _selectedImagePath;
+  final _imagePicker = ImagePicker();
 
   Future<void> _pickImage() async {
-    final result = await FilePicker.pickFiles(type: FileType.image);
-    if (result.isEmpty || result.single.path == null) return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const ListTile(
+              title: Text(
+                'Masukkan foto nota',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              subtitle: Text('Pilih dari galeri atau ambil foto baru.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pilih dari galeri'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Ambil foto dengan kamera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 95,
+        maxWidth: 2400,
+        maxHeight: 3200,
+      );
+      if (picked == null || !mounted) return;
+      setState(() {
+        _selectedImagePath = picked.path;
+        _result = null;
+      });
+      _showMessage('Foto sudah masuk. FFM sedang membaca tulisannya...');
+      await _analyzeSelectedImage();
+    } catch (_) {
+      if (mounted) {
+        _showMessage(
+          'Foto belum bisa dipakai. Coba pilih gambar JPG/PNG dari galeri atau cek izin kamera.',
+        );
+      }
+    }
+  }
+
+  Future<void> _analyzeSelectedImage() async {
+    final path = _selectedImagePath;
+    if (path == null || path.isEmpty) {
+      _showMessage('Masukkan foto nota dulu sebelum dianalisis.');
+      return;
+    }
     await _runTask(() async {
-      final value = await ReceiptOcrService().recognize(result.single.path!);
+      final value = await ReceiptOcrService().recognize(path);
       if (!mounted) return;
       setState(() => _result = value);
       _showOcrStatus(value);
@@ -70,9 +130,9 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     final text = await showDialog<String>(
       context: context,
       builder: (_) => const _LargeTextDialog(
-        title: 'Tempel JSON Gemini',
-        hint: 'Tempel balasan JSON dari Gemini di sini.',
-        actionLabel: 'Baca JSON',
+        title: 'Tempel hasil Gemini',
+        hint: 'Tempel hasil yang diberikan Gemini di sini. FFM akan membacanya sebagai draft nota.',
+        actionLabel: 'Baca hasil',
       ),
     );
     if (!mounted || text == null || text.trim().isEmpty) return;
@@ -102,7 +162,9 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     setState(() {
       _result = value;
     });
-    _showMessage('Draft nota berhasil dimuat. Cek dan edit sebelum dipakai.');
+    _showMessage(
+      'Hasil berhasil dibaca sebagai draft. Cek dan edit dulu sebelum dipakai.',
+    );
   }
 
   Future<void> _runTask(Future<void> Function() task) async {
@@ -110,7 +172,11 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     try {
       await task();
     } catch (_) {
-      if (mounted) _showMessage('Nota belum berhasil diproses. Coba lagi.');
+      if (mounted) {
+        _showMessage(
+          'Foto sudah masuk, tetapi tulisannya belum berhasil dianalisis. Coba foto lebih terang, tidak miring, dan dekatkan ke nota.',
+        );
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -175,8 +241,8 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     );
     _showMessage(
       rawText.isEmpty
-          ? 'Template prompt Gemini sudah disalin. Tambahkan teks atau foto nota di Gemini.'
-          : 'Prompt Gemini sudah disalin. Tinggal tempel di Gemini.',
+          ? 'Instruksi Gemini sudah disalin. Kirim bersama foto atau teks nota ke Gemini.'
+          : 'Instruksi sudah disalin. Tempel di Gemini bersama foto atau teks nota.',
     );
   }
 
@@ -185,7 +251,7 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
       ClipboardData(text: ReceiptImportService.templateJson()),
     );
     _showMessage(
-      'Template JSON kosong sudah disalin. Isi atau minta LLM mengisinya tanpa mengubah format.',
+      'Contoh format JSON sudah disalin. Ini opsi teknis; kamu tidak wajib mengeditnya sendiri.',
     );
   }
 
@@ -227,16 +293,59 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
   Widget build(BuildContext context) {
     final result = _result;
     return Scaffold(
-      appBar: AppBar(title: const Text('Scan dan baca nota')),
+      appBar: AppBar(title: const Text('Nota: foto atau Gemini')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
         children: [
           const AppHelpBanner(
-            title: 'Baca nota, cek dulu, baru simpan',
-            message: 'OCR berjalan di perangkat. Gemini tidak terhubung otomatis; kamu bisa membagikan foto atau menyalin prompt, lalu impor JSON-nya kembali setelah mengecek hasil.',
+            title: 'Pilih cara yang paling gampang',
+            message: 'Kamu tidak perlu paham JSON. Pilih foto untuk dibaca langsung di HP, atau pakai bantuan Gemini kalau tulisan nota sulit terbaca. Apa pun caranya, hasilnya tetap draft dan harus dicek sebelum disimpan.',
             icon: Icons.document_scanner_outlined,
           ),
           const SizedBox(height: 16),
+          if (_selectedImagePath != null) ...[
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Foto nota sudah masuk',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.file(
+                      File(_selectedImagePath!),
+                      width: double.infinity,
+                      height: 220,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, error, __) => const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text(
+                          'Preview foto belum bisa ditampilkan, tetapi FFM tetap bisa mencoba membacanya.',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _working ? null : _analyzeSelectedImage,
+                      icon: const Icon(Icons.document_scanner_outlined),
+                      label: Text(
+                        _working
+                            ? 'Sedang menganalisis foto...'
+                            : 'Analisis lagi dengan OCR offline',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           FilledButton.icon(
             onPressed: _working ? null : _pickImage,
             icon: _working
@@ -245,9 +354,9 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                     height: 18,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.photo_library_outlined),
+                : const Icon(Icons.add_photo_alternate_outlined),
             label: Text(
-              _working ? 'Membaca nota...' : 'Pilih foto nota dari galeri',
+              _working ? 'Sedang membaca foto...' : '1. Masukkan foto nota',
             ),
           ),
           const SizedBox(height: 8),
@@ -257,7 +366,7 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                 child: OutlinedButton.icon(
                   onPressed: _importJson,
                   icon: const Icon(Icons.file_open_outlined),
-                  label: const Text('Impor JSON'),
+                  label: const Text('Pilih hasil Gemini'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -265,7 +374,7 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                 child: OutlinedButton.icon(
                   onPressed: _manualText,
                   icon: const Icon(Icons.text_fields),
-                  label: const Text('Teks manual'),
+                  label: const Text('Tulis teks nota'),
                 ),
               ),
             ],
@@ -278,12 +387,17 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Pakai Gemini secara manual (opsional)',
+                  '2. Minta bantuan Gemini (opsional)',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Bagikan foto atau salin prompt ke Gemini. Setelah mendapat JSON, impor kembali ke sini. Hasilnya tetap draft dan belum tersimpan sebelum kamu menekan tombol konfirmasi.',
+                  'Pakai ini kalau foto atau tulisan nota sulit dibaca. Gemini membantu menuliskan isi nota. FFM tidak terhubung otomatis ke Gemini dan tidak langsung menyimpan hasilnya.',
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Cara pakai: salin instruksi → kirim ke Gemini bersama foto/teks nota → salin hasilnya → tempel di sini.',
+                  style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 10),
                 Column(
@@ -292,22 +406,33 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
                     OutlinedButton.icon(
                       onPressed: _copyPrompt,
                       icon: const Icon(Icons.copy_all_outlined),
-                      label: const Text('1. Salin prompt Gemini/LLM'),
+                      label: const Text('Salin instruksi ke Gemini'),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: _copyTemplateJson,
-                      icon: const Icon(Icons.data_object_outlined),
-                      label: const Text('2. Salin template JSON kosong'),
-                    ),
-                    OutlinedButton.icon(
+                    FilledButton.icon(
                       onPressed: _pasteJson,
                       icon: const Icon(Icons.content_paste_go_outlined),
-                      label: const Text('3. Tempel JSON hasil LLM'),
+                      label: const Text('Tempel hasil Gemini di sini'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _importJson,
                       icon: const Icon(Icons.file_open_outlined),
-                      label: const Text('4. Impor file JSON'),
+                      label: const Text('Pilih file hasil Gemini'),
+                    ),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      childrenPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.help_outline),
+                      title: const Text('Opsi teknis JSON (boleh dilewati)'),
+                      subtitle: const Text(
+                        'Dipakai kalau kamu ingin melihat atau mengirim format JSON.',
+                      ),
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _copyTemplateJson,
+                          icon: const Icon(Icons.data_object_outlined),
+                          label: const Text('Salin contoh format JSON'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -321,7 +446,7 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
             FilledButton.icon(
               onPressed: () => Navigator.pop(context, result),
               icon: const Icon(Icons.check_circle_outline),
-              label: const Text('Pakai hasil ini di transaksi'),
+              label: const Text('Cek selesai, pakai hasil ini di transaksi'),
             ),
           ],
         ],
