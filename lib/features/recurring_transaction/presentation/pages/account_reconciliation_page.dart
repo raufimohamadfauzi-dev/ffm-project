@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
@@ -331,12 +332,24 @@ class _ReconciliationDialogState extends State<_ReconciliationDialog> {
       DateTime.now().minute,
       DateTime.now().second,
     );
-    final log = await CreateReconciliationLog(getIt<AppDatabase>())(
+    final database = getIt<AppDatabase>();
+    final log = await CreateReconciliationLog(database)(
       householdId: AppContext.householdId,
       accountId: _accountId,
       actualBalance: _actual,
       checkedAt: checkedAt,
       note: _noteController.text,
+    );
+    await AuditLogger(database).record(
+      action: 'rekonsiliasi',
+      entity: 'saldo_rekening',
+      oldValue: {'account_id': _accountId, 'saldo_buku': log.bookBalance},
+      newValue: {
+        'account_id': _accountId,
+        'saldo_nyata': log.actualBalance,
+        'selisih': log.difference,
+        'adjustment_transaction_id': log.adjustmentTransactionId,
+      },
     );
     if (mounted) Navigator.pop(context, log);
   }

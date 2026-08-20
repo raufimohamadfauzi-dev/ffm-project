@@ -105,13 +105,121 @@ class ReceiptOcrResult {
   }
 }
 
+enum ReceiptOcrDiagnosticCode {
+  imageNotSelected,
+  imageUnreadable,
+  nativeFailed,
+  emptyText,
+  itemsNotRecognized,
+  success,
+}
+
+class ReceiptOcrDiagnostic {
+  const ReceiptOcrDiagnostic({
+    required this.code,
+    required this.title,
+    required this.message,
+    this.itemCount = 0,
+  });
+
+  final ReceiptOcrDiagnosticCode code;
+  final String title;
+  final String message;
+  final int itemCount;
+
+  bool get isSuccess => code == ReceiptOcrDiagnosticCode.success;
+
+  factory ReceiptOcrDiagnostic.fromResult(ReceiptOcrResult result) {
+    if (result.rawText.trim().isEmpty) {
+      return const ReceiptOcrDiagnostic(
+        code: ReceiptOcrDiagnosticCode.emptyText,
+        title: 'Teks nota belum terbaca',
+        message: 'OCR sudah berjalan, tetapi tidak menemukan tulisan. Coba foto lebih terang, rata, dan dekatkan ke nota.',
+      );
+    }
+    if (result.items.isEmpty) {
+      return const ReceiptOcrDiagnostic(
+        code: ReceiptOcrDiagnosticCode.itemsNotRecognized,
+        title: 'Item nota belum dikenali',
+        message: 'Teks sudah terbaca, tetapi format itemnya belum dikenali. Buka teks mentah atau tambahkan item manual.',
+      );
+    }
+    return ReceiptOcrDiagnostic(
+      code: ReceiptOcrDiagnosticCode.success,
+      title: 'OCR selesai',
+      message:
+          'Berhasil membaca ${result.items.length} item. Cek dan edit draft sebelum disimpan.',
+      itemCount: result.items.length,
+    );
+  }
+
+  factory ReceiptOcrDiagnostic.fromFailure(Object error) {
+    if (error is ReceiptOcrException) {
+      return ReceiptOcrDiagnostic(
+        code: error.code,
+        title: error.title,
+        message: error.message,
+      );
+    }
+    return const ReceiptOcrDiagnostic(
+      code: ReceiptOcrDiagnosticCode.nativeFailed,
+      title: 'OCR offline gagal dijalankan',
+      message: 'Mesin OCR di HP belum berhasil membaca gambar. Pastikan gambar bisa dibuka, izin kamera sudah aktif, lalu coba lagi. Jika baru pertama kali, tunggu model OCR selesai diunduh saat perangkat terhubung internet.',
+    );
+  }
+
+  static const imageNotSelected = ReceiptOcrDiagnostic(
+    code: ReceiptOcrDiagnosticCode.imageNotSelected,
+    title: 'Belum ada gambar',
+    message: 'Tidak ada foto yang dipilih. Pilih foto nota dulu untuk mulai membaca.',
+  );
+
+  static const imageUnreadable = ReceiptOcrDiagnostic(
+    code: ReceiptOcrDiagnosticCode.imageUnreadable,
+    title: 'Gambar tidak bisa dibuka',
+    message: 'File foto tidak ditemukan atau rusak. Pilih ulang foto JPG/PNG yang masih bisa dibuka di galeri.',
+  );
+}
+
+class ReceiptOcrException implements Exception {
+  const ReceiptOcrException({
+    required this.code,
+    required this.title,
+    required this.message,
+    this.cause,
+  });
+
+  final ReceiptOcrDiagnosticCode code;
+  final String title;
+  final String message;
+  final Object? cause;
+
+  @override
+  String toString() => 'ReceiptOcrException($code): $message';
+}
+
 class ReceiptOcrService {
   Future<ReceiptOcrResult> recognize(String imagePath) async {
+    if (imagePath.trim().isEmpty) {
+      throw const ReceiptOcrException(
+        code: ReceiptOcrDiagnosticCode.imageNotSelected,
+        title: 'Belum ada gambar',
+        message: 'Tidak ada foto yang dipilih. Pilih foto nota dulu untuk mulai membaca.',
+      );
+    }
+
     final recognizer = TextRecognizer(script: TextRecognitionScript.latin);
     try {
       final input = InputImage.fromFilePath(imagePath);
       final recognized = await recognizer.processImage(input);
       return parseText(recognized.text, imagePath: imagePath);
+    } catch (error) {
+      throw ReceiptOcrException(
+        code: ReceiptOcrDiagnosticCode.nativeFailed,
+        title: 'OCR offline gagal dijalankan',
+        message: 'Mesin OCR di HP belum berhasil membaca gambar. Pastikan gambar bisa dibuka, izin kamera sudah aktif, lalu coba lagi. Jika baru pertama kali, tunggu model OCR selesai diunduh saat perangkat terhubung internet.',
+        cause: error,
+      );
     } finally {
       await recognizer.close();
     }

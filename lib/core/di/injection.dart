@@ -2,6 +2,8 @@ import 'package:get_it/get_it.dart';
 
 import '../database/app_database.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
+import '../../features/audit/data/repositories/audit_log_repository.dart';
+import '../../features/audit/domain/usecases/audit_log_usecases.dart';
 import '../../features/goal/domain/usecases/goal_crud_usecases.dart';
 import '../../features/hijri/domain/hijri_calendar_service.dart';
 import '../../features/liability/domain/usecases/liability_crud_usecases.dart';
@@ -17,6 +19,12 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   final db = database ?? AppDatabase.openDefault();
   getIt.registerSingleton<AppDatabase>(db);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
+  getIt.registerLazySingleton<AuditLogRepository>(
+    () => SqliteAuditLogRepository(db),
+  );
+  getIt.registerLazySingleton<GetAuditLogs>(
+    () => GetAuditLogs(getIt<AuditLogRepository>()),
+  );
   getIt.registerLazySingleton<GetTransaction>(() => GetTransaction(db));
   getIt.registerLazySingleton<SaveTransaction>(() => SaveTransaction(db));
   getIt.registerLazySingleton<SaveTransactionBatch>(

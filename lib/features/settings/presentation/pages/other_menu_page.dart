@@ -8,6 +8,7 @@ import '../../../goal/presentation/pages/goal_pages.dart';
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
 import 'database_structure_page.dart';
+import '../../../audit/presentation/pages/activity_log_page.dart';
 import 'master_data_page.dart';
 import 'offline_advanced_page.dart';
 import '../../../recurring_transaction/presentation/pages/recurring_transaction_page.dart';
@@ -95,6 +96,12 @@ class OtherMenuPage extends StatelessWidget {
             title: 'Ringkasan bulanan',
             subtitle: 'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
             onTap: () => _open(context, const MonthlyReportPage()),
+          ),
+          _MenuCard(
+            icon: Icons.history,
+            title: 'Log aktivitas',
+            subtitle: 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+            onTap: () => _open(context, const ActivityLogPage()),
           ),
           const SizedBox(height: 20),
           const AppSectionHeader(title: 'Pengingat dan alat'),

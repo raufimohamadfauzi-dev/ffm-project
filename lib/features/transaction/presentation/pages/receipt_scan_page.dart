@@ -22,6 +22,7 @@ class ReceiptScanPage extends StatefulWidget {
 class _ReceiptScanPageState extends State<ReceiptScanPage> {
   var _working = false;
   ReceiptOcrResult? _result;
+  ReceiptOcrDiagnostic? _diagnostic;
   String? _selectedImagePath;
   final _imagePicker = ImagePicker();
 
@@ -67,14 +68,15 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
       setState(() {
         _selectedImagePath = picked.path;
         _result = null;
+        _diagnostic = null;
       });
       _showMessage('Foto sudah masuk. FFM sedang membaca tulisannya...');
       await _analyzeSelectedImage();
-    } catch (_) {
+    } catch (error) {
+      final diagnostic = ReceiptOcrDiagnostic.fromFailure(error);
       if (mounted) {
-        _showMessage(
-          'Foto belum bisa dipakai. Coba pilih gambar JPG/PNG dari galeri atau cek izin kamera.',
-        );
+        setState(() => _diagnostic = diagnostic);
+        _showMessage('${diagnostic.title}: ${diagnostic.message}');
       }
     }
   }
@@ -82,31 +84,45 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
   Future<void> _analyzeSelectedImage() async {
     final path = _selectedImagePath;
     if (path == null || path.isEmpty) {
-      _showMessage('Masukkan foto nota dulu sebelum dianalisis.');
+      const diagnostic = ReceiptOcrDiagnostic.imageNotSelected;
+      setState(() => _diagnostic = diagnostic);
+      _showMessage('${diagnostic.title}: ${diagnostic.message}');
       return;
     }
+
+    try {
+      final file = File(path);
+      if (!await file.exists() || await file.length() == 0) {
+        const diagnostic = ReceiptOcrDiagnostic.imageUnreadable;
+        if (mounted) {
+          setState(() => _diagnostic = diagnostic);
+          _showMessage('${diagnostic.title}: ${diagnostic.message}');
+        }
+        return;
+      }
+    } catch (error) {
+      final diagnostic = ReceiptOcrDiagnostic.fromFailure(error);
+      if (mounted) {
+        setState(() => _diagnostic = diagnostic);
+        _showMessage('${diagnostic.title}: ${diagnostic.message}');
+      }
+      return;
+    }
+
     await _runTask(() async {
       final value = await ReceiptOcrService().recognize(path);
       if (!mounted) return;
-      setState(() => _result = value);
-      _showOcrStatus(value);
+      final diagnostic = ReceiptOcrDiagnostic.fromResult(value);
+      setState(() {
+        _result = value;
+        _diagnostic = diagnostic;
+      });
+      _showOcrStatus(diagnostic);
     });
   }
 
-  void _showOcrStatus(ReceiptOcrResult value) {
-    if (value.rawText.trim().isEmpty) {
-      _showMessage(
-        'Foto berhasil dipilih, tapi tulisan belum terbaca. Coba foto lebih terang dan tidak miring.',
-      );
-    } else if (value.items.isEmpty) {
-      _showMessage(
-        'Teks nota terbaca, tetapi item belum dikenali. Buka teks mentah atau tambahkan item manual.',
-      );
-    } else {
-      _showMessage(
-        'OCR selesai: ${value.items.length} item terbaca. Cek draft sebelum dipakai.',
-      );
-    }
+  void _showOcrStatus(ReceiptOcrDiagnostic diagnostic) {
+    _showMessage('${diagnostic.title}: ${diagnostic.message}');
   }
 
   Future<void> _importJson() async {
@@ -171,11 +187,11 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
     setState(() => _working = true);
     try {
       await task();
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        _showMessage(
-          'Foto sudah masuk, tetapi tulisannya belum berhasil dianalisis. Coba foto lebih terang, tidak miring, dan dekatkan ke nota.',
-        );
+        final diagnostic = ReceiptOcrDiagnostic.fromFailure(error);
+        setState(() => _diagnostic = diagnostic);
+        _showMessage('${diagnostic.title}: ${diagnostic.message}');
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -299,9 +315,13 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
         children: [
           const AppHelpBanner(
             title: 'Pilih cara yang paling gampang',
-            message: 'Kamu tidak perlu paham JSON. Pilih foto untuk dibaca langsung di HP, atau pakai bantuan Gemini kalau tulisan nota sulit terbaca. Apa pun caranya, hasilnya tetap draft dan harus dicek sebelum disimpan.',
+            message: 'Kamu tidak perlu paham JSON. Pilih foto untuk dibaca langsung di HP, atau pakai bantuan Gemini kalau tulisan nota sulit terbaca. Untuk uji OCR offline, foto harus terang, nota rata dan tidak miring, kamera dekat tetapi seluruh nota tetap masuk. Hasilnya tetap draft dan wajib dicek sebelum disimpan.',
             icon: Icons.document_scanner_outlined,
           ),
+          if (_diagnostic != null) ...[
+            const SizedBox(height: 12),
+            _buildDiagnosticCard(_diagnostic!),
+          ],
           const SizedBox(height: 16),
           if (_selectedImagePath != null) ...[
             AppCard(
@@ -449,6 +469,44 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
               label: const Text('Cek selesai, pakai hasil ini di transaksi'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticCard(ReceiptOcrDiagnostic diagnostic) {
+    final success = diagnostic.isSuccess;
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      color: success ? scheme.secondaryContainer : scheme.errorContainer,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            success ? Icons.check_circle_outline : Icons.info_outline,
+            color: success
+                ? scheme.onSecondaryContainer
+                : scheme.onErrorContainer,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  diagnostic.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(diagnostic.message),
+                if (success)
+                  Text(
+                    'Jumlah item: ${diagnostic.itemCount}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

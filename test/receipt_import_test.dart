@@ -124,6 +124,51 @@ Kembali : 10,000
     expect(result.warnings, contains('Teks nota kosong atau belum terbaca.'));
   });
 
+  test('diagnostik OCR membedakan teks kosong', () {
+    final diagnostic = ReceiptOcrDiagnostic.fromResult(
+      ReceiptOcrService().parseText(''),
+    );
+
+    expect(diagnostic.code, ReceiptOcrDiagnosticCode.emptyText);
+    expect(diagnostic.isSuccess, isFalse);
+    expect(diagnostic.message, contains('lebih terang'));
+  });
+
+  test('diagnostik OCR membedakan teks terbaca tetapi item gagal dikenali', () {
+    final diagnostic = ReceiptOcrDiagnostic.fromResult(
+      ReceiptOcrService().parseText('Toko Maju\nAlamat jalan utama'),
+    );
+
+    expect(diagnostic.code, ReceiptOcrDiagnosticCode.itemsNotRecognized);
+    expect(diagnostic.itemCount, 0);
+    expect(diagnostic.message, contains('item'));
+  });
+
+  test('diagnostik OCR melaporkan sukses dan jumlah item', () {
+    final result = ReceiptOcrService().parseText(
+      'Toko Maju\nMie: 1 PCS - 3.000',
+    );
+    final diagnostic = ReceiptOcrDiagnostic.fromResult(result);
+
+    expect(diagnostic.code, ReceiptOcrDiagnosticCode.success);
+    expect(diagnostic.isSuccess, isTrue);
+    expect(diagnostic.itemCount, 1);
+    expect(diagnostic.message, contains('1 item'));
+  });
+
+  test('diagnostik OCR membedakan file tidak terbaca dan native gagal', () {
+    expect(
+      ReceiptOcrDiagnostic.imageUnreadable.code,
+      ReceiptOcrDiagnosticCode.imageUnreadable,
+    );
+    final diagnostic = ReceiptOcrDiagnostic.fromFailure(
+      StateError('simulasi ML Kit'),
+    );
+
+    expect(diagnostic.code, ReceiptOcrDiagnosticCode.nativeFailed);
+    expect(diagnostic.message, contains('OCR'));
+  });
+
   test('JSON batch membaca banyak transaksi dan rincian item', () {
     final transactions = List.generate(
       10,
