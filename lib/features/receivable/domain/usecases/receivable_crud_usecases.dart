@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../entities/receivable_entity.dart';
 
 class GetReceivables {
@@ -59,6 +60,17 @@ class SaveReceivable {
             createdAt: entity.updatedAt,
           ),
         );
+    await AuditLogger(database).record(
+      action: 'simpan piutang',
+      entity: 'receivable',
+      householdId: entity.householdId,
+      newValue: {
+        'id': entity.id,
+        'name': entity.name,
+        'originalAmount': entity.originalAmount,
+        'remainingBalance': entity.remainingBalance,
+      },
+    );
   }
 }
 
@@ -71,5 +83,11 @@ class DeleteReceivable {
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(const ReceivablesCompanion(isActive: Value(false)));
+    await AuditLogger(database).record(
+      action: 'arsip piutang',
+      entity: 'receivable',
+      householdId: householdId,
+      newValue: {'id': id, 'isActive': false},
+    );
   }
 }

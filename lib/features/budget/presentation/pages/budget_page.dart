@@ -12,6 +12,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
+import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 
@@ -567,12 +568,27 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
             message: suggestionMessage,
           ),
         if (envelopes.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(top: 24),
+          Padding(
+            padding: const EdgeInsets.only(top: 24),
             child: AppEmptyState(
               icon: Icons.inbox_outlined,
-              title: 'Belum ada pos di sini',
-              message: 'Coba buka tab lain atau atur target dari kategori yang tersedia.',
+              title: _categories.isEmpty
+                  ? 'Kategori pengeluaran belum ada'
+                  : 'Belum ada pos di sini',
+              message: _categories.isEmpty
+                  ? 'Buat kategori pengeluaran di Data Utama dulu. Setelah itu pos anggaran bisa diatur dari sini.'
+                  : 'Coba buka tab lain atau atur target dari kategori yang tersedia.',
+              action: _categories.isEmpty
+                  ? FilledButton.icon(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const MasterDataPage(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.tune_outlined),
+                      label: const Text('Buka Data Utama'),
+                    )
+                  : null,
             ),
           )
         else

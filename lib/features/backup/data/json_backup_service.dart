@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
+
+import 'package:drift/drift.dart';
 
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
@@ -35,6 +36,7 @@ class JsonBackupService {
     'envelope_transfers',
     'envelope_budgets',
     'recurring_transactions',
+    'recurring_transaction_runs',
     'receivables',
     'liabilities',
     'goals',
@@ -48,16 +50,19 @@ class JsonBackupService {
     'hijri_month_overrides',
     'hijri_settings',
     'households',
+    'account_reconciliation_logs',
+    'audit_logs',
   ];
 
   Future<String> exportJson() async {
     final modules = <String, Object?>{};
     for (final table in _tables.reversed) {
+      if (!await _tableExists(table)) continue;
       final rows = await database.customSelect('SELECT * FROM "$table"').get();
       modules[table] = rows.map((row) => _jsonSafe(row.data)).toList();
     }
     return jsonEncode({
-      'formatVersion': 'ffm-v20-full',
+      'formatVersion': 'ffm-v21-full',
       'householdId': AppContext.householdId,
       'exportedAt': DateTime.now().toIso8601String(),
       'isFull': true,
@@ -120,6 +125,7 @@ class JsonBackupService {
     if (rawModules is! Map) {
       throw const FormatException('Bagian data cadangan tidak ditemukan.');
     }
+    await _ensureAuditTable();
     final modules = <String, List<Map<String, dynamic>>>{};
     for (final table in _tables) {
       final rows = rawModules[table];
@@ -144,6 +150,24 @@ class JsonBackupService {
         await database.customStatement('PRAGMA foreign_keys = ON');
       }
     });
+  }
+
+  Future<bool> _tableExists(String table) async {
+    final rows = await database
+        .customSelect(
+          'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
+          variables: [Variable.withString('table'), Variable.withString(table)],
+        )
+        .get();
+    return rows.isNotEmpty;
+  }
+
+  Future<void> _ensureAuditTable() async {
+    await database.customStatement(
+      'CREATE TABLE IF NOT EXISTS audit_logs ('
+      'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, action TEXT NOT NULL, '
+      'entity TEXT NOT NULL, old_value TEXT, new_value TEXT, timestamp INTEGER NOT NULL)',
+    );
   }
 
   Future<void> _insertRow(String table, Map<String, dynamic> row) async {
@@ -187,6 +211,9 @@ class JsonBackupService {
     'goals' => 'goals',
     'envelope_budgets' => 'budgets',
     'recurring_transactions' => 'sinking_funds',
+    'recurring_transaction_runs' => 'recurring_runs',
+    'account_reconciliation_logs' => 'reconciliations',
+    'audit_logs' => 'activity_logs',
     _ => table,
   };
 }

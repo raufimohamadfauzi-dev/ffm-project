@@ -38,11 +38,15 @@ class DataExportService {
     }).toList();
 
     final result = <String, Object?>{
-      'formatVersion': 'ffm-v20-filtered',
+      'formatVersion': 'ffm-v21-filtered',
+      'scope': 'filtered_analysis',
+      'isBackup': false,
+      'canRestore': false,
       'householdId': householdId,
       'exportedAt': DateTime.now().toIso8601String(),
       'filter': {
         'includeFinance': options.includeFinance,
+        'includeMetadata': options.includeMetadata,
         'startDate': options.startDate?.toIso8601String(),
         'endDate': options.endDate?.toIso8601String(),
       },
@@ -135,7 +139,11 @@ class DataExportService {
             .toList(),
       };
     }
-    result['catatan'] = 'Berkas ini dibuat manual untuk analisa eksternal. Cek kembali privasi sebelum membagikannya.';
+    result['includedModules'] = [
+      if (options.includeFinance) 'transactions',
+      if (options.includeMetadata) 'dataUtama',
+    ];
+    result['catatan'] = 'Berkas ini hanya untuk analisa eksternal, bukan cadangan pemulihan. Cek kembali privasi sebelum membagikannya.';
     return const JsonEncoder.withIndent('  ').convert(result);
   }
 }

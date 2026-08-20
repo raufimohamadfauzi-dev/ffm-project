@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 
 class GetRecurringTransactions {
   const GetRecurringTransactions(this.database);
@@ -59,6 +60,21 @@ class CreateRecurringTransaction {
             createdAt: DateTime.now(),
           ),
         );
+    await AuditLogger(database).record(
+      action: 'simpan aturan berkala',
+      entity: 'recurring_transaction',
+      householdId: householdId,
+      newValue: {
+        'id': id,
+        'name': name.trim(),
+        'type': type,
+        'amount': amount.abs(),
+        'periodType': periodType,
+        'calcMode': calcMode,
+        'ratePercent': ratePercent,
+        'accountId': accountId,
+      },
+    );
     return id;
   }
 }
@@ -103,6 +119,21 @@ class UpdateRecurringTransaction {
             endDate: Value(endDate),
           ),
         );
+    await AuditLogger(database).record(
+      action: 'ubah aturan berkala',
+      entity: 'recurring_transaction',
+      householdId: householdId,
+      newValue: {
+        'id': id,
+        'name': name.trim(),
+        'type': type,
+        'amount': amount.abs(),
+        'periodType': periodType,
+        'calcMode': calcMode,
+        'ratePercent': ratePercent,
+        'accountId': accountId,
+      },
+    );
   }
 }
 
@@ -137,6 +168,12 @@ class ArchiveRecurringTransaction {
           (row) => row.id.equals(id) & row.householdId.equals(householdId),
         ))
         .write(const RecurringTransactionsCompanion(isActive: Value(false)));
+    await AuditLogger(database).record(
+      action: 'arsip aturan berkala',
+      entity: 'recurring_transaction',
+      householdId: householdId,
+      newValue: {'id': id, 'isActive': false},
+    );
   }
 }
 
@@ -321,7 +358,21 @@ class ProcessRecurringTransactions {
                   ),
                 );
           });
-          if (amount != null && amount > 0) created++;
+          if (amount != null && amount > 0) {
+            await AuditLogger(database).record(
+              action: 'buat transaksi berkala',
+              entity: 'transaction',
+              householdId: householdId,
+              newValue: {
+                'id': transactionId,
+                'recurringTransactionId': rule.id,
+                'type': rule.type,
+                'amount': rule.type == 'expense' ? -amount : amount,
+                'date': occurrence.toIso8601String(),
+              },
+            );
+            created++;
+          }
         }
         occurrence = _nextOccurrence(occurrence, rule.periodType);
       }

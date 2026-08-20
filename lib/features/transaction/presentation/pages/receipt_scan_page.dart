@@ -55,7 +55,14 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
         ),
       ),
     );
-    if (source == null || !mounted) return;
+    if (source == null || !mounted) {
+      if (mounted) {
+        const diagnostic = ReceiptOcrDiagnostic.imageNotSelected;
+        setState(() => _diagnostic = diagnostic);
+        _showMessage('${diagnostic.title}: ${diagnostic.message}');
+      }
+      return;
+    }
 
     try {
       final picked = await _imagePicker.pickImage(
@@ -64,7 +71,14 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
         maxWidth: 2400,
         maxHeight: 3200,
       );
-      if (picked == null || !mounted) return;
+      if (picked == null || !mounted) {
+        if (mounted) {
+          const diagnostic = ReceiptOcrDiagnostic.imageNotSelected;
+          setState(() => _diagnostic = diagnostic);
+          _showMessage('${diagnostic.title}: ${diagnostic.message}');
+        }
+        return;
+      }
       setState(() {
         _selectedImagePath = picked.path;
         _result = null;
@@ -169,9 +183,13 @@ class _ReceiptScanPageState extends State<ReceiptScanPage> {
       ),
     );
     if (!mounted || text == null || text.trim().isEmpty) return;
+    final parsed = ReceiptOcrService().parseText(text);
+    final diagnostic = ReceiptOcrDiagnostic.fromResult(parsed);
     setState(() {
-      _result = ReceiptOcrService().parseText(text);
+      _result = parsed;
+      _diagnostic = diagnostic;
     });
+    _showOcrStatus(diagnostic);
   }
 
   void _setImportedResult(ReceiptOcrResult value) {

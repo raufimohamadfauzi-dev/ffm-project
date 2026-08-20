@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
 import '../../features/audit/domain/usecases/audit_log_usecases.dart';
+import '../../features/goal/domain/usecases/goal_balance_usecases.dart';
 import '../../features/goal/domain/usecases/goal_crud_usecases.dart';
 import '../../features/hijri/domain/hijri_calendar_service.dart';
 import '../../features/liability/domain/usecases/liability_crud_usecases.dart';
@@ -40,6 +41,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<GetGoals>(() => GetGoals(db));
   getIt.registerLazySingleton<GetGoal>(() => GetGoal(db));
   getIt.registerLazySingleton<SaveGoal>(() => SaveGoal(db));
+  getIt.registerLazySingleton<SyncGoalBalance>(() => SyncGoalBalance(db));
   getIt.registerLazySingleton<GetLiabilities>(() => GetLiabilities(db));
   getIt.registerLazySingleton<SaveLiability>(() => SaveLiability(db));
   getIt.registerLazySingleton<GetReceivables>(() => GetReceivables(db));

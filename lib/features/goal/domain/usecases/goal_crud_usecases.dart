@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../entities/goal_entity.dart';
 
 class GetGoals {
@@ -79,6 +80,18 @@ class SaveGoal {
             createdAt: entity.createdAt ?? DateTime.now(),
           ),
         );
+    await AuditLogger(database).record(
+      action: 'simpan target',
+      entity: 'goal',
+      householdId: entity.householdId,
+      newValue: {
+        'id': entity.id,
+        'name': entity.name,
+        'targetAmount': entity.targetAmount,
+        'currentAmount': entity.currentAmount,
+        'targetDate': entity.targetDate.toIso8601String(),
+      },
+    );
   }
 }
 
@@ -91,5 +104,11 @@ class DeleteGoal {
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(const GoalsCompanion(isActive: Value(false)));
+    await AuditLogger(database).record(
+      action: 'arsip target',
+      entity: 'goal',
+      householdId: householdId,
+      newValue: {'id': id, 'isActive': false},
+    );
   }
 }

@@ -10,6 +10,7 @@ class AuditLogger {
   Future<void> record({
     required String action,
     required String entity,
+    String? householdId,
     Object? oldValue,
     Object? newValue,
   }) async {
@@ -24,7 +25,8 @@ class AuditLogger {
         'INSERT INTO audit_logs (id, household_id, action, entity, old_value, new_value, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
           '${now.microsecondsSinceEpoch}-$action',
-          AppContext.householdId,
+          householdId ?? AppContext.householdId,
+
           action,
           entity,
           oldValue == null ? null : jsonEncode(oldValue),

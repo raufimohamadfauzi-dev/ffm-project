@@ -29,6 +29,7 @@ import '../../domain/usecases/transaction_crud_usecases.dart';
 import 'transaction_detail_page.dart';
 import 'receipt_scan_page.dart';
 import '../../../goal/domain/entities/goal_entity.dart';
+import '../../../goal/domain/usecases/goal_balance_usecases.dart';
 import '../../../goal/presentation/pages/goal_pages.dart';
 import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
@@ -370,6 +371,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 subtitle: 'Setor ke target dan pilih tempat uang. Tidak ada kategori belanja.',
                 onTap: () => Navigator.pop(sheetContext, 'goal'),
               ),
+              const SizedBox(height: 8),
+              _NewEntryChoiceTile(
+                icon: Icons.outbox_outlined,
+                color: AppColors.warning,
+                title: 'Pakai dana target',
+                subtitle: 'Gunakan dana yang sudah terkumpul tanpa membuat saldo ganda.',
+                onTap: () => Navigator.pop(sheetContext, 'goal_usage'),
+              ),
               const Divider(height: 28),
               _NewEntryChoiceTile(
                 icon: Icons.playlist_add_rounded,
@@ -407,6 +416,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         await _openTransactionForm(TransactionType.income);
       case 'goal':
         await _openGoalContribution();
+      case 'goal_usage':
+        await _openGoalContribution(usage: true);
       case 'quick':
         await _openQuickEntry();
       case 'json':
@@ -430,10 +441,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
     await _saveDrafts(drafts);
   }
 
-  Future<void> _openGoalContribution({TransactionWithItems? existing}) async {
+  Future<void> _openGoalContribution({
+    TransactionWithItems? existing,
+    bool usage = false,
+  }) async {
     final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
       MaterialPageRoute(
-        builder: (_) => GoalContributionFormPage(existingTransaction: existing),
+        builder: (_) => GoalContributionFormPage(
+          existingTransaction: existing,
+          usage: usage || existing?.transaction.source == 'goal_usage',
+        ),
       ),
     );
     if (!mounted || drafts == null || drafts.isEmpty) return;
@@ -721,7 +738,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
 
   Future<void> _openEdit(TransactionWithItems entry) async {
     if (entry.transaction.goalId != null) {
-      await _openGoalContribution(existing: entry);
+      await _openGoalContribution(
+        existing: entry,
+        usage: entry.transaction.source == 'goal_usage',
+      );
       return;
     }
     final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
@@ -768,6 +788,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       previous: _entityFromRow(entry.transaction),
       nextGoalId: null,
       nextAmount: 0,
+      nextSource: null,
     );
     await AuditLogger(getIt<AppDatabase>()).record(
       action: 'hapus',
@@ -965,48 +986,19 @@ class _TransactionListPageState extends State<TransactionListPage> {
     updatedAt: row.updatedAt,
   );
 
-  int _goalContribution(TransactionEntity? transaction) {
-    if (transaction == null ||
-        transaction.goalId == null ||
-        transaction.amount >= 0) {
-      return 0;
-    }
-    return transaction.amount.abs();
-  }
-
-  Future<void> _applyGoalDelta(String? goalId, int delta) async {
-    if (goalId == null || delta == 0) return;
-    final goal = await getIt<GetGoal>()(AppContext.householdId, goalId);
-    if (goal == null) return;
-    await getIt<SaveGoal>()(
-      GoalEntity(
-        id: goal.id,
-        householdId: goal.householdId,
-        name: goal.name,
-        targetAmount: goal.targetAmount,
-        currentAmount: (goal.currentAmount + delta).clamp(0, 1 << 62).toInt(),
-        targetDate: goal.targetDate,
-        createdAt: goal.createdAt,
-      ),
-    );
-  }
-
   Future<void> _syncGoalContribution({
     required TransactionEntity? previous,
     required String? nextGoalId,
     required int nextAmount,
+    required String? nextSource,
   }) async {
-    final oldGoalId = previous?.goalId;
-    final oldContribution = _goalContribution(previous);
-    final newContribution = nextGoalId == null || nextAmount >= 0
-        ? 0
-        : nextAmount.abs();
-    if (oldGoalId == nextGoalId) {
-      await _applyGoalDelta(oldGoalId, newContribution - oldContribution);
-      return;
-    }
-    await _applyGoalDelta(oldGoalId, -oldContribution);
-    await _applyGoalDelta(nextGoalId, newContribution);
+    await getIt<SyncGoalBalance>()(
+      householdId: AppContext.householdId,
+      previous: previous,
+      nextGoalId: nextGoalId,
+      nextAmount: nextAmount,
+      nextSource: nextSource,
+    );
   }
 
   Map<String, Object?> _auditTransactionValue(TransactionEntity transaction) {
@@ -1156,6 +1148,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       previous: previous == null ? null : _entityFromRow(previous.transaction),
       nextGoalId: savedTransaction.goalId,
       nextAmount: savedTransaction.amount,
+      nextSource: savedTransaction.source,
     );
     await _saveMetadata(id, draft);
     await AuditLogger(getIt<AppDatabase>()).record(
@@ -1270,20 +1263,43 @@ class _TransactionListPageState extends State<TransactionListPage> {
           ? ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
               children: [
-                const AppHelpBanner(
-                  title: 'Cara pakainya',
-                  message: 'Sebaiknya mulai dari pemasukan awal supaya saldo keluarga punya titik awal. Setelah itu catat pengeluaran dan lihat dampaknya. Kalau punya nota, pakai Scan Nota lalu cek hasilnya sebelum menyimpan.',
+                AppHelpBanner(
+                  title: 'Mulai dari sini',
+                  message: _accounts.isEmpty
+                      ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal agar saldo keluarga punya titik awal.'
+                      : 'Catat pemasukan awal supaya saldo keluarga punya titik awal. Setelah itu catat pengeluaran dan lihat dampaknya.',
                   icon: Icons.receipt_long_outlined,
                 ),
                 const SizedBox(height: 16),
                 AppEmptyState(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Belum ada transaksi',
-                  message: 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
+                  icon: _accounts.isEmpty
+                      ? Icons.account_balance_wallet_outlined
+                      : Icons.receipt_long_outlined,
+                  title: _accounts.isEmpty
+                      ? 'Rekening belum ada'
+                      : 'Belum ada transaksi',
+                  message: _accounts.isEmpty
+                      ? 'Transaksi membutuhkan tempat uang seperti Tunai, bank, atau dompet digital.'
+                      : 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
                   action: FilledButton.icon(
-                    onPressed: _openForm,
-                    icon: const Icon(Icons.add),
-                    label: const Text(AppCopy.tambahTransaksi),
+                    onPressed: _accounts.isEmpty
+                        ? () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const MasterDataPage(),
+                              ),
+                            );
+                            if (mounted) await _loadTransactions();
+                          }
+                        : _openForm,
+                    icon: Icon(
+                      _accounts.isEmpty ? Icons.tune_outlined : Icons.add,
+                    ),
+                    label: Text(
+                      _accounts.isEmpty
+                          ? 'Buka Data Utama'
+                          : AppCopy.tambahTransaksi,
+                    ),
                   ),
                 ),
               ],
@@ -1345,7 +1361,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                         visibleTransfers.length];
                 final item = entry.transaction;
                 final isIncome = item.amount >= 0;
-                final isGoalContribution = item.goalId != null;
+                final isGoalUsage =
+                    item.goalId != null && item.source == 'goal_usage';
+                final isGoalContribution = item.goalId != null && !isGoalUsage;
                 final merchantName = _merchantLabel(item.merchantId);
                 final itemSummary = entry.items.isEmpty
                     ? null
@@ -1354,6 +1372,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
                           .join(', ');
                 final color = isGoalContribution
                     ? AppColors.primary
+                    : isGoalUsage
+                    ? AppColors.negative
                     : isIncome
                     ? AppColors.positive
                     : AppColors.negative;
@@ -1391,6 +1411,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
                                 AppStatusChip(
                                   label: isGoalContribution
                                       ? 'Isi target'
+                                      : isGoalUsage
+                                      ? 'Pakai target'
                                       : isIncome
                                       ? 'Uang masuk'
                                       : 'Uang keluar',
@@ -1412,7 +1434,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
                             Text(
                               isGoalContribution
                                   ? 'Uang terkumpul untuk target'
+                                  : isGoalUsage
+                                  ? 'Penggunaan dana target'
                                   : _categoryLabel(item.categoryId),
+
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                             if (merchantName.isNotEmpty) ...[
@@ -3326,9 +3351,14 @@ class _NewEntryChoiceTile extends StatelessWidget {
 }
 
 class GoalContributionFormPage extends StatefulWidget {
-  const GoalContributionFormPage({super.key, this.existingTransaction});
+  const GoalContributionFormPage({
+    super.key,
+    this.existingTransaction,
+    this.usage = false,
+  });
 
   final TransactionWithItems? existingTransaction;
+  final bool usage;
 
   @override
   State<GoalContributionFormPage> createState() =>
@@ -3366,14 +3396,19 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
     _loadAccounts();
   }
 
+  bool get _isUsage =>
+      widget.usage ||
+      widget.existingTransaction?.transaction.source == 'goal_usage';
+
   Future<void> _loadGoals() async {
     final goals = await getIt<GetGoals>()(AppContext.householdId);
     if (!mounted) return;
     setState(() {
       _goals = goals
           .where(
-            (goal) =>
-                goal.currentAmount < goal.targetAmount || goal.id == _goalId,
+            (goal) => _isUsage
+                ? goal.currentAmount > 0 || goal.id == _goalId
+                : goal.currentAmount < goal.targetAmount || goal.id == _goalId,
           )
           .toList(growable: false);
       _goalsLoading = false;
@@ -3475,15 +3510,25 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
     final amount = parseRupiah(_amountController.text);
     final goal = _goals.where((item) => item.id == _goalId).firstOrNull;
     if (goal == null || _accountId == null || amount <= 0) return;
+    if (_isUsage && amount > goal.currentAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Nominal pemakaian melebihi dana target yang tersedia.',
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).pop([
       TransactionDraft(
         type: TransactionType.expense,
-        categoryId: null,
+        categoryId: _isUsage ? goal.categoryId : null,
         owner: OwnerLabels.family,
         date: _date,
         amount: -amount,
         note: _noteController.text.trim(),
-        source: 'goal_contribution',
+        source: _isUsage ? 'goal_usage' : 'goal_contribution',
         accountId: _accountId,
         goalId: goal.id,
         items: const [],
@@ -3560,7 +3605,7 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
     final amount = parseRupiah(_amountController.text);
     final projected = selectedGoal == null
         ? null
-        : selectedGoal.currentAmount + amount;
+        : selectedGoal.currentAmount + (_isUsage ? -amount : amount);
     final progress = selectedGoal == null || selectedGoal.targetAmount <= 0
         ? 0.0
         : (selectedGoal.currentAmount / selectedGoal.targetAmount).clamp(
@@ -3574,9 +3619,13 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.existingTransaction == null
-              ? 'Isi target uang terkumpul'
-              : 'Ubah isi target',
+          _isUsage
+              ? (widget.existingTransaction == null
+                    ? 'Pakai dana target'
+                    : 'Ubah pemakaian target')
+              : (widget.existingTransaction == null
+                    ? 'Isi target uang terkumpul'
+                    : 'Ubah isi target'),
         ),
       ),
       body: Form(
@@ -3587,16 +3636,23 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
             AppCard(
               color: AppColors.primarySoft.withValues(alpha: .55),
               border: BorderSide(color: AppColors.primary, width: 1.5),
-              child: const Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Isi target tanpa kategori',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                    _isUsage
+                        ? 'Pakai dana target'
+                        : 'Isi target tanpa kategori',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                  SizedBox(height: 6),
+                  const SizedBox(height: 6),
                   Text(
-                    'Pilih target, tempat uang, dan nominal alokasi. Ini bukan transaksi belanja, jadi tidak perlu memilih kategori.',
+                    _isUsage
+                        ? 'Pilih target, tempat uang, dan nominal yang mau dipakai. Saldo rekening berkurang sekali dan saldo target ikut berkurang.'
+                        : 'Pilih target, tempat uang, dan nominal alokasi. Ini bukan transaksi belanja, jadi tidak perlu memilih kategori.',
                   ),
                 ],
               ),
@@ -3604,7 +3660,9 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
             const SizedBox(height: 16),
             AppSectionHeader(
               title: '1. Target tujuan',
-              helpText: 'Tentukan target yang ingin kamu tambah progresnya.',
+              helpText: _isUsage
+                  ? 'Pilih target yang dananya mau dipakai.'
+                  : 'Tentukan target yang ingin kamu tambah progresnya.',
             ),
             const SizedBox(height: 8),
             if (_goalsLoading)
@@ -3637,8 +3695,10 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
               DropdownButtonFormField<String>(
                 initialValue: _goalId,
                 isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Target uang terkumpul · wajib dipilih',
+                decoration: InputDecoration(
+                  labelText: _isUsage
+                      ? 'Target yang dipakai · wajib dipilih'
+                      : 'Target uang terkumpul · wajib dipilih',
                   helperText: 'Target tidak mengubah saldo keluarga menjadi saldo kedua.',
                   prefixIcon: Icon(Icons.flag_outlined),
                 ),
@@ -3674,7 +3734,7 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                       if (amount > 0) ...[
                         const SizedBox(height: 6),
                         Text(
-                          'Setelah disimpan: ${formatRupiahInput(projected!.toString())} · ${(projectedProgress * 100).round()}%',
+                          '${_isUsage ? 'Setelah dipakai' : 'Setelah disimpan'}: ${formatRupiahInput(projected!.toString())} · ${(projectedProgress * 100).round()}%',
                           style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w800,
@@ -3689,7 +3749,9 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
             const SizedBox(height: 18),
             AppSectionHeader(
               title: '2. Tempat uang',
-              helpText: 'Pilih tempat uang yang dipakai untuk alokasi target: tunai, bank, atau dompet digital.',
+              helpText: _isUsage
+                  ? 'Pilih rekening atau cash tempat dana target benar-benar dipakai.'
+                  : 'Pilih tempat uang yang dipakai untuk alokasi target: tunai, bank, atau dompet digital.',
             ),
             const SizedBox(height: 8),
             if (_accountsLoading)
@@ -3719,7 +3781,9 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                       itemLabel: (account) => account.name,
                       itemId: (account) => account.id,
                       labelText: 'Ambil uang dari',
-                      helperText: 'Saldo tempat uang ini berkurang satu kali; progres target bertambah satu kali.',
+                      helperText: _isUsage
+                          ? 'Saldo tempat uang ini berkurang satu kali; progres target ikut berkurang satu kali.'
+                          : 'Saldo tempat uang ini berkurang satu kali; progres target bertambah satu kali.',
                       searchHintText: 'Cari rekening atau dompet',
                       cacheKey: 'target.tempat_uang',
                       onChanged: (account) {
@@ -3737,22 +3801,30 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
             const SizedBox(height: 18),
             AppSectionHeader(
               title: '3. Isi nominal alokasi',
-              helpText: 'Masukkan jumlah uang yang mau ditambahkan ke target.',
+              helpText: _isUsage
+                  ? 'Masukkan jumlah dana target yang mau dipakai.'
+                  : 'Masukkan jumlah uang yang mau ditambahkan ke target.',
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _amountController,
               keyboardType: TextInputType.number,
               inputFormatters: const [RupiahInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Nominal yang dialokasikan · wajib diisi',
+              decoration: InputDecoration(
+                labelText: _isUsage
+                    ? 'Nominal yang dipakai · wajib diisi'
+                    : 'Nominal yang dialokasikan · wajib diisi',
                 prefixText: 'Rp ',
                 hintText: '0',
-                helperText: 'Nominal ini mengurangi rekening sumber dan menambah progress target.',
+                helperText: _isUsage
+                    ? 'Nominal ini mengurangi rekening sumber dan mengurangi progres target.'
+                    : 'Nominal ini mengurangi rekening sumber dan menambah progres target.',
               ),
               onChanged: (_) => setState(() {}),
               validator: (value) => parseRupiah(value ?? '') <= 0
-                  ? 'Isi nominal alokasi dulu.'
+                  ? (_isUsage
+                        ? 'Isi nominal pemakaian dulu.'
+                        : 'Isi nominal alokasi dulu.')
                   : null,
             ),
             const SizedBox(height: 18),

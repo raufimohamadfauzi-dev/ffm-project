@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../entities/liability_entity.dart';
 
 class GetLiabilities {
@@ -59,6 +60,17 @@ class SaveLiability {
             createdAt: entity.updatedAt,
           ),
         );
+    await AuditLogger(database).record(
+      action: 'simpan hutang',
+      entity: 'liability',
+      householdId: entity.householdId,
+      newValue: {
+        'id': entity.id,
+        'name': entity.name,
+        'originalAmount': entity.originalAmount,
+        'remainingBalance': entity.remainingBalance,
+      },
+    );
   }
 }
 
@@ -71,5 +83,11 @@ class DeleteLiability {
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(const LiabilitiesCompanion(isActive: Value(false)));
+    await AuditLogger(database).record(
+      action: 'arsip hutang',
+      entity: 'liability',
+      householdId: householdId,
+      newValue: {'id': id, 'isActive': false},
+    );
   }
 }

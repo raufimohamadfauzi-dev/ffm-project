@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../entities/asset_entity.dart';
 
 class GetAssets {
@@ -57,6 +58,18 @@ class SaveAsset {
             isArchived: Value(entity.isArchived),
           ),
         );
+    await AuditLogger(database).record(
+      action: 'simpan aset',
+      entity: 'asset',
+      householdId: entity.householdId,
+      newValue: {
+        'id': entity.id,
+        'name': entity.name,
+        'assetType': entity.assetType,
+        'value': entity.value,
+        'placement': entity.placement,
+      },
+    );
   }
 }
 
@@ -74,5 +87,11 @@ class ArchiveAsset {
             updatedAt: Value(DateTime.now()),
           ),
         );
+    await AuditLogger(database).record(
+      action: 'arsip aset',
+      entity: 'asset',
+      householdId: householdId,
+      newValue: {'id': id, 'isArchived': true},
+    );
   }
 }

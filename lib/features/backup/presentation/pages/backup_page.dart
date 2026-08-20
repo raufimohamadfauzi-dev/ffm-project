@@ -464,7 +464,10 @@ class _BackupPageState extends State<BackupPage> {
     final aset = preview.counts['assets'] ?? 0;
     final hutang = preview.counts['liabilities'] ?? 0;
     final target = preview.counts['goals'] ?? 0;
+    final piutang = preview.counts['receivables'] ?? 0;
     final anggaran = preview.counts['budgets'] ?? 0;
+    final rekonsiliasi = preview.counts['reconciliations'] ?? 0;
+    final aktivitas = preview.counts['activity_logs'] ?? 0;
     final pengingat = preview.counts['reminders'] ?? 0;
     final dana = preview.counts['sinking_funds'] ?? 0;
     final rentang = preview.transactionFrom == null
@@ -472,8 +475,9 @@ class _BackupPageState extends State<BackupPage> {
         : '${_dateLabel(preview.transactionFrom!)} sampai ${_dateLabel(preview.transactionTo!)}';
     return 'Versi cadangan: ${preview.formatVersion}\n'
         'Transaksi: $transaksi ($rentang)\n'
-        'Aset: $aset · Hutang: $hutang · Target: $target\n'
-        'Anggaran: $anggaran · Pengingat: $pengingat · Dana Berkala: $dana';
+        'Aset: $aset · Hutang: $hutang · Piutang: $piutang · Target: $target\n'
+        'Anggaran: $anggaran · Pengingat: $pengingat · Dana Berkala: $dana\n'
+        'Rekonsiliasi: $rekonsiliasi · Aktivitas: $aktivitas';
   }
 
   String _dateLabel(DateTime date) {
@@ -501,7 +505,7 @@ class _BackupPageState extends State<BackupPage> {
         children: [
           const AppHelpBanner(
             title: 'Cara pakainya',
-            message: 'Cadangan penuh dipakai untuk pindah perangkat. Ekspor terbatas hanya membawa transaksi sesuai tanggal dan jenis yang kamu pilih.',
+            message: 'Cadangan penuh dipakai untuk pindah perangkat dan membawa data utama, transaksi, aset, hutang, piutang, target, anggaran, transfer, serta riwayat rekonsiliasi dan aktivitas. Ekspor analisa AI hanya membawa data sesuai filter.',
             icon: Icons.shield_outlined,
           ),
           const SizedBox(height: 12),
@@ -545,13 +549,13 @@ class _BackupPageState extends State<BackupPage> {
           FilledButton.icon(
             onPressed: _working ? null : _exportBackup,
             icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Ekspor JSON Pintar untuk AI'),
+            label: const Text('Ekspor JSON analisa AI (bukan backup)'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _working ? null : _exportFullBackup,
             icon: const Icon(Icons.backup_outlined),
-            label: const Text('Ekspor cadangan penuh (.json)'),
+            label: const Text('Buat cadangan penuh semua data (.json)'),
           ),
           const SizedBox(height: 10),
           OutlinedButton.icon(
@@ -625,7 +629,9 @@ class _BackupPageState extends State<BackupPage> {
             ),
           ),
           const SizedBox(height: 18),
-          const AppSectionHeader(title: 'Ekspor JSON Pintar untuk LLM'),
+          const AppSectionHeader(
+            title: 'JSON analisa untuk LLM (bukan cadangan)',
+          ),
           const SizedBox(height: 8),
           AppCard(
             color: scheme.primaryContainer,
@@ -633,7 +639,7 @@ class _BackupPageState extends State<BackupPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pilih modul dan periode di atas, lalu salin atau ekspor berkas JSON ke AI (Claude/ChatGPT).',
+                  'Pilih modul dan periode di atas, lalu salin atau ekspor data analisa ke AI (Claude/ChatGPT). Berkas ini bukan backup dan tidak bisa dipakai untuk memulihkan seluruh aplikasi.',
                   style: TextStyle(color: scheme.onPrimaryContainer),
                 ),
                 const SizedBox(height: 12),
