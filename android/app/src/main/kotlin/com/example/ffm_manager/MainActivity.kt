@@ -92,7 +92,19 @@ class MainActivity : FlutterActivity() {
             return
         }
         val uri = data?.getParcelableExtra<Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-        result.success(uri?.toString())
+        if (uri == null) {
+            result.success(null)
+            return
+        }
+        val name = runCatching {
+            RingtoneManager.getRingtone(this, uri)?.getTitle(this)
+        }.getOrNull().orEmpty()
+        result.success(
+            mapOf(
+                "uri" to uri.toString(),
+                "name" to if (name.isBlank()) "Nada pilihan" else name,
+            ),
+        )
     }
 
     companion object {

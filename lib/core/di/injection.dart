@@ -12,6 +12,7 @@ import '../../features/receivable/domain/usecases/receivable_crud_usecases.dart'
 import '../../features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../features/reminder/data/repositories/reminder_repository.dart';
 import '../../features/reminder/data/services/reminder_notification_service.dart';
+import '../../features/reminder/data/services/reminder_sound_picker.dart';
 import '../../features/reminder/domain/usecases/reminder_usecases.dart';
 import '../../features/reminder/presentation/bloc/reminder_bloc.dart';
 import '../../features/transaction/data/services/offline_ai_engine_service.dart';
@@ -84,6 +85,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<ReminderNotificationService>(
     ReminderNotificationService.new,
+  );
+  getIt.registerLazySingleton<ReminderSoundPicker>(
+    AndroidReminderSoundPicker.new,
   );
   getIt.registerFactory<ReminderBloc>(
     () => ReminderBloc(

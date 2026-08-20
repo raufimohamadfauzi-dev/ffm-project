@@ -172,6 +172,20 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
           'Izin notifikasi dan alarm presisi wajib diaktifkan agar pengingat bisa berbunyi.',
         );
       }
+      final previous = await _repository.getReminder(
+        _householdId,
+        event.reminder.id,
+      );
+      if (previous != null) {
+        final previousOccurrence = _occurrenceCalculator.nextOccurrence(
+          previous,
+          now: DateTime.now().subtract(const Duration(seconds: 1)),
+        );
+        if (previousOccurrence != null) {
+          await _notificationService.cancel(previousOccurrence.notificationId);
+        }
+        await _notificationService.cancel(previous.notificationId);
+      }
       await _repository.saveReminder(event.reminder);
       await _reschedule([event.reminder]);
       add(const ReminderLoadRequested());

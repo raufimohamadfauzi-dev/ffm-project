@@ -69,6 +69,18 @@ abstract interface class ReminderNotificationGateway {
   Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
 }
 
+String reminderNotificationChannelId(ReminderEntity reminder) {
+  final soundKey = reminder.soundUri?.trim().isNotEmpty == true
+      ? reminder.soundUri!
+      : 'default';
+  var hash = 2166136261;
+  for (final codeUnit in soundKey.codeUnits) {
+    hash = (hash ^ codeUnit) * 16777619;
+    hash &= 0x7fffffff;
+  }
+  return 'reminder_${reminder.id}_${hash == 0 ? 1 : hash}';
+}
+
 class ReminderNotificationService implements ReminderNotificationGateway {
   ReminderNotificationService({FlutterLocalNotificationsPlugin? plugin})
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
@@ -171,7 +183,10 @@ class ReminderNotificationService implements ReminderNotificationGateway {
         'Izin notifikasi atau alarm presisi belum aktif. Buka pengaturan izin lalu coba lagi.',
       );
     }
-    final channelId = 'reminder_${reminder.id}';
+    final channelId = reminderNotificationChannelId(reminder);
+    final androidSound = reminder.soundUri?.trim().isNotEmpty == true
+        ? UriAndroidNotificationSound(reminder.soundUri!)
+        : null;
     await _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -183,6 +198,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
             description: 'Notifikasi pengingat FFM',
             importance: Importance.max,
             playSound: true,
+            sound: androidSound,
           ),
         );
     final details = NotificationDetails(
@@ -193,9 +209,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
         importance: Importance.max,
         priority: Priority.high,
         playSound: true,
-        sound: reminder.soundUri == null
-            ? null
-            : UriAndroidNotificationSound(reminder.soundUri!),
+        sound: androidSound,
         actions: const [
           AndroidNotificationAction('complete', 'Selesai'),
           AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),

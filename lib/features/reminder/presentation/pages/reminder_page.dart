@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../data/services/reminder_sound_picker.dart';
 import '../../domain/entities/reminder_entity.dart';
 import '../bloc/reminder_bloc.dart';
 
@@ -25,6 +26,7 @@ class _ReminderView extends StatefulWidget {
 
 class _ReminderViewState extends State<_ReminderView> {
   ReminderHistoryStatus? _historyFilter;
+  String? _lastNotifiedPendingHistoryId;
 
   Future<void> _openDialog(
     BuildContext context, {
@@ -39,6 +41,32 @@ class _ReminderViewState extends State<_ReminderView> {
     }
   }
 
+  void _notifyPendingHistory(ReminderState state) {
+    final pending = state.history
+        .where(
+          (item) =>
+              item.history.status == ReminderHistoryStatus.pending &&
+              item.history.triggeredAt != null,
+        )
+        .firstOrNull;
+    if (pending == null ||
+        pending.history.id == _lastNotifiedPendingHistoryId) {
+      return;
+    }
+    _lastNotifiedPendingHistoryId = pending.history.id;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Alarm masuk ke riwayat. Pilih Selesai atau Tunda 10 menit.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Pengingat')),
@@ -49,6 +77,7 @@ class _ReminderViewState extends State<_ReminderView> {
     ),
     body: BlocConsumer<ReminderBloc, ReminderState>(
       listener: (context, state) {
+        _notifyPendingHistory(state);
         final message = state.errorMessage;
         if (message != null) {
           ScaffoldMessenger.of(context)
@@ -171,61 +200,111 @@ class _ReminderViewState extends State<_ReminderView> {
                   ),
                 )
               else
-                ...history.map(
-                  (item) => AppCard(
-                    child: ListTile(
-                      leading: Icon(_statusIcon(item.history.status)),
-                      title: Text(item.history.title),
-                      subtitle: Text(
-                        '${_formatDateTime(item.history.scheduledAt)} · ${item.history.status.label}',
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'selesai') {
-                            context.read<ReminderBloc>().add(
-                              ReminderHistoryStatusChanged(
-                                history: item.history,
-                                status: ReminderHistoryStatus.completed,
-                              ),
-                            );
-                          } else if (value == 'tunda') {
-                            context.read<ReminderBloc>().add(
-                              ReminderHistoryStatusChanged(
-                                history: item.history,
-                                status: ReminderHistoryStatus.snoozed,
-                                snoozedUntil: DateTime.now().add(
-                                  const Duration(minutes: 10),
+                ...history.map((item) {
+                  final historyItem = item.history;
+                  final isActionable =
+                      historyItem.status != ReminderHistoryStatus.completed &&
+                      historyItem.status != ReminderHistoryStatus.cancelled;
+                  final isHighlighted =
+                      historyItem.id == _lastNotifiedPendingHistoryId;
+                  final colorScheme = Theme.of(context).colorScheme;
+                  final subtitle = historyItem.snoozedUntil == null
+                      ? '${_formatDateTime(historyItem.scheduledAt)} · ${historyItem.status.label}'
+                      : '${_formatDateTime(historyItem.scheduledAt)} · ${historyItem.status.label} sampai ${_formatDateTime(historyItem.snoozedUntil!)}';
+                  return AppCard(
+                    color: isHighlighted ? colorScheme.tertiaryContainer : null,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(_statusIcon(historyItem.status)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      historyItem.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    Text(subtitle),
+                                  ],
                                 ),
                               ),
-                            );
-                          } else if (value == 'hapus') {
-                            context.read<ReminderBloc>().add(
-                              ReminderHistoryDeleted(item.history),
-                            );
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          if (item.history.status !=
-                              ReminderHistoryStatus.completed)
-                            const PopupMenuItem(
-                              value: 'selesai',
-                              child: Text('Tandai selesai'),
-                            ),
-                          if (item.history.status !=
-                              ReminderHistoryStatus.completed)
-                            const PopupMenuItem(
-                              value: 'tunda',
-                              child: Text('Tunda 10 menit'),
-                            ),
-                          const PopupMenuItem(
-                            value: 'hapus',
-                            child: Text('Hapus dari riwayat'),
+                              PopupMenuButton<String>(
+                                tooltip: 'Aksi riwayat',
+                                onSelected: (value) {
+                                  if (value == 'hapus') {
+                                    context.read<ReminderBloc>().add(
+                                      ReminderHistoryDeleted(historyItem),
+                                    );
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'hapus',
+                                    child: Text('Hapus dari riwayat'),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
+                          if (isHighlighted) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Alarm baru masuk. Pilih tindakan di bawah.',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                          if (isActionable) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () =>
+                                        context.read<ReminderBloc>().add(
+                                          ReminderHistoryStatusChanged(
+                                            history: historyItem,
+                                            status:
+                                                ReminderHistoryStatus.completed,
+                                          ),
+                                        ),
+                                    icon: const Icon(Icons.check_rounded),
+                                    label: const Text('Selesai'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: () =>
+                                        context.read<ReminderBloc>().add(
+                                          ReminderHistoryStatusChanged(
+                                            history: historyItem,
+                                            status:
+                                                ReminderHistoryStatus.snoozed,
+                                            snoozedUntil: DateTime.now().add(
+                                              const Duration(minutes: 10),
+                                            ),
+                                          ),
+                                        ),
+                                    icon: const Icon(Icons.snooze_rounded),
+                                    label: const Text('Tunda 10 mnt'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }),
             ],
           ],
         );
@@ -263,6 +342,8 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   late DateTime _scheduledAt;
   late ReminderRecurrenceType _recurrence;
   late List<int> _weekday;
+  String? _soundUri;
+  String? _soundName;
 
   @override
   void initState() {
@@ -274,6 +355,8 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         initial?.scheduledAt ?? DateTime.now().add(const Duration(hours: 1));
     _recurrence = initial?.recurrenceType ?? ReminderRecurrenceType.once;
     _weekday = [...?initial?.weekdays];
+    _soundUri = initial?.soundUri;
+    _soundName = initial?.soundName;
   }
 
   @override
@@ -309,6 +392,31 @@ class _ReminderDialogState extends State<_ReminderDialog> {
     });
   }
 
+  Future<void> _pickSound() async {
+    try {
+      final selection = await getIt<ReminderSoundPicker>().pick(
+        currentUri: _soundUri,
+      );
+      if (!mounted || selection == null) return;
+      setState(() {
+        _soundUri = selection.uri;
+        _soundName = selection.name;
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nada dering belum bisa dipilih: $error')),
+      );
+    }
+  }
+
+  void _clearSound() {
+    setState(() {
+      _soundUri = null;
+      _soundName = null;
+    });
+  }
+
   void _save() {
     final title = _titleController.text.trim();
     if (title.isEmpty || _scheduledAt.isBefore(DateTime.now())) {
@@ -341,8 +449,8 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         recurrenceType: _recurrence,
         weekdays: _weekday,
         isActive: initial?.isActive ?? true,
-        soundUri: initial?.soundUri,
-        soundName: initial?.soundName,
+        soundUri: _soundUri,
+        soundName: _soundName,
         defaultSnoozeMinutes: initial?.defaultSnoozeMinutes ?? 10,
         notificationId:
             initial?.notificationId ??
@@ -394,6 +502,28 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                 .toList(),
             onChanged: (value) => setState(
               () => _recurrence = value ?? ReminderRecurrenceType.once,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.music_note_outlined),
+            title: const Text('Nada notifikasi'),
+            subtitle: Text(_soundName ?? 'Bawaan FFM'),
+            trailing: Wrap(
+              spacing: 4,
+              children: [
+                if (_soundUri != null)
+                  IconButton(
+                    tooltip: 'Kembalikan ke nada bawaan',
+                    onPressed: _clearSound,
+                    icon: const Icon(Icons.restart_alt_rounded),
+                  ),
+                OutlinedButton(
+                  onPressed: _pickSound,
+                  child: const Text('Pilih nada'),
+                ),
+              ],
             ),
           ),
           if (_recurrence == ReminderRecurrenceType.weekly)
