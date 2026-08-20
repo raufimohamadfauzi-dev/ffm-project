@@ -128,6 +128,7 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     for (final action in pendingActions) {
       await _applyNotificationAction(action.actionId, action.payload);
     }
+    await _reconcileTriggeredHistories();
     final reminders = await _repository.getReminders(_householdId);
     await _reschedule(reminders);
   }
@@ -142,12 +143,13 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
       for (final action in pendingActions) {
         await _applyNotificationAction(action.actionId, action.payload);
       }
+      await _reconcileTriggeredHistories();
       final reminders = await _repository.getReminders(_householdId);
       final history = await _repository.getHistoryViews(_householdId);
       await _reschedule(reminders);
       emit(
         state.copyWith(
-          reminders: reminders,
+          reminders: _visibleReminders(reminders),
           history: history,
           isLoading: false,
         ),
@@ -319,13 +321,33 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     final historyId = '${payload['historyId'] ?? ''}';
     final reminderId = '${payload['reminderId'] ?? ''}';
     if (historyId.isEmpty || reminderId.isEmpty) return;
-    final history = await _repository.getHistoryById(
+    var history = await _repository.getHistoryById(
       householdId: _householdId,
       historyId: historyId,
     );
-    if (history == null) return;
+    if (history == null) {
+      final reminder = await _repository.getReminder(_householdId, reminderId);
+      final occurrenceKey = '${payload['occurrenceKey'] ?? ''}';
+      if (reminder == null || occurrenceKey.isEmpty) return;
+      history = await _repository.ensureHistory(
+        reminder: reminder,
+        occurrence: ReminderOccurrence(
+          key: occurrenceKey,
+          scheduledAt:
+              DateTime.tryParse('${payload['scheduledAt'] ?? ''}') ??
+              DateTime.now(),
+          notificationId:
+              int.tryParse('${payload['notificationId'] ?? ''}') ??
+              reminder.notificationId,
+        ),
+      );
+    }
 
     if (actionId == 'complete') {
+      await _repository.markHistoryTriggered(
+        householdId: _householdId,
+        historyId: history.id,
+      );
       await _repository.updateHistoryStatus(
         householdId: _householdId,
         historyId: history.id,
@@ -334,6 +356,10 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
       return;
     }
     if (actionId == 'snooze_10') {
+      await _repository.markHistoryTriggered(
+        householdId: _householdId,
+        historyId: history.id,
+      );
       final until = DateTime.now().add(const Duration(minutes: 10));
       await _repository.updateHistoryStatus(
         householdId: _householdId,
@@ -358,8 +384,55 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
           historyId: history.id,
         );
       }
+      return;
+    }
+
+    // Ketuk biasa (action `open`) berarti notification sudah diterima.
+    // Occurrence dipindahkan ke history sebagai pending sampai user memilih
+    // Selesai atau Tunda.
+    await _repository.markHistoryTriggered(
+      householdId: _householdId,
+      historyId: history.id,
+    );
+  }
+
+  Future<void> _reconcileTriggeredHistories() async {
+    final now = DateTime.now();
+    final due = await _repository.getDueUntriggeredHistories(_householdId, now);
+    for (final history in due) {
+      await _repository.markHistoryTriggered(
+        householdId: _householdId,
+        historyId: history.id,
+        triggeredAt: history.scheduledAt,
+      );
+    }
+    final dueSnoozed = await _repository.getDueSnoozedHistories(
+      _householdId,
+      now,
+    );
+    for (final history in dueSnoozed) {
+      await _repository.markHistoryTriggered(
+        householdId: _householdId,
+        historyId: history.id,
+        triggeredAt: history.snoozedUntil ?? now,
+      );
     }
   }
+
+  List<ReminderEntity> _visibleReminders(List<ReminderEntity> reminders) =>
+      reminders
+          .where((reminder) {
+            if (!reminder.isActive ||
+                reminder.recurrenceType != ReminderRecurrenceType.once) {
+              return true;
+            }
+            return _occurrenceCalculator.nextOccurrence(
+                  reminder,
+                  now: DateTime.now(),
+                ) !=
+                null;
+          })
+          .toList(growable: false);
 
   Future<void> _reschedule(List<ReminderEntity> reminders) async {
     final permission = await _notificationService.permissionState();

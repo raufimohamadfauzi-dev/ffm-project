@@ -147,6 +147,69 @@ class ReminderRepository {
     return row == null ? null : _toHistory(row);
   }
 
+  Future<List<ReminderHistoryEntity>> getDueUntriggeredHistories(
+    String householdId,
+    DateTime now,
+  ) async {
+    final rows =
+        await (database.select(database.reminderHistories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.triggeredAt.isNull() &
+                  row.scheduledAt.isSmallerOrEqualValue(now),
+            ))
+            .get();
+    return rows.map(_toHistory).toList(growable: false);
+  }
+
+  Future<List<ReminderHistoryEntity>> getDueSnoozedHistories(
+    String householdId,
+    DateTime now,
+  ) async {
+    final rows =
+        await (database.select(database.reminderHistories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.status.equals(
+                    ReminderHistoryStatus.snoozed.storageValue,
+                  ) &
+                  row.snoozedUntil.isNotNull() &
+                  row.snoozedUntil.isSmallerOrEqualValue(now),
+            ))
+            .get();
+    return rows.map(_toHistory).toList(growable: false);
+  }
+
+  Future<void> markHistoryTriggered({
+    required String householdId,
+    required String historyId,
+    DateTime? triggeredAt,
+  }) async {
+    final existing = await getHistoryById(
+      householdId: householdId,
+      historyId: historyId,
+    );
+    if (existing == null ||
+        existing.status == ReminderHistoryStatus.completed ||
+        existing.status == ReminderHistoryStatus.cancelled) {
+      return;
+    }
+    final triggerTime = triggeredAt ?? DateTime.now();
+    await (database.update(database.reminderHistories)..where(
+          (row) =>
+              row.householdId.equals(householdId) & row.id.equals(historyId),
+        ))
+        .write(
+          ReminderHistoriesCompanion(
+            status: const Value('pending'),
+            triggeredAt: Value(existing.triggeredAt ?? triggerTime),
+            completedAt: const Value(null),
+            snoozedUntil: const Value(null),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+  }
+
   Future<ReminderHistoryEntity> ensureHistory({
     required ReminderEntity reminder,
     required ReminderOccurrence occurrence,
@@ -242,10 +305,11 @@ class ReminderRepository {
         await (database.select(database.reminderHistories)
               ..where((row) {
                 final household = row.householdId.equals(householdId);
+                final triggered = row.triggeredAt.isNotNull();
                 final status = filter.status == null
                     ? const Constant(true)
                     : row.status.equals(filter.status!.storageValue);
-                return household & status;
+                return household & triggered & status;
               })
               ..orderBy([(row) => OrderingTerm.desc(row.scheduledAt)]))
             .get();

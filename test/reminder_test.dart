@@ -105,11 +105,18 @@ void main() {
         reminder: item,
         occurrence: occurrence,
       );
-      final rows = await repository.getHistoryViews(householdId);
+      final rowsBeforeTrigger = await repository.getHistoryViews(householdId);
+      await repository.markHistoryTriggered(
+        householdId: householdId,
+        historyId: first.id,
+        triggeredAt: occurrence.scheduledAt,
+      );
+      final rowsAfterTrigger = await repository.getHistoryViews(householdId);
 
       expect(second.id, first.id);
-      expect(rows, hasLength(1));
-      expect(rows.single.history.occurrenceKey, occurrence.key);
+      expect(rowsBeforeTrigger, isEmpty);
+      expect(rowsAfterTrigger, hasLength(1));
+      expect(rowsAfterTrigger.single.history.occurrenceKey, occurrence.key);
     });
   });
 
@@ -156,6 +163,53 @@ void main() {
         isNotNull,
       );
     });
+
+    test(
+      'notification tap memindahkan occurrence sekali ke history pending',
+      () async {
+        final item = reminder(
+          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        );
+        await repository.saveReminder(item);
+        final occurrence = ReminderOccurrence(
+          key: '20260820-1200',
+          scheduledAt: item.scheduledAt,
+          notificationId: 2002,
+        );
+        final history = await repository.ensureHistory(
+          reminder: item,
+          occurrence: occurrence,
+        );
+
+        final stateFuture = bloc.stream.firstWhere(
+          (state) => state.history.any(
+            (view) =>
+                view.history.id == history.id &&
+                view.history.status == ReminderHistoryStatus.pending,
+          ),
+        );
+        bloc.add(
+          ReminderNotificationActionReceived(
+            actionId: 'open',
+            payload: {
+              'householdId': householdId,
+              'reminderId': item.id,
+              'historyId': history.id,
+              'occurrenceKey': occurrence.key,
+            },
+          ),
+        );
+        final state = await stateFuture;
+
+        expect(state.reminders, isEmpty);
+        expect(state.history, hasLength(1));
+        expect(state.history.single.history.triggeredAt, isNotNull);
+        expect(
+          state.history.single.history.status,
+          ReminderHistoryStatus.pending,
+        );
+      },
+    );
 
     test(
       'snooze mengubah status dan menjadwalkan ulang sepuluh menit',
