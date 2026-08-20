@@ -208,4 +208,99 @@ void main() {
     expect(byId['goal-1']!.transaction.source, 'goal_contribution');
     expect(byId['goal-1']!.transaction.categoryId, isNull);
   });
+
+  test('batch mutasi campuran menyimpan pemasukan, pengeluaran, biaya admin, dan transfer', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final recordedAt = DateTime(2026, 8, 20, 8, 30);
+
+    await SaveMixedTransactionBatch(database)(
+      [
+        TransactionEntity(
+          id: 'statement-income-1',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          amount: 1000000,
+          owner: 'Keluarga',
+          categoryId: 'income-category',
+          accountId: 'account-seabank',
+          partyName: 'Panen pepaya',
+          source: 'bank_statement_json',
+          recordedAt: recordedAt,
+        ),
+        TransactionEntity(
+          id: 'statement-expense-1',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          amount: -250000,
+          owner: 'Keluarga',
+          categoryId: 'expense-category',
+          accountId: 'account-seabank',
+          source: 'bank_statement_json',
+          recordedAt: recordedAt,
+        ),
+        TransactionEntity(
+          id: 'statement-fee-1',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          amount: -1000,
+          owner: 'Keluarga',
+          categoryId: 'admin-category',
+          accountId: 'account-seabank',
+          note: 'Biaya admin transfer ke GoPay',
+          source: 'bank_statement_json',
+          recordedAt: recordedAt,
+        ),
+      ],
+      itemsByTransactionId: {
+        'statement-expense-1': [
+          TransactionItemEntity(
+            id: 'statement-item-1',
+            transactionId: 'statement-expense-1',
+            itemName: 'Belanja kebutuhan rumah',
+            price: 250000,
+            qty: 1,
+          ),
+        ],
+      },
+      transfers: [
+        TransferEntity(
+          id: 'statement-transfer-1',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          recordedAt: recordedAt,
+          amount: 100000,
+          adminFee: 1000,
+          feeTransactionId: 'statement-fee-1',
+          fromAccountId: 'account-seabank',
+          toAccountId: 'account-gopay',
+          note: 'Kirim ke GoPay pribadi',
+          source: 'bank_statement_json',
+          updatedAt: recordedAt,
+        ),
+      ],
+    );
+
+    final transactions = await GetTransactions(database)(
+      AppContext.householdId,
+    );
+    final byId = {
+      for (final entry in transactions) entry.transaction.id: entry,
+    };
+    final transfers = await database.select(database.transfers).get();
+
+    expect(byId['statement-income-1']!.transaction.amount, 1000000);
+    expect(byId['statement-income-1']!.transaction.type, 'income');
+    expect(byId['statement-expense-1']!.transaction.amount, -250000);
+    expect(
+      byId['statement-expense-1']!.items.single.itemName,
+      'Belanja kebutuhan rumah',
+    );
+    expect(byId['statement-fee-1']!.transaction.amount, -1000);
+    expect(transfers, hasLength(1));
+    expect(transfers.single.amount, 100000);
+    expect(transfers.single.adminFee, 1000);
+    expect(transfers.single.fromAccountId, 'account-seabank');
+    expect(transfers.single.toAccountId, 'account-gopay');
+  });
 }

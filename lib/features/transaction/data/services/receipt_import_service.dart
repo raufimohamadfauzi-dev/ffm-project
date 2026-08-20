@@ -23,6 +23,9 @@ class ReceiptBatchEntry {
     this.accountId,
     this.partyName,
     this.note,
+    this.fromAccountId,
+    this.toAccountId,
+    this.adminFee,
   });
 
   final String type;
@@ -34,14 +37,34 @@ class ReceiptBatchEntry {
   final String? accountId;
   final String? partyName;
   final String? note;
+  final String? fromAccountId;
+  final String? toAccountId;
+  final int? adminFee;
   final List<ReceiptOcrItem> items;
 }
 
 class ReceiptBatchImport {
-  const ReceiptBatchImport({required this.entries, required this.warnings});
+  const ReceiptBatchImport({
+    required this.entries,
+    required this.warnings,
+    this.isBankStatement = false,
+    this.statementAccountId,
+    this.statementAccountName,
+    this.openingBalance,
+    this.closingBalance,
+    this.periodStart,
+    this.periodEnd,
+  });
 
   final List<ReceiptBatchEntry> entries;
   final List<String> warnings;
+  final bool isBankStatement;
+  final String? statementAccountId;
+  final String? statementAccountName;
+  final int? openingBalance;
+  final int? closingBalance;
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
 }
 
 class ReceiptImportService {
@@ -49,6 +72,7 @@ class ReceiptImportService {
 
   static const format = 'ffm-receipt-draft-v1';
   static const batchFormat = 'ffm-transaction-batch-v1';
+  static const bankStatementFormat = 'ffm-bank-statement-v1';
 
   static ReceiptOcrResult parseJson(String rawJson, {String? imagePath}) {
     dynamic decoded;
@@ -131,10 +155,16 @@ class ReceiptImportService {
     }
     final root = Map<String, dynamic>.from(decoded);
     final declaredFormat = root['format']?.toString();
+    if (declaredFormat == bankStatementFormat ||
+        root['mutations'] is List ||
+        root['statement'] is Map) {
+      return _parseBankStatement(root);
+    }
     if (declaredFormat != null &&
         declaredFormat.isNotEmpty &&
         declaredFormat != batchFormat &&
-        declaredFormat != format) {
+        declaredFormat != format &&
+        declaredFormat != bankStatementFormat) {
       throw ReceiptImportException(
         'Format $declaredFormat belum didukung. Pakai $batchFormat.',
       );
@@ -168,8 +198,10 @@ class ReceiptImportService {
         continue;
       }
       final data = Map<String, dynamic>.from(raw);
-      final typeValue = _text(data['type'] ?? data['jenis'])?.toLowerCase();
-      if (typeValue != 'income' && typeValue != 'expense') {
+      final typeValue = _transactionType(data);
+      if (typeValue != 'income' &&
+          typeValue != 'expense' &&
+          typeValue != 'transfer') {
         warnings.add(
           'Transaksi ke-${index + 1} harus memiliki type income atau expense.',
         );
@@ -218,6 +250,11 @@ class ReceiptImportService {
             data['party_name'] ?? data['sumber'] ?? data['dipakai_oleh'],
           ),
           note: _text(data['note'] ?? data['catatan']),
+          fromAccountId: _text(
+            data['from_account_id'] ?? data['rekening_asal'],
+          ),
+          toAccountId: _text(data['to_account_id'] ?? data['rekening_tujuan']),
+          adminFee: _money(data['admin_fee'] ?? data['biaya_admin']),
           items: items,
         ),
       );
@@ -229,6 +266,178 @@ class ReceiptImportService {
     }
     return ReceiptBatchImport(entries: entries, warnings: warnings);
   }
+
+  static ReceiptBatchImport _parseBankStatement(Map<String, dynamic> root) {
+    final statement = root['statement'] is Map
+        ? Map<String, dynamic>.from(root['statement'] as Map)
+        : root;
+    final rawMutations = root['mutations'] ?? root['transactions'];
+    if (rawMutations is! List) {
+      throw const ReceiptImportException(
+        'JSON mutasi harus memiliki array mutations atau transactions.',
+      );
+    }
+    final warnings = <String>[];
+    final entries = <ReceiptBatchEntry>[];
+    for (var index = 0; index < rawMutations.length; index++) {
+      final raw = rawMutations[index];
+      if (raw is! Map) {
+        warnings.add('Mutasi ke-${index + 1} dilewati karena bukan objek.');
+        continue;
+      }
+      final data = Map<String, dynamic>.from(raw);
+      final type = _transactionType(data);
+      if (type == null) {
+        warnings.add(
+          'Mutasi ke-${index + 1} tidak punya jenis masuk, keluar, atau transfer.',
+        );
+        continue;
+      }
+      final amount = _money(
+        data['amount'] ?? data['nominal'] ?? data['debit'] ?? data['credit'],
+      );
+      if (amount == null || amount <= 0) {
+        warnings.add('Mutasi ke-${index + 1} belum memiliki nominal valid.');
+      }
+      final mutationDate = _date(
+        data['date'] ?? data['tanggal'] ?? data['transaction_date'],
+      );
+      if (mutationDate == null) {
+        warnings.add('Mutasi ke-${index + 1} belum memiliki tanggal valid.');
+      }
+      entries.add(
+        ReceiptBatchEntry(
+          type: type,
+          date: mutationDate,
+          time: _text(data['time'] ?? data['waktu']),
+          amount: amount,
+          merchant: _text(
+            data['merchant'] ?? data['toko'] ?? data['description'],
+          ),
+          categoryId: _text(data['category_id'] ?? data['kategori_id']),
+          accountId: _text(
+            data['account_id'] ??
+                data['rekening_id'] ??
+                statement['account_id'] ??
+                statement['rekening_id'],
+          ),
+          partyName: _text(
+            data['party_name'] ?? data['sumber'] ?? data['dipakai_oleh'],
+          ),
+          note: _text(data['note'] ?? data['catatan'] ?? data['description']),
+          fromAccountId: _text(
+            data['from_account_id'] ?? data['rekening_asal'],
+          ),
+          toAccountId: _text(data['to_account_id'] ?? data['rekening_tujuan']),
+          adminFee: _money(data['admin_fee'] ?? data['biaya_admin']),
+          items: const [],
+        ),
+      );
+    }
+    if (entries.isEmpty) {
+      throw const ReceiptImportException(
+        'Belum ada mutasi rekening yang bisa diimpor.',
+      );
+    }
+    return ReceiptBatchImport(
+      entries: entries,
+      warnings: warnings,
+      isBankStatement: true,
+      statementAccountId: _text(
+        statement['account_id'] ?? statement['rekening_id'],
+      ),
+      statementAccountName: _text(
+        statement['account_name'] ?? statement['nama_rekening'],
+      ),
+      openingBalance: _money(
+        statement['opening_balance'] ?? statement['saldo_awal'],
+      ),
+      closingBalance: _money(
+        statement['closing_balance'] ?? statement['saldo_akhir'],
+      ),
+      periodStart: _date(
+        statement['period_start'] ?? statement['periode_mulai'],
+      ),
+      periodEnd: _date(statement['period_end'] ?? statement['periode_selesai']),
+    );
+  }
+
+  static String? _transactionType(Map<String, dynamic> data) {
+    final raw = _text(data['type'] ?? data['jenis'] ?? data['tipe'])
+        ?.toLowerCase();
+    if (raw == 'income' || raw == 'masuk' || raw == 'kredit') return 'income';
+    if (raw == 'expense' || raw == 'keluar' || raw == 'debit') {
+      return 'expense';
+    }
+    if (raw == 'transfer' || raw == 'pemindahan') return 'transfer';
+    final direction = _text(data['direction'] ?? data['arah'])?.toLowerCase();
+    if (direction == 'in' || direction == 'masuk' || direction == 'credit') {
+      return 'income';
+    }
+    if (direction == 'out' || direction == 'keluar' || direction == 'debit') {
+      return 'expense';
+    }
+    final credit = _money(data['credit'] ?? data['kredit']);
+    final debit = _money(data['debit'] ?? data['debit_amount']);
+    if (credit != null && credit > 0) return 'income';
+    if (debit != null && debit > 0) return 'expense';
+    return null;
+  }
+
+  static Map<String, dynamic> templateBankStatementMap() => {
+    'format': bankStatementFormat,
+    'statement': {
+      'account_name': 'Nama rekening, misalnya SeaBank',
+      'account_id': null,
+      'period_start': null,
+      'period_end': null,
+      'opening_balance': null,
+      'closing_balance': null,
+    },
+    'mutations': [
+      {
+        'type': 'income',
+        'date': null,
+        'time': null,
+        'amount': 0,
+        'description': 'Sumber uang masuk',
+        'account_id': null,
+        'category_id': null,
+        'party_name': null,
+        'note': null,
+      },
+      {
+        'type': 'expense',
+        'date': null,
+        'time': null,
+        'amount': 0,
+        'description': 'Tujuan uang keluar',
+        'account_id': null,
+        'category_id': null,
+        'party_name': null,
+        'note': null,
+      },
+    ],
+  };
+
+  static String templateBankStatementJson() =>
+      const JsonEncoder.withIndent('  ').convert(templateBankStatementMap());
+
+  static String buildGeminiBankStatementPrompt() =>
+      '''Kamu membantu membaca screenshot mutasi rekening untuk aplikasi Family Finance Manager (FFM).
+
+Balas HANYA dengan JSON valid tanpa markdown atau komentar. Gunakan format persis:
+${templateBankStatementJson()}
+
+Aturan:
+- Masukkan semua mutasi yang terlihat sebagai satu objek di dalam mutations.
+- type hanya income untuk uang masuk, expense untuk uang keluar, atau transfer untuk perpindahan antar rekening.
+- amount harus angka integer rupiah tanpa titik, koma, atau simbol Rp.
+- Saldo akhir wajib masuk ke statement.closing_balance jika terlihat. Saldo akhir bukan transaksi pemasukan.
+- Jangan membuat transaksi dari saldo awal atau saldo akhir.
+- Jika rekening tujuan/asal transfer tidak terlihat, gunakan null dan beri catatan.
+- Jika tanggal, nominal, atau keterangan tidak terbaca, gunakan null; jangan menebak.
+- Aplikasi akan menampilkan hasil sebagai draft untuk direvisi dan dikonfirmasi.''';
 
   static Map<String, dynamic> templateBatchMap() => {
     'format': batchFormat,

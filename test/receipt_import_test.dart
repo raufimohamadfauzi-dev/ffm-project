@@ -165,6 +165,54 @@ Kembali : 10,000
     expect(result.entries.single.items, hasLength(1));
   });
 
+  test('JSON mutasi bank membaca pemasukan, pengeluaran, transfer, dan saldo akhir', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-bank-statement-v1',
+        'statement': {
+          'account_name': 'SeaBank',
+          'account_id': 'account-seabank',
+          'opening_balance': 1000000,
+          'closing_balance': 650000,
+          'period_start': '2026-08-01',
+          'period_end': '2026-08-03',
+        },
+        'mutations': [
+          {
+            'type': 'income',
+            'date': '2026-08-01',
+            'amount': 1000000,
+            'description': 'Panen pepaya',
+          },
+          {
+            'type': 'expense',
+            'date': '2026-08-02',
+            'amount': 250000,
+            'description': 'Bayar listrik',
+          },
+          {
+            'type': 'transfer',
+            'date': '2026-08-03',
+            'amount': 100000,
+            'from_account_id': 'account-seabank',
+            'to_account_id': 'account-gopay',
+          },
+        ],
+      }),
+    );
+
+    expect(result.isBankStatement, isTrue);
+    expect(result.statementAccountName, 'SeaBank');
+    expect(result.closingBalance, 650000);
+    expect(result.entries, hasLength(3));
+    expect(result.entries[0].type, 'income');
+    expect(result.entries[1].type, 'expense');
+    expect(result.entries[2].type, 'transfer');
+    expect(result.entries[2].fromAccountId, 'account-seabank');
+    expect(result.entries[2].toAccountId, 'account-gopay');
+    expect(result.warnings, isEmpty);
+  });
+
   test('JSON nota lama tetap bisa dimuat sebagai satu transaksi batch', () {
     final result = ReceiptImportService.parseBatchJson('''
     {

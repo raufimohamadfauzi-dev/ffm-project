@@ -242,6 +242,116 @@ class SaveTransactionBatch {
   }
 }
 
+class TransferEntity {
+  const TransferEntity({
+    required this.id,
+    required this.householdId,
+    required this.date,
+    required this.recordedAt,
+    required this.amount,
+    required this.adminFee,
+    required this.feeTransactionId,
+    required this.fromAccountId,
+    required this.toAccountId,
+    required this.note,
+    required this.source,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String householdId;
+  final DateTime date;
+  final DateTime recordedAt;
+  final int amount;
+  final int adminFee;
+  final String? feeTransactionId;
+  final String fromAccountId;
+  final String toAccountId;
+  final String? note;
+  final String source;
+  final DateTime updatedAt;
+}
+
+class SaveMixedTransactionBatch {
+  const SaveMixedTransactionBatch(this.database);
+  final AppDatabase database;
+
+  Future<void> call(
+    List<TransactionEntity> entities, {
+    required Map<String, List<TransactionItemEntity>> itemsByTransactionId,
+    required List<TransferEntity> transfers,
+  }) async {
+    await database.transaction(() async {
+      for (final entity in entities) {
+        await database
+            .into(database.transactions)
+            .insertOnConflictUpdate(
+              TransactionsCompanion.insert(
+                id: entity.id,
+                householdId: entity.householdId,
+                type: entity.amount >= 0 ? 'income' : 'expense',
+                categoryId: Value(entity.categoryId),
+                merchantId: Value(entity.merchantId),
+                accountId: Value(entity.accountId),
+                goalId: Value(entity.goalId),
+                amount: entity.amount,
+                date: entity.date,
+                recordedAt: entity.recordedAt,
+                note: Value(entity.note),
+                owner: Value(entity.owner),
+                partyName: Value(entity.partyName),
+                source: Value(entity.source),
+                sourceId: Value(entity.sourceId),
+                recurringTransactionId: Value(entity.recurringTransactionId),
+                location: Value(entity.location),
+                receiptRawText: Value(entity.receiptRawText),
+                receiptNumber: Value(entity.receiptNumber),
+                receiptPaidAmount: Value(entity.receiptPaidAmount),
+                receiptChangeAmount: Value(entity.receiptChangeAmount),
+                createdAt: entity.recordedAt,
+                updatedAt: Value(entity.updatedAt),
+              ),
+            );
+        for (final item in itemsByTransactionId[entity.id] ?? const []) {
+          await database
+              .into(database.transactionItems)
+              .insert(
+                TransactionItemsCompanion.insert(
+                  id: item.id,
+                  transactionId: entity.id,
+                  itemName: item.itemName,
+                  qty: Value(item.qty),
+                  price: Value(item.price),
+                  amount: Value((item.price * item.qty).round()),
+                  createdAt: DateTime.now(),
+                ),
+              );
+        }
+      }
+      for (final transfer in transfers) {
+        await database
+            .into(database.transfers)
+            .insertOnConflictUpdate(
+              TransfersCompanion.insert(
+                id: transfer.id,
+                householdId: transfer.householdId,
+                date: transfer.date,
+                recordedAt: transfer.recordedAt,
+                amount: transfer.amount,
+                adminFee: Value(transfer.adminFee),
+                feeTransactionId: Value(transfer.feeTransactionId),
+                fromAccountId: transfer.fromAccountId,
+                toAccountId: transfer.toAccountId,
+                note: Value(transfer.note),
+                source: Value(transfer.source),
+                updatedAt: Value(transfer.updatedAt),
+              ),
+            );
+      }
+    });
+  }
+}
+
 class DeleteTransaction {
   const DeleteTransaction(this.database);
   final AppDatabase database;

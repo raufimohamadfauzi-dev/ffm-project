@@ -459,6 +459,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
           merchants: _merchants,
           accounts: _accounts,
           onSave: _saveBatchDrafts,
+          onSaveJsonResult: _saveImportedJsonResult,
+          onSaveStatement: _saveImportedStatementBalance,
         ),
       ),
     );
@@ -473,7 +475,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       );
       return;
     }
-    final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+    final result = await Navigator.of(context).push<JsonBatchResult>(
       MaterialPageRoute(
         builder: (_) => JsonTransactionBatchPage(
           categories: _categories,
@@ -482,8 +484,219 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ),
       ),
     );
-    if (!mounted || drafts == null || drafts.isEmpty) return;
-    await _saveBatchDrafts(drafts);
+    if (!mounted ||
+        result == null ||
+        (result.drafts.isEmpty && result.transfers.isEmpty)) {
+      return;
+    }
+    await _saveImportedJsonResult(result);
+  }
+
+  Future<void> _saveImportedStatementBalance(
+    ReceiptBatchImport? statement,
+  ) async {
+    final closingBalance = statement?.closingBalance;
+    if (statement == null || closingBalance == null) return;
+    final account = _accounts
+        .where(
+          (item) =>
+              item.id == statement.statementAccountId ||
+              (statement.statementAccountName != null &&
+                  item.name.toLowerCase() ==
+                      statement.statementAccountName!.toLowerCase()),
+        )
+        .firstOrNull;
+    if (account == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Transaksi sudah masuk, tapi saldo akhir belum direkonsiliasi. Pilih rekening yang cocok di Data Utama.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    await getIt<CreateReconciliationLog>()(
+      householdId: AppContext.householdId,
+      accountId: account.id,
+      actualBalance: closingBalance,
+      checkedAt: statement.periodEnd ?? DateTime.now(),
+      note: 'Saldo akhir dari impor mutasi JSON/Gemini.',
+    );
+  }
+
+  Future<void> _saveImportedJsonResult(JsonBatchResult result) async {
+    final database = getIt<AppDatabase>();
+    final now = DateTime.now();
+    final entities = <TransactionEntity>[];
+    final itemsByTransactionId = <String, List<TransactionItemEntity>>{};
+    final transfers = <TransferEntity>[];
+    final auditRows = <Map<String, dynamic>>[];
+
+    for (final draft in result.drafts) {
+      final id = const Uuid().v4();
+      final entity = TransactionEntity(
+        id: id,
+        householdId: AppContext.householdId,
+        date: draft.date,
+        amount: draft.amount,
+        owner: OwnerLabels.normalizeForStorage(draft.owner),
+        categoryId: draft.categoryId,
+        note: draft.note.trim().isEmpty ? null : draft.note.trim(),
+        source: draft.source,
+        accountId: draft.accountId,
+        merchantId: draft.merchantId,
+        location: draft.location,
+        goalId: draft.goalId,
+        partyName: draft.partyName,
+        receiptRawText: draft.receiptRawText,
+        receiptNumber: draft.receiptNumber,
+        receiptPaidAmount: draft.receiptPaidAmount,
+        receiptChangeAmount: draft.receiptChangeAmount,
+        recordedAt: now,
+        updatedAt: now,
+      );
+      entities.add(entity);
+      itemsByTransactionId[id] = draft.items
+          .map(
+            (item) => TransactionItemEntity(
+              id: const Uuid().v4(),
+              transactionId: id,
+              itemName: item.name,
+              price: item.price,
+              qty: item.qty,
+            ),
+          )
+          .toList();
+      auditRows.add({
+        'id': id,
+        'amount': draft.amount,
+        'account_id': draft.accountId,
+        'category_id': draft.categoryId,
+        'source': draft.source,
+      });
+    }
+
+    Category? feeCategory;
+    final hasAdminFee = result.transfers.any(
+      (transfer) => transfer.adminFee > 0,
+    );
+    if (hasAdminFee) {
+      feeCategory =
+          await (database.select(database.categories)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.type.equals('expense') &
+                    row.name.equals('Biaya admin') &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+      if (feeCategory == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Kategori Biaya admin belum tersedia. Tambahkan di Data Utama dulu.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    for (final draft in result.transfers) {
+      final transferId = const Uuid().v4();
+      final feeTransactionId = draft.adminFee > 0 ? const Uuid().v4() : null;
+      if (draft.adminFee > 0) {
+        final feeEntity = TransactionEntity(
+          id: feeTransactionId!,
+          householdId: AppContext.householdId,
+          date: draft.date,
+          amount: -draft.adminFee,
+          owner: OwnerLabels.family,
+          categoryId: feeCategory!.id,
+          note:
+              'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
+          source: 'transfer_fee',
+          accountId: draft.fromAccountId,
+          merchantId: null,
+          location: null,
+          goalId: null,
+          partyName: null,
+          receiptRawText: null,
+          receiptNumber: null,
+          receiptPaidAmount: null,
+          receiptChangeAmount: null,
+          recordedAt: now,
+          updatedAt: now,
+        );
+        entities.add(feeEntity);
+        itemsByTransactionId[feeEntity.id] = const [];
+        auditRows.add({
+          'id': feeEntity.id,
+          'amount': feeEntity.amount,
+          'account_id': feeEntity.accountId,
+          'category_id': feeEntity.categoryId,
+          'source': feeEntity.source,
+        });
+      }
+      transfers.add(
+        TransferEntity(
+          id: transferId,
+          householdId: AppContext.householdId,
+          date: draft.date,
+          recordedAt: now,
+          amount: draft.amount,
+          adminFee: draft.adminFee,
+          feeTransactionId: feeTransactionId,
+          fromAccountId: draft.fromAccountId,
+          toAccountId: draft.toAccountId,
+          note: draft.note.trim().isEmpty ? null : draft.note.trim(),
+          source: 'json_bank_statement',
+          updatedAt: now,
+        ),
+      );
+      auditRows.add({
+        'id': transferId,
+        'amount': draft.amount,
+        'admin_fee': draft.adminFee,
+        'from_account_id': draft.fromAccountId,
+        'to_account_id': draft.toAccountId,
+        'source': 'json_bank_statement',
+      });
+    }
+
+    await getIt<SaveMixedTransactionBatch>()(
+      entities,
+      itemsByTransactionId: itemsByTransactionId,
+      transfers: transfers,
+    );
+    final auditLogger = AuditLogger(database);
+    for (final row in auditRows) {
+      await auditLogger.record(
+        action: 'tambah',
+        entity: row['source'] == 'json_bank_statement'
+            ? 'transfer'
+            : 'transaksi',
+        newValue: row,
+      );
+    }
+    await _saveImportedStatementBalance(result.statement);
+    await _loadTransactions();
+    if (!mounted) return;
+    final regularCount = result.drafts.length;
+    final feeCount = result.transfers.where((item) => item.adminFee > 0).length;
+    final feeText = feeCount > 0 ? ' dan $feeCount biaya admin' : '';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$regularCount transaksi dan ${result.transfers.length} transfer$feeText berhasil dikonfirmasi.',
+        ),
+      ),
+    );
   }
 
   Future<void> _openScan() async {
@@ -605,6 +818,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
           final matchesType = switch (_typeFilter) {
             'Pemasukan' => transaction.amount >= 0,
             'Pengeluaran' => transaction.amount < 0,
+            'Transfer' => false,
             _ => true,
           };
           final matchesMonth =
@@ -627,6 +841,34 @@ class _TransactionListPageState extends State<TransactionListPage> {
           return matchesType &&
               matchesMonth &&
               (query.isEmpty || matchesFts || searchText.contains(query));
+        })
+        .toList(growable: false);
+  }
+
+  List<Transfer> get _visibleTransfers {
+    if (_typeFilter == 'Pemasukan' || _typeFilter == 'Pengeluaran') {
+      return const [];
+    }
+    final query = _query.trim().toLowerCase();
+    final now = DateTime.now();
+    return _transfers
+        .where((transfer) {
+          final matchesType =
+              _typeFilter == 'Transfer' || _typeFilter == 'Semua';
+          final matchesMonth =
+              !_currentMonthOnly ||
+              (transfer.date.year == now.year &&
+                  transfer.date.month == now.month);
+          final searchText = [
+            _accountLabel(transfer.fromAccountId),
+            _accountLabel(transfer.toAccountId),
+            transfer.note ?? '',
+            _dateLabel(transfer.date),
+            transfer.amount.toString(),
+          ].join(' ').toLowerCase();
+          return matchesType &&
+              matchesMonth &&
+              (query.isEmpty || searchText.contains(query));
         })
         .toList(growable: false);
   }
@@ -950,6 +1192,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _visibleTransactions;
+    final visibleTransfers = _visibleTransfers;
     final incomeTotal = visibleTransactions
         .where(
           (entry) =>
@@ -1045,7 +1288,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 ),
               ],
             )
-          : visibleTransactions.isEmpty
+          : visibleTransactions.isEmpty && visibleTransfers.isEmpty
           ? ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
               children: [
@@ -1058,7 +1301,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-              itemCount: visibleTransactions.length + _transfers.length + 3,
+              itemCount:
+                  visibleTransactions.length + visibleTransfers.length + 3,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -1066,6 +1310,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     incomeTotal: incomeTotal,
                     expenseTotal: expenseTotal,
                     transactionCount: visibleTransactions.length,
+                    transferCount: visibleTransfers.length,
                   );
                 }
                 if (index == 1) {
@@ -1084,21 +1329,20 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   );
                 }
                 final transferIndex = index - 3;
-                if (transferIndex >= 0 && transferIndex < _transfers.length) {
+                if (transferIndex >= 0 &&
+                    transferIndex < visibleTransfers.length) {
+                  final transfer = visibleTransfers[transferIndex];
                   return _TransferHistoryCard(
-                    transfer: _transfers[transferIndex],
-                    fromLabel: _accountLabel(
-                      _transfers[transferIndex].fromAccountId,
-                    ),
-                    toLabel: _accountLabel(
-                      _transfers[transferIndex].toAccountId,
-                    ),
+                    transfer: transfer,
+                    fromLabel: _accountLabel(transfer.fromAccountId),
+                    toLabel: _accountLabel(transfer.toAccountId),
                     dateLabel: _dateLabel,
-                    onDelete: () => _deleteTransfer(_transfers[transferIndex]),
+                    onDelete: () => _deleteTransfer(transfer),
                   );
                 }
                 final entry =
-                    visibleTransactions[transferIndex - _transfers.length];
+                    visibleTransactions[transferIndex -
+                        visibleTransfers.length];
                 final item = entry.transaction;
                 final isIncome = item.amount >= 0;
                 final isGoalContribution = item.goalId != null;
@@ -3674,6 +3918,7 @@ class _TransactionFilterSheetState extends State<_TransactionFilterSheet> {
               ButtonSegment(value: 'Semua', label: Text('Semua')),
               ButtonSegment(value: 'Pemasukan', label: Text('Pemasukan')),
               ButtonSegment(value: 'Pengeluaran', label: Text('Pengeluaran')),
+              ButtonSegment(value: 'Transfer', label: Text('Transfer')),
             ],
             selected: {_typeFilter},
             onSelectionChanged: (value) {
@@ -4162,11 +4407,13 @@ class _TransactionFlowSummary extends StatelessWidget {
     required this.incomeTotal,
     required this.expenseTotal,
     required this.transactionCount,
+    required this.transferCount,
   });
 
   final int incomeTotal;
   final int expenseTotal;
   final int transactionCount;
+  final int transferCount;
 
   @override
   Widget build(BuildContext context) {
@@ -4189,7 +4436,7 @@ class _TransactionFlowSummary extends StatelessWidget {
                 ),
               ),
               Text(
-                '$transactionCount catatan',
+                '${transactionCount + transferCount} catatan',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: AppColors.inkMuted),
               ),
@@ -4218,6 +4465,16 @@ class _TransactionFlowSummary extends StatelessWidget {
               ),
             ],
           ),
+          if (transferCount > 0) ...[
+            const SizedBox(height: 10),
+            Text(
+              '$transferCount transfer tidak mengubah total pemasukan atau pengeluaran.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.inkMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -5636,6 +5893,76 @@ class _JsonTransactionRow {
   }
 }
 
+class _JsonTransferRow {
+  _JsonTransferRow({
+    required this.date,
+    String? time,
+    int? amount,
+    int? adminFee,
+    this.fromAccountId,
+    this.toAccountId,
+    String? note,
+  }) : time = _JsonTransactionRow._mergeTime(date, time),
+       amountController = TextEditingController(
+         text: amount != null && amount > 0
+             ? formatRupiahInput(amount.toString())
+             : '',
+       ),
+       adminFeeController = TextEditingController(
+         text: adminFee != null && adminFee > 0
+             ? formatRupiahInput(adminFee.toString())
+             : '',
+       ),
+       noteController = TextEditingController(text: note ?? '');
+
+  DateTime date;
+  DateTime time;
+  String? fromAccountId;
+  String? toAccountId;
+  final TextEditingController amountController;
+  final TextEditingController adminFeeController;
+  final TextEditingController noteController;
+
+  int get amount => parseRupiah(amountController.text);
+  int get adminFee => parseRupiah(adminFeeController.text);
+
+  void dispose() {
+    amountController.dispose();
+    adminFeeController.dispose();
+    noteController.dispose();
+  }
+}
+
+class JsonTransferDraft {
+  const JsonTransferDraft({
+    required this.date,
+    required this.amount,
+    required this.adminFee,
+    required this.fromAccountId,
+    required this.toAccountId,
+    required this.note,
+  });
+
+  final DateTime date;
+  final int amount;
+  final int adminFee;
+  final String fromAccountId;
+  final String toAccountId;
+  final String note;
+}
+
+class JsonBatchResult {
+  const JsonBatchResult({
+    required this.drafts,
+    this.transfers = const [],
+    this.statement,
+  });
+
+  final List<TransactionDraft> drafts;
+  final List<JsonTransferDraft> transfers;
+  final ReceiptBatchImport? statement;
+}
+
 class JsonTransactionBatchPage extends StatefulWidget {
   const JsonTransactionBatchPage({
     super.key,
@@ -5656,7 +5983,9 @@ class JsonTransactionBatchPage extends StatefulWidget {
 class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
   final _jsonController = TextEditingController();
   final _rows = <_JsonTransactionRow>[];
+  final _transferRows = <_JsonTransferRow>[];
   List<String> _warnings = const [];
+  ReceiptBatchImport? _statementImport;
   var _showJsonBox = false;
   var _loading = false;
 
@@ -5700,6 +6029,40 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     );
   }
 
+  _JsonTransferRow _newTransferRow({
+    DateTime? date,
+    String? time,
+    int? amount,
+    int? adminFee,
+    String? fromAccountId,
+    String? toAccountId,
+    String? note,
+    bool preserveMissingAccounts = false,
+  }) {
+    final accountIds = widget.accounts.map((item) => item.id).toList();
+    final validFrom = preserveMissingAccounts
+        ? (accountIds.contains(fromAccountId) ? fromAccountId : null)
+        : (accountIds.contains(fromAccountId)
+              ? fromAccountId
+              : accountIds.firstOrNull);
+    final validTo = preserveMissingAccounts
+        ? (accountIds.contains(toAccountId) && toAccountId != validFrom
+              ? toAccountId
+              : null)
+        : (accountIds.contains(toAccountId) && toAccountId != validFrom
+              ? toAccountId
+              : accountIds.where((id) => id != validFrom).firstOrNull);
+    return _JsonTransferRow(
+      date: date ?? DateTime.now(),
+      time: time,
+      amount: amount,
+      adminFee: adminFee,
+      fromAccountId: validFrom,
+      toAccountId: validTo,
+      note: note,
+    );
+  }
+
   List<Category> _categoryOptions(TransactionType type, {String? selectedId}) =>
       _transactionCategoryOptions(
         widget.categories,
@@ -5733,35 +6096,79 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     setState(() => _loading = true);
     try {
       final imported = ReceiptImportService.parseBatchJson(text);
-      final rows = imported.entries.map((entry) {
-        final type = entry.type == 'income'
-            ? TransactionType.income
-            : TransactionType.expense;
-        return _newRow(
-          type: type,
-          date: entry.date,
-          time: entry.time,
-          amount: entry.amount,
-          merchant: entry.merchant,
-          categoryId: entry.categoryId,
-          accountId: entry.accountId,
-          partyName: entry.partyName,
-          note: entry.note,
-          items: entry.items,
-        );
-      }).toList();
+      final warnings = [...imported.warnings];
+      final transferEntries = imported.entries
+          .where((entry) => entry.type == 'transfer')
+          .toList();
+      final transferRows = transferEntries
+          .map(
+            (entry) => _newTransferRow(
+              date: entry.date,
+              time: entry.time,
+              amount: entry.amount,
+              adminFee: entry.adminFee,
+              fromAccountId: entry.fromAccountId,
+              toAccountId: entry.toAccountId,
+              note: entry.note,
+              preserveMissingAccounts: true,
+            ),
+          )
+          .toList();
+      for (var index = 0; index < transferEntries.length; index++) {
+        final entry = transferEntries[index];
+        if (entry.fromAccountId == null || entry.toAccountId == null) {
+          warnings.add(
+            'Transfer ke-${index + 1}: pilih rekening asal dan tujuan sebelum konfirmasi.',
+          );
+        }
+      }
+      final rows = imported.entries
+          .where((entry) => entry.type != 'transfer')
+          .map((entry) {
+            final type = entry.type == 'income'
+                ? TransactionType.income
+                : TransactionType.expense;
+            return _newRow(
+              type: type,
+              date: entry.date,
+              time: entry.time,
+              amount: entry.amount,
+              merchant: entry.merchant,
+              categoryId: entry.categoryId,
+              accountId: entry.accountId,
+              partyName: entry.partyName,
+              note: entry.note,
+              items: entry.items,
+            );
+          })
+          .toList();
+      if (rows.isEmpty && transferRows.isEmpty) {
+        warnings.add('Belum ada mutasi yang bisa ditinjau.');
+      }
       for (final row in _rows) {
+        row.dispose();
+      }
+      for (final row in _transferRows) {
         row.dispose();
       }
       setState(() {
         _rows
           ..clear()
           ..addAll(rows);
-        _warnings = imported.warnings;
+        _transferRows
+          ..clear()
+          ..addAll(transferRows);
+        _warnings = warnings;
+        _statementImport = imported.isBankStatement ? imported : null;
         _showJsonBox = false;
       });
+      final statementMessage =
+          imported.isBankStatement && imported.closingBalance != null
+          ? ' Saldo akhir akan direkonsiliasi setelah konfirmasi.'
+          : '';
+      final totalRows = rows.length + transferRows.length;
       _showMessage(
-        '${rows.length} transaksi dimuat sebagai draft. Cek dan edit sebelum simpan.',
+        '$totalRows mutasi dimuat sebagai draft: ${rows.length} pemasukan/pengeluaran dan ${transferRows.length} transfer. Cek dan edit sebelum konfirmasi.$statementMessage',
       );
     } on ReceiptImportException catch (error) {
       _showMessage(error.message);
@@ -5911,10 +6318,53 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     return drafts;
   }
 
+  List<JsonTransferDraft>? _buildTransfers() {
+    final transfers = <JsonTransferDraft>[];
+    for (var index = 0; index < _transferRows.length; index++) {
+      final row = _transferRows[index];
+      if (row.amount <= 0 ||
+          row.fromAccountId == null ||
+          row.toAccountId == null) {
+        _showMessage(
+          'Transfer ${index + 1}: isi nominal, rekening asal, dan rekening tujuan.',
+        );
+        return null;
+      }
+      if (row.fromAccountId == row.toAccountId) {
+        _showMessage(
+          'Transfer ${index + 1}: rekening asal dan tujuan harus berbeda.',
+        );
+        return null;
+      }
+      transfers.add(
+        JsonTransferDraft(
+          date: row.date,
+          amount: row.amount,
+          adminFee: row.adminFee,
+          fromAccountId: row.fromAccountId!,
+          toAccountId: row.toAccountId!,
+          note: row.noteController.text.trim(),
+        ),
+      );
+    }
+    return transfers;
+  }
+
   void _confirm() {
     final drafts = _buildDrafts();
-    if (drafts == null || drafts.isEmpty) return;
-    Navigator.of(context).pop(drafts);
+    final transfers = _buildTransfers();
+    if (drafts == null || transfers == null) return;
+    if (drafts.isEmpty && transfers.isEmpty) {
+      _showMessage('Belum ada mutasi yang bisa dikonfirmasi.');
+      return;
+    }
+    Navigator.of(context).pop(
+      JsonBatchResult(
+        drafts: drafts,
+        transfers: transfers,
+        statement: _statementImport,
+      ),
+    );
   }
 
   @override
@@ -5953,12 +6403,12 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Masukkan JSON batch (opsional)',
+                  'Tempel hasil Gemini di sini',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Format ini bisa memuat 10 transaksi dan item rinciannya sekaligus.',
+                  'Bisa memuat pemasukan dan pengeluaran dari screenshot mutasi rekening sekaligus. Setelah dimuat, semuanya masih bisa diedit.',
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -5968,22 +6418,22 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                     OutlinedButton.icon(
                       onPressed: _copyPrompt,
                       icon: const Icon(Icons.copy_all_outlined),
-                      label: const Text('Salin prompt Gemini'),
+                      label: const Text('Salin instruksi untuk Gemini'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _copyTemplate,
                       icon: const Icon(Icons.data_object_outlined),
-                      label: const Text('Salin template JSON'),
+                      label: const Text('Salin contoh format'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _pasteFromClipboard,
                       icon: const Icon(Icons.content_paste_go_outlined),
-                      label: const Text('Tempel JSON'),
+                      label: const Text('Tempel hasil Gemini'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _pickFile,
                       icon: const Icon(Icons.file_open_outlined),
-                      label: const Text('Pilih file JSON'),
+                      label: const Text('Pilih file hasil'),
                     ),
                   ],
                 ),
@@ -6012,18 +6462,88 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                           )
                         : const Icon(Icons.playlist_add_check_rounded),
                     label: Text(
-                      _loading ? 'Membaca JSON...' : 'Muat JSON sebagai draft',
+                      _loading
+                          ? 'Memeriksa hasil...'
+                          : 'Periksa dan tampilkan transaksi',
                     ),
                   ),
                 ],
               ],
             ),
           ),
+          if (_statementImport != null) ...[
+            const SizedBox(height: 10),
+            AppCard(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Ringkasan mutasi rekening',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _statementImport!.statementAccountName == null
+                        ? 'Rekening dari screenshot'
+                        : 'Rekening: ${_statementImport!.statementAccountName}',
+                  ),
+                  if (_statementImport!.openingBalance != null)
+                    Text(
+                      'Saldo awal: ${formatRupiahInput(_statementImport!.openingBalance!.toString())}',
+                    ),
+                  if (_statementImport!.closingBalance != null)
+                    Text(
+                      'Saldo akhir: ${formatRupiahInput(_statementImport!.closingBalance!.toString())}',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Saldo akhir tidak dibuat sebagai pemasukan. Setelah konfirmasi, angka ini dipakai untuk rekonsiliasi rekening.',
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (_warnings.isNotEmpty) ...[
             const SizedBox(height: 10),
             AppCard(
               color: Theme.of(context).colorScheme.errorContainer,
               child: Text('Catatan impor:\n• ${_warnings.join('\n• ')}'),
+            ),
+          ],
+          if (_transferRows.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            AppCard(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Transfer rekening',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Transfer hanya memindahkan lokasi uang. Tidak masuk hitungan pemasukan atau pengeluaran. Biaya admin dicatat terpisah sebagai pengeluaran dari rekening asal.',
+                  ),
+                  const SizedBox(height: 10),
+                  ...List.generate(
+                    _transferRows.length,
+                    (index) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _buildJsonTransferRow(index, _transferRows[index]),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => setState(() {
+                      _transferRows.add(_newTransferRow());
+                    }),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Tambah transfer'),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -6043,7 +6563,170 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
           FilledButton.icon(
             onPressed: _confirm,
             icon: const Icon(Icons.check_circle_outline),
-            label: Text('Pakai semua ${_rows.length} draft'),
+            label: Text(
+              'Konfirmasi ${_rows.length + _transferRows.length} mutasi',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _jsonAccountLabel(Account account) {
+    final type = switch (account.type) {
+      'cash' => 'Tunai',
+      'bank' => 'Rekening',
+      'ewallet' => 'Dompet digital',
+      _ => account.type,
+    };
+    return '${account.name} · $type';
+  }
+
+  Widget _buildJsonTransferRow(int index, _JsonTransferRow row) {
+    final fromAccount = widget.accounts
+        .where((account) => account.id == row.fromAccountId)
+        .firstOrNull;
+    final toAccount = widget.accounts
+        .where((account) => account.id == row.toAccountId)
+        .firstOrNull;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Transfer ${index + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Hapus transfer',
+                onPressed: () => setState(() {
+                  row.dispose();
+                  _transferRows.removeAt(index);
+                }),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          SearchableDropdown(
+            items: widget.accounts,
+            selectedItem: fromAccount,
+            itemLabel: _jsonAccountLabel,
+            itemId: (account) => account.id,
+            labelText: 'Dari tempat uang',
+            searchHintText: 'Cari rekening, Tunai, atau dompet',
+            cacheKey: 'json_transfer.asal',
+            onChanged: (account) => setState(() {
+              row.fromAccountId = account?.id;
+            }),
+          ),
+          const SizedBox(height: 10),
+          SearchableDropdown(
+            items: widget.accounts,
+            selectedItem: toAccount,
+            itemLabel: _jsonAccountLabel,
+            itemId: (account) => account.id,
+            labelText: 'Ke tempat uang',
+            searchHintText: 'Cari rekening, Tunai, atau dompet',
+            cacheKey: 'json_transfer.tujuan',
+            onChanged: (account) => setState(() {
+              row.toAccountId = account?.id;
+            }),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: row.amountController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [RupiahInputFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'Nominal yang dipindahkan',
+              prefixText: 'Rp ',
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: row.adminFeeController,
+            keyboardType: TextInputType.number,
+            inputFormatters: [RupiahInputFormatter()],
+            decoration: const InputDecoration(
+              labelText: 'Biaya admin (opsional)',
+              prefixText: 'Rp ',
+              helperText: 'Biaya ini mengurangi saldo tempat asal.',
+            ),
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: row.date,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      helpText: 'Pilih tanggal transfer',
+                      cancelText: AppCopy.batal,
+                      confirmText: 'Pakai tanggal',
+                    );
+                    if (picked == null || !mounted) return;
+                    setState(() {
+                      row.date = DateTime(
+                        picked.year,
+                        picked.month,
+                        picked.day,
+                        row.time.hour,
+                        row.time.minute,
+                        row.time.second,
+                      );
+                      row.time = row.date;
+                    });
+                  },
+                  icon: const Icon(Icons.calendar_today_outlined),
+                  label: Text(formatTanggalSingkat(row.date)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.fromDateTime(row.time),
+                      helpText: 'Pilih jam transfer',
+                      cancelText: AppCopy.batal,
+                      confirmText: 'Pakai jam',
+                    );
+                    if (picked == null || !mounted) return;
+                    setState(() {
+                      row.time = DateTime(
+                        row.date.year,
+                        row.date.month,
+                        row.date.day,
+                        picked.hour,
+                        picked.minute,
+                        DateTime.now().second,
+                      );
+                      row.date = row.time;
+                    });
+                  },
+                  icon: const Icon(Icons.schedule_outlined),
+                  label: Text(formatJam(row.time)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          TextField(
+            controller: row.noteController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Catatan transfer (opsional)',
+            ),
           ),
         ],
       ),
@@ -6297,12 +6980,16 @@ class QuickTransactionBatchPage extends StatefulWidget {
     required this.merchants,
     required this.accounts,
     required this.onSave,
+    this.onSaveJsonResult,
+    this.onSaveStatement,
   });
 
   final List<Category> categories;
   final List<Merchant> merchants;
   final List<Account> accounts;
   final Future<void> Function(List<TransactionDraft> drafts) onSave;
+  final Future<void> Function(JsonBatchResult result)? onSaveJsonResult;
+  final Future<void> Function(ReceiptBatchImport statement)? onSaveStatement;
 
   @override
   State<QuickTransactionBatchPage> createState() =>
@@ -6439,7 +7126,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
   }
 
   Future<void> _openJsonBatch() async {
-    final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+    final result = await Navigator.of(context).push<JsonBatchResult>(
       MaterialPageRoute(
         builder: (_) => JsonTransactionBatchPage(
           categories: widget.categories,
@@ -6448,12 +7135,23 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
         ),
       ),
     );
-    if (!mounted || drafts == null || drafts.isEmpty) return;
+    if (!mounted ||
+        result == null ||
+        (result.drafts.isEmpty && result.transfers.isEmpty)) {
+      return;
+    }
     setState(() => _saving = true);
     try {
-      await widget.onSave(drafts);
+      if (widget.onSaveJsonResult != null) {
+        await widget.onSaveJsonResult!(result);
+      } else {
+        await widget.onSave(result.drafts);
+        if (result.statement != null) {
+          await widget.onSaveStatement?.call(result.statement!);
+        }
+      }
       if (!mounted) return;
-      Navigator.of(context).pop(drafts);
+      Navigator.of(context).pop(result.drafts);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
