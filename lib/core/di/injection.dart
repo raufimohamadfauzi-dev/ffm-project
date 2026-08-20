@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../database/audit_logger.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
+import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
 import '../../features/audit/domain/usecases/audit_log_usecases.dart';
@@ -109,5 +110,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
     OfflineAiEngineService.new,
+  );
+  getIt.registerLazySingleton<JsonExportStudioService>(
+    () => JsonExportStudioService(db),
   );
 }

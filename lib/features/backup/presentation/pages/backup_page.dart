@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide Column;
@@ -7,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
@@ -20,6 +22,7 @@ import '../../../receivable/domain/usecases/receivable_crud_usecases.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../data/analysis_export_service.dart';
 import '../../data/json_backup_service.dart';
+import '../../data/json_export_studio_service.dart';
 import '../../data/pdf_report_service.dart';
 import '../../../settings/data/export_service.dart';
 
@@ -42,9 +45,16 @@ class _BackupPageState extends State<BackupPage> {
   final _analysisIncludeMerchantDetails = false;
   var _exportIncludeFinance = true;
   var _exportIncludeMetadata = true;
+  var _studioIncludeActivities = true;
+  var _studioIncludeFamilyProfile = true;
+  var _studioAnonymizeIdentity = false;
+  var _studioAnonymizeAmounts = false;
+  var _studioReportStyle = 'pembelajaran keluarga';
+  var _studioAiOutput = '';
 
   JsonBackupService get _service => getIt<JsonBackupService>();
   DataExportService get _smartExport => getIt<DataExportService>();
+  JsonExportStudioService get _studio => getIt<JsonExportStudioService>();
 
   @override
   void initState() {
@@ -283,6 +293,205 @@ class _BackupPageState extends State<BackupPage> {
       setState(
         () => _lastMessage = 'Berkas analisa belum berhasil dibuat. Coba lagi.',
       );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<JsonStudioBundle> _makeStudioBundle() {
+    return _studio.build(
+      JsonStudioOptions(
+        includeFinance: _exportIncludeFinance,
+        includeActivities: _studioIncludeActivities,
+        includeMetadata: _exportIncludeMetadata,
+        includeFamilyProfile: _studioIncludeFamilyProfile,
+        includeNotes: _analysisIncludeNotes,
+        anonymizeIdentity: _studioAnonymizeIdentity,
+        anonymizeAmounts: _studioAnonymizeAmounts,
+        from: _dateRange?.start,
+        to: _dateRange?.end,
+        reportStyle: _studioReportStyle,
+      ),
+    );
+  }
+
+  Future<void> _copyStudioJson() async {
+    setState(() => _working = true);
+    try {
+      final bundle = await _makeStudioBundle();
+      await Clipboard.setData(ClipboardData(text: bundle.json));
+      if (!mounted) return;
+      setState(
+        () => _lastMessage = 'JSON Studio sudah disalin. Tempel ke Gemini atau Claude sesuai prompt.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _lastMessage = 'JSON Studio belum berhasil dibuat. Coba lagi.',
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _copyStudioPrompt() async {
+    setState(() => _working = true);
+    try {
+      final bundle = await _makeStudioBundle();
+      await Clipboard.setData(ClipboardData(text: bundle.prompt));
+      if (!mounted) return;
+      setState(
+        () => _lastMessage =
+            'Prompt Studio sudah disalin. Tempel prompt dulu, lalu JSON-nya.',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _lastMessage = 'Prompt Studio belum berhasil dibuat. Coba lagi.',
+      );
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _shareStudioJson() async {
+    setState(() => _working = true);
+    try {
+      final bundle = await _makeStudioBundle();
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File(
+        '${directory.path}/ffm-studio-${_fileStamp(DateTime.now())}.json',
+      );
+      await file.writeAsString(bundle.json);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'JSON Export Studio FFM untuk laporan ${bundle.periodLabel}.',
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _lastMessage = 'JSON Studio siap dibagikan.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lastMessage = 'JSON Studio belum berhasil dibagikan.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  String _plainTextFromAiOutput(String value) {
+    final withoutScripts = value.replaceAll(
+      RegExp(r'<(script|style)[^>]*>[\s\S]*?</\1>', caseSensitive: false),
+      '',
+    );
+    return withoutScripts
+        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(r'</(p|div|h[1-6]|li|tr)>', caseSensitive: false),
+          '\n',
+        )
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
+        .trim();
+  }
+
+  Future<void> _shareAiHtml() async {
+    final content = _studioAiOutput.trim();
+    if (content.isEmpty) {
+      setState(
+        () => _lastMessage = 'Tempel dulu hasil HTML atau Markdown dari AI.',
+      );
+      return;
+    }
+    setState(() => _working = true);
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File(
+        '${directory.path}/ffm-laporan-ai-${_fileStamp(DateTime.now())}.html',
+      );
+      final html = content.toLowerCase().contains('<html')
+          ? content
+          : '<!doctype html><html lang="id"><meta charset="utf-8"><title>Laporan FFM</title><body><pre style="white-space:pre-wrap;font-family:sans-serif">${const HtmlEscape().convert(content)}</pre></body></html>';
+      await file.writeAsString(html);
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Laporan HTML hasil Gemini/Claude dari FFM.',
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _lastMessage = 'Laporan HTML siap dibagikan.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lastMessage = 'Laporan HTML belum berhasil dibuat.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _shareAiPdf() async {
+    final content = _studioAiOutput.trim();
+    if (content.isEmpty) {
+      setState(
+        () => _lastMessage = 'Tempel dulu hasil HTML atau Markdown dari AI.',
+      );
+      return;
+    }
+    setState(() => _working = true);
+    try {
+      final document = pw.Document();
+      final plainText = _plainTextFromAiOutput(content);
+      document.addPage(
+        pw.MultiPage(
+          build: (context) => [
+            pw.Text('Laporan FFM dari Gemini/Claude'),
+            pw.SizedBox(height: 12),
+            pw.Text(plainText),
+          ],
+        ),
+      );
+      await Printing.sharePdf(
+        bytes: Uint8List.fromList(await document.save()),
+        filename: 'ffm-laporan-ai-${_fileStamp(DateTime.now())}.pdf',
+      );
+      if (!mounted) return;
+      setState(() => _lastMessage = 'Laporan PDF hasil AI siap dibagikan.');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lastMessage = 'Laporan PDF belum berhasil dibuat.');
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+  Future<void> _previewStudio() async {
+    setState(() => _working = true);
+    try {
+      final bundle = await _makeStudioBundle();
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Preview JSON Studio'),
+          content: SizedBox(
+            width: 720,
+            child: SingleChildScrollView(child: SelectableText(bundle.json)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _lastMessage = 'Preview JSON belum berhasil dibuat.');
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -738,6 +947,196 @@ class _BackupPageState extends State<BackupPage> {
                           : () => _exportAnalysisFile('html'),
                       icon: const Icon(Icons.language_outlined),
                       label: const Text('Ekspor HTML'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          const AppSectionHeader(
+            title: 'JSON Export Studio untuk Gemini/Claude',
+          ),
+          const SizedBox(height: 8),
+          AppCard(
+            color: scheme.secondaryContainer,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Data tetap sama, tampilan laporan bisa berbeda. Salin prompt dan JSON ini ke Gemini atau Claude untuk membuat HTML, Markdown, atau bahan PDF.',
+                  style: TextStyle(color: scheme.onSecondaryContainer),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _studioReportStyle,
+                  decoration: const InputDecoration(
+                    labelText: 'Gaya laporan AI',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'pembelajaran keluarga',
+                      child: Text('Pembelajaran keluarga'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'manajemen keuangan formal',
+                      child: Text('Manajemen keuangan formal'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'ringkasan visual santai',
+                      child: Text('Ringkasan visual santai'),
+                    ),
+                  ],
+                  onChanged: _working
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _studioReportStyle = value);
+                          }
+                        },
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _studioIncludeFamilyProfile,
+                  onChanged: _working
+                      ? null
+                      : (value) => setState(
+                          () => _studioIncludeFamilyProfile = value ?? true,
+                        ),
+                  title: const Text('Sertakan nama rumah tangga dan anggota'),
+                  subtitle: const Text(
+                    'Bisa dimatikan jika laporan akan dibagikan umum.',
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _studioIncludeActivities,
+                  onChanged: _working
+                      ? null
+                      : (value) => setState(
+                          () => _studioIncludeActivities = value ?? true,
+                        ),
+                  title: const Text('Sertakan aktivitas dan jurnal keluarga'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _studioAnonymizeIdentity,
+                  onChanged: _working
+                      ? null
+                      : (value) => setState(
+                          () => _studioAnonymizeIdentity = value ?? false,
+                        ),
+                  title: const Text('Samarkan nama, peserta, dan lokasi'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _studioAnonymizeAmounts,
+                  onChanged: _working
+                      ? null
+                      : (value) => setState(
+                          () => _studioAnonymizeAmounts = value ?? false,
+                        ),
+                  title: const Text('Samarkan nominal'),
+                  subtitle: const Text(
+                    'Persentase nominal tidak akan dihitung jika nominal disamarkan.',
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _working ? null : _previewStudio,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('Preview JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _working ? null : _copyStudioPrompt,
+                      icon: const Icon(Icons.content_copy_outlined),
+                      label: const Text('Salin prompt AI'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _working ? null : _copyStudioJson,
+                      icon: const Icon(Icons.data_object_outlined),
+                      label: const Text('Salin JSON Studio'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _working ? null : _shareStudioJson,
+                      icon: const Icon(Icons.share_outlined),
+                      label: const Text('Bagikan JSON'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          const AppSectionHeader(title: 'Masukkan hasil dari Gemini/Claude'),
+          const SizedBox(height: 8),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tempel HTML atau Markdown hasil AI di bawah. FFM tidak mengubah angka; aplikasi hanya membantu preview dan membuat berkas HTML/PDF.',
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  minLines: 7,
+                  maxLines: 14,
+                  onChanged: (value) => _studioAiOutput = value,
+                  decoration: const InputDecoration(
+                    labelText: 'Hasil laporan AI',
+                    hintText: 'Tempel hasil HTML atau Markdown di sini…',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _working || _studioAiOutput.trim().isEmpty
+                          ? null
+                          : () => showDialog<void>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Preview hasil AI'),
+                                content: SingleChildScrollView(
+                                  child: SelectableText(
+                                    _plainTextFromAiOutput(_studioAiOutput),
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('Tutup'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('Preview hasil'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _working || _studioAiOutput.trim().isEmpty
+                          ? null
+                          : _shareAiHtml,
+                      icon: const Icon(Icons.language_outlined),
+                      label: const Text('Bagikan HTML'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: _working || _studioAiOutput.trim().isEmpty
+                          ? null
+                          : _shareAiPdf,
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                      label: const Text('Buat PDF'),
                     ),
                   ],
                 ),
