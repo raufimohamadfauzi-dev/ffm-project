@@ -11,10 +11,44 @@ class ReceiptImportException implements Exception {
   String toString() => message;
 }
 
+class ReceiptBatchEntry {
+  const ReceiptBatchEntry({
+    required this.type,
+    required this.date,
+    required this.amount,
+    required this.items,
+    this.time,
+    this.merchant,
+    this.categoryId,
+    this.accountId,
+    this.partyName,
+    this.note,
+  });
+
+  final String type;
+  final DateTime? date;
+  final String? time;
+  final int? amount;
+  final String? merchant;
+  final String? categoryId;
+  final String? accountId;
+  final String? partyName;
+  final String? note;
+  final List<ReceiptOcrItem> items;
+}
+
+class ReceiptBatchImport {
+  const ReceiptBatchImport({required this.entries, required this.warnings});
+
+  final List<ReceiptBatchEntry> entries;
+  final List<String> warnings;
+}
+
 class ReceiptImportService {
   const ReceiptImportService._();
 
   static const format = 'ffm-receipt-draft-v1';
+  static const batchFormat = 'ffm-transaction-batch-v1';
 
   static ReceiptOcrResult parseJson(String rawJson, {String? imagePath}) {
     dynamic decoded;
@@ -84,6 +118,161 @@ class ReceiptImportService {
     }
     return result;
   }
+
+  static ReceiptBatchImport parseBatchJson(String rawJson) {
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(rawJson);
+    } on FormatException catch (error) {
+      throw ReceiptImportException('JSON tidak valid: ${error.message}');
+    }
+    if (decoded is! Map) {
+      throw const ReceiptImportException('JSON batch harus berupa objek.');
+    }
+    final root = Map<String, dynamic>.from(decoded);
+    final declaredFormat = root['format']?.toString();
+    if (declaredFormat != null &&
+        declaredFormat.isNotEmpty &&
+        declaredFormat != batchFormat &&
+        declaredFormat != format) {
+      throw ReceiptImportException(
+        'Format $declaredFormat belum didukung. Pakai $batchFormat.',
+      );
+    }
+    final rawTransactions = root['transactions'];
+    if (rawTransactions is! List) {
+      final receipt = parseJson(rawJson);
+      return ReceiptBatchImport(
+        entries: [
+          ReceiptBatchEntry(
+            type: 'expense',
+            date: receipt.date,
+            time: receipt.time,
+            amount: receipt.total ?? receipt.itemsTotal,
+            merchant: receipt.merchant,
+            categoryId: receipt.categoryId,
+            note: receipt.rawText.trim().isEmpty ? null : receipt.rawText,
+            items: receipt.items,
+          ),
+        ],
+        warnings: receipt.validationWarnings,
+      );
+    }
+
+    final warnings = <String>[];
+    final entries = <ReceiptBatchEntry>[];
+    for (var index = 0; index < rawTransactions.length; index++) {
+      final raw = rawTransactions[index];
+      if (raw is! Map) {
+        warnings.add('Transaksi ke-${index + 1} dilewati karena bukan objek.');
+        continue;
+      }
+      final data = Map<String, dynamic>.from(raw);
+      final typeValue = _text(data['type'] ?? data['jenis'])?.toLowerCase();
+      if (typeValue != 'income' && typeValue != 'expense') {
+        warnings.add(
+          'Transaksi ke-${index + 1} harus memiliki type income atau expense.',
+        );
+        continue;
+      }
+      final items = <ReceiptOcrItem>[];
+      final rawItems = data['items'] ?? data['lines'];
+      if (rawItems is List) {
+        for (var itemIndex = 0; itemIndex < rawItems.length; itemIndex++) {
+          final item = rawItems[itemIndex];
+          if (item is! Map) {
+            warnings.add(
+              'Transaksi ke-${index + 1}, item ke-${itemIndex + 1} dilewati karena bukan objek.',
+            );
+            continue;
+          }
+          final parsed = _parseItem(
+            Map<String, dynamic>.from(item),
+            itemIndex,
+            warnings,
+          );
+          if (parsed != null) items.add(parsed);
+        }
+      } else if (data['name'] != null || data['nama'] != null) {
+        final parsed = _parseItem(data, 0, warnings);
+        if (parsed != null) items.add(parsed);
+      }
+      final amount =
+          _money(data['amount'] ?? data['total']) ??
+          (items.isEmpty
+              ? null
+              : items.fold<int>(0, (sum, item) => sum + item.calculatedTotal));
+      if (amount == null || amount <= 0) {
+        warnings.add('Transaksi ke-${index + 1} belum memiliki nominal valid.');
+      }
+      entries.add(
+        ReceiptBatchEntry(
+          type: typeValue!,
+          date: _date(data['date'] ?? data['tanggal']),
+          time: _text(data['time'] ?? data['waktu']),
+          amount: amount,
+          merchant: _text(data['merchant'] ?? data['toko']),
+          categoryId: _text(data['category_id']),
+          accountId: _text(data['account_id'] ?? data['rekening_id']),
+          partyName: _text(
+            data['party_name'] ?? data['sumber'] ?? data['dipakai_oleh'],
+          ),
+          note: _text(data['note'] ?? data['catatan']),
+          items: items,
+        ),
+      );
+    }
+    if (entries.isEmpty) {
+      throw const ReceiptImportException(
+        'Belum ada transaksi batch yang bisa diimpor.',
+      );
+    }
+    return ReceiptBatchImport(entries: entries, warnings: warnings);
+  }
+
+  static Map<String, dynamic> templateBatchMap() => {
+    'format': batchFormat,
+    'transactions': [
+      {
+        'type': 'expense',
+        'date': null,
+        'time': null,
+        'merchant': null,
+        'category_id': null,
+        'account_id': null,
+        'party_name': null,
+        'note': '',
+        'amount': 0,
+        'items': [
+          {
+            'name': 'Nama barang atau rincian',
+            'quantity': 1,
+            'unit': 'PCS',
+            'unit_price': 0,
+            'amount': 0,
+          },
+        ],
+      },
+    ],
+  };
+
+  static String templateBatchJson() =>
+      const JsonEncoder.withIndent('  ').convert(templateBatchMap());
+
+  static String buildGeminiBatchPrompt() =>
+      '''Kamu membantu menyiapkan batch transaksi untuk aplikasi Family Finance Manager (FFM).
+
+Balas HANYA dengan JSON valid tanpa markdown atau komentar. Gunakan format persis:
+${templateBatchJson()}
+
+Aturan:
+- `transactions` berisi satu objek untuk setiap transaksi atau nota yang ingin dicatat.
+- `type` hanya boleh `income` atau `expense`.
+- `amount`, `unit_price`, dan `items.amount` harus berupa angka integer rupiah tanpa titik, koma, atau simbol Rp.
+- Satu transaksi boleh memiliki banyak item pada `items`.
+- Jangan menggabungkan beberapa transaksi berbeda menjadi satu objek.
+- Jika data tidak terbaca, gunakan null; jangan menebak.
+- FFM akan menampilkan semua hasil sebagai draft yang wajib diedit dan dikonfirmasi.''';
 
   static Map<String, dynamic> toMap(ReceiptOcrResult result) => {
     'format': format,

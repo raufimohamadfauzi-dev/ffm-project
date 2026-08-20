@@ -19,6 +19,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
   getIt.registerLazySingleton<GetTransaction>(() => GetTransaction(db));
   getIt.registerLazySingleton<SaveTransaction>(() => SaveTransaction(db));
+  getIt.registerLazySingleton<SaveTransactionBatch>(
+    () => SaveTransactionBatch(db),
+  );
   getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
   getIt.registerLazySingleton<GetAssets>(() => GetAssets(db));
   getIt.registerLazySingleton<SaveAsset>(() => SaveAsset(db));

@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 import 'package:uuid/uuid.dart';
@@ -18,6 +21,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../data/services/offline_ai_engine_service.dart';
+import '../../data/services/receipt_import_service.dart';
 import '../../data/services/receipt_ocr_service.dart';
 import '../../data/services/voice_transaction_parser.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -321,13 +325,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
   Future<void> _showNewEntrySheet() async {
     final choice = await showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: .84,
+        minChildSize: .55,
+        maxChildSize: .96,
+        builder: (_, controller) => SafeArea(
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
             children: [
               const Text(
                 'Mau mencatat apa?',
@@ -335,14 +343,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Pilih alurnya dulu supaya kolom yang muncul tidak campur-aduk.',
+                'Pilih alurnya dulu. Semua pilihan ada di sini, termasuk Input cepat dan JSON Gemini.',
               ),
               const SizedBox(height: 16),
               _NewEntryChoiceTile(
                 icon: Icons.north_east_rounded,
                 color: AppColors.negative,
                 title: 'Pengeluaran',
-                subtitle: 'Uang keluar dari tunai, rekening, atau dompet.',
+                subtitle: 'Satu uang keluar dari Tunai, Rekening, atau Dompet digital.',
                 onTap: () => Navigator.pop(sheetContext, 'expense'),
               ),
               const SizedBox(height: 8),
@@ -350,7 +358,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 icon: Icons.south_west_rounded,
                 color: AppColors.positive,
                 title: 'Pemasukan',
-                subtitle: 'Uang masuk ke tunai, rekening, atau dompet.',
+                subtitle:
+                    'Satu uang masuk ke Tunai, Rekening, atau Dompet digital.',
                 onTap: () => Navigator.pop(sheetContext, 'income'),
               ),
               const SizedBox(height: 8),
@@ -358,25 +367,31 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 icon: Icons.flag_outlined,
                 color: AppColors.primary,
                 title: 'Isi target uang terkumpul',
-                subtitle: 'Pilih target dan tempat uang. Tidak ada kategori belanja di sini.',
+                subtitle: 'Setor ke target dan pilih tempat uang. Tidak ada kategori belanja.',
                 onTap: () => Navigator.pop(sheetContext, 'goal'),
               ),
-              const Divider(height: 24),
+              const Divider(height: 28),
               _NewEntryChoiceTile(
                 icon: Icons.playlist_add_rounded,
                 color: AppColors.primary,
-                title: 'Input banyak transaksi',
-                subtitle:
-                    'Catat beberapa pemasukan atau pengeluaran sekaligus.',
+                title: 'Input cepat banyak item',
+                subtitle: 'Catat 10+ transaksi manual; tiap baris punya nominal, kategori, tempat uang, jam, dan rincian.',
                 onTap: () => Navigator.pop(sheetContext, 'quick'),
+              ),
+              const SizedBox(height: 8),
+              _NewEntryChoiceTile(
+                icon: Icons.data_object_rounded,
+                color: AppColors.primary,
+                title: 'Impor JSON batch dari Gemini',
+                subtitle: 'Tempel atau impor JSON untuk mengisi banyak transaksi dan item sekaligus. Semua bisa diedit dulu.',
+                onTap: () => Navigator.pop(sheetContext, 'json'),
               ),
               const SizedBox(height: 8),
               _NewEntryChoiceTile(
                 icon: Icons.document_scanner_outlined,
                 color: AppColors.primary,
-                title: 'Nota: OCR / Gemini JSON',
-                subtitle:
-                    'Baca foto secara offline atau impor JSON dari Gemini.',
+                title: 'Scan nota dengan OCR',
+                subtitle: 'Baca foto nota secara offline, lalu cek hasilnya sebelum masuk ke draft.',
                 onTap: () => Navigator.pop(sheetContext, 'scan'),
               ),
             ],
@@ -394,6 +409,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         await _openGoalContribution();
       case 'quick':
         await _openQuickEntry();
+      case 'json':
+        await _openJsonBatch();
       case 'scan':
         await _openScan();
     }
@@ -441,11 +458,32 @@ class _TransactionListPageState extends State<TransactionListPage> {
           categories: _categories,
           merchants: _merchants,
           accounts: _accounts,
-          onSave: _saveDrafts,
+          onSave: _saveBatchDrafts,
         ),
       ),
     );
     if (!mounted || drafts == null || drafts.isEmpty) return;
+  }
+
+  Future<void> _openJsonBatch() async {
+    if (_accounts.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tambahkan rekening di Data Utama dulu.')),
+      );
+      return;
+    }
+    final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+      MaterialPageRoute(
+        builder: (_) => JsonTransactionBatchPage(
+          categories: _categories,
+          merchants: _merchants,
+          accounts: _accounts,
+        ),
+      ),
+    );
+    if (!mounted || drafts == null || drafts.isEmpty) return;
+    await _saveBatchDrafts(drafts);
   }
 
   Future<void> _openScan() async {
@@ -753,6 +791,76 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
   }
 
+  Future<void> _saveBatchDrafts(List<TransactionDraft> drafts) async {
+    final now = DateTime.now();
+    final entities = <TransactionEntity>[];
+    final itemsByTransactionId = <String, List<TransactionItemEntity>>{};
+    final auditRows = <Map<String, dynamic>>[];
+    for (final draft in drafts) {
+      final id = const Uuid().v4();
+      final entity = TransactionEntity(
+        id: id,
+        householdId: AppContext.householdId,
+        date: draft.date,
+        amount: draft.amount,
+        owner: OwnerLabels.normalizeForStorage(draft.owner),
+        categoryId: draft.categoryId,
+        note: draft.note.isEmpty ? null : draft.note,
+        source: draft.source,
+        accountId: draft.accountId,
+        merchantId: draft.merchantId,
+        location: draft.location,
+        goalId: draft.goalId,
+        partyName: draft.partyName,
+        receiptRawText: draft.receiptRawText,
+        receiptNumber: draft.receiptNumber,
+        receiptPaidAmount: draft.receiptPaidAmount,
+        receiptChangeAmount: draft.receiptChangeAmount,
+        recordedAt: now,
+        updatedAt: now,
+      );
+      entities.add(entity);
+      itemsByTransactionId[id] = draft.items
+          .map(
+            (item) => TransactionItemEntity(
+              id: const Uuid().v4(),
+              transactionId: id,
+              itemName: item.name,
+              price: item.price,
+              qty: item.qty,
+            ),
+          )
+          .toList();
+      auditRows.add({
+        'id': id,
+        'amount': draft.amount,
+        'category_id': draft.categoryId,
+        'merchant_id': draft.merchantId,
+        'account_id': draft.accountId,
+        'source': draft.source,
+      });
+    }
+    await getIt<SaveTransactionBatch>()(
+      entities,
+      itemsByTransactionId: itemsByTransactionId,
+    );
+    final auditLogger = AuditLogger(getIt<AppDatabase>());
+    for (final row in auditRows) {
+      await auditLogger.record(
+        action: 'tambah',
+        entity: 'transaksi',
+        newValue: row,
+      );
+    }
+    await _loadTransactions();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${drafts.length} transaksi berhasil dicatat sekaligus.'),
+      ),
+    );
+  }
+
   Future<void> _saveDraft(
     TransactionDraft draft, {
     String? transactionId,
@@ -897,7 +1005,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
             icon: const Icon(Icons.playlist_add_rounded),
           ),
           IconButton(
-            tooltip: 'Scan nota',
+            tooltip: 'Impor JSON batch dari Gemini',
+            onPressed: _openJsonBatch,
+            icon: const Icon(Icons.data_object_rounded),
+          ),
+          IconButton(
+            tooltip: 'Scan nota dengan OCR',
             onPressed: _openScan,
             icon: const Icon(Icons.document_scanner_outlined),
           ),
@@ -5397,6 +5510,757 @@ class _FirstTransactionGuide extends StatelessWidget {
   }
 }
 
+class _JsonTransactionItem {
+  _JsonTransactionItem({String name = '', double quantity = 1, int price = 0})
+    : nameController = TextEditingController(text: name),
+      quantityController = TextEditingController(
+        text: quantity == quantity.roundToDouble()
+            ? quantity.toInt().toString()
+            : quantity.toString(),
+      ),
+      priceController = TextEditingController(
+        text: price > 0 ? formatRupiahInput(price.toString()) : '',
+      );
+
+  final TextEditingController nameController;
+  final TextEditingController quantityController;
+  final TextEditingController priceController;
+
+  int get price => parseRupiah(priceController.text);
+
+  double get quantity =>
+      double.tryParse(quantityController.text.trim().replaceAll(',', '.')) ?? 1;
+
+  int get total => (price * (quantity <= 0 ? 1 : quantity)).round();
+
+  void dispose() {
+    nameController.dispose();
+    quantityController.dispose();
+    priceController.dispose();
+  }
+}
+
+class _JsonTransactionRow {
+  _JsonTransactionRow({
+    required this.type,
+    required this.date,
+    String? time,
+    int? amount,
+    String? merchantName,
+    String? partyName,
+    String? note,
+    String? categoryId,
+    String? accountId,
+    List<ReceiptOcrItem> items = const [],
+  }) : categoryId = categoryId,
+       accountId = accountId,
+       amountController = TextEditingController(
+         text: amount != null && amount > 0
+             ? formatRupiahInput(amount.toString())
+             : '',
+       ),
+       time = _mergeTime(date, time),
+       merchantController = TextEditingController(text: merchantName ?? ''),
+       partyController = TextEditingController(text: partyName ?? ''),
+       noteController = TextEditingController(text: note ?? ''),
+       items = items
+           .map(
+             (item) => _JsonTransactionItem(
+               name: item.name,
+               quantity: item.quantity,
+               price: item.price,
+             ),
+           )
+           .toList();
+
+  TransactionType type;
+  DateTime date;
+  DateTime time;
+  String? categoryId;
+  String? accountId;
+  final TextEditingController amountController;
+  final TextEditingController merchantController;
+  final TextEditingController partyController;
+  final TextEditingController noteController;
+  final List<_JsonTransactionItem> items;
+
+  int get itemsTotal => items.fold(0, (sum, item) => sum + item.total);
+
+  void dispose() {
+    amountController.dispose();
+    merchantController.dispose();
+    partyController.dispose();
+    noteController.dispose();
+    for (final item in items) {
+      item.dispose();
+    }
+  }
+
+  static DateTime _mergeTime(DateTime date, String? raw) {
+    if (raw == null || raw.trim().isEmpty) return date;
+    final parts = raw.split(':');
+    final hour = int.tryParse(parts.first) ?? date.hour;
+    final minute = parts.length > 1
+        ? int.tryParse(parts[1]) ?? date.minute
+        : date.minute;
+    final second = parts.length > 2
+        ? int.tryParse(parts[2]) ?? date.second
+        : date.second;
+    return DateTime(date.year, date.month, date.day, hour, minute, second);
+  }
+}
+
+class JsonTransactionBatchPage extends StatefulWidget {
+  const JsonTransactionBatchPage({
+    super.key,
+    required this.categories,
+    required this.merchants,
+    required this.accounts,
+  });
+
+  final List<Category> categories;
+  final List<Merchant> merchants;
+  final List<Account> accounts;
+
+  @override
+  State<JsonTransactionBatchPage> createState() =>
+      _JsonTransactionBatchPageState();
+}
+
+class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
+  final _jsonController = TextEditingController();
+  final _rows = <_JsonTransactionRow>[];
+  List<String> _warnings = const [];
+  var _showJsonBox = false;
+  var _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rows.add(_newRow());
+  }
+
+  _JsonTransactionRow _newRow({
+    TransactionType type = TransactionType.expense,
+    DateTime? date,
+    String? time,
+    int? amount,
+    String? merchant,
+    String? categoryId,
+    String? accountId,
+    String? partyName,
+    String? note,
+    List<ReceiptOcrItem> items = const [],
+  }) {
+    final effectiveType = type;
+    final categories = _categoryOptions(effectiveType, selectedId: categoryId);
+    final validCategory = categories.any((item) => item.id == categoryId)
+        ? categoryId
+        : categories.firstOrNull?.id;
+    final validAccount = widget.accounts.any((item) => item.id == accountId)
+        ? accountId
+        : widget.accounts.firstOrNull?.id;
+    return _JsonTransactionRow(
+      type: effectiveType,
+      date: date ?? DateTime.now(),
+      time: time,
+      amount: amount,
+      merchantName: merchant,
+      partyName: partyName,
+      note: note,
+      categoryId: validCategory,
+      accountId: validAccount,
+      items: items,
+    );
+  }
+
+  List<Category> _categoryOptions(TransactionType type, {String? selectedId}) =>
+      _transactionCategoryOptions(
+        widget.categories,
+        type == TransactionType.income ? 'income' : 'expense',
+        selectedId: selectedId,
+      );
+
+  String _categoryLabel(Category category) =>
+      _transactionCategoryLabel(widget.categories, category);
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+    if (result.isEmpty || result.single.path == null) return;
+    try {
+      _jsonController.text = await File(result.single.path!).readAsString();
+      await _loadJson();
+    } catch (_) {
+      _showMessage('File JSON belum berhasil dibaca.');
+    }
+  }
+
+  Future<void> _loadJson() async {
+    final text = _jsonController.text.trim();
+    if (text.isEmpty) {
+      _showMessage('Tempel JSON dulu atau pilih file JSON.');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      final imported = ReceiptImportService.parseBatchJson(text);
+      final rows = imported.entries.map((entry) {
+        final type = entry.type == 'income'
+            ? TransactionType.income
+            : TransactionType.expense;
+        return _newRow(
+          type: type,
+          date: entry.date,
+          time: entry.time,
+          amount: entry.amount,
+          merchant: entry.merchant,
+          categoryId: entry.categoryId,
+          accountId: entry.accountId,
+          partyName: entry.partyName,
+          note: entry.note,
+          items: entry.items,
+        );
+      }).toList();
+      for (final row in _rows) {
+        row.dispose();
+      }
+      setState(() {
+        _rows
+          ..clear()
+          ..addAll(rows);
+        _warnings = imported.warnings;
+        _showJsonBox = false;
+      });
+      _showMessage(
+        '${rows.length} transaksi dimuat sebagai draft. Cek dan edit sebelum simpan.',
+      );
+    } on ReceiptImportException catch (error) {
+      _showMessage(error.message);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted) return;
+    final text = data?.text?.trim() ?? '';
+    if (text.isEmpty) {
+      _showMessage('Clipboard belum berisi JSON.');
+      return;
+    }
+    setState(() {
+      _jsonController.text = text;
+      _showJsonBox = true;
+    });
+  }
+
+  Future<void> _copyTemplate() async {
+    await Clipboard.setData(
+      ClipboardData(text: ReceiptImportService.templateBatchJson()),
+    );
+    _showMessage('Template JSON batch sudah disalin.');
+  }
+
+  Future<void> _copyPrompt() async {
+    await Clipboard.setData(
+      ClipboardData(text: ReceiptImportService.buildGeminiBatchPrompt()),
+    );
+    _showMessage('Prompt Gemini untuk banyak transaksi sudah disalin.');
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _addRow() => setState(() => _rows.add(_newRow()));
+
+  void _changeType(_JsonTransactionRow row, TransactionType type) {
+    final categories = _categoryOptions(type);
+    setState(() {
+      row.type = type;
+      row.categoryId = categories.firstOrNull?.id;
+    });
+  }
+
+  Future<void> _pickDate(_JsonTransactionRow row) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: row.date,
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      helpText: 'Pilih tanggal kejadian',
+      cancelText: AppCopy.batal,
+      confirmText: 'Pakai tanggal',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      row.date = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        row.time.hour,
+        row.time.minute,
+        row.time.second,
+      );
+      row.time = row.date;
+    });
+  }
+
+  Future<void> _pickTime(_JsonTransactionRow row) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(row.time),
+      helpText: 'Pilih jam kejadian',
+      cancelText: AppCopy.batal,
+      confirmText: 'Pakai jam',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      row.time = DateTime(
+        row.date.year,
+        row.date.month,
+        row.date.day,
+        picked.hour,
+        picked.minute,
+        DateTime.now().second,
+      );
+      row.date = row.time;
+    });
+  }
+
+  List<TransactionDraft>? _buildDrafts() {
+    final drafts = <TransactionDraft>[];
+    for (var index = 0; index < _rows.length; index++) {
+      final row = _rows[index];
+      final amount = parseRupiah(row.amountController.text) > 0
+          ? parseRupiah(row.amountController.text)
+          : row.itemsTotal;
+      if (amount <= 0 || row.categoryId == null || row.accountId == null) {
+        _showMessage(
+          'Transaksi ${index + 1}: isi nominal, kategori, dan rekening.',
+        );
+        return null;
+      }
+      final items = row.items
+          .where((item) => item.nameController.text.trim().isNotEmpty)
+          .map(
+            (item) => ReceiptItemDraft(
+              name: item.nameController.text.trim(),
+              price: item.price,
+              qty: item.quantity <= 0 ? 1 : item.quantity,
+            ),
+          )
+          .toList();
+      drafts.add(
+        TransactionDraft(
+          type: row.type,
+          categoryId: row.categoryId,
+          owner: OwnerLabels.family,
+          partyName: row.partyController.text.trim().isEmpty
+              ? null
+              : row.partyController.text.trim(),
+          date: row.date,
+          amount: row.type == TransactionType.expense ? -amount : amount,
+          note: row.noteController.text.trim(),
+          source: 'json_batch',
+          accountId: row.accountId,
+          merchantId: widget.merchants
+              .where(
+                (merchant) =>
+                    merchant.name.toLowerCase() ==
+                    row.merchantController.text.trim().toLowerCase(),
+              )
+              .firstOrNull
+              ?.id,
+          items: items,
+        ),
+      );
+    }
+    return drafts;
+  }
+
+  void _confirm() {
+    final drafts = _buildDrafts();
+    if (drafts == null || drafts.isEmpty) return;
+    Navigator.of(context).pop(drafts);
+  }
+
+  @override
+  void dispose() {
+    _jsonController.dispose();
+    for (final row in _rows) {
+      row.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('JSON & Input banyak transaksi'),
+        actions: [
+          IconButton(
+            tooltip: 'Pakai semua draft',
+            onPressed: _confirm,
+            icon: const Icon(Icons.check_circle_outline),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+        children: [
+          const AppHelpBanner(
+            title: 'Satu halaman untuk banyak transaksi',
+            message: 'Tempel JSON dari Gemini atau isi manual. Satu transaksi bisa punya banyak rincian item. Semua hasil masih draft sampai kamu menekan Pakai semua draft.',
+            icon: Icons.data_object_rounded,
+          ),
+          const SizedBox(height: 12),
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Masukkan JSON batch (opsional)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Format ini bisa memuat 10 transaksi dan item rinciannya sekaligus.',
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: _copyPrompt,
+                      icon: const Icon(Icons.copy_all_outlined),
+                      label: const Text('Salin prompt Gemini'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _copyTemplate,
+                      icon: const Icon(Icons.data_object_outlined),
+                      label: const Text('Salin template JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _pasteFromClipboard,
+                      icon: const Icon(Icons.content_paste_go_outlined),
+                      label: const Text('Tempel JSON'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _pickFile,
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Pilih file JSON'),
+                    ),
+                  ],
+                ),
+                if (_showJsonBox) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _jsonController,
+                    minLines: 8,
+                    maxLines: 16,
+                    keyboardType: TextInputType.multiline,
+                    decoration: const InputDecoration(
+                      labelText: 'JSON hasil Gemini',
+                      hintText: '{ "format": "ffm-transaction-batch-v1", ... }',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.icon(
+                    onPressed: _loading ? null : _loadJson,
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.playlist_add_check_rounded),
+                    label: Text(
+                      _loading ? 'Membaca JSON...' : 'Muat JSON sebagai draft',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (_warnings.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            AppCard(
+              color: Theme.of(context).colorScheme.errorContainer,
+              child: Text('Catatan impor:\n• ${_warnings.join('\n• ')}'),
+            ),
+          ],
+          const SizedBox(height: 12),
+          ...List.generate(
+            _rows.length,
+            (index) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _buildJsonRow(index, _rows[index]),
+            ),
+          ),
+          OutlinedButton.icon(
+            onPressed: _addRow,
+            icon: const Icon(Icons.add),
+            label: const Text('Tambah transaksi lain'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: _confirm,
+            icon: const Icon(Icons.check_circle_outline),
+            label: Text('Pakai semua ${_rows.length} draft'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJsonRow(int index, _JsonTransactionRow row) {
+    final categories = _categoryOptions(row.type, selectedId: row.categoryId);
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Transaksi ${index + 1}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              if (_rows.length > 1)
+                IconButton(
+                  tooltip: 'Hapus transaksi ini',
+                  onPressed: () => setState(() {
+                    row.dispose();
+                    _rows.removeAt(index);
+                  }),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+            ],
+          ),
+          DropdownButtonFormField<TransactionType>(
+            initialValue: row.type,
+            decoration: const InputDecoration(
+              labelText: 'Jenis transaksi',
+              prefixIcon: Icon(Icons.swap_vert_rounded),
+            ),
+            items: const [
+              DropdownMenuItem(
+                value: TransactionType.expense,
+                child: Text('Pengeluaran'),
+              ),
+              DropdownMenuItem(
+                value: TransactionType.income,
+                child: Text('Pemasukan'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) _changeType(row, value);
+            },
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: row.amountController,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [RupiahInputFormatter()],
+                  decoration: InputDecoration(
+                    labelText: row.items.isEmpty
+                        ? 'Nominal total'
+                        : 'Nominal total (boleh kosong)',
+                    prefixText: 'Rp ',
+                    helperText: row.items.isEmpty
+                        ? null
+                        : 'Total rincian: ${formatRupiahInput(row.itemsTotal.toString())}',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _pickTime(row),
+                icon: const Icon(Icons.schedule_outlined, size: 18),
+                label: Text(formatJam(row.time)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _pickDate(row),
+            icon: const Icon(Icons.event_outlined, size: 18),
+            label: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(formatTanggalLengkap(row.date, includeSeconds: false)),
+                HijriDateLabel(date: row.date),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: row.categoryId,
+            decoration: const InputDecoration(
+              labelText: 'Kategori',
+              prefixIcon: Icon(Icons.category_outlined),
+            ),
+            items: categories
+                .map(
+                  (category) => DropdownMenuItem(
+                    value: category.id,
+                    child: Text(_categoryLabel(category)),
+                  ),
+                )
+                .toList(),
+            onChanged: categories.isEmpty
+                ? null
+                : (value) => setState(() => row.categoryId = value),
+            validator: (_) => row.categoryId == null ? 'Pilih kategori' : null,
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: row.accountId,
+            decoration: const InputDecoration(
+              labelText: 'Rekening/tempat uang',
+              prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+            ),
+            items: widget.accounts
+                .map(
+                  (account) => DropdownMenuItem(
+                    value: account.id,
+                    child: Text(account.name),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) => setState(() => row.accountId = value),
+            validator: (_) => row.accountId == null ? 'Pilih rekening' : null,
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: row.merchantController,
+            decoration: const InputDecoration(
+              labelText: 'Toko/tempat (opsional)',
+              prefixIcon: Icon(Icons.storefront_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: row.partyController,
+            decoration: InputDecoration(
+              labelText: row.type == TransactionType.income
+                  ? 'Sumber pemasukan (opsional)'
+                  : 'Dipakai oleh (opsional)',
+              prefixIcon: const Icon(Icons.people_outline),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: row.noteController,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              labelText: 'Catatan transaksi (opsional)',
+              prefixIcon: Icon(Icons.notes_outlined),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: row.items.isNotEmpty,
+            title: Text('Rincian item (${row.items.length})'),
+            subtitle: Text(
+              row.items.isEmpty
+                  ? 'Tambah barang seperti beras, sayur, atau BBM'
+                  : 'Total rincian ${formatRupiahInput(row.itemsTotal.toString())}',
+            ),
+            children: [
+              ...List.generate(
+                row.items.length,
+                (itemIndex) =>
+                    _buildJsonItem(row, itemIndex, row.items[itemIndex]),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      setState(() => row.items.add(_JsonTransactionItem())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Tambah rincian barang'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildJsonItem(
+    _JsonTransactionRow row,
+    int index,
+    _JsonTransactionItem item,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: item.nameController,
+              decoration: const InputDecoration(labelText: 'Nama barang'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              controller: item.quantityController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Qty'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: item.priceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Harga'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Hapus rincian',
+            onPressed: () => setState(() {
+              item.dispose();
+              row.items.removeAt(index);
+            }),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Form manual untuk mencatat beberapa transaksi dalam satu hari.
 /// Setiap baris tetap menjadi transaksi terpisah agar saldo, anggaran, dan
 /// analisa tidak kehilangan konteks kategori maupun rekening.
@@ -5436,11 +6300,17 @@ class _QuickTransactionRow {
   final amountController = TextEditingController();
   final locationController = TextEditingController();
   final noteController = TextEditingController();
+  final items = <_JsonTransactionItem>[];
+
+  int get itemsTotal => items.fold(0, (sum, item) => sum + item.total);
 
   void dispose() {
     amountController.dispose();
     locationController.dispose();
     noteController.dispose();
+    for (final item in items) {
+      item.dispose();
+    }
   }
 }
 
@@ -5542,11 +6412,33 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
     });
   }
 
+  Future<void> _openJsonBatch() async {
+    final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+      MaterialPageRoute(
+        builder: (_) => JsonTransactionBatchPage(
+          categories: widget.categories,
+          merchants: widget.merchants,
+          accounts: widget.accounts,
+        ),
+      ),
+    );
+    if (!mounted || drafts == null || drafts.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(drafts);
+      if (!mounted) return;
+      Navigator.of(context).pop(drafts);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _save() async {
     if (_saving || !_formKey.currentState!.validate()) return;
     final drafts = <TransactionDraft>[];
     for (final row in _rows) {
-      final amount = parseRupiah(row.amountController.text);
+      final typedAmount = parseRupiah(row.amountController.text);
+      final amount = typedAmount > 0 ? typedAmount : row.itemsTotal;
       final categoryId = row.categoryId;
       final accountId = row.accountId;
       if (amount <= 0 || categoryId == null || accountId == null) {
@@ -5559,6 +6451,16 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
         );
         return;
       }
+      final items = row.items
+          .where((item) => item.nameController.text.trim().isNotEmpty)
+          .map(
+            (item) => ReceiptItemDraft(
+              name: item.nameController.text.trim(),
+              price: item.price,
+              qty: item.quantity <= 0 ? 1 : item.quantity,
+            ),
+          )
+          .toList();
       drafts.add(
         TransactionDraft(
           type: row.type,
@@ -5574,7 +6476,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
           source: 'manual',
           merchantId: row.merchantId,
           accountId: accountId,
-          items: const [],
+          items: items,
         ),
       );
     }
@@ -5618,6 +6520,30 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
               title: 'Catat banyak transaksi sekaligus',
               message: 'Pilih satu tanggal kejadian untuk hari ini, lalu isi setiap baris. Jam tiap transaksi bisa dibedakan. Waktu input sistem tetap dicatat saat kamu menekan Simpan semua.',
               icon: Icons.playlist_add_check_rounded,
+            ),
+            const SizedBox(height: 12),
+            AppCard(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mau input lewat JSON Gemini?',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Bisa. Tempel hasil Gemini untuk 10+ transaksi sekaligus, lengkap dengan rincian barang, lalu edit sebelum dipakai.',
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: _saving ? null : _openJsonBatch,
+                    icon: const Icon(Icons.data_object_rounded),
+                    label: const Text('Buka JSON/Gemini batch'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             AppCard(
@@ -5731,13 +6657,16 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
                   controller: row.amountController,
                   keyboardType: TextInputType.number,
                   inputFormatters: [RupiahInputFormatter()],
-                  decoration: const InputDecoration(
-                    labelText: 'Nominal total',
+                  decoration: InputDecoration(
+                    labelText: 'Nominal total (boleh kosong jika ada rincian)',
                     prefixText: 'Rp ',
+                    helperText: row.items.isEmpty
+                        ? 'Atau buka Rincian barang di bawah.'
+                        : 'Total rincian: ${formatRupiahInput(row.itemsTotal.toString())}',
                   ),
                   validator: (value) {
-                    if (parseRupiah(value ?? '') <= 0) {
-                      return 'Isi nominal';
+                    if (parseRupiah(value ?? '') <= 0 && row.itemsTotal <= 0) {
+                      return 'Isi nominal atau rincian barang';
                     }
                     return null;
                   },
@@ -5836,10 +6765,90 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
             controller: row.noteController,
             maxLines: 2,
             decoration: const InputDecoration(
-              labelText: 'Catatan atau rincian singkat (opsional)',
-              hintText: 'Contoh: sayur, beras, parkir, dan lainnya',
+              labelText: 'Catatan transaksi (opsional)',
+              hintText: 'Contoh: belanja pasar pagi',
               prefixIcon: Icon(Icons.notes_outlined),
             ),
+          ),
+          const SizedBox(height: 8),
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: row.items.isNotEmpty,
+            title: Text('Rincian barang (${row.items.length})'),
+            subtitle: Text(
+              row.items.isEmpty
+                  ? 'Opsional: isi beras, sayur, BBM, dan barang lain'
+                  : 'Total rincian ${formatRupiahInput(row.itemsTotal.toString())}',
+            ),
+            children: [
+              ...List.generate(
+                row.items.length,
+                (itemIndex) =>
+                    _buildQuickItem(row, itemIndex, row.items[itemIndex]),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () =>
+                      setState(() => row.items.add(_JsonTransactionItem())),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Tambah rincian barang'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickItem(
+    _QuickTransactionRow row,
+    int index,
+    _JsonTransactionItem item,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: TextField(
+              controller: item.nameController,
+              decoration: const InputDecoration(labelText: 'Nama barang'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              controller: item.quantityController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Qty'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: item.priceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(labelText: 'Harga'),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Hapus rincian',
+            onPressed: () => setState(() {
+              item.dispose();
+              row.items.removeAt(index);
+            }),
+            icon: const Icon(Icons.close),
           ),
         ],
       ),

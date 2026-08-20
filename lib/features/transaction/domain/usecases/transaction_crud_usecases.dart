@@ -180,6 +180,68 @@ class SaveTransaction {
   }
 }
 
+class SaveTransactionBatch {
+  const SaveTransactionBatch(this.database);
+  final AppDatabase database;
+
+  Future<void> call(
+    List<TransactionEntity> entities, {
+    required Map<String, List<TransactionItemEntity>> itemsByTransactionId,
+  }) async {
+    await database.transaction(() async {
+      for (final entity in entities) {
+        await database
+            .into(database.transactions)
+            .insertOnConflictUpdate(
+              TransactionsCompanion.insert(
+                id: entity.id,
+                householdId: entity.householdId,
+                type: entity.amount >= 0 ? 'income' : 'expense',
+                categoryId: Value(entity.categoryId),
+                merchantId: Value(entity.merchantId),
+                accountId: Value(entity.accountId),
+                goalId: Value(entity.goalId),
+                amount: entity.amount,
+                date: entity.date,
+                recordedAt: entity.recordedAt,
+                note: Value(entity.note),
+                owner: Value(entity.owner),
+                partyName: Value(entity.partyName),
+                source: Value(entity.source),
+                sourceId: Value(entity.sourceId),
+                recurringTransactionId: Value(entity.recurringTransactionId),
+                location: Value(entity.location),
+                receiptRawText: Value(entity.receiptRawText),
+                receiptNumber: Value(entity.receiptNumber),
+                receiptPaidAmount: Value(entity.receiptPaidAmount),
+                receiptChangeAmount: Value(entity.receiptChangeAmount),
+                createdAt: entity.recordedAt,
+                updatedAt: Value(entity.updatedAt ?? DateTime.now()),
+              ),
+            );
+        await (database.delete(
+          database.transactionItems,
+        )..where((row) => row.transactionId.equals(entity.id))).go();
+        for (final item in itemsByTransactionId[entity.id] ?? const []) {
+          await database
+              .into(database.transactionItems)
+              .insert(
+                TransactionItemsCompanion.insert(
+                  id: item.id,
+                  transactionId: entity.id,
+                  itemName: item.itemName,
+                  qty: Value(item.qty),
+                  price: Value(item.price),
+                  amount: Value((item.price * item.qty).round()),
+                  createdAt: DateTime.now(),
+                ),
+              );
+        }
+      }
+    });
+  }
+}
+
 class DeleteTransaction {
   const DeleteTransaction(this.database);
   final AppDatabase database;

@@ -60,6 +60,76 @@ void main() {
     },
   );
 
+  test(
+    'batch transaksi dan rincian item disimpan lewat satu use case atomik',
+    () async {
+      final database = createInMemoryDatabaseForTests();
+      addTearDown(database.close);
+      final recordedAt = DateTime(2026, 8, 20, 7, 15);
+      final entities = [
+        TransactionEntity(
+          id: 'batch-1',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          amount: -10500,
+          owner: 'Keluarga',
+          categoryId: 'expense-category',
+          accountId: 'account-cash',
+          source: 'json_batch',
+          recordedAt: recordedAt,
+        ),
+        TransactionEntity(
+          id: 'batch-2',
+          householdId: AppContext.householdId,
+          date: recordedAt,
+          amount: -25000,
+          owner: 'Keluarga',
+          categoryId: 'expense-category',
+          accountId: 'account-cash',
+          source: 'json_batch',
+          recordedAt: recordedAt,
+        ),
+      ];
+      await SaveTransactionBatch(database)(
+        entities,
+        itemsByTransactionId: {
+          'batch-1': [
+            TransactionItemEntity(
+              id: 'batch-item-1',
+              transactionId: 'batch-1',
+              itemName: 'Sayur',
+              price: 3500,
+              qty: 1,
+            ),
+            TransactionItemEntity(
+              id: 'batch-item-2',
+              transactionId: 'batch-1',
+              itemName: 'Mie',
+              price: 7000,
+              qty: 1,
+            ),
+          ],
+          'batch-2': [
+            TransactionItemEntity(
+              id: 'batch-item-3',
+              transactionId: 'batch-2',
+              itemName: 'BBM motor',
+              price: 25000,
+              qty: 1,
+            ),
+          ],
+        },
+      );
+
+      final result = await GetTransactions(database)(AppContext.householdId);
+      final byId = {for (final row in result) row.transaction.id: row};
+      expect(byId.keys, containsAll(['batch-1', 'batch-2']));
+      expect(byId['batch-1']!.items, hasLength(2));
+      expect(byId['batch-1']!.items.first.itemName, 'Sayur');
+      expect(byId['batch-2']!.items.single.itemName, 'BBM motor');
+    },
+  );
+
   test('pemasukan, pengeluaran, target, dan item nota tersimpan sebagai transaksi berbeda', () async {
     final database = createInMemoryDatabaseForTests();
     addTearDown(database.close);

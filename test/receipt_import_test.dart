@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/transaction/data/services/receipt_import_service.dart';
@@ -120,5 +122,63 @@ Kembali : 10,000
     expect(result.rawText, isEmpty);
     expect(result.items, isEmpty);
     expect(result.warnings, contains('Teks nota kosong atau belum terbaca.'));
+  });
+
+  test('JSON batch membaca banyak transaksi dan rincian item', () {
+    final transactions = List.generate(
+      10,
+      (index) => {
+        'type': 'expense',
+        'date': '2026-08-20',
+        'amount': (index + 1) * 10000,
+        'merchant': 'Toko ${index + 1}',
+        'items': [
+          {
+            'name': 'Barang ${index + 1}',
+            'quantity': 2,
+            'unit_price': 5000,
+            'amount': 10000,
+          },
+        ],
+      },
+    );
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': transactions,
+      }),
+    );
+
+    expect(result.entries, hasLength(10));
+    expect(result.entries.first.items.single.name, 'Barang 1');
+    expect(result.entries.first.items.single.calculatedTotal, 10000);
+    expect(result.entries.last.amount, 100000);
+    expect(result.warnings, isEmpty);
+  });
+
+  test('template JSON batch bisa disalin dan diimpor', () {
+    final template = ReceiptImportService.templateBatchJson();
+    final result = ReceiptImportService.parseBatchJson(template);
+
+    expect(template, contains('ffm-transaction-batch-v1'));
+    expect(result.entries, hasLength(1));
+    expect(result.entries.single.items, hasLength(1));
+  });
+
+  test('JSON nota lama tetap bisa dimuat sebagai satu transaksi batch', () {
+    final result = ReceiptImportService.parseBatchJson('''
+    {
+      "format": "ffm-receipt-draft-v1",
+      "receipt": {
+        "merchant": "Warung",
+        "total": 12000,
+        "items": [{"name": "Nasi", "quantity": 1, "amount": 12000}]
+      }
+    }
+    ''');
+
+    expect(result.entries, hasLength(1));
+    expect(result.entries.single.amount, 12000);
+    expect(result.entries.single.items.single.name, 'Nasi');
   });
 }
