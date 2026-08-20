@@ -2,9 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:uuid/uuid.dart';
 
-import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../domain/entities/activity_entity.dart';
@@ -57,6 +55,85 @@ class _ActivityViewState extends State<_ActivityView> {
             value.day == day.day);
   }
 
+  Future<void> _showSessionDetails(
+    ActivitySessionEntity session,
+    List<ActivityCheckpointEntity> checkpoints,
+  ) async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Text(
+                session.title,
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('${session.category} • ${_dateOnly(session.startedAt)}'),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DetailMetric(
+                      label: 'Mulai',
+                      value: _time(session.startedAt),
+                    ),
+                  ),
+                  Expanded(
+                    child: _DetailMetric(
+                      label: 'Selesai',
+                      value: session.endedAt == null
+                          ? 'Berjalan'
+                          : _time(session.endedAt!),
+                    ),
+                  ),
+                  Expanded(
+                    child: _DetailMetric(
+                      label: 'Durasi',
+                      value: _calculator.format(session.durationAt()),
+                    ),
+                  ),
+                ],
+              ),
+              if (session.notes?.isNotEmpty == true) ...[
+                const SizedBox(height: 14),
+                Text(session.notes!),
+              ],
+              const SizedBox(height: 18),
+              const Text(
+                'Update aktivitas',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              if (checkpoints.isEmpty)
+                const Text(
+                  'Belum ada update. Tekan Update aktivitas saat ada perubahan.',
+                )
+              else
+                for (var index = 0; index < checkpoints.length; index++)
+                  _CheckpointDetailTile(
+                    checkpoint: checkpoints[index],
+                    previous: index == 0
+                        ? session.startedAt
+                        : checkpoints[index - 1].occurredAt,
+                    calculator: _calculator,
+                  ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickDay() async {
     final picked = await showDatePicker(
       context: context,
@@ -98,31 +175,6 @@ class _ActivityViewState extends State<_ActivityView> {
     );
   }
 
-  Future<void> _addJournal() async {
-    final result = await showModalBottomSheet<_JournalDraft>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => const _JournalForm(),
-    );
-    if (result == null || !mounted) return;
-    await context.read<ActivityBloc>().saveEntry(
-      ActivityJournalEntryEntity(
-        id: const Uuid().v4(),
-        householdId: AppContext.householdId,
-        activityType: result.activityType,
-        title: result.title,
-        participants: result.participants,
-        topic: result.topic,
-        place: result.place,
-        startedAt: result.startedAt,
-        endedAt: result.endedAt,
-        notes: result.notes,
-        followUp: result.followUp,
-        createdAt: DateTime.now(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocListener<ActivityBloc, ActivityState>(
@@ -135,7 +187,7 @@ class _ActivityViewState extends State<_ActivityView> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Aktivitas & jurnal'),
+          title: const Text('Aktivitas & waktu'),
           actions: [
             IconButton(
               tooltip: 'Cara kerja aktivitas',
@@ -145,7 +197,7 @@ class _ActivityViewState extends State<_ActivityView> {
                 builder: (_) => const AlertDialog(
                   title: Text('Catat aktivitas harian'),
                   content: Text(
-                    'Pakai Mulai sesi untuk melacak perjalanan atau pekerjaan dari awal sampai selesai. Tambahkan checkpoint setiap kali sampai di tempat baru. Untuk pertemuan atau obrolan, pakai Catat jurnal dan tulis ringkasan sendiri. Semua data disimpan lokal di perangkat.',
+                    'Pakai Mulai sesi untuk melacak perjalanan atau pekerjaan dari awal sampai selesai. Tekan Update aktivitas setiap kali kegiatan berubah, misalnya sampai pasar, bertemu seseorang, atau pindah ke kebun. Ketuk kartu untuk melihat rincian dan durasi tiap update. Semua data disimpan lokal di perangkat.',
                   ),
                 ),
               ),
@@ -156,7 +208,6 @@ class _ActivityViewState extends State<_ActivityView> {
           tooltip: 'Tambah aktivitas',
           onSelected: (value) {
             if (value == 'session') _startSession();
-            if (value == 'journal') _addJournal();
           },
           itemBuilder: (_) => const [
             PopupMenuItem(
@@ -164,15 +215,10 @@ class _ActivityViewState extends State<_ActivityView> {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(Icons.timer_outlined),
-                title: Text('Mulai sesi perjalanan/kerja'),
-              ),
-            ),
-            PopupMenuItem(
-              value: 'journal',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.menu_book_outlined),
-                title: Text('Catat jurnal/pertemuan'),
+                title: Text('Mulai sesi aktivitas'),
+                subtitle: Text(
+                  'Timer dan update berjalan dari awal sampai selesai',
+                ),
               ),
             ),
           ],
@@ -197,7 +243,7 @@ class _ActivityViewState extends State<_ActivityView> {
                 children: [
                   const AppHelpBanner(
                     title: 'Waktu kamu bisa dilacak',
-                    message: 'Catat dari berangkat, sampai di tempat, ngobrol, bekerja, sampai pulang. Durasi dihitung dari waktu yang kamu masukkan.',
+                    message: 'Mulai satu aktivitas, lalu tekan Update aktivitas setiap kali ada perubahan. Durasi dihitung otomatis sampai kamu menekan Selesai.',
                     icon: Icons.timeline_outlined,
                   ),
                   const SizedBox(height: 16),
@@ -214,7 +260,6 @@ class _ActivityViewState extends State<_ActivityView> {
                               const [
                                     'Semua',
                                     'Perjalanan',
-                                    'Pertemuan/obrolan',
                                     'Belanja',
                                     'Pekerjaan',
                                     'Keluarga',
@@ -261,83 +306,48 @@ class _ActivityViewState extends State<_ActivityView> {
                           context.read<ActivityBloc>().finishSession(),
                     ),
                   if (state.activeSession != null) const SizedBox(height: 16),
-                  _SectionTitle(
-                    title: 'Jurnal aktivitas',
-                    count: state.entries
-                        .where(
-                          (entry) =>
-                              (_typeFilter == 'Semua' ||
-                                  entry.activityType == _typeFilter) &&
-                              _matchesDay(entry.startedAt),
-                        )
-                        .length,
+                  Builder(
+                    builder: (context) {
+                      final visibleSessions = state.sessions
+                          .where(
+                            (session) =>
+                                (_typeFilter == 'Semua' ||
+                                    session.category == _typeFilter) &&
+                                _matchesDay(session.startedAt),
+                          )
+                          .toList();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionTitle(
+                            title: 'Aktivitas tersimpan',
+                            count: visibleSessions.length,
+                          ),
+                          if (visibleSessions.isEmpty)
+                            const AppEmptyState(
+                              icon: Icons.timeline_outlined,
+                              title: 'Belum ada aktivitas',
+                              message: 'Mulai satu aktivitas, lalu isi update setiap kali berpindah atau melakukan sesuatu.',
+                            )
+                          else
+                            for (final session in visibleSessions)
+                              _SessionCard(
+                                session: session,
+                                checkpoints:
+                                    state.checkpoints[session.id] ?? const [],
+                                calculator: _calculator,
+                                onOpen: () => _showSessionDetails(
+                                  session,
+                                  state.checkpoints[session.id] ?? const [],
+                                ),
+                                onArchive: () => context
+                                    .read<ActivityBloc>()
+                                    .archiveSession(session.id),
+                              ),
+                        ],
+                      );
+                    },
                   ),
-                  if (state.entries
-                      .where(
-                        (entry) =>
-                            (_typeFilter == 'Semua' ||
-                                entry.activityType == _typeFilter) &&
-                            _matchesDay(entry.startedAt),
-                      )
-                      .isEmpty)
-                    const AppEmptyState(
-                      icon: Icons.menu_book_outlined,
-                      title: 'Belum ada catatan aktivitas',
-                      message: 'Catat perjalanan, pekerjaan, pertemuan, atau obrolan keluarga secara manual.',
-                    )
-                  else
-                    for (final entry in state.entries.where(
-                      (entry) =>
-                          (_typeFilter == 'Semua' ||
-                              entry.activityType == _typeFilter) &&
-                          _matchesDay(entry.startedAt),
-                    ))
-                      _JournalCard(
-                        entry: entry,
-                        calculator: _calculator,
-                        onArchive: () =>
-                            context.read<ActivityBloc>().archiveEntry(entry.id),
-                      ),
-                  const SizedBox(height: 18),
-                  _SectionTitle(
-                    title: 'Sesi perjalanan & kerja',
-                    count: state.sessions
-                        .where(
-                          (session) =>
-                              (_typeFilter == 'Semua' ||
-                                  session.category == _typeFilter) &&
-                              _matchesDay(session.startedAt),
-                        )
-                        .length,
-                  ),
-                  if (state.sessions
-                      .where(
-                        (session) =>
-                            (_typeFilter == 'Semua' ||
-                                session.category == _typeFilter) &&
-                            _matchesDay(session.startedAt),
-                      )
-                      .isEmpty)
-                    const AppEmptyState(
-                      icon: Icons.timer_outlined,
-                      title: 'Belum ada sesi',
-                      message: 'Mulai satu sesi kalau mau melacak perjalanan atau kegiatan dari awal sampai selesai.',
-                    )
-                  else
-                    for (final session in state.sessions.where(
-                      (session) =>
-                          (_typeFilter == 'Semua' ||
-                              session.category == _typeFilter) &&
-                          _matchesDay(session.startedAt),
-                    ))
-                      _SessionCard(
-                        session: session,
-                        checkpoints: state.checkpoints[session.id] ?? const [],
-                        calculator: _calculator,
-                        onArchive: () => context
-                            .read<ActivityBloc>()
-                            .archiveSession(session.id),
-                      ),
                 ],
               ),
             );
@@ -458,11 +468,13 @@ class _SessionCard extends StatelessWidget {
     required this.session,
     required this.checkpoints,
     required this.calculator,
+    required this.onOpen,
     required this.onArchive,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
   final ActivityDurationCalculator calculator;
+  final VoidCallback onOpen;
   final VoidCallback onArchive;
 
   @override
@@ -485,53 +497,9 @@ class _SessionCard extends StatelessWidget {
         subtitle: Text(
           '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
         ),
+        onTap: onOpen,
         trailing: IconButton(
           tooltip: 'Arsipkan sesi',
-          onPressed: onArchive,
-          icon: const Icon(Icons.archive_outlined),
-        ),
-      ),
-    ),
-  );
-}
-
-class _JournalCard extends StatelessWidget {
-  const _JournalCard({
-    required this.entry,
-    required this.calculator,
-    required this.onArchive,
-  });
-  final ActivityJournalEntryEntity entry;
-  final ActivityDurationCalculator calculator;
-  final VoidCallback onArchive;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: AppCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const CircleAvatar(child: Icon(Icons.menu_book_outlined)),
-        title: Text(
-          entry.title,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: Text(
-          [
-            entry.activityType,
-            _dateTime(entry.startedAt),
-            if (entry.endedAt != null) calculator.format(entry.durationAt()),
-            if (entry.participants?.isNotEmpty == true)
-              'dengan ${entry.participants}',
-            if (entry.place?.isNotEmpty == true) entry.place!,
-            if (entry.topic?.isNotEmpty == true) 'topik: ${entry.topic}',
-            if (entry.notes?.isNotEmpty == true) entry.notes!,
-            if (entry.followUp?.isNotEmpty == true) 'lanjut: ${entry.followUp}',
-          ].join(' • '),
-        ),
-        isThreeLine: true,
-        trailing: IconButton(
-          tooltip: 'Arsipkan catatan',
           onPressed: onArchive,
           icon: const Icon(Icons.archive_outlined),
         ),
@@ -735,162 +703,44 @@ class _CheckpointFormState extends State<_CheckpointForm> {
   );
 }
 
-class _JournalDraft {
-  const _JournalDraft(
-    this.activityType,
-    this.title,
-    this.participants,
-    this.topic,
-    this.place,
-    this.startedAt,
-    this.endedAt,
-    this.notes,
-    this.followUp,
+class _DetailMetric extends StatelessWidget {
+  const _DetailMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.labelMedium),
+      const SizedBox(height: 3),
+      Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+    ],
   );
-  final String activityType;
-  final String title;
-  final String? participants;
-  final String? topic;
-  final String? place;
-  final DateTime startedAt;
-  final DateTime? endedAt;
-  final String? notes;
-  final String? followUp;
 }
 
-class _JournalForm extends StatefulWidget {
-  const _JournalForm();
-  @override
-  State<_JournalForm> createState() => _JournalFormState();
-}
-
-class _JournalFormState extends State<_JournalForm> {
-  final _title = TextEditingController();
-  final _participants = TextEditingController();
-  final _topic = TextEditingController();
-  final _place = TextEditingController();
-  final _notes = TextEditingController();
-  final _followUp = TextEditingController();
-  String _type = 'Pertemuan/obrolan';
-  bool _hasEnded = true;
-  DateTime _startedAt = DateTime.now().subtract(const Duration(minutes: 30));
-  DateTime _endedAt = DateTime.now();
+class _CheckpointDetailTile extends StatelessWidget {
+  const _CheckpointDetailTile({
+    required this.checkpoint,
+    required this.previous,
+    required this.calculator,
+  });
+  final ActivityCheckpointEntity checkpoint;
+  final DateTime previous;
+  final ActivityDurationCalculator calculator;
 
   @override
-  void dispose() {
-    _title.dispose();
-    _participants.dispose();
-    _topic.dispose();
-    _place.dispose();
-    _notes.dispose();
-    _followUp.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      left: 16,
-      right: 16,
-      top: 16,
-      bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-    ),
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        const Text(
-          'Catat jurnal aktivitas',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: _type,
-          decoration: const InputDecoration(labelText: 'Jenis aktivitas'),
-          items:
-              const [
-                    'Pertemuan/obrolan',
-                    'Belanja',
-                    'Pekerjaan',
-                    'Perjalanan',
-                    'Keluarga',
-                    'Lainnya',
-                  ]
-                  .map(
-                    (item) => DropdownMenuItem(value: item, child: Text(item)),
-                  )
-                  .toList(),
-          onChanged: (value) => setState(() => _type = value ?? _type),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _title,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Judul aktivitas',
-            hintText: 'Misalnya ngobrol dengan Pak Budi',
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _participants,
-          decoration: const InputDecoration(
-            labelText: 'Bertemu dengan (opsional)',
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _topic,
-          decoration: const InputDecoration(labelText: 'Topik (opsional)'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _place,
-          decoration: const InputDecoration(labelText: 'Lokasi (opsional)'),
-        ),
-        const SizedBox(height: 10),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Sudah selesai'),
-          value: _hasEnded,
-          onChanged: (value) => setState(() => _hasEnded = value),
-        ),
-        TextField(
-          controller: _notes,
-          maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Ringkasan/catatan'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _followUp,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'Tindak lanjut (opsional)',
-          ),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: () {
-            if (_title.text.trim().isEmpty) return;
-            Navigator.pop(
-              context,
-              _JournalDraft(
-                _type,
-                _title.text.trim(),
-                _participants.text.trim().isEmpty
-                    ? null
-                    : _participants.text.trim(),
-                _topic.text.trim().isEmpty ? null : _topic.text.trim(),
-                _place.text.trim().isEmpty ? null : _place.text.trim(),
-                _startedAt,
-                _hasEnded ? _endedAt : null,
-                _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-                _followUp.text.trim().isEmpty ? null : _followUp.text.trim(),
-              ),
-            );
-          },
-          child: const Text('Simpan catatan'),
-        ),
-      ],
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: const Icon(Icons.flag_outlined),
+    title: Text(checkpoint.label),
+    subtitle: Text(
+      [
+        _dateTime(checkpoint.occurredAt),
+        'selang ${calculator.format(checkpoint.occurredAt.difference(previous))}',
+        if (checkpoint.place?.isNotEmpty == true) checkpoint.place!,
+        if (checkpoint.note?.isNotEmpty == true) checkpoint.note!,
+      ].join(' • '),
     ),
   );
 }

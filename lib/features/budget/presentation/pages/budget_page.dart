@@ -44,10 +44,52 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   final _searchController = TextEditingController();
   var _searchQuery = '';
   var _sort = _BudgetSort.nominalTerbesar;
+  var _periodTypeFilter = 'weekly';
 
-  String get _monthKey {
-    final now = DateTime.now();
-    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  DateTime _periodStart(DateTime value, String periodType) {
+    final date = DateTime(value.year, value.month, value.day);
+    switch (periodType) {
+      case 'weekly':
+        return date.subtract(Duration(days: date.weekday - 1));
+      case 'biweekly':
+        final weekStart = date.subtract(Duration(days: date.weekday - 1));
+        final anchor = DateTime(weekStart.year, 1, 1);
+        final weeks = weekStart.difference(anchor).inDays ~/ 7;
+        return weekStart.subtract(Duration(days: (weeks % 2) * 7));
+      default:
+        return DateTime(date.year, date.month, 1);
+    }
+  }
+
+  DateTime _periodEnd(DateTime start, String periodType) {
+    switch (periodType) {
+      case 'weekly':
+        return start.add(
+          const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+        );
+      case 'biweekly':
+        return start.add(
+          const Duration(days: 13, hours: 23, minutes: 59, seconds: 59),
+        );
+      default:
+        return DateTime(
+          start.year,
+          start.month + 1,
+          1,
+        ).subtract(const Duration(seconds: 1));
+    }
+  }
+
+  bool _isInActivePeriod(DateTime value) {
+    final start = _periodStart(DateTime.now(), _periodTypeFilter);
+    final end = _periodEnd(start, _periodTypeFilter);
+    final date = value.toLocal();
+    return !date.isBefore(start) && !date.isAfter(end);
+  }
+
+  String get _activePeriodKey {
+    final start = _periodStart(DateTime.now(), _periodTypeFilter);
+    return '${_periodTypeFilter}-${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -78,36 +120,45 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
               ..where(
                 (table) =>
                     table.householdId.equals(AppContext.householdId) &
-                    table.month.equals(_monthKey),
+                    table.isActive.equals(true),
               )
               ..orderBy([(table) => OrderingTerm.asc(table.name)]))
             .get();
-    final rows = stored.map(EnvelopeBudgetRow.fromDrift).toList();
+    final rows = stored
+        .map(EnvelopeBudgetRow.fromDrift)
+        .where(
+          (row) =>
+              row.periodType == _periodTypeFilter &&
+              _isInActivePeriod(row.startDate) &&
+              _isInActivePeriod(row.endDate),
+        )
+        .toList();
+    final transactions = await getIt<GetTransactions>()(AppContext.householdId);
+    final transactionList = transactions.toList(growable: false);
+    final activeCategoryIds = transactionList
+        .where(
+          (item) =>
+              item.transaction.amount < 0 &&
+              item.transaction.source != 'transfer' &&
+              _isInActivePeriod(item.transaction.date),
+        )
+        .map((item) => item.transaction.categoryId)
+        .whereType<String>()
+        .toSet();
     final configuredIds = rows.expand((row) => row.categoryIds).toSet();
+    if (!rows.any((row) => row.isOverall)) {
+      rows.insert(0, EnvelopeBudgetRow.overallPlaceholder(_periodTypeFilter));
+    }
     for (final category in categories) {
-      final coveredByConfiguredParent = _hasConfiguredAncestor(
-        category,
-        categories,
-        configuredIds,
-      );
-      final coveredByConfiguredChild = categories.any(
-        (candidate) =>
-            candidate.parentId == category.id &&
-            configuredIds.contains(candidate.id),
-      );
-      if (!configuredIds.contains(category.id) &&
-          !coveredByConfiguredParent &&
-          !coveredByConfiguredChild) {
-        rows.add(EnvelopeBudgetRow.placeholder(category));
+      if (activeCategoryIds.contains(category.id) &&
+          !configuredIds.contains(category.id)) {
+        rows.add(EnvelopeBudgetRow.placeholder(category, _periodTypeFilter));
       }
     }
-    final transactions = await getIt<GetTransactions>()(AppContext.householdId);
     final transfers =
         await (_database.select(_database.envelopeTransfers)
               ..where(
-                (table) =>
-                    table.householdId.equals(AppContext.householdId) &
-                    table.month.equals(_monthKey),
+                (table) => table.householdId.equals(AppContext.householdId),
               )
               ..orderBy([(table) => OrderingTerm.desc(table.createdAt)]))
             .get();
@@ -115,8 +166,11 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     setState(() {
       _categories = categories;
       _envelopes = rows;
-      _transactions = transactions.toList(growable: false);
-      _transfers = transfers.map(EnvelopeTransferRow.fromDrift).toList();
+      _transactions = transactionList;
+      _transfers = transfers
+          .map(EnvelopeTransferRow.fromDrift)
+          .where((row) => _isInActivePeriod(row.createdAt))
+          .toList(growable: false);
       _loading = false;
     });
   }
@@ -127,22 +181,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     final end = envelope.endDate.toLocal();
     return !value.isBefore(DateTime(start.year, start.month, start.day)) &&
         !value.isAfter(DateTime(end.year, end.month, end.day, 23, 59, 59));
-  }
-
-  bool _hasConfiguredAncestor(
-    Category category,
-    List<Category> categories,
-    Set<String> configuredIds,
-  ) {
-    var parentId = category.parentId;
-    while (parentId != null) {
-      if (configuredIds.contains(parentId)) return true;
-      parentId = categories
-          .where((item) => item.id == parentId)
-          .firstOrNull
-          ?.parentId;
-    }
-    return false;
   }
 
   bool _categoryMatches(String? categoryId, EnvelopeBudgetRow envelope) {
@@ -171,7 +209,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
               item.transaction.amount < 0 &&
               item.transaction.source != 'transfer' &&
               _isInPeriod(item.transaction.date, envelope) &&
-              _categoryMatches(item.transaction.categoryId, envelope),
+              (envelope.isOverall ||
+                  _categoryMatches(item.transaction.categoryId, envelope)),
         )
         .fold<int>(0, (sum, item) => sum + item.transaction.amount.abs());
   }
@@ -189,6 +228,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   int _remainingFor(EnvelopeBudgetRow envelope) {
+    if (!envelope.isOverall && envelope.allocated <= 0) return 0;
     return envelope.allocated +
         envelope.rollover +
         _transferredIn(envelope) -
@@ -196,7 +236,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         _spentFor(envelope);
   }
 
-  double _progressFor(EnvelopeBudgetRow envelope) {
+  double? _progressFor(EnvelopeBudgetRow envelope) {
+    if (!envelope.isOverall && envelope.allocated <= 0) return null;
     final base =
         envelope.allocated + envelope.rollover + _transferredIn(envelope);
     if (base <= 0) return 0;
@@ -213,8 +254,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   String _statusFor(EnvelopeBudgetRow envelope) {
-    if (envelope.allocated <= 0) return 'Belum diatur';
-    final progress = _progressFor(envelope);
+    if (!envelope.isOverall && envelope.allocated <= 0) return 'Tanpa target';
+    final progress = _progressFor(envelope) ?? 0;
     if (progress >= 1) return 'Melewati batas';
     if (progress * 100 >= envelope.alertPercent) return 'Mendekati batas';
     if (progress > _elapsedFor(envelope) + .15) return 'Pemakaian cepat';
@@ -256,7 +297,9 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   Future<void> _transferFunds() async {
-    final configured = _envelopes.where((item) => item.allocated > 0).toList();
+    final configured = _envelopes
+        .where((item) => item.allocated > 0 && !item.isOverall)
+        .toList();
     if (configured.length < 2) {
       await _showMessage(
         'Pos belum siap',
@@ -278,7 +321,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
           EnvelopeTransfersCompanion.insert(
             id: const Uuid().v4(),
             householdId: AppContext.householdId,
-            month: Value(_monthKey),
+            month: Value(_activePeriodKey),
             fromEnvelopeId: result.fromEnvelopeId,
             toEnvelopeId: result.toEnvelopeId,
             amount: result.amount,
@@ -378,18 +421,19 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   @override
   Widget build(BuildContext context) {
     final filteredEnvelopes = _filterEnvelopes(_envelopes);
-    final totalAllocated = _envelopes.fold<int>(
-      0,
-      (sum, envelope) => sum + envelope.allocated,
-    );
-    final totalRemaining = _envelopes.fold<int>(
-      0,
-      (sum, envelope) => sum + _remainingFor(envelope),
-    );
-    final unconfigured = filteredEnvelopes
+    final overall = _envelopes
+        .where((envelope) => envelope.isOverall)
+        .firstOrNull;
+    final totalAllocated = overall?.allocated ?? 0;
+    final totalSpent = overall == null ? 0 : _spentFor(overall);
+    final totalRemaining = overall == null ? 0 : _remainingFor(overall);
+    final categoryEnvelopes = filteredEnvelopes
+        .where((envelope) => !envelope.isOverall)
+        .toList(growable: false);
+    final unconfigured = categoryEnvelopes
         .where((envelope) => envelope.allocated <= 0)
         .toList(growable: false);
-    final configured = filteredEnvelopes
+    final configured = categoryEnvelopes
         .where((envelope) => envelope.allocated > 0)
         .toList(growable: false);
     final attention = configured
@@ -448,6 +492,26 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                           icon: Icons.account_balance_wallet_outlined,
                         ),
                         const SizedBox(height: 12),
+                        SearchableDropdown<String>(
+                          items: const ['weekly', 'monthly'],
+                          selectedItem: _periodTypeFilter,
+                          itemLabel: (value) =>
+                              value == 'weekly' ? 'Mingguan' : 'Bulanan',
+                          labelText: 'Periode anggaran',
+                          helperText: 'Target total dan rincian kategori mengikuti periode ini.',
+                          searchHintText: 'Cari periode',
+                          cacheKey: 'anggaran.periode_aktif',
+                          onChanged: (value) {
+                            if (value == null || value == _periodTypeFilter)
+                              return;
+                            setState(() {
+                              _periodTypeFilter = value;
+                              _loading = true;
+                            });
+                            _load();
+                          },
+                        ),
+                        const SizedBox(height: 12),
                         AppCard(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,13 +525,20 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                                 children: [
                                   Expanded(
                                     child: _SummaryValue(
-                                      label: 'Dialokasikan',
+                                      label: 'Target total',
                                       value: _money(totalAllocated),
                                     ),
                                   ),
                                   Expanded(
                                     child: _SummaryValue(
-                                      label: 'Sisa semua pos',
+                                      label: 'Sudah keluar',
+                                      value: _money(totalSpent),
+                                      color: AppColors.negative,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _SummaryValue(
+                                      label: 'Sisa periode',
                                       value: _money(totalRemaining),
                                       color: totalRemaining < 0
                                           ? AppColors.negative
@@ -511,7 +582,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                   TabBar(
                     isScrollable: true,
                     tabs: [
-                      Tab(text: 'Semua (${filteredEnvelopes.length})'),
+                      Tab(text: 'Semua (${categoryEnvelopes.length})'),
                       Tab(text: 'Belum diatur (${unconfigured.length})'),
                       Tab(text: 'Aktif (${configured.length})'),
                       Tab(text: 'Perlu perhatian (${attention.length})'),
@@ -521,18 +592,19 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                     child: TabBarView(
                       children: [
                         _envelopeList(
-                          _sortEnvelopes(filteredEnvelopes),
+                          _sortEnvelopes(categoryEnvelopes),
                           suggestionTitle: totalAllocated == 0
-                              ? 'Mulai dari target pertama'
+                              ? 'Atur target total periode'
                               : 'Pantau laju pengeluaran',
                           suggestionMessage: totalAllocated == 0
-                              ? 'Pilih kategori yang mau kamu kontrol, lalu isi target nominal dan periodenya. Kategori lain tetap boleh dibiarkan Belum diatur.'
-                              : 'Kalau pemakaian lebih cepat dari waktu berjalan, kurangi pengeluaran pada minggu berikutnya supaya target periode tidak jebol.',
+                              ? 'Atur batas total pengeluaran dulu. Rincian kategori akan muncul otomatis dari transaksi; target kategori boleh diisi kalau ingin dipantau lebih ketat.'
+                              : 'Kalau pemakaian lebih cepat dari waktu berjalan, rem pengeluaran berikutnya supaya target periode tidak jebol.',
                         ),
                         _envelopeList(
                           _sortEnvelopes(unconfigured),
-                          suggestionTitle: 'Atur pos yang mau kamu pantau',
-                          suggestionMessage: 'Tekan kartu kategori untuk mengisi target nominal dan periode. Kalau belum perlu dipantau, biarkan saja Belum diatur.',
+                          suggestionTitle:
+                              'Rincian kategori belum punya target',
+                          suggestionMessage: 'Kategori ini tetap dihitung ke target total. Isi target kategori kalau kamu ingin indikator khusus untuk kategori tersebut.',
                         ),
                         _envelopeList(_sortEnvelopes(configured)),
                         _envelopeList(
@@ -665,7 +737,12 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final amount = parseRupiah(_amountController.text);
-    if (amount <= 0) return;
+    if (amount <= 0) {
+      if (widget.envelope.isOverall) {
+        await _showBudgetMessage('Target total harus diisi lebih dari nol.');
+      }
+      return;
+    }
     setState(() => _saving = true);
     final database = getIt<AppDatabase>();
     final now = DateTime.now();
@@ -685,7 +762,9 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
           .into(database.envelopeBudgets)
           .insert(
             EnvelopeBudgetsCompanion.insert(
-              id: 'envelope-${widget.envelope.categoryIds.first}-$month',
+              id: widget.envelope.isOverall
+                  ? 'overall-${_periodType}-${_startDate.year}-${_startDate.month}-${_startDate.day}'
+                  : 'envelope-${widget.envelope.categoryIds.first}-$month',
               householdId: AppContext.householdId,
               month: Value(month),
               name: widget.envelope.name,
@@ -707,6 +786,23 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     }
     if (!mounted) return;
     Navigator.of(context).pop(true);
+  }
+
+  Future<void> _showBudgetMessage(String message) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Target belum lengkap'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Oke'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _pickStartDate() async {
@@ -1054,6 +1150,7 @@ class EnvelopeBudgetRow {
     required this.endDate,
     required this.alertPercent,
     this.isPlaceholder = false,
+    this.isOverall = false,
   });
 
   factory EnvelopeBudgetRow.fromDrift(EnvelopeBudget row) {
@@ -1068,22 +1165,73 @@ class EnvelopeBudgetRow {
       startDate: row.startDate,
       endDate: row.endDate,
       alertPercent: row.alertPercent,
+      isOverall: row.id.startsWith('overall-'),
     );
   }
 
-  factory EnvelopeBudgetRow.placeholder(Category category) {
+  factory EnvelopeBudgetRow.placeholder(Category category, String periodType) {
     final now = DateTime.now();
+    final start = periodType == 'weekly'
+        ? DateTime(
+            now.year,
+            now.month,
+            now.day,
+          ).subtract(Duration(days: now.weekday - 1))
+        : DateTime(now.year, now.month, 1);
+    final end = periodType == 'weekly'
+        ? start.add(
+            const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+          )
+        : DateTime(
+            start.year,
+            start.month + 1,
+            1,
+          ).subtract(const Duration(seconds: 1));
     return EnvelopeBudgetRow(
-      id: 'placeholder-${category.id}',
+      id: 'placeholder-${category.id}-$periodType',
       name: category.name,
       categoryIds: [category.id],
       allocated: 0,
       rollover: 0,
-      periodType: 'monthly',
-      startDate: DateTime(now.year, now.month, 1),
-      endDate: DateTime(now.year, now.month + 1, 0),
+      periodType: periodType,
+      startDate: start,
+      endDate: end,
       alertPercent: 80,
       isPlaceholder: true,
+    );
+  }
+
+  factory EnvelopeBudgetRow.overallPlaceholder(String periodType) {
+    final now = DateTime.now();
+    final start = periodType == 'weekly'
+        ? DateTime(
+            now.year,
+            now.month,
+            now.day,
+          ).subtract(Duration(days: now.weekday - 1))
+        : DateTime(now.year, now.month, 1);
+    final end = periodType == 'weekly'
+        ? start.add(
+            const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+          )
+        : DateTime(
+            start.year,
+            start.month + 1,
+            1,
+          ).subtract(const Duration(seconds: 1));
+    return EnvelopeBudgetRow(
+      id: 'overall-$periodType-${start.year}-${start.month}-${start.day}',
+      name:
+          'Total pengeluaran ${periodType == 'weekly' ? 'minggu ini' : 'bulan ini'}',
+      categoryIds: const [],
+      allocated: 0,
+      rollover: 0,
+      periodType: periodType,
+      startDate: start,
+      endDate: end,
+      alertPercent: 80,
+      isPlaceholder: true,
+      isOverall: true,
     );
   }
 
@@ -1097,6 +1245,7 @@ class EnvelopeBudgetRow {
   final DateTime endDate;
   final int alertPercent;
   final bool isPlaceholder;
+  final bool isOverall;
 
   String get periodLabel =>
       '${startDate.day}/${startDate.month}/${startDate.year} sampai ${endDate.day}/${endDate.month}/${endDate.year}';
@@ -1109,6 +1258,7 @@ class EnvelopeTransferRow {
     required this.toEnvelopeId,
     required this.amount,
     required this.note,
+    required this.createdAt,
   });
 
   factory EnvelopeTransferRow.fromDrift(EnvelopeTransfer row) {
@@ -1118,6 +1268,7 @@ class EnvelopeTransferRow {
       toEnvelopeId: row.toEnvelopeId,
       amount: row.amount,
       note: row.note,
+      createdAt: row.createdAt,
     );
   }
 
@@ -1126,6 +1277,7 @@ class EnvelopeTransferRow {
   final String toEnvelopeId;
   final int amount;
   final String? note;
+  final DateTime createdAt;
 }
 
 class _SummaryValue extends StatelessWidget {
@@ -1186,8 +1338,12 @@ class _EnvelopeCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final base = envelope.allocated + envelope.rollover + transferredIn;
-    final progress = base <= 0 ? 0.0 : spent / base;
-    final progressValue = progress.clamp(0.0, 1.0);
+    final progress = !envelope.isOverall && envelope.allocated <= 0
+        ? null
+        : base <= 0
+        ? 0.0
+        : spent / base;
+    final progressValue = (progress ?? 0).clamp(0.0, 1.0);
     final statusBackground = switch (status) {
       'Aman' => AppColors.positiveSoft,
       'Melewati batas' => AppColors.negativeSoft,
@@ -1223,11 +1379,11 @@ class _EnvelopeCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            envelope.allocated == 0
-                ? 'Belum ada target. Tekan untuk atur nominal dan periode.'
+            progress == null
+                ? '${_money(spent)} terpakai • target kategori belum diisi'
                 : '${_money(spent)} terpakai dari ${_money(base)}',
           ),
-          if (envelope.allocated > 0) ...[
+          if (progress != null) ...[
             const SizedBox(height: 4),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1243,14 +1399,16 @@ class _EnvelopeCard extends StatelessWidget {
               ],
             ),
           ],
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: progressValue,
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(99),
-            color: statusColor,
-          ),
-          if (envelope.allocated > 0 && status == 'Pemakaian cepat') ...[
+          if (progress != null) ...[
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: progressValue,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(99),
+              color: statusColor,
+            ),
+          ],
+          if (progress != null && status == 'Pemakaian cepat') ...[
             const SizedBox(height: 6),
             Text(
               'Pemakaian lebih cepat dari waktu berjalan. Coba rem pengeluaran berikutnya.',
@@ -1265,9 +1423,11 @@ class _EnvelopeCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Sisa ${_money(remaining)}',
+                  progress == null
+                      ? 'Belum ada target kategori'
+                      : 'Sisa ${_money(remaining)}',
                   style: TextStyle(
-                    color: remaining < 0
+                    color: progress != null && remaining < 0
                         ? AppColors.negative
                         : Theme.of(context).colorScheme.onSurfaceVariant,
                     fontWeight: FontWeight.w700,
