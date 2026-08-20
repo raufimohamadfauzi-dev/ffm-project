@@ -38,6 +38,7 @@ dependencies:
   whisper_cpp_flutter_plus: ^0.4.0
   paddle_ocr_native: ^0.1.1
   hijri_plus: ^0.1.0
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

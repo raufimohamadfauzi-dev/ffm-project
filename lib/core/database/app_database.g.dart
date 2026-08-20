@@ -11451,6 +11451,1618 @@ class RecurringTransactionRunsCompanion
   }
 }
 
+class $RemindersTable extends Reminders
+    with TableInfo<$RemindersTable, Reminder> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $RemindersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
+    'scheduledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> scheduledAt = GeneratedColumn<DateTime>(
+    'scheduled_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recurrenceTypeMeta = const VerificationMeta(
+    'recurrenceType',
+  );
+  @override
+  late final GeneratedColumn<String> recurrenceType = GeneratedColumn<String>(
+    'recurrence_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('once'),
+  );
+  static const VerificationMeta _weekdaysJsonMeta = const VerificationMeta(
+    'weekdaysJson',
+  );
+  @override
+  late final GeneratedColumn<String> weekdaysJson = GeneratedColumn<String>(
+    'weekdays_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _soundUriMeta = const VerificationMeta(
+    'soundUri',
+  );
+  @override
+  late final GeneratedColumn<String> soundUri = GeneratedColumn<String>(
+    'sound_uri',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _soundNameMeta = const VerificationMeta(
+    'soundName',
+  );
+  @override
+  late final GeneratedColumn<String> soundName = GeneratedColumn<String>(
+    'sound_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _defaultSnoozeMinutesMeta =
+      const VerificationMeta('defaultSnoozeMinutes');
+  @override
+  late final GeneratedColumn<int> defaultSnoozeMinutes = GeneratedColumn<int>(
+    'default_snooze_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(10),
+  );
+  static const VerificationMeta _notificationIdMeta = const VerificationMeta(
+    'notificationId',
+  );
+  @override
+  late final GeneratedColumn<int> notificationId = GeneratedColumn<int>(
+    'notification_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    title,
+    note,
+    scheduledAt,
+    recurrenceType,
+    weekdaysJson,
+    isActive,
+    soundUri,
+    soundName,
+    defaultSnoozeMinutes,
+    notificationId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'reminders';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Reminder> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('scheduled_at')) {
+      context.handle(
+        _scheduledAtMeta,
+        scheduledAt.isAcceptableOrUnknown(
+          data['scheduled_at']!,
+          _scheduledAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledAtMeta);
+    }
+    if (data.containsKey('recurrence_type')) {
+      context.handle(
+        _recurrenceTypeMeta,
+        recurrenceType.isAcceptableOrUnknown(
+          data['recurrence_type']!,
+          _recurrenceTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('weekdays_json')) {
+      context.handle(
+        _weekdaysJsonMeta,
+        weekdaysJson.isAcceptableOrUnknown(
+          data['weekdays_json']!,
+          _weekdaysJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('sound_uri')) {
+      context.handle(
+        _soundUriMeta,
+        soundUri.isAcceptableOrUnknown(data['sound_uri']!, _soundUriMeta),
+      );
+    }
+    if (data.containsKey('sound_name')) {
+      context.handle(
+        _soundNameMeta,
+        soundName.isAcceptableOrUnknown(data['sound_name']!, _soundNameMeta),
+      );
+    }
+    if (data.containsKey('default_snooze_minutes')) {
+      context.handle(
+        _defaultSnoozeMinutesMeta,
+        defaultSnoozeMinutes.isAcceptableOrUnknown(
+          data['default_snooze_minutes']!,
+          _defaultSnoozeMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notification_id')) {
+      context.handle(
+        _notificationIdMeta,
+        notificationId.isAcceptableOrUnknown(
+          data['notification_id']!,
+          _notificationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_notificationIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Reminder map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Reminder(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      scheduledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}scheduled_at'],
+      )!,
+      recurrenceType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence_type'],
+      )!,
+      weekdaysJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}weekdays_json'],
+      )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      soundUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sound_uri'],
+      ),
+      soundName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sound_name'],
+      ),
+      defaultSnoozeMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}default_snooze_minutes'],
+      )!,
+      notificationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}notification_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $RemindersTable createAlias(String alias) {
+    return $RemindersTable(attachedDatabase, alias);
+  }
+}
+
+class Reminder extends DataClass implements Insertable<Reminder> {
+  final String id;
+  final String householdId;
+  final String title;
+  final String? note;
+  final DateTime scheduledAt;
+  final String recurrenceType;
+  final String weekdaysJson;
+  final bool isActive;
+  final String? soundUri;
+  final String? soundName;
+  final int defaultSnoozeMinutes;
+  final int notificationId;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const Reminder({
+    required this.id,
+    required this.householdId,
+    required this.title,
+    this.note,
+    required this.scheduledAt,
+    required this.recurrenceType,
+    required this.weekdaysJson,
+    required this.isActive,
+    this.soundUri,
+    this.soundName,
+    required this.defaultSnoozeMinutes,
+    required this.notificationId,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['scheduled_at'] = Variable<DateTime>(scheduledAt);
+    map['recurrence_type'] = Variable<String>(recurrenceType);
+    map['weekdays_json'] = Variable<String>(weekdaysJson);
+    map['is_active'] = Variable<bool>(isActive);
+    if (!nullToAbsent || soundUri != null) {
+      map['sound_uri'] = Variable<String>(soundUri);
+    }
+    if (!nullToAbsent || soundName != null) {
+      map['sound_name'] = Variable<String>(soundName);
+    }
+    map['default_snooze_minutes'] = Variable<int>(defaultSnoozeMinutes);
+    map['notification_id'] = Variable<int>(notificationId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  RemindersCompanion toCompanion(bool nullToAbsent) {
+    return RemindersCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      title: Value(title),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      scheduledAt: Value(scheduledAt),
+      recurrenceType: Value(recurrenceType),
+      weekdaysJson: Value(weekdaysJson),
+      isActive: Value(isActive),
+      soundUri: soundUri == null && nullToAbsent
+          ? const Value.absent()
+          : Value(soundUri),
+      soundName: soundName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(soundName),
+      defaultSnoozeMinutes: Value(defaultSnoozeMinutes),
+      notificationId: Value(notificationId),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory Reminder.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Reminder(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      title: serializer.fromJson<String>(json['title']),
+      note: serializer.fromJson<String?>(json['note']),
+      scheduledAt: serializer.fromJson<DateTime>(json['scheduledAt']),
+      recurrenceType: serializer.fromJson<String>(json['recurrenceType']),
+      weekdaysJson: serializer.fromJson<String>(json['weekdaysJson']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      soundUri: serializer.fromJson<String?>(json['soundUri']),
+      soundName: serializer.fromJson<String?>(json['soundName']),
+      defaultSnoozeMinutes: serializer.fromJson<int>(
+        json['defaultSnoozeMinutes'],
+      ),
+      notificationId: serializer.fromJson<int>(json['notificationId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'title': serializer.toJson<String>(title),
+      'note': serializer.toJson<String?>(note),
+      'scheduledAt': serializer.toJson<DateTime>(scheduledAt),
+      'recurrenceType': serializer.toJson<String>(recurrenceType),
+      'weekdaysJson': serializer.toJson<String>(weekdaysJson),
+      'isActive': serializer.toJson<bool>(isActive),
+      'soundUri': serializer.toJson<String?>(soundUri),
+      'soundName': serializer.toJson<String?>(soundName),
+      'defaultSnoozeMinutes': serializer.toJson<int>(defaultSnoozeMinutes),
+      'notificationId': serializer.toJson<int>(notificationId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  Reminder copyWith({
+    String? id,
+    String? householdId,
+    String? title,
+    Value<String?> note = const Value.absent(),
+    DateTime? scheduledAt,
+    String? recurrenceType,
+    String? weekdaysJson,
+    bool? isActive,
+    Value<String?> soundUri = const Value.absent(),
+    Value<String?> soundName = const Value.absent(),
+    int? defaultSnoozeMinutes,
+    int? notificationId,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => Reminder(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    title: title ?? this.title,
+    note: note.present ? note.value : this.note,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    recurrenceType: recurrenceType ?? this.recurrenceType,
+    weekdaysJson: weekdaysJson ?? this.weekdaysJson,
+    isActive: isActive ?? this.isActive,
+    soundUri: soundUri.present ? soundUri.value : this.soundUri,
+    soundName: soundName.present ? soundName.value : this.soundName,
+    defaultSnoozeMinutes: defaultSnoozeMinutes ?? this.defaultSnoozeMinutes,
+    notificationId: notificationId ?? this.notificationId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  Reminder copyWithCompanion(RemindersCompanion data) {
+    return Reminder(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      title: data.title.present ? data.title.value : this.title,
+      note: data.note.present ? data.note.value : this.note,
+      scheduledAt: data.scheduledAt.present
+          ? data.scheduledAt.value
+          : this.scheduledAt,
+      recurrenceType: data.recurrenceType.present
+          ? data.recurrenceType.value
+          : this.recurrenceType,
+      weekdaysJson: data.weekdaysJson.present
+          ? data.weekdaysJson.value
+          : this.weekdaysJson,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      soundUri: data.soundUri.present ? data.soundUri.value : this.soundUri,
+      soundName: data.soundName.present ? data.soundName.value : this.soundName,
+      defaultSnoozeMinutes: data.defaultSnoozeMinutes.present
+          ? data.defaultSnoozeMinutes.value
+          : this.defaultSnoozeMinutes,
+      notificationId: data.notificationId.present
+          ? data.notificationId.value
+          : this.notificationId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Reminder(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('recurrenceType: $recurrenceType, ')
+          ..write('weekdaysJson: $weekdaysJson, ')
+          ..write('isActive: $isActive, ')
+          ..write('soundUri: $soundUri, ')
+          ..write('soundName: $soundName, ')
+          ..write('defaultSnoozeMinutes: $defaultSnoozeMinutes, ')
+          ..write('notificationId: $notificationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    title,
+    note,
+    scheduledAt,
+    recurrenceType,
+    weekdaysJson,
+    isActive,
+    soundUri,
+    soundName,
+    defaultSnoozeMinutes,
+    notificationId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Reminder &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.title == this.title &&
+          other.note == this.note &&
+          other.scheduledAt == this.scheduledAt &&
+          other.recurrenceType == this.recurrenceType &&
+          other.weekdaysJson == this.weekdaysJson &&
+          other.isActive == this.isActive &&
+          other.soundUri == this.soundUri &&
+          other.soundName == this.soundName &&
+          other.defaultSnoozeMinutes == this.defaultSnoozeMinutes &&
+          other.notificationId == this.notificationId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class RemindersCompanion extends UpdateCompanion<Reminder> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> title;
+  final Value<String?> note;
+  final Value<DateTime> scheduledAt;
+  final Value<String> recurrenceType;
+  final Value<String> weekdaysJson;
+  final Value<bool> isActive;
+  final Value<String?> soundUri;
+  final Value<String?> soundName;
+  final Value<int> defaultSnoozeMinutes;
+  final Value<int> notificationId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const RemindersCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.note = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.recurrenceType = const Value.absent(),
+    this.weekdaysJson = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.soundUri = const Value.absent(),
+    this.soundName = const Value.absent(),
+    this.defaultSnoozeMinutes = const Value.absent(),
+    this.notificationId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  RemindersCompanion.insert({
+    required String id,
+    required String householdId,
+    required String title,
+    this.note = const Value.absent(),
+    required DateTime scheduledAt,
+    this.recurrenceType = const Value.absent(),
+    this.weekdaysJson = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.soundUri = const Value.absent(),
+    this.soundName = const Value.absent(),
+    this.defaultSnoozeMinutes = const Value.absent(),
+    required int notificationId,
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       title = Value(title),
+       scheduledAt = Value(scheduledAt),
+       notificationId = Value(notificationId),
+       createdAt = Value(createdAt);
+  static Insertable<Reminder> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? title,
+    Expression<String>? note,
+    Expression<DateTime>? scheduledAt,
+    Expression<String>? recurrenceType,
+    Expression<String>? weekdaysJson,
+    Expression<bool>? isActive,
+    Expression<String>? soundUri,
+    Expression<String>? soundName,
+    Expression<int>? defaultSnoozeMinutes,
+    Expression<int>? notificationId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (title != null) 'title': title,
+      if (note != null) 'note': note,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (recurrenceType != null) 'recurrence_type': recurrenceType,
+      if (weekdaysJson != null) 'weekdays_json': weekdaysJson,
+      if (isActive != null) 'is_active': isActive,
+      if (soundUri != null) 'sound_uri': soundUri,
+      if (soundName != null) 'sound_name': soundName,
+      if (defaultSnoozeMinutes != null)
+        'default_snooze_minutes': defaultSnoozeMinutes,
+      if (notificationId != null) 'notification_id': notificationId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  RemindersCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? title,
+    Value<String?>? note,
+    Value<DateTime>? scheduledAt,
+    Value<String>? recurrenceType,
+    Value<String>? weekdaysJson,
+    Value<bool>? isActive,
+    Value<String?>? soundUri,
+    Value<String?>? soundName,
+    Value<int>? defaultSnoozeMinutes,
+    Value<int>? notificationId,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return RemindersCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      title: title ?? this.title,
+      note: note ?? this.note,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      recurrenceType: recurrenceType ?? this.recurrenceType,
+      weekdaysJson: weekdaysJson ?? this.weekdaysJson,
+      isActive: isActive ?? this.isActive,
+      soundUri: soundUri ?? this.soundUri,
+      soundName: soundName ?? this.soundName,
+      defaultSnoozeMinutes: defaultSnoozeMinutes ?? this.defaultSnoozeMinutes,
+      notificationId: notificationId ?? this.notificationId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt.value);
+    }
+    if (recurrenceType.present) {
+      map['recurrence_type'] = Variable<String>(recurrenceType.value);
+    }
+    if (weekdaysJson.present) {
+      map['weekdays_json'] = Variable<String>(weekdaysJson.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (soundUri.present) {
+      map['sound_uri'] = Variable<String>(soundUri.value);
+    }
+    if (soundName.present) {
+      map['sound_name'] = Variable<String>(soundName.value);
+    }
+    if (defaultSnoozeMinutes.present) {
+      map['default_snooze_minutes'] = Variable<int>(defaultSnoozeMinutes.value);
+    }
+    if (notificationId.present) {
+      map['notification_id'] = Variable<int>(notificationId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('RemindersCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('recurrenceType: $recurrenceType, ')
+          ..write('weekdaysJson: $weekdaysJson, ')
+          ..write('isActive: $isActive, ')
+          ..write('soundUri: $soundUri, ')
+          ..write('soundName: $soundName, ')
+          ..write('defaultSnoozeMinutes: $defaultSnoozeMinutes, ')
+          ..write('notificationId: $notificationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ReminderHistoriesTable extends ReminderHistories
+    with TableInfo<$ReminderHistoriesTable, ReminderHistory> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ReminderHistoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reminderIdMeta = const VerificationMeta(
+    'reminderId',
+  );
+  @override
+  late final GeneratedColumn<String> reminderId = GeneratedColumn<String>(
+    'reminder_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _occurrenceKeyMeta = const VerificationMeta(
+    'occurrenceKey',
+  );
+  @override
+  late final GeneratedColumn<String> occurrenceKey = GeneratedColumn<String>(
+    'occurrence_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
+    'scheduledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> scheduledAt = GeneratedColumn<DateTime>(
+    'scheduled_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggeredAtMeta = const VerificationMeta(
+    'triggeredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> triggeredAt = GeneratedColumn<DateTime>(
+    'triggered_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _snoozedUntilMeta = const VerificationMeta(
+    'snoozedUntil',
+  );
+  @override
+  late final GeneratedColumn<DateTime> snoozedUntil = GeneratedColumn<DateTime>(
+    'snoozed_until',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _notificationIdMeta = const VerificationMeta(
+    'notificationId',
+  );
+  @override
+  late final GeneratedColumn<int> notificationId = GeneratedColumn<int>(
+    'notification_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    reminderId,
+    householdId,
+    title,
+    occurrenceKey,
+    scheduledAt,
+    triggeredAt,
+    status,
+    completedAt,
+    snoozedUntil,
+    notificationId,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'reminder_histories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ReminderHistory> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('reminder_id')) {
+      context.handle(
+        _reminderIdMeta,
+        reminderId.isAcceptableOrUnknown(data['reminder_id']!, _reminderIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_reminderIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('occurrence_key')) {
+      context.handle(
+        _occurrenceKeyMeta,
+        occurrenceKey.isAcceptableOrUnknown(
+          data['occurrence_key']!,
+          _occurrenceKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_occurrenceKeyMeta);
+    }
+    if (data.containsKey('scheduled_at')) {
+      context.handle(
+        _scheduledAtMeta,
+        scheduledAt.isAcceptableOrUnknown(
+          data['scheduled_at']!,
+          _scheduledAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledAtMeta);
+    }
+    if (data.containsKey('triggered_at')) {
+      context.handle(
+        _triggeredAtMeta,
+        triggeredAt.isAcceptableOrUnknown(
+          data['triggered_at']!,
+          _triggeredAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('snoozed_until')) {
+      context.handle(
+        _snoozedUntilMeta,
+        snoozedUntil.isAcceptableOrUnknown(
+          data['snoozed_until']!,
+          _snoozedUntilMeta,
+        ),
+      );
+    }
+    if (data.containsKey('notification_id')) {
+      context.handle(
+        _notificationIdMeta,
+        notificationId.isAcceptableOrUnknown(
+          data['notification_id']!,
+          _notificationIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_notificationIdMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ReminderHistory map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ReminderHistory(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      reminderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminder_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      occurrenceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}occurrence_key'],
+      )!,
+      scheduledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}scheduled_at'],
+      )!,
+      triggeredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}triggered_at'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
+      snoozedUntil: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}snoozed_until'],
+      ),
+      notificationId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}notification_id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $ReminderHistoriesTable createAlias(String alias) {
+    return $ReminderHistoriesTable(attachedDatabase, alias);
+  }
+}
+
+class ReminderHistory extends DataClass implements Insertable<ReminderHistory> {
+  final String id;
+  final String reminderId;
+  final String householdId;
+  final String title;
+  final String occurrenceKey;
+  final DateTime scheduledAt;
+  final DateTime? triggeredAt;
+  final String status;
+  final DateTime? completedAt;
+  final DateTime? snoozedUntil;
+  final int notificationId;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const ReminderHistory({
+    required this.id,
+    required this.reminderId,
+    required this.householdId,
+    required this.title,
+    required this.occurrenceKey,
+    required this.scheduledAt,
+    this.triggeredAt,
+    required this.status,
+    this.completedAt,
+    this.snoozedUntil,
+    required this.notificationId,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['reminder_id'] = Variable<String>(reminderId);
+    map['household_id'] = Variable<String>(householdId);
+    map['title'] = Variable<String>(title);
+    map['occurrence_key'] = Variable<String>(occurrenceKey);
+    map['scheduled_at'] = Variable<DateTime>(scheduledAt);
+    if (!nullToAbsent || triggeredAt != null) {
+      map['triggered_at'] = Variable<DateTime>(triggeredAt);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    if (!nullToAbsent || snoozedUntil != null) {
+      map['snoozed_until'] = Variable<DateTime>(snoozedUntil);
+    }
+    map['notification_id'] = Variable<int>(notificationId);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  ReminderHistoriesCompanion toCompanion(bool nullToAbsent) {
+    return ReminderHistoriesCompanion(
+      id: Value(id),
+      reminderId: Value(reminderId),
+      householdId: Value(householdId),
+      title: Value(title),
+      occurrenceKey: Value(occurrenceKey),
+      scheduledAt: Value(scheduledAt),
+      triggeredAt: triggeredAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(triggeredAt),
+      status: Value(status),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+      snoozedUntil: snoozedUntil == null && nullToAbsent
+          ? const Value.absent()
+          : Value(snoozedUntil),
+      notificationId: Value(notificationId),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory ReminderHistory.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ReminderHistory(
+      id: serializer.fromJson<String>(json['id']),
+      reminderId: serializer.fromJson<String>(json['reminderId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      title: serializer.fromJson<String>(json['title']),
+      occurrenceKey: serializer.fromJson<String>(json['occurrenceKey']),
+      scheduledAt: serializer.fromJson<DateTime>(json['scheduledAt']),
+      triggeredAt: serializer.fromJson<DateTime?>(json['triggeredAt']),
+      status: serializer.fromJson<String>(json['status']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+      snoozedUntil: serializer.fromJson<DateTime?>(json['snoozedUntil']),
+      notificationId: serializer.fromJson<int>(json['notificationId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'reminderId': serializer.toJson<String>(reminderId),
+      'householdId': serializer.toJson<String>(householdId),
+      'title': serializer.toJson<String>(title),
+      'occurrenceKey': serializer.toJson<String>(occurrenceKey),
+      'scheduledAt': serializer.toJson<DateTime>(scheduledAt),
+      'triggeredAt': serializer.toJson<DateTime?>(triggeredAt),
+      'status': serializer.toJson<String>(status),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+      'snoozedUntil': serializer.toJson<DateTime?>(snoozedUntil),
+      'notificationId': serializer.toJson<int>(notificationId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  ReminderHistory copyWith({
+    String? id,
+    String? reminderId,
+    String? householdId,
+    String? title,
+    String? occurrenceKey,
+    DateTime? scheduledAt,
+    Value<DateTime?> triggeredAt = const Value.absent(),
+    String? status,
+    Value<DateTime?> completedAt = const Value.absent(),
+    Value<DateTime?> snoozedUntil = const Value.absent(),
+    int? notificationId,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => ReminderHistory(
+    id: id ?? this.id,
+    reminderId: reminderId ?? this.reminderId,
+    householdId: householdId ?? this.householdId,
+    title: title ?? this.title,
+    occurrenceKey: occurrenceKey ?? this.occurrenceKey,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    triggeredAt: triggeredAt.present ? triggeredAt.value : this.triggeredAt,
+    status: status ?? this.status,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+    snoozedUntil: snoozedUntil.present ? snoozedUntil.value : this.snoozedUntil,
+    notificationId: notificationId ?? this.notificationId,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  ReminderHistory copyWithCompanion(ReminderHistoriesCompanion data) {
+    return ReminderHistory(
+      id: data.id.present ? data.id.value : this.id,
+      reminderId: data.reminderId.present
+          ? data.reminderId.value
+          : this.reminderId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      title: data.title.present ? data.title.value : this.title,
+      occurrenceKey: data.occurrenceKey.present
+          ? data.occurrenceKey.value
+          : this.occurrenceKey,
+      scheduledAt: data.scheduledAt.present
+          ? data.scheduledAt.value
+          : this.scheduledAt,
+      triggeredAt: data.triggeredAt.present
+          ? data.triggeredAt.value
+          : this.triggeredAt,
+      status: data.status.present ? data.status.value : this.status,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+      snoozedUntil: data.snoozedUntil.present
+          ? data.snoozedUntil.value
+          : this.snoozedUntil,
+      notificationId: data.notificationId.present
+          ? data.notificationId.value
+          : this.notificationId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReminderHistory(')
+          ..write('id: $id, ')
+          ..write('reminderId: $reminderId, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('occurrenceKey: $occurrenceKey, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('triggeredAt: $triggeredAt, ')
+          ..write('status: $status, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('snoozedUntil: $snoozedUntil, ')
+          ..write('notificationId: $notificationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    reminderId,
+    householdId,
+    title,
+    occurrenceKey,
+    scheduledAt,
+    triggeredAt,
+    status,
+    completedAt,
+    snoozedUntil,
+    notificationId,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReminderHistory &&
+          other.id == this.id &&
+          other.reminderId == this.reminderId &&
+          other.householdId == this.householdId &&
+          other.title == this.title &&
+          other.occurrenceKey == this.occurrenceKey &&
+          other.scheduledAt == this.scheduledAt &&
+          other.triggeredAt == this.triggeredAt &&
+          other.status == this.status &&
+          other.completedAt == this.completedAt &&
+          other.snoozedUntil == this.snoozedUntil &&
+          other.notificationId == this.notificationId &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ReminderHistoriesCompanion extends UpdateCompanion<ReminderHistory> {
+  final Value<String> id;
+  final Value<String> reminderId;
+  final Value<String> householdId;
+  final Value<String> title;
+  final Value<String> occurrenceKey;
+  final Value<DateTime> scheduledAt;
+  final Value<DateTime?> triggeredAt;
+  final Value<String> status;
+  final Value<DateTime?> completedAt;
+  final Value<DateTime?> snoozedUntil;
+  final Value<int> notificationId;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const ReminderHistoriesCompanion({
+    this.id = const Value.absent(),
+    this.reminderId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.occurrenceKey = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.triggeredAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.snoozedUntil = const Value.absent(),
+    this.notificationId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ReminderHistoriesCompanion.insert({
+    required String id,
+    required String reminderId,
+    required String householdId,
+    required String title,
+    required String occurrenceKey,
+    required DateTime scheduledAt,
+    this.triggeredAt = const Value.absent(),
+    this.status = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.snoozedUntil = const Value.absent(),
+    required int notificationId,
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       reminderId = Value(reminderId),
+       householdId = Value(householdId),
+       title = Value(title),
+       occurrenceKey = Value(occurrenceKey),
+       scheduledAt = Value(scheduledAt),
+       notificationId = Value(notificationId),
+       createdAt = Value(createdAt);
+  static Insertable<ReminderHistory> custom({
+    Expression<String>? id,
+    Expression<String>? reminderId,
+    Expression<String>? householdId,
+    Expression<String>? title,
+    Expression<String>? occurrenceKey,
+    Expression<DateTime>? scheduledAt,
+    Expression<DateTime>? triggeredAt,
+    Expression<String>? status,
+    Expression<DateTime>? completedAt,
+    Expression<DateTime>? snoozedUntil,
+    Expression<int>? notificationId,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (reminderId != null) 'reminder_id': reminderId,
+      if (householdId != null) 'household_id': householdId,
+      if (title != null) 'title': title,
+      if (occurrenceKey != null) 'occurrence_key': occurrenceKey,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (triggeredAt != null) 'triggered_at': triggeredAt,
+      if (status != null) 'status': status,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (snoozedUntil != null) 'snoozed_until': snoozedUntil,
+      if (notificationId != null) 'notification_id': notificationId,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ReminderHistoriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? reminderId,
+    Value<String>? householdId,
+    Value<String>? title,
+    Value<String>? occurrenceKey,
+    Value<DateTime>? scheduledAt,
+    Value<DateTime?>? triggeredAt,
+    Value<String>? status,
+    Value<DateTime?>? completedAt,
+    Value<DateTime?>? snoozedUntil,
+    Value<int>? notificationId,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ReminderHistoriesCompanion(
+      id: id ?? this.id,
+      reminderId: reminderId ?? this.reminderId,
+      householdId: householdId ?? this.householdId,
+      title: title ?? this.title,
+      occurrenceKey: occurrenceKey ?? this.occurrenceKey,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      triggeredAt: triggeredAt ?? this.triggeredAt,
+      status: status ?? this.status,
+      completedAt: completedAt ?? this.completedAt,
+      snoozedUntil: snoozedUntil ?? this.snoozedUntil,
+      notificationId: notificationId ?? this.notificationId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (reminderId.present) {
+      map['reminder_id'] = Variable<String>(reminderId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (occurrenceKey.present) {
+      map['occurrence_key'] = Variable<String>(occurrenceKey.value);
+    }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt.value);
+    }
+    if (triggeredAt.present) {
+      map['triggered_at'] = Variable<DateTime>(triggeredAt.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (snoozedUntil.present) {
+      map['snoozed_until'] = Variable<DateTime>(snoozedUntil.value);
+    }
+    if (notificationId.present) {
+      map['notification_id'] = Variable<int>(notificationId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ReminderHistoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('reminderId: $reminderId, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('occurrenceKey: $occurrenceKey, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('triggeredAt: $triggeredAt, ')
+          ..write('status: $status, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('snoozedUntil: $snoozedUntil, ')
+          ..write('notificationId: $notificationId, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AccountReconciliationLogsTable extends AccountReconciliationLogs
     with TableInfo<$AccountReconciliationLogsTable, AccountReconciliationLog> {
   @override
@@ -13591,6 +15203,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $RecurringTransactionsTable(this);
   late final $RecurringTransactionRunsTable recurringTransactionRuns =
       $RecurringTransactionRunsTable(this);
+  late final $RemindersTable reminders = $RemindersTable(this);
+  late final $ReminderHistoriesTable reminderHistories =
+      $ReminderHistoriesTable(this);
   late final $AccountReconciliationLogsTable accountReconciliationLogs =
       $AccountReconciliationLogsTable(this);
   late final $HijriSettingsTable hijriSettings = $HijriSettingsTable(this);
@@ -13622,6 +15237,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     receivables,
     recurringTransactions,
     recurringTransactionRuns,
+    reminders,
+    reminderHistories,
     accountReconciliationLogs,
     hijriSettings,
     hijriMonthOverrides,
@@ -13629,26 +15246,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder =
-    HouseholdsCompanion Function({
-      required String id,
-      required String name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$HouseholdsTableUpdateCompanionBuilder =
-    HouseholdsCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
+  required String id,
+  required String name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -13847,28 +15462,26 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder =
-    CategoriesCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<String?> parentId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$CategoriesTableUpdateCompanionBuilder =
-    CategoriesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<String?> parentId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<String?> parentId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<String?> parentId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -14081,26 +15694,24 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder =
-    MerchantsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> details,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$MerchantsTableUpdateCompanionBuilder =
-    MerchantsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> details,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> details,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> details,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -14296,24 +15907,22 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder =
-    TagsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$TagsTableUpdateCompanionBuilder =
-    TagsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -14492,30 +16101,28 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder =
-    AccountsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$AccountsTableUpdateCompanionBuilder =
-    AccountsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -16262,40 +17869,38 @@ typedef $$AttachmentsTableProcessedTableManager =
       Attachment,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder =
-    TransfersCompanion Function({
-      required String id,
-      required String householdId,
-      required String fromAccountId,
-      required String toAccountId,
-      required int amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      required DateTime date,
-      required DateTime recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TransfersTableUpdateCompanionBuilder =
-    TransfersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> fromAccountId,
-      Value<String> toAccountId,
-      Value<int> amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      Value<DateTime> date,
-      Value<DateTime> recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
+  required String id,
+  required String householdId,
+  required String fromAccountId,
+  required String toAccountId,
+  required int amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  required DateTime date,
+  required DateTime recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> fromAccountId,
+  Value<String> toAccountId,
+  Value<int> amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  Value<DateTime> date,
+  Value<DateTime> recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -17340,34 +18945,32 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder =
-    AssetsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$AssetsTableUpdateCompanionBuilder =
-    AssetsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -17633,32 +19236,30 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder =
-    GoalsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required int targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$GoalsTableUpdateCompanionBuilder =
-    GoalsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<int> targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required int targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<int> targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -19277,6 +20878,758 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
+typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  required DateTime scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  required int notificationId,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime> scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  Value<int> notificationId,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+
+class $$RemindersTableFilterComposer
+    extends Composer<_$AppDatabase, $RemindersTable> {
+  $$RemindersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrenceType => $composableBuilder(
+    column: $table.recurrenceType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get soundUri => $composableBuilder(
+    column: $table.soundUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get soundName => $composableBuilder(
+    column: $table.soundName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get defaultSnoozeMinutes => $composableBuilder(
+    column: $table.defaultSnoozeMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$RemindersTableOrderingComposer
+    extends Composer<_$AppDatabase, $RemindersTable> {
+  $$RemindersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrenceType => $composableBuilder(
+    column: $table.recurrenceType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get soundUri => $composableBuilder(
+    column: $table.soundUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get soundName => $composableBuilder(
+    column: $table.soundName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get defaultSnoozeMinutes => $composableBuilder(
+    column: $table.defaultSnoozeMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$RemindersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $RemindersTable> {
+  $$RemindersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get recurrenceType => $composableBuilder(
+    column: $table.recurrenceType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<String> get soundUri =>
+      $composableBuilder(column: $table.soundUri, builder: (column) => column);
+
+  GeneratedColumn<String> get soundName =>
+      $composableBuilder(column: $table.soundName, builder: (column) => column);
+
+  GeneratedColumn<int> get defaultSnoozeMinutes => $composableBuilder(
+    column: $table.defaultSnoozeMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$RemindersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $RemindersTable,
+          Reminder,
+          $$RemindersTableFilterComposer,
+          $$RemindersTableOrderingComposer,
+          $$RemindersTableAnnotationComposer,
+          $$RemindersTableCreateCompanionBuilder,
+          $$RemindersTableUpdateCompanionBuilder,
+          (Reminder, BaseReferences<_$AppDatabase, $RemindersTable, Reminder>),
+          Reminder,
+          PrefetchHooks Function()
+        > {
+  $$RemindersTableTableManager(_$AppDatabase db, $RemindersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$RemindersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$RemindersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$RemindersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> scheduledAt = const Value.absent(),
+                Value<String> recurrenceType = const Value.absent(),
+                Value<String> weekdaysJson = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<String?> soundUri = const Value.absent(),
+                Value<String?> soundName = const Value.absent(),
+                Value<int> defaultSnoozeMinutes = const Value.absent(),
+                Value<int> notificationId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RemindersCompanion(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                scheduledAt: scheduledAt,
+                recurrenceType: recurrenceType,
+                weekdaysJson: weekdaysJson,
+                isActive: isActive,
+                soundUri: soundUri,
+                soundName: soundName,
+                defaultSnoozeMinutes: defaultSnoozeMinutes,
+                notificationId: notificationId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String title,
+                Value<String?> note = const Value.absent(),
+                required DateTime scheduledAt,
+                Value<String> recurrenceType = const Value.absent(),
+                Value<String> weekdaysJson = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<String?> soundUri = const Value.absent(),
+                Value<String?> soundName = const Value.absent(),
+                Value<int> defaultSnoozeMinutes = const Value.absent(),
+                required int notificationId,
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => RemindersCompanion.insert(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                scheduledAt: scheduledAt,
+                recurrenceType: recurrenceType,
+                weekdaysJson: weekdaysJson,
+                isActive: isActive,
+                soundUri: soundUri,
+                soundName: soundName,
+                defaultSnoozeMinutes: defaultSnoozeMinutes,
+                notificationId: notificationId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$RemindersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $RemindersTable,
+      Reminder,
+      $$RemindersTableFilterComposer,
+      $$RemindersTableOrderingComposer,
+      $$RemindersTableAnnotationComposer,
+      $$RemindersTableCreateCompanionBuilder,
+      $$RemindersTableUpdateCompanionBuilder,
+      (Reminder, BaseReferences<_$AppDatabase, $RemindersTable, Reminder>),
+      Reminder,
+      PrefetchHooks Function()
+    >;
+typedef $$ReminderHistoriesTableCreateCompanionBuilder =
+    ReminderHistoriesCompanion Function({
+      required String id,
+      required String reminderId,
+      required String householdId,
+      required String title,
+      required String occurrenceKey,
+      required DateTime scheduledAt,
+      Value<DateTime?> triggeredAt,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<DateTime?> snoozedUntil,
+      required int notificationId,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ReminderHistoriesTableUpdateCompanionBuilder =
+    ReminderHistoriesCompanion Function({
+      Value<String> id,
+      Value<String> reminderId,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String> occurrenceKey,
+      Value<DateTime> scheduledAt,
+      Value<DateTime?> triggeredAt,
+      Value<String> status,
+      Value<DateTime?> completedAt,
+      Value<DateTime?> snoozedUntil,
+      Value<int> notificationId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ReminderHistoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $ReminderHistoriesTable> {
+  $$ReminderHistoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminderId => $composableBuilder(
+    column: $table.reminderId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get triggeredAt => $composableBuilder(
+    column: $table.triggeredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get snoozedUntil => $composableBuilder(
+    column: $table.snoozedUntil,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ReminderHistoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ReminderHistoriesTable> {
+  $$ReminderHistoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reminderId => $composableBuilder(
+    column: $table.reminderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get triggeredAt => $composableBuilder(
+    column: $table.triggeredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get snoozedUntil => $composableBuilder(
+    column: $table.snoozedUntil,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ReminderHistoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ReminderHistoriesTable> {
+  $$ReminderHistoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get reminderId => $composableBuilder(
+    column: $table.reminderId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get occurrenceKey => $composableBuilder(
+    column: $table.occurrenceKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get triggeredAt => $composableBuilder(
+    column: $table.triggeredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get snoozedUntil => $composableBuilder(
+    column: $table.snoozedUntil,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get notificationId => $composableBuilder(
+    column: $table.notificationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ReminderHistoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ReminderHistoriesTable,
+          ReminderHistory,
+          $$ReminderHistoriesTableFilterComposer,
+          $$ReminderHistoriesTableOrderingComposer,
+          $$ReminderHistoriesTableAnnotationComposer,
+          $$ReminderHistoriesTableCreateCompanionBuilder,
+          $$ReminderHistoriesTableUpdateCompanionBuilder,
+          (
+            ReminderHistory,
+            BaseReferences<
+              _$AppDatabase,
+              $ReminderHistoriesTable,
+              ReminderHistory
+            >,
+          ),
+          ReminderHistory,
+          PrefetchHooks Function()
+        > {
+  $$ReminderHistoriesTableTableManager(
+    _$AppDatabase db,
+    $ReminderHistoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ReminderHistoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ReminderHistoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ReminderHistoriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> reminderId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> occurrenceKey = const Value.absent(),
+                Value<DateTime> scheduledAt = const Value.absent(),
+                Value<DateTime?> triggeredAt = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<DateTime?> snoozedUntil = const Value.absent(),
+                Value<int> notificationId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReminderHistoriesCompanion(
+                id: id,
+                reminderId: reminderId,
+                householdId: householdId,
+                title: title,
+                occurrenceKey: occurrenceKey,
+                scheduledAt: scheduledAt,
+                triggeredAt: triggeredAt,
+                status: status,
+                completedAt: completedAt,
+                snoozedUntil: snoozedUntil,
+                notificationId: notificationId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String reminderId,
+                required String householdId,
+                required String title,
+                required String occurrenceKey,
+                required DateTime scheduledAt,
+                Value<DateTime?> triggeredAt = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<DateTime?> snoozedUntil = const Value.absent(),
+                required int notificationId,
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ReminderHistoriesCompanion.insert(
+                id: id,
+                reminderId: reminderId,
+                householdId: householdId,
+                title: title,
+                occurrenceKey: occurrenceKey,
+                scheduledAt: scheduledAt,
+                triggeredAt: triggeredAt,
+                status: status,
+                completedAt: completedAt,
+                snoozedUntil: snoozedUntil,
+                notificationId: notificationId,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ReminderHistoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ReminderHistoriesTable,
+      ReminderHistory,
+      $$ReminderHistoriesTableFilterComposer,
+      $$ReminderHistoriesTableOrderingComposer,
+      $$ReminderHistoriesTableAnnotationComposer,
+      $$ReminderHistoriesTableCreateCompanionBuilder,
+      $$ReminderHistoriesTableUpdateCompanionBuilder,
+      (
+        ReminderHistory,
+        BaseReferences<_$AppDatabase, $ReminderHistoriesTable, ReminderHistory>,
+      ),
+      ReminderHistory,
+      PrefetchHooks Function()
+    >;
 typedef $$AccountReconciliationLogsTableCreateCompanionBuilder =
     AccountReconciliationLogsCompanion Function({
       required String id,
@@ -20424,6 +22777,10 @@ class $AppDatabaseManager {
         _db,
         _db.recurringTransactionRuns,
       );
+  $$RemindersTableTableManager get reminders =>
+      $$RemindersTableTableManager(_db, _db.reminders);
+  $$ReminderHistoriesTableTableManager get reminderHistories =>
+      $$ReminderHistoriesTableTableManager(_db, _db.reminderHistories);
   $$AccountReconciliationLogsTableTableManager get accountReconciliationLogs =>
       $$AccountReconciliationLogsTableTableManager(
         _db,

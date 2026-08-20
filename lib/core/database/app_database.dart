@@ -30,6 +30,8 @@ part 'app_database.g.dart';
     Receivables,
     RecurringTransactions,
     RecurringTransactionRuns,
+    Reminders,
+    ReminderHistories,
     AccountReconciliationLogs,
     HijriSettings,
     HijriMonthOverrides,
@@ -42,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 26;
+  int get schemaVersion => 27;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -86,6 +88,10 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 26) {
         await m.addColumn(assets, assets.isArchived);
+      }
+      if (from < 27) {
+        await m.createTable(reminders);
+        await m.createTable(reminderHistories);
       }
       if (from < 20) {
         await _seedInitialData();

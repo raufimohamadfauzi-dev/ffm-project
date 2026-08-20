@@ -4,6 +4,8 @@ import 'core/database/app_database.dart';
 import 'core/di/injection.dart';
 import 'core/theme/theme_preference.dart';
 import 'features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
+import 'features/reminder/data/services/reminder_notification_service.dart';
+import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
@@ -13,6 +15,9 @@ import 'features/transaction/presentation/pages/transaction_pages.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await configureDependencies();
+  final reminderNotificationService = getIt<ReminderNotificationService>();
+  await reminderNotificationService.initialize();
+  await getIt<ReminderBloc>().recover();
   await getIt<ProcessRecurringTransactions>()('local-household');
   final isDark = await ThemePreference.isDark();
   runApp(FfmApp(initialDarkMode: isDark));

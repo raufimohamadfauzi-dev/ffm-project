@@ -292,6 +292,46 @@ class RecurringTransactions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+class Reminders extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get scheduledAt => dateTime()();
+  TextColumn get recurrenceType => text().withDefault(const Constant('once'))();
+  TextColumn get weekdaysJson => text().withDefault(const Constant('[]'))();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  TextColumn get soundUri => text().nullable()();
+  TextColumn get soundName => text().nullable()();
+  IntColumn get defaultSnoozeMinutes =>
+      integer().withDefault(const Constant(10))();
+  IntColumn get notificationId => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class ReminderHistories extends Table {
+  TextColumn get id => text()();
+  TextColumn get reminderId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get occurrenceKey => text()();
+  DateTimeColumn get scheduledAt => dateTime()();
+  DateTimeColumn get triggeredAt => dateTime().nullable()();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  DateTimeColumn get snoozedUntil => dateTime().nullable()();
+  IntColumn get notificationId => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

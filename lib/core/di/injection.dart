@@ -10,6 +10,10 @@ import '../../features/hijri/domain/hijri_calendar_service.dart';
 import '../../features/liability/domain/usecases/liability_crud_usecases.dart';
 import '../../features/receivable/domain/usecases/receivable_crud_usecases.dart';
 import '../../features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
+import '../../features/reminder/data/repositories/reminder_repository.dart';
+import '../../features/reminder/data/services/reminder_notification_service.dart';
+import '../../features/reminder/domain/usecases/reminder_usecases.dart';
+import '../../features/reminder/presentation/bloc/reminder_bloc.dart';
 import '../../features/transaction/data/services/offline_ai_engine_service.dart';
 import '../../features/transaction/domain/usecases/transaction_crud_usecases.dart';
 
@@ -73,6 +77,21 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<HijriCalendarService>(
     () => HijriCalendarService(db),
+  );
+  getIt.registerLazySingleton<ReminderRepository>(() => ReminderRepository(db));
+  getIt.registerLazySingleton<ReminderOccurrenceCalculator>(
+    ReminderOccurrenceCalculator.new,
+  );
+  getIt.registerLazySingleton<ReminderNotificationService>(
+    ReminderNotificationService.new,
+  );
+  getIt.registerFactory<ReminderBloc>(
+    () => ReminderBloc(
+      repository: getIt<ReminderRepository>(),
+      notificationService: getIt<ReminderNotificationService>(),
+      occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
+      householdId: 'local-household',
+    ),
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
     OfflineAiEngineService.new,
