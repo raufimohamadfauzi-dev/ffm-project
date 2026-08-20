@@ -46,6 +46,9 @@ class JsonBackupService {
     'tags',
     'merchants',
     'categories',
+    'activity_checkpoints',
+    'activity_entries',
+    'activity_sessions',
     'hijri_correction_logs',
     'hijri_month_overrides',
     'hijri_settings',
@@ -214,6 +217,9 @@ class JsonBackupService {
     'recurring_transaction_runs' => 'recurring_runs',
     'account_reconciliation_logs' => 'reconciliations',
     'audit_logs' => 'activity_logs',
+    'activity_sessions' => 'activity_sessions',
+    'activity_checkpoints' => 'activity_checkpoints',
+    'activity_entries' => 'activity_entries',
     _ => table,
   };
 }

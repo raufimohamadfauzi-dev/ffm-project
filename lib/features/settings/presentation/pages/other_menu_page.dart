@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
+import '../../../activity/presentation/pages/activity_page.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
 import '../../../backup/presentation/pages/monthly_report_page.dart';
@@ -106,6 +107,12 @@ class OtherMenuPage extends StatelessWidget {
           const SizedBox(height: 20),
           const AppSectionHeader(title: 'Pengingat dan alat'),
           const SizedBox(height: 8),
+          _MenuCard(
+            icon: Icons.timeline_outlined,
+            title: 'Aktivitas & jurnal',
+            subtitle: 'Lacak perjalanan, pekerjaan, pertemuan, obrolan, dan catatan harian keluarga.',
+            onTap: () => _open(context, const ActivityPage()),
+          ),
           _MenuCard(
             icon: Icons.notifications_none_outlined,
             title: 'Pengingat',

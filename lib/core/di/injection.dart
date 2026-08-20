@@ -1,6 +1,9 @@
 import 'package:get_it/get_it.dart';
 
 import '../database/app_database.dart';
+import '../database/audit_logger.dart';
+import '../../features/activity/data/repositories/activity_repository.dart';
+import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
 import '../../features/audit/domain/usecases/audit_log_usecases.dart';
@@ -78,6 +81,13 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<HijriCalendarService>(
     () => HijriCalendarService(db),
+  );
+  getIt.registerLazySingleton<AuditLogger>(() => AuditLogger(db));
+  getIt.registerLazySingleton<ActivityRepository>(
+    () => ActivityRepository(db, getIt<AuditLogger>()),
+  );
+  getIt.registerFactory<ActivityBloc>(
+    () => ActivityBloc(getIt<ActivityRepository>()),
   );
   getIt.registerLazySingleton<ReminderRepository>(() => ReminderRepository(db));
   getIt.registerLazySingleton<ReminderOccurrenceCalculator>(

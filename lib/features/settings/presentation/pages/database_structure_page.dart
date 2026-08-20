@@ -20,6 +20,9 @@ class DatabaseStructurePage extends StatelessWidget {
     ('Liabilities', 'Hutang keluarga'),
     ('Receivables', 'Piutang keluarga'),
     ('RecurringTransactions', 'Transaksi berkala'),
+    ('ActivitySessions', 'Sesi perjalanan atau pekerjaan dengan durasi'),
+    ('ActivityCheckpoints', 'Update posisi atau tahapan dalam sesi'),
+    ('ActivityEntries', 'Jurnal aktivitas, pertemuan, dan obrolan manual'),
     ('HijriSettings', 'Pengaturan kalender Hijriah'),
   ];
 

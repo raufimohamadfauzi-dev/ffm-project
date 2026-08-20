@@ -332,6 +332,59 @@ class ReminderHistories extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+class ActivitySessions extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get category => text().withDefault(const Constant('lainnya'))();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get endedAt => dateTime().nullable()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  TextColumn get notes => text().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class ActivityCheckpoints extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text()();
+  TextColumn get label => text()();
+  TextColumn get place => text().nullable()();
+  DateTimeColumn get occurredAt => dateTime()();
+  IntColumn get sequence => integer()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class ActivityEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get sessionId => text().nullable()();
+  TextColumn get householdId => text()();
+  TextColumn get activityType =>
+      text().withDefault(const Constant('lainnya'))();
+  TextColumn get title => text()();
+  TextColumn get participants => text().nullable()();
+  TextColumn get topic => text().nullable()();
+  TextColumn get place => text().nullable()();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get endedAt => dateTime().nullable()();
+  TextColumn get notes => text().nullable()();
+  TextColumn get followUp => text().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

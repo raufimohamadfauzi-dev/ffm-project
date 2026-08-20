@@ -32,6 +32,9 @@ part 'app_database.g.dart';
     RecurringTransactionRuns,
     Reminders,
     ReminderHistories,
+    ActivitySessions,
+    ActivityCheckpoints,
+    ActivityEntries,
     AccountReconciliationLogs,
     HijriSettings,
     HijriMonthOverrides,
@@ -44,12 +47,13 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 27;
+  int get schemaVersion => 28;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
+      await _createActivityIndexes();
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -93,6 +97,12 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(reminders);
         await m.createTable(reminderHistories);
       }
+      if (from < 28) {
+        await m.createTable(activitySessions);
+        await m.createTable(activityCheckpoints);
+        await m.createTable(activityEntries);
+        await _createActivityIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -101,6 +111,25 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<void> _createActivityIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_activity_sessions_household_started '
+      'ON activity_sessions (household_id, started_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_activity_checkpoints_session_sequence '
+      'ON activity_checkpoints (session_id, sequence)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_activity_entries_household_started_type '
+      'ON activity_entries (household_id, started_at, activity_type)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_activity_entries_session '
+      'ON activity_entries (session_id)',
+    );
+  }
 
   Future<void> _seedInitialData() async {
     final now = DateTime.now();
