@@ -124,6 +124,7 @@ class _AppShellState extends State<AppShell> {
   static const _widgetChannel = MethodChannel('ffm/widget');
   var _index = 0;
   var _assistantRequestId = 0;
+  var _assistantSheetOpen = false;
   FfmAssistantDraft? _assistantTransactionDraft;
 
   @override
@@ -299,21 +300,33 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(index: _index, children: _pages),
-    floatingActionButton: FloatingActionButton.extended(
-      heroTag: 'ffm-assistant',
-      tooltip: 'Buka Asisten FFM',
-      onPressed: () => showFfmAssistantSheet(
+  Future<void> _openAssistant() async {
+    if (_assistantSheetOpen) return;
+    setState(() => _assistantSheetOpen = true);
+    try {
+      await showFfmAssistantSheet(
         context,
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
         currentDestination: _assistantCurrentDestination,
-      ),
-      icon: const Icon(Icons.auto_awesome_outlined),
-      label: const Text('Asisten'),
-    ),
+      );
+    } finally {
+      if (mounted) setState(() => _assistantSheetOpen = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: IndexedStack(index: _index, children: _pages),
+    floatingActionButton: _assistantSheetOpen
+        ? null
+        : FloatingActionButton.extended(
+            heroTag: 'ffm-assistant',
+            tooltip: 'Buka Asisten FFM',
+            onPressed: _openAssistant,
+            icon: const Icon(Icons.auto_awesome_outlined),
+            label: const Text('Asisten'),
+          ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
       onDestinationSelected: (value) => setState(() => _index = value),

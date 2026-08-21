@@ -109,6 +109,7 @@ class BudgetGuardService {
 
       final categoryIds = _budgetCategoryIds(budget);
       final isOverall = budget.id.startsWith('overall-');
+      final isNonRecurring = budget.periodType == 'nonrecurring';
       final spent = activeTransactions
           .where(
             (item) =>
@@ -141,8 +142,9 @@ class BudgetGuardService {
 
       final remaining = limit - transferredOut - spent;
       final spentPercent = ((spent / limit) * 100).floor();
-      final trace =
-          '${_periodLabel(budget.periodType)} ${_dateRange(budget.startDate, budget.endDate)} · ${_money(spent)} terpakai dari ${_money(limit)}';
+      final trace = isNonRecurring
+          ? '${_periodLabel(budget.periodType)} sejak ${_shortDate(budget.startDate)} · ${_money(spent)} terpakai dari ${_money(limit)}'
+          : '${_periodLabel(budget.periodType)} ${_dateRange(budget.startDate, budget.endDate)} · ${_money(spent)} terpakai dari ${_money(limit)}';
 
       if (remaining < 0) {
         results.add(
@@ -169,8 +171,9 @@ class BudgetGuardService {
             kind: FinancialGuardKind.budgetNearLimit,
             severity: FinancialGuardSeverity.warning,
             title: 'Anggaran ${budget.name} mulai mepet',
-            message:
-                'Sudah $spentPercent% terpakai. Sisa ${_money(remaining)} sampai ${_shortDate(budget.endDate)}.',
+            message: isNonRecurring
+                ? 'Sudah $spentPercent% terpakai. Sisa ${_money(remaining)}.'
+                : 'Sudah $spentPercent% terpakai. Sisa ${_money(remaining)} sampai ${_shortDate(budget.endDate)}.',
             trace: trace,
             currentAmount: spent,
             limitAmount: limit,
@@ -180,7 +183,8 @@ class BudgetGuardService {
         continue;
       }
 
-      if (_isAlmostOver(localNow, budget.startDate, budget.endDate) &&
+      if (!isNonRecurring &&
+          _isAlmostOver(localNow, budget.startDate, budget.endDate) &&
           spent > 0 &&
           remaining * 2 >= limit) {
         results.add(
@@ -351,6 +355,8 @@ class BudgetGuardService {
 
   static String _periodLabel(String periodType) {
     switch (periodType) {
+      case 'nonrecurring':
+        return 'Anggaran tidak rutin';
       case 'weekly':
         return 'Anggaran mingguan';
       case 'biweekly':

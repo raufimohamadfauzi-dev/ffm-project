@@ -96,7 +96,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
   var _query = '';
   var _typeFilter = 'Semua';
   var _currentMonthOnly = false;
+  var _isSearchOpen = false;
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -1014,6 +1016,20 @@ class _TransactionListPageState extends State<TransactionListPage> {
     unawaited(_refreshFts(value));
   }
 
+  void _openSearch() {
+    setState(() => _isSearchOpen = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    _onSearchChanged('');
+    if (mounted) setState(() => _isSearchOpen = false);
+  }
+
   Future<void> _showFilterSheet() async {
     final result = await showModalBottomSheet<_TransactionFilter>(
       context: context,
@@ -1294,6 +1310,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -1317,60 +1334,106 @@ class _TransactionListPageState extends State<TransactionListPage> {
         .fold<int>(0, (sum, entry) => sum + entry.transaction.amount.abs());
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 8,
-        title: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          textInputAction: TextInputAction.search,
-          decoration: InputDecoration(
-            hintText: 'Cari transaksi, kategori, toko, atau catatan',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: _query.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: 'Hapus pencarian',
-                    onPressed: () {
-                      _searchController.clear();
-                      _onSearchChanged('');
-                    },
-                    icon: const Icon(Icons.clear),
+        titleSpacing: _isSearchOpen ? 0 : null,
+        leading: _isSearchOpen
+            ? IconButton(
+                tooltip: 'Tutup pencarian',
+                onPressed: _closeSearch,
+                icon: const Icon(Icons.arrow_back),
+              )
+            : null,
+        title: _isSearchOpen
+            ? TextField(
+                focusNode: _searchFocusNode,
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: 'Cari transaksi, kategori, toko, atau catatan',
+                  border: InputBorder.none,
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Hapus pencarian',
+                          onPressed: () {
+                            _searchController.clear();
+                            _onSearchChanged('');
+                          },
+                          icon: const Icon(Icons.clear),
+                        ),
+                ),
+              )
+            : const Text('Transaksi'),
+        actions: _isSearchOpen
+            ? const [SizedBox(width: 8)]
+            : [
+                IconButton(
+                  tooltip: 'Cari transaksi',
+                  onPressed: _openSearch,
+                  icon: const Icon(Icons.search),
+                ),
+                IconButton(
+                  tooltip: 'Info Transaksi',
+                  onPressed: () => showAppInfoDialog(
+                    context,
+                    title: 'Cara pakai Transaksi',
+                    message: _accounts.isEmpty
+                        ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal supaya saldo keluarga punya titik awal.'
+                        : 'Pemasukan menambah arus kas dan pengeluaran menguranginya. Kamu bisa pakai Scan Nota atau impor JSON, lalu selalu cek hasil sebelum menyimpan.',
                   ),
-            filled: true,
-            fillColor: Theme.of(context).colorScheme.surface,
-            isDense: true,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide.none,
-            ),
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Transfer saldo antar tempat',
-            onPressed: _openTransfer,
-            icon: const Icon(Icons.swap_horiz_rounded),
-          ),
-          IconButton(
-            tooltip: 'Input cepat banyak transaksi',
-            onPressed: _openQuickEntry,
-            icon: const Icon(Icons.playlist_add_rounded),
-          ),
-          IconButton(
-            tooltip: 'Impor JSON batch dari Gemini',
-            onPressed: _openJsonBatch,
-            icon: const Icon(Icons.data_object_rounded),
-          ),
-          IconButton(
-            tooltip: 'Scan nota dengan OCR',
-            onPressed: _openScan,
-            icon: const Icon(Icons.document_scanner_outlined),
-          ),
-          IconButton(
-            tooltip: 'Saring transaksi',
-            onPressed: _showFilterSheet,
-            icon: const Icon(Icons.tune),
-          ),
-        ],
+                  icon: const Icon(Icons.info_outline),
+                ),
+                IconButton(
+                  tooltip: 'Saring transaksi',
+                  onPressed: _showFilterSheet,
+                  icon: const Icon(Icons.tune),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Aksi transaksi lainnya',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'transfer':
+                        _openTransfer();
+                      case 'cepat':
+                        _openQuickEntry();
+                      case 'json':
+                        _openJsonBatch();
+                      case 'scan':
+                        _openScan();
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(
+                      value: 'transfer',
+                      child: ListTile(
+                        leading: Icon(Icons.swap_horiz_rounded),
+                        title: Text('Pindah saldo'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'cepat',
+                      child: ListTile(
+                        leading: Icon(Icons.playlist_add_rounded),
+                        title: Text('Input cepat'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'json',
+                      child: ListTile(
+                        leading: Icon(Icons.data_object_rounded),
+                        title: Text('Impor JSON'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'scan',
+                      child: ListTile(
+                        leading: Icon(Icons.document_scanner_outlined),
+                        title: Text('Scan nota'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -1378,14 +1441,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
           ? ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
               children: [
-                AppHelpBanner(
-                  title: 'Mulai dari sini',
-                  message: _accounts.isEmpty
-                      ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal agar saldo keluarga punya titik awal.'
-                      : 'Catat pemasukan awal supaya saldo keluarga punya titik awal. Setelah itu catat pengeluaran dan lihat dampaknya.',
-                  icon: Icons.receipt_long_outlined,
-                ),
-                const SizedBox(height: 16),
                 AppEmptyState(
                   icon: _accounts.isEmpty
                       ? Icons.account_balance_wallet_outlined
@@ -1433,7 +1488,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
               itemCount:
-                  visibleTransactions.length + visibleTransfers.length + 3,
+                  visibleTransactions.length + visibleTransfers.length + 2,
               separatorBuilder: (_, _) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 if (index == 0) {
@@ -1452,14 +1507,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     accountTypeLabel: _accountTypeLabel,
                   );
                 }
-                if (index == 2) {
-                  return const AppHelpBanner(
-                    title: 'Cara pakainya',
-                    message: 'Pemasukan menambah arus kas, pengeluaran menguranginya. Pakai Scan Nota untuk mempercepat input lalu selalu cek hasil sebelum simpan.',
-                    icon: Icons.receipt_long_outlined,
-                  );
-                }
-                final transferIndex = index - 3;
+                final transferIndex = index - 2;
                 if (transferIndex >= 0 &&
                     transferIndex < visibleTransfers.length) {
                   final transfer = visibleTransfers[transferIndex];

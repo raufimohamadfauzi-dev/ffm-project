@@ -27,16 +27,23 @@ class OtherMenuPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lainnya')),
+      appBar: AppBar(
+        title: const Text('Lainnya'),
+        actions: [
+          IconButton(
+            tooltip: 'Info Lainnya',
+            onPressed: () => showAppInfoDialog(
+              context,
+              title: 'Tentang menu Lainnya',
+              message: 'Data Utama membantu menyiapkan pilihan transaksi. Menu lain dipakai untuk mengelola aset, target, laporan, keamanan, dan alat offline.',
+            ),
+            icon: const Icon(Icons.info_outline),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
         children: [
-          const AppHelpBanner(
-            title: 'Cari fitur yang kamu butuhkan',
-            message: 'Data Utama jadi langkah awal untuk mengisi pilihan transaksi. Menu lain di sini membantu kamu mengelola aset, target, laporan, keamanan, dan fitur offline.',
-            icon: Icons.more_horiz,
-          ),
-          const SizedBox(height: 20),
           const AppSectionHeader(title: 'Mulai dari sini'),
           const SizedBox(height: 8),
           AppCard(

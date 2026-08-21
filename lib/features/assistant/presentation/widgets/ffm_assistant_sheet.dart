@@ -96,7 +96,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
           _lastAssistantText = response;
           _entries.add(
-            _AssistantChatEntry(isUser: false, text: response, intent: intent),
+            _AssistantChatEntry(
+              isUser: false,
+              text: response,
+              intent: intent,
+              understanding: _understandingFor(intent),
+            ),
           );
           if (intent.destination != null || intent.draft != null) {
             _queuedIntents.add(intent);
@@ -199,6 +204,50 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  String _understandingFor(FfmAssistantIntent intent) {
+    final page = intent.destination == null
+        ? null
+        : FfmAssistantCatalog.findByDestination(intent.destination!);
+    final draft = intent.draft;
+    if (intent.type == FfmAssistantIntentType.unknown) {
+      return 'Belum yakin dengan maksudnya. Tidak ada aksi yang akan dijalankan.';
+    }
+    if (intent.type == FfmAssistantIntentType.listPages) {
+      return 'Kamu mau tahu jumlah dan daftar halaman FFM.';
+    }
+    if (intent.type == FfmAssistantIntentType.transactionStats) {
+      final time = intent.normalizedText.contains('hari ini')
+          ? 'hari ini'
+          : intent.normalizedText.contains('minggu ini')
+          ? 'minggu ini'
+          : 'bulan ini';
+      return 'Kamu mau cek jumlah transaksi $time.';
+    }
+    if (intent.type == FfmAssistantIntentType.financialWarnings) {
+      return 'Kamu mau cek kondisi anggaran dan arus kas.';
+    }
+    if (intent.type == FfmAssistantIntentType.openPage && page != null) {
+      return 'Kamu mau pindah ke ${page.name}.';
+    }
+    if (draft != null) {
+      final details = <String>[
+        _DraftPreview._draftLabel(draft.kind).replaceFirst('Draft ', ''),
+        if (draft.amount != null) _DraftPreview._rupiah(draft.amount!),
+        if (draft.fromAccountName != null) 'dari ${draft.fromAccountName}',
+        if (draft.toAccountName != null) 'ke ${draft.toAccountName}',
+      ];
+      return 'Kamu mau buat ${details.join(' • ')}.';
+    }
+    if (intent.type == FfmAssistantIntentType.cancel) {
+      return 'Kamu mau membatalkan draft yang sedang dibahas.';
+    }
+    if (intent.type == FfmAssistantIntentType.readLastResponse) {
+      return 'Kamu mau jawaban terakhir dibacakan lagi.';
+    }
+    if (page != null) return 'Kamu sedang menanyakan ${page.name}.';
+    return 'Aku memahami permintaan ini sebagai ${intent.type.name}.';
   }
 
   @override
@@ -381,6 +430,40 @@ class _AssistantMessageCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (!isUser && entry.understanding != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface.withValues(alpha: .72),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.psychology_alt_outlined,
+                          size: 17,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Yang aku pahami: ${entry.understanding}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   entry.text,
                   style: TextStyle(
@@ -481,9 +564,11 @@ class _AssistantChatEntry {
     required this.isUser,
     required this.text,
     this.intent,
+    this.understanding,
   });
 
   final bool isUser;
   final String text;
   final FfmAssistantIntent? intent;
+  final String? understanding;
 }

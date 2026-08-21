@@ -63,6 +63,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   DateTime _periodStart(DateTime value, String periodType) {
     final date = DateTime(value.year, value.month, value.day);
     switch (periodType) {
+      case 'nonrecurring':
+        return date;
       case 'weekly':
         return _startOfWeek(date);
       case 'biweekly':
@@ -77,6 +79,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
   DateTime _periodEnd(DateTime start, String periodType) {
     switch (periodType) {
+      case 'nonrecurring':
+        return DateTime(2099, 12, 31, 23, 59, 59);
       case 'weekly':
         return start.add(
           const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
@@ -95,6 +99,9 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   bool _isInActivePeriod(DateTime value) {
+    if (_periodTypeFilter == 'nonrecurring') {
+      return !value.toLocal().isAfter(DateTime.now());
+    }
     final start = _periodStart(DateTime.now(), _periodTypeFilter);
     final end = _periodEnd(start, _periodTypeFilter);
     final date = value.toLocal();
@@ -150,29 +157,36 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
               )
               ..orderBy([(table) => OrderingTerm.asc(table.name)]))
             .get();
+    final isNonRecurring = _periodTypeFilter == 'nonrecurring';
     final rows = stored
         .map(EnvelopeBudgetRow.fromDrift)
         .where(
           (row) =>
               row.periodType == _periodTypeFilter &&
-              _isInActivePeriod(row.startDate) &&
-              _isInActivePeriod(row.endDate),
+              (isNonRecurring ||
+                  (_isInActivePeriod(row.startDate) &&
+                      _isInActivePeriod(row.endDate))),
         )
         .toList();
     final transactions = await getIt<GetTransactions>()(AppContext.householdId);
     final transactionList = transactions.toList(growable: false);
-    final activeCategoryIds = transactionList
-        .where(
-          (item) =>
-              item.transaction.amount < 0 &&
-              item.transaction.source != 'transfer' &&
-              _isInActivePeriod(item.transaction.date),
-        )
-        .map((item) => item.transaction.categoryId)
-        .whereType<String>()
-        .toSet();
+    final activeCategoryIds = isNonRecurring
+        ? categories
+              .where((category) => category.defaultBudgetPeriod == 'none')
+              .map((category) => category.id)
+              .toSet()
+        : transactionList
+              .where(
+                (item) =>
+                    item.transaction.amount < 0 &&
+                    item.transaction.source != 'transfer' &&
+                    _isInActivePeriod(item.transaction.date),
+              )
+              .map((item) => item.transaction.categoryId)
+              .whereType<String>()
+              .toSet();
     final configuredIds = rows.expand((row) => row.categoryIds).toSet();
-    if (!rows.any((row) => row.isOverall)) {
+    if (!isNonRecurring && !rows.any((row) => row.isOverall)) {
       rows.insert(
         0,
         EnvelopeBudgetRow.overallPlaceholder(
@@ -205,10 +219,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
       _categories = categories;
       _envelopes = rows;
       _transactions = transactionList;
-      _transfers = transfers
-          .map(EnvelopeTransferRow.fromDrift)
-          .where((row) => _isInActivePeriod(row.createdAt))
-          .toList(growable: false);
+      _transfers = isNonRecurring
+          ? const []
+          : transfers
+                .map(EnvelopeTransferRow.fromDrift)
+                .where((row) => _isInActivePeriod(row.createdAt))
+                .toList(growable: false);
       _loading = false;
     });
   }
@@ -296,6 +312,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     final progress = _progressFor(envelope) ?? 0;
     if (progress >= 1) return 'Melewati batas';
     if (progress * 100 >= envelope.alertPercent) return 'Mendekati batas';
+    if (envelope.isNonRecurring) return 'Aman';
     if (progress > _elapsedFor(envelope) + .15) return 'Pemakaian cepat';
     return 'Aman';
   }
@@ -448,6 +465,9 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   ][month - 1];
 
   String _activePeriodLabel() {
+    if (_periodTypeFilter == 'nonrecurring') {
+      return 'Sesuai kebutuhan · tidak reset otomatis';
+    }
     final start = _periodStart(DateTime.now(), _periodTypeFilter);
     final end = _periodEnd(start, _periodTypeFilter);
     if (_periodTypeFilter == 'weekly') {
@@ -765,17 +785,20 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
           ),
           IconButton(
             tooltip: 'Buka ringkasan periode',
-            onPressed: _loading ? null : _showPeriodSummary,
+            onPressed: _loading || _periodTypeFilter == 'nonrecurring'
+                ? null
+                : _showPeriodSummary,
             icon: const Icon(Icons.analytics_outlined),
           ),
           PopupMenuButton<_BudgetMenuAction>(
             tooltip: 'Aksi anggaran lainnya',
             onSelected: _handleMenuAction,
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: _BudgetMenuAction.transferFunds,
-                child: Text('Atur ulang alokasi antarpos'),
-              ),
+              if (_periodTypeFilter != 'nonrecurring')
+                const PopupMenuItem(
+                  value: _BudgetMenuAction.transferFunds,
+                  child: Text('Atur ulang alokasi antarpos'),
+                ),
               if (_periodTypeFilter == 'weekly')
                 PopupMenuItem(
                   value: _BudgetMenuAction.weekStart,
@@ -783,11 +806,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                 ),
             ],
           ),
-          IconButton(
-            tooltip: 'Riwayat atur ulang alokasi',
-            onPressed: _loading ? null : _showTransfers,
-            icon: const Icon(Icons.history_outlined),
-          ),
+          if (_periodTypeFilter != 'nonrecurring')
+            IconButton(
+              tooltip: 'Riwayat atur ulang alokasi',
+              onPressed: _loading ? null : _showTransfers,
+              icon: const Icon(Icons.history_outlined),
+            ),
         ],
       ),
       body: _loading
@@ -827,6 +851,11 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                               value: 'monthly',
                               label: Text('Bulanan'),
                               icon: Icon(Icons.calendar_month_outlined),
+                            ),
+                            ButtonSegment(
+                              value: 'nonrecurring',
+                              label: Text('Tidak rutin'),
+                              icon: Icon(Icons.all_inclusive_outlined),
                             ),
                           ],
                           selected: {_periodTypeFilter},
@@ -1005,15 +1034,21 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     _startDate = widget.envelope.startDate;
     _endDate = widget.envelope.endDate;
     _periodType = widget.envelope.periodType;
+    final suggestedPeriod = widget.suggestedPeriod == 'none'
+        ? 'nonrecurring'
+        : widget.suggestedPeriod;
     if (widget.envelope.isPlaceholder &&
-        (widget.suggestedPeriod == 'weekly' ||
-            widget.suggestedPeriod == 'monthly')) {
-      _periodType = widget.suggestedPeriod!;
+        (suggestedPeriod == 'weekly' ||
+            suggestedPeriod == 'monthly' ||
+            suggestedPeriod == 'nonrecurring')) {
+      _periodType = suggestedPeriod!;
       final now = DateTime.now();
       _startDate = _periodType == 'weekly'
           ? DateTime(now.year, now.month, now.day).subtract(
               Duration(days: (now.weekday - widget.weekStartDay + 7) % 7),
             )
+          : _periodType == 'nonrecurring'
+          ? DateTime(now.year, now.month, now.day)
           : DateTime(now.year, now.month, 1);
       _endDate = _periodEnd(_startDate, _periodType);
     }
@@ -1041,6 +1076,7 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     final now = DateTime.now();
     final month =
         '${_startDate.year}-${_startDate.month.toString().padLeft(2, '0')}';
+    final storageKey = _periodType == 'nonrecurring' ? 'tidak-rutin' : month;
     final values = EnvelopeBudgetsCompanion(
       allocated: Value(amount),
       rollover: Value(parseRupiah(_rolloverController.text)),
@@ -1057,9 +1093,9 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
             EnvelopeBudgetsCompanion.insert(
               id: widget.envelope.isOverall
                   ? 'overall-${_periodType}-${_startDate.year}-${_startDate.month}-${_startDate.day}'
-                  : 'envelope-${widget.envelope.categoryIds.first}-$month',
+                  : 'envelope-${widget.envelope.categoryIds.first}-$storageKey',
               householdId: AppContext.householdId,
-              month: Value(month),
+              month: Value(storageKey),
               name: widget.envelope.name,
               categoryIdsJson: Value(jsonEncode(widget.envelope.categoryIds)),
               allocated: Value(amount),
@@ -1115,6 +1151,8 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
 
   DateTime _periodEnd(DateTime start, String type) {
     switch (type) {
+      case 'nonrecurring':
+        return DateTime(2099, 12, 31, 23, 59, 59);
       case 'weekly':
         return start.add(const Duration(days: 6));
       case 'biweekly':
@@ -1148,6 +1186,8 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
 
   String _periodName(String value) {
     switch (value) {
+      case 'nonrecurring':
+        return 'tidak rutin';
       case 'weekly':
         return '1 minggu';
       case 'biweekly':
@@ -1184,10 +1224,14 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
               controller: _amountController,
               keyboardType: TextInputType.number,
               inputFormatters: const [RupiahInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Target nominal periode ini',
+              decoration: InputDecoration(
+                labelText: _periodType == 'nonrecurring'
+                    ? 'Batas dana untuk kebutuhan ini'
+                    : 'Target nominal periode ini',
                 prefixText: 'Rp ',
-                helperText: 'Transaksi dengan kategori terkait akan mengurangi target ini.',
+                helperText: _periodType == 'nonrecurring'
+                    ? 'Tidak reset otomatis. Pengeluaran terkait dihitung sejak tanggal mulai.'
+                    : 'Transaksi dengan kategori terkait akan mengurangi target ini.',
               ),
               validator: (value) =>
                   parseRupiah(value ?? '') < 0 ? 'Nominal belum valid.' : null,
@@ -1197,8 +1241,10 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
               controller: _rolloverController,
               keyboardType: TextInputType.number,
               inputFormatters: const [RupiahInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Sisa bulan lalu (opsional)',
+              decoration: InputDecoration(
+                labelText: _periodType == 'nonrecurring'
+                    ? 'Dana yang sudah disisihkan (opsional)'
+                    : 'Sisa bulan lalu (opsional)',
                 prefixText: 'Rp ',
               ),
               validator: (value) =>
@@ -1213,6 +1259,7 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
                 'bimonthly',
                 'fourmonthly',
                 'fivemonthly',
+                'nonrecurring',
               ],
               selectedItem: _periodType,
               itemLabel: (value) => switch (value) {
@@ -1222,11 +1269,13 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
                 'bimonthly' => '2 bulan',
                 'fourmonthly' => '4 bulan',
                 'fivemonthly' => '5 bulan',
+                'nonrecurring' => 'Sesuai kebutuhan / tidak rutin',
                 _ => value,
               },
-              labelText: 'Periode target',
-              helperText:
-                  'Pemakaian akan mulai dari nol saat periode baru dimulai.',
+              labelText: 'Pola pemakaian',
+              helperText: _periodType == 'nonrecurring'
+                  ? 'Pos tetap ada sampai kamu mengarsipkannya; tidak reset bulanan.'
+                  : 'Pemakaian akan mulai dari nol saat periode baru dimulai.',
               searchHintText: 'Cari periode target',
               cacheKey: 'anggaran.periode_target',
               onChanged: (value) {
@@ -1238,11 +1287,16 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
               },
             ),
             if (widget.suggestedPeriod == 'weekly' ||
-                widget.suggestedPeriod == 'monthly')
+                widget.suggestedPeriod == 'monthly' ||
+                widget.suggestedPeriod == 'none')
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  'Saran kategori: ${widget.suggestedPeriod == 'weekly' ? 'mingguan' : 'bulanan'}. Nominal tetap kamu isi sendiri.',
+                  'Saran kategori: ${switch (widget.suggestedPeriod) {
+                    'weekly' => 'mingguan',
+                    'monthly' => 'bulanan',
+                    _ => 'sesuai kebutuhan / tidak rutin',
+                  }}. Nominal tetap kamu isi sendiri.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -1259,11 +1313,18 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
             ),
             const SizedBox(height: 6),
             HijriDateLabel(date: _startDate),
-            Text(
-              'Selesai: ${formatTanggalLengkap(_endDate, includeSeconds: false)} (${_periodName(_periodType)})',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            HijriDateLabel(date: _endDate),
+            if (_periodType == 'nonrecurring')
+              Text(
+                'Tidak ada tanggal selesai. Pos tetap aktif sampai diarsipkan.',
+                style: Theme.of(context).textTheme.bodySmall,
+              )
+            else ...[
+              Text(
+                'Selesai: ${formatTanggalLengkap(_endDate, includeSeconds: false)} (${_periodName(_periodType)})',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              HijriDateLabel(date: _endDate),
+            ],
             const SizedBox(height: 12),
             SearchableDropdown<int>(
               items: const [70, 80, 90],
@@ -1555,6 +1616,8 @@ class EnvelopeBudgetRow {
   final int alertPercent;
   final bool isPlaceholder;
   final bool isOverall;
+
+  bool get isNonRecurring => periodType == 'nonrecurring';
 
   String get periodLabel =>
       '${startDate.day}/${startDate.month}/${startDate.year} sampai ${endDate.day}/${endDate.month}/${endDate.year}';

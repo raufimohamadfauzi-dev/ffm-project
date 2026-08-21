@@ -236,6 +236,15 @@ class _SummaryContent extends StatelessWidget {
         SliverAppBar.large(
           title: const Text(AppCopy.dashboard),
           actions: [
+            IconButton(
+              tooltip: 'Info Ringkasan',
+              onPressed: () => showAppInfoDialog(
+                context,
+                title: 'Cara baca Ringkasan',
+                message: 'Lihat angka bulan ini, baca Saran Keuangan, lalu pilih tindakan yang dibutuhkan. Semua angka berubah setelah data disimpan.',
+              ),
+              icon: const Icon(Icons.info_outline),
+            ),
             if (data.hasMasterData && data.hasAnyTransaction)
               IconButton(
                 tooltip: 'Analisa keuangan',
@@ -267,16 +276,10 @@ class _SummaryContent extends StatelessWidget {
             children: [
               Text(
                 data.householdName == null
-                    ? 'Hai, yuk rapikan keuangan keluarga.'
-                    : 'Hai, yuk rapikan keuangan ${data.householdName}.',
+                    ? 'Hai, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.'
+                    : 'Hai ${data.householdName}, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.',
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 12),
-              const AppHelpBanner(
-                title: 'Cara membacanya',
-                message: 'Lihat angka bulan ini, baca Saran buat kamu, lalu pilih tindakan di Mulai dari sini. Semua angka berubah setelah data disimpan.',
-                icon: Icons.lightbulb_outline,
               ),
               const SizedBox(height: 12),
               _HijriDateSummaryCard(date: data.hijriToday),

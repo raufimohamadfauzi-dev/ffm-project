@@ -59,9 +59,15 @@ class FfmAssistantInterpreter {
 
     if (_containsAny(normalized, const [
       'halaman apa saja',
+      'ada berapa halaman',
+      'berapa halaman',
+      'jumlah halaman',
+      'halaman ada berapa',
+      'halaman berapa',
       'menu apa saja',
       'fitur apa saja',
       'ada menu apa',
+      'menu ada berapa',
       'bisa apa saja',
     ])) {
       return FfmAssistantIntent(
@@ -70,7 +76,7 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.listPages,
         confidence: 1,
         response:
-            'Ini halaman yang bisa kamu buka langsung:\n${FfmAssistantCatalog.listForChat()}',
+            'FFM punya ${FfmAssistantCatalog.pages.length} halaman yang bisa kamu buka. Ini daftar dan fungsi singkatnya:\n${FfmAssistantCatalog.listForChat()}',
       );
     }
 

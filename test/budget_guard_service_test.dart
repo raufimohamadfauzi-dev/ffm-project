@@ -129,6 +129,47 @@ void main() {
       isEmpty,
     );
   });
+
+  test(
+    'pos tidak rutin tetap menghitung pemakaian tanpa batas akhir periode',
+    () async {
+      final now = DateTime(2026, 8, 10, 12);
+      await _insertExpenseCategory(database, 'cat-servis', 'Servis motor');
+      await database
+          .into(database.envelopeBudgets)
+          .insert(
+            EnvelopeBudgetsCompanion.insert(
+              id: 'envelope-cat-servis-tidak-rutin',
+              householdId: AppContext.householdId,
+              name: 'Servis motor',
+              categoryIdsJson: const Value('["cat-servis"]'),
+              allocated: const Value(500000),
+              periodType: const Value('nonrecurring'),
+              startDate: DateTime(2026, 1, 1),
+              endDate: DateTime(2099, 12, 31, 23, 59, 59),
+              alertPercent: const Value(80),
+              createdAt: now,
+            ),
+          );
+      await _insertTransaction(
+        database,
+        id: 'servis-agustus',
+        amount: -425000,
+        date: now,
+        categoryId: 'cat-servis',
+      );
+
+      final suggestions = await service.check(AppContext.householdId, at: now);
+      final suggestion = suggestions.firstWhere(
+        (item) => item.kind == FinancialGuardKind.budgetNearLimit,
+      );
+
+      expect(suggestion.title, 'Anggaran Servis motor mulai mepet');
+      expect(suggestion.message, contains('Sisa Rp75.000.'));
+      expect(suggestion.message, isNot(contains('sampai')));
+      expect(suggestion.trace, contains('Anggaran tidak rutin sejak'));
+    },
+  );
 }
 
 Future<void> _insertExpenseCategory(

@@ -22,7 +22,20 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Analisa')),
+    appBar: AppBar(
+      title: const Text('Analisa'),
+      actions: [
+        IconButton(
+          tooltip: 'Info Analisa',
+          onPressed: () => showAppInfoDialog(
+            context,
+            title: 'Baca pola keuangan',
+            message: 'Gunakan kategori, toko, tag, dan tanggal untuk melihat kebiasaan keuangan keluarga. Semua angka di sini berasal dari transaksi yang tersimpan di perangkat.',
+          ),
+          icon: const Icon(Icons.info_outline),
+        ),
+      ],
+    ),
     body: FutureBuilder<List<TransactionWithItems>>(
       future: _future,
       builder: (context, snapshot) {
@@ -38,12 +51,6 @@ class _AnalysisPageState extends State<AnalysisPage> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
           children: [
-            const AppHelpBanner(
-              title: 'Baca polanya, bukan cuma totalnya',
-              message: 'Gunakan kategori, toko, tag, dan tanggal untuk belajar dari kebiasaan keuangan keluarga.',
-              icon: Icons.insights_outlined,
-            ),
-            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
