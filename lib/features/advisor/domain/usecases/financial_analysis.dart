@@ -12,13 +12,19 @@ class WeeklyDigest {
     required this.expense,
     required this.income,
     required this.transactionCount,
+    required this.start,
+    required this.endExclusive,
   });
   final int expense;
   final int income;
   final int transactionCount;
+  final DateTime start;
+  final DateTime endExclusive;
 }
 
 abstract final class FinancialAnalysis {
+  static const minimumForecastMonths = 3;
+
   static List<ForecastPoint> forecast(
     List<TransactionWithItems> transactions, {
     required DateTime fromMonth,
@@ -28,9 +34,11 @@ abstract final class FinancialAnalysis {
     for (final item in transactions) {
       final date = item.transaction.date;
       final month = DateTime(date.year, date.month);
+      final currentMonth = DateTime(fromMonth.year, fromMonth.month);
+      if (month.isAfter(currentMonth)) continue;
       monthly[month] = (monthly[month] ?? 0) + item.transaction.amount;
     }
-    if (monthly.isEmpty) return const [];
+    if (monthly.length < minimumForecastMonths) return const [];
     final values = monthly.values.toList();
     final average =
         (values.fold<int>(0, (sum, value) => sum + value) / values.length)
@@ -66,6 +74,8 @@ abstract final class FinancialAnalysis {
       expense: expense,
       income: income,
       transactionCount: count,
+      start: start,
+      endExclusive: end,
     );
   }
 }

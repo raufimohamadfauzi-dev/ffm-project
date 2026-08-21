@@ -93,7 +93,7 @@ class _SummaryPageState extends State<SummaryPage> {
     );
     final expenseTrend = List<MonthlyExpensePoint>.generate(6, (index) {
       final month = DateTime(now.year, now.month - 5 + index);
-      final amount = transactions
+      final monthExpenses = transactions
           .map((item) => item.transaction)
           .where(
             (item) =>
@@ -101,8 +101,16 @@ class _SummaryPageState extends State<SummaryPage> {
                 item.date.year == month.year &&
                 item.date.month == month.month,
           )
-          .fold<int>(0, (sum, item) => sum + item.amount.abs());
-      return MonthlyExpensePoint(month: month, amount: amount);
+          .toList(growable: false);
+      final amount = monthExpenses.fold<int>(
+        0,
+        (sum, item) => sum + item.amount.abs(),
+      );
+      return MonthlyExpensePoint(
+        month: month,
+        amount: amount,
+        transactionCount: monthExpenses.length,
+      );
     });
     final database = getIt<AppDatabase>();
     final household =
@@ -514,10 +522,29 @@ class _SummaryData {
 }
 
 class MonthlyExpensePoint {
-  const MonthlyExpensePoint({required this.month, required this.amount});
+  const MonthlyExpensePoint({
+    required this.month,
+    required this.amount,
+    required this.transactionCount,
+  });
 
   final DateTime month;
   final int amount;
+  final int transactionCount;
+}
+
+String formatCompactRupiah(int amount) {
+  if (amount >= 1000000) {
+    final millions = amount / 1000000;
+    final decimal = millions % 1 == 0 ? '' : millions.toStringAsFixed(1);
+    return 'Rp${decimal.isEmpty ? millions.toStringAsFixed(0) : decimal.replaceAll('.', ',')} jt';
+  }
+  if (amount >= 1000) {
+    final thousands = amount / 1000;
+    final decimal = thousands % 1 == 0 ? '' : thousands.toStringAsFixed(1);
+    return 'Rp${decimal.isEmpty ? thousands.toStringAsFixed(0) : decimal.replaceAll('.', ',')} rb';
+  }
+  return 'Rp$amount';
 }
 
 class _MonthlyExpenseTrendCard extends StatelessWidget {
@@ -568,61 +595,106 @@ class _MonthlyExpenseTrendCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 154,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: points
-                  .map((point) {
-                    final ratio = maxAmount == 0
-                        ? 0.0
-                        : point.amount / maxAmount;
-                    final barHeight = hasExpense ? 8 + (108 * ratio) : 8.0;
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.bottomCenter,
-                                child: AnimatedContainer(
-                                  duration: const Duration(milliseconds: 220),
-                                  height: barHeight,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        point.amount == maxAmount && hasExpense
-                                        ? scheme.primary
-                                        : scheme.primaryContainer,
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(8),
+          if (!hasExpense) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Belum ada data pengeluaran',
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Nanti grafik ini terisi otomatis setelah kamu menyimpan pengeluaran.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 154,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: points
+                    .map((point) {
+                      final ratio = maxAmount == 0
+                          ? 0.0
+                          : point.amount / maxAmount;
+                      final barHeight = hasExpense ? 8 + (108 * ratio) : 8.0;
+                      return Expanded(
+                        child: Semantics(
+                          label: point.amount == 0
+                              ? '${_monthLabels[point.month.month - 1]}, belum ada pengeluaran'
+                              : '${_monthLabels[point.month.month - 1]}, ${formatRupiahInput(point.amount.toString())} dari ${point.transactionCount} transaksi pengeluaran',
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                SizedBox(
+                                  height: 22,
+                                  child: point.amount == 0
+                                      ? null
+                                      : FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          child: Text(
+                                            formatCompactRupiah(point.amount),
+                                            maxLines: 1,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color: scheme.onSurface,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                          ),
+                                        ),
+                                ),
+                                Expanded(
+                                  child: Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 220,
+                                      ),
+                                      height: barHeight,
+                                      decoration: BoxDecoration(
+                                        color:
+                                            point.amount == maxAmount &&
+                                                hasExpense
+                                            ? scheme.primary
+                                            : scheme.primaryContainer,
+                                        borderRadius:
+                                            const BorderRadius.vertical(
+                                              top: Radius.circular(8),
+                                            ),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _monthLabels[point.month.month - 1],
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              _monthLabels[point.month.month - 1],
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  })
-                  .toList(growable: false),
+                      );
+                    })
+                    .toList(growable: false),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Batang lebih tinggi berarti pengeluaran bulan itu lebih besar.',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
-          ),
+            const SizedBox(height: 8),
+            Text(
+              'Setiap batang berasal dari transaksi pengeluaran yang tersimpan. Transfer antar rekening tidak ikut dihitung.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
         ],
       ),
     );
@@ -804,6 +876,14 @@ class _DashboardInsightCard extends StatelessWidget {
   String _dateLabel(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
 
+  String _weekLabel(WeeklyDigest digest) {
+    final end = digest.endExclusive.subtract(const Duration(days: 1));
+    if (digest.start.month == end.month) {
+      return '${digest.start.day}–${end.day}/${end.month.toString().padLeft(2, '0')}';
+    }
+    return '${_dateLabel(digest.start)}–${_dateLabel(end)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final nextForecast = data.forecast.isEmpty ? null : data.forecast.first;
@@ -821,7 +901,9 @@ class _DashboardInsightCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Minggu ini: ${formatRupiahInput(digest.expense.toString())} pengeluaran dan ${digest.transactionCount} transaksi.',
+                  digest.transactionCount == 0
+                      ? 'Belum ada transaksi tersimpan pada minggu ini.'
+                      : 'Minggu ini (${_weekLabel(digest)}): ${formatRupiahInput(digest.expense.toString())} pengeluaran dari ${digest.transactionCount} transaksi tersimpan.',
                 ),
               ),
             ],
@@ -835,8 +917,8 @@ class _DashboardInsightCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   nextForecast == null
-                      ? 'Forecast belum tersedia. Catat beberapa transaksi dulu supaya rata-rata bisa dihitung.'
-                      : 'Bulan depan diperkirakan tersisa ${formatRupiahInput(nextForecast.balance.toString())}.',
+                      ? 'Belum cukup data buat perkiraan. Catat transaksi nyata di minimal 3 bulan dulu, ya.'
+                      : 'Perkiraan arus kas bersih bulan depan ${formatRupiahInput(nextForecast.balance.toString())}.',
                 ),
               ),
             ],
