@@ -216,7 +216,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      'Aku belum nangkep maksudnya nih. Kamu mau cek data, pindah halaman, atau bikin draft? Contoh: “Ada berapa transaksi minggu ini?” atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
+      _unsupportedQuestionHelp(normalized) ?? 'Aku belum nangkep maksudnya nih. Aku bisa bantu cek data FFM, buka halaman, atau siapkan draft yang kamu konfirmasi sendiri. Coba: “Ada berapa transaksi minggu ini?”, “Cek anggaran”, atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
     );
   }
 
@@ -760,6 +760,34 @@ class FfmAssistantInterpreter {
         confidence: 0,
         clarification: response,
       );
+
+  String? _unsupportedQuestionHelp(String normalized) {
+    if (_containsAny(normalized, const [
+      'cuaca',
+      'harga pasar',
+      'harga cabai',
+      'berita terbaru',
+      'cari di google',
+      'internet',
+    ])) {
+      return 'Untuk itu aku belum punya akses internet atau data harga terbaru. Aku cuma bisa membaca data yang sudah tersimpan di FFM. Kalau mau, kamu bisa catat harga atau transaksi tersebut dulu sebagai draft.';
+    }
+    if (_containsAny(normalized, const [
+      'saldo bank asli',
+      'cek saldo bank',
+      'saldo rekening sekarang',
+    ])) {
+      return 'Aku belum terhubung langsung ke bank. Yang bisa aku baca hanya saldo dan transaksi yang sudah kamu catat atau impor ke FFM.';
+    }
+    if (_containsAny(normalized, const [
+      'ramal',
+      'tebak',
+      'prediksi pemasukan',
+    ])) {
+      return 'Aku nggak mau nebak soal uang. Aku bisa bantu lihat pola dan data nyata yang sudah tercatat, tapi keputusan tetap kamu yang pegang.';
+    }
+    return null;
+  }
 
   String _normalize(String text) {
     final cleaned = text

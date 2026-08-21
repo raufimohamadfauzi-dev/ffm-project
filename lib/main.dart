@@ -188,6 +188,7 @@ class _AppShellState extends State<AppShell> {
     TransactionListPage(
       assistantDraft: _assistantTransactionDraft,
       assistantRequestId: _assistantRequestId,
+      onOpenAssistant: _openAssistant,
     ),
     const EnvelopeBudgetPage(),
     const AnalysisPage(),
@@ -318,7 +319,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _index, children: _pages),
-    floatingActionButton: _assistantSheetOpen
+    floatingActionButton: _assistantSheetOpen || _index == 1
         ? null
         : FloatingActionButton.extended(
             heroTag: 'ffm-assistant',

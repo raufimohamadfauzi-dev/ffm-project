@@ -158,4 +158,12 @@ void main() {
     expect(intent.clarification, contains('hutang'));
     expect(intent.clarification, contains('piutang'));
   });
+
+  test('menjelaskan batas saat pertanyaan butuh data di luar FFM', () async {
+    final intent = await interpreter.interpret('Berapa harga cabai hari ini?');
+
+    expect(intent.type, FfmAssistantIntentType.unknown);
+    expect(intent.clarification, contains('akses internet'));
+    expect(intent.clarification, contains('tersimpan di FFM'));
+  });
 }

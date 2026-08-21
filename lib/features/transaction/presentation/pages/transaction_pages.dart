@@ -76,10 +76,12 @@ class TransactionListPage extends StatefulWidget {
     super.key,
     this.assistantDraft,
     this.assistantRequestId = 0,
+    this.onOpenAssistant,
   });
 
   final FfmAssistantDraft? assistantDraft;
   final int assistantRequestId;
+  final Future<void> Function()? onOpenAssistant;
 
   @override
   State<TransactionListPage> createState() => _TransactionListPageState();
@@ -1367,6 +1369,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
         actions: _isSearchOpen
             ? const [SizedBox(width: 8)]
             : [
+                if (widget.onOpenAssistant != null)
+                  IconButton(
+                    tooltip: 'Buka Asisten FFM',
+                    onPressed: widget.onOpenAssistant,
+                    icon: const Icon(Icons.auto_awesome_outlined),
+                  ),
                 IconButton(
                   tooltip: 'Cari transaksi',
                   onPressed: _openSearch,

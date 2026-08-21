@@ -48,3 +48,11 @@
 - [x] Tampilkan saran yang menjelaskan alasan dan membuka tindakan yang relevan.
 - [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
 - [x] Commit, kemas source, dan build APK release dengan keystore lama.
+
+# Akses Asisten dan Respons Gagal-Paham
+
+- [x] Audit FAB halaman dan contoh pertanyaan yang belum dipahami Asisten.
+- [x] Pindahkan akses Asisten ke AppBar pada halaman yang sudah memiliki FAB utama.
+- [x] Perjelas status “Yang Aku Pahami” serta bantuan untuk pertanyaan di luar kemampuan aplikasi.
+- [x] Tambahkan regresi, jalankan formatter, analyzer, dan seluruh test.
+- [x] Commit, kemas source, dan build APK release dengan keystore lama.
