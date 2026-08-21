@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_context.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../domain/entities/activity_entity.dart';
+import '../../domain/activity_voice.dart';
 
 class ActivityState {
   const ActivityState({
@@ -183,6 +184,92 @@ class ActivityBloc extends Cubit<ActivityState> {
       ),
     );
   }
+
+  Future<void> executeVoiceIntent(ActivityVoiceIntent intent) async {
+    if (!intent.canConfirm) {
+      throw StateError(
+        intent.ambiguityReason ?? 'Perintah voice belum siap dikonfirmasi.',
+      );
+    }
+    switch (intent.type) {
+      case ActivityVoiceIntentType.start:
+        final title = intent.targetTitle;
+        if (title == null || title.trim().isEmpty) {
+          throw StateError('Nama aktivitasnya belum jelas.');
+        }
+        await startSession(
+          title: title,
+          category: 'lainnya',
+          notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+        );
+      case ActivityVoiceIntentType.startChild:
+        final title = intent.targetTitle;
+        final parentId = intent.parentSessionId;
+        if (title == null || title.trim().isEmpty || parentId == null) {
+          throw StateError('Aktivitas atau induknya belum jelas.');
+        }
+        await startSession(
+          title: title,
+          category: 'lainnya',
+          notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+          parentSessionId: parentId,
+        );
+      case ActivityVoiceIntentType.finish:
+        final sessionId = intent.targetSessionId;
+        if (sessionId == null) throw StateError('Sesi target belum dipilih.');
+        await finishSession(sessionId: sessionId);
+      case ActivityVoiceIntentType.checkpoint:
+        final sessionId = intent.targetSessionId;
+        final label = intent.checkpointLabel;
+        if (sessionId == null || label == null || label.trim().isEmpty) {
+          throw StateError('Sesi atau update belum jelas.');
+        }
+        await addCheckpoint(
+          sessionId: sessionId,
+          label: label,
+          note: 'Dicatat lewat voice: ${intent.rawTranscript}',
+        );
+      case ActivityVoiceIntentType.note:
+        final sessionId = intent.targetSessionId;
+        if (sessionId == null) {
+          throw StateError('Pilih aktivitas tujuan untuk catatan voice ini.');
+        }
+        await addCheckpoint(
+          sessionId: sessionId,
+          label: 'Catatan suara',
+          note: intent.rawTranscript,
+        );
+      case ActivityVoiceIntentType.confirm:
+      case ActivityVoiceIntentType.cancel:
+      case ActivityVoiceIntentType.unknown:
+        throw StateError('Perintah voice belum bisa dijalankan.');
+    }
+    await repository.recordVoiceCommand(
+      householdId: AppContext.householdId,
+      rawTranscript: intent.rawTranscript,
+      normalizedText: intent.normalizedText,
+      intent: intent.type.name,
+      status: ActivityVoiceStatus.confirmed.name,
+      targetSessionId: intent.targetSessionId ?? intent.parentSessionId,
+      confidence: intent.confidence,
+      resultMessage: 'Aksi voice berhasil disimpan.',
+    );
+  }
+
+  Future<void> recordVoiceIntent(
+    ActivityVoiceIntent intent, {
+    required ActivityVoiceStatus status,
+    String? resultMessage,
+  }) => repository.recordVoiceCommand(
+    householdId: AppContext.householdId,
+    rawTranscript: intent.rawTranscript,
+    normalizedText: intent.normalizedText,
+    intent: intent.type.name,
+    status: status.name,
+    targetSessionId: intent.targetSessionId ?? intent.parentSessionId,
+    confidence: intent.confidence,
+    resultMessage: resultMessage,
+  );
 
   Future<void> saveEntry(ActivityJournalEntryEntity entity) async {
     await _save(() => repository.saveEntry(entity));

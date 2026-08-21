@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.Settings
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -16,9 +18,15 @@ class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingWidgetAction: String? = null
     private var widgetChannel: MethodChannel? = null
+    private var textToSpeech: TextToSpeech? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        textToSpeech = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                textToSpeech?.language = Locale("id", "ID")
+            }
+        }
         pendingWidgetAction = intent?.getStringExtra(WIDGET_ACTION_EXTRA)
         intent?.removeExtra(WIDGET_ACTION_EXTRA)
         widgetChannel = MethodChannel(
@@ -60,6 +68,33 @@ class MainActivity : FlutterActivity() {
                 }
             }
             startActivityForResult(intent, REQUEST_CODE)
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            SPEECH_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "speak" -> {
+                    val text = call.argument<String>("text").orEmpty().trim()
+                    if (text.isBlank()) {
+                        result.success(false)
+                    } else {
+                        val code = textToSpeech?.speak(
+                            text,
+                            TextToSpeech.QUEUE_FLUSH,
+                            null,
+                            "ffm-activity-preview",
+                        ) ?: TextToSpeech.ERROR
+                        result.success(code == TextToSpeech.SUCCESS)
+                    }
+                }
+                "stop" -> {
+                    textToSpeech?.stop()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
         }
 
         MethodChannel(
@@ -111,6 +146,13 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onDestroy() {
+        textToSpeech?.stop()
+        textToSpeech?.shutdown()
+        textToSpeech = null
+        super.onDestroy()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_CODE) return
@@ -142,6 +184,7 @@ class MainActivity : FlutterActivity() {
         private const val WIDGET_ACTION_EXTRA = "ffm_widget_action"
         private const val SOUND_CHANNEL = "ffm/reminder_sound"
         private const val PRIVACY_CHANNEL = "ffm/privacy"
+        private const val SPEECH_CHANNEL = "ffm/activity_speech"
         private const val REQUEST_CODE = 7201
     }
 }

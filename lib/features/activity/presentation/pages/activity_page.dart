@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../data/services/activity_speech_service.dart';
+import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
 
@@ -33,6 +35,13 @@ class _ActivityViewState extends State<_ActivityView>
   String _typeFilter = 'Semua';
   DateTime? _dayFilter;
   final _calculator = const ActivityDurationCalculator();
+  final _voiceParser = const ActivityVoiceParser();
+  final _speechService = ActivitySpeechService();
+  ActivityVoiceIntent? _voiceIntent;
+  String _voiceText = '';
+  String? _voiceError;
+  String _voiceStatus = 'Siap bicara';
+  bool _voiceInitialized = false;
 
   @override
   void initState() {
@@ -216,6 +225,209 @@ class _ActivityViewState extends State<_ActivityView>
     );
   }
 
+  Future<void> _startVoiceCapture() async {
+    if (!mounted) return;
+    setState(() {
+      _voiceError = null;
+      _voiceStatus = 'Menyiapkan mikrofon...';
+      _voiceText = '';
+    });
+    if (!_voiceInitialized) {
+      final initialized = await _speechService.initialize(
+        onError: (message) {
+          if (!mounted) return;
+          setState(() {
+            _voiceError = message;
+            _voiceStatus = 'Voice belum siap';
+          });
+        },
+        onStatus: (status) {
+          if (!mounted) return;
+          setState(() => _voiceStatus = status);
+        },
+      );
+      if (!initialized) {
+        if (!mounted) return;
+        setState(() {
+          _voiceError = 'Pengenalan suara belum tersedia. Coba izinkan mikrofon atau ketik manual.';
+          _voiceStatus = 'Ketik manual dulu';
+        });
+        return;
+      }
+      _voiceInitialized = true;
+    }
+    if (!mounted) return;
+    setState(() => _voiceStatus = 'Silakan bicara...');
+    await _speechService.listen(
+      onResult: (text, isFinal) {
+        if (!mounted) return;
+        setState(() {
+          _voiceText = text;
+          _voiceStatus = isFinal ? 'Teks sudah ditangkap' : 'Mendengarkan...';
+        });
+        if (isFinal && text.trim().isNotEmpty) {
+          _previewVoice(text);
+        }
+      },
+      onSoundLevel: (_) {},
+    );
+  }
+
+  Future<void> _stopVoiceCapture() async {
+    await _speechService.stop();
+    if (!mounted) return;
+    if (_voiceText.trim().isNotEmpty) {
+      _previewVoice(_voiceText);
+    } else {
+      setState(() => _voiceStatus = 'Belum ada suara yang terbaca');
+    }
+  }
+
+  void _previewVoice(String transcript) {
+    final state = context.read<ActivityBloc>().state;
+    final parsed = _voiceParser.parse(
+      transcript,
+      activeSessions: state.activeSessions,
+    );
+    if (parsed.type == ActivityVoiceIntentType.confirm &&
+        _voiceIntent?.canConfirm == true) {
+      _confirmVoice();
+      return;
+    }
+    if (parsed.type == ActivityVoiceIntentType.cancel) {
+      _cancelVoice();
+      return;
+    }
+    var intent = parsed;
+    if (intent.type == ActivityVoiceIntentType.note &&
+        intent.targetSessionId == null &&
+        state.activeSessions.length == 1) {
+      final session = state.activeSessions.single;
+      intent = intent.copyWith(
+        targetSessionId: session.id,
+        targetTitle: session.title,
+      );
+    }
+    setState(() {
+      _voiceIntent = intent;
+      _voiceText = transcript;
+      _voiceError = null;
+      _voiceStatus = 'Cek dulu hasilnya sebelum disimpan';
+    });
+    context.read<ActivityBloc>().recordVoiceIntent(
+      intent,
+      status: ActivityVoiceStatus.preview,
+    );
+    _speakVoicePreview(intent);
+  }
+
+  Future<void> _speakVoicePreview(ActivityVoiceIntent intent) async {
+    final target = intent.targetTitle == null
+        ? ''
+        : ' untuk ${intent.targetTitle}';
+    final detail = intent.type == ActivityVoiceIntentType.startChild
+        ? ' di dalam ${intent.parentTitle}'
+        : '';
+    final message = intent.ambiguityReason == null
+        ? '${intent.actionLabel}$target$detail. Kalau sudah benar, bilang OK.'
+        : intent.ambiguityReason!;
+    try {
+      await _speechService.speak(message);
+    } catch (_) {
+      // TTS hanya membantu mengulang hasil; preview teks tetap bisa dipakai.
+    }
+  }
+
+  Future<void> _editVoiceText() async {
+    final edited = await showDialog<String>(
+      context: context,
+      builder: (_) => _VoiceTextEditor(initialText: _voiceText),
+    );
+    if (edited == null || edited.trim().isEmpty || !mounted) return;
+    _previewVoice(edited.trim());
+  }
+
+  Future<void> _confirmVoice() async {
+    final intent = _voiceIntent;
+    if (intent == null) return;
+    if (!intent.canConfirm) {
+      setState(
+        () => _voiceError = intent.ambiguityReason ?? 'Hasilnya belum lengkap.',
+      );
+      return;
+    }
+    setState(() {
+      _voiceStatus = 'Menyimpan perintah...';
+      _voiceError = null;
+    });
+    try {
+      await context.read<ActivityBloc>().executeVoiceIntent(intent);
+      if (!mounted) return;
+      setState(() {
+        _voiceIntent = null;
+        _voiceText = '';
+        _voiceStatus = 'Selesai disimpan';
+      });
+      await _speechService.speak(
+        'Oke, ${intent.actionLabel.toLowerCase()} sudah disimpan.',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${intent.actionLabel} sudah disimpan.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _voiceError = error.toString().replaceFirst('Bad state: ', '');
+        _voiceStatus = 'Belum disimpan';
+      });
+      await context.read<ActivityBloc>().recordVoiceIntent(
+        intent,
+        status: ActivityVoiceStatus.failed,
+        resultMessage: _voiceError,
+      );
+    }
+  }
+
+  Future<void> _cancelVoice() async {
+    final intent = _voiceIntent;
+    if (intent != null) {
+      await context.read<ActivityBloc>().recordVoiceIntent(
+        intent,
+        status: ActivityVoiceStatus.cancelled,
+        resultMessage: 'Dibatalkan pengguna.',
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _voiceIntent = null;
+      _voiceText = '';
+      _voiceError = null;
+      _voiceStatus = 'Dibatalkan';
+    });
+    await _speechService.stopSpeaking();
+  }
+
+  void _selectVoiceTarget(String? sessionId) {
+    if (sessionId == null || _voiceIntent == null) return;
+    ActivitySessionEntity? session;
+    for (final item in context.read<ActivityBloc>().state.activeSessions) {
+      if (item.id == sessionId) {
+        session = item;
+        break;
+      }
+    }
+    if (session == null) return;
+    final selectedSession = session;
+    setState(() {
+      _voiceIntent = _voiceIntent!.copyWith(
+        targetSessionId: selectedSession.id,
+        targetTitle: selectedSession.title,
+        clearAmbiguity: true,
+      );
+    });
+  }
+
   Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -317,6 +529,24 @@ class _ActivityViewState extends State<_ActivityView>
                     message: 'Mulai satu aktivitas, lalu tekan Update aktivitas setiap kali ada perubahan. Aktivitas di dalamnya punya timer sendiri. Kalau aplikasi ditutup paksa, sesi aktif tetap tersimpan dan dilanjutkan saat aplikasi dibuka lagi.',
 
                     icon: Icons.timeline_outlined,
+                  ),
+                  const SizedBox(height: 16),
+                  _VoiceActivityCard(
+                    intent: _voiceIntent,
+                    text: _voiceText,
+                    status: _voiceStatus,
+                    error: _voiceError,
+                    isListening: _speechService.isListening,
+                    activeSessions: state.activeSessions,
+                    onListen: _startVoiceCapture,
+                    onStop: _stopVoiceCapture,
+                    onEdit: _editVoiceText,
+                    onSpeak: _voiceIntent == null
+                        ? null
+                        : () => _speakVoicePreview(_voiceIntent!),
+                    onSelectTarget: _selectVoiceTarget,
+                    onConfirm: _confirmVoice,
+                    onCancel: _cancelVoice,
                   ),
                   const SizedBox(height: 16),
                   AppCard(
@@ -896,3 +1126,240 @@ String _dateOnly(DateTime value) =>
     '${_two(value.day)}/${_two(value.month)}/${value.year}';
 String _dateTime(DateTime value) =>
     '${_two(value.day)}/${_two(value.month)}/${value.year} ${_time(value)}';
+
+class _VoiceActivityCard extends StatelessWidget {
+  const _VoiceActivityCard({
+    required this.intent,
+    required this.text,
+    required this.status,
+    required this.error,
+    required this.isListening,
+    required this.activeSessions,
+    required this.onListen,
+    required this.onStop,
+    required this.onEdit,
+    required this.onSpeak,
+    required this.onSelectTarget,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final ActivityVoiceIntent? intent;
+  final String text;
+  final String status;
+  final String? error;
+  final bool isListening;
+  final List<ActivitySessionEntity> activeSessions;
+  final VoidCallback onListen;
+  final VoidCallback onStop;
+  final VoidCallback onEdit;
+  final VoidCallback? onSpeak;
+  final ValueChanged<String?> onSelectTarget;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final needsTarget =
+        intent != null &&
+        intent!.targetSessionId == null &&
+        (intent!.type == ActivityVoiceIntentType.finish ||
+            intent!.type == ActivityVoiceIntentType.checkpoint ||
+            intent!.type == ActivityVoiceIntentType.note);
+    return AppCard(
+      color: scheme.secondaryContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.record_voice_over_outlined, color: scheme.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Ngobrol soal aktivitas',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Bantuan voice',
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => const AlertDialog(
+                    title: Text('Voice Aktivitas'),
+                    content: Text(
+                      'Contoh: “mulai makan”, “makan selesai”, “mulai makan di dalam perjalanan”, atau “update perjalanan sampai pasar”. Hasil selalu ditampilkan dan dibacakan dulu. Aksi baru disimpan setelah kamu menekan Konfirmasi atau mengucapkan OK.',
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.info_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Bicara santai, cek teksnya, lalu konfirmasi. Tidak ada aksi yang jalan diam-diam.',
+            style: TextStyle(color: scheme.onSecondaryContainer),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              FilledButton.icon(
+                onPressed: isListening ? onStop : onListen,
+                icon: Icon(isListening ? Icons.stop : Icons.mic_none),
+                label: Text(isListening ? 'Stop dengar' : 'Bicara'),
+              ),
+              const SizedBox(width: 8),
+              Text(status, style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ),
+          if (text.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text('“$text”'),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Edit teks'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onSpeak,
+                  icon: const Icon(Icons.volume_up_outlined),
+                  label: const Text('Bacakan lagi'),
+                ),
+              ],
+            ),
+          ],
+          if (intent != null) ...[
+            const Divider(height: 24),
+            Text(
+              'Aksi yang akan dilakukan: ${intent!.actionLabel}',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            if (intent!.targetTitle != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Aktivitas: ${intent!.targetTitle}'),
+              ),
+            if (intent!.parentTitle != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Induk: ${intent!.parentTitle}'),
+              ),
+            if (intent!.checkpointLabel != null &&
+                intent!.type == ActivityVoiceIntentType.checkpoint)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('Update: ${intent!.checkpointLabel}'),
+              ),
+            if (needsTarget && activeSessions.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: intent!.targetSessionId,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Pilih aktivitas tujuan',
+                  border: OutlineInputBorder(),
+                ),
+                items: activeSessions
+                    .map(
+                      (session) => DropdownMenuItem(
+                        value: session.id,
+                        child: Text(session.title),
+                      ),
+                    )
+                    .toList(),
+                onChanged: onSelectTarget,
+              ),
+            ],
+            if (intent!.ambiguityReason != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  intent!.ambiguityReason!,
+                  style: TextStyle(color: scheme.error),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton(onPressed: onCancel, child: const Text('Batal')),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: intent!.canConfirm ? onConfirm : null,
+                  icon: const Icon(Icons.check),
+                  label: const Text('Konfirmasi'),
+                ),
+              ],
+            ),
+          ],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            Text(error!, style: TextStyle(color: scheme.error)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _VoiceTextEditor extends StatefulWidget {
+  const _VoiceTextEditor({required this.initialText});
+
+  final String initialText;
+
+  @override
+  State<_VoiceTextEditor> createState() => _VoiceTextEditorState();
+}
+
+class _VoiceTextEditorState extends State<_VoiceTextEditor> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Perbaiki teks voice'),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      maxLines: 4,
+      decoration: const InputDecoration(
+        hintText: 'Contoh: makan selesai',
+        border: OutlineInputBorder(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Batal'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text.trim()),
+        child: const Text('Pakai teks ini'),
+      ),
+    ],
+  );
+}

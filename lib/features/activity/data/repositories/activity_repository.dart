@@ -206,6 +206,30 @@ class ActivityRepository {
     );
   }
 
+  Future<void> recordVoiceCommand({
+    required String householdId,
+    required String rawTranscript,
+    required String normalizedText,
+    required String intent,
+    required String status,
+    String? targetSessionId,
+    double? confidence,
+    String? resultMessage,
+  }) => auditLogger.record(
+    action: 'voice_command_$status',
+    entity: 'activity_voice_command',
+    householdId: householdId,
+    newValue: {
+      'rawTranscript': rawTranscript,
+      'normalizedText': normalizedText,
+      'intent': intent,
+      'status': status,
+      'targetSessionId': targetSessionId,
+      'confidence': confidence,
+      'resultMessage': resultMessage,
+    },
+  );
+
   Future<void> deleteSessionPermanently(String householdId, String id) async {
     final session = await getSession(householdId, id);
     if (session == null) return;
