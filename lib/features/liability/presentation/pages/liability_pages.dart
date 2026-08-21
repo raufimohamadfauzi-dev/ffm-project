@@ -351,7 +351,10 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
 }
 
 class LiabilityFormPage extends StatefulWidget {
-  const LiabilityFormPage({super.key});
+  const LiabilityFormPage({super.key, this.initialName, this.initialAmount});
+
+  final String? initialName;
+  final int? initialAmount;
 
   @override
   State<LiabilityFormPage> createState() => _LiabilityFormPageState();
@@ -365,6 +368,17 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
   final _installmentController = TextEditingController();
   final _interestController = TextEditingController();
   var _dueDate = DateTime.now().add(const Duration(days: 30));
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.initialName ?? '';
+    if (widget.initialAmount != null) {
+      final amount = widget.initialAmount.toString();
+      _originalController.text = amount;
+      _remainingController.text = amount;
+    }
+  }
 
   @override
   void dispose() {

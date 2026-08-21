@@ -4,6 +4,8 @@ import '../database/app_database.dart';
 import '../database/audit_logger.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
+import '../../features/assistant/data/ffm_assistant_interpreter.dart';
+import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -110,6 +112,12 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
     OfflineAiEngineService.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantLocalMemory>(
+    FfmAssistantLocalMemory.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantInterpreter>(
+    () => FfmAssistantInterpreter(db, getIt<FfmAssistantLocalMemory>()),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(
     () => JsonExportStudioService(db),

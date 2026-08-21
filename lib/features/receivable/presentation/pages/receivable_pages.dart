@@ -310,7 +310,10 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
 }
 
 class ReceivableFormPage extends StatefulWidget {
-  const ReceivableFormPage({super.key});
+  const ReceivableFormPage({super.key, this.initialName, this.initialAmount});
+
+  final String? initialName;
+  final int? initialAmount;
 
   @override
   State<ReceivableFormPage> createState() => _ReceivableFormPageState();
@@ -324,6 +327,17 @@ class _ReceivableFormPageState extends State<ReceivableFormPage> {
   final _installmentController = TextEditingController();
   final _interestController = TextEditingController();
   var _dueDate = DateTime.now().add(const Duration(days: 30));
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController.text = widget.initialName ?? '';
+    if (widget.initialAmount != null) {
+      final amount = widget.initialAmount.toString();
+      _originalController.text = amount;
+      _remainingController.text = amount;
+    }
+  }
 
   @override
   void dispose() {

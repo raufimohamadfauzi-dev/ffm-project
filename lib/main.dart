@@ -4,9 +4,19 @@ import 'package:flutter/services.dart';
 import 'core/database/app_database.dart';
 import 'core/di/injection.dart';
 import 'core/theme/theme_preference.dart';
+import 'features/assistant/domain/ffm_assistant_models.dart';
+import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
+import 'features/asset/presentation/pages/asset_pages.dart';
+import 'features/backup/presentation/pages/backup_page.dart';
+import 'features/backup/presentation/pages/monthly_report_page.dart';
+import 'features/goal/presentation/pages/goal_pages.dart';
+import 'features/liability/presentation/pages/liability_pages.dart';
 import 'features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
+import 'features/receivable/presentation/pages/receivable_pages.dart';
 import 'features/reminder/data/services/reminder_notification_service.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
+import 'features/reminder/presentation/pages/reminder_page.dart';
+import 'features/settings/presentation/pages/master_data_page.dart';
 import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
@@ -113,6 +123,8 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   static const _widgetChannel = MethodChannel('ffm/widget');
   var _index = 0;
+  var _assistantRequestId = 0;
+  FfmAssistantDraft? _assistantTransactionDraft;
 
   @override
   void initState() {
@@ -172,15 +184,97 @@ class _AppShellState extends State<AppShell> {
 
   List<Widget> get _pages => [
     const SummaryPage(),
-    const TransactionListPage(),
+    TransactionListPage(
+      assistantDraft: _assistantTransactionDraft,
+      assistantRequestId: _assistantRequestId,
+    ),
     const EnvelopeBudgetPage(),
     const AnalysisPage(),
     const OtherMenuPage(),
   ];
 
+  Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
+    final destination = intent.destination;
+    if (destination == null) return;
+    switch (destination) {
+      case FfmAssistantDestination.summary:
+        setState(() => _index = 0);
+      case FfmAssistantDestination.transactions:
+        if (intent.draft != null) {
+          setState(() {
+            _index = 1;
+            _assistantTransactionDraft = intent.draft;
+            _assistantRequestId++;
+          });
+        } else {
+          setState(() => _index = 1);
+        }
+      case FfmAssistantDestination.budget:
+        setState(() => _index = 2);
+      case FfmAssistantDestination.analysis:
+        setState(() => _index = 3);
+      case FfmAssistantDestination.otherMenu:
+        setState(() => _index = 4);
+      case FfmAssistantDestination.masterData:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const MasterDataPage()));
+      case FfmAssistantDestination.assets:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const AssetListPage()));
+      case FfmAssistantDestination.goals:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const GoalListPage()));
+      case FfmAssistantDestination.liabilities:
+        final draft = intent.draft;
+        if (draft?.kind == FfmAssistantDraftKind.liability) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => LiabilityFormPage(
+                initialName: draft!.partyName,
+                initialAmount: draft.amount,
+              ),
+            ),
+          );
+        } else if (draft?.kind == FfmAssistantDraftKind.receivable) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ReceivableFormPage(
+                initialName: draft!.partyName,
+                initialAmount: draft.amount,
+              ),
+            ),
+          );
+        } else {
+          setState(() => _index = 4);
+        }
+      case FfmAssistantDestination.activity:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
+      case FfmAssistantDestination.reminders:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ReminderPage()));
+      case FfmAssistantDestination.backup:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const BackupPage()));
+      case FfmAssistantDestination.monthlyReport:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const MonthlyReportPage()));
+      case FfmAssistantDestination.reconciliation:
+        setState(() => _index = 4);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _index, children: _pages),
+    floatingActionButton: FloatingActionButton.extended(
+      heroTag: 'ffm-assistant',
+      tooltip: 'Buka Asisten FFM',
+      onPressed: () =>
+          showFfmAssistantSheet(context, onIntent: _handleAssistantIntent),
+      icon: const Icon(Icons.auto_awesome_outlined),
+      label: const Text('Asisten'),
+    ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
       onDestinationSelected: (value) => setState(() => _index = value),

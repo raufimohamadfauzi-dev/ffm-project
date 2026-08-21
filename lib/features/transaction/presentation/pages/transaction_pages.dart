@@ -36,6 +36,7 @@ import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
 
 List<Category> _transactionCategoryOptions(
   List<Category> categories,
@@ -71,7 +72,14 @@ String _transactionCategoryLabel(
 }
 
 class TransactionListPage extends StatefulWidget {
-  const TransactionListPage({super.key});
+  const TransactionListPage({
+    super.key,
+    this.assistantDraft,
+    this.assistantRequestId = 0,
+  });
+
+  final FfmAssistantDraft? assistantDraft;
+  final int assistantRequestId;
 
   @override
   State<TransactionListPage> createState() => _TransactionListPageState();
@@ -94,6 +102,57 @@ class _TransactionListPageState extends State<TransactionListPage> {
   void initState() {
     super.initState();
     _loadTransactions();
+  }
+
+  @override
+  void didUpdateWidget(covariant TransactionListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.assistantRequestId == oldWidget.assistantRequestId ||
+        widget.assistantDraft == null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openAssistantDraft(widget.assistantDraft!);
+    });
+  }
+
+  Future<void> _openAssistantDraft(FfmAssistantDraft draft) async {
+    switch (draft.kind) {
+      case FfmAssistantDraftKind.income:
+      case FfmAssistantDraftKind.expense:
+        final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
+          MaterialPageRoute(
+            builder: (_) => TransactionFormPage(
+              initialType: draft.kind == FfmAssistantDraftKind.income
+                  ? TransactionType.income
+                  : TransactionType.expense,
+              initialAmount: draft.amount,
+              initialAccountName: draft.toAccountName ?? draft.fromAccountName,
+              initialNote: draft.note,
+              initialDate: draft.date,
+            ),
+          ),
+        );
+        if (!mounted || drafts == null || drafts.isEmpty) return;
+        await _saveDrafts(drafts);
+      case FfmAssistantDraftKind.goalDeposit:
+        await _openGoalContribution();
+      case FfmAssistantDraftKind.goalUsage:
+        await _openGoalContribution(usage: true);
+      case FfmAssistantDraftKind.transfer:
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Draft transfer ${draft.fromAccountName ?? 'asal belum dipilih'} → ${draft.toAccountName ?? 'tujuan belum dipilih'} sudah terbaca. Cek detailnya sebelum simpan, ya.',
+            ),
+          ),
+        );
+        await _openTransfer();
+      case FfmAssistantDraftKind.liability:
+      case FfmAssistantDraftKind.receivable:
+        return;
+    }
   }
 
   Future<void> _loadTransactions() async {
@@ -1660,6 +1719,9 @@ class TransactionFormPage extends StatefulWidget {
     this.existingTransaction,
     this.initialType,
     this.initialNote,
+    this.initialAmount,
+    this.initialAccountName,
+    this.initialDate,
     this.showFirstTransactionGuide = false,
   });
 
@@ -1667,6 +1729,9 @@ class TransactionFormPage extends StatefulWidget {
   final TransactionWithItems? existingTransaction;
   final TransactionType? initialType;
   final String? initialNote;
+  final int? initialAmount;
+  final String? initialAccountName;
+  final DateTime? initialDate;
   final bool showFirstTransactionGuide;
 
   @override
@@ -1748,6 +1813,14 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     if (existing == null && widget.initialNote != null) {
       _noteController.text = widget.initialNote!;
     }
+    if (existing == null && widget.initialAmount != null) {
+      _amountController.text = formatRupiahInput(
+        widget.initialAmount.toString(),
+      );
+    }
+    if (existing == null && widget.initialDate != null) {
+      _date = widget.initialDate!;
+    }
     _loadCategories();
     _loadMerchants();
     _loadMasterTags();
@@ -1816,7 +1889,16 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               ..orderBy([(table) => OrderingTerm.asc(table.name)]))
             .get();
     if (!mounted) return;
-    setState(() => _accounts = accounts);
+    setState(() {
+      _accounts = accounts;
+      final targetName = widget.initialAccountName?.toLowerCase();
+      if (_accountId == null && targetName != null) {
+        final matches = accounts.where(
+          (account) => account.name.toLowerCase() == targetName,
+        );
+        if (matches.isNotEmpty) _accountId = matches.first.id;
+      }
+    });
     if (_accountId != null) await _loadSelectedAccountBalance(_accountId);
   }
 
