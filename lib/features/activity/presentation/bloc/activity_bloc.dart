@@ -8,6 +8,7 @@ import '../../domain/entities/activity_entity.dart';
 class ActivityState {
   const ActivityState({
     this.sessions = const [],
+    this.activeSessions = const [],
     this.entries = const [],
     this.checkpoints = const {},
     this.activeSession,
@@ -17,6 +18,7 @@ class ActivityState {
   });
 
   final List<ActivitySessionEntity> sessions;
+  final List<ActivitySessionEntity> activeSessions;
   final List<ActivityJournalEntryEntity> entries;
   final Map<String, List<ActivityCheckpointEntity>> checkpoints;
   final ActivitySessionEntity? activeSession;
@@ -26,6 +28,7 @@ class ActivityState {
 
   ActivityState copyWith({
     List<ActivitySessionEntity>? sessions,
+    List<ActivitySessionEntity>? activeSessions,
     List<ActivityJournalEntryEntity>? entries,
     Map<String, List<ActivityCheckpointEntity>>? checkpoints,
     ActivitySessionEntity? activeSession,
@@ -36,6 +39,7 @@ class ActivityState {
     bool clearError = false,
   }) => ActivityState(
     sessions: sessions ?? this.sessions,
+    activeSessions: activeSessions ?? this.activeSessions,
     entries: entries ?? this.entries,
     checkpoints: checkpoints ?? this.checkpoints,
     activeSession: clearActiveSession
@@ -58,7 +62,10 @@ class ActivityBloc extends Cubit<ActivityState> {
     try {
       final sessions = await repository.getSessions(AppContext.householdId);
       final entries = await repository.getEntries(AppContext.householdId);
-      final active = await repository.getActiveSession(AppContext.householdId);
+      final activeSessions = await repository.getActiveSessions(
+        AppContext.householdId,
+      );
+      final active = activeSessions.firstOrNull;
       final checkpointMap = <String, List<ActivityCheckpointEntity>>{};
       for (final session in sessions) {
         checkpointMap[session.id] = await repository.getCheckpoints(session.id);
@@ -66,10 +73,13 @@ class ActivityBloc extends Cubit<ActivityState> {
       emit(
         state.copyWith(
           sessions: sessions,
+          activeSessions: activeSessions,
           entries: entries,
           checkpoints: checkpointMap,
           activeSession: active,
+          clearActiveSession: active == null,
           loading: false,
+          saving: false,
         ),
       );
     } catch (error) {
@@ -87,12 +97,18 @@ class ActivityBloc extends Cubit<ActivityState> {
     required String category,
     String? notes,
     DateTime? startedAt,
+    String? parentSessionId,
   }) async {
     final now = startedAt ?? DateTime.now();
     await _save(() async {
-      final current = await repository.getActiveSession(AppContext.householdId);
-      if (current != null) {
-        throw StateError('Selesaikan aktivitas yang sedang berjalan dulu.');
+      if (parentSessionId != null) {
+        final parent = await repository.getSession(
+          AppContext.householdId,
+          parentSessionId,
+        );
+        if (parent == null || parent.status != ActivitySessionStatus.active) {
+          throw StateError('Aktivitas induknya sudah tidak berjalan.');
+        }
       }
       await repository.saveSession(
         ActivitySessionEntity(
@@ -100,6 +116,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           householdId: AppContext.householdId,
           title: title,
           category: category,
+          parentSessionId: parentSessionId,
           startedAt: now,
           status: ActivitySessionStatus.active,
           notes: notes,
@@ -109,10 +126,11 @@ class ActivityBloc extends Cubit<ActivityState> {
     });
   }
 
-  Future<void> finishSession({DateTime? endedAt}) async {
-    final current =
-        state.activeSession ??
-        await repository.getActiveSession(AppContext.householdId);
+  Future<void> finishSession({String? sessionId, DateTime? endedAt}) async {
+    final current = sessionId == null
+        ? state.activeSession ??
+              await repository.getActiveSession(AppContext.householdId)
+        : await repository.getSession(AppContext.householdId, sessionId);
     if (current == null) return;
     final end = endedAt ?? DateTime.now();
     await _save(
@@ -122,6 +140,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           householdId: current.householdId,
           title: current.title,
           category: current.category,
+          parentSessionId: current.parentSessionId,
           startedAt: current.startedAt,
           endedAt: end,
           status: ActivitySessionStatus.completed,
@@ -139,10 +158,12 @@ class ActivityBloc extends Cubit<ActivityState> {
     String? place,
     String? note,
     DateTime? occurredAt,
+    String? sessionId,
   }) async {
-    final session =
-        state.activeSession ??
-        await repository.getActiveSession(AppContext.householdId);
+    final session = sessionId == null
+        ? state.activeSession ??
+              await repository.getActiveSession(AppContext.householdId)
+        : await repository.getSession(AppContext.householdId, sessionId);
     if (session == null) return;
     final existing =
         state.checkpoints[session.id] ??

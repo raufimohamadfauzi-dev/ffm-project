@@ -37,7 +37,9 @@ class _ActivityViewState extends State<_ActivityView> {
   void initState() {
     super.initState();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      final activityState = context.read<ActivityBloc>().state;
+      if (activityState.activeSessions.isNotEmpty) setState(() {});
     });
   }
 
@@ -58,6 +60,7 @@ class _ActivityViewState extends State<_ActivityView> {
   Future<void> _showSessionDetails(
     ActivitySessionEntity session,
     List<ActivityCheckpointEntity> checkpoints,
+    List<ActivitySessionEntity> children,
   ) async {
     if (!mounted) return;
     await showModalBottomSheet<void>(
@@ -78,7 +81,9 @@ class _ActivityViewState extends State<_ActivityView> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text('${session.category} • ${_dateOnly(session.startedAt)}'),
+              Text(
+                '${session.category} • ${_dateOnly(session.startedAt)}${session.parentSessionId == null ? '' : ' • aktivitas di dalam sesi lain'}',
+              ),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -104,6 +109,27 @@ class _ActivityViewState extends State<_ActivityView> {
                   ),
                 ],
               ),
+              if (children.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Aktivitas di dalamnya',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                for (final child in children)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      child.status == ActivitySessionStatus.active
+                          ? Icons.play_circle_outline
+                          : Icons.check_circle_outline,
+                    ),
+                    title: Text(child.title),
+                    subtitle: Text(
+                      '${_dateTime(child.startedAt)} • ${_calculator.format(child.durationAt())}${child.endedAt == null ? ' • berjalan' : ''}',
+                    ),
+                  ),
+              ],
               if (session.notes?.isNotEmpty == true) ...[
                 const SizedBox(height: 14),
                 Text(session.notes!),
@@ -145,11 +171,14 @@ class _ActivityViewState extends State<_ActivityView> {
     setState(() => _dayFilter = picked);
   }
 
-  Future<void> _startSession() async {
+  Future<void> _startSession({
+    String? parentSessionId,
+    String? parentTitle,
+  }) async {
     final result = await showModalBottomSheet<_SessionDraft>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const _SessionForm(),
+      builder: (_) => _SessionForm(parentSessionTitle: parentTitle),
     );
     if (result == null || !mounted) return;
     await context.read<ActivityBloc>().startSession(
@@ -157,10 +186,11 @@ class _ActivityViewState extends State<_ActivityView> {
       category: result.category,
       notes: result.notes,
       startedAt: result.startedAt,
+      parentSessionId: parentSessionId,
     );
   }
 
-  Future<void> _addCheckpoint() async {
+  Future<void> _addCheckpoint({String? sessionId}) async {
     final result = await showModalBottomSheet<_CheckpointDraft>(
       context: context,
       isScrollControlled: true,
@@ -172,6 +202,7 @@ class _ActivityViewState extends State<_ActivityView> {
       place: result.place,
       note: result.note,
       occurredAt: result.occurredAt,
+      sessionId: sessionId,
     );
   }
 
@@ -324,23 +355,21 @@ class _ActivityViewState extends State<_ActivityView> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  if (state.activeSession != null)
-                    _ActiveSessionCard(
-                      session: state.activeSession!,
-                      checkpoints:
-                          state.checkpoints[state.activeSession!.id] ??
-                          const [],
-                      calculator: _calculator,
-                      onCheckpoint: _addCheckpoint,
-                      onFinish: () =>
-                          context.read<ActivityBloc>().finishSession(),
-                    ),
-                  if (state.activeSession != null) const SizedBox(height: 16),
                   Builder(
                     builder: (context) {
+                      final visibleActiveSessions = state.activeSessions
+                          .where(
+                            (session) =>
+                                (_typeFilter == 'Semua' ||
+                                    session.category == _typeFilter) &&
+                                _matchesDay(session.startedAt),
+                          )
+                          .toList();
                       final visibleSessions = state.sessions
                           .where(
                             (session) =>
+                                session.status !=
+                                    ActivitySessionStatus.active &&
                                 (_typeFilter == 'Semua' ||
                                     session.category == _typeFilter) &&
                                 _matchesDay(session.startedAt),
@@ -349,6 +378,32 @@ class _ActivityViewState extends State<_ActivityView> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (visibleActiveSessions.isNotEmpty) ...[
+                            _SectionTitle(
+                              title: 'Sedang berjalan',
+                              count: visibleActiveSessions.length,
+                            ),
+                            for (final session in visibleActiveSessions)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _ActiveSessionCard(
+                                  session: session,
+                                  checkpoints:
+                                      state.checkpoints[session.id] ?? const [],
+                                  calculator: _calculator,
+                                  onCheckpoint: () =>
+                                      _addCheckpoint(sessionId: session.id),
+                                  onFinish: () => context
+                                      .read<ActivityBloc>()
+                                      .finishSession(sessionId: session.id),
+                                  onStartChild: () => _startSession(
+                                    parentSessionId: session.id,
+                                    parentTitle: session.title,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                          ],
                           _SectionTitle(
                             title: 'Aktivitas tersimpan',
                             count: visibleSessions.length,
@@ -369,6 +424,12 @@ class _ActivityViewState extends State<_ActivityView> {
                                 onOpen: () => _showSessionDetails(
                                   session,
                                   state.checkpoints[session.id] ?? const [],
+                                  state.sessions
+                                      .where(
+                                        (child) =>
+                                            child.parentSessionId == session.id,
+                                      )
+                                      .toList(),
                                 ),
                                 onArchive: () => context
                                     .read<ActivityBloc>()
@@ -417,12 +478,14 @@ class _ActiveSessionCard extends StatelessWidget {
     required this.calculator,
     required this.onCheckpoint,
     required this.onFinish,
+    required this.onStartChild,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
   final ActivityDurationCalculator calculator;
   final VoidCallback onCheckpoint;
   final VoidCallback onFinish;
+  final VoidCallback onStartChild;
 
   @override
   Widget build(BuildContext context) {
@@ -480,6 +543,11 @@ class _ActiveSessionCard extends StatelessWidget {
                 onPressed: onCheckpoint,
                 icon: const Icon(Icons.flag_outlined),
                 label: const Text('Update posisi'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onStartChild,
+                icon: const Icon(Icons.account_tree_outlined),
+                label: const Text('Tambah di dalam'),
               ),
               FilledButton.icon(
                 onPressed: onFinish,
@@ -570,7 +638,9 @@ class _SessionDraft {
 }
 
 class _SessionForm extends StatefulWidget {
-  const _SessionForm();
+  const _SessionForm({this.parentSessionTitle});
+
+  final String? parentSessionTitle;
   @override
   State<_SessionForm> createState() => _SessionFormState();
 }
@@ -600,10 +670,16 @@ class _SessionFormState extends State<_SessionForm> {
     child: ListView(
       shrinkWrap: true,
       children: [
-        const Text(
-          'Mulai sesi aktivitas',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        Text(
+          widget.parentSessionTitle == null
+              ? 'Mulai sesi aktivitas'
+              : 'Tambah aktivitas di dalamnya',
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
         ),
+        if (widget.parentSessionTitle != null) ...[
+          const SizedBox(height: 6),
+          Text('Induk: ${widget.parentSessionTitle}'),
+        ],
         const SizedBox(height: 12),
         TextField(
           controller: _title,
@@ -667,7 +743,11 @@ class _SessionFormState extends State<_SessionForm> {
               ),
             );
           },
-          child: const Text('Mulai sekarang'),
+          child: Text(
+            widget.parentSessionTitle == null
+                ? 'Mulai sekarang'
+                : 'Mulai aktivitas anak',
+          ),
         ),
       ],
     ),

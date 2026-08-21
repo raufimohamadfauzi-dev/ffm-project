@@ -17,6 +17,7 @@ class ActivitySessionEntity {
     required this.householdId,
     required this.title,
     required this.category,
+    this.parentSessionId,
     required this.startedAt,
     required this.status,
     required this.createdAt,
@@ -30,6 +31,7 @@ class ActivitySessionEntity {
   final String householdId;
   final String title;
   final String category;
+  final String? parentSessionId;
   final DateTime startedAt;
   final DateTime? endedAt;
   final ActivitySessionStatus status;

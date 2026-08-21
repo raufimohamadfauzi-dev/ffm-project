@@ -36,8 +36,10 @@ class ActivityRepository {
     return row == null ? null : _sessionFromRow(row);
   }
 
-  Future<ActivitySessionEntity?> getActiveSession(String householdId) async {
-    final row =
+  Future<List<ActivitySessionEntity>> getActiveSessions(
+    String householdId,
+  ) async {
+    final rows =
         await (database.select(database.activitySessions)
               ..where(
                 (item) =>
@@ -45,9 +47,14 @@ class ActivityRepository {
                     item.status.equals(ActivitySessionStatus.active.value) &
                     item.isArchived.equals(false),
               )
-              ..limit(1))
-            .getSingleOrNull();
-    return row == null ? null : _sessionFromRow(row);
+              ..orderBy([(item) => OrderingTerm.asc(item.startedAt)]))
+            .get();
+    return rows.map(_sessionFromRow).toList();
+  }
+
+  Future<ActivitySessionEntity?> getActiveSession(String householdId) async {
+    final active = await getActiveSessions(householdId);
+    return active.firstOrNull;
   }
 
   Future<List<ActivityCheckpointEntity>> getCheckpoints(
@@ -84,6 +91,7 @@ class ActivityRepository {
             id: entity.id,
             householdId: entity.householdId,
             title: entity.title,
+            parentSessionId: Value(entity.parentSessionId),
             category: Value(entity.category),
             startedAt: entity.startedAt,
             endedAt: Value<DateTime?>(entity.endedAt),
@@ -170,29 +178,76 @@ class ActivityRepository {
   Future<void> deleteSessionPermanently(String householdId, String id) async {
     final session = await getSession(householdId, id);
     if (session == null) return;
-    final checkpoints = await getCheckpoints(id);
-    final linkedEntries =
-        await (database.select(database.activityEntries)..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.sessionId.equals(id),
-            ))
-            .get();
 
+    var deletedSessionIds = <String>[];
+    var checkpointCount = 0;
+    var linkedEntryCount = 0;
     await database.transaction(() async {
+      final allSessions = await (database.select(
+        database.activitySessions,
+      )..where((row) => row.householdId.equals(householdId))).get();
+      final childrenByParent = <String, List<String>>{};
+      for (final row in allSessions) {
+        final parentId = row.parentSessionId;
+        if (parentId != null) {
+          childrenByParent.putIfAbsent(parentId, () => []).add(row.id);
+        }
+      }
+      final pending = <String>[id];
+      final descendants = <String>{id};
+      while (pending.isNotEmpty) {
+        final parentId = pending.removeLast();
+        for (final childId in childrenByParent[parentId] ?? const <String>[]) {
+          if (descendants.add(childId)) pending.add(childId);
+        }
+      }
+      deletedSessionIds = descendants.toList(growable: false);
+
+      checkpointCount =
+          await (database.select(database.activityCheckpoints)
+                ..where((row) => row.sessionId.isIn(deletedSessionIds)))
+              .get()
+              .then((rows) => rows.length);
+      linkedEntryCount =
+          await (database.select(database.activityEntries)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.sessionId.isIn(deletedSessionIds),
+              ))
+              .get()
+              .then((rows) => rows.length);
+
       await (database.delete(
         database.activityCheckpoints,
-      )..where((row) => row.sessionId.equals(id))).go();
+      )..where((row) => row.sessionId.isIn(deletedSessionIds))).go();
       await (database.delete(database.activityEntries)..where(
             (row) =>
-                row.householdId.equals(householdId) & row.sessionId.equals(id),
+                row.householdId.equals(householdId) &
+                row.sessionId.isIn(deletedSessionIds),
           ))
           .go();
       await (database.delete(database.activitySessions)..where(
-            (row) => row.householdId.equals(householdId) & row.id.equals(id),
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.id.isIn(deletedSessionIds),
           ))
           .go();
     });
+
+    final remainingSessions = await (database.select(
+      database.activitySessions,
+    )..where((row) => row.id.isIn(deletedSessionIds))).get();
+    final remainingCheckpoints = await (database.select(
+      database.activityCheckpoints,
+    )..where((row) => row.sessionId.isIn(deletedSessionIds))).get();
+    final remainingEntries = await (database.select(
+      database.activityEntries,
+    )..where((row) => row.sessionId.isIn(deletedSessionIds))).get();
+    if (remainingSessions.isNotEmpty ||
+        remainingCheckpoints.isNotEmpty ||
+        remainingEntries.isNotEmpty) {
+      throw StateError('Aktivitas belum terhapus bersih dari perangkat.');
+    }
 
     await auditLogger.record(
       action: 'delete_permanently',
@@ -202,8 +257,9 @@ class ActivityRepository {
         'id': session.id,
         'title': session.title,
         'status': session.status.value,
-        'checkpointCount': checkpoints.length,
-        'linkedEntryCount': linkedEntries.length,
+        'deletedSessionCount': deletedSessionIds.length,
+        'checkpointCount': checkpointCount,
+        'linkedEntryCount': linkedEntryCount,
       },
     );
   }
@@ -250,6 +306,7 @@ class ActivityRepository {
         householdId: row.householdId,
         title: row.title,
         category: row.category,
+        parentSessionId: row.parentSessionId,
         startedAt: row.startedAt,
         endedAt: row.endedAt,
         status: ActivitySessionStatus.fromValue(row.status),

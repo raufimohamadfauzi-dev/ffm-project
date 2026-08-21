@@ -14,6 +14,7 @@ class OfflineToolHistoryService {
   static const _importsKey = 'offline_import_history';
   static const _healthReportsKey = 'offline_health_reports';
   static const _monthlyReportsKey = 'offline_monthly_reports';
+  static const _budgetWeekStartDayKey = 'budget_week_start_day';
 
   Future<List<ReconciliationRecord>> readReconciliations() async {
     final raw = await _storage.read(key: _reconciliationsKey);
@@ -121,6 +122,32 @@ class OfflineToolHistoryService {
     await _storage.write(
       key: _monthlyReportsKey,
       value: jsonEncode(reports.take(30).map((item) => item.toJson()).toList()),
+    );
+  }
+
+  Future<int> readBudgetWeekStartDay() async {
+    try {
+      final raw = await _storage
+          .read(key: _budgetWeekStartDayKey)
+          .timeout(const Duration(milliseconds: 800));
+      final value = int.tryParse(raw ?? '');
+      return value != null &&
+              value >= DateTime.monday &&
+              value <= DateTime.sunday
+          ? value
+          : DateTime.monday;
+    } catch (_) {
+      // Preferensi ini hanya pelengkap UI. Kalau storage belum siap atau
+      // platform test tidak menyediakan kanalnya, anggaran tetap jalan.
+      return DateTime.monday;
+    }
+  }
+
+  Future<void> saveBudgetWeekStartDay(int weekday) async {
+    final safeWeekday = weekday.clamp(DateTime.monday, DateTime.sunday);
+    await _storage.write(
+      key: _budgetWeekStartDayKey,
+      value: safeWeekday.toString(),
     );
   }
 

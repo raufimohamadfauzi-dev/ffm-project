@@ -9,7 +9,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
-import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
+import '../../../settings/data/offline_tool_history_service.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
@@ -22,6 +22,8 @@ enum _BudgetSort {
   tanggalTerbaru,
   tanggalTerlama,
 }
+
+enum _BudgetMenuAction { transferFunds, weekStart }
 
 class BudgetPage extends EnvelopeBudgetPage {
   const BudgetPage({super.key});
@@ -42,18 +44,30 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   var _transfers = <EnvelopeTransferRow>[];
   var _categories = <Category>[];
   final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  final _historyService = OfflineToolHistoryService();
   var _searchQuery = '';
+  var _showSearch = false;
   var _sort = _BudgetSort.nominalTerbesar;
   var _periodTypeFilter = 'weekly';
+  var _weekStartDay = DateTime.monday;
+
+  DateTime _startOfWeek(DateTime value) {
+    final date = DateTime(value.year, value.month, value.day);
+    final offset =
+        (date.weekday - _weekStartDay + DateTime.daysPerWeek) %
+        DateTime.daysPerWeek;
+    return date.subtract(Duration(days: offset));
+  }
 
   DateTime _periodStart(DateTime value, String periodType) {
     final date = DateTime(value.year, value.month, value.day);
     switch (periodType) {
       case 'weekly':
-        return date.subtract(Duration(days: date.weekday - 1));
+        return _startOfWeek(date);
       case 'biweekly':
-        final weekStart = date.subtract(Duration(days: date.weekday - 1));
-        final anchor = DateTime(weekStart.year, 1, 1);
+        final weekStart = _startOfWeek(date);
+        final anchor = _startOfWeek(DateTime(weekStart.year, 1, 1));
         final weeks = weekStart.difference(anchor).inDays ~/ 7;
         return weekStart.subtract(Duration(days: (weeks % 2) * 7));
       default:
@@ -101,10 +115,22 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
+  Future<int> _readWeekStartDay() async {
+    try {
+      return await _historyService.readBudgetWeekStartDay();
+    } catch (_) {
+      return DateTime.monday;
+    }
+  }
+
   Future<void> _load() async {
+    final storedWeekStartDay = await _readWeekStartDay();
+    _weekStartDay = storedWeekStartDay;
+
     final categories =
         await (_database.select(_database.categories)
               ..where(
@@ -147,12 +173,24 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         .toSet();
     final configuredIds = rows.expand((row) => row.categoryIds).toSet();
     if (!rows.any((row) => row.isOverall)) {
-      rows.insert(0, EnvelopeBudgetRow.overallPlaceholder(_periodTypeFilter));
+      rows.insert(
+        0,
+        EnvelopeBudgetRow.overallPlaceholder(
+          _periodTypeFilter,
+          weekStartDay: _weekStartDay,
+        ),
+      );
     }
     for (final category in categories) {
       if (activeCategoryIds.contains(category.id) &&
           !configuredIds.contains(category.id)) {
-        rows.add(EnvelopeBudgetRow.placeholder(category, _periodTypeFilter));
+        rows.add(
+          EnvelopeBudgetRow.placeholder(
+            category,
+            _periodTypeFilter,
+            weekStartDay: _weekStartDay,
+          ),
+        );
       }
     }
     final transfers =
@@ -370,6 +408,133 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     );
   }
 
+  String _weekdayName(int weekday) => const [
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ][weekday - 1];
+
+  String _weekdayEndName(int weekday) =>
+      _weekdayName(weekday == DateTime.monday ? DateTime.sunday : weekday - 1);
+
+  String _monthName(int month) => const [
+    'Januari',
+    'Februari',
+    'Maret',
+    'April',
+    'Mei',
+    'Juni',
+    'Juli',
+    'Agustus',
+    'September',
+    'Oktober',
+    'November',
+    'Desember',
+  ][month - 1];
+
+  String _activePeriodLabel() {
+    final start = _periodStart(DateTime.now(), _periodTypeFilter);
+    final end = _periodEnd(start, _periodTypeFilter);
+    if (_periodTypeFilter == 'weekly') {
+      return '${_weekdayName(start.weekday)} ${start.day}–${_weekdayName(end.weekday)} ${end.day} ${_monthName(end.month)} ${end.year}';
+    }
+    return '${start.day} ${_monthName(start.month)}–${end.day} ${_monthName(end.month)} ${end.year}';
+  }
+
+  Future<void> _showBudgetHelp() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cara kerja anggaran'),
+        content: const Text(
+          'Anggaran adalah batas rencana, bukan tempat mencatat pembayaran. '
+          'Catat transaksi seperti biasa; pengeluaran akan dihitung otomatis dari tanggal kejadian dan kategori. '
+          'Target total adalah batas utama, sedangkan target kategori bersifat opsional. '
+          'Kalau belum diatur, aplikasi tidak menganggap targetnya nol.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Oke, paham'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showWeekStartPicker() async {
+    final selected = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Hari mulai minggu'),
+        children: [
+          RadioGroup<int>(
+            groupValue: _weekStartDay,
+            onChanged: (value) {
+              if (value != null) Navigator.of(dialogContext).pop(value);
+            },
+            child: Column(
+              children: [
+                for (
+                  var weekday = DateTime.monday;
+                  weekday <= DateTime.sunday;
+                  weekday++
+                )
+                  RadioListTile<int>(
+                    value: weekday,
+                    title: Text(
+                      '${_weekdayName(weekday)}–${_weekdayEndName(weekday)}',
+                    ),
+                    subtitle: Text(
+                      weekday == DateTime.monday
+                          ? 'Setelan bawaan: Senin sampai Minggu'
+                          : 'Rentang 7 hari, mulai ${_weekdayName(weekday)}',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || selected == null || selected == _weekStartDay) return;
+    await _historyService.saveBudgetWeekStartDay(selected);
+    if (!mounted) return;
+    setState(() {
+      _weekStartDay = selected;
+      _loading = true;
+    });
+    await _load();
+  }
+
+  Future<void> _handleMenuAction(_BudgetMenuAction action) async {
+    switch (action) {
+      case _BudgetMenuAction.transferFunds:
+        await _transferFunds();
+      case _BudgetMenuAction.weekStart:
+        await _showWeekStartPicker();
+    }
+  }
+
+  void _openSearch() {
+    setState(() => _showSearch = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _searchFocusNode.requestFocus();
+    });
+  }
+
+  void _closeSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+      _showSearch = false;
+    });
+  }
+
   Future<void> _showMessage(String title, String message) {
     return showDialog<void>(
       context: context,
@@ -440,32 +605,30 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         .where((envelope) => _statusFor(envelope) != 'Aman')
         .toList(growable: false);
 
+    final hasTotalTarget = totalAllocated > 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Anggaran berbasis pos'),
         actions: [
-          PopupMenuButton<_BudgetSort>(
-            tooltip: 'Urutkan pos anggaran',
-            initialValue: _sort,
-            onSelected: (value) => setState(() => _sort = value),
-            icon: const Icon(Icons.sort_rounded),
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: _BudgetSort.nominalTerbesar,
-                child: Text('Nominal terbesar'),
+          IconButton(
+            tooltip: _showSearch ? 'Tutup pencarian' : 'Cari pos anggaran',
+            onPressed: _showSearch ? _closeSearch : _openSearch,
+            icon: Icon(_showSearch ? Icons.close : Icons.search),
+          ),
+          PopupMenuButton<_BudgetMenuAction>(
+            tooltip: 'Aksi anggaran lainnya',
+            onSelected: _handleMenuAction,
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _BudgetMenuAction.transferFunds,
+                child: Text('Atur ulang alokasi antarpos'),
               ),
-              PopupMenuItem(
-                value: _BudgetSort.nominalTerkecil,
-                child: Text('Nominal terkecil'),
-              ),
-              PopupMenuItem(
-                value: _BudgetSort.tanggalTerbaru,
-                child: Text('Tanggal terbaru'),
-              ),
-              PopupMenuItem(
-                value: _BudgetSort.tanggalTerlama,
-                child: Text('Tanggal terlama'),
-              ),
+              if (_periodTypeFilter == 'weekly')
+                PopupMenuItem(
+                  value: _BudgetMenuAction.weekStart,
+                  child: Text('Hari mulai: ${_weekdayName(_weekStartDay)}'),
+                ),
             ],
           ),
           IconButton(
@@ -485,25 +648,39 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: Column(
                       children: [
-                        const AppHelpBanner(
-                          title:
-                              'Anggaran itu batas rencana, bukan tempat bayar',
-                          message: 'Atur batas uang di sini. Pembayaran yang benar-benar terjadi tetap dicatat di Transaksi, lalu dihitung otomatis berdasarkan kategori yang kamu pilih.',
-                          icon: Icons.account_balance_wallet_outlined,
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Batas pengeluaran keluarga',
+                                style: AppTextStyles.labelCaps,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Cara kerja anggaran',
+                              onPressed: _showBudgetHelp,
+                              icon: const Icon(Icons.info_outline),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 12),
-                        SearchableDropdown<String>(
-                          items: const ['weekly', 'monthly'],
-                          selectedItem: _periodTypeFilter,
-                          itemLabel: (value) =>
-                              value == 'weekly' ? 'Mingguan' : 'Bulanan',
-                          labelText: 'Periode anggaran',
-                          helperText: 'Target total dan rincian kategori mengikuti periode ini.',
-                          searchHintText: 'Cari periode',
-                          cacheKey: 'anggaran.periode_aktif',
-                          onChanged: (value) {
-                            if (value == null || value == _periodTypeFilter)
-                              return;
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'weekly',
+                              label: Text('Mingguan'),
+                              icon: Icon(Icons.view_week_outlined),
+                            ),
+                            ButtonSegment(
+                              value: 'monthly',
+                              label: Text('Bulanan'),
+                              icon: Icon(Icons.calendar_month_outlined),
+                            ),
+                          ],
+                          selected: {_periodTypeFilter},
+                          onSelectionChanged: (selection) {
+                            final value = selection.first;
+                            if (value == _periodTypeFilter) return;
                             setState(() {
                               _periodTypeFilter = value;
                               _loading = true;
@@ -511,41 +688,58 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                             _load();
                           },
                         ),
-                        const SizedBox(height: 12),
-                        AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Ringkasan periode berjalan',
-                                style: AppTextStyles.labelCaps,
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.date_range_outlined, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _activePeriodLabel(),
+                                style: Theme.of(context).textTheme.bodySmall,
                               ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _SummaryValue(
-                                      label: 'Target total',
-                                      value: _money(totalAllocated),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _SummaryValue(
-                                      label: 'Sudah keluar',
-                                      value: _money(totalSpent),
-                                      color: AppColors.negative,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: _SummaryValue(
-                                      label: 'Sisa periode',
-                                      value: _money(totalRemaining),
-                                      color: totalRemaining < 0
-                                          ? AppColors.negative
-                                          : AppColors.primary,
-                                    ),
-                                  ),
-                                ],
+                            ),
+                            if (_periodTypeFilter == 'weekly')
+                              TextButton(
+                                onPressed: _showWeekStartPicker,
+                                child: Text(
+                                  'Mulai ${_weekdayName(_weekStartDay)}',
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        AppCard(
+                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _SummaryValue(
+                                  label: 'Target total',
+                                  value: hasTotalTarget
+                                      ? _money(totalAllocated)
+                                      : 'Belum diatur',
+                                ),
+                              ),
+                              Expanded(
+                                child: _SummaryValue(
+                                  label: 'Sudah keluar',
+                                  value: _money(totalSpent),
+                                  color: AppColors.negative,
+                                ),
+                              ),
+                              Expanded(
+                                child: _SummaryValue(
+                                  label: hasTotalTarget
+                                      ? 'Sisa periode'
+                                      : 'Status',
+                                  value: hasTotalTarget
+                                      ? _money(totalRemaining)
+                                      : 'Atur target',
+                                  color: hasTotalTarget && totalRemaining < 0
+                                      ? AppColors.negative
+                                      : AppColors.primary,
+                                ),
                               ),
                             ],
                           ),
@@ -553,31 +747,28 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                       ],
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (value) =>
-                          setState(() => _searchQuery = value),
-                      decoration: InputDecoration(
-                        labelText: 'Cari pos anggaran',
-                        hintText: 'Misalnya listrik, makan, atau cicilan',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: _searchQuery.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Hapus pencarian',
-                                onPressed: () {
-                                  _searchController.clear();
-                                  setState(() => _searchQuery = '');
-                                },
-                                icon: const Icon(Icons.clear),
-                              ),
-                        filled: true,
-                        fillColor: Theme.of(context).colorScheme.surface,
+                  if (_showSearch)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        onChanged: (value) =>
+                            setState(() => _searchQuery = value),
+                        decoration: InputDecoration(
+                          labelText: 'Cari pos anggaran',
+                          hintText: 'Misalnya listrik, makan, atau cicilan',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: IconButton(
+                            tooltip: 'Hapus pencarian',
+                            onPressed: _closeSearch,
+                            icon: const Icon(Icons.clear),
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context).colorScheme.surface,
+                        ),
                       ),
                     ),
-                  ),
                   const SizedBox(height: 8),
                   TabBar(
                     isScrollable: true,
@@ -591,54 +782,23 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                   Expanded(
                     child: TabBarView(
                       children: [
-                        _envelopeList(
-                          _sortEnvelopes(categoryEnvelopes),
-                          suggestionTitle: totalAllocated == 0
-                              ? 'Atur target total periode'
-                              : 'Pantau laju pengeluaran',
-                          suggestionMessage: totalAllocated == 0
-                              ? 'Atur batas total pengeluaran dulu. Rincian kategori akan muncul otomatis dari transaksi; target kategori boleh diisi kalau ingin dipantau lebih ketat.'
-                              : 'Kalau pemakaian lebih cepat dari waktu berjalan, rem pengeluaran berikutnya supaya target periode tidak jebol.',
-                        ),
-                        _envelopeList(
-                          _sortEnvelopes(unconfigured),
-                          suggestionTitle:
-                              'Rincian kategori belum punya target',
-                          suggestionMessage: 'Kategori ini tetap dihitung ke target total. Isi target kategori kalau kamu ingin indikator khusus untuk kategori tersebut.',
-                        ),
+                        _envelopeList(_sortEnvelopes(categoryEnvelopes)),
+                        _envelopeList(_sortEnvelopes(unconfigured)),
                         _envelopeList(_sortEnvelopes(configured)),
-                        _envelopeList(
-                          _sortEnvelopes(attention),
-                          suggestionTitle: 'Cek pos yang perlu perhatian',
-                          suggestionMessage: 'Lihat pos yang mendekati batas, pemakaiannya terlalu cepat, atau sudah melewati target.',
-                        ),
+                        _envelopeList(_sortEnvelopes(attention)),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _loading ? null : _transferFunds,
-        icon: const Icon(Icons.swap_horiz),
-        label: const Text('Atur ulang pos'),
-      ),
     );
   }
 
-  Widget _envelopeList(
-    List<EnvelopeBudgetRow> envelopes, {
-    String? suggestionTitle,
-    String? suggestionMessage,
-  }) {
+  Widget _envelopeList(List<EnvelopeBudgetRow> envelopes) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
       children: [
-        if (suggestionTitle != null && suggestionMessage != null)
-          ContextSuggestionCard(
-            title: suggestionTitle,
-            message: suggestionMessage,
-          ),
         if (envelopes.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 24),
@@ -1169,14 +1329,18 @@ class EnvelopeBudgetRow {
     );
   }
 
-  factory EnvelopeBudgetRow.placeholder(Category category, String periodType) {
+  factory EnvelopeBudgetRow.placeholder(
+    Category category,
+    String periodType, {
+    int weekStartDay = DateTime.monday,
+  }) {
     final now = DateTime.now();
     final start = periodType == 'weekly'
         ? DateTime(
             now.year,
             now.month,
             now.day,
-          ).subtract(Duration(days: now.weekday - 1))
+          ).subtract(Duration(days: (now.weekday - weekStartDay + 7) % 7))
         : DateTime(now.year, now.month, 1);
     final end = periodType == 'weekly'
         ? start.add(
@@ -1201,14 +1365,17 @@ class EnvelopeBudgetRow {
     );
   }
 
-  factory EnvelopeBudgetRow.overallPlaceholder(String periodType) {
+  factory EnvelopeBudgetRow.overallPlaceholder(
+    String periodType, {
+    int weekStartDay = DateTime.monday,
+  }) {
     final now = DateTime.now();
     final start = periodType == 'weekly'
         ? DateTime(
             now.year,
             now.month,
             now.day,
-          ).subtract(Duration(days: now.weekday - 1))
+          ).subtract(Duration(days: (now.weekday - weekStartDay + 7) % 7))
         : DateTime(now.year, now.month, 1);
     final end = periodType == 'weekly'
         ? start.add(

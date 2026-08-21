@@ -47,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -103,6 +103,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(activityEntries);
         await _createActivityIndexes();
       }
+      if (from < 29) {
+        await m.addColumn(activitySessions, activitySessions.parentSessionId);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_activity_sessions_parent '
+          'ON activity_sessions (parent_session_id)',
+        );
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -116,6 +123,10 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_activity_sessions_household_started '
       'ON activity_sessions (household_id, started_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_activity_sessions_parent '
+      'ON activity_sessions (parent_session_id)',
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_activity_checkpoints_session_sequence '

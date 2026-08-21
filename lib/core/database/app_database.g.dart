@@ -13098,6 +13098,17 @@ class $ActivitySessionsTable extends ActivitySessions
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _parentSessionIdMeta = const VerificationMeta(
+    'parentSessionId',
+  );
+  @override
+  late final GeneratedColumn<String> parentSessionId = GeneratedColumn<String>(
+    'parent_session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _categoryMeta = const VerificationMeta(
     'category',
   );
@@ -13193,6 +13204,7 @@ class $ActivitySessionsTable extends ActivitySessions
     id,
     householdId,
     title,
+    parentSessionId,
     category,
     startedAt,
     endedAt,
@@ -13237,6 +13249,15 @@ class $ActivitySessionsTable extends ActivitySessions
       );
     } else if (isInserting) {
       context.missing(_titleMeta);
+    }
+    if (data.containsKey('parent_session_id')) {
+      context.handle(
+        _parentSessionIdMeta,
+        parentSessionId.isAcceptableOrUnknown(
+          data['parent_session_id']!,
+          _parentSessionIdMeta,
+        ),
+      );
     }
     if (data.containsKey('category')) {
       context.handle(
@@ -13311,6 +13332,10 @@ class $ActivitySessionsTable extends ActivitySessions
         DriftSqlType.string,
         data['${effectivePrefix}title'],
       )!,
+      parentSessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_session_id'],
+      ),
       category: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category'],
@@ -13356,6 +13381,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
   final String id;
   final String householdId;
   final String title;
+  final String? parentSessionId;
   final String category;
   final DateTime startedAt;
   final DateTime? endedAt;
@@ -13368,6 +13394,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     required this.id,
     required this.householdId,
     required this.title,
+    this.parentSessionId,
     required this.category,
     required this.startedAt,
     this.endedAt,
@@ -13383,6 +13410,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     map['id'] = Variable<String>(id);
     map['household_id'] = Variable<String>(householdId);
     map['title'] = Variable<String>(title);
+    if (!nullToAbsent || parentSessionId != null) {
+      map['parent_session_id'] = Variable<String>(parentSessionId);
+    }
     map['category'] = Variable<String>(category);
     map['started_at'] = Variable<DateTime>(startedAt);
     if (!nullToAbsent || endedAt != null) {
@@ -13405,6 +13435,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       id: Value(id),
       householdId: Value(householdId),
       title: Value(title),
+      parentSessionId: parentSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentSessionId),
       category: Value(category),
       startedAt: Value(startedAt),
       endedAt: endedAt == null && nullToAbsent
@@ -13431,6 +13464,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       id: serializer.fromJson<String>(json['id']),
       householdId: serializer.fromJson<String>(json['householdId']),
       title: serializer.fromJson<String>(json['title']),
+      parentSessionId: serializer.fromJson<String?>(json['parentSessionId']),
       category: serializer.fromJson<String>(json['category']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
@@ -13448,6 +13482,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       'id': serializer.toJson<String>(id),
       'householdId': serializer.toJson<String>(householdId),
       'title': serializer.toJson<String>(title),
+      'parentSessionId': serializer.toJson<String?>(parentSessionId),
       'category': serializer.toJson<String>(category),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'endedAt': serializer.toJson<DateTime?>(endedAt),
@@ -13463,6 +13498,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     String? id,
     String? householdId,
     String? title,
+    Value<String?> parentSessionId = const Value.absent(),
     String? category,
     DateTime? startedAt,
     Value<DateTime?> endedAt = const Value.absent(),
@@ -13475,6 +13511,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     id: id ?? this.id,
     householdId: householdId ?? this.householdId,
     title: title ?? this.title,
+    parentSessionId: parentSessionId.present
+        ? parentSessionId.value
+        : this.parentSessionId,
     category: category ?? this.category,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
@@ -13491,6 +13530,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ? data.householdId.value
           : this.householdId,
       title: data.title.present ? data.title.value : this.title,
+      parentSessionId: data.parentSessionId.present
+          ? data.parentSessionId.value
+          : this.parentSessionId,
       category: data.category.present ? data.category.value : this.category,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
@@ -13510,6 +13552,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ..write('id: $id, ')
           ..write('householdId: $householdId, ')
           ..write('title: $title, ')
+          ..write('parentSessionId: $parentSessionId, ')
           ..write('category: $category, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
@@ -13527,6 +13570,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     id,
     householdId,
     title,
+    parentSessionId,
     category,
     startedAt,
     endedAt,
@@ -13543,6 +13587,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           other.id == this.id &&
           other.householdId == this.householdId &&
           other.title == this.title &&
+          other.parentSessionId == this.parentSessionId &&
           other.category == this.category &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
@@ -13557,6 +13602,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
   final Value<String> id;
   final Value<String> householdId;
   final Value<String> title;
+  final Value<String?> parentSessionId;
   final Value<String> category;
   final Value<DateTime> startedAt;
   final Value<DateTime?> endedAt;
@@ -13570,6 +13616,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     this.id = const Value.absent(),
     this.householdId = const Value.absent(),
     this.title = const Value.absent(),
+    this.parentSessionId = const Value.absent(),
     this.category = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
@@ -13584,6 +13631,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     required String id,
     required String householdId,
     required String title,
+    this.parentSessionId = const Value.absent(),
     this.category = const Value.absent(),
     required DateTime startedAt,
     this.endedAt = const Value.absent(),
@@ -13602,6 +13650,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Expression<String>? id,
     Expression<String>? householdId,
     Expression<String>? title,
+    Expression<String>? parentSessionId,
     Expression<String>? category,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? endedAt,
@@ -13616,6 +13665,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       if (id != null) 'id': id,
       if (householdId != null) 'household_id': householdId,
       if (title != null) 'title': title,
+      if (parentSessionId != null) 'parent_session_id': parentSessionId,
       if (category != null) 'category': category,
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
@@ -13632,6 +13682,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Value<String>? id,
     Value<String>? householdId,
     Value<String>? title,
+    Value<String?>? parentSessionId,
     Value<String>? category,
     Value<DateTime>? startedAt,
     Value<DateTime?>? endedAt,
@@ -13646,6 +13697,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       id: id ?? this.id,
       householdId: householdId ?? this.householdId,
       title: title ?? this.title,
+      parentSessionId: parentSessionId ?? this.parentSessionId,
       category: category ?? this.category,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
@@ -13669,6 +13721,9 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     }
     if (title.present) {
       map['title'] = Variable<String>(title.value);
+    }
+    if (parentSessionId.present) {
+      map['parent_session_id'] = Variable<String>(parentSessionId.value);
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
@@ -13706,6 +13761,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
           ..write('id: $id, ')
           ..write('householdId: $householdId, ')
           ..write('title: $title, ')
+          ..write('parentSessionId: $parentSessionId, ')
           ..write('category: $category, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
@@ -17287,26 +17343,24 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder =
-    HouseholdsCompanion Function({
-      required String id,
-      required String name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$HouseholdsTableUpdateCompanionBuilder =
-    HouseholdsCompanion Function({
-      Value<String> id,
-      Value<String> name,
-      Value<String?> husbandName,
-      Value<String?> wifeName,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
+  required String id,
+  required String name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
+  Value<String> id,
+  Value<String> name,
+  Value<String?> husbandName,
+  Value<String?> wifeName,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -17505,28 +17559,26 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder =
-    CategoriesCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<String?> parentId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$CategoriesTableUpdateCompanionBuilder =
-    CategoriesCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<String?> parentId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<String?> parentId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<String?> parentId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -17739,26 +17791,24 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder =
-    MerchantsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<String?> details,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$MerchantsTableUpdateCompanionBuilder =
-    MerchantsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String?> details,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<String?> details,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String?> details,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -17954,24 +18004,22 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder =
-    TagsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$TagsTableUpdateCompanionBuilder =
-    TagsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -18150,30 +18198,28 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder =
-    AccountsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$AccountsTableUpdateCompanionBuilder =
-    AccountsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> type,
-      Value<int> openingBalance,
-      Value<bool> isActive,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> type,
+  Value<int> openingBalance,
+  Value<bool> isActive,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -19920,40 +19966,38 @@ typedef $$AttachmentsTableProcessedTableManager =
       Attachment,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder =
-    TransfersCompanion Function({
-      required String id,
-      required String householdId,
-      required String fromAccountId,
-      required String toAccountId,
-      required int amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      required DateTime date,
-      required DateTime recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$TransfersTableUpdateCompanionBuilder =
-    TransfersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> fromAccountId,
-      Value<String> toAccountId,
-      Value<int> amount,
-      Value<int> adminFee,
-      Value<String?> feeTransactionId,
-      Value<DateTime> date,
-      Value<DateTime> recordedAt,
-      Value<String?> note,
-      Value<String?> source,
-      Value<bool> isDeleted,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
+  required String id,
+  required String householdId,
+  required String fromAccountId,
+  required String toAccountId,
+  required int amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  required DateTime date,
+  required DateTime recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> fromAccountId,
+  Value<String> toAccountId,
+  Value<int> amount,
+  Value<int> adminFee,
+  Value<String?> feeTransactionId,
+  Value<DateTime> date,
+  Value<DateTime> recordedAt,
+  Value<String?> note,
+  Value<String?> source,
+  Value<bool> isDeleted,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -20998,34 +21042,32 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder =
-    AssetsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required String assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$AssetsTableUpdateCompanionBuilder =
-    AssetsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<String> assetType,
-      Value<int> value,
-      Value<String> placement,
-      Value<String?> note,
-      Value<bool> isArchived,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required String assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<String> assetType,
+  Value<int> value,
+  Value<String> placement,
+  Value<String?> note,
+  Value<bool> isArchived,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -21291,32 +21333,30 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder =
-    GoalsCompanion Function({
-      required String id,
-      required String householdId,
-      required String name,
-      required int targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      required DateTime createdAt,
-      Value<int> rowid,
-    });
-typedef $$GoalsTableUpdateCompanionBuilder =
-    GoalsCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> name,
-      Value<int> targetAmount,
-      Value<int> currentAmount,
-      Value<DateTime?> targetDate,
-      Value<String?> categoryId,
-      Value<bool> isActive,
-      Value<DateTime> createdAt,
-      Value<int> rowid,
-    });
+typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
+  required String id,
+  required String householdId,
+  required String name,
+  required int targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  required DateTime createdAt,
+  Value<int> rowid,
+});
+typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> name,
+  Value<int> targetAmount,
+  Value<int> currentAmount,
+  Value<DateTime?> targetDate,
+  Value<String?> categoryId,
+  Value<bool> isActive,
+  Value<DateTime> createdAt,
+  Value<int> rowid,
+});
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -22935,42 +22975,40 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder =
-    RemindersCompanion Function({
-      required String id,
-      required String householdId,
-      required String title,
-      Value<String?> note,
-      required DateTime scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      required int notificationId,
-      required DateTime createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
-typedef $$RemindersTableUpdateCompanionBuilder =
-    RemindersCompanion Function({
-      Value<String> id,
-      Value<String> householdId,
-      Value<String> title,
-      Value<String?> note,
-      Value<DateTime> scheduledAt,
-      Value<String> recurrenceType,
-      Value<String> weekdaysJson,
-      Value<bool> isActive,
-      Value<String?> soundUri,
-      Value<String?> soundName,
-      Value<int> defaultSnoozeMinutes,
-      Value<int> notificationId,
-      Value<DateTime> createdAt,
-      Value<DateTime?> updatedAt,
-      Value<int> rowid,
-    });
+typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
+  required String id,
+  required String householdId,
+  required String title,
+  Value<String?> note,
+  required DateTime scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  required int notificationId,
+  required DateTime createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
+typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
+  Value<String> id,
+  Value<String> householdId,
+  Value<String> title,
+  Value<String?> note,
+  Value<DateTime> scheduledAt,
+  Value<String> recurrenceType,
+  Value<String> weekdaysJson,
+  Value<bool> isActive,
+  Value<String?> soundUri,
+  Value<String?> soundName,
+  Value<int> defaultSnoozeMinutes,
+  Value<int> notificationId,
+  Value<DateTime> createdAt,
+  Value<DateTime?> updatedAt,
+  Value<int> rowid,
+});
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -23694,6 +23732,7 @@ typedef $$ActivitySessionsTableCreateCompanionBuilder =
       required String id,
       required String householdId,
       required String title,
+      Value<String?> parentSessionId,
       Value<String> category,
       required DateTime startedAt,
       Value<DateTime?> endedAt,
@@ -23709,6 +23748,7 @@ typedef $$ActivitySessionsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> householdId,
       Value<String> title,
+      Value<String?> parentSessionId,
       Value<String> category,
       Value<DateTime> startedAt,
       Value<DateTime?> endedAt,
@@ -23741,6 +23781,11 @@ class $$ActivitySessionsTableFilterComposer
 
   ColumnFilters<String> get title => $composableBuilder(
     column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentSessionId => $composableBuilder(
+    column: $table.parentSessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -23809,6 +23854,11 @@ class $$ActivitySessionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get parentSessionId => $composableBuilder(
+    column: $table.parentSessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get category => $composableBuilder(
     column: $table.category,
     builder: (column) => ColumnOrderings(column),
@@ -23869,6 +23919,11 @@ class $$ActivitySessionsTableAnnotationComposer
 
   GeneratedColumn<String> get title =>
       $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get parentSessionId => $composableBuilder(
+    column: $table.parentSessionId,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
@@ -23937,6 +23992,7 @@ class $$ActivitySessionsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> householdId = const Value.absent(),
                 Value<String> title = const Value.absent(),
+                Value<String?> parentSessionId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> endedAt = const Value.absent(),
@@ -23950,6 +24006,7 @@ class $$ActivitySessionsTableTableManager
                 id: id,
                 householdId: householdId,
                 title: title,
+                parentSessionId: parentSessionId,
                 category: category,
                 startedAt: startedAt,
                 endedAt: endedAt,
@@ -23965,6 +24022,7 @@ class $$ActivitySessionsTableTableManager
                 required String id,
                 required String householdId,
                 required String title,
+                Value<String?> parentSessionId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 required DateTime startedAt,
                 Value<DateTime?> endedAt = const Value.absent(),
@@ -23978,6 +24036,7 @@ class $$ActivitySessionsTableTableManager
                 id: id,
                 householdId: householdId,
                 title: title,
+                parentSessionId: parentSessionId,
                 category: category,
                 startedAt: startedAt,
                 endedAt: endedAt,

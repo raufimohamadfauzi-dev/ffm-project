@@ -336,6 +336,7 @@ class ActivitySessions extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
   TextColumn get title => text()();
+  TextColumn get parentSessionId => text().nullable()();
   TextColumn get category => text().withDefault(const Constant('lainnya'))();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get endedAt => dateTime().nullable()();

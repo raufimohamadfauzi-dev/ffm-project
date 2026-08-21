@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/database/audit_logger.dart';
 import 'package:ffm_manager/features/activity/data/repositories/activity_repository.dart';
+import 'package:ffm_manager/features/activity/presentation/bloc/activity_bloc.dart';
 import 'package:ffm_manager/features/activity/domain/entities/activity_entity.dart';
 
 void main() {
@@ -226,5 +227,169 @@ void main() {
       database.activitySessions,
     )..where((row) => row.id.equals('s-archive'))).getSingle();
     expect(raw.isArchived, isTrue);
+  });
+
+  test(
+    'mendukung dua sesi aktif dan aktivitas anak yang berjalan bersamaan',
+    () async {
+      final start = DateTime(2026, 8, 21, 8);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'parent-active',
+          householdId: 'local-household',
+          title: 'OTW ke pasar',
+          category: 'Perjalanan',
+          startedAt: start,
+          status: ActivitySessionStatus.active,
+          createdAt: start,
+        ),
+      );
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'child-active',
+          householdId: 'local-household',
+          title: 'Makan di perjalanan',
+          category: 'Keluarga',
+          parentSessionId: 'parent-active',
+          startedAt: start.add(const Duration(minutes: 20)),
+          status: ActivitySessionStatus.active,
+          createdAt: start.add(const Duration(minutes: 20)),
+        ),
+      );
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'other-active',
+          householdId: 'local-household',
+          title: 'Cek kebun',
+          category: 'Pekerjaan',
+          startedAt: start.add(const Duration(minutes: 30)),
+          status: ActivitySessionStatus.active,
+          createdAt: start.add(const Duration(minutes: 30)),
+        ),
+      );
+
+      final active = await repository.getActiveSessions('local-household');
+
+      expect(active.map((item) => item.id), [
+        'parent-active',
+        'child-active',
+        'other-active',
+      ]);
+      expect(active[1].parentSessionId, 'parent-active');
+      expect(
+        active[1].durationAt(start.add(const Duration(hours: 1))),
+        const Duration(minutes: 40),
+      );
+    },
+  );
+
+  test(
+    'hapus induk menghapus semua child, checkpoint, dan entry tertaut',
+    () async {
+      final start = DateTime(2026, 8, 21, 9);
+      for (final session in [
+        ActivitySessionEntity(
+          id: 'delete-parent',
+          householdId: 'local-household',
+          title: 'Perjalanan utama',
+          category: 'Perjalanan',
+          startedAt: start,
+          status: ActivitySessionStatus.completed,
+          endedAt: start.add(const Duration(hours: 3)),
+          createdAt: start,
+        ),
+        ActivitySessionEntity(
+          id: 'delete-child',
+          householdId: 'local-household',
+          title: 'Makan di dalam perjalanan',
+          category: 'Keluarga',
+          parentSessionId: 'delete-parent',
+          startedAt: start.add(const Duration(hours: 1)),
+          status: ActivitySessionStatus.completed,
+          endedAt: start.add(const Duration(hours: 1, minutes: 30)),
+          createdAt: start.add(const Duration(hours: 1)),
+        ),
+        ActivitySessionEntity(
+          id: 'delete-grandchild',
+          householdId: 'local-household',
+          title: 'Bayar makan',
+          category: 'Lainnya',
+          parentSessionId: 'delete-child',
+          startedAt: start.add(const Duration(hours: 1, minutes: 10)),
+          status: ActivitySessionStatus.completed,
+          endedAt: start.add(const Duration(hours: 1, minutes: 15)),
+          createdAt: start.add(const Duration(hours: 1, minutes: 10)),
+        ),
+      ]) {
+        await repository.saveSession(session);
+      }
+      await repository.saveCheckpoint(
+        ActivityCheckpointEntity(
+          id: 'delete-child-checkpoint',
+          sessionId: 'delete-child',
+          label: 'Selesai makan',
+          occurredAt: start.add(const Duration(hours: 1, minutes: 30)),
+          sequence: 1,
+          createdAt: start.add(const Duration(hours: 1, minutes: 30)),
+        ),
+      );
+      await repository.saveEntry(
+        ActivityJournalEntryEntity(
+          id: 'delete-grandchild-entry',
+          sessionId: 'delete-grandchild',
+          householdId: 'local-household',
+          activityType: 'Lainnya',
+          title: 'Catatan legacy tertaut',
+          startedAt: start,
+          createdAt: start,
+        ),
+      );
+
+      await repository.deleteSessionPermanently(
+        'local-household',
+        'delete-parent',
+      );
+
+      expect(
+        await (database.select(database.activitySessions)..where(
+              (row) => row.id.isIn([
+                'delete-parent',
+                'delete-child',
+                'delete-grandchild',
+              ]),
+            ))
+            .get(),
+        isEmpty,
+      );
+      expect(await repository.getCheckpoints('delete-child'), isEmpty);
+      expect(await repository.getEntries('local-household'), isEmpty);
+    },
+  );
+
+  test('ActivityBloc mengosongkan kartu aktif setelah sesi dihapus', () async {
+    final now = DateTime(2026, 8, 21, 11);
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 'bloc-active',
+        householdId: 'local-household',
+        title: 'Aktivitas untuk BLoC',
+        category: 'Lainnya',
+        startedAt: now,
+        status: ActivitySessionStatus.active,
+        createdAt: now,
+      ),
+    );
+    final bloc = ActivityBloc(repository);
+    addTearDown(bloc.close);
+
+    await bloc.load();
+    expect(bloc.state.activeSessions, hasLength(1));
+    expect(bloc.state.activeSession?.id, 'bloc-active');
+
+    await bloc.deleteSessionPermanently('bloc-active');
+
+    expect(bloc.state.activeSessions, isEmpty);
+    expect(bloc.state.activeSession, isNull);
+    expect(bloc.state.sessions, isEmpty);
   });
 }
