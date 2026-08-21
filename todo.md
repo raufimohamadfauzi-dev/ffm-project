@@ -31,3 +31,12 @@
 - [x] Perjelas preview, koreksi, status mikrofon, dan penanganan aktivitas ambigu/paralel.
 - [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
 - [x] Commit, kemas source, dan build APK release dengan keystore lama.
+
+# Kolom Perintah FFM Lintas Halaman
+
+- [x] Audit kontrak draft, navigasi, dan prefill formulir pada modul target.
+- [x] Buat antrean CommandDraft lintas halaman dengan validasi deterministik.
+- [x] Hubungkan perintah banyak tindakan ke navigasi dan formulir tujuan yang aman.
+- [x] Tambahkan status/fallback model lokal opsional tanpa mengubah keamanan draft.
+- [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
+- [x] Commit, kemas source, dan build APK release dengan keystore lama.

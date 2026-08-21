@@ -9,21 +9,31 @@ typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
 );
 
+typedef FfmAssistantIntentBatchHandler = Future<void> Function(
+  List<FfmAssistantIntent> intents,
+);
+
 Future<void> showFfmAssistantSheet(
   BuildContext context, {
   required FfmAssistantIntentHandler onIntent,
+  required FfmAssistantIntentBatchHandler onIntents,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   backgroundColor: Colors.transparent,
-  builder: (_) => FfmAssistantSheet(onIntent: onIntent),
+  builder: (_) => FfmAssistantSheet(onIntent: onIntent, onIntents: onIntents),
 );
 
 class FfmAssistantSheet extends StatefulWidget {
-  const FfmAssistantSheet({super.key, required this.onIntent});
+  const FfmAssistantSheet({
+    super.key,
+    required this.onIntent,
+    required this.onIntents,
+  });
 
   final FfmAssistantIntentHandler onIntent;
+  final FfmAssistantIntentBatchHandler onIntents;
 
   @override
   State<FfmAssistantSheet> createState() => _FfmAssistantSheetState();
@@ -43,6 +53,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _submitting = false;
   var _listening = false;
   String? _lastAssistantText;
+  final _queuedIntents = <FfmAssistantIntent>[];
 
   @override
   void dispose() {
@@ -75,6 +86,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           _entries.add(
             _AssistantChatEntry(isUser: false, text: response, intent: intent),
           );
+          if (intent.destination != null || intent.draft != null) {
+            _queuedIntents.add(intent);
+          }
         }
       });
     } catch (_) {
@@ -142,11 +156,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     await widget.onIntent(intent);
+    if (mounted) setState(() => _queuedIntents.remove(intent));
     if (mounted &&
         (intent.destination != null || intent.draft != null) &&
         intent.type != FfmAssistantIntentType.confirm) {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _openQueuedDrafts() async {
+    final intents = List<FfmAssistantIntent>.of(_queuedIntents);
+    if (intents.length < 2) return;
+    await widget.onIntents(intents);
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _scrollToEnd() {
@@ -229,6 +251,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ),
             ),
             if (_submitting) const LinearProgressIndicator(minHeight: 2),
+            if (_queuedIntents.length > 1)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _submitting ? null : _openQueuedDrafts,
+                    icon: const Icon(Icons.playlist_add_check),
+                    label: Text(
+                      'Buka ${_queuedIntents.length} draft satu per satu',
+                    ),
+                  ),
+                ),
+              ),
             SafeArea(
               top: false,
               child: Padding(

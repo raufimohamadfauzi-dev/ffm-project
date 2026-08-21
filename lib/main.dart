@@ -201,11 +201,31 @@ class _AppShellState extends State<AppShell> {
         setState(() => _index = 0);
       case FfmAssistantDestination.transactions:
         if (intent.draft != null) {
-          setState(() {
-            _index = 1;
-            _assistantTransactionDraft = intent.draft;
-            _assistantRequestId++;
-          });
+          final draft = intent.draft!;
+          if (draft.kind == FfmAssistantDraftKind.income ||
+              draft.kind == FfmAssistantDraftKind.expense) {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => TransactionFormPage(
+                  initialType: draft.kind == FfmAssistantDraftKind.income
+                      ? TransactionType.income
+                      : TransactionType.expense,
+                  initialAmount: draft.amount,
+                  initialAccountName: draft.kind == FfmAssistantDraftKind.income
+                      ? draft.toAccountName
+                      : draft.fromAccountName,
+                  initialNote: draft.note ?? draft.title,
+                  initialDate: draft.date,
+                ),
+              ),
+            );
+          } else {
+            setState(() {
+              _index = 1;
+              _assistantTransactionDraft = draft;
+              _assistantRequestId++;
+            });
+          }
         } else {
           setState(() => _index = 1);
         }
@@ -264,14 +284,24 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _handleAssistantIntents(List<FfmAssistantIntent> intents) async {
+    for (final intent in intents) {
+      if (!mounted) return;
+      await _handleAssistantIntent(intent);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _index, children: _pages),
     floatingActionButton: FloatingActionButton.extended(
       heroTag: 'ffm-assistant',
       tooltip: 'Buka Asisten FFM',
-      onPressed: () =>
-          showFfmAssistantSheet(context, onIntent: _handleAssistantIntent),
+      onPressed: () => showFfmAssistantSheet(
+        context,
+        onIntent: _handleAssistantIntent,
+        onIntents: _handleAssistantIntents,
+      ),
       icon: const Icon(Icons.auto_awesome_outlined),
       label: const Text('Asisten'),
     ),

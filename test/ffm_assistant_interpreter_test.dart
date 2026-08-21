@@ -99,4 +99,26 @@ void main() {
       expect(transactions, isEmpty);
     },
   );
+
+  test('memahami angka Bahasa Indonesia dan perintah berurutan', () async {
+    final intents = await interpreter.interpretMany(
+      'hasil panen seratus dua puluh lima ribu ke SeaBank terus beli BBM satu setengah juta dari Tunai',
+    );
+
+    expect(intents, hasLength(2));
+    expect(intents.first.type, FfmAssistantIntentType.createIncome);
+    expect(intents.first.draft?.amount, 125000);
+    expect(intents.last.type, FfmAssistantIntentType.createExpense);
+    expect(intents.last.draft?.amount, 1500000);
+  });
+
+  test('mendukung nominal pecahan dan menolak arah pinjaman ambigu', () async {
+    expect(FfmAssistantAmountParser.parse('1,5 juta'), 1500000);
+    expect(FfmAssistantAmountParser.parse('setengah juta'), 500000);
+
+    final intent = await interpreter.interpret('Budi pinjam tiga ratus ribu');
+    expect(intent.type, FfmAssistantIntentType.unknown);
+    expect(intent.clarification, contains('hutang'));
+    expect(intent.clarification, contains('piutang'));
+  });
 }

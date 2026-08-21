@@ -18,7 +18,7 @@ class FfmAssistantInterpreter {
     final commands = rawText
         .split(
           RegExp(
-            r'\s*(?:;|\n|\blalu\b|\bkemudian\b|\bsetelah itu\b)\s*',
+            r'\s*(?:;|\n|\blalu\b|\bterus\b|\bkemudian\b|\bselanjutnya\b|\bsetelah itu\b)\s*',
             caseSensitive: false,
           ),
         )
@@ -156,6 +156,9 @@ class FfmAssistantInterpreter {
           'buka',
           'pindah',
           'ke halaman',
+          'ke bagian',
+          'arah ke',
+          'bawa ke',
           'masuk',
           'tampilkan',
         ])) {
@@ -166,6 +169,14 @@ class FfmAssistantInterpreter {
         destination: directDestination.destination,
         confidence: .98,
         response: 'Siap, aku buka ${directDestination.name}.',
+      );
+    }
+
+    if (_isAmbiguousLoan(normalized)) {
+      return _unknown(
+        rawText,
+        normalized,
+        'Aku perlu pastikan arahnya dulu: kamu meminjam dari orang itu, atau orang itu meminjam dari kamu? Sebut “hutang” atau “piutang”, ya.',
       );
     }
 
@@ -327,6 +338,8 @@ class FfmAssistantInterpreter {
       'pindah uang',
       'transfer',
       'kirim uang',
+      'geser uang',
+      'cairkan',
     ]);
     if (transfer) {
       final fromTo = _parseTransferAccounts(normalized, accounts);
@@ -421,6 +434,11 @@ class FfmAssistantInterpreter {
       'menerima',
       'gaji',
       'pendapatan',
+      'hasil panen',
+      'terjual',
+      'dapat uang',
+      'dapet uang',
+      'dikasih uang',
     ]);
     final expense = _containsAny(normalized, const [
       'pengeluaran',
@@ -429,6 +447,9 @@ class FfmAssistantInterpreter {
       'belanja',
       'bayar',
       'jajan',
+      'dibeli',
+      'keluar uang',
+      'bayarin',
     ]);
     if (!income && !expense) return null;
     return FfmAssistantDraft(
@@ -518,6 +539,17 @@ class FfmAssistantInterpreter {
   FfmAssistantPage? _parseDestination(String normalized) =>
       FfmAssistantCatalog.findByText(normalized);
 
+  bool _isAmbiguousLoan(String text) =>
+      _containsAny(text, const ['pinjam', 'minjam', 'meminjam']) &&
+      !_containsAny(text, const [
+        'hutang',
+        'utang',
+        'piutang',
+        'dari saya',
+        'saya pinjam',
+        'saya meminjam',
+      ]);
+
   bool _isMonthlyTransactionStats(String text) =>
       _containsAny(text, const [
         'berapa transaksi',
@@ -543,7 +575,7 @@ class FfmAssistantInterpreter {
   String? _extractParty(String text, List<String> markers) {
     for (final marker in markers) {
       final match = RegExp(
-        '$marker\\s+([a-z ]+?)(?:\\s+(?:sebesar|senilai|rp|[0-9])|\$)',
+        '$marker\\s+([a-z ]+?)(?=\\s+(?:sebesar|senilai|rp|[0-9]|nol|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|sepuluh|sebelas|seratus|seribu)|\$)',
       ).firstMatch(text);
       if (match != null && match.group(1)!.trim().isNotEmpty) {
         return match.group(1)!.trim().split(' ').map(_capitalize).join(' ');
@@ -581,14 +613,22 @@ abstract final class FfmAssistantAmountParser {
     ).allMatches(text);
     if (numeric.isNotEmpty) {
       final match = numeric.first;
-      final raw = match.group(1)!.replaceAll(RegExp(r'[^0-9]'), '');
-      final base = int.tryParse(raw);
+      final rawNumber = match.group(1)!;
+      final unit = match.group(2);
+      final decimal =
+          unit != null &&
+          rawNumber.contains(',') &&
+          !rawNumber.contains('.') &&
+          rawNumber.split(',').last.length <= 2;
+      final base = decimal
+          ? double.tryParse(rawNumber.replaceAll(',', '.'))
+          : double.tryParse(rawNumber.replaceAll(RegExp(r'[^0-9]'), ''));
       if (base != null) {
         return switch (match.group(2)) {
-          'ribu' => base * 1000,
-          'jt' || 'juta' => base * 1000000,
-          'm' || 'miliar' => base * 1000000000,
-          _ => base,
+          'ribu' => (base * 1000).round(),
+          'jt' || 'juta' => (base * 1000000).round(),
+          'm' || 'miliar' => (base * 1000000000).round(),
+          _ => base.round(),
         };
       }
     }
@@ -610,29 +650,51 @@ abstract final class FfmAssistantAmountParser {
       'sembilan': 9,
       'sepuluh': 10,
       'sebelas': 11,
+      'seratus': 100,
+      'seribu': 1000,
+      'sejuta': 1000000,
+      'semiliar': 1000000000,
     };
     var total = 0;
     var current = 0;
     var found = false;
-    for (final token in tokens) {
-      if (words.containsKey(token)) {
+    for (var index = 0; index < tokens.length; index++) {
+      final token = tokens[index];
+      if (token == 'seribu') {
+        final amount = current == 0 ? 1000 : current * 1000;
+        return total + amount;
+      } else if (token == 'sejuta') {
+        final amount = current == 0 ? 1000000 : current * 1000000;
+        return total + amount;
+      } else if (token == 'semiliar') {
+        final amount = current == 0 ? 1000000000 : current * 1000000000;
+        return total + amount;
+      } else if (words.containsKey(token)) {
         current += words[token]!;
         found = true;
+      } else if (token == 'setengah' &&
+          index + 1 < tokens.length &&
+          const ['ribu', 'juta', 'miliar'].contains(tokens[index + 1])) {
+        final multiplier = switch (tokens[index + 1]) {
+          'ribu' => 1000,
+          'juta' => 1000000,
+          'miliar' => 1000000000,
+          _ => 1,
+        };
+        return total + ((current + .5) * multiplier).round();
       } else if (token == 'belas') {
         current += 10;
       } else if (token == 'puluh') {
-        current = (current == 0 ? 1 : current) * 10;
+        final lastDigit = current % 10;
+        current = current - lastDigit + (lastDigit == 0 ? 10 : lastDigit * 10);
       } else if (token == 'ratus') {
         current = (current == 0 ? 1 : current) * 100;
       } else if (token == 'ribu') {
-        total += (current == 0 ? 1 : current) * 1000;
-        current = 0;
+        return total + (current == 0 ? 1 : current) * 1000;
       } else if (token == 'juta') {
-        total += (current == 0 ? 1 : current) * 1000000;
-        current = 0;
+        return total + (current == 0 ? 1 : current) * 1000000;
       } else if (token == 'miliar') {
-        total += (current == 0 ? 1 : current) * 1000000000;
-        current = 0;
+        return total + (current == 0 ? 1 : current) * 1000000000;
       }
     }
     return found ? total + current : null;
