@@ -201,6 +201,28 @@ Kembali : 10,000
     expect(result.warnings, isEmpty);
   });
 
+  test('JSON batch membawa petunjuk pos anggaran dari LLM', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': [
+          {
+            'type': 'expense',
+            'date': '2026-08-20',
+            'amount': 35000,
+            'budget_name': 'Belanja pasar',
+            'budget_id': 'budget-pasar',
+            'category_id': 'cat-belanja',
+          },
+        ],
+      }),
+    );
+
+    expect(result.entries.single.budgetName, 'Belanja pasar');
+    expect(result.entries.single.budgetId, 'budget-pasar');
+    expect(result.entries.single.categoryId, 'cat-belanja');
+  });
+
   test('template JSON batch bisa disalin dan diimpor', () {
     final template = ReceiptImportService.templateBatchJson();
     final result = ReceiptImportService.parseBatchJson(template);

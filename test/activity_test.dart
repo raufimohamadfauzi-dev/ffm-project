@@ -283,6 +283,87 @@ void main() {
     },
   );
 
+  test('force close tidak menghentikan parent atau child saat aplikasi dibuka ulang', () async {
+    final start = DateTime(2026, 8, 21, 7);
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 'restart-parent',
+        householdId: 'local-household',
+        title: 'Perjalanan pagi',
+        category: 'Perjalanan',
+        startedAt: start,
+        status: ActivitySessionStatus.active,
+        createdAt: start,
+      ),
+    );
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 'restart-child',
+        householdId: 'local-household',
+        title: 'Makan di jalan',
+        category: 'Keluarga',
+        parentSessionId: 'restart-parent',
+        startedAt: start.add(const Duration(minutes: 15)),
+        status: ActivitySessionStatus.active,
+        createdAt: start.add(const Duration(minutes: 15)),
+      ),
+    );
+
+    final firstBloc = ActivityBloc(repository);
+    await firstBloc.load();
+    expect(firstBloc.state.activeSessions.map((item) => item.id), [
+      'restart-parent',
+      'restart-child',
+    ]);
+    await firstBloc.close();
+
+    // BLoC baru mensimulasikan proses aplikasi yang dibuat ulang setelah
+    // force close. Data aktif dibaca lagi dari database yang persisten.
+    final restartedBloc = ActivityBloc(repository);
+    await restartedBloc.load();
+    expect(restartedBloc.state.activeSessions, hasLength(2));
+    expect(
+      restartedBloc.state.activeSessions
+          .firstWhere((item) => item.id == 'restart-child')
+          .parentSessionId,
+      'restart-parent',
+    );
+    await restartedBloc.close();
+  });
+
+  test(
+    'child aktif yang kehilangan parent tetap dipulihkan dan diaudit',
+    () async {
+      final start = DateTime(2026, 8, 21, 11);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'orphan-child',
+          householdId: 'local-household',
+          title: 'Makan tetap berjalan',
+          category: 'Keluarga',
+          parentSessionId: 'parent-yang-hilang',
+          startedAt: start,
+          status: ActivitySessionStatus.active,
+          createdAt: start,
+        ),
+      );
+
+      final recovered = await repository.recoverActiveSessions(
+        'local-household',
+      );
+      expect(recovered.single.id, 'orphan-child');
+      final auditRows = await database
+          .customSelect('SELECT action FROM audit_logs')
+          .get();
+      expect(
+        auditRows.any(
+          (row) => row.read<String>('action') == 'recover_active_sessions',
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test(
     'hapus induk menghapus semua child, checkpoint, dan entry tertaut',
     () async {

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -484,6 +485,58 @@ class _TransactionListPageState extends State<TransactionListPage> {
     if (!mounted || drafts == null || drafts.isEmpty) return;
   }
 
+  Future<List<_JsonBudgetOption>> _loadJsonBudgetOptions() async {
+    final database = getIt<AppDatabase>();
+    final budgets =
+        await (database.select(database.envelopeBudgets)
+              ..where((row) => row.householdId.equals(AppContext.householdId))
+              ..where((row) => row.isActive.equals(true)))
+            .get();
+    final options = <_JsonBudgetOption>[];
+    final configuredCategoryIds = <String>{};
+    for (final budget in budgets) {
+      final categoryIds = <String>[];
+      try {
+        final decoded = jsonDecode(budget.categoryIdsJson);
+        if (decoded is List) {
+          categoryIds.addAll(decoded.whereType<String>());
+        }
+      } catch (_) {
+        // Data lama bisa memakai categoryId tunggal.
+      }
+      if (budget.categoryId != null &&
+          !categoryIds.contains(budget.categoryId)) {
+        categoryIds.add(budget.categoryId!);
+      }
+      if (categoryIds.isEmpty) continue;
+      configuredCategoryIds.addAll(categoryIds);
+      final period = budget.periodType == 'weekly' ? 'Mingguan' : 'Bulanan';
+      options.add(
+        _JsonBudgetOption(
+          id: budget.id,
+          label:
+              '${budget.name} · $period · ${formatTanggalSingkat(budget.startDate)}–${formatTanggalSingkat(budget.endDate)}',
+          categoryIds: categoryIds,
+        ),
+      );
+    }
+    for (final category in _transactionCategoryOptions(
+      _categories,
+      'expense',
+    )) {
+      if (configuredCategoryIds.contains(category.id)) continue;
+      options.add(
+        _JsonBudgetOption(
+          id: 'category:${category.id}',
+          label:
+              '${_transactionCategoryLabel(_categories, category)} · belum ada target',
+          categoryIds: [category.id],
+        ),
+      );
+    }
+    return options;
+  }
+
   Future<void> _openJsonBatch() async {
     if (_accounts.isEmpty) {
       if (!mounted) return;
@@ -492,12 +545,15 @@ class _TransactionListPageState extends State<TransactionListPage> {
       );
       return;
     }
+    final budgetOptions = await _loadJsonBudgetOptions();
+    if (!mounted) return;
     final result = await Navigator.of(context).push<JsonBatchResult>(
       MaterialPageRoute(
         builder: (_) => JsonTransactionBatchPage(
           categories: _categories,
           merchants: _merchants,
           accounts: _accounts,
+          budgetOptions: budgetOptions,
         ),
       ),
     );
@@ -5906,9 +5962,11 @@ class _JsonTransactionRow {
     String? note,
     String? categoryId,
     String? accountId,
+    String? budgetId,
     List<ReceiptOcrItem> items = const [],
   }) : categoryId = categoryId,
        accountId = accountId,
+       budgetId = budgetId,
        amountController = TextEditingController(
          text: amount != null && amount > 0
              ? formatRupiahInput(amount.toString())
@@ -5933,6 +5991,7 @@ class _JsonTransactionRow {
   DateTime time;
   String? categoryId;
   String? accountId;
+  String? budgetId;
   final TextEditingController amountController;
   final TextEditingController merchantController;
   final TextEditingController partyController;
@@ -6005,6 +6064,18 @@ class _JsonTransferRow {
   }
 }
 
+class _JsonBudgetOption {
+  const _JsonBudgetOption({
+    required this.id,
+    required this.label,
+    required this.categoryIds,
+  });
+
+  final String id;
+  final String label;
+  final List<String> categoryIds;
+}
+
 class JsonTransferDraft {
   const JsonTransferDraft({
     required this.date,
@@ -6041,11 +6112,13 @@ class JsonTransactionBatchPage extends StatefulWidget {
     required this.categories,
     required this.merchants,
     required this.accounts,
+    this.budgetOptions = const [],
   });
 
   final List<Category> categories;
   final List<Merchant> merchants;
   final List<Account> accounts;
+  final List<_JsonBudgetOption> budgetOptions;
 
   @override
   State<JsonTransactionBatchPage> createState() =>
@@ -6075,15 +6148,26 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     String? merchant,
     String? categoryId,
     String? accountId,
+    String? budgetId,
     String? partyName,
     String? note,
     List<ReceiptOcrItem> items = const [],
   }) {
     final effectiveType = type;
+    final selectedBudget = _findBudgetOption(budgetId);
     final categories = _categoryOptions(effectiveType, selectedId: categoryId);
-    final validCategory = categories.any((item) => item.id == categoryId)
+    final budgetCategory = selectedBudget?.categoryIds
+        .map(
+          (id) => categories.where((category) => category.id == id).firstOrNull,
+        )
+        .whereType<Category>()
+        .firstOrNull;
+    final validCategory =
+        categories.any((item) => item.id == categoryId) &&
+            (selectedBudget == null ||
+                selectedBudget.categoryIds.contains(categoryId))
         ? categoryId
-        : categories.firstOrNull?.id;
+        : budgetCategory?.id ?? categories.firstOrNull?.id;
     final validAccount = widget.accounts.any((item) => item.id == accountId)
         ? accountId
         : widget.accounts.firstOrNull?.id;
@@ -6097,9 +6181,40 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
       note: note,
       categoryId: validCategory,
       accountId: validAccount,
+      budgetId: selectedBudget?.id,
       items: items,
     );
   }
+
+  _JsonBudgetOption? _findBudgetOption(String? idOrName) {
+    final query = idOrName?.trim();
+    if (query == null || query.isEmpty) return null;
+    final exactId = widget.budgetOptions
+        .where((option) => option.id == query)
+        .firstOrNull;
+    if (exactId != null) return exactId;
+    final normalized = query.toLowerCase();
+    return widget.budgetOptions
+        .where((option) => option.label.toLowerCase() == normalized)
+        .firstOrNull;
+  }
+
+  _JsonBudgetOption? _findBudgetByName(String? name) {
+    final query = name?.trim().toLowerCase();
+    if (query == null || query.isEmpty) return null;
+    return widget.budgetOptions
+        .where(
+          (option) =>
+              option.label.toLowerCase().contains(query) ||
+              query.contains(option.label.toLowerCase()),
+        )
+        .firstOrNull;
+  }
+
+  _JsonBudgetOption? _selectedBudget(_JsonTransactionRow row) => widget
+      .budgetOptions
+      .where((option) => option.id == row.budgetId)
+      .firstOrNull;
 
   _JsonTransferRow _newTransferRow({
     DateTime? date,
@@ -6208,12 +6323,27 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
               merchant: entry.merchant,
               categoryId: entry.categoryId,
               accountId: entry.accountId,
+              budgetId:
+                  _findBudgetOption(entry.budgetId)?.id ??
+                  _findBudgetByName(entry.budgetName)?.id,
               partyName: entry.partyName,
               note: entry.note,
               items: entry.items,
             );
           })
           .toList();
+      for (var index = 0; index < imported.entries.length; index++) {
+        final entry = imported.entries[index];
+        if (entry.type != 'expense') continue;
+        final budgetHint = entry.budgetId ?? entry.budgetName;
+        if (budgetHint != null &&
+            _findBudgetOption(budgetHint) == null &&
+            _findBudgetByName(entry.budgetName) == null) {
+          warnings.add(
+            'Transaksi ke-${index + 1}: pos anggaran "$budgetHint" belum cocok; pilih manual.',
+          );
+        }
+      }
       if (rows.isEmpty && transferRows.isEmpty) {
         warnings.add('Belum ada mutasi yang bisa ditinjau.');
       }
@@ -6290,6 +6420,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     setState(() {
       row.type = type;
       row.categoryId = categories.firstOrNull?.id;
+      if (type == TransactionType.income) row.budgetId = null;
     });
   }
 
@@ -6911,6 +7042,54 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                 : (value) => setState(() => row.categoryId = value),
             validator: (_) => row.categoryId == null ? 'Pilih kategori' : null,
           ),
+          const SizedBox(height: 10),
+          if (row.type == TransactionType.expense) ...[
+            DropdownButtonFormField<String>(
+              initialValue: _selectedBudget(row)?.id,
+              decoration: const InputDecoration(
+                labelText: 'Arahkan ke pos anggaran (opsional)',
+                prefixIcon: Icon(Icons.track_changes_outlined),
+                helperText: 'Pos membantu memilih kategori. Target tetap dihitung dari pengeluaran dan tanggal kejadian.',
+              ),
+              items: widget.budgetOptions
+                  .map(
+                    (option) => DropdownMenuItem<String>(
+                      value: option.id,
+                      child: Text(
+                        option.label,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: widget.budgetOptions.isEmpty
+                  ? null
+                  : (value) {
+                      final option = widget.budgetOptions
+                          .where((item) => item.id == value)
+                          .firstOrNull;
+                      setState(() {
+                        row.budgetId = option?.id;
+                        final categoryId = option?.categoryIds
+                            .map(
+                              (id) =>
+                                  _categoryOptions(row.type)
+                                      .where((category) => category.id == id)
+                                      .firstOrNull,
+                            )
+                            .whereType<Category>()
+                            .firstOrNull
+                            ?.id;
+                        if (categoryId != null) row.categoryId = categoryId;
+                      });
+                    },
+            ),
+            const SizedBox(height: 10),
+          ] else
+            const Text(
+              'Anggaran hanya dipakai untuk memantau pengeluaran, bukan pemasukan.',
+              style: TextStyle(fontSize: 12),
+            ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
             initialValue: row.accountId,

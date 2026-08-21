@@ -445,6 +445,150 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     return '${start.day} ${_monthName(start.month)}–${end.day} ${_monthName(end.month)} ${end.year}';
   }
 
+  Future<void> _showPeriodSummary() async {
+    final overall = _envelopes.where((item) => item.isOverall).firstOrNull;
+    final totalAllocated = overall?.allocated ?? 0;
+    final totalSpent = overall == null ? 0 : _spentFor(overall);
+    final totalRemaining = overall == null ? 0 : _remainingFor(overall);
+    final hasTotalTarget = totalAllocated > 0;
+    final status = !hasTotalTarget
+        ? 'Target total belum diatur'
+        : totalRemaining < 0
+        ? 'Melewati batas'
+        : 'Masih dalam batas';
+    final statusColor = !hasTotalTarget
+        ? AppColors.inkMuted
+        : totalRemaining < 0
+        ? AppColors.negative
+        : AppColors.positive;
+
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Tutup ringkasan periode',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 240),
+      pageBuilder: (dialogContext, _, _) => SafeArea(
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Material(
+            color: Theme.of(dialogContext).colorScheme.surface,
+            elevation: 8,
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(24),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 560,
+                maxHeight: MediaQuery.sizeOf(dialogContext).height * .48,
+              ),
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Ringkasan periode',
+                          style: TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Tutup ringkasan',
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        icon: const Icon(Icons.keyboard_arrow_up),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    _activePeriodLabel(),
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 14),
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SummaryValue(
+                            label: 'Target total',
+                            value: hasTotalTarget
+                                ? _money(totalAllocated)
+                                : 'Belum diatur',
+                          ),
+                        ),
+                        Expanded(
+                          child: _SummaryValue(
+                            label: 'Sudah keluar',
+                            value: _money(totalSpent),
+                            color: AppColors.negative,
+                          ),
+                        ),
+                        Expanded(
+                          child: _SummaryValue(
+                            label: hasTotalTarget ? 'Sisa periode' : 'Status',
+                            value: hasTotalTarget
+                                ? _money(totalRemaining)
+                                : 'Atur target',
+                            color: hasTotalTarget && totalRemaining < 0
+                                ? AppColors.negative
+                                : AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.circle, size: 12, color: statusColor),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          status,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(),
+                        child: const Text('Selesai'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Ini batas rencana pengeluaran, bukan pemasukan dan bukan saldo rekening.',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -1),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        );
+      },
+    );
+  }
+
   Future<void> _showBudgetHelp() async {
     await showDialog<void>(
       context: context,
@@ -586,12 +730,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   @override
   Widget build(BuildContext context) {
     final filteredEnvelopes = _filterEnvelopes(_envelopes);
-    final overall = _envelopes
-        .where((envelope) => envelope.isOverall)
-        .firstOrNull;
-    final totalAllocated = overall?.allocated ?? 0;
-    final totalSpent = overall == null ? 0 : _spentFor(overall);
-    final totalRemaining = overall == null ? 0 : _remainingFor(overall);
     final categoryEnvelopes = filteredEnvelopes
         .where((envelope) => !envelope.isOverall)
         .toList(growable: false);
@@ -605,8 +743,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         .where((envelope) => _statusFor(envelope) != 'Aman')
         .toList(growable: false);
 
-    final hasTotalTarget = totalAllocated > 0;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Anggaran berbasis pos'),
@@ -615,6 +751,11 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
             tooltip: _showSearch ? 'Tutup pencarian' : 'Cari pos anggaran',
             onPressed: _showSearch ? _closeSearch : _openSearch,
             icon: Icon(_showSearch ? Icons.close : Icons.search),
+          ),
+          IconButton(
+            tooltip: 'Buka ringkasan periode',
+            onPressed: _loading ? null : _showPeriodSummary,
+            icon: const Icon(Icons.analytics_outlined),
           ),
           PopupMenuButton<_BudgetMenuAction>(
             tooltip: 'Aksi anggaran lainnya',
@@ -709,41 +850,6 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        AppCard(
-                          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: _SummaryValue(
-                                  label: 'Target total',
-                                  value: hasTotalTarget
-                                      ? _money(totalAllocated)
-                                      : 'Belum diatur',
-                                ),
-                              ),
-                              Expanded(
-                                child: _SummaryValue(
-                                  label: 'Sudah keluar',
-                                  value: _money(totalSpent),
-                                  color: AppColors.negative,
-                                ),
-                              ),
-                              Expanded(
-                                child: _SummaryValue(
-                                  label: hasTotalTarget
-                                      ? 'Sisa periode'
-                                      : 'Status',
-                                  value: hasTotalTarget
-                                      ? _money(totalRemaining)
-                                      : 'Atur target',
-                                  color: hasTotalTarget && totalRemaining < 0
-                                      ? AppColors.negative
-                                      : AppColors.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),

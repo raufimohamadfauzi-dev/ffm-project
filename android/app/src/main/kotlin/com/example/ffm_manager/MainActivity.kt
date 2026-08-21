@@ -14,9 +14,26 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private var pendingResult: MethodChannel.Result? = null
+    private var pendingWidgetAction: String? = null
+    private var widgetChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        pendingWidgetAction = intent?.getStringExtra(WIDGET_ACTION_EXTRA)
+        intent?.removeExtra(WIDGET_ACTION_EXTRA)
+        widgetChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            WIDGET_CHANNEL,
+        ).also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                if (call.method == "consumePendingAction") {
+                    result.success(pendingWidgetAction)
+                    pendingWidgetAction = null
+                } else {
+                    result.notImplemented()
+                }
+            }
+        }
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             SOUND_CHANNEL,
@@ -81,6 +98,19 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(WIDGET_ACTION_EXTRA)?.let { action ->
+            intent.removeExtra(WIDGET_ACTION_EXTRA)
+            if (widgetChannel == null) {
+                pendingWidgetAction = action
+            } else {
+                widgetChannel?.invokeMethod("openAction", action)
+            }
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_CODE) return
@@ -108,6 +138,8 @@ class MainActivity : FlutterActivity() {
     }
 
     companion object {
+        private const val WIDGET_CHANNEL = "ffm/widget"
+        private const val WIDGET_ACTION_EXTRA = "ffm_widget_action"
         private const val SOUND_CHANNEL = "ffm/reminder_sound"
         private const val PRIVACY_CHANNEL = "ffm/privacy"
         private const val REQUEST_CODE = 7201

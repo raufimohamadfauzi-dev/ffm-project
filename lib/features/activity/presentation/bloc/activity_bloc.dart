@@ -62,7 +62,7 @@ class ActivityBloc extends Cubit<ActivityState> {
     try {
       final sessions = await repository.getSessions(AppContext.householdId);
       final entries = await repository.getEntries(AppContext.householdId);
-      final activeSessions = await repository.getActiveSessions(
+      final activeSessions = await repository.recoverActiveSessions(
         AppContext.householdId,
       );
       final active = activeSessions.firstOrNull;

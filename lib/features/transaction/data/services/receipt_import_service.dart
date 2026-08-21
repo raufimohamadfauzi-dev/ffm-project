@@ -21,6 +21,8 @@ class ReceiptBatchEntry {
     this.merchant,
     this.categoryId,
     this.accountId,
+    this.budgetId,
+    this.budgetName,
     this.partyName,
     this.note,
     this.fromAccountId,
@@ -35,6 +37,8 @@ class ReceiptBatchEntry {
   final String? merchant;
   final String? categoryId;
   final String? accountId;
+  final String? budgetId;
+  final String? budgetName;
   final String? partyName;
   final String? note;
   final String? fromAccountId;
@@ -181,6 +185,9 @@ class ReceiptImportService {
             amount: receipt.total ?? receipt.itemsTotal,
             merchant: receipt.merchant,
             categoryId: receipt.categoryId,
+            budgetName: _text(
+              (root['budget_name'] ?? root['anggaran_nama'])?.toString(),
+            ),
             note: receipt.rawText.trim().isEmpty ? null : receipt.rawText,
             items: receipt.items,
           ),
@@ -244,8 +251,15 @@ class ReceiptImportService {
           time: _text(data['time'] ?? data['waktu']),
           amount: amount,
           merchant: _text(data['merchant'] ?? data['toko']),
-          categoryId: _text(data['category_id']),
+          categoryId: _text(data['category_id'] ?? data['kategori_id']),
           accountId: _text(data['account_id'] ?? data['rekening_id']),
+          budgetId: _text(data['budget_id'] ?? data['anggaran_id']),
+          budgetName: _text(
+            data['budget_name'] ??
+                data['anggaran_nama'] ??
+                data['budget'] ??
+                data['anggaran'],
+          ),
           partyName: _text(
             data['party_name'] ?? data['sumber'] ?? data['dipakai_oleh'],
           ),
@@ -315,6 +329,13 @@ class ReceiptImportService {
             data['merchant'] ?? data['toko'] ?? data['description'],
           ),
           categoryId: _text(data['category_id'] ?? data['kategori_id']),
+          budgetId: _text(data['budget_id'] ?? data['anggaran_id']),
+          budgetName: _text(
+            data['budget_name'] ??
+                data['anggaran_nama'] ??
+                data['budget'] ??
+                data['anggaran'],
+          ),
           accountId: _text(
             data['account_id'] ??
                 data['rekening_id'] ??
@@ -403,6 +424,8 @@ class ReceiptImportService {
         'description': 'Sumber uang masuk',
         'account_id': null,
         'category_id': null,
+        'budget_id': null,
+        'budget_name': null,
         'party_name': null,
         'note': null,
       },
@@ -414,6 +437,8 @@ class ReceiptImportService {
         'description': 'Tujuan uang keluar',
         'account_id': null,
         'category_id': null,
+        'budget_id': null,
+        'budget_name': null,
         'party_name': null,
         'note': null,
       },
@@ -436,6 +461,8 @@ Aturan:
 - Saldo akhir wajib masuk ke statement.closing_balance jika terlihat. Saldo akhir bukan transaksi pemasukan.
 - Jangan membuat transaksi dari saldo awal atau saldo akhir.
 - Jika rekening tujuan/asal transfer tidak terlihat, gunakan null dan beri catatan.
+- Untuk pemasukan, budget_id dan budget_name biasanya null karena anggaran FFM hanya batas pengeluaran.
+- Untuk pengeluaran, isi budget_name dengan pos/kategori anggaran yang paling cocok jika terlihat dari keterangan; jangan membuat nama pos baru.
 - Jika tanggal, nominal, atau keterangan tidak terbaca, gunakan null; jangan menebak.
 - Aplikasi akan menampilkan hasil sebagai draft untuk direvisi dan dikonfirmasi.''';
 
@@ -449,6 +476,8 @@ Aturan:
         'merchant': null,
         'category_id': null,
         'account_id': null,
+        'budget_id': null,
+        'budget_name': null,
         'party_name': null,
         'note': '',
         'amount': 0,
@@ -479,6 +508,9 @@ Aturan:
 - `type` hanya boleh `income` atau `expense`.
 - `amount`, `unit_price`, dan `items.amount` harus berupa angka integer rupiah tanpa titik, koma, atau simbol Rp.
 - Satu transaksi boleh memiliki banyak item pada `items`.
+- Untuk pengeluaran, isi `budget_name` dengan nama pos anggaran yang paling cocok berdasarkan keterangan. Jika tidak yakin, gunakan null; jangan menebak.
+- `budget_id` hanya diisi jika ID pos diberikan secara eksplisit oleh aplikasi; jangan membuat ID sendiri.
+- Untuk pemasukan, `budget_id` dan `budget_name` biasanya null karena anggaran adalah batas pengeluaran.
 - Jangan menggabungkan beberapa transaksi berbeda menjadi satu objek.
 - Jika data tidak terbaca, gunakan null; jangan menebak.
 - FFM akan menampilkan semua hasil sebagai draft yang wajib diedit dan dikonfirmasi.''';

@@ -57,6 +57,37 @@ class ActivityRepository {
     return active.firstOrNull;
   }
 
+  /// Mengembalikan semua sesi aktif apa adanya setelah aplikasi dibuka ulang.
+  ///
+  /// Parent yang force close tidak boleh otomatis menghentikan child. Jika
+  /// parent tidak ditemukan karena data lama atau penghapusan yang tidak
+  /// lengkap, child tetap dipertahankan dan dicatat sebagai recovery.
+  Future<List<ActivitySessionEntity>> recoverActiveSessions(
+    String householdId,
+  ) async {
+    final active = await getActiveSessions(householdId);
+    final activeIds = active.map((session) => session.id).toSet();
+    final orphaned = active
+        .where(
+          (session) =>
+              session.parentSessionId != null &&
+              !activeIds.contains(session.parentSessionId),
+        )
+        .toList(growable: false);
+    if (orphaned.isNotEmpty) {
+      await auditLogger.record(
+        action: 'recover_active_sessions',
+        entity: 'activity_session',
+        householdId: householdId,
+        newValue: {
+          'orphanedActiveSessionIds': orphaned.map((item) => item.id).toList(),
+          'reason': 'parent tidak aktif atau tidak ditemukan setelah aplikasi dibuka ulang',
+        },
+      );
+    }
+    return active;
+  }
+
   Future<List<ActivityCheckpointEntity>> getCheckpoints(
     String sessionId,
   ) async {

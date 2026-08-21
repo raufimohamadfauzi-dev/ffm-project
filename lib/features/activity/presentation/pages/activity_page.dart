@@ -27,7 +27,8 @@ class _ActivityView extends StatefulWidget {
   State<_ActivityView> createState() => _ActivityViewState();
 }
 
-class _ActivityViewState extends State<_ActivityView> {
+class _ActivityViewState extends State<_ActivityView>
+    with WidgetsBindingObserver {
   Timer? _ticker;
   String _typeFilter = 'Semua';
   DateTime? _dayFilter;
@@ -36,6 +37,7 @@ class _ActivityViewState extends State<_ActivityView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       final activityState = context.read<ActivityBloc>().state;
@@ -44,7 +46,15 @@ class _ActivityViewState extends State<_ActivityView> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<ActivityBloc>().load();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
     super.dispose();
   }
@@ -304,7 +314,8 @@ class _ActivityViewState extends State<_ActivityView> {
                 children: [
                   const AppHelpBanner(
                     title: 'Waktu kamu bisa dilacak',
-                    message: 'Mulai satu aktivitas, lalu tekan Update aktivitas setiap kali ada perubahan. Durasi dihitung otomatis sampai kamu menekan Selesai.',
+                    message: 'Mulai satu aktivitas, lalu tekan Update aktivitas setiap kali ada perubahan. Aktivitas di dalamnya punya timer sendiri. Kalau aplikasi ditutup paksa, sesi aktif tetap tersimpan dan dilanjutkan saat aplikasi dibuka lagi.',
+
                     icon: Icons.timeline_outlined,
                   ),
                   const SizedBox(height: 16),

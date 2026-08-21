@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/database/app_database.dart';
 import 'core/di/injection.dart';
@@ -7,9 +8,11 @@ import 'features/recurring_transaction/domain/usecases/recurring_transaction_cru
 import 'features/reminder/data/services/reminder_notification_service.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/advisor/presentation/pages/analysis_page.dart';
+import 'features/activity/presentation/pages/activity_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
+import 'features/transaction/presentation/pages/receipt_scan_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 
 Future<void> main() async {
@@ -108,7 +111,64 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  static const _widgetChannel = MethodChannel('ffm/widget');
   var _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _widgetChannel.setMethodCallHandler(_handleWidgetCall);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _consumePendingWidgetAction();
+    });
+  }
+
+  Future<void> _consumePendingWidgetAction() async {
+    final action = await _widgetChannel.invokeMethod<String>(
+      'consumePendingAction',
+    );
+    if (mounted && action != null) {
+      _openWidgetAction(action);
+    }
+  }
+
+  Future<void> _handleWidgetCall(MethodCall call) async {
+    if (call.method != 'openAction' || !mounted) return;
+    _openWidgetAction(call.arguments?.toString());
+  }
+
+  void _openWidgetAction(String? action) {
+    if (!mounted) return;
+    switch (action) {
+      case 'transaction':
+        setState(() => _index = 1);
+      case 'budget':
+        setState(() => _index = 2);
+      case 'activity':
+        setState(() => _index = 4);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
+          }
+        });
+      case 'scan':
+        setState(() => _index = 1);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ReceiptScanPage()));
+          }
+        });
+    }
+  }
+
+  @override
+  void dispose() {
+    _widgetChannel.setMethodCallHandler(null);
+    super.dispose();
+  }
 
   List<Widget> get _pages => [
     const SummaryPage(),
