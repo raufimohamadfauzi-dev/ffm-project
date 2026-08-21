@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
@@ -7,6 +8,32 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart'
 void main() {
   late dynamic database;
   late FfmAssistantInterpreter interpreter;
+
+  test('sesi chat menyimpan riwayat dan antrean sampai direset eksplisit', () {
+    final session = FfmAssistantChatSession();
+    final intent = FfmAssistantIntent(
+      rawText: 'buka transaksi',
+      normalizedText: 'buka transaksi',
+      type: FfmAssistantIntentType.openPage,
+      confidence: 1,
+    );
+    session.entries.add(
+      const FfmAssistantChatEntry(isUser: true, text: 'buka transaksi'),
+    );
+    session.queuedIntents.add(intent);
+    session.lastAssistantText = 'Siap, pindah ke Transaksi.';
+
+    expect(session.entries, hasLength(2));
+    expect(session.queuedIntents, hasLength(1));
+    expect(session.lastAssistantText, isNotNull);
+
+    session.reset();
+
+    expect(session.entries, hasLength(1));
+    expect(session.entries.single.text, contains('Chat sudah direset'));
+    expect(session.queuedIntents, isEmpty);
+    expect(session.lastAssistantText, isNull);
+  });
 
   setUp(() async {
     database = createInMemoryDatabaseForTests();
@@ -54,6 +81,23 @@ void main() {
     expect(intent.type, FfmAssistantIntentType.listPages);
     expect(intent.response, contains('Hutang & piutang'));
     expect(intent.response, contains('Ringkasan'));
+  });
+
+  test('memandu setup berdasarkan data utama yang masih kosong', () async {
+    final intent = await interpreter.interpret('Harus mulai dari mana?');
+
+    expect(intent.type, FfmAssistantIntentType.setupGuide);
+    expect(intent.response, contains('rekening aktif'));
+    expect(intent.response, contains('Catat transaksi pertama'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjelaskan fungsi tag tanpa membuat data', () async {
+    final intent = await interpreter.interpret('Fungsi tag buat apa?');
+
+    expect(intent.type, FfmAssistantIntentType.featureHelp);
+    expect(intent.response, contains('bukan kategori'));
+    expect(intent.draft, isNull);
   });
 
   test('memahami typo aman dan statistik transaksi minggu ini', () async {
@@ -107,6 +151,72 @@ void main() {
     expect(intent.draft?.toAccountName, 'Tunai');
     expect(intent.needsClarification, isFalse);
   });
+
+  test('memilih kategori aktif yang cocok untuk draft pengeluaran', () async {
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'rokok',
+            householdId: AppContext.householdId,
+            name: 'Rokok',
+            type: 'expense',
+            createdAt: DateTime(2026, 8, 1),
+          ),
+        );
+
+    final intent = await interpreter.interpret(
+      'catat belanja rokok 25 ribu dari Tunai',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.createExpense);
+    expect(intent.draft?.categoryName, 'Rokok');
+    expect(intent.response, contains('Kategori Rokok'));
+  });
+
+  test(
+    'analisa minggu ini hanya memakai nominal transaksi yang tersimpan',
+    () async {
+      final now = DateTime.now();
+      await database
+          .into(database.categories)
+          .insert(
+            CategoriesCompanion.insert(
+              id: 'makan',
+              householdId: AppContext.householdId,
+              name: 'Makan',
+              type: 'expense',
+              createdAt: now,
+            ),
+          );
+      await database
+          .into(database.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              id: 'belanja-mingguan',
+              householdId: AppContext.householdId,
+              type: 'expense',
+              categoryId: const Value('makan'),
+              amount: -27500,
+              date: now,
+              recordedAt: now,
+              createdAt: now,
+            ),
+          );
+
+      final intent = await interpreter.interpret(
+        'Analisa pengeluaran minggu ini',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.weeklyAnalysis);
+      expect(intent.response, contains('Rp27.500'));
+      expect(intent.response, contains('Makan'));
+      expect(
+        intent.response,
+        contains('transfer tidak masuk hitungan arus kas'),
+      );
+    },
+  );
 
   test(
     'meminta informasi yang kurang daripada membuat hutang sembarang',

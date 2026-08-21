@@ -124,7 +124,9 @@ void main() {
       );
 
       expect(intent.targetSessionId, isNull);
-      expect(intent.ambiguityReason, contains('Sebutkan nama aktivitas'));
+      expect(intent.ambiguityReason, contains('Ada 2 aktivitas'));
+      expect(intent.ambiguityReason, contains('Perjalanan'));
+      expect(intent.ambiguityReason, contains('Kerja'));
       expect(intent.canConfirm, isFalse);
     },
   );

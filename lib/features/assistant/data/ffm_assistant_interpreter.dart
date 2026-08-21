@@ -120,6 +120,17 @@ class FfmAssistantInterpreter {
     final correction = _parseCorrection(rawText, normalized);
     if (correction != null) return correction;
 
+    if (_isSetupRequest(normalized)) {
+      return _setupGuide(rawText, normalized);
+    }
+
+    final featureHelp = _featureHelp(rawText, normalized);
+    if (featureHelp != null) return featureHelp;
+
+    if (_isWeeklyAnalysisRequest(normalized)) {
+      return _weeklyAnalysis(rawText, normalized);
+    }
+
     if (_isTransactionStats(normalized)) {
       return _transactionStats(rawText, normalized);
     }
@@ -137,14 +148,7 @@ class FfmAssistantInterpreter {
       'bikin json',
       'template json',
     ])) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.createJsonTemplate,
-        destination: FfmAssistantDestination.backup,
-        confidence: .9,
-        response: 'Aku buka Ekspor & cadangan. Di sana kamu bisa salin template JSON, lalu tempel balik hasil yang sudah kamu cek sebagai draft.',
-      );
+      return _jsonTemplateHelp(rawText, normalized);
     }
     if (_containsAny(normalized, const [
       'fungsi json',
@@ -210,7 +214,13 @@ class FfmAssistantInterpreter {
     }
 
     final accounts = await _activeAccounts();
-    final draft = _parseFinancialDraft(rawText, normalized, accounts);
+    final categories = await _activeCategories();
+    final draft = _parseFinancialDraft(
+      rawText,
+      normalized,
+      accounts,
+      categories,
+    );
     if (draft != null) return _intentForDraft(rawText, normalized, draft);
 
     return _unknown(
@@ -227,6 +237,188 @@ class FfmAssistantInterpreter {
                 row.isArchived.equals(false),
           ))
           .get();
+
+  Future<List<Category>> _activeCategories() =>
+      (_database.select(_database.categories)..where(
+            (row) =>
+                row.householdId.equals(AppContext.householdId) &
+                row.isActive.equals(true),
+          ))
+          .get();
+
+  Future<FfmAssistantIntent> _setupGuide(
+    String rawText,
+    String normalized,
+  ) async {
+    final household = await (_database.select(
+      _database.households,
+    )..where((row) => row.id.equals(AppContext.householdId))).getSingleOrNull();
+    final accounts = await _activeAccounts();
+    final categories = await _activeCategories();
+    final hasNamedHousehold =
+        household != null &&
+        household.name.trim().isNotEmpty &&
+        household.name.trim().toLowerCase() != 'keluarga';
+    final expenseCategories = categories
+        .where((item) => item.type == 'expense')
+        .length;
+    final incomeCategories = categories
+        .where((item) => item.type == 'income')
+        .length;
+    final steps = <String>[];
+    if (!hasNamedHousehold) {
+      steps.add(
+        '1. Isi nama keluarga di Data Utama. Nama suami/istri boleh kamu isi kalau memang perlu.',
+      );
+    }
+    if (accounts.isEmpty) {
+      steps.add(
+        '${steps.length + 1}. Tambah rekening yang dipakai, misalnya Tunai atau rekening bank. Isi saldo awal sesuai uang yang benar-benar ada sekarang.',
+      );
+    }
+    if (expenseCategories == 0 || incomeCategories == 0) {
+      steps.add(
+        '${steps.length + 1}. Lengkapi kategori pemasukan dan pengeluaran agar riwayat lebih gampang dibaca.',
+      );
+    }
+    steps.add(
+      '${steps.length + 1}. Catat transaksi pertama. Pilih rekening bila uangnya memang perlu mengubah saldo; kalau sumber dana belum tahu, biarkan sebagai “Belum terlacak”.',
+    );
+    steps.add(
+      '${steps.length + 1}. Setelah ada catatan, atur Anggaran mingguan/bulanan kalau kamu mau memantau batas belanja.',
+    );
+    final condition = accounts.isEmpty
+        ? 'Saat ini belum ada rekening aktif.'
+        : 'Saat ini ada ${accounts.length} rekening aktif.';
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.setupGuide,
+      confidence: 1,
+      response:
+          '$condition Kategori aktif: $expenseCategories pengeluaran dan $incomeCategories pemasukan. Kita mulai dari yang paling kepake ya:\n${steps.join('\n')}',
+    );
+  }
+
+  FfmAssistantIntent? _featureHelp(String rawText, String normalized) {
+    final isQuestion = _containsAny(normalized, const [
+      'fungsi',
+      'buat apa',
+      'apa itu',
+      'cara ',
+      'gimana ',
+      'bagaimana ',
+      'jelaskan',
+    ]);
+    if (!isQuestion) return null;
+    if (_containsAny(normalized, const [
+      'fungsi tag',
+      'tag buat apa',
+      'apa itu tag',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'Tag itu penanda tambahan transaksi, bukan kategori dan tidak mengubah saldo. Contohnya “belanja pasar”, “panen cabai”, atau “keperluan anak”. Tag berguna buat cari dan menyaring transaksi yang punya tema sama. Tambah atau rapikan tag di Data Utama.',
+      );
+    }
+    if (_containsAny(normalized, const [
+      'fungsi lampiran',
+      'lampiran buat apa',
+      'apa itu lampiran',
+      'foto nota buat apa',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'Lampiran dipakai untuk menyimpan bukti, misalnya foto nota atau dokumen transaksi. Lampiran biasa tidak mengubah nominal. Kalau mau baca foto nota, gunakan Scan nota/OCR; hasilnya tetap jadi draft yang kamu cek dulu sebelum disimpan.',
+      );
+    }
+    if (_containsAny(normalized, const [
+      'cara catat belanja',
+      'cara input belanja',
+      'cara catat pengeluaran',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'Buka Transaksi, pilih Pengeluaran, isi nominal dan kategori, lalu pilih rekening atau Tunai jika belanja itu memang mengurangi saldo. Kalau sumber uangnya belum tahu, pilih “Belum terlacak” supaya saldo rekening tidak berubah. Tambahkan catatan atau lampiran kalau perlu, lalu cek dan simpan.',
+      );
+    }
+    if (_containsAny(normalized, const [
+      'transfer dengan admin',
+      'cara transfer',
+      'biaya admin transfer',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'Untuk transfer, pilih rekening asal dan tujuan. Nominal transfer hanya memindahkan saldo, jadi tidak dihitung sebagai pemasukan atau pengeluaran. Kalau ada biaya admin, isi nominal adminnya; FFM akan mencatat biaya itu sebagai pengeluaran terpisah dari rekening asal.',
+      );
+    }
+    if (_containsAny(normalized, const [
+      'anggaran tidak rutin',
+      'budget tidak rutin',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'Anggaran Tidak Rutin cocok untuk kebutuhan yang tidak dibeli tiap bulan, misalnya sandal atau perbaikan rumah. Batasnya tidak direset otomatis seperti anggaran bulanan. Pengeluaran baru akan mengisi rincian aktual dari transaksi yang memang sudah kamu simpan.',
+      );
+    }
+    if (_containsAny(normalized, const [
+      'cara impor json',
+      'cara pakai json',
+      'kolom json',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        confidence: 1,
+        response: 'JSON dipakai untuk menyiapkan banyak data sekaligus sebagai draft. Untuk transaksi, tiap baris biasanya berisi tipe, tanggal, nominal, kategori, rekening, catatan, dan bila perlu rincian item. Untuk transfer tambahkan rekening asal, tujuan, serta biaya admin bila ada. Tempel JSON di Transaksi, cek preview dan revisi, lalu konfirmasi. Tidak ada data yang masuk otomatis.',
+      );
+    }
+    return null;
+  }
+
+  FfmAssistantIntent _jsonTemplateHelp(String rawText, String normalized) {
+    final type = _containsAny(normalized, const ['mutasi', 'rekening'])
+        ? 'mutasi rekening'
+        : _containsAny(normalized, const ['cadangan', 'backup'])
+        ? 'cadangan data'
+        : _containsAny(normalized, const ['laporan', 'pdf', 'html'])
+        ? 'laporan'
+        : null;
+    if (type == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createJsonTemplate,
+        confidence: .9,
+        response: 'Kamu mau JSON untuk apa dulu: impor transaksi, mutasi rekening, cadangan data, atau bahan laporan? Sebut salah satunya, nanti aku arahkan ke template dan jelaskan kolomnya.',
+      );
+    }
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.createJsonTemplate,
+      destination: FfmAssistantDestination.backup,
+      confidence: .9,
+      response:
+          'Aku buka Ekspor & cadangan untuk template $type. Salin templatenya, isi atau perbaiki di LLM di luar aplikasi, lalu tempel balik untuk preview. Hasil impor tetap draft sampai kamu konfirmasi.',
+    );
+  }
 
   Future<FfmAssistantIntent> _transactionStats(
     String rawText,
@@ -264,6 +456,98 @@ class FfmAssistantInterpreter {
       confidence: 1,
       response:
           '$label kamu punya ${transactions.length + transfers.length} catatan: $income pemasukan, $expense pengeluaran, dan ${transfers.length} transfer. Transfer tetap tidak dihitung sebagai arus kas, ya.',
+    );
+  }
+
+  Future<FfmAssistantIntent> _weeklyAnalysis(
+    String rawText,
+    String normalized,
+  ) async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final thisWeekStart = today.subtract(Duration(days: today.weekday - 1));
+    final isLastWeek = _containsAny(normalized, const [
+      'minggu lalu',
+      'minggu kemarin',
+    ]);
+    final start = isLastWeek
+        ? thisWeekStart.subtract(const Duration(days: 7))
+        : thisWeekStart;
+    final end = start.add(const Duration(days: 7));
+    final label = isLastWeek ? 'Minggu lalu' : 'Minggu ini';
+    final transactions =
+        await (_database.select(_database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(start) &
+                  row.date.isSmallerThanValue(end),
+            ))
+            .get();
+    final transfers =
+        await (_database.select(_database.transfers)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(start) &
+                  row.date.isSmallerThanValue(end),
+            ))
+            .get();
+    if (transactions.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.weeklyAnalysis,
+        destination: FfmAssistantDestination.analysis,
+        confidence: 1,
+        response:
+            '$label belum punya transaksi yang tersimpan, jadi aku belum bisa bikin analisa. Kalau ada belanja atau pemasukan yang belum dicatat, masukkan dulu sebagai draft lalu cek sebelum simpan.',
+      );
+    }
+    final categories = await (_database.select(
+      _database.categories,
+    )..where((row) => row.householdId.equals(AppContext.householdId))).get();
+    final categoryNames = {
+      for (final category in categories) category.id: category.name,
+    };
+    final income = transactions
+        .where((item) => item.type == 'income')
+        .fold<int>(0, (total, item) => total + item.amount.abs());
+    final expenseTransactions = transactions
+        .where((item) => item.type == 'expense')
+        .toList();
+    final expense = expenseTransactions.fold<int>(
+      0,
+      (total, item) => total + item.amount.abs(),
+    );
+    final byCategory = <String, int>{};
+    for (final transaction in expenseTransactions) {
+      final name = categoryNames[transaction.categoryId] ?? 'Tanpa kategori';
+      byCategory.update(
+        name,
+        (total) => total + transaction.amount.abs(),
+        ifAbsent: () => transaction.amount.abs(),
+      );
+    }
+    final biggest = byCategory.entries.toList()
+      ..sort((left, right) => right.value.compareTo(left.value));
+    final biggestText = biggest.isEmpty
+        ? 'Belum ada pengeluaran tercatat.'
+        : 'Pengeluaran terbesar: ${biggest.take(3).map((item) => '${item.key} ${_formatRupiah(item.value)}').join(', ')}.';
+    final net = income - expense;
+    final netText = net > 0
+        ? 'arus kas surplus ${_formatRupiah(net)}'
+        : net < 0
+        ? 'arus kas defisit ${_formatRupiah(net.abs())}'
+        : 'arus kas seimbang';
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.weeklyAnalysis,
+      destination: FfmAssistantDestination.analysis,
+      confidence: 1,
+      response:
+          '$label, dari ${transactions.length} transaksi yang tersimpan: pemasukan ${_formatRupiah(income)}, pengeluaran ${_formatRupiah(expense)}, jadi $netText. $biggestText Ada ${transfers.length} transfer; transfer tidak masuk hitungan arus kas.',
     );
   }
 
@@ -455,6 +739,9 @@ class FfmAssistantInterpreter {
     final clarification = missing.isEmpty
         ? safetyWarning
         : 'Aku sudah menyiapkan draft ${config.action}, tapi masih butuh ${missing.join(', ')}.';
+    final categoryHint = draft.categoryName == null
+        ? ''
+        : ' Kategori ${draft.categoryName} sudah aku pilih dari Data Utama.';
     return FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
@@ -464,7 +751,7 @@ class FfmAssistantInterpreter {
       confidence: missing.isEmpty ? .9 : .55,
       clarification: clarification,
       response: missing.isEmpty
-          ? 'Draft ${config.action} sudah siap. Cek dulu, lalu konfirmasi di halaman terkait.'
+          ? 'Draft ${config.action} sudah siap.$categoryHint Cek dulu, lalu konfirmasi di halaman terkait.'
           : null,
     );
   }
@@ -473,6 +760,7 @@ class FfmAssistantInterpreter {
     String rawText,
     String normalized,
     List<Account> accounts,
+    List<Category> categories,
   ) {
     final now = DateTime.now();
     final amount = FfmAssistantAmountParser.parse(normalized);
@@ -596,12 +884,15 @@ class FfmAssistantInterpreter {
       'bayarin',
     ]);
     if (!income && !expense) return null;
+    final transactionType = income && !expense ? 'income' : 'expense';
+    final category = _matchCategory(normalized, categories, transactionType);
     return FfmAssistantDraft(
       kind: income && !expense
           ? FfmAssistantDraftKind.income
           : FfmAssistantDraftKind.expense,
       createdAt: now,
       amount: amount,
+      categoryName: category?.name,
       toAccountName: income ? _matchAccount(normalized, accounts)?.name : null,
       fromAccountName: expense
           ? _matchAccount(normalized, accounts)?.name
@@ -680,6 +971,22 @@ class FfmAssistantInterpreter {
     return typoMatches.length == 1 ? typoMatches.single : null;
   }
 
+  Category? _matchCategory(
+    String text,
+    List<Category> categories,
+    String type,
+  ) {
+    final candidates = categories
+        .where((item) => item.type == type)
+        .where((item) {
+          final name = item.name.toLowerCase().trim();
+          return name.length > 2 && text.contains(name);
+        })
+        .toList(growable: false);
+    if (candidates.length == 1) return candidates.single;
+    return null;
+  }
+
   int? _parseAdminFee(String text) {
     final match = RegExp(r'(?:admin|biaya admin|fee)\s+(?:rp\s*)?([\w. ,]+)')
         .firstMatch(text);
@@ -708,6 +1015,26 @@ class FfmAssistantInterpreter {
     'total transaksi',
     'transaksi ada berapa',
     'ada berapa catatan',
+  ]);
+
+  bool _isWeeklyAnalysisRequest(String text) => _containsAny(text, const [
+    'data minggu',
+    'analisa minggu',
+    'analisis minggu',
+    'pengeluaran minggu',
+    'pemasukan minggu',
+    'minggu lalu gimana',
+    'minggu ini gimana',
+  ]);
+
+  bool _isSetupRequest(String text) => _containsAny(text, const [
+    'harus mulai dari mana',
+    'mulai dari mana',
+    'cara pakai ffm',
+    'cara menggunakan ffm',
+    'setup awal',
+    'pengaturan awal',
+    'pertama kali pakai',
   ]);
 
   bool _isFinancialWarningRequest(String text) => _containsAny(text, const [
@@ -751,6 +1078,16 @@ class FfmAssistantInterpreter {
 
   String _capitalize(String word) =>
       word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}';
+
+  String _formatRupiah(int value) {
+    final digits = value.toString();
+    final buffer = StringBuffer();
+    for (var index = 0; index < digits.length; index++) {
+      if (index > 0 && (digits.length - index) % 3 == 0) buffer.write('.');
+      buffer.write(digits[index]);
+    }
+    return 'Rp$buffer';
+  }
 
   FfmAssistantIntent _unknown(String raw, String normalized, String response) =>
       FfmAssistantIntent(

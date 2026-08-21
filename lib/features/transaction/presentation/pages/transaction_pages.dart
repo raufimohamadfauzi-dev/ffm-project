@@ -132,6 +132,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   : TransactionType.expense,
               initialAmount: draft.amount,
               initialAccountName: draft.toAccountName ?? draft.fromAccountName,
+              initialCategoryName: draft.categoryName,
               initialNote: draft.note,
               initialDate: draft.date,
             ),
@@ -1777,6 +1778,7 @@ class TransactionFormPage extends StatefulWidget {
     this.initialNote,
     this.initialAmount,
     this.initialAccountName,
+    this.initialCategoryName,
     this.initialDate,
     this.showFirstTransactionGuide = false,
   });
@@ -1787,6 +1789,7 @@ class TransactionFormPage extends StatefulWidget {
   final String? initialNote;
   final int? initialAmount;
   final String? initialAccountName;
+  final String? initialCategoryName;
   final DateTime? initialDate;
   final bool showFirstTransactionGuide;
 
@@ -2061,6 +2064,16 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     if (!mounted) return;
     setState(() {
       _categories = categories;
+      final targetName = widget.initialCategoryName?.toLowerCase();
+      if (_categoryId == null && targetName != null) {
+        final matches = categories.where(
+          (category) =>
+              category.type ==
+                  (_type == TransactionType.income ? 'income' : 'expense') &&
+              category.name.toLowerCase() == targetName,
+        );
+        if (matches.length == 1) _categoryId = matches.single.id;
+      }
       _categoriesLoading = false;
     });
   }

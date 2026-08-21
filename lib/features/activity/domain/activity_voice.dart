@@ -324,6 +324,12 @@ class ActivityVoiceParser {
           confidence: .9,
         );
       }
+      if (sessions.length > 1) {
+        return intent.copyWith(
+          ambiguityReason:
+              'Ada ${sessions.length} aktivitas yang masih jalan: ${sessions.map((session) => session.title).join(', ')}. Sebutkan nama aktivitas yang mau diubah ya.',
+        );
+      }
       return intent.copyWith(ambiguityReason: 'Sebutkan nama aktivitasnya ya.');
     }
     final matches = sessions
@@ -367,7 +373,7 @@ class ActivityVoiceParser {
     return intent.copyWith(
       ambiguityReason: matches.isEmpty
           ? 'Aktivitas induk $title belum ditemukan yang sedang berjalan.'
-          : 'Ada beberapa aktivitas induk $title. Pilih yang benar dulu ya.',
+          : 'Ada beberapa aktivitas induk $title: ${matches.map((session) => session.title).join(', ')}. Pilih yang benar dulu ya.',
     );
   }
 

@@ -3,7 +3,10 @@
 enum FfmAssistantIntentType {
   openPage,
   listPages,
+  setupGuide,
+  featureHelp,
   transactionStats,
+  weeklyAnalysis,
   financialWarnings,
   createIncome,
   createExpense,
@@ -85,6 +88,7 @@ class FfmAssistantDraft {
     this.partyName,
     this.fromAccountName,
     this.toAccountName,
+    this.categoryName,
     this.adminFee,
     this.goalName,
     this.note,
@@ -98,6 +102,7 @@ class FfmAssistantDraft {
   final String? partyName;
   final String? fromAccountName;
   final String? toAccountName;
+  final String? categoryName;
   final int? adminFee;
   final String? goalName;
   final String? note;
@@ -111,6 +116,7 @@ class FfmAssistantDraft {
     String? partyName,
     String? fromAccountName,
     String? toAccountName,
+    String? categoryName,
     int? adminFee,
     String? goalName,
     String? note,
@@ -123,11 +129,53 @@ class FfmAssistantDraft {
     partyName: partyName ?? this.partyName,
     fromAccountName: fromAccountName ?? this.fromAccountName,
     toAccountName: toAccountName ?? this.toAccountName,
+    categoryName: categoryName ?? this.categoryName,
     adminFee: adminFee ?? this.adminFee,
     goalName: goalName ?? this.goalName,
     note: note ?? this.note,
     date: date ?? this.date,
   );
+}
+
+class FfmAssistantChatEntry {
+  const FfmAssistantChatEntry({
+    required this.isUser,
+    required this.text,
+    this.intent,
+    this.understanding,
+  });
+
+  final bool isUser;
+  final String text;
+  final FfmAssistantIntent? intent;
+  final String? understanding;
+}
+
+class FfmAssistantChatSession {
+  FfmAssistantChatSession()
+    : entries = [
+        const FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, atau siapin draft? Tulis santai aja. Contoh: “Ada berapa transaksi bulan ini?”',
+        ),
+      ];
+
+  final List<FfmAssistantChatEntry> entries;
+  final List<FfmAssistantIntent> queuedIntents = [];
+  String? lastAssistantText;
+
+  void reset() {
+    entries
+      ..clear()
+      ..add(
+        const FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Chat sudah direset. Mau cek data, pindah halaman, atau siapin draft?',
+        ),
+      );
+    queuedIntents.clear();
+    lastAssistantText = null;
+  }
 }
 
 class FfmAssistantPage {

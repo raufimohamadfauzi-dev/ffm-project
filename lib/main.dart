@@ -126,6 +126,7 @@ class _AppShellState extends State<AppShell> {
   var _assistantRequestId = 0;
   var _assistantSheetOpen = false;
   FfmAssistantDraft? _assistantTransactionDraft;
+  final _assistantSession = FfmAssistantChatSession();
 
   @override
   void initState() {
@@ -224,6 +225,7 @@ class _AppShellState extends State<AppShell> {
                   initialAccountName: draft.kind == FfmAssistantDraftKind.income
                       ? draft.toAccountName
                       : draft.fromAccountName,
+                  initialCategoryName: draft.categoryName,
                   initialNote: draft.note ?? draft.title,
                   initialDate: draft.date,
                 ),
@@ -309,6 +311,7 @@ class _AppShellState extends State<AppShell> {
         context,
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
+        session: _assistantSession,
         currentDestination: _assistantCurrentDestination,
       );
     } finally {

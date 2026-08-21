@@ -17,6 +17,7 @@ Future<void> showFfmAssistantSheet(
   BuildContext context, {
   required FfmAssistantIntentHandler onIntent,
   required FfmAssistantIntentBatchHandler onIntents,
+  required FfmAssistantChatSession session,
   FfmAssistantDestination? currentDestination,
 }) => showModalBottomSheet<void>(
   context: context,
@@ -26,6 +27,7 @@ Future<void> showFfmAssistantSheet(
   builder: (_) => FfmAssistantSheet(
     onIntent: onIntent,
     onIntents: onIntents,
+    session: session,
     currentDestination: currentDestination,
   ),
 );
@@ -35,11 +37,13 @@ class FfmAssistantSheet extends StatefulWidget {
     super.key,
     required this.onIntent,
     required this.onIntents,
+    required this.session,
     this.currentDestination,
   });
 
   final FfmAssistantIntentHandler onIntent;
   final FfmAssistantIntentBatchHandler onIntents;
+  final FfmAssistantChatSession session;
   final FfmAssistantDestination? currentDestination;
 
   @override
@@ -52,16 +56,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _scrollController = ScrollController();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
-  final _entries = <_AssistantChatEntry>[
-    const _AssistantChatEntry(
-      isUser: false,
-      text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, atau siapin draft? Tulis santai aja. Contoh: “Ada berapa transaksi bulan ini?”',
-    ),
-  ];
   var _submitting = false;
   var _listening = false;
-  String? _lastAssistantText;
-  final _queuedIntents = <FfmAssistantIntent>[];
+
+  List<FfmAssistantChatEntry> get _entries => widget.session.entries;
+  List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
   @override
   void dispose() {
@@ -78,7 +77,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
-      _entries.add(_AssistantChatEntry(isUser: true, text: text));
+      _entries.add(FfmAssistantChatEntry(isUser: true, text: text));
       _controller.clear();
     });
     _scrollToEnd();
@@ -94,9 +93,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               intent.response ??
               intent.clarification ??
               'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
-          _lastAssistantText = response;
+          widget.session.lastAssistantText = response;
           _entries.add(
-            _AssistantChatEntry(
+            FfmAssistantChatEntry(
               isUser: false,
               text: response,
               intent: intent,
@@ -112,7 +111,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       setState(
         () => _entries.add(
-          const _AssistantChatEntry(
+          const FfmAssistantChatEntry(
             isUser: false,
             text: 'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
           ),
@@ -156,7 +155,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
     if (intent.type == FfmAssistantIntentType.readLastResponse) {
       await _speech.speak(
-        _lastAssistantText ?? 'Belum ada jawaban untuk dibaca.',
+        widget.session.lastAssistantText ?? 'Belum ada jawaban untuk dibaca.',
       );
       return;
     }
@@ -164,7 +163,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       setState(
         () => _entries.add(
-          const _AssistantChatEntry(
+          const FfmAssistantChatEntry(
             isUser: false,
             text: 'Oke, tidak ada draft dari Asisten yang akan disimpan.',
           ),
@@ -193,6 +192,32 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     Navigator.of(context).pop();
     await Future<void>.delayed(const Duration(milliseconds: 180));
     await handler(intents);
+  }
+
+  Future<void> _confirmResetSession() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reset chat?'),
+        content: const Text(
+          'Riwayat chat dan antrean perintah yang belum dibuka akan dihapus. Data keuangan tidak ikut berubah.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Reset chat'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(widget.session.reset);
+      _scrollToEnd();
+    }
   }
 
   void _scrollToEnd() {
@@ -307,6 +332,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       ),
                     ),
                     IconButton(
+                      tooltip: 'Reset chat',
+                      onPressed: _confirmResetSession,
+                      icon: const Icon(Icons.refresh),
+                    ),
+                    IconButton(
                       tooltip: 'Tutup asisten',
                       onPressed: () => Navigator.of(context).pop(),
                       icon: const Icon(Icons.close),
@@ -405,7 +435,7 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onIntent,
   });
 
-  final _AssistantChatEntry entry;
+  final FfmAssistantChatEntry entry;
   final VoidCallback? onSpeak;
   final VoidCallback? onIntent;
 
@@ -557,18 +587,4 @@ class _DraftPreview extends StatelessWidget {
 
   static String _rupiah(int amount) =>
       'Rp${amount.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (match) => '.')}';
-}
-
-class _AssistantChatEntry {
-  const _AssistantChatEntry({
-    required this.isUser,
-    required this.text,
-    this.intent,
-    this.understanding,
-  });
-
-  final bool isUser;
-  final String text;
-  final FfmAssistantIntent? intent;
-  final String? understanding;
 }
