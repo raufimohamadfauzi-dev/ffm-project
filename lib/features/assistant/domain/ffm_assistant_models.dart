@@ -5,6 +5,8 @@ enum FfmAssistantIntentType {
   listPages,
   setupGuide,
   featureHelp,
+  assistantIdentity,
+  calendarQuery,
   transactionStats,
   weeklyAnalysis,
   financialWarnings,
@@ -13,8 +15,14 @@ enum FfmAssistantIntentType {
   createTransfer,
   createGoalDeposit,
   createGoalUsage,
+  createGoal,
   createLiability,
   createReceivable,
+  createAsset,
+  createBudget,
+  createMasterData,
+  createReminder,
+  createActivity,
   explainJson,
   createJsonTemplate,
   exportReport,
@@ -50,8 +58,14 @@ enum FfmAssistantDraftKind {
   transfer,
   goalDeposit,
   goalUsage,
+  goal,
   liability,
   receivable,
+  asset,
+  budget,
+  masterData,
+  reminder,
+  activity,
 }
 
 class FfmAssistantIntent {
@@ -156,7 +170,7 @@ class FfmAssistantChatSession {
     : entries = [
         const FfmAssistantChatEntry(
           isUser: false,
-          text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, atau siapin draft? Tulis santai aja. Contoh: “Ada berapa transaksi bulan ini?”',
+          text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, siapin draft, atau tanya kalender? Tulis santai aja. Contoh: “Sekarang jam berapa?”, “90 hari lagi tanggal berapa?”, atau “Ada berapa transaksi bulan ini?”',
         ),
       ];
 
@@ -170,7 +184,7 @@ class FfmAssistantChatSession {
       ..add(
         const FfmAssistantChatEntry(
           isUser: false,
-          text: 'Chat sudah direset. Mau cek data, pindah halaman, atau siapin draft?',
+          text: 'Chat sudah direset. Mau cek data, pindah halaman, siapin draft, atau tanya kalender?',
         ),
       );
     queuedIntents.clear();

@@ -30,7 +30,9 @@ class BudgetPage extends EnvelopeBudgetPage {
 }
 
 class EnvelopeBudgetPage extends StatefulWidget {
-  const EnvelopeBudgetPage({super.key});
+  const EnvelopeBudgetPage({super.key, this.assistantAmount});
+
+  final int? assistantAmount;
 
   @override
   State<EnvelopeBudgetPage> createState() => _EnvelopeBudgetPageState();
@@ -51,6 +53,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   var _sort = _BudgetSort.nominalTerbesar;
   var _periodTypeFilter = 'weekly';
   var _weekStartDay = DateTime.monday;
+  var _assistantDraftHandled = false;
 
   DateTime _startOfWeek(DateTime value) {
     final date = DateTime(value.year, value.month, value.day);
@@ -227,6 +230,28 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                 .toList(growable: false);
       _loading = false;
     });
+    if (!_assistantDraftHandled && widget.assistantAmount != null) {
+      _assistantDraftHandled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _openAssistantBudget();
+      });
+    }
+  }
+
+  Future<void> _openAssistantBudget() async {
+    final envelope = _envelopes.where((item) => item.isOverall).firstOrNull;
+    if (envelope == null) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => EnvelopeEditPage(
+          envelope: envelope,
+          categories: _categories,
+          weekStartDay: _weekStartDay,
+          initialAmount: widget.assistantAmount,
+        ),
+      ),
+    );
+    if (saved == true && mounted) _load();
   }
 
   bool _isInPeriod(DateTime date, EnvelopeBudgetRow envelope) {
@@ -996,6 +1021,7 @@ class EnvelopeEditPage extends StatefulWidget {
     required this.categories,
     required this.weekStartDay,
     this.suggestedPeriod,
+    this.initialAmount,
     super.key,
   });
 
@@ -1003,6 +1029,7 @@ class EnvelopeEditPage extends StatefulWidget {
   final List<Category> categories;
   final int weekStartDay;
   final String? suggestedPeriod;
+  final int? initialAmount;
 
   @override
   State<EnvelopeEditPage> createState() => _EnvelopeEditPageState();
@@ -1022,7 +1049,9 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
   void initState() {
     super.initState();
     _amountController = TextEditingController(
-      text: widget.envelope.allocated == 0
+      text: widget.initialAmount != null
+          ? formatRupiahInput(widget.initialAmount.toString())
+          : widget.envelope.allocated == 0
           ? ''
           : formatRupiahInput(widget.envelope.allocated.toString()),
     );

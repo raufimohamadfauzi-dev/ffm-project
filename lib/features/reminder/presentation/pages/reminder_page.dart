@@ -8,17 +8,23 @@ import '../../domain/entities/reminder_entity.dart';
 import '../bloc/reminder_bloc.dart';
 
 class ReminderPage extends StatelessWidget {
-  const ReminderPage({super.key});
+  const ReminderPage({super.key, this.initialTitle, this.initialNote});
+
+  final String? initialTitle;
+  final String? initialNote;
 
   @override
   Widget build(BuildContext context) => BlocProvider(
     create: (_) => getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
-    child: const _ReminderView(),
+    child: _ReminderView(initialTitle: initialTitle, initialNote: initialNote),
   );
 }
 
 class _ReminderView extends StatefulWidget {
-  const _ReminderView();
+  const _ReminderView({this.initialTitle, this.initialNote});
+
+  final String? initialTitle;
+  final String? initialNote;
 
   @override
   State<_ReminderView> createState() => _ReminderViewState();
@@ -28,13 +34,35 @@ class _ReminderViewState extends State<_ReminderView> {
   ReminderHistoryStatus? _historyFilter;
   String? _lastNotifiedPendingHistoryId;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialTitle?.trim().isNotEmpty == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _openDialog(
+            context,
+            initialTitle: widget.initialTitle,
+            initialNote: widget.initialNote,
+          );
+        }
+      });
+    }
+  }
+
   Future<void> _openDialog(
     BuildContext context, {
     ReminderEntity? initial,
+    String? initialTitle,
+    String? initialNote,
   }) async {
     final reminder = await showDialog<ReminderEntity>(
       context: context,
-      builder: (_) => _ReminderDialog(initial: initial),
+      builder: (_) => _ReminderDialog(
+        initial: initial,
+        initialTitle: initialTitle,
+        initialNote: initialNote,
+      ),
     );
     if (reminder != null && context.mounted) {
       context.read<ReminderBloc>().add(ReminderSaved(reminder));
@@ -328,9 +356,11 @@ class _ReminderViewState extends State<_ReminderView> {
 }
 
 class _ReminderDialog extends StatefulWidget {
-  const _ReminderDialog({this.initial});
+  const _ReminderDialog({this.initial, this.initialTitle, this.initialNote});
 
   final ReminderEntity? initial;
+  final String? initialTitle;
+  final String? initialNote;
 
   @override
   State<_ReminderDialog> createState() => _ReminderDialogState();
@@ -349,8 +379,12 @@ class _ReminderDialogState extends State<_ReminderDialog> {
   void initState() {
     super.initState();
     final initial = widget.initial;
-    _titleController = TextEditingController(text: initial?.title ?? '');
-    _noteController = TextEditingController(text: initial?.note ?? '');
+    _titleController = TextEditingController(
+      text: initial?.title ?? widget.initialTitle ?? '',
+    );
+    _noteController = TextEditingController(
+      text: initial?.note ?? widget.initialNote ?? '',
+    );
     _scheduledAt =
         initial?.scheduledAt ?? DateTime.now().add(const Duration(hours: 1));
     _recurrence = initial?.recurrenceType ?? ReminderRecurrenceType.once;

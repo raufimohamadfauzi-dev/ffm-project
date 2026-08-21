@@ -9,7 +9,16 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
-  const MasterDataPage({super.key});
+  const MasterDataPage({
+    super.key,
+    this.assistantTab,
+    this.assistantName,
+    this.assistantProfileName,
+  });
+
+  final int? assistantTab;
+  final String? assistantName;
+  final String? assistantProfileName;
 
   @override
   State<MasterDataPage> createState() => _MasterDataPageState();
@@ -40,6 +49,23 @@ class _MasterDataPageState extends State<MasterDataPage>
     _tabs = TabController(length: _tabLabels.length, vsync: this)
       ..addListener(_onTabChanged);
     _loadProfile();
+    if (widget.assistantProfileName?.trim().isNotEmpty == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _editProfile(initialHouseholdName: widget.assistantProfileName);
+        }
+      });
+    }
+    final tab = widget.assistantTab;
+    if (tab != null && tab >= 0 && tab < _tabLabels.length) {
+      _tabs.index = tab;
+      _activeTab = tab;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _edit(tab, null, assistantName: widget.assistantName);
+        }
+      });
+    }
   }
 
   @override
@@ -69,12 +95,14 @@ class _MasterDataPageState extends State<MasterDataPage>
     });
   }
 
-  Future<void> _editProfile() async {
+  Future<void> _editProfile({String? initialHouseholdName}) async {
     final result = await showDialog<_ProfileValues>(
       context: context,
       builder: (_) => _ProfileDialog(
         initial: _ProfileValues(
-          _householdName,
+          initialHouseholdName?.trim().isNotEmpty == true
+              ? initialHouseholdName!.trim()
+              : _householdName,
           _husbandName ?? '',
           _wifeName ?? '',
         ),
@@ -272,7 +300,11 @@ class _MasterDataPageState extends State<MasterDataPage>
     await _edit(tab, null);
   }
 
-  Future<void> _edit(int tab, _MasterItem? item) async {
+  Future<void> _edit(
+    int tab,
+    _MasterItem? item, {
+    String? assistantName,
+  }) async {
     final initial = await _loadFormValues(tab, item?.id);
     if (!mounted) return;
     final parents = tab == 0
@@ -281,8 +313,21 @@ class _MasterDataPageState extends State<MasterDataPage>
     if (!mounted) return;
     final result = await showDialog<_MasterFormValues>(
       context: context,
-      builder: (_) =>
-          _MasterEditorDialog(tab: tab, initial: initial, parents: parents),
+      builder: (_) => _MasterEditorDialog(
+        tab: tab,
+        initial: assistantName?.trim().isNotEmpty == true
+            ? _MasterFormValues(
+                name: assistantName!.trim(),
+                type: initial.type,
+                parentId: initial.parentId,
+                details: initial.details,
+                accountType: initial.accountType,
+                openingBalance: initial.openingBalance,
+                defaultBudgetPeriod: initial.defaultBudgetPeriod,
+              )
+            : initial,
+        parents: parents,
+      ),
     );
     if (result == null) return;
     final duplicate = await _hasDuplicate(tab, result, item?.id);

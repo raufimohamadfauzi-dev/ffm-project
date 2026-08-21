@@ -156,6 +156,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
         await _openTransfer();
       case FfmAssistantDraftKind.liability:
       case FfmAssistantDraftKind.receivable:
+      case FfmAssistantDraftKind.goal:
+      case FfmAssistantDraftKind.asset:
+      case FfmAssistantDraftKind.budget:
+      case FfmAssistantDraftKind.masterData:
+      case FfmAssistantDraftKind.reminder:
+      case FfmAssistantDraftKind.activity:
         return;
     }
   }

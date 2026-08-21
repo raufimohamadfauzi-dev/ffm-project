@@ -11,19 +11,40 @@ import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
 
 class ActivityPage extends StatelessWidget {
-  const ActivityPage({super.key});
+  const ActivityPage({
+    super.key,
+    this.initialTitle,
+    this.initialCategory,
+    this.initialNotes,
+  });
+
+  final String? initialTitle;
+  final String? initialCategory;
+  final String? initialNotes;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => getIt<ActivityBloc>()..load(),
-      child: const _ActivityView(),
+      child: _ActivityView(
+        initialTitle: initialTitle,
+        initialCategory: initialCategory,
+        initialNotes: initialNotes,
+      ),
     );
   }
 }
 
 class _ActivityView extends StatefulWidget {
-  const _ActivityView();
+  const _ActivityView({
+    this.initialTitle,
+    this.initialCategory,
+    this.initialNotes,
+  });
+
+  final String? initialTitle;
+  final String? initialCategory;
+  final String? initialNotes;
 
   @override
   State<_ActivityView> createState() => _ActivityViewState();
@@ -53,6 +74,17 @@ class _ActivityViewState extends State<_ActivityView>
       final activityState = context.read<ActivityBloc>().state;
       if (activityState.activeSessions.isNotEmpty) setState(() {});
     });
+    if (widget.initialTitle?.trim().isNotEmpty == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _startSession(
+            initialTitle: widget.initialTitle,
+            initialCategory: widget.initialCategory,
+            initialNotes: widget.initialNotes,
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -194,11 +226,19 @@ class _ActivityViewState extends State<_ActivityView>
   Future<void> _startSession({
     String? parentSessionId,
     String? parentTitle,
+    String? initialTitle,
+    String? initialCategory,
+    String? initialNotes,
   }) async {
     final result = await showModalBottomSheet<_SessionDraft>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _SessionForm(parentSessionTitle: parentTitle),
+      builder: (_) => _SessionForm(
+        parentSessionTitle: parentTitle,
+        initialTitle: initialTitle,
+        initialCategory: initialCategory,
+        initialNotes: initialNotes,
+      ),
     );
     if (result == null || !mounted) return;
     await context.read<ActivityBloc>().startSession(
@@ -915,18 +955,38 @@ class _SessionDraft {
 }
 
 class _SessionForm extends StatefulWidget {
-  const _SessionForm({this.parentSessionTitle});
+  const _SessionForm({
+    this.parentSessionTitle,
+    this.initialTitle,
+    this.initialCategory,
+    this.initialNotes,
+  });
 
   final String? parentSessionTitle;
+  final String? initialTitle;
+  final String? initialCategory;
+  final String? initialNotes;
   @override
   State<_SessionForm> createState() => _SessionFormState();
 }
 
 class _SessionFormState extends State<_SessionForm> {
-  final _title = TextEditingController();
-  final _category = TextEditingController(text: 'Perjalanan');
-  final _notes = TextEditingController();
+  late final TextEditingController _title;
+  late final TextEditingController _category;
+  late final TextEditingController _notes;
   DateTime _startedAt = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _title = TextEditingController(text: widget.initialTitle ?? '');
+    _category = TextEditingController(
+      text: widget.initialCategory?.trim().isNotEmpty == true
+          ? widget.initialCategory
+          : 'Perjalanan',
+    );
+    _notes = TextEditingController(text: widget.initialNotes ?? '');
+  }
 
   @override
   void dispose() {

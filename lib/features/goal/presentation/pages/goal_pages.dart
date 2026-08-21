@@ -94,15 +94,38 @@ class _GoalListPageState extends State<GoalListPage> {
 }
 
 class GoalFormPage extends StatefulWidget {
-  const GoalFormPage({super.key});
+  const GoalFormPage({
+    super.key,
+    this.initialName,
+    this.initialTargetAmount,
+    this.initialTargetDate,
+  });
+
+  final String? initialName;
+  final int? initialTargetAmount;
+  final DateTime? initialTargetDate;
   @override
   State<GoalFormPage> createState() => _GoalFormPageState();
 }
 
 class _GoalFormPageState extends State<GoalFormPage> {
-  final _name = TextEditingController();
-  final _target = TextEditingController();
-  DateTime _targetDate = DateTime.now().add(const Duration(days: 30));
+  late final TextEditingController _name;
+  late final TextEditingController _target;
+  late DateTime _targetDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.initialName ?? '');
+    _target = TextEditingController(
+      text: widget.initialTargetAmount == null
+          ? ''
+          : formatRupiahInput(widget.initialTargetAmount.toString()),
+    );
+    _targetDate =
+        widget.initialTargetDate ??
+        DateTime.now().add(const Duration(days: 30));
+  }
 
   @override
   void dispose() {

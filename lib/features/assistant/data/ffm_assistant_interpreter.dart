@@ -4,17 +4,23 @@ import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
 import 'ffm_assistant_local_memory.dart';
+import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_typo_normalizer.dart';
 import '../domain/ffm_assistant_models.dart';
 
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
 class FfmAssistantInterpreter {
-  FfmAssistantInterpreter(this._database, [FfmAssistantLocalMemory? memory])
-    : _memory = memory ?? FfmAssistantLocalMemory();
+  FfmAssistantInterpreter(
+    this._database, [
+    FfmAssistantLocalMemory? memory,
+    DateTime Function()? clock,
+  ]) : _memory = memory ?? FfmAssistantLocalMemory(),
+       _clock = clock ?? DateTime.now;
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
+  final DateTime Function() _clock;
 
   Future<List<FfmAssistantIntent>> interpretMany(
     String rawText, {
@@ -56,6 +62,36 @@ class FfmAssistantInterpreter {
     final aliasIntent = _parseAliasMemory(rawText, normalized);
     if (aliasIntent != null) return aliasIntent;
     normalized = await _memory.applyAliases(normalized);
+
+    final calendarAnswer = FfmAssistantLocalCalendar.answer(
+      normalized,
+      now: _clock(),
+    );
+    if (calendarAnswer != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.calendarQuery,
+        confidence: 1,
+        response: calendarAnswer,
+      );
+    }
+
+    if (_containsAny(normalized, const [
+      'kamu siapa',
+      'anda siapa',
+      'asisten ffm itu apa',
+      'kamu bisa apa',
+      'anda bisa apa',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.assistantIdentity,
+        confidence: 1,
+        response: 'Aku Asisten FFM, pendamping lokal di Family Finance Manager. Aku bisa bantu cek data yang tersimpan, jelaskan fitur, pindah halaman, siapkan draft form, dan jawab kalender atau jam dari waktu lokal HP kamu. Aku tidak menyimpan transaksi atau data lain sendiri—kamu tetap cek lalu tekan Simpan di form.',
+      );
+    }
 
     if (_containsAny(normalized, const [
       'halaman apa saja',
@@ -705,9 +741,53 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.liabilities,
         action: 'piutang',
       ),
+      FfmAssistantDraftKind.goal => (
+        type: FfmAssistantIntentType.createGoal,
+        destination: FfmAssistantDestination.goals,
+        action: 'target keuangan',
+      ),
+      FfmAssistantDraftKind.asset => (
+        type: FfmAssistantIntentType.createAsset,
+        destination: FfmAssistantDestination.assets,
+        action: 'aset',
+      ),
+      FfmAssistantDraftKind.budget => (
+        type: FfmAssistantIntentType.createBudget,
+        destination: FfmAssistantDestination.budget,
+        action: 'anggaran',
+      ),
+      FfmAssistantDraftKind.masterData => (
+        type: FfmAssistantIntentType.createMasterData,
+        destination: FfmAssistantDestination.masterData,
+        action: 'Data Utama',
+      ),
+      FfmAssistantDraftKind.reminder => (
+        type: FfmAssistantIntentType.createReminder,
+        destination: FfmAssistantDestination.reminders,
+        action: 'pengingat',
+      ),
+      FfmAssistantDraftKind.activity => (
+        type: FfmAssistantIntentType.createActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'aktivitas',
+      ),
     };
     final missing = <String>[];
-    if (!draft.hasAmount) missing.add('nominal');
+    const amountKinds = {
+      FfmAssistantDraftKind.income,
+      FfmAssistantDraftKind.expense,
+      FfmAssistantDraftKind.transfer,
+      FfmAssistantDraftKind.goalDeposit,
+      FfmAssistantDraftKind.goalUsage,
+      FfmAssistantDraftKind.goal,
+      FfmAssistantDraftKind.liability,
+      FfmAssistantDraftKind.receivable,
+      FfmAssistantDraftKind.asset,
+      FfmAssistantDraftKind.budget,
+    };
+    if (amountKinds.contains(draft.kind) && !draft.hasAmount) {
+      missing.add('nominal');
+    }
     if (draft.kind == FfmAssistantDraftKind.transfer) {
       if (draft.fromAccountName == null) missing.add('rekening asal');
       if (draft.toAccountName == null) missing.add('rekening tujuan');
@@ -765,6 +845,116 @@ class FfmAssistantInterpreter {
     final now = DateTime.now();
     final amount = FfmAssistantAmountParser.parse(normalized);
     final adminFee = _parseAdminFee(normalized);
+    final createBudget = _containsAny(normalized, const [
+      'atur anggaran',
+      'buat anggaran',
+      'tambah anggaran',
+      'set anggaran',
+    ]);
+    if (createBudget) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.budget,
+        createdAt: now,
+        amount: amount,
+        title: _draftTitle(normalized, const [
+          'atur anggaran',
+          'buat anggaran',
+          'tambah anggaran',
+          'set anggaran',
+        ]),
+        note: rawText.trim(),
+        date: now,
+      );
+    }
+    final masterData = _masterDataRequest(normalized);
+    if (masterData != null) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.masterData,
+        createdAt: now,
+        title: _draftTitle(normalized, masterData.$2),
+        categoryName: masterData.$1,
+        note: rawText.trim(),
+        date: now,
+      );
+    }
+    final createActivity = _containsAny(normalized, const [
+      'mulai aktivitas',
+      'mulai kegiatan',
+      'catat aktivitas',
+      'buat aktivitas',
+    ]);
+    if (createActivity) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.activity,
+        createdAt: now,
+        title: _draftTitle(normalized, const [
+          'mulai aktivitas',
+          'mulai kegiatan',
+          'catat aktivitas',
+          'buat aktivitas',
+        ]),
+        note: rawText.trim(),
+        date: now,
+      );
+    }
+    final createReminder = _containsAny(normalized, const [
+      'buat pengingat',
+      'tambah pengingat',
+      'ingatkan saya',
+      'pasang pengingat',
+    ]);
+    if (createReminder) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: now,
+        title: _draftTitle(normalized, const [
+          'buat pengingat',
+          'tambah pengingat',
+          'ingatkan saya',
+          'pasang pengingat',
+        ]),
+        note: rawText.trim(),
+        date: now.add(const Duration(hours: 1)),
+      );
+    }
+    final asset = _containsAny(normalized, const [
+      'tambah aset',
+      'buat aset',
+      'catat aset',
+    ]);
+    if (asset) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.asset,
+        createdAt: now,
+        amount: amount,
+        title: _draftTitle(normalized, const [
+          'tambah aset',
+          'buat aset',
+          'catat aset',
+        ]),
+        note: rawText.trim(),
+        date: now,
+      );
+    }
+    final createGoal = _containsAny(normalized, const [
+      'target baru',
+      'buat target',
+      'buatkan target',
+    ]);
+    if (createGoal) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.goal,
+        createdAt: now,
+        amount: amount,
+        title: _draftTitle(normalized, const [
+          'target baru',
+          'buatkan target',
+          'buat target',
+        ]),
+        note: rawText.trim(),
+        date: now.add(const Duration(days: 30)),
+      );
+    }
     final transfer = _containsAny(normalized, const [
       'pindahkan',
       'pindah uang',
@@ -1060,6 +1250,37 @@ class FfmAssistantInterpreter {
         final rest = text.substring(index + marker.length).trim();
         if (rest.isNotEmpty) return rest;
       }
+    }
+    return null;
+  }
+
+  String? _draftTitle(String text, List<String> markers) {
+    final extracted = _extractAfter(text, markers);
+    if (extracted == null) return null;
+    final title = extracted
+        .replaceFirst(RegExp(r'\b(?:senilai|sebesar|harga|nilai|rp)\b.*$'), '')
+        .replaceFirst(RegExp(r'\b\d[\d.,]*(?:\s*(?:ribu|juta|jt))?.*$'), '')
+        .trim();
+    return title.isEmpty ? null : title.split(' ').map(_capitalize).join(' ');
+  }
+
+  (String, List<String>)? _masterDataRequest(String text) {
+    const candidates = <(String, List<String>)>[
+      (
+        'profil',
+        ['atur keluarga', 'atur profil keluarga', 'ubah nama keluarga'],
+      ),
+      ('rekening', ['tambah rekening', 'buat rekening']),
+      ('kategori', ['tambah kategori', 'buat kategori']),
+      ('toko', ['tambah toko', 'buat toko', 'tambah tempat']),
+      ('tag', ['tambah tag', 'buat tag']),
+      (
+        'sumber_pemasukan',
+        ['tambah sumber pemasukan', 'buat sumber pemasukan'],
+      ),
+    ];
+    for (final candidate in candidates) {
+      if (_containsAny(text, candidate.$2)) return candidate;
     }
     return null;
   }

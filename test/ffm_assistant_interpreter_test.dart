@@ -83,6 +83,48 @@ void main() {
     expect(intent.response, contains('Ringkasan'));
   });
 
+  test('menjawab jam dari waktu lokal perangkat yang sedang dipakai', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 21, 14, 30),
+    );
+
+    final intent = await localInterpreter.interpret('Sekarang jam berapa?');
+
+    expect(intent.type, FfmAssistantIntentType.calendarQuery);
+    expect(intent.response, contains('14.30'));
+    expect(intent.response, contains('21 Agustus 2026'));
+    expect(intent.response, contains('waktu lokal HP'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menghitung 90 hari lagi dari tanggal lokal perangkat', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 21, 14, 30),
+    );
+
+    final intent = await localInterpreter.interpret(
+      '90 hari lagi tanggal berapa?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.calendarQuery);
+    expect(intent.response, contains('19 November 2026'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjelaskan identitas Asisten dan batas keamanan draft', () async {
+    final intent = await interpreter.interpret('Kamu siapa dan bisa apa?');
+
+    expect(intent.type, FfmAssistantIntentType.assistantIdentity);
+    expect(intent.response, contains('Asisten FFM'));
+    expect(intent.response, contains('waktu lokal HP'));
+    expect(intent.response, contains('tidak menyimpan'));
+    expect(intent.draft, isNull);
+  });
+
   test('memandu setup berdasarkan data utama yang masih kosong', () async {
     final intent = await interpreter.interpret('Harus mulai dari mana?');
 
@@ -173,6 +215,59 @@ void main() {
     expect(intent.draft?.categoryName, 'Rokok');
     expect(intent.response, contains('Kategori Rokok'));
   });
+
+  test('membuat draft aset dan target tanpa menyimpan data otomatis', () async {
+    final asset = await interpreter.interpret(
+      'Tambah aset motor senilai 15 juta',
+    );
+    final goal = await interpreter.interpret(
+      'Buat target biaya sekolah 5 juta',
+    );
+
+    expect(asset.type, FfmAssistantIntentType.createAsset);
+    expect(asset.destination, FfmAssistantDestination.assets);
+    expect(asset.draft?.kind, FfmAssistantDraftKind.asset);
+    expect(asset.draft?.amount, 15000000);
+    expect(asset.needsConfirmation, isTrue);
+    expect(goal.type, FfmAssistantIntentType.createGoal);
+    expect(goal.destination, FfmAssistantDestination.goals);
+    expect(goal.draft?.kind, FfmAssistantDraftKind.goal);
+    expect(goal.draft?.amount, 5000000);
+
+    expect(await database.select(database.assets).get(), isEmpty);
+    expect(await database.select(database.goals).get(), isEmpty);
+  });
+
+  test(
+    'membuat draft form Data Utama, anggaran, pengingat, dan aktivitas',
+    () async {
+      final category = await interpreter.interpret(
+        'Tambah kategori Belanja Kebun',
+      );
+      final budget = await interpreter.interpret('Atur anggaran 350 ribu');
+      final reminder = await interpreter.interpret(
+        'Buat pengingat bayar listrik',
+      );
+      final activity = await interpreter.interpret(
+        'Mulai aktivitas pergi ke pasar',
+      );
+
+      expect(category.type, FfmAssistantIntentType.createMasterData);
+      expect(category.destination, FfmAssistantDestination.masterData);
+      expect(category.draft?.categoryName, 'kategori');
+      expect(budget.type, FfmAssistantIntentType.createBudget);
+      expect(budget.destination, FfmAssistantDestination.budget);
+      expect(budget.draft?.amount, 350000);
+      expect(reminder.type, FfmAssistantIntentType.createReminder);
+      expect(reminder.destination, FfmAssistantDestination.reminders);
+      expect(activity.type, FfmAssistantIntentType.createActivity);
+      expect(activity.destination, FfmAssistantDestination.activity);
+      expect(activity.needsConfirmation, isTrue);
+
+      expect(await database.select(database.envelopeBudgets).get(), isEmpty);
+      expect(await database.select(database.activitySessions).get(), isEmpty);
+    },
+  );
 
   test(
     'analisa minggu ini hanya memakai nominal transaksi yang tersimpan',

@@ -581,8 +581,14 @@ class _DraftPreview extends StatelessWidget {
     FfmAssistantDraftKind.transfer => 'Draft transfer',
     FfmAssistantDraftKind.goalDeposit => 'Draft setor target',
     FfmAssistantDraftKind.goalUsage => 'Draft pakai target',
+    FfmAssistantDraftKind.goal => 'Draft target keuangan',
     FfmAssistantDraftKind.liability => 'Draft hutang',
     FfmAssistantDraftKind.receivable => 'Draft piutang',
+    FfmAssistantDraftKind.asset => 'Draft aset',
+    FfmAssistantDraftKind.budget => 'Draft anggaran',
+    FfmAssistantDraftKind.masterData => 'Draft Data Utama',
+    FfmAssistantDraftKind.reminder => 'Draft pengingat',
+    FfmAssistantDraftKind.activity => 'Draft aktivitas',
   };
 
   static String _rupiah(int amount) =>

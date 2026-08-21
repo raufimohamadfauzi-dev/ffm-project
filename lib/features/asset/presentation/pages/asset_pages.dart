@@ -201,9 +201,22 @@ class _AssetListPageState extends State<AssetListPage> {
 }
 
 class AssetFormPage extends StatefulWidget {
-  const AssetFormPage({super.key, this.initial});
+  const AssetFormPage({
+    super.key,
+    this.initial,
+    this.initialName,
+    this.initialType,
+    this.initialValue,
+    this.initialPlacement,
+    this.initialNote,
+  });
 
   final AssetEntity? initial;
+  final String? initialName;
+  final String? initialType;
+  final int? initialValue;
+  final String? initialPlacement;
+  final String? initialNote;
 
   @override
   State<AssetFormPage> createState() => _AssetFormPageState();
@@ -222,13 +235,25 @@ class _AssetFormPageState extends State<AssetFormPage> {
   void initState() {
     super.initState();
     final initial = widget.initial;
-    _name = TextEditingController(text: initial?.name ?? '');
-    _type = TextEditingController(text: initial?.assetType ?? '');
-    _value = TextEditingController(
-      text: initial == null ? '' : formatRupiahInput(initial.value.toString()),
+    _name = TextEditingController(
+      text: initial?.name ?? widget.initialName ?? '',
     );
-    _placement = TextEditingController(text: initial?.placement ?? 'Keluarga');
-    _note = TextEditingController(text: initial?.note ?? '');
+    _type = TextEditingController(
+      text: initial?.assetType ?? widget.initialType ?? '',
+    );
+    _value = TextEditingController(
+      text: initial != null
+          ? formatRupiahInput(initial.value.toString())
+          : widget.initialValue == null
+          ? ''
+          : formatRupiahInput(widget.initialValue.toString()),
+    );
+    _placement = TextEditingController(
+      text: initial?.placement ?? widget.initialPlacement ?? 'Keluarga',
+    );
+    _note = TextEditingController(
+      text: initial?.note ?? widget.initialNote ?? '',
+    );
   }
 
   @override

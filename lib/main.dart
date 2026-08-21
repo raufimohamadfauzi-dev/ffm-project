@@ -204,6 +204,14 @@ class _AppShellState extends State<AppShell> {
     _ => FfmAssistantDestination.otherMenu,
   };
 
+  int _masterDataTab(FfmAssistantDraft? draft) => switch (draft?.categoryName) {
+    'toko' => 1,
+    'tag' => 2,
+    'rekening' => 3,
+    'sumber_pemasukan' => 4,
+    _ => 0,
+  };
+
   Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
     final destination = intent.destination;
     if (destination == null) return;
@@ -242,20 +250,68 @@ class _AppShellState extends State<AppShell> {
           setState(() => _index = 1);
         }
       case FfmAssistantDestination.budget:
-        setState(() => _index = 2);
+        final draft = intent.draft;
+        if (draft?.kind == FfmAssistantDraftKind.budget) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  EnvelopeBudgetPage(assistantAmount: draft?.amount),
+            ),
+          );
+        } else {
+          setState(() => _index = 2);
+        }
       case FfmAssistantDestination.analysis:
         setState(() => _index = 3);
       case FfmAssistantDestination.otherMenu:
         setState(() => _index = 4);
       case FfmAssistantDestination.masterData:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const MasterDataPage()));
+        final draft = intent.draft;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MasterDataPage(
+              assistantTab: draft?.kind == FfmAssistantDraftKind.masterData
+                  ? _masterDataTab(draft)
+                  : null,
+              assistantName: draft?.kind == FfmAssistantDraftKind.masterData
+                  ? draft?.title
+                  : null,
+              assistantProfileName:
+                  draft?.kind == FfmAssistantDraftKind.masterData &&
+                      draft?.categoryName == 'profil'
+                  ? draft?.title
+                  : null,
+            ),
+          ),
+        );
       case FfmAssistantDestination.assets:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const AssetListPage()));
+        final draft = intent.draft;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => draft?.kind == FfmAssistantDraftKind.asset
+                ? AssetFormPage(
+                    initialName: draft?.title,
+                    initialValue: draft?.amount,
+                    initialType: draft?.categoryName,
+                    initialPlacement: draft?.toAccountName,
+                    initialNote: draft?.note,
+                  )
+                : const AssetListPage(),
+          ),
+        );
       case FfmAssistantDestination.goals:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const GoalListPage()));
+        final draft = intent.draft;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => draft?.kind == FfmAssistantDraftKind.goal
+                ? GoalFormPage(
+                    initialName: draft?.title,
+                    initialTargetAmount: draft?.amount,
+                    initialTargetDate: draft?.date,
+                  )
+                : const GoalListPage(),
+          ),
+        );
       case FfmAssistantDestination.liabilities:
         final draft = intent.draft;
         if (draft?.kind == FfmAssistantDraftKind.liability) {
@@ -280,11 +336,36 @@ class _AppShellState extends State<AppShell> {
           setState(() => _index = 4);
         }
       case FfmAssistantDestination.activity:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
+        final draft = intent.draft;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ActivityPage(
+              initialTitle: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.title
+                  : null,
+              initialCategory: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.categoryName
+                  : null,
+              initialNotes: draft?.kind == FfmAssistantDraftKind.activity
+                  ? draft?.note
+                  : null,
+            ),
+          ),
+        );
       case FfmAssistantDestination.reminders:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const ReminderPage()));
+        final draft = intent.draft;
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ReminderPage(
+              initialTitle: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.title
+                  : null,
+              initialNote: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.note
+                  : null,
+            ),
+          ),
+        );
       case FfmAssistantDestination.backup:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const BackupPage()));
