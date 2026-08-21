@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../database/audit_logger.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
+import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
@@ -31,6 +32,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   final db = database ?? AppDatabase.openDefault();
   getIt.registerSingleton<AppDatabase>(db);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
+  getIt.registerLazySingleton<BudgetGuardService>(() => BudgetGuardService(db));
   getIt.registerLazySingleton<AuditLogRepository>(
     () => SqliteAuditLogRepository(db),
   );

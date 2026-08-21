@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' hide Column;
 
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
+import '../../advisor/domain/usecases/budget_guard_service.dart';
 import 'ffm_assistant_local_memory.dart';
 import '../domain/ffm_assistant_models.dart';
 
@@ -102,6 +103,10 @@ class FfmAssistantInterpreter {
 
     if (_isMonthlyTransactionStats(normalized)) {
       return _currentMonthStats(rawText, normalized);
+    }
+
+    if (_isFinancialWarningRequest(normalized)) {
+      return _financialWarnings(rawText, normalized);
     }
 
     if (_containsAny(normalized, const [
@@ -233,6 +238,29 @@ class FfmAssistantInterpreter {
       confidence: 1,
       response:
           'Bulan ini ada ${transactions.length + transfers.length} catatan: $income pemasukan, $expense pengeluaran, dan ${transfers.length} transfer. Transfer tidak dihitung sebagai arus kas.',
+    );
+  }
+
+  Future<FfmAssistantIntent> _financialWarnings(
+    String rawText,
+    String normalized,
+  ) async {
+    final service = BudgetGuardService(_database);
+    final suggestions = await service.check(AppContext.householdId);
+    final isBudgetQuestion = _containsAny(normalized, const [
+      'anggaran',
+      'budget',
+      'batas belanja',
+    ]);
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.financialWarnings,
+      destination: isBudgetQuestion
+          ? FfmAssistantDestination.budget
+          : FfmAssistantDestination.summary,
+      confidence: 1,
+      response: service.responseForAssistant(suggestions),
     );
   }
 
@@ -557,6 +585,19 @@ class FfmAssistantInterpreter {
         'total transaksi',
       ]) &&
       _containsAny(text, const ['bulan ini', 'bulan sekarang']);
+
+  bool _isFinancialWarningRequest(String text) => _containsAny(text, const [
+    'cek anggaran',
+    'cek budget',
+    'kondisi keuangan',
+    'peringatan keuangan',
+    'ada peringatan',
+    'ada warning',
+    'anggaran aman',
+    'anggaran saya',
+    'budget saya',
+    'arus kas saya',
+  ]);
 
   bool _isReadRequest(String text) =>
       _containsAny(text, const ['baca', 'ulang']);

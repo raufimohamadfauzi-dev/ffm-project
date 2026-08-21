@@ -10,8 +10,10 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
+import '../../../budget/presentation/pages/budget_page.dart';
 import '../../../goal/presentation/pages/goal_pages.dart';
 import '../../../liability/domain/usecases/liability_crud_usecases.dart';
+import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../hijri/domain/hijri_calendar_service.dart';
 import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
@@ -19,6 +21,7 @@ import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../transaction/presentation/pages/transaction_pages.dart';
 import '../../domain/usecases/advisor_suggestion_generator.dart';
+import '../../domain/usecases/budget_guard_service.dart';
 import '../../domain/usecases/financial_analysis.dart';
 import '../../domain/usecases/financial_health_calculator.dart';
 import 'analysis_page.dart';
@@ -113,6 +116,10 @@ class _SummaryPageState extends State<SummaryPage> {
       );
     });
     final database = getIt<AppDatabase>();
+    final financialSuggestions = await getIt<BudgetGuardService>().check(
+      AppContext.householdId,
+      at: now,
+    );
     final household =
         await (database.select(database.households)
               ..where((item) => item.id.equals(AppContext.householdId)))
@@ -155,6 +162,7 @@ class _SummaryPageState extends State<SummaryPage> {
         .firstWhere((item) => item.placement == SuggestionPlacement.dashboard);
     return _SummaryData(
       score: score,
+      financialSuggestions: financialSuggestions,
       income: income,
       expenses: expenses,
       transactionCount: currentMonth.length,
@@ -272,6 +280,19 @@ class _SummaryContent extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _HijriDateSummaryCard(date: data.hijriToday),
+              if (data.financialSuggestions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const AppSectionHeader(
+                  title: 'Saran Keuangan',
+                  trailing: AppStatusChip(label: 'CEK DULU'),
+                ),
+                const SizedBox(height: 8),
+                _FinancialSuggestionsCard(
+                  suggestions: data.financialSuggestions,
+                  onTap: (suggestion) =>
+                      _openFinancialSuggestion(context, suggestion, onRefresh),
+                ),
+              ],
               const SizedBox(height: 20),
               if (!data.hasMasterData)
                 _SetupGuideCard(
@@ -415,6 +436,88 @@ class _SummaryContent extends StatelessWidget {
       ],
     );
   }
+
+  void _openFinancialSuggestion(
+    BuildContext context,
+    FinancialGuardSuggestion suggestion,
+    VoidCallback onRefresh,
+  ) {
+    final page = switch (suggestion.kind) {
+      FinancialGuardKind.budgetExceeded ||
+      FinancialGuardKind.budgetNearLimit ||
+      FinancialGuardKind.budgetLargeRemaining => const EnvelopeBudgetPage(),
+      FinancialGuardKind.monthlyCashDeficit => const TransactionListPage(),
+      FinancialGuardKind.liabilityDue => const LiabilityReceivablePage(),
+    };
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    ).then((_) => onRefresh());
+  }
+}
+
+class _FinancialSuggestionsCard extends StatelessWidget {
+  const _FinancialSuggestionsCard({
+    required this.suggestions,
+    required this.onTap,
+  });
+
+  final List<FinancialGuardSuggestion> suggestions;
+  final ValueChanged<FinancialGuardSuggestion> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = suggestions.take(3).toList(growable: false);
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          for (var index = 0; index < visible.length; index++) ...[
+            if (index > 0) const Divider(height: 1),
+            ListTile(
+              onTap: () => onTap(visible[index]),
+              leading: _FinancialSuggestionIcon(
+                severity: visible[index].severity,
+              ),
+              title: Text(
+                visible[index].title,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${visible[index].message}\n${visible[index].trace}',
+                ),
+              ),
+              isThreeLine: true,
+              trailing: const Icon(Icons.chevron_right_rounded),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FinancialSuggestionIcon extends StatelessWidget {
+  const _FinancialSuggestionIcon({required this.severity});
+
+  final FinancialGuardSeverity severity;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (severity) {
+      FinancialGuardSeverity.critical => AppColors.negative,
+      FinancialGuardSeverity.warning => AppColors.warning,
+      FinancialGuardSeverity.info => AppColors.primary,
+    };
+    final icon = switch (severity) {
+      FinancialGuardSeverity.critical => Icons.warning_amber_rounded,
+      FinancialGuardSeverity.warning => Icons.error_outline_rounded,
+      FinancialGuardSeverity.info => Icons.info_outline_rounded,
+    };
+    return Icon(icon, color: color);
+  }
 }
 
 class _HijriDateSummaryCard extends StatelessWidget {
@@ -484,6 +587,7 @@ class _HijriDateSummaryCard extends StatelessWidget {
 class _SummaryData {
   const _SummaryData({
     required this.score,
+    required this.financialSuggestions,
     required this.income,
     required this.expenses,
     required this.transactionCount,
@@ -502,6 +606,7 @@ class _SummaryData {
   });
 
   final FinancialHealthScore score;
+  final List<FinancialGuardSuggestion> financialSuggestions;
   final int income;
   final int expenses;
   final int transactionCount;

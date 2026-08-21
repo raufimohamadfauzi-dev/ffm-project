@@ -40,3 +40,11 @@
 - [x] Tambahkan status/fallback model lokal opsional tanpa mengubah keamanan draft.
 - [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
 - [x] Commit, kemas source, dan build APK release dengan keystore lama.
+
+# Penjaga Anggaran dan Arus Kas
+
+- [x] Audit sumber data transaksi, pos anggaran, pengingat, dan Ringkasan untuk saran offline.
+- [x] Bangun aturan saran berbasis transaksi nyata tanpa nominal atau asumsi contoh.
+- [x] Tampilkan saran yang menjelaskan alasan dan membuka tindakan yang relevan.
+- [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
+- [x] Commit, kemas source, dan build APK release dengan keystore lama.

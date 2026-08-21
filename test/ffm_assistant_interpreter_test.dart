@@ -56,6 +56,15 @@ void main() {
     expect(intent.response, contains('Ringkasan'));
   });
 
+  test('memeriksa anggaran tanpa membuat draft atau menyimpan data', () async {
+    final intent = await interpreter.interpret('Cek anggaran saya');
+
+    expect(intent.type, FfmAssistantIntentType.financialWarnings);
+    expect(intent.destination, FfmAssistantDestination.budget);
+    expect(intent.draft, isNull);
+    expect(intent.response, contains('Belum ada peringatan'));
+  });
+
   test('membuat draft transfer SeaBank ke Tunai dengan biaya admin', () async {
     final intent = await interpreter.interpret(
       'Pindahkan 500 ribu dari SeaBank ke Tunai admin 3 ribu',

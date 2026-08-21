@@ -4,6 +4,7 @@ enum FfmAssistantIntentType {
   openPage,
   listPages,
   transactionStats,
+  financialWarnings,
   createIncome,
   createExpense,
   createTransfer,
