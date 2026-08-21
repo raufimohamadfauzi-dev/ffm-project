@@ -165,6 +165,22 @@ class FfmAssistantChatEntry {
   final String? understanding;
 }
 
+/// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.
+/// Tidak memuat aksi simpan dan hanya hidup selama sesi chat aktif.
+class FfmAssistantPendingDialog {
+  const FfmAssistantPendingDialog({
+    required this.originalRequest,
+    required this.prompt,
+    required this.missingFields,
+    this.draft,
+  });
+
+  final String originalRequest;
+  final String prompt;
+  final List<String> missingFields;
+  final FfmAssistantDraft? draft;
+}
+
 class FfmAssistantChatSession {
   FfmAssistantChatSession()
     : entries = [
@@ -177,6 +193,7 @@ class FfmAssistantChatSession {
   final List<FfmAssistantChatEntry> entries;
   final List<FfmAssistantIntent> queuedIntents = [];
   String? lastAssistantText;
+  FfmAssistantPendingDialog? pendingDialog;
 
   void reset() {
     entries
@@ -189,6 +206,7 @@ class FfmAssistantChatSession {
       );
     queuedIntents.clear();
     lastAssistantText = null;
+    pendingDialog = null;
   }
 }
 

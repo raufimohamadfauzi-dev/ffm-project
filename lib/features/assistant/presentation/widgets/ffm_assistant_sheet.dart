@@ -82,10 +82,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd();
     try {
-      final intents = await _interpreter.interpretMany(
-        text,
-        currentDestination: widget.currentDestination,
-      );
+      final pending = widget.session.pendingDialog;
+      final intents = pending == null
+          ? await _interpreter.interpretMany(
+              text,
+              currentDestination: widget.currentDestination,
+            )
+          : await _interpreter.resolvePendingDialog(
+              text,
+              pending,
+              currentDestination: widget.currentDestination,
+            );
       if (!mounted) return;
       setState(() {
         for (final intent in intents) {
@@ -102,6 +109,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               understanding: _understandingFor(intent),
             ),
           );
+          if (intent.needsClarification) {
+            widget.session.pendingDialog = FfmAssistantPendingDialog(
+              originalRequest: pending?.originalRequest ?? text,
+              prompt: intent.clarification ?? response,
+              missingFields: _pendingFieldsFor(intent),
+              draft: intent.draft ?? pending?.draft,
+            );
+          } else if (pending != null) {
+            widget.session.pendingDialog = null;
+          }
           if (intent.destination != null || intent.draft != null) {
             _queuedIntents.add(intent);
           }
@@ -160,6 +177,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     if (intent.type == FfmAssistantIntentType.cancel) {
+      widget.session.pendingDialog = null;
       if (!mounted) return;
       setState(
         () => _entries.add(
@@ -183,6 +201,32 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
     await widget.onIntent(intent);
     if (mounted) setState(() => _queuedIntents.remove(intent));
+  }
+
+  List<String> _pendingFieldsFor(FfmAssistantIntent intent) {
+    final draft = intent.draft;
+    if (draft == null) {
+      if (intent.clarification?.contains('pemasukan atau pengeluaran') ==
+          true) {
+        return const ['jenis transaksi'];
+      }
+      return const ['detail jawaban'];
+    }
+    final fields = <String>[];
+    if (!draft.hasAmount) fields.add('nominal');
+    if (draft.kind == FfmAssistantDraftKind.transfer &&
+        (draft.fromAccountName == null || draft.toAccountName == null)) {
+      fields.add('rekening asal dan tujuan');
+    }
+    if (draft.kind == FfmAssistantDraftKind.income &&
+        draft.toAccountName == null) {
+      fields.add('rekening tujuan atau Belum terlacak');
+    }
+    if (draft.kind == FfmAssistantDraftKind.expense &&
+        draft.fromAccountName == null) {
+      fields.add('rekening sumber atau Belum terlacak');
+    }
+    return fields.isEmpty ? const ['detail jawaban'] : fields;
   }
 
   Future<void> _openQueuedDrafts() async {

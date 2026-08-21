@@ -39,6 +39,7 @@ part 'app_database.g.dart';
     HijriSettings,
     HijriMonthOverrides,
     HijriCorrectionLogs,
+    AssistantMemories,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -47,13 +48,14 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 30;
+  int get schemaVersion => 31;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await _createActivityIndexes();
+      await _createAssistantMemoryIndexes();
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -114,6 +116,10 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(categories, categories.defaultBudgetPeriod);
         await _applyDefaultBudgetPeriods();
       }
+      if (from < 31) {
+        await m.createTable(assistantMemories);
+        await _createAssistantMemoryIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -143,6 +149,13 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_activity_entries_session '
       'ON activity_entries (session_id)',
+    );
+  }
+
+  Future<void> _createAssistantMemoryIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_memories_household_kind '
+      'ON assistant_memories (household_id, kind, is_archived)',
     );
   }
 

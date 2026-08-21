@@ -17320,6 +17320,633 @@ class HijriCorrectionLogsCompanion extends UpdateCompanion<HijriCorrectionLog> {
   }
 }
 
+class $AssistantMemoriesTable extends AssistantMemories
+    with TableInfo<$AssistantMemoriesTable, AssistantMemory> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantMemoriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggerTextMeta = const VerificationMeta(
+    'triggerText',
+  );
+  @override
+  late final GeneratedColumn<String> triggerText = GeneratedColumn<String>(
+    'trigger_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueTextMeta = const VerificationMeta(
+    'valueText',
+  );
+  @override
+  late final GeneratedColumn<String> valueText = GeneratedColumn<String>(
+    'value_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _metadataJsonMeta = const VerificationMeta(
+    'metadataJson',
+  );
+  @override
+  late final GeneratedColumn<String> metadataJson = GeneratedColumn<String>(
+    'metadata_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('user'),
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    kind,
+    triggerText,
+    valueText,
+    metadataJson,
+    source,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_memories';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantMemory> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('trigger_text')) {
+      context.handle(
+        _triggerTextMeta,
+        triggerText.isAcceptableOrUnknown(
+          data['trigger_text']!,
+          _triggerTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerTextMeta);
+    }
+    if (data.containsKey('value_text')) {
+      context.handle(
+        _valueTextMeta,
+        valueText.isAcceptableOrUnknown(data['value_text']!, _valueTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueTextMeta);
+    }
+    if (data.containsKey('metadata_json')) {
+      context.handle(
+        _metadataJsonMeta,
+        metadataJson.isAcceptableOrUnknown(
+          data['metadata_json']!,
+          _metadataJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantMemory map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantMemory(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      triggerText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger_text'],
+      )!,
+      valueText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value_text'],
+      )!,
+      metadataJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}metadata_json'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantMemoriesTable createAlias(String alias) {
+    return $AssistantMemoriesTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantMemory extends DataClass implements Insertable<AssistantMemory> {
+  final String id;
+  final String householdId;
+
+  /// alias, answer, preference, atau workflow.
+  final String kind;
+
+  /// Kalimat atau frasa yang akan dipahami Asisten.
+  final String triggerText;
+
+  /// Makna, jawaban, atau nilai tujuan yang disetujui pengguna.
+  final String valueText;
+
+  /// Metadata aman dan terstruktur, misalnya route atau draft kind.
+  final String metadataJson;
+  final String source;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const AssistantMemory({
+    required this.id,
+    required this.householdId,
+    required this.kind,
+    required this.triggerText,
+    required this.valueText,
+    required this.metadataJson,
+    required this.source,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['kind'] = Variable<String>(kind);
+    map['trigger_text'] = Variable<String>(triggerText);
+    map['value_text'] = Variable<String>(valueText);
+    map['metadata_json'] = Variable<String>(metadataJson);
+    map['source'] = Variable<String>(source);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  AssistantMemoriesCompanion toCompanion(bool nullToAbsent) {
+    return AssistantMemoriesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      kind: Value(kind),
+      triggerText: Value(triggerText),
+      valueText: Value(valueText),
+      metadataJson: Value(metadataJson),
+      source: Value(source),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory AssistantMemory.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantMemory(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      kind: serializer.fromJson<String>(json['kind']),
+      triggerText: serializer.fromJson<String>(json['triggerText']),
+      valueText: serializer.fromJson<String>(json['valueText']),
+      metadataJson: serializer.fromJson<String>(json['metadataJson']),
+      source: serializer.fromJson<String>(json['source']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'kind': serializer.toJson<String>(kind),
+      'triggerText': serializer.toJson<String>(triggerText),
+      'valueText': serializer.toJson<String>(valueText),
+      'metadataJson': serializer.toJson<String>(metadataJson),
+      'source': serializer.toJson<String>(source),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  AssistantMemory copyWith({
+    String? id,
+    String? householdId,
+    String? kind,
+    String? triggerText,
+    String? valueText,
+    String? metadataJson,
+    String? source,
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => AssistantMemory(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    kind: kind ?? this.kind,
+    triggerText: triggerText ?? this.triggerText,
+    valueText: valueText ?? this.valueText,
+    metadataJson: metadataJson ?? this.metadataJson,
+    source: source ?? this.source,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  AssistantMemory copyWithCompanion(AssistantMemoriesCompanion data) {
+    return AssistantMemory(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      triggerText: data.triggerText.present
+          ? data.triggerText.value
+          : this.triggerText,
+      valueText: data.valueText.present ? data.valueText.value : this.valueText,
+      metadataJson: data.metadataJson.present
+          ? data.metadataJson.value
+          : this.metadataJson,
+      source: data.source.present ? data.source.value : this.source,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantMemory(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('kind: $kind, ')
+          ..write('triggerText: $triggerText, ')
+          ..write('valueText: $valueText, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('source: $source, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    kind,
+    triggerText,
+    valueText,
+    metadataJson,
+    source,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantMemory &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.kind == this.kind &&
+          other.triggerText == this.triggerText &&
+          other.valueText == this.valueText &&
+          other.metadataJson == this.metadataJson &&
+          other.source == this.source &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AssistantMemoriesCompanion extends UpdateCompanion<AssistantMemory> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> kind;
+  final Value<String> triggerText;
+  final Value<String> valueText;
+  final Value<String> metadataJson;
+  final Value<String> source;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const AssistantMemoriesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.triggerText = const Value.absent(),
+    this.valueText = const Value.absent(),
+    this.metadataJson = const Value.absent(),
+    this.source = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantMemoriesCompanion.insert({
+    required String id,
+    required String householdId,
+    required String kind,
+    required String triggerText,
+    required String valueText,
+    this.metadataJson = const Value.absent(),
+    this.source = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       kind = Value(kind),
+       triggerText = Value(triggerText),
+       valueText = Value(valueText),
+       createdAt = Value(createdAt);
+  static Insertable<AssistantMemory> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? kind,
+    Expression<String>? triggerText,
+    Expression<String>? valueText,
+    Expression<String>? metadataJson,
+    Expression<String>? source,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (kind != null) 'kind': kind,
+      if (triggerText != null) 'trigger_text': triggerText,
+      if (valueText != null) 'value_text': valueText,
+      if (metadataJson != null) 'metadata_json': metadataJson,
+      if (source != null) 'source': source,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantMemoriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? kind,
+    Value<String>? triggerText,
+    Value<String>? valueText,
+    Value<String>? metadataJson,
+    Value<String>? source,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantMemoriesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      kind: kind ?? this.kind,
+      triggerText: triggerText ?? this.triggerText,
+      valueText: valueText ?? this.valueText,
+      metadataJson: metadataJson ?? this.metadataJson,
+      source: source ?? this.source,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (triggerText.present) {
+      map['trigger_text'] = Variable<String>(triggerText.value);
+    }
+    if (valueText.present) {
+      map['value_text'] = Variable<String>(valueText.value);
+    }
+    if (metadataJson.present) {
+      map['metadata_json'] = Variable<String>(metadataJson.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantMemoriesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('kind: $kind, ')
+          ..write('triggerText: $triggerText, ')
+          ..write('valueText: $valueText, ')
+          ..write('metadataJson: $metadataJson, ')
+          ..write('source: $source, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -17370,6 +17997,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $HijriMonthOverridesTable(this);
   late final $HijriCorrectionLogsTable hijriCorrectionLogs =
       $HijriCorrectionLogsTable(this);
+  late final $AssistantMemoriesTable assistantMemories =
+      $AssistantMemoriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -17403,6 +18032,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     hijriSettings,
     hijriMonthOverrides,
     hijriCorrectionLogs,
+    assistantMemories,
   ];
 }
 
@@ -25934,6 +26564,318 @@ typedef $$HijriCorrectionLogsTableProcessedTableManager =
       HijriCorrectionLog,
       PrefetchHooks Function()
     >;
+typedef $$AssistantMemoriesTableCreateCompanionBuilder =
+    AssistantMemoriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String kind,
+      required String triggerText,
+      required String valueText,
+      Value<String> metadataJson,
+      Value<String> source,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantMemoriesTableUpdateCompanionBuilder =
+    AssistantMemoriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> kind,
+      Value<String> triggerText,
+      Value<String> valueText,
+      Value<String> metadataJson,
+      Value<String> source,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantMemoriesTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantMemoriesTable> {
+  $$AssistantMemoriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get triggerText => $composableBuilder(
+    column: $table.triggerText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get valueText => $composableBuilder(
+    column: $table.valueText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantMemoriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantMemoriesTable> {
+  $$AssistantMemoriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get triggerText => $composableBuilder(
+    column: $table.triggerText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get valueText => $composableBuilder(
+    column: $table.valueText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantMemoriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantMemoriesTable> {
+  $$AssistantMemoriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get triggerText => $composableBuilder(
+    column: $table.triggerText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get valueText =>
+      $composableBuilder(column: $table.valueText, builder: (column) => column);
+
+  GeneratedColumn<String> get metadataJson => $composableBuilder(
+    column: $table.metadataJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AssistantMemoriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantMemoriesTable,
+          AssistantMemory,
+          $$AssistantMemoriesTableFilterComposer,
+          $$AssistantMemoriesTableOrderingComposer,
+          $$AssistantMemoriesTableAnnotationComposer,
+          $$AssistantMemoriesTableCreateCompanionBuilder,
+          $$AssistantMemoriesTableUpdateCompanionBuilder,
+          (
+            AssistantMemory,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantMemoriesTable,
+              AssistantMemory
+            >,
+          ),
+          AssistantMemory,
+          PrefetchHooks Function()
+        > {
+  $$AssistantMemoriesTableTableManager(
+    _$AppDatabase db,
+    $AssistantMemoriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantMemoriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantMemoriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssistantMemoriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String> triggerText = const Value.absent(),
+                Value<String> valueText = const Value.absent(),
+                Value<String> metadataJson = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantMemoriesCompanion(
+                id: id,
+                householdId: householdId,
+                kind: kind,
+                triggerText: triggerText,
+                valueText: valueText,
+                metadataJson: metadataJson,
+                source: source,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String kind,
+                required String triggerText,
+                required String valueText,
+                Value<String> metadataJson = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantMemoriesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                kind: kind,
+                triggerText: triggerText,
+                valueText: valueText,
+                metadataJson: metadataJson,
+                source: source,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantMemoriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantMemoriesTable,
+      AssistantMemory,
+      $$AssistantMemoriesTableFilterComposer,
+      $$AssistantMemoriesTableOrderingComposer,
+      $$AssistantMemoriesTableAnnotationComposer,
+      $$AssistantMemoriesTableCreateCompanionBuilder,
+      $$AssistantMemoriesTableUpdateCompanionBuilder,
+      (
+        AssistantMemory,
+        BaseReferences<_$AppDatabase, $AssistantMemoriesTable, AssistantMemory>,
+      ),
+      AssistantMemory,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -25999,4 +26941,6 @@ class $AppDatabaseManager {
       $$HijriMonthOverridesTableTableManager(_db, _db.hijriMonthOverrides);
   $$HijriCorrectionLogsTableTableManager get hijriCorrectionLogs =>
       $$HijriCorrectionLogsTableTableManager(_db, _db.hijriCorrectionLogs);
+  $$AssistantMemoriesTableTableManager get assistantMemories =>
+      $$AssistantMemoriesTableTableManager(_db, _db.assistantMemories);
 }

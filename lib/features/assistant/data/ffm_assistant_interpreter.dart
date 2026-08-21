@@ -3,6 +3,7 @@ import 'package:drift/drift.dart' hide Column;
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
+import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_typo_normalizer.dart';
@@ -16,10 +17,12 @@ class FfmAssistantInterpreter {
     FfmAssistantLocalMemory? memory,
     DateTime Function()? clock,
   ]) : _memory = memory ?? FfmAssistantLocalMemory(),
+       _taughtMemory = FfmAssistantMemoryRepository(_database),
        _clock = clock ?? DateTime.now;
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
+  final FfmAssistantMemoryRepository _taughtMemory;
   final DateTime Function() _clock;
 
   Future<List<FfmAssistantIntent>> interpretMany(
@@ -46,6 +49,114 @@ class FfmAssistantInterpreter {
     );
   }
 
+  /// Menjawab pertanyaan lanjutan hanya terhadap draft yang masih tertahan.
+  /// Tidak ada insert atau update data FFM pada tahap ini.
+  Future<List<FfmAssistantIntent>> resolvePendingDialog(
+    String rawText,
+    FfmAssistantPendingDialog pending, {
+    FfmAssistantDestination? currentDestination,
+  }) async {
+    final normalized = _normalize(rawText);
+    if (_containsAny(normalized, const ['batal', 'jangan jadi'])) {
+      return [
+        FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.cancel,
+          confidence: 1,
+          response: 'Oke, draft ini dibatalkan. Belum ada data yang tersimpan.',
+        ),
+      ];
+    }
+    final initial = pending.draft;
+    if (initial == null) {
+      if (pending.missingFields.contains('jenis transaksi')) {
+        final isIncome = _containsAny(normalized, const [
+          'pemasukan',
+          'uang masuk',
+          'masuk',
+        ]);
+        final isExpense = _containsAny(normalized, const [
+          'pengeluaran',
+          'uang keluar',
+          'keluar',
+        ]);
+        if (isIncome != isExpense) {
+          return [
+            await interpret(
+              '$rawText ${pending.originalRequest}',
+              currentDestination: currentDestination,
+            ),
+          ];
+        }
+        return [
+          FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: .45,
+            clarification: 'Aku masih perlu pilih jenisnya dulu: ini pemasukan atau pengeluaran? Tidak ada data yang disimpan.',
+          ),
+        ];
+      }
+      return [await interpret(rawText, currentDestination: currentDestination)];
+    }
+
+    var draft = initial;
+    if (pending.missingFields.contains('nominal')) {
+      final amount = FfmAssistantAmountParser.parse(normalized);
+      if (amount != null) draft = draft.copyWith(amount: amount);
+    }
+    final accounts = await _activeAccounts();
+    final matchingAccounts = accounts
+        .where((account) => normalized.contains(account.name.toLowerCase()))
+        .toList(growable: false);
+    if (matchingAccounts.length == 1) {
+      final accountName = matchingAccounts.single.name;
+      if (pending.missingFields.contains('rekening asal')) {
+        draft = draft.copyWith(fromAccountName: accountName);
+      }
+      if (pending.missingFields.contains('rekening tujuan')) {
+        draft = draft.copyWith(toAccountName: accountName);
+      }
+    }
+
+    final resolved = _intentForDraft(
+      pending.originalRequest,
+      _normalize(pending.originalRequest),
+      draft,
+    );
+    if (resolved.needsClarification) {
+      final accountMissing =
+          (pending.missingFields.contains('rekening asal') ||
+              pending.missingFields.contains('rekening tujuan')) &&
+          matchingAccounts.isEmpty;
+      return [
+        FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: resolved.type,
+          destination: resolved.destination,
+          draft: draft,
+          confidence: .6,
+          clarification:
+              '${resolved.clarification ?? pending.prompt}${accountMissing ? ' Rekening yang kamu sebut belum ada. Sebut rekening yang terdaftar atau buat dulu lewat “tambah rekening [nama]”.' : ''}',
+        ),
+      ];
+    }
+    return [
+      FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: resolved.type,
+        destination: resolved.destination,
+        draft: draft,
+        confidence: .9,
+        response: 'Sip, datanya sudah lengkap. Cek draft ini dulu sebelum kamu simpan.',
+      ),
+    ];
+  }
+
   Future<FfmAssistantIntent> interpret(
     String rawText, {
     FfmAssistantDestination? currentDestination,
@@ -62,6 +173,18 @@ class FfmAssistantInterpreter {
     final aliasIntent = _parseAliasMemory(rawText, normalized);
     if (aliasIntent != null) return aliasIntent;
     normalized = await _memory.applyAliases(normalized);
+    normalized = await _taughtMemory.applyAliases(normalized);
+
+    final taughtAnswer = await _findTaughtAnswer(normalized);
+    if (taughtAnswer != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        confidence: .95,
+        response: taughtAnswer.valueText,
+      );
+    }
 
     final calendarAnswer = FfmAssistantLocalCalendar.answer(
       normalized,
@@ -227,7 +350,6 @@ class FfmAssistantInterpreter {
           'ke bagian',
           'arah ke',
           'bawa ke',
-          'masuk',
           'tampilkan',
         ])) {
       return FfmAssistantIntent(
@@ -259,6 +381,23 @@ class FfmAssistantInterpreter {
     );
     if (draft != null) return _intentForDraft(rawText, normalized, draft);
 
+    final mentionsAccount = _containsAny(normalized, const [
+      'rekening',
+      'akun',
+      'bank',
+    ]);
+    if (FfmAssistantAmountParser.parse(normalized) != null &&
+        mentionsAccount &&
+        _matchAccount(normalized, accounts) == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: .45,
+        clarification: 'Rekening yang kamu sebut belum ada di Data Utama. Ini pemasukan atau pengeluaran? Setelah itu aku siapkan draft dulu—tidak ada yang tersimpan otomatis.',
+      );
+    }
+
     return _unknown(
       rawText,
       normalized,
@@ -281,6 +420,19 @@ class FfmAssistantInterpreter {
                 row.isActive.equals(true),
           ))
           .get();
+
+  Future<FfmAssistantMemoryRecord?> _findTaughtAnswer(String normalized) async {
+    final records = await _taughtMemory.readActive(kind: 'answer');
+    final matches = records
+        .where((record) {
+          final trigger = _normalize(record.triggerText);
+          return trigger.isNotEmpty &&
+              (normalized == trigger || normalized.contains(trigger));
+        })
+        .toList(growable: false);
+    if (matches.length != 1) return null;
+    return matches.single;
+  }
 
   Future<FfmAssistantIntent> _setupGuide(
     String rawText,

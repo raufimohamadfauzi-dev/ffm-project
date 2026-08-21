@@ -6,7 +6,11 @@ import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
+import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
+import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
+import '../../features/assistant/data/ffm_local_model_service.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -117,6 +121,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantLocalMemory>(
     FfmAssistantLocalMemory.new,
+  );
+  getIt.registerLazySingleton<FfmLocalModelService>(FfmLocalModelService.new);
+  getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
+    FfmAssistantDisabledLocalModelGateway.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
+    () => FfmAssistantMemoryRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantKnowledgePackService>(
+    () =>
+        FfmAssistantKnowledgePackService(getIt<FfmAssistantMemoryRepository>()),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
     () => FfmAssistantInterpreter(db, getIt<FfmAssistantLocalMemory>()),

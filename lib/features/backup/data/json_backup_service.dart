@@ -55,6 +55,7 @@ class JsonBackupService {
     'households',
     'account_reconciliation_logs',
     'audit_logs',
+    'assistant_memories',
   ];
 
   Future<String> exportJson() async {
@@ -220,6 +221,7 @@ class JsonBackupService {
     'activity_sessions' => 'activity_sessions',
     'activity_checkpoints' => 'activity_checkpoints',
     'activity_entries' => 'activity_entries',
+    'assistant_memories' => 'assistant_memories',
     _ => table,
   };
 }

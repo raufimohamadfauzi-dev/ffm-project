@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
 import '../../../activity/presentation/pages/activity_page.dart';
+import '../../../assistant/presentation/pages/assistant_training_page.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
 import '../../../backup/presentation/pages/monthly_report_page.dart';
@@ -114,6 +115,12 @@ class OtherMenuPage extends StatelessWidget {
           const SizedBox(height: 20),
           const AppSectionHeader(title: 'Pengingat dan alat'),
           const SizedBox(height: 8),
+          _MenuCard(
+            icon: Icons.psychology_alt_outlined,
+            title: 'Pusat Latihan Asisten',
+            subtitle: 'Ajarkan istilah, jawaban fitur, dan kebiasaan lokal untuk Asisten FFM.',
+            onTap: () => _open(context, const AssistantTrainingPage()),
+          ),
           _MenuCard(
             icon: Icons.timeline_outlined,
             title: 'Aktivitas & jurnal',

@@ -455,3 +455,31 @@ class HijriCorrectionLogs extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Ajaran eksplisit pengguna untuk Asisten FFM.
+///
+/// Tidak menyimpan riwayat percakapan mentah. Tabel hanya berisi alias,
+/// jawaban, kebiasaan, atau alur yang pengguna setujui untuk dipakai ulang.
+class AssistantMemories extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+
+  /// alias, answer, preference, atau workflow.
+  TextColumn get kind => text()();
+
+  /// Kalimat atau frasa yang akan dipahami Asisten.
+  TextColumn get triggerText => text()();
+
+  /// Makna, jawaban, atau nilai tujuan yang disetujui pengguna.
+  TextColumn get valueText => text()();
+
+  /// Metadata aman dan terstruktur, misalnya route atau draft kind.
+  TextColumn get metadataJson => text().withDefault(const Constant('{}'))();
+  TextColumn get source => text().withDefault(const Constant('user'))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
