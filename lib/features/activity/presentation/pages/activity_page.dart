@@ -175,6 +175,36 @@ class _ActivityViewState extends State<_ActivityView> {
     );
   }
 
+  Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus aktivitas permanen?'),
+        content: Text(
+          '“${session.title}” dan seluruh update aktivitasnya akan dihapus dari perangkat. Tindakan ini tidak bisa dibatalkan.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Hapus permanen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<ActivityBloc>().deleteSessionPermanently(session.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Aktivitas dan semua update sudah dihapus.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<ActivityBloc, ActivityState>(
@@ -343,6 +373,7 @@ class _ActivityViewState extends State<_ActivityView> {
                                 onArchive: () => context
                                     .read<ActivityBloc>()
                                     .archiveSession(session.id),
+                                onDelete: () => _confirmDeleteSession(session),
                               ),
                         ],
                       );
@@ -470,12 +501,14 @@ class _SessionCard extends StatelessWidget {
     required this.calculator,
     required this.onOpen,
     required this.onArchive,
+    required this.onDelete,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
   final ActivityDurationCalculator calculator;
   final VoidCallback onOpen;
   final VoidCallback onArchive;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -498,10 +531,30 @@ class _SessionCard extends StatelessWidget {
           '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
         ),
         onTap: onOpen,
-        trailing: IconButton(
-          tooltip: 'Arsipkan sesi',
-          onPressed: onArchive,
-          icon: const Icon(Icons.archive_outlined),
+        trailing: PopupMenuButton<String>(
+          tooltip: 'Kelola aktivitas',
+          onSelected: (value) {
+            if (value == 'archive') onArchive();
+            if (value == 'delete') onDelete();
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: 'archive',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.archive_outlined),
+                title: Text('Arsipkan'),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'delete',
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.delete_forever_outlined),
+                title: Text('Hapus permanen'),
+              ),
+            ),
+          ],
         ),
       ),
     ),

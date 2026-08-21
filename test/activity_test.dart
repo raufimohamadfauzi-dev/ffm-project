@@ -138,4 +138,93 @@ void main() {
       expect(raw.isArchived, isTrue);
     },
   );
+
+  test(
+    'hapus permanen menghapus sesi beserta update dan data lama yang tertaut',
+    () async {
+      final start = DateTime(2026, 8, 20, 13);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 's-delete',
+          householdId: 'local-household',
+          title: 'Pasar lalu kebun',
+          category: 'Perjalanan',
+          startedAt: start,
+          status: ActivitySessionStatus.completed,
+          endedAt: start.add(const Duration(hours: 2)),
+          createdAt: start,
+        ),
+      );
+      await repository.saveCheckpoint(
+        ActivityCheckpointEntity(
+          id: 'c-delete',
+          sessionId: 's-delete',
+          label: 'Sampai pasar',
+          occurredAt: start.add(const Duration(minutes: 20)),
+          sequence: 1,
+          createdAt: start,
+        ),
+      );
+      await repository.saveEntry(
+        ActivityJournalEntryEntity(
+          id: 'j-delete',
+          sessionId: 's-delete',
+          householdId: 'local-household',
+          activityType: 'Lainnya',
+          title: 'Catatan lama tertaut',
+          startedAt: start,
+          createdAt: start,
+        ),
+      );
+
+      await repository.deleteSessionPermanently('local-household', 's-delete');
+
+      expect(
+        await repository.getSession('local-household', 's-delete'),
+        isNull,
+      );
+      expect(await repository.getCheckpoints('s-delete'), isEmpty);
+      expect(await repository.getEntries('local-household'), isEmpty);
+      expect(
+        await (database.select(
+          database.activitySessions,
+        )..where((row) => row.id.equals('s-delete'))).get(),
+        isEmpty,
+      );
+      final auditRows = await database
+          .customSelect('SELECT action, entity FROM audit_logs')
+          .get();
+      expect(
+        auditRows.any(
+          (row) =>
+              row.read<String>('action') == 'delete_permanently' &&
+              row.read<String>('entity') == 'activity_session',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('arsip sesi tetap berbeda dari hapus permanen', () async {
+    final now = DateTime(2026, 8, 20, 15);
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 's-archive',
+        householdId: 'local-household',
+        title: 'Aktivitas diarsipkan',
+        category: 'Lainnya',
+        startedAt: now,
+        status: ActivitySessionStatus.completed,
+        createdAt: now,
+      ),
+    );
+
+    await repository.archiveSession('local-household', 's-archive');
+
+    expect(await repository.getSessions('local-household'), isEmpty);
+    final raw = await (database.select(
+      database.activitySessions,
+    )..where((row) => row.id.equals('s-archive'))).getSingle();
+    expect(raw.isArchived, isTrue);
+  });
 }

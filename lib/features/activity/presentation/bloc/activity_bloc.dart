@@ -171,6 +171,12 @@ class ActivityBloc extends Cubit<ActivityState> {
     await _save(() => repository.archiveSession(AppContext.householdId, id));
   }
 
+  Future<void> deleteSessionPermanently(String id) async {
+    await _save(
+      () => repository.deleteSessionPermanently(AppContext.householdId, id),
+    );
+  }
+
   Future<void> archiveEntry(String id) async {
     await _save(() => repository.archiveEntry(AppContext.householdId, id));
   }

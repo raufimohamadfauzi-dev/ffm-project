@@ -167,6 +167,47 @@ class ActivityRepository {
     );
   }
 
+  Future<void> deleteSessionPermanently(String householdId, String id) async {
+    final session = await getSession(householdId, id);
+    if (session == null) return;
+    final checkpoints = await getCheckpoints(id);
+    final linkedEntries =
+        await (database.select(database.activityEntries)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.sessionId.equals(id),
+            ))
+            .get();
+
+    await database.transaction(() async {
+      await (database.delete(
+        database.activityCheckpoints,
+      )..where((row) => row.sessionId.equals(id))).go();
+      await (database.delete(database.activityEntries)..where(
+            (row) =>
+                row.householdId.equals(householdId) & row.sessionId.equals(id),
+          ))
+          .go();
+      await (database.delete(database.activitySessions)..where(
+            (row) => row.householdId.equals(householdId) & row.id.equals(id),
+          ))
+          .go();
+    });
+
+    await auditLogger.record(
+      action: 'delete_permanently',
+      entity: 'activity_session',
+      householdId: householdId,
+      oldValue: {
+        'id': session.id,
+        'title': session.title,
+        'status': session.status.value,
+        'checkpointCount': checkpoints.length,
+        'linkedEntryCount': linkedEntries.length,
+      },
+    );
+  }
+
   Future<void> archiveSession(String householdId, String id) async {
     await (database.update(database.activitySessions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
