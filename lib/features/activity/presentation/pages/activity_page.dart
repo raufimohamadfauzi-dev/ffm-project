@@ -42,6 +42,7 @@ class _ActivityViewState extends State<_ActivityView>
   String? _voiceError;
   String _voiceStatus = 'Siap bicara';
   bool _voiceInitialized = false;
+  bool _processingFinalVoice = false;
 
   @override
   void initState() {
@@ -227,6 +228,10 @@ class _ActivityViewState extends State<_ActivityView>
 
   Future<void> _startVoiceCapture() async {
     if (!mounted) return;
+    if (_speechService.isListening) {
+      await _speechService.stop();
+    }
+    await _speechService.stopSpeaking();
     setState(() {
       _voiceError = null;
       _voiceStatus = 'Menyiapkan mikrofon...';
@@ -266,7 +271,7 @@ class _ActivityViewState extends State<_ActivityView>
           _voiceStatus = isFinal ? 'Teks sudah ditangkap' : 'Mendengarkan...';
         });
         if (isFinal && text.trim().isNotEmpty) {
-          _previewVoice(text);
+          _processFinalVoice(text);
         }
       },
       onSoundLevel: (_) {},
@@ -277,9 +282,21 @@ class _ActivityViewState extends State<_ActivityView>
     await _speechService.stop();
     if (!mounted) return;
     if (_voiceText.trim().isNotEmpty) {
-      _previewVoice(_voiceText);
+      await _processFinalVoice(_voiceText);
     } else {
       setState(() => _voiceStatus = 'Belum ada suara yang terbaca');
+    }
+  }
+
+  Future<void> _processFinalVoice(String transcript) async {
+    if (_processingFinalVoice || transcript.trim().isEmpty) return;
+    _processingFinalVoice = true;
+    try {
+      await _speechService.stop();
+      if (!mounted) return;
+      _previewVoice(transcript.trim());
+    } finally {
+      _processingFinalVoice = false;
     }
   }
 
@@ -328,8 +345,13 @@ class _ActivityViewState extends State<_ActivityView>
     final detail = intent.type == ActivityVoiceIntentType.startChild
         ? ' di dalam ${intent.parentTitle}'
         : '';
+    final checkpoint =
+        intent.type == ActivityVoiceIntentType.checkpoint &&
+            intent.checkpointLabel != null
+        ? '. Update: ${intent.checkpointLabel}'
+        : '';
     final message = intent.ambiguityReason == null
-        ? '${intent.actionLabel}$target$detail. Kalau sudah benar, bilang OK.'
+        ? '${intent.actionLabel}$target$detail$checkpoint. Kalau sudah benar, bilang OK.'
         : intent.ambiguityReason!;
     try {
       await _speechService.speak(message);
@@ -426,6 +448,8 @@ class _ActivityViewState extends State<_ActivityView>
         clearAmbiguity: true,
       );
     });
+    final updated = _voiceIntent;
+    if (updated != null) _speakVoicePreview(updated);
   }
 
   Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
@@ -1266,6 +1290,13 @@ class _VoiceActivityCard extends StatelessWidget {
               ),
             if (needsTarget && activeSessions.isNotEmpty) ...[
               const SizedBox(height: 10),
+              Text(
+                activeSessions.length == 1
+                    ? 'Pilih aktivitas tujuan sebelum lanjut.'
+                    : 'Ada beberapa aktivitas aktif. Pilih yang mau diupdate atau diselesaikan.',
+                style: TextStyle(color: scheme.onSecondaryContainer),
+              ),
+              const SizedBox(height: 6),
               DropdownButtonFormField<String>(
                 initialValue: intent!.targetSessionId,
                 isExpanded: true,

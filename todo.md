@@ -16,3 +16,18 @@
 - [x] Tambahkan memori lokal, saran terjelaskan, JSON, dan laporan.
 - [x] Tambahkan regression test dan validasi perilaku offline.
 - [x] Commit, packaging source, dan APK release Asisten FFM.
+
+# Rancangan Model Bahasa Lokal
+
+- [x] Evaluasi runtime LLM lokal Android yang cocok untuk Flutter dan perangkat target.
+- [x] Tetapkan batas tegas antara keluaran model, validasi aturan keuangan, draft, dan penyimpanan.
+- [x] Tentukan strategi ukuran model, instalasi, performa, serta fallback tanpa model.
+- [ ] Susun tahapan implementasi dan keputusan yang perlu disetujui sebelum kode diubah.
+
+# Perbaikan Voice Update Aktivitas
+
+- [x] Audit jalur STT, parser, state sesi aktif, dan lifecycle listener setelah aktivitas dimulai.
+- [x] Perbaiki update, checkpoint, dan selesai agar selalu menerima konteks sesi aktif yang terbaru.
+- [x] Perjelas preview, koreksi, status mikrofon, dan penanganan aktivitas ambigu/paralel.
+- [x] Tambahkan regression test lalu jalankan formatter, analyzer, dan seluruh test.
+- [x] Commit, kemas source, dan build APK release dengan keystore lama.

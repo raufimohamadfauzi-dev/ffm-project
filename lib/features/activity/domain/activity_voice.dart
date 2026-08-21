@@ -143,6 +143,7 @@ class ActivityVoiceParser {
       'update',
       'sampai ',
       'tiba ',
+      'sudah sampai ',
       'sudah di ',
     ]);
 
@@ -158,6 +159,7 @@ class ActivityVoiceParser {
           confidence: title == null ? .45 : .9,
         ),
         activeSessions,
+        useSingleActiveFallback: true,
       );
     }
     if (isStart) {
@@ -195,6 +197,7 @@ class ActivityVoiceParser {
           confidence: title == null || label == null ? .45 : .85,
         ),
         activeSessions,
+        useSingleActiveFallback: true,
       );
     }
 
@@ -277,13 +280,18 @@ class ActivityVoiceParser {
   }
 
   String? _extractCheckpointTarget(String text) {
-    final match = RegExp(r'^(?:update\s+)?(.+?)\s+(?:sampai|tiba|sudah di)\s+')
-        .firstMatch(text);
+    if (RegExp(r'^(?:sudah sampai|sampai|tiba|sudah di)\s+').hasMatch(text)) {
+      return null;
+    }
+    final match = RegExp(
+      r'^(?:update\s+)?(.+?)\s+(?:sudah sampai|sampai|tiba|sudah di)\s+',
+    ).firstMatch(text);
     return match == null ? null : _cleanTitle(match.group(1)!);
   }
 
   String? _extractCheckpointLabel(String text) {
-    final match = RegExp(r'(?:sampai|tiba|sudah di)\s+(.+)$').firstMatch(text);
+    final match = RegExp(r'(?:sudah sampai|sampai|tiba|sudah di)\s+(.+)$')
+        .firstMatch(text);
     return match == null ? null : _cleanTitle(match.group(1)!);
   }
 
@@ -303,10 +311,19 @@ class ActivityVoiceParser {
 
   ActivityVoiceIntent _resolveTarget(
     ActivityVoiceIntent intent,
-    List<ActivitySessionEntity> sessions,
-  ) {
+    List<ActivitySessionEntity> sessions, {
+    bool useSingleActiveFallback = false,
+  }) {
     final title = intent.targetTitle;
     if (title == null) {
+      if (useSingleActiveFallback && sessions.length == 1) {
+        final session = sessions.single;
+        return intent.copyWith(
+          targetSessionId: session.id,
+          targetTitle: session.title,
+          confidence: .9,
+        );
+      }
       return intent.copyWith(ambiguityReason: 'Sebutkan nama aktivitasnya ya.');
     }
     final matches = sessions
