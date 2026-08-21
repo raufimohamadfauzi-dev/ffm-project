@@ -325,10 +325,21 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   Future<void> _editEnvelope(EnvelopeBudgetRow envelope) async {
+    String? suggestedPeriod;
+    for (final category in _categories) {
+      if (envelope.categoryIds.contains(category.id)) {
+        suggestedPeriod = category.defaultBudgetPeriod;
+        break;
+      }
+    }
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) =>
-            EnvelopeEditPage(envelope: envelope, categories: _categories),
+        builder: (_) => EnvelopeEditPage(
+          envelope: envelope,
+          categories: _categories,
+          weekStartDay: _weekStartDay,
+          suggestedPeriod: suggestedPeriod,
+        ),
       ),
     );
     if (saved == true) _load();
@@ -954,11 +965,15 @@ class EnvelopeEditPage extends StatefulWidget {
   const EnvelopeEditPage({
     required this.envelope,
     required this.categories,
+    required this.weekStartDay,
+    this.suggestedPeriod,
     super.key,
   });
 
   final EnvelopeBudgetRow envelope;
   final List<Category> categories;
+  final int weekStartDay;
+  final String? suggestedPeriod;
 
   @override
   State<EnvelopeEditPage> createState() => _EnvelopeEditPageState();
@@ -990,6 +1005,18 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     _startDate = widget.envelope.startDate;
     _endDate = widget.envelope.endDate;
     _periodType = widget.envelope.periodType;
+    if (widget.envelope.isPlaceholder &&
+        (widget.suggestedPeriod == 'weekly' ||
+            widget.suggestedPeriod == 'monthly')) {
+      _periodType = widget.suggestedPeriod!;
+      final now = DateTime.now();
+      _startDate = _periodType == 'weekly'
+          ? DateTime(now.year, now.month, now.day).subtract(
+              Duration(days: (now.weekday - widget.weekStartDay + 7) % 7),
+            )
+          : DateTime(now.year, now.month, 1);
+      _endDate = _periodEnd(_startDate, _periodType);
+    }
     _alertPercent = widget.envelope.alertPercent.clamp(50, 100);
   }
 
@@ -1210,6 +1237,15 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
                 });
               },
             ),
+            if (widget.suggestedPeriod == 'weekly' ||
+                widget.suggestedPeriod == 'monthly')
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Saran kategori: ${widget.suggestedPeriod == 'weekly' ? 'mingguan' : 'bulanan'}. Nominal tetap kamu isi sendiri.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _pickStartDate,

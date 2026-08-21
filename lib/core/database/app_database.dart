@@ -47,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 30;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -110,6 +110,10 @@ class AppDatabase extends _$AppDatabase {
           'ON activity_sessions (parent_session_id)',
         );
       }
+      if (from < 30) {
+        await m.addColumn(categories, categories.defaultBudgetPeriod);
+        await _applyDefaultBudgetPeriods();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -142,6 +146,65 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  Future<void> _applyDefaultBudgetPeriods() async {
+    const defaults = <(String, String, String)>[
+      ('Makan & minum', 'expense', 'weekly'),
+      ('Belanja rumah', 'expense', 'monthly'),
+      ('Belanja pasar', 'expense', 'weekly'),
+      ('Transportasi', 'expense', 'weekly'),
+      ('BBM motor', 'expense', 'weekly'),
+      ('BBM mobil', 'expense', 'weekly'),
+      ('Tagihan', 'expense', 'monthly'),
+      ('Tagihan rumah', 'expense', 'monthly'),
+      ('Listrik & air', 'expense', 'monthly'),
+      ('Gas LPG', 'expense', 'monthly'),
+      ('Pulsa & internet', 'expense', 'monthly'),
+      ('Beras', 'expense', 'monthly'),
+      ('Sabun & kebersihan', 'expense', 'monthly'),
+      ('Kebutuhan dapur', 'expense', 'monthly'),
+      ('Kesehatan', 'expense', 'monthly'),
+      ('Sandal & sepatu', 'expense', 'none'),
+      ('Pakaian', 'expense', 'none'),
+      ('Perlengkapan rumah', 'expense', 'none'),
+      ('Servis kendaraan', 'expense', 'none'),
+      ('Perawatan kendaraan', 'expense', 'none'),
+      ('Kebutuhan sekolah', 'expense', 'none'),
+      ('Kebutuhan musiman', 'expense', 'none'),
+      ('Pertanian', 'expense', 'none'),
+      ('Biaya admin', 'expense', 'none'),
+      ('Lainnya', 'expense', 'none'),
+    ];
+    final existing = await (select(
+      categories,
+    )..where((row) => row.householdId.equals('local-household'))).get();
+    for (final (name, type, period) in defaults) {
+      Category? match;
+      for (final row in existing) {
+        if (row.type == type &&
+            row.name.trim().toLowerCase() == name.toLowerCase()) {
+          match = row;
+          break;
+        }
+      }
+      if (match == null) {
+        final slug = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+        await into(categories).insert(
+          CategoriesCompanion.insert(
+            id: 'seed-$type-$slug',
+            householdId: 'local-household',
+            name: name,
+            type: type,
+            defaultBudgetPeriod: Value(period),
+            createdAt: DateTime.now(),
+          ),
+        );
+      } else if (match.defaultBudgetPeriod == 'none' && period != 'none') {
+        await (update(categories)..where((row) => row.id.equals(match!.id)))
+            .write(CategoriesCompanion(defaultBudgetPeriod: Value(period)));
+      }
+    }
+  }
+
   Future<void> _seedInitialData() async {
     final now = DateTime.now();
     await into(households).insertOnConflictUpdate(
@@ -152,24 +215,44 @@ class AppDatabase extends _$AppDatabase {
         updatedAt: Value(now),
       ),
     );
-    const categories = <(String, String)>[
-      ('Makan & minum', 'expense'),
-      ('Belanja rumah', 'expense'),
-      ('Transportasi', 'expense'),
-      ('Tagihan', 'expense'),
-      ('Kesehatan', 'expense'),
-      ('Gaji', 'income'),
-      ('Usaha', 'income'),
-      ('Hadiah & bantuan', 'income'),
-      ('Biaya admin', 'expense'),
+    const categories = <(String, String, String)>[
+      ('Makan & minum', 'expense', 'weekly'),
+      ('Belanja rumah', 'expense', 'monthly'),
+      ('Belanja pasar', 'expense', 'weekly'),
+      ('Transportasi', 'expense', 'weekly'),
+      ('BBM motor', 'expense', 'weekly'),
+      ('BBM mobil', 'expense', 'weekly'),
+      ('Tagihan', 'expense', 'monthly'),
+      ('Tagihan rumah', 'expense', 'monthly'),
+      ('Listrik & air', 'expense', 'monthly'),
+      ('Gas LPG', 'expense', 'monthly'),
+      ('Pulsa & internet', 'expense', 'monthly'),
+      ('Beras', 'expense', 'monthly'),
+      ('Sabun & kebersihan', 'expense', 'monthly'),
+      ('Kebutuhan dapur', 'expense', 'monthly'),
+      ('Kesehatan', 'expense', 'monthly'),
+      ('Sandal & sepatu', 'expense', 'none'),
+      ('Pakaian', 'expense', 'none'),
+      ('Perlengkapan rumah', 'expense', 'none'),
+      ('Servis kendaraan', 'expense', 'none'),
+      ('Perawatan kendaraan', 'expense', 'none'),
+      ('Kebutuhan sekolah', 'expense', 'none'),
+      ('Kebutuhan musiman', 'expense', 'none'),
+      ('Gaji', 'income', 'none'),
+      ('Usaha', 'income', 'none'),
+      ('Hadiah & bantuan', 'income', 'none'),
+      ('Biaya admin', 'expense', 'none'),
+      ('Pertanian', 'expense', 'none'),
+      ('Lainnya', 'expense', 'none'),
     ];
-    for (final (name, type) in categories) {
+    for (final (name, type, period) in categories) {
       await into(this.categories).insertOnConflictUpdate(
         CategoriesCompanion.insert(
           id: 'seed-${type}-${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
           householdId: 'local-household',
           name: name,
           type: type,
+          defaultBudgetPeriod: Value(period),
           createdAt: now,
         ),
       );

@@ -474,6 +474,18 @@ class $CategoriesTable extends Categories
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _defaultBudgetPeriodMeta =
+      const VerificationMeta('defaultBudgetPeriod');
+  @override
+  late final GeneratedColumn<String> defaultBudgetPeriod =
+      GeneratedColumn<String>(
+        'default_budget_period',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('none'),
+      );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -507,6 +519,7 @@ class $CategoriesTable extends Categories
     name,
     type,
     parentId,
+    defaultBudgetPeriod,
     isActive,
     createdAt,
   ];
@@ -560,6 +573,15 @@ class $CategoriesTable extends Categories
         parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
       );
     }
+    if (data.containsKey('default_budget_period')) {
+      context.handle(
+        _defaultBudgetPeriodMeta,
+        defaultBudgetPeriod.isAcceptableOrUnknown(
+          data['default_budget_period']!,
+          _defaultBudgetPeriodMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_active')) {
       context.handle(
         _isActiveMeta,
@@ -603,6 +625,10 @@ class $CategoriesTable extends Categories
         DriftSqlType.string,
         data['${effectivePrefix}parent_id'],
       ),
+      defaultBudgetPeriod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}default_budget_period'],
+      )!,
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
@@ -626,6 +652,7 @@ class Category extends DataClass implements Insertable<Category> {
   final String name;
   final String type;
   final String? parentId;
+  final String defaultBudgetPeriod;
   final bool isActive;
   final DateTime createdAt;
   const Category({
@@ -634,6 +661,7 @@ class Category extends DataClass implements Insertable<Category> {
     required this.name,
     required this.type,
     this.parentId,
+    required this.defaultBudgetPeriod,
     required this.isActive,
     required this.createdAt,
   });
@@ -647,6 +675,7 @@ class Category extends DataClass implements Insertable<Category> {
     if (!nullToAbsent || parentId != null) {
       map['parent_id'] = Variable<String>(parentId);
     }
+    map['default_budget_period'] = Variable<String>(defaultBudgetPeriod);
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
     return map;
@@ -661,6 +690,7 @@ class Category extends DataClass implements Insertable<Category> {
       parentId: parentId == null && nullToAbsent
           ? const Value.absent()
           : Value(parentId),
+      defaultBudgetPeriod: Value(defaultBudgetPeriod),
       isActive: Value(isActive),
       createdAt: Value(createdAt),
     );
@@ -677,6 +707,9 @@ class Category extends DataClass implements Insertable<Category> {
       name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<String>(json['type']),
       parentId: serializer.fromJson<String?>(json['parentId']),
+      defaultBudgetPeriod: serializer.fromJson<String>(
+        json['defaultBudgetPeriod'],
+      ),
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
     );
@@ -690,6 +723,7 @@ class Category extends DataClass implements Insertable<Category> {
       'name': serializer.toJson<String>(name),
       'type': serializer.toJson<String>(type),
       'parentId': serializer.toJson<String?>(parentId),
+      'defaultBudgetPeriod': serializer.toJson<String>(defaultBudgetPeriod),
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
     };
@@ -701,6 +735,7 @@ class Category extends DataClass implements Insertable<Category> {
     String? name,
     String? type,
     Value<String?> parentId = const Value.absent(),
+    String? defaultBudgetPeriod,
     bool? isActive,
     DateTime? createdAt,
   }) => Category(
@@ -709,6 +744,7 @@ class Category extends DataClass implements Insertable<Category> {
     name: name ?? this.name,
     type: type ?? this.type,
     parentId: parentId.present ? parentId.value : this.parentId,
+    defaultBudgetPeriod: defaultBudgetPeriod ?? this.defaultBudgetPeriod,
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
   );
@@ -721,6 +757,9 @@ class Category extends DataClass implements Insertable<Category> {
       name: data.name.present ? data.name.value : this.name,
       type: data.type.present ? data.type.value : this.type,
       parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      defaultBudgetPeriod: data.defaultBudgetPeriod.present
+          ? data.defaultBudgetPeriod.value
+          : this.defaultBudgetPeriod,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
@@ -734,6 +773,7 @@ class Category extends DataClass implements Insertable<Category> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('parentId: $parentId, ')
+          ..write('defaultBudgetPeriod: $defaultBudgetPeriod, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt')
           ..write(')'))
@@ -741,8 +781,16 @@ class Category extends DataClass implements Insertable<Category> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, householdId, name, type, parentId, isActive, createdAt);
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    name,
+    type,
+    parentId,
+    defaultBudgetPeriod,
+    isActive,
+    createdAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -752,6 +800,7 @@ class Category extends DataClass implements Insertable<Category> {
           other.name == this.name &&
           other.type == this.type &&
           other.parentId == this.parentId &&
+          other.defaultBudgetPeriod == this.defaultBudgetPeriod &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt);
 }
@@ -762,6 +811,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
   final Value<String> name;
   final Value<String> type;
   final Value<String?> parentId;
+  final Value<String> defaultBudgetPeriod;
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
@@ -771,6 +821,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.parentId = const Value.absent(),
+    this.defaultBudgetPeriod = const Value.absent(),
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -781,6 +832,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     required String name,
     required String type,
     this.parentId = const Value.absent(),
+    this.defaultBudgetPeriod = const Value.absent(),
     this.isActive = const Value.absent(),
     required DateTime createdAt,
     this.rowid = const Value.absent(),
@@ -795,6 +847,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Expression<String>? name,
     Expression<String>? type,
     Expression<String>? parentId,
+    Expression<String>? defaultBudgetPeriod,
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
     Expression<int>? rowid,
@@ -805,6 +858,8 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       if (name != null) 'name': name,
       if (type != null) 'type': type,
       if (parentId != null) 'parent_id': parentId,
+      if (defaultBudgetPeriod != null)
+        'default_budget_period': defaultBudgetPeriod,
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
@@ -817,6 +872,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     Value<String>? name,
     Value<String>? type,
     Value<String?>? parentId,
+    Value<String>? defaultBudgetPeriod,
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
     Value<int>? rowid,
@@ -827,6 +883,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
       name: name ?? this.name,
       type: type ?? this.type,
       parentId: parentId ?? this.parentId,
+      defaultBudgetPeriod: defaultBudgetPeriod ?? this.defaultBudgetPeriod,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
@@ -851,6 +908,11 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
     if (parentId.present) {
       map['parent_id'] = Variable<String>(parentId.value);
     }
+    if (defaultBudgetPeriod.present) {
+      map['default_budget_period'] = Variable<String>(
+        defaultBudgetPeriod.value,
+      );
+    }
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
@@ -871,6 +933,7 @@ class CategoriesCompanion extends UpdateCompanion<Category> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('parentId: $parentId, ')
+          ..write('defaultBudgetPeriod: $defaultBudgetPeriod, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
@@ -17565,6 +17628,7 @@ typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
   required String name,
   required String type,
   Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
   Value<bool> isActive,
   required DateTime createdAt,
   Value<int> rowid,
@@ -17575,6 +17639,7 @@ typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
   Value<String> name,
   Value<String> type,
   Value<String?> parentId,
+  Value<String> defaultBudgetPeriod,
   Value<bool> isActive,
   Value<DateTime> createdAt,
   Value<int> rowid,
@@ -17611,6 +17676,11 @@ class $$CategoriesTableFilterComposer
 
   ColumnFilters<String> get parentId => $composableBuilder(
     column: $table.parentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get defaultBudgetPeriod => $composableBuilder(
+    column: $table.defaultBudgetPeriod,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -17659,6 +17729,11 @@ class $$CategoriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get defaultBudgetPeriod => $composableBuilder(
+    column: $table.defaultBudgetPeriod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -17695,6 +17770,11 @@ class $$CategoriesTableAnnotationComposer
 
   GeneratedColumn<String> get parentId =>
       $composableBuilder(column: $table.parentId, builder: (column) => column);
+
+  GeneratedColumn<String> get defaultBudgetPeriod => $composableBuilder(
+    column: $table.defaultBudgetPeriod,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
@@ -17736,6 +17816,7 @@ class $$CategoriesTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<String?> parentId = const Value.absent(),
+                Value<String> defaultBudgetPeriod = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -17745,6 +17826,7 @@ class $$CategoriesTableTableManager
                 name: name,
                 type: type,
                 parentId: parentId,
+                defaultBudgetPeriod: defaultBudgetPeriod,
                 isActive: isActive,
                 createdAt: createdAt,
                 rowid: rowid,
@@ -17756,6 +17838,7 @@ class $$CategoriesTableTableManager
                 required String name,
                 required String type,
                 Value<String?> parentId = const Value.absent(),
+                Value<String> defaultBudgetPeriod = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
                 Value<int> rowid = const Value.absent(),
@@ -17765,6 +17848,7 @@ class $$CategoriesTableTableManager
                 name: name,
                 type: type,
                 parentId: parentId,
+                defaultBudgetPeriod: defaultBudgetPeriod,
                 isActive: isActive,
                 createdAt: createdAt,
                 rowid: rowid,

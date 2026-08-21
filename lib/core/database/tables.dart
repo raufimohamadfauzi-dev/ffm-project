@@ -18,6 +18,8 @@ class Categories extends Table {
   TextColumn get name => text()();
   TextColumn get type => text()();
   TextColumn get parentId => text().nullable()();
+  TextColumn get defaultBudgetPeriod =>
+      text().withDefault(const Constant('none'))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime()();
 

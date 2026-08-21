@@ -163,7 +163,7 @@ class _MasterDataPageState extends State<MasterDataPage>
                 id: row.id,
                 name: row.name,
                 subtitle:
-                    '${row.type == 'income' ? 'Pemasukan' : 'Pengeluaran'}${row.parentId == null ? '' : ' · ${parents[row.parentId] ?? 'Subkategori'}'}',
+                    '${row.type == 'income' ? 'Pemasukan' : 'Pengeluaran'}${row.parentId == null ? '' : ' · ${parents[row.parentId] ?? 'Subkategori'}'}${_budgetPeriodLabel(row.defaultBudgetPeriod)}',
               ),
             )
             .toList();
@@ -309,6 +309,7 @@ class _MasterDataPageState extends State<MasterDataPage>
           name: row.name,
           type: row.type,
           parentId: row.parentId,
+          defaultBudgetPeriod: row.defaultBudgetPeriod,
         );
       case 1:
         final row = await (_database.select(
@@ -430,6 +431,7 @@ class _MasterDataPageState extends State<MasterDataPage>
           name: Value(values.name.trim()),
           type: Value(values.type),
           parentId: Value(values.parentId),
+          defaultBudgetPeriod: Value(values.defaultBudgetPeriod),
           createdAt: Value(now),
         );
         if (existingId == null) {
@@ -442,6 +444,7 @@ class _MasterDataPageState extends State<MasterDataPage>
               name: Value(values.name.trim()),
               type: Value(values.type),
               parentId: Value(values.parentId),
+              defaultBudgetPeriod: Value(values.defaultBudgetPeriod),
             ),
           );
         }
@@ -682,6 +685,17 @@ class _MasterDataPageState extends State<MasterDataPage>
     }
   }
 
+  static String _budgetPeriodLabel(String period) {
+    switch (period) {
+      case 'weekly':
+        return ' · saran mingguan';
+      case 'monthly':
+        return ' · saran bulanan';
+      default:
+        return ' · sesuai kebutuhan';
+    }
+  }
+
   static String _accountTypeLabel(String type) {
     switch (type) {
       case 'bank':
@@ -903,6 +917,7 @@ class _MasterFormValues {
     this.details = '',
     this.accountType = 'cash',
     this.openingBalance = 0,
+    this.defaultBudgetPeriod = 'none',
   });
 
   factory _MasterFormValues.forTab(int tab) {
@@ -922,6 +937,7 @@ class _MasterFormValues {
   final String details;
   final String accountType;
   final int openingBalance;
+  final String defaultBudgetPeriod;
 }
 
 class _CategoryParent {
@@ -953,6 +969,7 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
   late final TextEditingController _openingBalance;
   late String _type;
   late String _accountType;
+  late String _defaultBudgetPeriod;
   String? _parentId;
 
   @override
@@ -967,6 +984,7 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
     );
     _type = widget.initial.type;
     _accountType = widget.initial.accountType;
+    _defaultBudgetPeriod = widget.initial.defaultBudgetPeriod;
     _parentId = widget.initial.parentId;
   }
 
@@ -1011,8 +1029,31 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
                     ),
                     DropdownMenuItem(value: 'income', child: Text('Pemasukan')),
                   ],
-                  onChanged: (value) =>
-                      setState(() => _type = value ?? 'expense'),
+                  onChanged: (value) => setState(() {
+                    _type = value ?? 'expense';
+                    if (_type == 'income') _defaultBudgetPeriod = 'none';
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _defaultBudgetPeriod,
+                  decoration: const InputDecoration(
+                    labelText: 'Saran frekuensi Anggaran',
+                    helperText: 'Saran saja, bukan target otomatis. Pilih sesuai kebutuhan kalau tidak rutin.',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'none',
+                      child: Text('Sesuai kebutuhan / tidak rutin'),
+                    ),
+                    DropdownMenuItem(value: 'weekly', child: Text('Mingguan')),
+                    DropdownMenuItem(value: 'monthly', child: Text('Bulanan')),
+                  ],
+                  onChanged: _type == 'income'
+                      ? null
+                      : (value) => setState(
+                          () => _defaultBudgetPeriod = value ?? 'none',
+                        ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
@@ -1112,6 +1153,7 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
         name: name,
         type: _type,
         parentId: _parentId,
+        defaultBudgetPeriod: _defaultBudgetPeriod,
         details: _details.text.trim(),
         accountType: _accountType,
         openingBalance: parseRupiah(_openingBalance.text),
