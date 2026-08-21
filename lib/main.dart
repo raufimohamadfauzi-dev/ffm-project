@@ -193,6 +193,14 @@ class _AppShellState extends State<AppShell> {
     const OtherMenuPage(),
   ];
 
+  FfmAssistantDestination get _assistantCurrentDestination => switch (_index) {
+    0 => FfmAssistantDestination.summary,
+    1 => FfmAssistantDestination.transactions,
+    2 => FfmAssistantDestination.budget,
+    3 => FfmAssistantDestination.analysis,
+    _ => FfmAssistantDestination.otherMenu,
+  };
+
   Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
     final destination = intent.destination;
     if (destination == null) return;
@@ -301,6 +309,7 @@ class _AppShellState extends State<AppShell> {
         context,
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
+        currentDestination: _assistantCurrentDestination,
       ),
       icon: const Icon(Icons.auto_awesome_outlined),
       label: const Text('Asisten'),

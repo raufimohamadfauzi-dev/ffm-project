@@ -17,12 +17,17 @@ Future<void> showFfmAssistantSheet(
   BuildContext context, {
   required FfmAssistantIntentHandler onIntent,
   required FfmAssistantIntentBatchHandler onIntents,
+  FfmAssistantDestination? currentDestination,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   backgroundColor: Colors.transparent,
-  builder: (_) => FfmAssistantSheet(onIntent: onIntent, onIntents: onIntents),
+  builder: (_) => FfmAssistantSheet(
+    onIntent: onIntent,
+    onIntents: onIntents,
+    currentDestination: currentDestination,
+  ),
 );
 
 class FfmAssistantSheet extends StatefulWidget {
@@ -30,10 +35,12 @@ class FfmAssistantSheet extends StatefulWidget {
     super.key,
     required this.onIntent,
     required this.onIntents,
+    this.currentDestination,
   });
 
   final FfmAssistantIntentHandler onIntent;
   final FfmAssistantIntentBatchHandler onIntents;
+  final FfmAssistantDestination? currentDestination;
 
   @override
   State<FfmAssistantSheet> createState() => _FfmAssistantSheetState();
@@ -41,13 +48,14 @@ class FfmAssistantSheet extends StatefulWidget {
 
 class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _controller = TextEditingController();
+  final _inputFocusNode = FocusNode();
   final _scrollController = ScrollController();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
   final _entries = <_AssistantChatEntry>[
     const _AssistantChatEntry(
       isUser: false,
-      text: 'Halo, aku Asisten FFM. Kamu bisa tanya data lokal, buka halaman, atau siapkan draft. Contoh: “Ada berapa transaksi bulan ini?”',
+      text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, atau siapin draft? Tulis santai aja. Contoh: “Ada berapa transaksi bulan ini?”',
     ),
   ];
   var _submitting = false;
@@ -58,6 +66,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   @override
   void dispose() {
     _controller.dispose();
+    _inputFocusNode.dispose();
     _scrollController.dispose();
     _speech.cancel();
     _speech.stopSpeaking();
@@ -74,7 +83,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd();
     try {
-      final intents = await _interpreter.interpretMany(text);
+      final intents = await _interpreter.interpretMany(
+        text,
+        currentDestination: widget.currentDestination,
+      );
       if (!mounted) return;
       setState(() {
         for (final intent in intents) {
@@ -155,20 +167,27 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
       return;
     }
+    final shouldNavigate =
+        (intent.destination != null || intent.draft != null) &&
+        intent.type != FfmAssistantIntentType.confirm;
+    if (shouldNavigate) {
+      final handler = widget.onIntent;
+      Navigator.of(context).pop();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      await handler(intent);
+      return;
+    }
     await widget.onIntent(intent);
     if (mounted) setState(() => _queuedIntents.remove(intent));
-    if (mounted &&
-        (intent.destination != null || intent.draft != null) &&
-        intent.type != FfmAssistantIntentType.confirm) {
-      Navigator.of(context).pop();
-    }
   }
 
   Future<void> _openQueuedDrafts() async {
     final intents = List<FfmAssistantIntent>.of(_queuedIntents);
     if (intents.length < 2) return;
-    await widget.onIntents(intents);
-    if (mounted) Navigator.of(context).pop();
+    final handler = widget.onIntents;
+    Navigator.of(context).pop();
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await handler(intents);
   }
 
   void _scrollToEnd() {
@@ -185,125 +204,145 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      child: SizedBox(
-        height: MediaQuery.sizeOf(context).height * .78,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.auto_awesome_outlined,
-                      color: theme.colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Asisten FFM Lokal',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        Text('Paham teks & suara • data tetap di perangkat'),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Tutup asisten',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.separated(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                itemCount: _entries.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 10),
-                itemBuilder: (_, index) {
-                  final entry = _entries[index];
-                  return _AssistantMessageCard(
-                    entry: entry,
-                    onSpeak: entry.isUser
-                        ? null
-                        : () => _speech.speak(entry.text),
-                    onIntent: entry.intent == null
-                        ? null
-                        : () => _handleIntent(entry.intent!),
-                  );
-                },
-              ),
-            ),
-            if (_submitting) const LinearProgressIndicator(minHeight: 2),
-            if (_queuedIntents.length > 1)
+    final mediaQuery = MediaQuery.of(context);
+    final keyboardInset = mediaQuery.viewInsets.bottom;
+    final sheetHeight = (mediaQuery.size.height * .78).clamp(
+      380.0,
+      mediaQuery.size.height - keyboardInset - mediaQuery.padding.top,
+    );
+    final currentPage = widget.currentDestination == null
+        ? null
+        : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.only(bottom: keyboardInset),
+      child: Material(
+        color: theme.colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        child: SizedBox(
+          height: sheetHeight,
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.tonalIcon(
-                    onPressed: _submitting ? null : _openQueuedDrafts,
-                    icon: const Icon(Icons.playlist_add_check),
-                    label: Text(
-                      'Buka ${_queuedIntents.length} draft satu per satu',
-                    ),
-                  ),
-                ),
-              ),
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    IconButton.filledTonal(
-                      tooltip: _listening
-                          ? 'Berhenti dengar'
-                          : 'Bicara ke Asisten',
-                      onPressed: _submitting ? null : _toggleListening,
-                      icon: Icon(_listening ? Icons.stop : Icons.mic_none),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _submit(),
-                        decoration: const InputDecoration(
-                          hintText: 'Tulis perintah atau pertanyaan…',
-                          border: OutlineInputBorder(),
-                        ),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome_outlined,
+                        color: theme.colorScheme.onPrimaryContainer,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      tooltip: 'Kirim',
-                      onPressed: _submitting ? null : _submit,
-                      icon: const Icon(Icons.arrow_upward),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Asisten FFM Lokal',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            currentPage == null
+                                ? 'Paham teks & suara • data tetap di perangkat'
+                                : 'Lagi di ${currentPage.name} • data tetap di perangkat',
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tutup asisten',
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.separated(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  itemCount: _entries.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  itemBuilder: (_, index) {
+                    final entry = _entries[index];
+                    return _AssistantMessageCard(
+                      entry: entry,
+                      onSpeak: entry.isUser
+                          ? null
+                          : () => _speech.speak(entry.text),
+                      onIntent: entry.intent == null
+                          ? null
+                          : () => _handleIntent(entry.intent!),
+                    );
+                  },
+                ),
+              ),
+              if (_submitting) const LinearProgressIndicator(minHeight: 2),
+              if (_queuedIntents.length > 1)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.tonalIcon(
+                      onPressed: _submitting ? null : _openQueuedDrafts,
+                      icon: const Icon(Icons.playlist_add_check),
+                      label: Text(
+                        'Buka ${_queuedIntents.length} draft satu per satu',
+                      ),
+                    ),
+                  ),
+                ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      IconButton.filledTonal(
+                        tooltip: _listening
+                            ? 'Berhenti dengar'
+                            : 'Bicara ke Asisten',
+                        onPressed: _submitting ? null : _toggleListening,
+                        icon: Icon(_listening ? Icons.stop : Icons.mic_none),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _inputFocusNode,
+                          minLines: 1,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _submit(),
+                          onTap: _scrollToEnd,
+                          decoration: const InputDecoration(
+                            hintText: 'Tulis perintah atau pertanyaan…',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        tooltip: 'Kirim',
+                        onPressed: _submitting ? null : _submit,
+                        icon: const Icon(Icons.arrow_upward),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

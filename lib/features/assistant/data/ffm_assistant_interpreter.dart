@@ -4,6 +4,7 @@ import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
 import 'ffm_assistant_local_memory.dart';
+import 'ffm_assistant_typo_normalizer.dart';
 import '../domain/ffm_assistant_models.dart';
 
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
@@ -15,7 +16,10 @@ class FfmAssistantInterpreter {
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
 
-  Future<List<FfmAssistantIntent>> interpretMany(String rawText) async {
+  Future<List<FfmAssistantIntent>> interpretMany(
+    String rawText, {
+    FfmAssistantDestination? currentDestination,
+  }) async {
     final commands = rawText
         .split(
           RegExp(
@@ -26,11 +30,20 @@ class FfmAssistantInterpreter {
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
-    if (commands.length <= 1) return [await interpret(rawText)];
-    return Future.wait(commands.map(interpret));
+    if (commands.length <= 1) {
+      return [await interpret(rawText, currentDestination: currentDestination)];
+    }
+    return Future.wait(
+      commands.map(
+        (command) => interpret(command, currentDestination: currentDestination),
+      ),
+    );
   }
 
-  Future<FfmAssistantIntent> interpret(String rawText) async {
+  Future<FfmAssistantIntent> interpret(
+    String rawText, {
+    FfmAssistantDestination? currentDestination,
+  }) async {
     var normalized = _normalize(rawText);
     if (normalized.isEmpty) {
       return _unknown(
@@ -101,12 +114,16 @@ class FfmAssistantInterpreter {
     final correction = _parseCorrection(rawText, normalized);
     if (correction != null) return correction;
 
-    if (_isMonthlyTransactionStats(normalized)) {
-      return _currentMonthStats(rawText, normalized);
+    if (_isTransactionStats(normalized)) {
+      return _transactionStats(rawText, normalized);
     }
 
     if (_isFinancialWarningRequest(normalized)) {
       return _financialWarnings(rawText, normalized);
+    }
+
+    if (_isCurrentPageRequest(normalized) && currentDestination != null) {
+      return _currentPageContext(rawText, normalized, currentDestination);
     }
 
     if (_containsAny(normalized, const [
@@ -173,7 +190,8 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.openPage,
         destination: directDestination.destination,
         confidence: .98,
-        response: 'Siap, aku buka ${directDestination.name}.',
+        response:
+            'Siap, aku pindahkan kamu ke ${directDestination.name}. Tekan “Buka & cek” kalau sudah siap.',
       );
     }
 
@@ -192,7 +210,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      'Aku belum yakin maksudnya. Contoh: “Buka hutang piutang”, “Ada berapa transaksi bulan ini?”, atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
+      'Aku belum nangkep maksudnya nih. Kamu mau cek data, pindah halaman, atau bikin draft? Contoh: “Ada berapa transaksi minggu ini?” atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
     );
   }
 
@@ -204,13 +222,15 @@ class FfmAssistantInterpreter {
           ))
           .get();
 
-  Future<FfmAssistantIntent> _currentMonthStats(
+  Future<FfmAssistantIntent> _transactionStats(
     String rawText,
     String normalized,
   ) async {
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month);
-    final end = DateTime(now.year, now.month + 1);
+    final period = _transactionPeriod(now, normalized);
+    final start = period.$1;
+    final end = period.$2;
+    final label = period.$3;
     final transactions =
         await (_database.select(_database.transactions)..where(
               (row) =>
@@ -237,8 +257,28 @@ class FfmAssistantInterpreter {
       type: FfmAssistantIntentType.transactionStats,
       confidence: 1,
       response:
-          'Bulan ini ada ${transactions.length + transfers.length} catatan: $income pemasukan, $expense pengeluaran, dan ${transfers.length} transfer. Transfer tidak dihitung sebagai arus kas.',
+          '$label kamu punya ${transactions.length + transfers.length} catatan: $income pemasukan, $expense pengeluaran, dan ${transfers.length} transfer. Transfer tetap tidak dihitung sebagai arus kas, ya.',
     );
+  }
+
+  (DateTime, DateTime, String) _transactionPeriod(
+    DateTime now,
+    String normalized,
+  ) {
+    if (_containsAny(normalized, const ['hari ini', 'hari sekarang'])) {
+      final start = DateTime(now.year, now.month, now.day);
+      return (start, start.add(const Duration(days: 1)), 'Hari ini');
+    }
+    if (_containsAny(normalized, const ['minggu ini', 'minggu sekarang'])) {
+      final start = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: now.weekday - DateTime.monday));
+      return (start, start.add(const Duration(days: 7)), 'Minggu ini');
+    }
+    final start = DateTime(now.year, now.month);
+    return (start, DateTime(now.year, now.month + 1), 'Bulan ini');
   }
 
   Future<FfmAssistantIntent> _financialWarnings(
@@ -263,6 +303,76 @@ class FfmAssistantInterpreter {
       response: service.responseForAssistant(suggestions),
     );
   }
+
+  Future<FfmAssistantIntent> _currentPageContext(
+    String rawText,
+    String normalized,
+    FfmAssistantDestination destination,
+  ) async {
+    final page = FfmAssistantCatalog.findByDestination(destination);
+    final pageName = page?.name ?? 'halaman ini';
+    if (destination == FfmAssistantDestination.summary ||
+        destination == FfmAssistantDestination.transactions) {
+      final stats = await _transactionStats(rawText, normalized);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.transactionStats,
+        destination: destination,
+        confidence: 1,
+        response: 'Kamu lagi di $pageName. ${stats.response}',
+      );
+    }
+    if (destination == FfmAssistantDestination.budget) {
+      final warnings = await _financialWarnings(rawText, normalized);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.financialWarnings,
+        destination: destination,
+        confidence: 1,
+        response: 'Kamu lagi di Anggaran. ${warnings.response}',
+      );
+    }
+    if (destination == FfmAssistantDestination.activity) {
+      final activeSessions =
+          await (_database.select(_database.activitySessions)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false) &
+                    row.status.equals('active'),
+              ))
+              .get();
+      final count = activeSessions.length;
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        destination: destination,
+        confidence: 1,
+        response: count == 0
+            ? 'Kamu lagi di Aktivitas. Belum ada aktivitas yang sedang jalan. Kamu bisa mulai dari tombol Tambah atau bilang “mulai perjalanan”.'
+            : 'Kamu lagi di Aktivitas. Ada $count aktivitas yang masih jalan: ${activeSessions.map((item) => item.title).join(', ')}.',
+      );
+    }
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.help,
+      destination: destination,
+      confidence: 1,
+      response:
+          'Kamu lagi di $pageName. ${page?.description ?? 'Kamu bisa bilang data apa yang mau dicek.'}',
+    );
+  }
+
+  bool _isCurrentPageRequest(String text) => _containsAny(text, const [
+    'halaman ini',
+    'di sini ada apa',
+    'di sini ada data apa',
+    'kondisi halaman ini',
+    'baca halaman ini',
+  ]);
 
   FfmAssistantIntent _intentForDraft(
     String rawText,
@@ -553,7 +663,15 @@ class FfmAssistantInterpreter {
     final matches = accounts.where(
       (account) => text.contains(account.name.toLowerCase()),
     );
-    return matches.isEmpty ? null : matches.first;
+    if (matches.isNotEmpty) return matches.first;
+    final normalizedText = text.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final typoMatches = accounts.where(
+      (account) => FfmAssistantTypoNormalizer.isSafeNearMatch(
+        normalizedText,
+        account.name.toLowerCase(),
+      ),
+    );
+    return typoMatches.length == 1 ? typoMatches.single : null;
   }
 
   int? _parseAdminFee(String text) {
@@ -578,13 +696,13 @@ class FfmAssistantInterpreter {
         'saya meminjam',
       ]);
 
-  bool _isMonthlyTransactionStats(String text) =>
-      _containsAny(text, const [
-        'berapa transaksi',
-        'jumlah transaksi',
-        'total transaksi',
-      ]) &&
-      _containsAny(text, const ['bulan ini', 'bulan sekarang']);
+  bool _isTransactionStats(String text) => _containsAny(text, const [
+    'berapa transaksi',
+    'jumlah transaksi',
+    'total transaksi',
+    'transaksi ada berapa',
+    'ada berapa catatan',
+  ]);
 
   bool _isFinancialWarningRequest(String text) => _containsAny(text, const [
     'cek anggaran',
@@ -637,11 +755,14 @@ class FfmAssistantInterpreter {
         clarification: response,
       );
 
-  String _normalize(String text) => text
-      .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9.,\s]'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+  String _normalize(String text) {
+    final cleaned = text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9.,\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return FfmAssistantTypoNormalizer.correct(cleaned);
+  }
 
   bool _containsAny(String value, List<String> targets) =>
       targets.any(value.contains);

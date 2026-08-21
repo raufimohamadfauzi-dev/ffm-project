@@ -311,6 +311,18 @@ class _ActivityViewState extends State<_ActivityView>
       _confirmVoice();
       return;
     }
+    if (parsed.type == ActivityVoiceIntentType.confirm) {
+      setState(() {
+        _voiceIntent = null;
+        _voiceText = transcript;
+        _voiceError = 'Belum ada perintah aktivitas yang bisa dikonfirmasi. Bilang dulu misalnya “mulai makan” atau “selesai perjalanan”.';
+        _voiceStatus = 'Menunggu perintah aktivitas';
+      });
+      _speechService.speak(
+        'Belum ada perintah aktivitas yang menunggu konfirmasi. Bilang dulu aktivitas yang mau dicatat ya.',
+      );
+      return;
+    }
     if (parsed.type == ActivityVoiceIntentType.cancel) {
       _cancelVoice();
       return;

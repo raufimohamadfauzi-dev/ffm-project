@@ -56,6 +56,34 @@ void main() {
     expect(intent.response, contains('Ringkasan'));
   });
 
+  test('memahami typo aman dan statistik transaksi minggu ini', () async {
+    final intent = await interpreter.interpret(
+      'ada berapa teansaksi minggu ini?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.transactionStats);
+    expect(intent.normalizedText, contains('transaksi minggu ini'));
+    expect(intent.response, startsWith('Minggu ini'));
+  });
+
+  test('membiarkan kata yang tidak dikenali agar nama tidak ditebak', () async {
+    final intent = await interpreter.interpret('buka halaman zayra');
+
+    expect(intent.type, FfmAssistantIntentType.unknown);
+    expect(intent.normalizedText, contains('zayra'));
+  });
+
+  test('menjawab konteks ringkasan dari halaman yang sedang dibuka', () async {
+    final intent = await interpreter.interpret(
+      'di sini ada data apa?',
+      currentDestination: FfmAssistantDestination.summary,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.transactionStats);
+    expect(intent.destination, FfmAssistantDestination.summary);
+    expect(intent.response, startsWith('Kamu lagi di Ringkasan.'));
+  });
+
   test('memeriksa anggaran tanpa membuat draft atau menyimpan data', () async {
     final intent = await interpreter.interpret('Cek anggaran saya');
 

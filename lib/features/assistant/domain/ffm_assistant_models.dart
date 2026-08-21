@@ -237,6 +237,15 @@ abstract final class FfmAssistantCatalog {
     return matches.isEmpty ? null : matches.first;
   }
 
+  static FfmAssistantPage? findByDestination(
+    FfmAssistantDestination destination,
+  ) {
+    for (final page in pages) {
+      if (page.destination == destination) return page;
+    }
+    return null;
+  }
+
   static String listForChat() =>
       pages.map((page) => '• ${page.name} — ${page.description}').join('\n');
 }

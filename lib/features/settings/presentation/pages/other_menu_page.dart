@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
 import '../../../activity/presentation/pages/activity_page.dart';
-import '../../../assistant/presentation/pages/local_model_page.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
 import '../../../backup/presentation/pages/monthly_report_page.dart';
@@ -132,13 +131,6 @@ class OtherMenuPage extends StatelessWidget {
             title: 'Alat offline lanjutan',
             subtitle: 'Cek saldo, rekonsiliasi saldo, impor data, dan pemeriksaan lokal di perangkat.',
             onTap: () => _open(context, const OfflineAdvancedPage()),
-          ),
-          _MenuCard(
-            icon: Icons.memory_outlined,
-            title: 'Model Asisten Lokal',
-            subtitle:
-                'Pasang atau hapus paket model opsional di ruang privat FFM.',
-            onTap: () => _open(context, const LocalModelPage()),
           ),
           const SizedBox(height: 20),
           const AppSectionHeader(title: 'Keamanan dan informasi'),

@@ -91,7 +91,10 @@ void main() {
   });
 
   test('OK dan batal menjadi token konfirmasi terpisah', () {
-    expect(parser.parse('OK').type, ActivityVoiceIntentType.confirm);
+    final confirmWithoutDraft = parser.parse('OK');
+
+    expect(confirmWithoutDraft.type, ActivityVoiceIntentType.confirm);
+    expect(confirmWithoutDraft.canConfirm, isFalse);
     expect(parser.parse('jangan jadi').type, ActivityVoiceIntentType.cancel);
   });
 
