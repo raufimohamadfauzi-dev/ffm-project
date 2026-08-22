@@ -199,6 +199,7 @@ class FfmAssistantDraft {
     this.goalName,
     this.note,
     this.date,
+    this.formValues = const <String, String>{},
   });
 
   final FfmAssistantDraftKind kind;
@@ -213,6 +214,7 @@ class FfmAssistantDraft {
   final String? goalName;
   final String? note;
   final DateTime? date;
+  final Map<String, String> formValues;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -227,6 +229,7 @@ class FfmAssistantDraft {
     String? goalName,
     String? note,
     DateTime? date,
+    Map<String, String>? formValues,
   }) => FfmAssistantDraft(
     kind: kind,
     createdAt: createdAt,
@@ -240,6 +243,7 @@ class FfmAssistantDraft {
     goalName: goalName ?? this.goalName,
     note: note ?? this.note,
     date: date ?? this.date,
+    formValues: formValues ?? this.formValues,
   );
 }
 
@@ -337,7 +341,7 @@ abstract final class FfmAssistantCatalog {
       destination: FfmAssistantDestination.transactions,
       name: 'Transaksi',
       description:
-          'Mencatat pemasukan, pengeluaran, transfer, target, OCR, dan JSON.',
+          'Mencatat pemasukan, pengeluaran, transfer, target, dan impor JSON.',
       aliases: ['transaksi', 'catatan uang', 'uang masuk', 'uang keluar'],
     ),
     FfmAssistantPage(
@@ -444,7 +448,7 @@ abstract final class FfmAssistantCatalog {
   static String detailFor(FfmAssistantDestination destination) =>
       switch (destination) {
         FfmAssistantDestination.summary => 'Ringkasan adalah beranda kondisi keuangan. Di sini kamu bisa lihat saldo yang tercatat, arus pemasukan/pengeluaran, grafik, dan pintasan ke bagian penting. Angkanya hanya berasal dari data yang memang sudah kamu simpan.',
-        FfmAssistantDestination.transactions => 'Transaksi dipakai untuk catat pemasukan, pengeluaran, transfer antar rekening, setor atau pakai target, input cepat, scan nota/OCR, serta impor JSON. Transfer hanya memindahkan saldo; biaya adminnya dicatat sebagai pengeluaran terpisah.',
+        FfmAssistantDestination.transactions => 'Transaksi dipakai untuk catat pemasukan, pengeluaran, transfer antar rekening, setor atau pakai target, input cepat, serta impor JSON. Transfer hanya memindahkan saldo; biaya adminnya dicatat sebagai pengeluaran terpisah.',
         FfmAssistantDestination.budget => 'Anggaran berisi batas total mingguan atau bulanan, target kategori yang opsional, dan mode Tidak Rutin untuk kebutuhan yang tidak dibeli rutin. Anggaran memantau pengeluaran yang tersimpan; tidak bergantung pada pemasukan.',
         FfmAssistantDestination.analysis => 'Analisa membaca transaksi nyata yang sudah tersimpan untuk melihat pola pemasukan, pengeluaran, dan anggaran. Kalau datanya masih kosong, Asisten akan bilang belum ada cukup data—tidak membuat angka sendiri.',
         FfmAssistantDestination.masterData => 'Data Utama berisi enam bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, Sumber pemasukan, dan Profil keluarga. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan.',

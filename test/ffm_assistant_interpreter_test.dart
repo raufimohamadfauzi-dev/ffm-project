@@ -3,6 +3,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 void main() {
@@ -134,6 +135,92 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('mendeteksi Data Utama kosong dari database lokal', () async {
+    await database.delete(database.accounts).go();
+
+    final intent = await interpreter.interpret('data utama kosong');
+
+    expect(intent.type, FfmAssistantIntentType.setupGuide);
+    expect(intent.response, contains('belum ada rekening aktif'));
+    expect(intent.response, contains('Tambah rekening yang dipakai'));
+    expect(intent.response, contains('Kategori aktif:'));
+    expect(intent.draft, isNull);
+  });
+
+  test('proposal JSON rekening hanya membuat rancangan yang jelas', () {
+    const proposal = '''
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposal": {
+    "type": "master_data",
+    "target": "rekening",
+    "name": "SeaBank",
+    "fields": {"accountType": "bank", "openingBalance": "600000"},
+    "note": "Buka form, cek dulu, lalu simpan sendiri."
+  }
+}
+''';
+
+    final parsed = FfmAssistantProposalJsonService.parse(
+      proposal,
+      createdAt: DateTime(2026, 8, 22),
+    );
+
+    expect(parsed.isProposal, isTrue);
+    expect(parsed.error, isNull);
+    expect(parsed.draft, isNotNull);
+    expect(parsed.draft!.kind, FfmAssistantDraftKind.masterData);
+    expect(parsed.draft!.title, 'SeaBank');
+    expect(parsed.draft!.categoryName, 'rekening');
+    expect(parsed.draft!.formValues['accountType'], 'bank');
+    expect(parsed.draft!.formValues['openingBalance'], '600000');
+  });
+
+  test('klarifikasi JSON LLM tidak berubah menjadi rancangan kosong', () {
+    const proposal = '''
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposal": null,
+  "clarification": "Rekeningnya mau jenis bank, tunai, atau e-wallet?"
+}
+''';
+
+    final parsed = FfmAssistantProposalJsonService.parse(
+      proposal,
+      createdAt: DateTime(2026, 8, 22),
+    );
+
+    expect(parsed.isProposal, isTrue);
+    expect(parsed.draft, isNull);
+    expect(parsed.error, 'Rekeningnya mau jenis bank, tunai, atau e-wallet?');
+  });
+
+  test(
+    'proposal JSON muncul sebagai rancangan Data Utama, bukan simpan',
+    () async {
+      const proposal = '''
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposal": {
+    "type": "master_data",
+    "target": "kategori",
+    "name": "Belanja Dapur",
+    "fields": {"type": "pengeluaran", "defaultBudgetPeriod": "mingguan"}
+  }
+}
+''';
+
+      final intent = await interpreter.interpret(proposal);
+
+      expect(intent.type, FfmAssistantIntentType.createMasterData);
+      expect(intent.destination, FfmAssistantDestination.masterData);
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.title, 'Belanja Dapur');
+      expect(intent.draft!.formValues['type'], 'expense');
+      expect(intent.draft!.formValues['defaultBudgetPeriod'], 'weekly');
+    },
+  );
+
   test('menjawab pertanyaan pertama penggunaan dengan panduan lokal', () async {
     final intent = await interpreter.interpret(
       'pertamakali saya harus apa di aplikasi ini?',
@@ -190,7 +277,7 @@ void main() {
 
       expect(intent.type, FfmAssistantIntentType.unknown);
       expect(intent.response, contains('belum punya jawaban yang pas'));
-      expect(intent.response, contains('Ajarkan Asisten'));
+      expect(intent.response, contains('Benarkan pesan / typo'));
       expect(intent.response, isNot(contains('Pindahkan')));
       expect(intent.draft, isNull);
     },

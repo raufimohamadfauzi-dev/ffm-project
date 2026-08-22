@@ -8,6 +8,7 @@ import '../../hijri/domain/hijri_calendar_service.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
+import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_typo_normalizer.dart';
 import '../domain/ffm_assistant_models.dart';
 
@@ -173,6 +174,17 @@ class FfmAssistantInterpreter {
         normalized,
         'Tulis atau ucapkan dulu yang mau kamu lakukan, ya.',
       );
+    }
+
+    final proposal = FfmAssistantProposalJsonService.parse(
+      rawText,
+      createdAt: _clock(),
+    );
+    if (proposal.draft != null) {
+      return _intentForDraft(rawText, normalized, proposal.draft!);
+    }
+    if (proposal.error != null) {
+      return _unknown(rawText, normalized, proposal.error!);
     }
 
     final aliasIntent = _parseAliasMemory(rawText, normalized);
@@ -349,6 +361,16 @@ class FfmAssistantInterpreter {
       return _setupGuide(rawText, normalized);
     }
 
+    if (_isDraftHelpRequest(normalized)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        confidence: 1,
+        response: 'Rancangan itu isi sementara yang aku siapkan hanya saat kamu memang minta tambah atau ubah data. Rancangan belum menyimpan apa pun. Di kartu rancangan kamu bisa lihat data yang akan dibuka, benarkan pesan kalau maksudnya salah, lalu pilih “Buka & cek” untuk mengisi form resmi. Kalau cuma bertanya fungsi fitur, aku seharusnya menjawab tanpa membuat rancangan.',
+      );
+    }
+
     final featureHelp = _featureHelp(
       rawText,
       normalized,
@@ -471,7 +493,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Tekan “Ajarkan Asisten” supaya pertanyaan ini bisa kamu arahkan dari Pusat Latihan.',
+      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau tulisannya keliru, tekan “Benarkan pesan / typo”. Kalau pertanyaannya memang belum ada jawabannya, cek Pusat Pengetahuan supaya bisa ditambahkan sebagai pengetahuan.',
     );
   }
 
@@ -633,7 +655,7 @@ class FfmAssistantInterpreter {
         normalizedText: normalized,
         type: FfmAssistantIntentType.featureHelp,
         confidence: 1,
-        response: 'Lampiran dipakai untuk menyimpan bukti, misalnya foto nota atau dokumen transaksi. Lampiran biasa tidak mengubah nominal. Kalau mau baca foto nota, gunakan Scan nota/OCR; hasilnya tetap jadi draft yang kamu cek dulu sebelum disimpan.',
+        response: 'Lampiran dipakai untuk menyimpan bukti, misalnya foto nota atau dokumen transaksi. Lampiran biasa tidak mengubah nominal. Kalau punya hasil dari LLM, kamu bisa impor JSON transaksi lalu cek dan edit isinya sebelum disimpan.',
       );
     }
     if (_containsAny(normalized, const [
@@ -1060,6 +1082,23 @@ class FfmAssistantInterpreter {
         action: 'aktivitas',
       ),
     };
+    if (draft.kind == FfmAssistantDraftKind.masterData) {
+      final target = _masterDataTargetName(draft.categoryName);
+      final name = draft.title?.trim();
+      final nameDetail = name == null || name.isEmpty
+          ? ''
+          : ' dengan nama sementara “$name”';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createMasterData,
+        destination: FfmAssistantDestination.masterData,
+        draft: draft,
+        confidence: .9,
+        response:
+            'Aku akan membuka form $target di Data Utama$nameDetail. Belum ada data yang disimpan. Kamu bisa cek dan lengkapi kolom yang belum ada, lalu tekan Simpan sendiri di form.',
+      );
+    }
     final missing = <String>[];
     const amountKinds = {
       FfmAssistantDraftKind.income,
@@ -1523,6 +1562,23 @@ class FfmAssistantInterpreter {
     'setup awal',
     'pengaturan awal',
     'pertama kali pakai',
+    'data utama kosong',
+    'data saya kosong',
+    'data kosong',
+    'data utama belum ada',
+    'apa yang harus diisi dulu',
+    'isi data utama dulu',
+    'cek data utama',
+  ]);
+
+  bool _isDraftHelpRequest(String text) => _containsAny(text, const [
+    'fungsi draft',
+    'draft buat apa',
+    'rancangan buat apa',
+    'apa itu draft',
+    'apa itu rancangan',
+    'kenapa ada draft',
+    'kenapa ada rancangan',
   ]);
 
   bool _isFinancialWarningRequest(String text) => _containsAny(text, const [
@@ -1612,6 +1668,15 @@ class FfmAssistantInterpreter {
     }
     return null;
   }
+
+  String _masterDataTargetName(String? target) => switch (target) {
+    'profil' => 'Profil keluarga',
+    'rekening' => 'Tambah rekening',
+    'toko' => 'Tambah toko atau tempat',
+    'tag' => 'Tambah tag',
+    'sumber_pemasukan' => 'Tambah sumber pemasukan',
+    _ => 'Tambah kategori',
+  };
 
   String? _extractParty(String text, List<String> markers) {
     for (final marker in markers) {

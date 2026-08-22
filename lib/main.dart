@@ -34,7 +34,7 @@ import 'features/settings/presentation/pages/other_menu_page.dart';
 import 'features/settings/presentation/pages/pin_security_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
-import 'features/transaction/presentation/pages/receipt_scan_page.dart';
+import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 
 Future<void> main() async {
@@ -414,9 +414,9 @@ class _AppShellState extends State<AppShell> {
         setState(() => _index = 1);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ReceiptScanPage()));
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReceiptJsonImportPage()),
+            );
           }
         });
     }
@@ -519,6 +519,10 @@ class _AppShellState extends State<AppShell> {
                   : null,
               assistantName: draft?.kind == FfmAssistantDraftKind.masterData
                   ? draft?.title
+                  : null,
+              assistantFormValues:
+                  draft?.kind == FfmAssistantDraftKind.masterData
+                  ? draft?.formValues
                   : null,
               assistantProfileName:
                   draft?.kind == FfmAssistantDraftKind.masterData &&

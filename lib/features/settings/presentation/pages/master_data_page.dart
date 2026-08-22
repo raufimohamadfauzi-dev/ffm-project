@@ -16,11 +16,13 @@ class MasterDataPage extends StatefulWidget {
     this.assistantTab,
     this.assistantName,
     this.assistantProfileName,
+    this.assistantFormValues,
   });
 
   final int? assistantTab;
   final String? assistantName;
   final String? assistantProfileName;
+  final Map<String, String>? assistantFormValues;
 
   @override
   State<MasterDataPage> createState() => _MasterDataPageState();
@@ -64,7 +66,12 @@ class _MasterDataPageState extends State<MasterDataPage>
       _activeTab = tab;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _edit(tab, null, assistantName: widget.assistantName);
+          _edit(
+            tab,
+            null,
+            assistantName: widget.assistantName,
+            assistantFormValues: widget.assistantFormValues,
+          );
         }
       });
     }
@@ -306,6 +313,7 @@ class _MasterDataPageState extends State<MasterDataPage>
     int tab,
     _MasterItem? item, {
     String? assistantName,
+    Map<String, String>? assistantFormValues,
   }) async {
     final initial = await _loadFormValues(tab, item?.id);
     if (!mounted) return;
@@ -317,17 +325,11 @@ class _MasterDataPageState extends State<MasterDataPage>
       context: context,
       builder: (_) => _MasterEditorDialog(
         tab: tab,
-        initial: assistantName?.trim().isNotEmpty == true
-            ? _MasterFormValues(
-                name: assistantName!.trim(),
-                type: initial.type,
-                parentId: initial.parentId,
-                details: initial.details,
-                accountType: initial.accountType,
-                openingBalance: initial.openingBalance,
-                defaultBudgetPeriod: initial.defaultBudgetPeriod,
-              )
-            : initial,
+        initial: _applyAssistantFormValues(
+          initial,
+          assistantName: assistantName,
+          assistantFormValues: assistantFormValues,
+        ),
         parents: parents,
       ),
     );
@@ -342,6 +344,27 @@ class _MasterDataPageState extends State<MasterDataPage>
     setState(() => _refreshTick++);
     _showMessage(
       item == null ? 'Data sudah ditambahkan.' : 'Data sudah diperbarui.',
+    );
+  }
+
+  _MasterFormValues _applyAssistantFormValues(
+    _MasterFormValues initial, {
+    String? assistantName,
+    Map<String, String>? assistantFormValues,
+  }) {
+    final values = assistantFormValues ?? const <String, String>{};
+    final openingBalance = int.tryParse(values['openingBalance'] ?? '');
+    return _MasterFormValues(
+      name: assistantName?.trim().isNotEmpty == true
+          ? assistantName!.trim()
+          : initial.name,
+      type: values['type'] ?? initial.type,
+      parentId: initial.parentId,
+      details: values['details'] ?? initial.details,
+      accountType: values['accountType'] ?? initial.accountType,
+      openingBalance: openingBalance ?? initial.openingBalance,
+      defaultBudgetPeriod:
+          values['defaultBudgetPeriod'] ?? initial.defaultBudgetPeriod,
     );
   }
 

@@ -222,6 +222,20 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
     );
   }
 
+  Future<void> _copyMasterDataProposalPrompt() async {
+    await Clipboard.setData(
+      ClipboardData(text: _upgradePack.buildMasterDataProposalPrompt()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Prompt proposal Data Utama disalin. Tempel JSON hasilnya ke chat Asisten untuk ditinjau.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _copyUnansweredQuestionPrompt(
     FfmAssistantUnansweredQuestion question,
   ) async {
@@ -342,15 +356,15 @@ Tugas:
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pusat Latihan Asisten'),
+        title: const Text('Pusat Pengetahuan Asisten'),
         actions: [
           IconButton(
             tooltip: 'Info latihan Asisten',
             icon: const Icon(Icons.info_outline),
             onPressed: () => showAppInfoDialog(
               context,
-              title: 'Cara kerja latihan',
-              message: 'Ajaran disimpan lokal sebagai aturan yang kamu setujui. Asisten memakainya untuk memahami istilah dan menjawab pertanyaan, tetapi tetap hanya membuat draft—bukan menyimpan data otomatis.',
+              title: 'Cara kerja pengetahuan',
+              message: 'Untuk typo atau maksud pesan yang keliru, pakai tombol “Benarkan pesan / typo” di chat. Halaman ini dipakai hanya untuk menyimpan aturan, jawaban fitur, atau alias yang memang ingin kamu ingat secara lokal. Asisten tetap hanya menyiapkan rancangan—bukan menyimpan data otomatis.',
             ),
           ),
         ],
@@ -358,7 +372,7 @@ Tugas:
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _teach,
         icon: const Icon(Icons.school_outlined),
-        label: const Text('Ajarkan Asisten'),
+        label: const Text('Tambah pengetahuan'),
       ),
       body: FutureBuilder<_AssistantTrainingData>(
         future: _trainingData,
@@ -472,6 +486,11 @@ Tugas:
                           icon: const Icon(Icons.quiz_outlined),
                           label: const Text('Bank tanya LLM'),
                         ),
+                        OutlinedButton.icon(
+                          onPressed: _copyMasterDataProposalPrompt,
+                          icon: const Icon(Icons.account_tree_outlined),
+                          label: const Text('Proposal Data Utama'),
+                        ),
                       ],
                     ),
                   ],
@@ -508,8 +527,8 @@ Tugas:
               if (active.isEmpty)
                 const AppEmptyState(
                   icon: Icons.school_outlined,
-                  title: 'Belum ada ajaran',
-                  message: 'Tekan Ajarkan Asisten untuk menyimpan alias, jawaban fitur, kebiasaan, atau alur FFM versi kamu.',
+                  title: 'Belum ada pengetahuan tambahan',
+                  message: 'Tambah aturan, alias, jawaban fitur, kebiasaan, atau alur FFM yang memang ingin kamu ingat di perangkat ini.',
                 )
               else
                 ...active.map(
@@ -789,7 +808,9 @@ class _TeachAssistantDialogState extends State<_TeachAssistantDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'Ajarkan Asisten' : 'Ubah ajaran'),
+      title: Text(
+        widget.existing == null ? 'Tambah pengetahuan' : 'Ubah pengetahuan',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,

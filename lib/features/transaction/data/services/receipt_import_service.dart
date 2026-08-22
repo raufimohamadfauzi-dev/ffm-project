@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'receipt_ocr_service.dart';
+import 'receipt_import_models.dart';
 
 class ReceiptImportException implements Exception {
   const ReceiptImportException(this.message);

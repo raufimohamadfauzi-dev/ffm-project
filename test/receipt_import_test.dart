@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/transaction/data/services/receipt_import_service.dart';
-import 'package:ffm_manager/features/transaction/data/services/receipt_ocr_service.dart';
 
 void main() {
   test('impor JSON nota membaca item, nominal, dan pecahan', () {
@@ -40,26 +39,6 @@ void main() {
     expect(result.items[2].calculatedTotal, 1000);
     expect(result.itemsTotal, 10500);
     expect(result.validationWarnings, isEmpty);
-  });
-
-  test('teks manual nota dapat membaca item dan total', () {
-    final result = ReceiptOcrService().parseText('''
-Sayur Segar
-Indomilk Kids Coklat
-1 PCS 3,500 3,500
-Mie Sakura
-3 PCS 2,000 6,000
-Sosin
-.5 IKA 2,000 1,000
-ITEM : 4.5 Total : 10,500
-Bayar : 20,500
-Kembali : 10,000
-''');
-
-    expect(result.items, isNotEmpty);
-    expect(result.total, 10500);
-    expect(result.paidAmount, 20500);
-    expect(result.changeAmount, 10000);
   });
 
   test('ekspor JSON mempertahankan total baris dan kuantitas nota', () {
@@ -114,59 +93,6 @@ Kembali : 10,000
     expect(template, contains('unit_price'));
     expect(result.items, hasLength(1));
     expect(result.items.single.name, 'Nama barang');
-  });
-
-  test('OCR teks kosong memberi warning yang dapat ditindaklanjuti', () {
-    final result = ReceiptOcrService().parseText('');
-
-    expect(result.rawText, isEmpty);
-    expect(result.items, isEmpty);
-    expect(result.warnings, contains('Teks nota kosong atau belum terbaca.'));
-  });
-
-  test('diagnostik OCR membedakan teks kosong', () {
-    final diagnostic = ReceiptOcrDiagnostic.fromResult(
-      ReceiptOcrService().parseText(''),
-    );
-
-    expect(diagnostic.code, ReceiptOcrDiagnosticCode.emptyText);
-    expect(diagnostic.isSuccess, isFalse);
-    expect(diagnostic.message, contains('lebih terang'));
-  });
-
-  test('diagnostik OCR membedakan teks terbaca tetapi item gagal dikenali', () {
-    final diagnostic = ReceiptOcrDiagnostic.fromResult(
-      ReceiptOcrService().parseText('Toko Maju\nAlamat jalan utama'),
-    );
-
-    expect(diagnostic.code, ReceiptOcrDiagnosticCode.itemsNotRecognized);
-    expect(diagnostic.itemCount, 0);
-    expect(diagnostic.message, contains('item'));
-  });
-
-  test('diagnostik OCR melaporkan sukses dan jumlah item', () {
-    final result = ReceiptOcrService().parseText(
-      'Toko Maju\nMie: 1 PCS - 3.000',
-    );
-    final diagnostic = ReceiptOcrDiagnostic.fromResult(result);
-
-    expect(diagnostic.code, ReceiptOcrDiagnosticCode.success);
-    expect(diagnostic.isSuccess, isTrue);
-    expect(diagnostic.itemCount, 1);
-    expect(diagnostic.message, contains('1 item'));
-  });
-
-  test('diagnostik OCR membedakan file tidak terbaca dan native gagal', () {
-    expect(
-      ReceiptOcrDiagnostic.imageUnreadable.code,
-      ReceiptOcrDiagnosticCode.imageUnreadable,
-    );
-    final diagnostic = ReceiptOcrDiagnostic.fromFailure(
-      StateError('simulasi ML Kit'),
-    );
-
-    expect(diagnostic.code, ReceiptOcrDiagnosticCode.nativeFailed);
-    expect(diagnostic.message, contains('OCR'));
   });
 
   test('JSON batch membaca banyak transaksi dan rincian item', () {

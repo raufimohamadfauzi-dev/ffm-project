@@ -90,7 +90,7 @@ Balas HANYA dengan JSON valid berikut, tanpa Markdown atau teks tambahan:
       'existingKnowledge': safeKnowledge,
       'coverageChecklist': const [
         'langkah pertama, data utama, saldo awal, dan cara memakai aplikasi',
-        'transaksi, transfer, biaya admin, anggaran, aset, hutang, target, aktivitas, pengingat, backup, PIN, OCR, dan latihan Asisten',
+        'transaksi, transfer, biaya admin, anggaran, aset, hutang, target, aktivitas, pengingat, backup, PIN, impor JSON, dan latihan Asisten',
         'fungsi tiap halaman, navigasi, serta perintah yang menyiapkan draft untuk dikonfirmasi',
         'waktu lokal, tanggal Masehi, tanggal Hijriah, serta batas offline-first',
       ],
@@ -124,6 +124,42 @@ Balas HANYA dengan JSON valid yang bisa langsung diimpor ke FFM:
 }
 ''';
   }
+
+  /// Prompt untuk mengubah perintah bahasa bebas menjadi proposal Data Utama.
+  /// Proposal hanya bisa dipreview dan membuka form; FFM tidak menyimpan data
+  /// dari JSON ini secara otomatis.
+  String buildMasterDataProposalPrompt() =>
+      '''Kamu membantu pengguna FFM membuat proposal Data Utama.
+
+Ubah satu perintah pengguna menjadi JSON valid tanpa Markdown. Jangan mengarang nilai yang tidak disebut pengguna. Jika informasi wajib belum ada, isi proposal dengan null dan tulis pertanyaan singkat pada "clarification".
+
+Target yang diterima: kategori, toko, tag, rekening, sumber_pemasukan.
+Fields yang diterima:
+- kategori: type = income|expense; defaultBudgetPeriod = none|weekly|monthly
+- rekening: accountType = cash|bank|ewallet; openingBalance = bilangan bulat tidak negatif
+- toko/sumber_pemasukan: details = teks singkat
+
+FFM hanya menampilkan preview lalu membuka form resmi. Pengguna memeriksa dan menekan Simpan sendiri.
+
+Balas HANYA salah satu JSON berikut:
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposal": {
+    "type": "master_data",
+    "target": "kategori|toko|tag|rekening|sumber_pemasukan",
+    "name": "nama yang disebut pengguna",
+    "fields": {},
+    "note": "opsional"
+  }
+}
+
+atau jika masih perlu informasi:
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposal": null,
+  "clarification": "pertanyaan singkat untuk pengguna"
+}
+''';
 
   Map<String, Object?> _safeMemoryForExternalLlm(
     FfmAssistantMemoryRecord memory,

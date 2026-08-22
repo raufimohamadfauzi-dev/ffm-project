@@ -8,9 +8,6 @@ import '../../../activity/data/services/activity_speech_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../activity/domain/activity_voice.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
-import '../../../transaction/data/services/receipt_ocr_service.dart';
-import '../../../transaction/presentation/pages/receipt_scan_page.dart';
-import '../../../transaction/presentation/pages/transaction_pages.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
@@ -19,7 +16,7 @@ import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
 import '../../domain/ffm_assistant_models.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
-import 'ffm_assistant_quick_teach_dialog.dart';
+import 'ffm_assistant_message_correction_dialog.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -72,14 +69,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _scrollController = ScrollController();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
-  final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
   final _activityRepository = getIt<ActivityRepository>();
   final _activityVoiceParser = const ActivityVoiceParser();
   final Set<String> _savedTeachingKeys = <String>{};
-  final Set<String> _savedLearningKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
   var _listening = false;
@@ -159,7 +154,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           } else if (pending != null) {
             widget.session.pendingDialog = null;
           }
-          if (intent.destination != null || intent.draft != null) {
+          if (!intent.needsClarification &&
+              (intent.destination != null || intent.draft != null)) {
             _queuedIntents.add(intent);
           }
         }
@@ -371,46 +367,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
-  Future<void> _scanReceiptFromAssistant() async {
-    if (_submitting) return;
-    final navigator = Navigator.of(context);
-    final result = await navigator.push<ReceiptOcrResult>(
-      MaterialPageRoute(builder: (_) => const ReceiptScanPage()),
-    );
-    if (result == null || !mounted) return;
-
-    final total = result.total ?? result.itemsTotal;
-    final itemLabel = result.items.isEmpty
-        ? 'belum ada item yang dikenali'
-        : '${result.items.length} item terbaca';
-    setState(() {
-      _entries
-        ..add(
-          const FfmAssistantChatEntry(
-            isUser: true,
-            text: 'Aku pilih foto nota untuk dibaca.',
-          ),
-        )
-        ..add(
-          FfmAssistantChatEntry(
-            isUser: false,
-            text:
-                'Sip, OCR membaca $itemLabel${total > 0 ? ' dengan total Rp$total' : ''}. Aku buka draft transaksi supaya kamu bisa cek rekening, kategori, item, dan nominal sebelum simpan.',
-          ),
-        );
-      widget.session.lastAssistantText = _entries.last.text;
-    });
-    _scrollToEnd();
-
-    navigator.pop();
-    await Future<void>.delayed(const Duration(milliseconds: 180));
-    await navigator.push(
-      MaterialPageRoute(
-        builder: (_) => TransactionFormPage(initialScan: result),
-      ),
-    );
-  }
-
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
     if (intent.type == FfmAssistantIntentType.readLastResponse) {
       await _speech.speak(
@@ -452,6 +408,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         intent.type != FfmAssistantIntentType.confirm;
     if (shouldNavigate) {
       final handler = widget.onIntent;
+      setState(() => _queuedIntents.remove(intent));
       Navigator.of(context).pop();
       await Future<void>.delayed(const Duration(milliseconds: 180));
       await handler(intent);
@@ -497,70 +454,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  String _learningKey(FfmAssistantIntent intent) =>
-      '${intent.type.name}\u0000${intent.rawText}'.toLowerCase();
-
-  Iterable<String> _protectedTermsFor(FfmAssistantDraft draft) => [
-    draft.fromAccountName,
-    draft.toAccountName,
-    draft.partyName,
-    draft.categoryName,
-    draft.goalName,
-    draft.title,
-  ].whereType<String>();
-
-  Future<void> _saveLearningExample(FfmAssistantIntent intent) async {
-    final draft = intent.draft;
-    if (draft == null) return;
-    final key = _learningKey(intent);
-    if (_savedLearningKeys.contains(key)) return;
-    final sanitized = FfmAssistantLearningSanitizer.sanitize(
-      intent.rawText,
-      protectedTerms: _protectedTermsFor(draft),
-    );
-    if (sanitized.isEmpty) return;
-    final approved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Bantu Asisten belajar?'),
-        content: Text(
-          'Yang disimpan cuma contoh teranonimkan ini:\n\n“$sanitized”\n\nNominal dan nama tertentu disamarkan. Ini tidak menyimpan transaksi atau draft.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Jangan simpan'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Simpan contoh'),
-          ),
-        ],
-      ),
-    );
-    if (approved != true) return;
-    try {
-      await _learningRepository.saveApproved(
-        rawText: intent.rawText,
-        intent: intent.type,
-        protectedTerms: _protectedTermsFor(draft),
-        source: 'draft_preview_approved',
-      );
-      if (!mounted) return;
-      setState(() => _savedLearningKeys.add(key));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contoh teranonimkan disimpan untuk Pusat Latihan.'),
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Contoh belajar belum tersimpan.')),
-      );
-    }
-  }
-
   List<String> _pendingFieldsFor(FfmAssistantIntent intent) {
     final draft = intent.draft;
     if (draft == null) {
@@ -590,6 +483,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _openQueuedDrafts() async {
     final intents = List<FfmAssistantIntent>.of(_queuedIntents);
     if (intents.length < 2) return;
+    setState(_queuedIntents.clear);
     final handler = widget.onIntents;
     Navigator.of(context).pop();
     await Future<void>.delayed(const Duration(milliseconds: 180));
@@ -798,43 +692,35 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
-  Future<void> _quickTeachFromEntry(FfmAssistantChatEntry entry) async {
+  Future<void> _correctMessageFromEntry(FfmAssistantChatEntry entry) async {
     final feedback = _feedbackContextFor(entry);
     if (feedback == null) return;
-    final proposal = await showDialog<FfmAssistantTeachingProposal>(
+    final correction = await showDialog<FfmAssistantMessageCorrection>(
       context: context,
-      builder: (_) => FfmAssistantQuickTeachDialog(
-        initialQuestion: feedback.userQuestion,
-        currentAnswer: feedback.assistantAnswer,
+      builder: (_) => FfmAssistantMessageCorrectionDialog(
+        originalMessage: feedback.userQuestion,
       ),
     );
-    if (proposal == null || !mounted) return;
-    final key = _teachingKey(proposal);
-    if (_savedTeachingKeys.contains(key)) return;
-    try {
-      await _memoryRepository.save(
-        kind: proposal.kind,
-        triggerText: proposal.triggerText,
-        valueText: proposal.valueText,
-        source: 'chat_quick_teach',
-      );
-      if (!mounted) return;
-      setState(() {
-        _savedTeachingKeys.add(key);
-        _entries.add(
-          const FfmAssistantChatEntry(
-            isUser: false,
-            text: 'Sip, koreksi jawaban tadi sudah kusimpan lokal. Kamu bisa ubah atau arsipkan nanti di Pusat Latihan Asisten.',
+    if (correction == null || !mounted) return;
+    if (correction.rememberLocally) {
+      try {
+        await _memoryRepository.save(
+          kind: 'alias',
+          triggerText: feedback.userQuestion,
+          valueText: correction.correctedText,
+          source: 'chat_message_correction',
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Koreksi diproses, tapi belum bisa diingat lokal.'),
           ),
         );
-      });
-      _scrollToEnd();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Koreksi jawaban belum tersimpan.')),
-      );
+      }
     }
+    if (!mounted) return;
+    _submit(correction.correctedText);
   }
 
   Future<void> _confirmResetSession() async {
@@ -1018,17 +904,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           : _savedTeachingKeys.contains(
                               _teachingKey(entry.intent!.teachingProposal!),
                             ),
-                      onSaveLearningExample:
-                          entry.intent?.draft != null &&
-                              !(entry.intent?.needsClarification ?? true) &&
-                              !(entry.intent?.needsTeachingApproval ?? false)
-                          ? () => _saveLearningExample(entry.intent!)
-                          : null,
-                      learningExampleSaved: entry.intent == null
-                          ? false
-                          : _savedLearningKeys.contains(
-                              _learningKey(entry.intent!),
-                            ),
                       review: entry.review,
                       onEditDraft:
                           entry.intent?.draft != null && entry.review != null
@@ -1042,9 +917,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           ? null
                           : () => _copyFeedbackContext(entry),
                       onCopyText: () => _copyEntryText(entry),
-                      onQuickTeach: entry.isUser
+                      onCorrectMessage: entry.isUser
                           ? null
-                          : () => _quickTeachFromEntry(entry),
+                          : () => _correctMessageFromEntry(entry),
                       onConfirmActivity:
                           entry.activityIntent?.canConfirm ?? false
                           ? () => _confirmActivityIntent(entry.activityIntent!)
@@ -1062,14 +937,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               if (_queuedIntents.length > 1)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.tonalIcon(
-                      onPressed: _submitting ? null : _openQueuedDrafts,
-                      icon: const Icon(Icons.playlist_add_check),
-                      label: Text(
-                        'Buka ${_queuedIntents.length} draft satu per satu',
-                      ),
+                  child: FilledButton.tonalIcon(
+                    onPressed: _submitting ? null : _openQueuedDrafts,
+                    icon: const Icon(Icons.playlist_add_check),
+                    label: Text(
+                      'Periksa ${_queuedIntents.length} rancangan dari beberapa perintah',
                     ),
                   ),
                 ),
@@ -1080,14 +952,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      IconButton.filledTonal(
-                        tooltip: 'Foto nota dengan OCR',
-                        onPressed: _submitting
-                            ? null
-                            : _scanReceiptFromAssistant,
-                        icon: const Icon(Icons.document_scanner_outlined),
-                      ),
-                      const SizedBox(width: 8),
                       IconButton.filledTonal(
                         tooltip: _listening
                             ? 'Berhenti dengar'
@@ -1136,14 +1000,12 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onIntent,
     this.onApproveTeaching,
     this.teachingSaved = false,
-    this.onSaveLearningExample,
-    this.learningExampleSaved = false,
     this.review,
     this.onEditDraft,
     this.onCancelDraft,
     this.onCopyFeedback,
     this.onCopyText,
-    this.onQuickTeach,
+    this.onCorrectMessage,
     this.onConfirmActivity,
     this.activityConfirmed = false,
   });
@@ -1153,14 +1015,12 @@ class _AssistantMessageCard extends StatelessWidget {
   final VoidCallback? onIntent;
   final VoidCallback? onApproveTeaching;
   final bool teachingSaved;
-  final VoidCallback? onSaveLearningExample;
-  final bool learningExampleSaved;
   final FfmAssistantDraftReview? review;
   final VoidCallback? onEditDraft;
   final VoidCallback? onCancelDraft;
   final VoidCallback? onCopyFeedback;
   final VoidCallback? onCopyText;
-  final VoidCallback? onQuickTeach;
+  final VoidCallback? onCorrectMessage;
   final VoidCallback? onConfirmActivity;
   final bool activityConfirmed;
 
@@ -1169,186 +1029,188 @@ class _AssistantMessageCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isUser = entry.isUser;
     final intent = entry.intent;
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: isUser
-                ? theme.colorScheme.primary
-                : theme.colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(18),
+    return LayoutBuilder(
+      builder: (context, constraints) => Align(
+        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: isUser
+                ? constraints.maxWidth * .72
+                : constraints.maxWidth,
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (!isUser && entry.understanding != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface.withValues(alpha: .72),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.psychology_alt_outlined,
-                          size: 17,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            'Yang aku pahami: ${entry.understanding}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: theme.colorScheme.onSurfaceVariant,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: isUser
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isUser && entry.understanding != null) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(alpha: .72),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.psychology_alt_outlined,
+                            size: 17,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Yang aku pahami: ${entry.understanding}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  Text(
+                    entry.text,
+                    style: TextStyle(
+                      color: isUser
+                          ? theme.colorScheme.onPrimary
+                          : theme.colorScheme.onSecondaryContainer,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  if (intent?.draft != null) ...[
+                    const SizedBox(height: 10),
+                    _DraftPreview(draft: intent!.draft!, review: review),
+                  ],
+                  if (onCopyText != null ||
+                      (!isUser &&
+                          (onSpeak != null ||
+                              onIntent != null ||
+                              onApproveTeaching != null ||
+                              onEditDraft != null ||
+                              onCancelDraft != null ||
+                              onCopyFeedback != null ||
+                              onCorrectMessage != null ||
+                              onConfirmActivity != null))) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        if (onCopyText != null)
+                          TextButton.icon(
+                            onPressed: onCopyText,
+                            icon: const Icon(Icons.copy_outlined, size: 18),
+                            label: Text(
+                              isUser ? 'Salin pesan' : 'Salin jawaban',
+                            ),
+                          ),
+                        if (onSpeak != null)
+                          TextButton.icon(
+                            onPressed: onSpeak,
+                            icon: const Icon(
+                              Icons.volume_up_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Bacakan'),
+                          ),
+                        if (onIntent != null &&
+                            intent!.type != FfmAssistantIntentType.unknown &&
+                            intent.type != FfmAssistantIntentType.listPages &&
+                            (review?.canContinue ?? true))
+                          FilledButton.tonalIcon(
+                            onPressed: onIntent,
+                            icon: Icon(
+                              intent.destination == null
+                                  ? Icons.check_circle_outline
+                                  : Icons.open_in_new,
+                              size: 18,
+                            ),
+                            label: Text(
+                              intent.destination == null
+                                  ? 'Lanjut ke form'
+                                  : 'Buka & cek',
+                            ),
+                          ),
+                        if (onConfirmActivity != null)
+                          FilledButton.tonalIcon(
+                            onPressed: activityConfirmed
+                                ? null
+                                : onConfirmActivity,
+                            icon: Icon(
+                              activityConfirmed
+                                  ? Icons.check_circle_outline
+                                  : Icons.play_circle_outline,
+                              size: 18,
+                            ),
+                            label: Text(
+                              activityConfirmed
+                                  ? 'Aktivitas tersimpan'
+                                  : 'Konfirmasi aktivitas',
+                            ),
+                          ),
+                        if (onEditDraft != null)
+                          TextButton.icon(
+                            onPressed: onEditDraft,
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                            label: const Text('Koreksi nominal/draft'),
+                          ),
+                        if (onCancelDraft != null)
+                          TextButton.icon(
+                            onPressed: onCancelDraft,
+                            icon: const Icon(Icons.close_outlined, size: 18),
+                            label: const Text('Batal draft'),
+                          ),
+                        if (onApproveTeaching != null)
+                          FilledButton.tonalIcon(
+                            onPressed: teachingSaved ? null : onApproveTeaching,
+                            icon: Icon(
+                              teachingSaved
+                                  ? Icons.bookmark_added_outlined
+                                  : Icons.bookmark_add_outlined,
+                              size: 18,
+                            ),
+                            label: Text(
+                              teachingSaved
+                                  ? 'Ajaran tersimpan'
+                                  : 'Simpan ajaran',
+                            ),
+                          ),
+                        if (onCopyFeedback != null)
+                          TextButton.icon(
+                            onPressed: onCopyFeedback,
+                            icon: const Icon(Icons.copy_all_outlined, size: 18),
+                            label: const Text('Salin konteks'),
+                          ),
+                        if (onCorrectMessage != null)
+                          TextButton.icon(
+                            onPressed: onCorrectMessage,
+                            icon: const Icon(
+                              Icons.spellcheck_outlined,
+                              size: 18,
+                            ),
+                            label: const Text('Benarkan pesan / typo'),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
-                Text(
-                  entry.text,
-                  style: TextStyle(
-                    color: isUser
-                        ? theme.colorScheme.onPrimary
-                        : theme.colorScheme.onSecondaryContainer,
-                  ),
-                ),
-                if (intent?.draft != null) ...[
-                  const SizedBox(height: 10),
-                  _DraftPreview(draft: intent!.draft!, review: review),
-                ],
-                if (onCopyText != null ||
-                    (!isUser &&
-                        (onSpeak != null ||
-                            onIntent != null ||
-                            onApproveTeaching != null ||
-                            onSaveLearningExample != null ||
-                            onEditDraft != null ||
-                            onCancelDraft != null ||
-                            onCopyFeedback != null ||
-                            onQuickTeach != null ||
-                            onConfirmActivity != null))) ...[
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      if (onCopyText != null)
-                        TextButton.icon(
-                          onPressed: onCopyText,
-                          icon: const Icon(Icons.copy_outlined, size: 18),
-                          label: Text(isUser ? 'Salin pesan' : 'Salin jawaban'),
-                        ),
-                      if (onSpeak != null)
-                        TextButton.icon(
-                          onPressed: onSpeak,
-                          icon: const Icon(Icons.volume_up_outlined, size: 18),
-                          label: const Text('Bacakan'),
-                        ),
-                      if (onIntent != null &&
-                          intent!.type != FfmAssistantIntentType.unknown &&
-                          intent.type != FfmAssistantIntentType.listPages &&
-                          (review?.canContinue ?? true))
-                        FilledButton.tonalIcon(
-                          onPressed: onIntent,
-                          icon: Icon(
-                            intent.destination == null
-                                ? Icons.check_circle_outline
-                                : Icons.open_in_new,
-                            size: 18,
-                          ),
-                          label: Text(
-                            intent.destination == null
-                                ? 'Lanjut ke form'
-                                : 'Buka & cek',
-                          ),
-                        ),
-                      if (onConfirmActivity != null)
-                        FilledButton.tonalIcon(
-                          onPressed: activityConfirmed
-                              ? null
-                              : onConfirmActivity,
-                          icon: Icon(
-                            activityConfirmed
-                                ? Icons.check_circle_outline
-                                : Icons.play_circle_outline,
-                            size: 18,
-                          ),
-                          label: Text(
-                            activityConfirmed
-                                ? 'Aktivitas tersimpan'
-                                : 'Konfirmasi aktivitas',
-                          ),
-                        ),
-                      if (onEditDraft != null)
-                        TextButton.icon(
-                          onPressed: onEditDraft,
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Koreksi nominal/draft'),
-                        ),
-                      if (onCancelDraft != null)
-                        TextButton.icon(
-                          onPressed: onCancelDraft,
-                          icon: const Icon(Icons.close_outlined, size: 18),
-                          label: const Text('Batal draft'),
-                        ),
-                      if (onApproveTeaching != null)
-                        FilledButton.tonalIcon(
-                          onPressed: teachingSaved ? null : onApproveTeaching,
-                          icon: Icon(
-                            teachingSaved
-                                ? Icons.bookmark_added_outlined
-                                : Icons.bookmark_add_outlined,
-                            size: 18,
-                          ),
-                          label: Text(
-                            teachingSaved
-                                ? 'Ajaran tersimpan'
-                                : 'Simpan ajaran',
-                          ),
-                        ),
-                      if (onSaveLearningExample != null)
-                        TextButton.icon(
-                          onPressed: learningExampleSaved
-                              ? null
-                              : onSaveLearningExample,
-                          icon: const Icon(Icons.school_outlined, size: 18),
-                          label: Text(
-                            learningExampleSaved
-                                ? 'Contoh tersimpan'
-                                : 'Bantu Asisten belajar',
-                          ),
-                        ),
-                      if (onCopyFeedback != null)
-                        TextButton.icon(
-                          onPressed: onCopyFeedback,
-                          icon: const Icon(Icons.copy_all_outlined, size: 18),
-                          label: const Text('Salin konteks'),
-                        ),
-                      if (onQuickTeach != null)
-                        TextButton.icon(
-                          onPressed: onQuickTeach,
-                          icon: const Icon(Icons.edit_note_outlined, size: 18),
-                          label: const Text('Ajarkan Asisten'),
-                        ),
-                    ],
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -1365,15 +1227,27 @@ class _DraftPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final parts = <String>[
-      _draftLabel(draft.kind),
-      if (draft.amount != null) _rupiah(draft.amount!),
-      if (draft.fromAccountName != null) 'dari ${draft.fromAccountName}',
-      if (draft.toAccountName != null) 'ke ${draft.toAccountName}',
-      if (draft.partyName != null) 'pihak: ${draft.partyName}',
-      if (draft.goalName != null) 'target: ${draft.goalName}',
+    final fields = <MapEntry<String, String>>[
+      MapEntry('Jenis', _draftLabel(draft.kind).replaceFirst('Draft ', '')),
+      MapEntry('Nama atau judul', draft.title ?? 'Belum diisi'),
+      if (draft.amount != null) MapEntry('Nominal', _rupiah(draft.amount!)),
+      if (draft.fromAccountName != null)
+        MapEntry('Sumber dana', draft.fromAccountName!),
+      if (draft.toAccountName != null)
+        MapEntry('Tujuan dana', draft.toAccountName!),
+      if (draft.categoryName != null)
+        MapEntry('Bagian Data Utama', draft.categoryName!),
+      ...draft.formValues.entries.map(
+        (field) => MapEntry(
+          _formFieldLabel(field.key),
+          _formFieldValue(field.key, field.value),
+        ),
+      ),
+      if (draft.partyName != null) MapEntry('Pihak', draft.partyName!),
+      if (draft.goalName != null) MapEntry('Target', draft.goalName!),
       if (draft.adminFee != null && draft.adminFee! > 0)
-        'admin ${_rupiah(draft.adminFee!)}',
+        MapEntry('Biaya admin', _rupiah(draft.adminFee!)),
+      if (draft.note != null) MapEntry('Catatan', draft.note!),
     ];
     return Container(
       width: double.infinity,
@@ -1385,7 +1259,32 @@ class _DraftPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(parts.join(' • ')),
+          const Text(
+            'Rancangan yang akan dibuka',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          ...fields.map(
+            (field) => Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 108, child: Text(field.key)),
+                  Expanded(
+                    child: Text(
+                      field.value,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Belum ada data yang disimpan. Kamu masih bisa koreksi atau membatalkan rancangan ini.',
+          ),
           if (review != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -1421,4 +1320,26 @@ class _DraftPreview extends StatelessWidget {
 
   static String _rupiah(int amount) =>
       'Rp${amount.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (match) => '.')}';
+
+  static String _formFieldLabel(String field) => switch (field) {
+    'type' => 'Jenis kategori',
+    'defaultBudgetPeriod' => 'Saran periode',
+    'accountType' => 'Jenis rekening',
+    'openingBalance' => 'Saldo awal',
+    'details' => 'Keterangan',
+    _ => field,
+  };
+
+  static String _formFieldValue(String field, String value) =>
+      switch ('$field:$value') {
+        'type:income' => 'Pemasukan',
+        'type:expense' => 'Pengeluaran',
+        'defaultBudgetPeriod:none' => 'Tidak ada',
+        'defaultBudgetPeriod:weekly' => 'Mingguan',
+        'defaultBudgetPeriod:monthly' => 'Bulanan',
+        'accountType:cash' => 'Tunai',
+        'accountType:bank' => 'Bank',
+        'accountType:ewallet' => 'E-Wallet',
+        _ => value,
+      };
 }

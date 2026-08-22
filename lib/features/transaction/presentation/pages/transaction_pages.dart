@@ -23,12 +23,12 @@ import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../data/services/offline_ai_engine_service.dart';
 import '../../data/services/receipt_import_service.dart';
-import '../../data/services/receipt_ocr_service.dart';
+import '../../data/services/receipt_import_models.dart';
 import '../../data/services/voice_transaction_parser.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/usecases/transaction_crud_usecases.dart';
 import 'transaction_detail_page.dart';
-import 'receipt_scan_page.dart';
+import 'receipt_json_import_page.dart';
 import '../../../goal/domain/entities/goal_entity.dart';
 import '../../../goal/domain/usecases/goal_balance_usecases.dart';
 import '../../../goal/presentation/pages/goal_pages.dart';
@@ -468,11 +468,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
               ),
               const SizedBox(height: 8),
               _NewEntryChoiceTile(
-                icon: Icons.document_scanner_outlined,
+                icon: Icons.data_object_rounded,
                 color: AppColors.primary,
-                title: 'Scan nota dengan OCR',
-                subtitle: 'Baca foto nota secara offline, lalu cek hasilnya sebelum masuk ke draft.',
-                onTap: () => Navigator.pop(sheetContext, 'scan'),
+                title: 'Impor JSON nota dari LLM',
+                subtitle: 'Tempel atau pilih JSON hasil LLM, lalu cek semua isinya sebelum masuk ke form transaksi.',
+                onTap: () => Navigator.pop(sheetContext, 'receipt_json'),
               ),
             ],
           ),
@@ -493,8 +493,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         await _openQuickEntry();
       case 'json':
         await _openJsonBatch();
-      case 'scan':
-        await _openScan();
+      case 'receipt_json':
+        await _openReceiptJsonImport();
     }
   }
 
@@ -842,10 +842,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
   }
 
-  Future<void> _openScan() async {
+  Future<void> _openReceiptJsonImport() async {
     final isFirstTransaction = _transactions.isEmpty;
     final result = await Navigator.of(context).push<ReceiptOcrResult>(
-      MaterialPageRoute(builder: (_) => const ReceiptScanPage()),
+      MaterialPageRoute(builder: (_) => const ReceiptJsonImportPage()),
     );
     if (!mounted || result == null) return;
 
@@ -1394,7 +1394,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     title: 'Cara pakai Transaksi',
                     message: _accounts.isEmpty
                         ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal supaya saldo keluarga punya titik awal.'
-                        : 'Pemasukan menambah arus kas dan pengeluaran menguranginya. Kamu bisa pakai Scan Nota atau impor JSON, lalu selalu cek hasil sebelum menyimpan.',
+                        : 'Pemasukan menambah arus kas dan pengeluaran menguranginya. Kamu bisa impor JSON dari LLM, lalu selalu cek dan edit hasilnya sebelum menyimpan.',
                   ),
                   icon: const Icon(Icons.info_outline),
                 ),
@@ -1413,8 +1413,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
                         _openQuickEntry();
                       case 'json':
                         _openJsonBatch();
-                      case 'scan':
-                        _openScan();
+                      case 'receipt_json':
+                        _openReceiptJsonImport();
                     }
                   },
                   itemBuilder: (context) => const [
@@ -1440,10 +1440,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
                       ),
                     ),
                     PopupMenuItem(
-                      value: 'scan',
+                      value: 'receipt_json',
                       child: ListTile(
-                        leading: Icon(Icons.document_scanner_outlined),
-                        title: Text('Scan nota'),
+                        leading: Icon(Icons.data_object_rounded),
+                        title: Text('Impor JSON nota'),
                       ),
                     ),
                   ],
