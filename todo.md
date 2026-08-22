@@ -125,4 +125,4 @@
 - [x] Sederhanakan akses riwayat pertanyaan belum terjawab serta hilangkan label ekspor yang menyebut merek AI tertentu.
 - [x] Lengkapi alias navigasi Lainnya/PIN dan jawaban kalender besok Masehi-Hijriah dari waktu lokal.
 - [x] Tambahkan kontrol TTS lokal: daftar suara perangkat, pilihan suara, berhenti, dan lanjutkan per kalimat.
-- [ ] Tambahkan regresi UI, riwayat, navigasi, kalender, dan suara; jalankan analyzer, test, build, serta kemas artefak rilis.
+- [x] Tambahkan regresi UI, riwayat, navigasi, kalender, dan suara; jalankan analyzer, test, build, serta kemas artefak rilis.
