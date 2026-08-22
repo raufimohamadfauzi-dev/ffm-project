@@ -101,4 +101,4 @@
 - [x] Tambahkan tab histori pertanyaan selesai, urutan berdasarkan frekuensi, serta ekspor histori opsional.
 - [x] Tambahkan regresi read-only, fuzzy matcher, draft kontekstual, UI unknown, dan histori antrean.
 - [x] Jalankan analyzer dan seluruh tes.
-- [ ] Commit source, buat ZIP, build APK release, dan verifikasi sertifikat lama.
+- [x] Commit source, buat ZIP, build APK release, dan verifikasi sertifikat lama.
