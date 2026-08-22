@@ -10,6 +10,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_ga
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_memory_repository.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_draft_validator.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_feedback_context.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/backup/data/json_backup_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -324,4 +325,19 @@ void main() {
       expect(prompt, isNot(contains('SeaBank Pribadi')));
     },
   );
+
+  test('konteks feedback menyalin pertanyaan dan memaksa usulan tanpa data keuangan', () {
+    const feedback = FfmAssistantFeedbackContext(
+      userQuestion: 'Di Data Utama ada apa saja?',
+      assistantAnswer: 'Aku belum yakin dengan maksudnya.',
+    );
+
+    final copied = feedback.buildCopyText();
+    final seed = feedback.buildTrainingSeed();
+
+    expect(copied, contains('Di Data Utama ada apa saja?'));
+    expect(copied, contains('Aku belum yakin dengan maksudnya.'));
+    expect(seed, contains('Jangan membuat transaksi, saldo, nominal'));
+    expect(seed, contains('hanya satu entri knowledge pack JSON'));
+  });
 }

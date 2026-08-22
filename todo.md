@@ -56,3 +56,13 @@
 - [x] Perjelas status “Yang Aku Pahami” serta bantuan untuk pertanyaan di luar kemampuan aplikasi.
 - [x] Tambahkan regresi, jalankan formatter, analyzer, dan seluruh test.
 - [x] Commit, kemas source, dan build APK release dengan keystore lama.
+
+# Pintasan Koreksi dan Pembelajaran Asisten
+
+- [x] Audit kartu respons tidak dipahami, preview draft, dan alur ajaran saat ini.
+- [x] Tambahkan konteks koreksi yang aman untuk disalin tanpa data finansial otomatis.
+- [x] Tambahkan tombol salin konteks dan Ajarkan Asisten pada jawaban chat yang tidak sesuai.
+- [x] Tambahkan pintasan koreksi nominal/draft yang selalu menjalankan review ulang.
+- [x] Tambahkan regression test untuk konteks salin, ajaran, dan revisi draft.
+- [x] Jalankan formatter, analyzer, dan seluruh test.
+- [ ] Commit, ZIP source, dan build APK release.

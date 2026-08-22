@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 
+import 'package:flutter/services.dart';
+
 import '../../../../core/di/injection.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
+import '../../domain/ffm_assistant_feedback_context.dart';
 import '../../domain/ffm_assistant_models.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
+import 'ffm_assistant_quick_teach_dialog.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -522,6 +526,87 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
   }
 
+  FfmAssistantFeedbackContext? _feedbackContextFor(
+    FfmAssistantChatEntry entry,
+  ) {
+    if (entry.isUser) return null;
+    final index = _entries.indexOf(entry);
+    if (index < 1) return null;
+    for (var cursor = index - 1; cursor >= 0; cursor--) {
+      final candidate = _entries[cursor];
+      if (candidate.isUser && candidate.text.trim().isNotEmpty) {
+        return FfmAssistantFeedbackContext(
+          userQuestion: candidate.text,
+          assistantAnswer: entry.text,
+        );
+      }
+    }
+    return null;
+  }
+
+  Future<void> _copyFeedbackContext(FfmAssistantChatEntry entry) async {
+    final feedback = _feedbackContextFor(entry);
+    if (feedback == null) return;
+    final sanitizedQuestion = FfmAssistantLearningSanitizer.sanitize(
+      feedback.userQuestion,
+    );
+    final sanitizedAnswer = FfmAssistantLearningSanitizer.sanitize(
+      feedback.assistantAnswer,
+    );
+    final safeFeedback = FfmAssistantFeedbackContext(
+      userQuestion: sanitizedQuestion,
+      assistantAnswer: sanitizedAnswer,
+    );
+    await Clipboard.setData(
+      ClipboardData(text: safeFeedback.buildTrainingSeed()),
+    );
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Konteks aman disalin. Tempel ke ChatGPT bila perlu.'),
+      ),
+    );
+  }
+
+  Future<void> _quickTeachFromEntry(FfmAssistantChatEntry entry) async {
+    final feedback = _feedbackContextFor(entry);
+    if (feedback == null) return;
+    final proposal = await showDialog<FfmAssistantTeachingProposal>(
+      context: context,
+      builder: (_) => FfmAssistantQuickTeachDialog(
+        initialQuestion: feedback.userQuestion,
+        currentAnswer: feedback.assistantAnswer,
+      ),
+    );
+    if (proposal == null || !mounted) return;
+    final key = _teachingKey(proposal);
+    if (_savedTeachingKeys.contains(key)) return;
+    try {
+      await _memoryRepository.save(
+        kind: proposal.kind,
+        triggerText: proposal.triggerText,
+        valueText: proposal.valueText,
+        source: 'chat_quick_teach',
+      );
+      if (!mounted) return;
+      setState(() {
+        _savedTeachingKeys.add(key);
+        _entries.add(
+          const FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Sip, koreksi jawaban tadi sudah kusimpan lokal. Kamu bisa ubah atau arsipkan nanti di Pusat Latihan Asisten.',
+          ),
+        );
+      });
+      _scrollToEnd();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Koreksi jawaban belum tersimpan.')),
+      );
+    }
+  }
+
   Future<void> _confirmResetSession() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -723,6 +808,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           entry.intent?.draft != null && entry.review != null
                           ? _cancelActiveDraft
                           : null,
+                      onCopyFeedback: entry.isUser
+                          ? null
+                          : () => _copyFeedbackContext(entry),
+                      onQuickTeach: entry.isUser
+                          ? null
+                          : () => _quickTeachFromEntry(entry),
                     );
                   },
                 ),
@@ -802,6 +893,8 @@ class _AssistantMessageCard extends StatelessWidget {
     this.review,
     this.onEditDraft,
     this.onCancelDraft,
+    this.onCopyFeedback,
+    this.onQuickTeach,
   });
 
   final FfmAssistantChatEntry entry;
@@ -814,6 +907,8 @@ class _AssistantMessageCard extends StatelessWidget {
   final FfmAssistantDraftReview? review;
   final VoidCallback? onEditDraft;
   final VoidCallback? onCancelDraft;
+  final VoidCallback? onCopyFeedback;
+  final VoidCallback? onQuickTeach;
 
   @override
   Widget build(BuildContext context) {
@@ -888,7 +983,9 @@ class _AssistantMessageCard extends StatelessWidget {
                         onApproveTeaching != null ||
                         onSaveLearningExample != null ||
                         onEditDraft != null ||
-                        onCancelDraft != null)) ...[
+                        onCancelDraft != null ||
+                        onCopyFeedback != null ||
+                        onQuickTeach != null)) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -922,7 +1019,7 @@ class _AssistantMessageCard extends StatelessWidget {
                         TextButton.icon(
                           onPressed: onEditDraft,
                           icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Ubah draft'),
+                          label: const Text('Koreksi nominal/draft'),
                         ),
                       if (onCancelDraft != null)
                         TextButton.icon(
@@ -956,6 +1053,18 @@ class _AssistantMessageCard extends StatelessWidget {
                                 ? 'Contoh tersimpan'
                                 : 'Bantu Asisten belajar',
                           ),
+                        ),
+                      if (onCopyFeedback != null)
+                        TextButton.icon(
+                          onPressed: onCopyFeedback,
+                          icon: const Icon(Icons.copy_all_outlined, size: 18),
+                          label: const Text('Salin konteks'),
+                        ),
+                      if (onQuickTeach != null)
+                        TextButton.icon(
+                          onPressed: onQuickTeach,
+                          icon: const Icon(Icons.edit_note_outlined, size: 18),
+                          label: const Text('Ajarkan Asisten'),
                         ),
                     ],
                   ),
