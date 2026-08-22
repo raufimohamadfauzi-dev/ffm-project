@@ -113,3 +113,16 @@
 - [x] Ubah DatabaseStructurePage ke sumber skema Drift dinamis dan buat query chat read-only yang sama.
 - [x] Tambahkan regresi cakupan context, struktur database, dan keamanan query read-only.
 - [x] Jalankan analyzer, seluruh tes, commit, buat ZIP source, build APK, dan verifikasi sertifikat lama.
+
+# Audit Pasca-Rilis v64 — Fitur dan Keamanan Data Lokal
+
+- [x] Bandingkan jejak perubahan fitur v62 hingga v64 untuk memastikan tidak ada fitur selain OCR yang tercabut tanpa sengaja.
+- [x] Verifikasi perlindungan migrasi dan susun langkah uji aman upgrade data lokal di perangkat pengguna.
+
+# Asisten FFM — Perombakan UI, Navigasi, Kalender, dan Suara
+
+- [x] Rapikan sheet chat: bubble pengguna proporsional, jawaban ringkas, disclosure pemahaman, toolbar aksi horizontal, menu `⋮`, dan chat selalu membuka pesan terbaru.
+- [x] Sederhanakan akses riwayat pertanyaan belum terjawab serta hilangkan label ekspor yang menyebut merek AI tertentu.
+- [x] Lengkapi alias navigasi Lainnya/PIN dan jawaban kalender besok Masehi-Hijriah dari waktu lokal.
+- [x] Tambahkan kontrol TTS lokal: daftar suara perangkat, pilihan suara, berhenti, dan lanjutkan per kalimat.
+- [ ] Tambahkan regresi UI, riwayat, navigasi, kalender, dan suara; jalankan analyzer, test, build, serta kemas artefak rilis.

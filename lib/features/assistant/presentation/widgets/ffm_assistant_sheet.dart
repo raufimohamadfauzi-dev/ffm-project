@@ -78,12 +78,25 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
   var _listening = false;
+  var _followLatestMessages = true;
+  String? _speakingEntryKey;
+  String? _pausedEntryKey;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateLatestMessagePreference);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _scrollToEnd(force: true),
+    );
+  }
+
+  @override
   void dispose() {
+    _scrollController.removeListener(_updateLatestMessagePreference);
     _controller.dispose();
     _inputFocusNode.dispose();
     _scrollController.dispose();
@@ -364,6 +377,110 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         setState(() => _controller.text = text);
         if (isFinal) _submit(text);
       },
+    );
+  }
+
+  String _speechKeyFor(int index, FfmAssistantChatEntry entry) =>
+      '$index:${identityHashCode(entry)}';
+
+  Future<void> _toggleSpeakFor(int index, FfmAssistantChatEntry entry) async {
+    final key = _speechKeyFor(index, entry);
+    final speaking = await _speech.isSpeaking();
+    if (speaking && _speakingEntryKey == key) {
+      await _speech.stopSpeaking();
+      if (mounted) {
+        setState(() {
+          _speakingEntryKey = null;
+          _pausedEntryKey = key;
+        });
+      }
+      return;
+    }
+
+    final resumed = _pausedEntryKey == key && await _speech.resumeSpeaking();
+    if (!resumed) await _speech.speak(entry.text);
+    if (mounted) {
+      setState(() {
+        _speakingEntryKey = key;
+        _pausedEntryKey = null;
+      });
+    }
+  }
+
+  Future<void> _openVoicePicker() async {
+    final voices = await _speech.availableVoices();
+    final selectedName = await _speech.selectedVoiceName();
+    if (!mounted) return;
+    if (voices.isEmpty) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Suara perangkat belum tersedia'),
+          content: const Text(
+            'FFM hanya memakai suara Bahasa Indonesia yang sudah terpasang di perangkat dan tidak membutuhkan internet. Tambahkan suara di Setelan Android → Text-to-speech output, lalu buka ulang FFM.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (dialogContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Pilih suara bacaan',
+              style: Theme.of(dialogContext).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Hanya suara Bahasa Indonesia yang tersedia secara lokal di perangkat ini.',
+              style: Theme.of(dialogContext).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: RadioGroup<String>(
+                groupValue: selectedName,
+                onChanged: (name) async {
+                  if (name == null) return;
+                  final selected = await _speech.selectVoice(name);
+                  if (!dialogContext.mounted) return;
+                  Navigator.of(dialogContext).pop();
+                  if (selected && mounted) {
+                    ScaffoldMessenger.of(this.context).showSnackBar(
+                      SnackBar(content: Text('Suara $name dipilih.')),
+                    );
+                  }
+                },
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: voices.length,
+                  itemBuilder: (context, index) {
+                    final voice = voices[index];
+                    return RadioListTile<String>(
+                      value: voice.name,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(voice.label),
+                      subtitle: Text(voice.locale),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -723,6 +840,36 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _submit(correction.correctedText);
   }
 
+  Future<void> _correctUserMessage(FfmAssistantChatEntry entry) async {
+    final correction = await showDialog<FfmAssistantMessageCorrection>(
+      context: context,
+      builder: (_) =>
+          FfmAssistantMessageCorrectionDialog(originalMessage: entry.text),
+    );
+    if (correction == null || !mounted) return;
+    if (correction.rememberLocally) {
+      try {
+        await _memoryRepository.save(
+          kind: 'alias',
+          triggerText: entry.text,
+          valueText: correction.correctedText,
+          source: 'chat_message_correction',
+        );
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Pesan diperbaiki, tapi alias lokal belum tersimpan.',
+            ),
+          ),
+        );
+      }
+    }
+    if (!mounted) return;
+    await _submit(correction.correctedText);
+  }
+
   Future<void> _confirmResetSession() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -749,9 +896,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  void _scrollToEnd() {
+  void _updateLatestMessagePreference() {
+    if (!_scrollController.hasClients) return;
+    final distanceToEnd =
+        _scrollController.position.maxScrollExtent - _scrollController.offset;
+    _followLatestMessages = distanceToEnd < 88;
+  }
+
+  void _scrollToEnd({bool force = false}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
+      if (!_scrollController.hasClients || (!force && !_followLatestMessages)) {
+        return;
+      }
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 220),
@@ -831,7 +987,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 12, 8),
+                padding: const EdgeInsets.fromLTRB(20, 10, 10, 6),
                 child: Row(
                   children: [
                     Container(
@@ -852,16 +1008,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Asisten FFM Lokal',
+                            'Asisten FFM',
                             style: TextStyle(fontWeight: FontWeight.w800),
                           ),
                           Text(
                             currentPage == null
-                                ? 'Paham teks & suara • data tetap di perangkat'
-                                : 'Lagi di ${currentPage.name} • data tetap di perangkat',
+                                ? 'Teks & suara • tetap di perangkat'
+                                : '${currentPage.name} • tetap di perangkat',
+                            style: theme.textTheme.bodySmall,
                           ),
                         ],
                       ),
+                    ),
+                    IconButton(
+                      tooltip: 'Pilih suara bacaan',
+                      onPressed: _openVoicePicker,
+                      icon: const Icon(Icons.record_voice_over_outlined),
                     ),
                     IconButton(
                       tooltip: 'Reset chat',
@@ -889,7 +1051,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       entry: entry,
                       onSpeak: entry.isUser
                           ? null
-                          : () => _speech.speak(entry.text),
+                          : () => _toggleSpeakFor(index, entry),
+                      isSpeaking:
+                          _speakingEntryKey == _speechKeyFor(index, entry),
                       onIntent:
                           entry.intent == null ||
                               entry.intent!.needsTeachingApproval
@@ -918,7 +1082,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           : () => _copyFeedbackContext(entry),
                       onCopyText: () => _copyEntryText(entry),
                       onCorrectMessage: entry.isUser
-                          ? null
+                          ? () => _correctUserMessage(entry)
                           : () => _correctMessageFromEntry(entry),
                       onConfirmActivity:
                           entry.activityIntent?.canConfirm ?? false
@@ -997,6 +1161,7 @@ class _AssistantMessageCard extends StatelessWidget {
   const _AssistantMessageCard({
     required this.entry,
     this.onSpeak,
+    this.isSpeaking = false,
     this.onIntent,
     this.onApproveTeaching,
     this.teachingSaved = false,
@@ -1012,6 +1177,7 @@ class _AssistantMessageCard extends StatelessWidget {
 
   final FfmAssistantChatEntry entry;
   final VoidCallback? onSpeak;
+  final bool isSpeaking;
   final VoidCallback? onIntent;
   final VoidCallback? onApproveTeaching;
   final bool teachingSaved;
@@ -1078,36 +1244,8 @@ class _AssistantMessageCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!isUser && entry.understanding != null) ...[
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withValues(alpha: .72),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.psychology_alt_outlined,
-                            size: 17,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Yang aku pahami: ${entry.understanding}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    _AssistantUnderstandingDisclosure(
+                      text: entry.understanding!,
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -1142,115 +1280,32 @@ class _AssistantMessageCard extends StatelessWidget {
                     _DraftPreview(draft: intent!.draft!, review: review),
                   ],
                   if (onCopyText != null ||
-                      (!isUser &&
-                          (onSpeak != null ||
-                              onIntent != null ||
-                              onApproveTeaching != null ||
-                              onEditDraft != null ||
-                              onCancelDraft != null ||
-                              onCopyFeedback != null ||
-                              onCorrectMessage != null ||
-                              onConfirmActivity != null))) ...[
+                      onSpeak != null ||
+                      onIntent != null ||
+                      onConfirmActivity != null) ...[
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        if (onCopyText != null)
-                          TextButton.icon(
-                            onPressed: onCopyText,
-                            icon: const Icon(Icons.copy_outlined, size: 18),
-                            label: Text(
-                              isUser ? 'Salin pesan' : 'Salin jawaban',
-                            ),
-                          ),
-                        if (onSpeak != null)
-                          TextButton.icon(
-                            onPressed: onSpeak,
-                            icon: const Icon(
-                              Icons.volume_up_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('Bacakan'),
-                          ),
-                        if (onIntent != null &&
-                            intent!.type != FfmAssistantIntentType.unknown &&
-                            intent.type != FfmAssistantIntentType.listPages &&
-                            (review?.canContinue ?? true))
-                          FilledButton.tonalIcon(
-                            onPressed: onIntent,
-                            icon: Icon(
-                              intent.destination == null
-                                  ? Icons.check_circle_outline
-                                  : Icons.open_in_new,
-                              size: 18,
-                            ),
-                            label: Text(
-                              intent.destination == null
-                                  ? 'Lanjut ke form'
-                                  : 'Buka & cek',
-                            ),
-                          ),
-                        if (onConfirmActivity != null)
-                          FilledButton.tonalIcon(
-                            onPressed: activityConfirmed
-                                ? null
-                                : onConfirmActivity,
-                            icon: Icon(
-                              activityConfirmed
-                                  ? Icons.check_circle_outline
-                                  : Icons.play_circle_outline,
-                              size: 18,
-                            ),
-                            label: Text(
-                              activityConfirmed
-                                  ? 'Aktivitas tersimpan'
-                                  : 'Konfirmasi aktivitas',
-                            ),
-                          ),
-                        if (onEditDraft != null)
-                          TextButton.icon(
-                            onPressed: onEditDraft,
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            label: const Text('Koreksi nominal/draft'),
-                          ),
-                        if (onCancelDraft != null)
-                          TextButton.icon(
-                            onPressed: onCancelDraft,
-                            icon: const Icon(Icons.close_outlined, size: 18),
-                            label: const Text('Batal draft'),
-                          ),
-                        if (onApproveTeaching != null)
-                          FilledButton.tonalIcon(
-                            onPressed: teachingSaved ? null : onApproveTeaching,
-                            icon: Icon(
-                              teachingSaved
-                                  ? Icons.bookmark_added_outlined
-                                  : Icons.bookmark_add_outlined,
-                              size: 18,
-                            ),
-                            label: Text(
-                              teachingSaved
-                                  ? 'Ajaran tersimpan'
-                                  : 'Simpan ajaran',
-                            ),
-                          ),
-                        if (onCopyFeedback != null)
-                          TextButton.icon(
-                            onPressed: onCopyFeedback,
-                            icon: const Icon(Icons.copy_all_outlined, size: 18),
-                            label: const Text('Salin konteks'),
-                          ),
-                        if (onCorrectMessage != null)
-                          TextButton.icon(
-                            onPressed: onCorrectMessage,
-                            icon: const Icon(
-                              Icons.spellcheck_outlined,
-                              size: 18,
-                            ),
-                            label: const Text('Benarkan pesan / typo'),
-                          ),
-                      ],
+                    _AssistantMessageToolbar(
+                      isUser: isUser,
+                      hasPrimaryAction:
+                          onIntent != null &&
+                          intent!.type != FfmAssistantIntentType.unknown &&
+                          intent.type != FfmAssistantIntentType.listPages &&
+                          (review?.canContinue ?? true),
+                      primaryActionLabel: intent?.destination == null
+                          ? 'Lanjut'
+                          : 'Buka',
+                      onPrimaryAction: onIntent,
+                      onConfirmActivity: onConfirmActivity,
+                      activityConfirmed: activityConfirmed,
+                      onCopyText: onCopyText,
+                      onSpeak: onSpeak,
+                      isSpeaking: isSpeaking,
+                      onCorrectMessage: onCorrectMessage,
+                      onCopyFeedback: onCopyFeedback,
+                      onEditDraft: onEditDraft,
+                      onCancelDraft: onCancelDraft,
+                      onApproveTeaching: onApproveTeaching,
+                      teachingSaved: teachingSaved,
                     ),
                   ],
                 ],
@@ -1261,6 +1316,256 @@ class _AssistantMessageCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AssistantUnderstandingDisclosure extends StatefulWidget {
+  const _AssistantUnderstandingDisclosure({required this.text});
+
+  final String text;
+
+  @override
+  State<_AssistantUnderstandingDisclosure> createState() =>
+      _AssistantUnderstandingDisclosureState();
+}
+
+class _AssistantUnderstandingDisclosureState
+    extends State<_AssistantUnderstandingDisclosure> {
+  var _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface.withValues(alpha: .72),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: () => setState(() => _expanded = !_expanded),
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            children: [
+              Icon(
+                Icons.psychology_alt_outlined,
+                size: 17,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  _expanded
+                      ? 'Yang aku pahami: ${widget.text}'
+                      : 'Yang aku pahami',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Icon(
+                _expanded ? Icons.expand_less : Icons.expand_more,
+                size: 20,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _AssistantMessageMenuAction {
+  correct,
+  copyFeedback,
+  editDraft,
+  cancelDraft,
+  approveTeaching,
+}
+
+class _AssistantMessageToolbar extends StatelessWidget {
+  const _AssistantMessageToolbar({
+    required this.isUser,
+    required this.hasPrimaryAction,
+    required this.primaryActionLabel,
+    this.onPrimaryAction,
+    this.onConfirmActivity,
+    required this.activityConfirmed,
+    this.onCopyText,
+    this.onSpeak,
+    required this.isSpeaking,
+    this.onCorrectMessage,
+    this.onCopyFeedback,
+    this.onEditDraft,
+    this.onCancelDraft,
+    this.onApproveTeaching,
+    required this.teachingSaved,
+  });
+
+  final bool isUser;
+  final bool hasPrimaryAction;
+  final String primaryActionLabel;
+  final VoidCallback? onPrimaryAction;
+  final VoidCallback? onConfirmActivity;
+  final bool activityConfirmed;
+  final VoidCallback? onCopyText;
+  final VoidCallback? onSpeak;
+  final bool isSpeaking;
+  final VoidCallback? onCorrectMessage;
+  final VoidCallback? onCopyFeedback;
+  final VoidCallback? onEditDraft;
+  final VoidCallback? onCancelDraft;
+  final VoidCallback? onApproveTeaching;
+  final bool teachingSaved;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasMoreActions =
+        onCorrectMessage != null ||
+        onCopyFeedback != null ||
+        onEditDraft != null ||
+        onCancelDraft != null ||
+        onApproveTeaching != null;
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 2,
+      children: [
+        if (hasPrimaryAction)
+          Tooltip(
+            message: 'Buka arahan ini. Data belum disimpan otomatis.',
+            child: FilledButton.tonalIcon(
+              onPressed: onPrimaryAction,
+              icon: const Icon(Icons.open_in_new, size: 17),
+              label: Text(primaryActionLabel),
+            ),
+          ),
+        if (onConfirmActivity != null)
+          Tooltip(
+            message: activityConfirmed
+                ? 'Aktivitas ini sudah dikonfirmasi.'
+                : 'Simpan aktivitas hanya setelah kamu setuju.',
+            child: FilledButton.tonalIcon(
+              onPressed: activityConfirmed ? null : onConfirmActivity,
+              icon: Icon(
+                activityConfirmed
+                    ? Icons.check_circle_outline
+                    : Icons.play_circle_outline,
+                size: 17,
+              ),
+              label: Text(activityConfirmed ? 'Tersimpan' : 'Konfirmasi'),
+            ),
+          ),
+        if (!isUser && onSpeak != null)
+          Tooltip(
+            message: isSpeaking
+                ? 'Hentikan bacaan. Ketuk Dengarkan lagi untuk melanjutkan.'
+                : 'Dengarkan jawaban. Ketuk lagi untuk berhenti.',
+            child: IconButton(
+              onPressed: onSpeak,
+              icon: Icon(
+                isSpeaking
+                    ? Icons.stop_circle_outlined
+                    : Icons.volume_up_outlined,
+              ),
+            ),
+          ),
+        if (onCopyText != null)
+          Tooltip(
+            message: isUser ? 'Salin pesan' : 'Salin jawaban',
+            child: IconButton(
+              onPressed: onCopyText,
+              icon: const Icon(Icons.copy_outlined),
+            ),
+          ),
+        if (hasMoreActions)
+          Tooltip(
+            message: 'Aksi lainnya',
+            child: PopupMenuButton<_AssistantMessageMenuAction>(
+              icon: const Icon(Icons.more_horiz),
+              tooltip: 'Aksi lainnya',
+              onSelected: (action) {
+                switch (action) {
+                  case _AssistantMessageMenuAction.correct:
+                    onCorrectMessage?.call();
+                    return;
+                  case _AssistantMessageMenuAction.copyFeedback:
+                    onCopyFeedback?.call();
+                    return;
+                  case _AssistantMessageMenuAction.editDraft:
+                    onEditDraft?.call();
+                    return;
+                  case _AssistantMessageMenuAction.cancelDraft:
+                    onCancelDraft?.call();
+                    return;
+                  case _AssistantMessageMenuAction.approveTeaching:
+                    onApproveTeaching?.call();
+                    return;
+                }
+              },
+              itemBuilder: (context) => [
+                if (onCorrectMessage != null)
+                  const PopupMenuItem(
+                    value: _AssistantMessageMenuAction.correct,
+                    child: _AssistantMenuLabel(
+                      icon: Icons.spellcheck_outlined,
+                      label: 'Benarkan & kirim ulang',
+                    ),
+                  ),
+                if (onEditDraft != null)
+                  const PopupMenuItem(
+                    value: _AssistantMessageMenuAction.editDraft,
+                    child: _AssistantMenuLabel(
+                      icon: Icons.edit_outlined,
+                      label: 'Koreksi draft',
+                    ),
+                  ),
+                if (onCancelDraft != null)
+                  const PopupMenuItem(
+                    value: _AssistantMessageMenuAction.cancelDraft,
+                    child: _AssistantMenuLabel(
+                      icon: Icons.close_outlined,
+                      label: 'Batalkan draft',
+                    ),
+                  ),
+                if (onApproveTeaching != null)
+                  PopupMenuItem(
+                    value: _AssistantMessageMenuAction.approveTeaching,
+                    enabled: !teachingSaved,
+                    child: _AssistantMenuLabel(
+                      icon: teachingSaved
+                          ? Icons.bookmark_added_outlined
+                          : Icons.bookmark_add_outlined,
+                      label: teachingSaved
+                          ? 'Ajaran tersimpan'
+                          : 'Simpan ajaran',
+                    ),
+                  ),
+                if (onCopyFeedback != null)
+                  const PopupMenuItem(
+                    value: _AssistantMessageMenuAction.copyFeedback,
+                    child: _AssistantMenuLabel(
+                      icon: Icons.copy_all_outlined,
+                      label: 'Salin bahan perbaikan',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _AssistantMenuLabel extends StatelessWidget {
+  const _AssistantMenuLabel({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [Icon(icon, size: 18), const SizedBox(width: 10), Text(label)],
+  );
 }
 
 class _ReadableChatText extends StatelessWidget {

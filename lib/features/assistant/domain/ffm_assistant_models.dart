@@ -287,7 +287,7 @@ class FfmAssistantChatSession {
     : entries = [
         const FfmAssistantChatEntry(
           isUser: false,
-          text: 'Hai, aku Asisten FFM. Mau cek data, pindah halaman, siapin draft, atau tanya kalender? Tulis santai aja. Contoh: “Sekarang jam berapa?”, “90 hari lagi tanggal berapa?”, atau “Ada berapa transaksi bulan ini?”',
+          text: 'Hai, aku Asisten FFM. Tulis pertanyaan atau perintah dengan santai. Aku bisa bantu cek data lokal, buka halaman, siapkan draft untuk kamu tinjau, atau jawab kalender perangkat.',
         ),
       ];
 
@@ -304,7 +304,7 @@ class FfmAssistantChatSession {
       ..add(
         const FfmAssistantChatEntry(
           isUser: false,
-          text: 'Chat sudah direset. Mau cek data, pindah halaman, siapin draft, atau tanya kalender?',
+          text: 'Chat sudah direset. Kamu bisa tanya data lokal, minta pindah halaman, atau cek kalender perangkat.',
         ),
       );
     queuedIntents.clear();
@@ -356,6 +356,20 @@ abstract final class FfmAssistantCatalog {
       name: 'Analisa',
       description: 'Membaca pola keuangan dan saran dari data yang tersimpan.',
       aliases: ['analisa', 'analisis', 'insight'],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.otherMenu,
+      name: 'Lainnya',
+      description: 'Membuka menu fitur pendukung, termasuk Data Utama, cadangan, keamanan, dan Pusat Latihan Asisten.',
+      aliases: [
+        'lainnya',
+        'menu lainnya',
+        'menu lain',
+        'halaman lainnya',
+        'fitur lainnya',
+        'tab lainnya',
+        'navbar lainnya',
+      ],
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.masterData,
@@ -415,7 +429,21 @@ abstract final class FfmAssistantCatalog {
       destination: FfmAssistantDestination.appSecurity,
       name: 'Kunci aplikasi',
       description: 'Mengaktifkan, mengganti, atau mematikan PIN aplikasi.',
-      aliases: ['kunci aplikasi', 'pin aplikasi', 'ganti pin', 'ubah pin'],
+      aliases: [
+        'kunci aplikasi',
+        'keamanan aplikasi',
+        'halaman keamanan',
+        'keamanan pin',
+        'pin keamanan',
+        'pin aplikasi',
+        'halaman pin',
+        'menu pin',
+        'ke pin',
+        'pergi ke pin',
+        'buka pin',
+        'ganti pin',
+        'ubah pin',
+      ],
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.diagnostics,

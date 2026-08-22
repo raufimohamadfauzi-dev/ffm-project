@@ -209,7 +209,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Paket upgrade ChatGPT disalin. Tidak ada transaksi, saldo, atau alias pribadi yang ikut.',
+          'Paket perbaikan Asisten disalin. Tidak ada transaksi, saldo, atau alias pribadi yang ikut.',
         ),
       ),
     );
@@ -267,7 +267,7 @@ Tugas:
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Permintaan LLM disalin. Jawaban nanti impor sebagai JSON.',
+          'Bahan perbaikan disalin. Tinjau jawaban dari LLM pilihanmu sebelum impor JSON.',
         ),
       ),
     );
@@ -508,7 +508,7 @@ Tugas:
                         FilledButton.tonalIcon(
                           onPressed: _copyUpgradePack,
                           icon: const Icon(Icons.auto_awesome_outlined),
-                          label: const Text('Paket upgrade ChatGPT'),
+                          label: const Text('Paket perbaikan Asisten'),
                         ),
                         OutlinedButton.icon(
                           onPressed: _copyQuestionBankPrompt,

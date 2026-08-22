@@ -76,6 +76,16 @@ void main() {
     },
   );
 
+  test('mengenali perintah menuju navbar Lainnya dan halaman PIN', () async {
+    final otherMenu = await interpreter.interpret('Buka navbar lainnya');
+    final pin = await interpreter.interpret('Pergi ke halaman PIN');
+
+    expect(otherMenu.type, FfmAssistantIntentType.openPage);
+    expect(otherMenu.destination, FfmAssistantDestination.otherMenu);
+    expect(pin.type, FfmAssistantIntentType.openPage);
+    expect(pin.destination, FfmAssistantDestination.appSecurity);
+  });
+
   test('menjawab daftar halaman lokal', () async {
     final intent = await interpreter.interpret('Ada menu apa saja?');
 
@@ -113,6 +123,20 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.calendarQuery);
     expect(intent.response, contains('19 November 2026'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjawab hari dan tanggal Masehi besok dari waktu lokal', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 21, 14, 30),
+    );
+
+    final intent = await localInterpreter.interpret('Besok hari apa?');
+
+    expect(intent.type, FfmAssistantIntentType.calendarQuery);
+    expect(intent.response, contains('Besok Sabtu, 22 Agustus 2026'));
     expect(intent.draft, isNull);
   });
 
@@ -245,6 +269,23 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.calendarQuery);
     expect(intent.response, contains('Tanggal Hijriah sekarang:'));
+    expect(intent.response, contains('Kalender Hijriah FFM'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjawab tanggal Hijriah besok dari waktu lokal perangkat', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 22, 10, 37),
+    );
+
+    final intent = await localInterpreter.interpret(
+      'Besok tanggal hijriah berapa?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.calendarQuery);
+    expect(intent.response, contains('Tanggal Hijriah besok:'));
     expect(intent.response, contains('Kalender Hijriah FFM'));
     expect(intent.draft, isNull);
   });

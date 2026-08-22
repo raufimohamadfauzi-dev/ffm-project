@@ -43,6 +43,15 @@ abstract final class FfmAssistantLocalCalendar {
     ])) {
       return 'Hari ini ${formatDate(now)}, mengikuti tanggal lokal HP kamu.';
     }
+    if (_contains(text, const [
+      'besok hari apa',
+      'besok tanggal berapa',
+      'tanggal besok',
+      'hari apa besok',
+    ])) {
+      final tomorrow = now.add(const Duration(days: 1));
+      return 'Besok ${formatDate(tomorrow)}, mengikuti tanggal lokal HP kamu.';
+    }
 
     final relative = RegExp(
       r'\b(\d+)\s+(hari|minggu|bulan)\s+(lagi|kedepan|ke depan|lalu)\b',

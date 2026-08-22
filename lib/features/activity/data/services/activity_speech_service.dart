@@ -46,4 +46,48 @@ class ActivitySpeechService {
   }
 
   Future<void> stopSpeaking() => _ttsChannel.invokeMethod<void>('stop');
+
+  Future<bool> resumeSpeaking() async =>
+      await _ttsChannel.invokeMethod<bool>('resume') ?? false;
+
+  Future<bool> isSpeaking() async =>
+      await _ttsChannel.invokeMethod<bool>('isSpeaking') ?? false;
+
+  Future<List<ActivitySpeechVoice>> availableVoices() async {
+    final voices = await _ttsChannel.invokeListMethod<Map<Object?, Object?>>(
+      'voices',
+    );
+    return (voices ?? const [])
+        .map(ActivitySpeechVoice.fromPlatformMap)
+        .where((voice) => voice.name.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<String?> selectedVoiceName() =>
+      _ttsChannel.invokeMethod<String>('selectedVoice');
+
+  Future<bool> selectVoice(String name) async =>
+      await _ttsChannel.invokeMethod<bool>('selectVoice', {'name': name}) ??
+      false;
+}
+
+class ActivitySpeechVoice {
+  const ActivitySpeechVoice({
+    required this.name,
+    required this.locale,
+    required this.quality,
+  });
+
+  factory ActivitySpeechVoice.fromPlatformMap(Map<Object?, Object?> map) =>
+      ActivitySpeechVoice(
+        name: map['name'] as String? ?? '',
+        locale: map['locale'] as String? ?? 'id-ID',
+        quality: map['quality'] as String? ?? '',
+      );
+
+  final String name;
+  final String locale;
+  final String quality;
+
+  String get label => quality.isEmpty ? name : '$name • $quality';
 }

@@ -8,6 +8,8 @@ import android.media.RingtoneManager
 import android.net.Uri
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.speech.tts.Voice
 import java.util.Locale
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterActivity
@@ -19,12 +21,29 @@ class MainActivity : FlutterActivity() {
     private var pendingWidgetAction: String? = null
     private var widgetChannel: MethodChannel? = null
     private var textToSpeech: TextToSpeech? = null
+    private var speechSegments: List<String> = emptyList()
+    private var nextSpeechSegment = 0
+    private var activeUtteranceId: String? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale("id", "ID")
+                restoreSelectedVoice()
+                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) = Unit
+
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId != activeUtteranceId) return
+                        runOnUiThread { speakNextSegment() }
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        if (utteranceId == activeUtteranceId) clearSpeechQueue()
+                    }
+                })
             }
         }
         pendingWidgetAction = intent?.getStringExtra(WIDGET_ACTION_EXTRA)
@@ -80,18 +99,48 @@ class MainActivity : FlutterActivity() {
                     if (text.isBlank()) {
                         result.success(false)
                     } else {
-                        val code = textToSpeech?.speak(
-                            text,
-                            TextToSpeech.QUEUE_FLUSH,
-                            null,
-                            "ffm-activity-preview",
-                        ) ?: TextToSpeech.ERROR
-                        result.success(code == TextToSpeech.SUCCESS)
+                        speechSegments = splitSpeechSegments(text)
+                        nextSpeechSegment = 0
+                        textToSpeech?.stop()
+                        result.success(speakNextSegment())
                     }
                 }
                 "stop" -> {
                     textToSpeech?.stop()
                     result.success(true)
+                }
+                "resume" -> result.success(
+                    textToSpeech?.isSpeaking != true && speakNextSegment(),
+                )
+                "isSpeaking" -> result.success(textToSpeech?.isSpeaking == true)
+                "voices" -> result.success(
+                    offlineVoices().map { voice ->
+                        mapOf(
+                            "name" to voice.name,
+                            "locale" to voice.locale.toLanguageTag(),
+                            "quality" to voiceQualityLabel(voice),
+                        )
+                    },
+                )
+                "selectedVoice" -> result.success(selectedVoiceName())
+                "selectVoice" -> {
+                    val name = call.argument<String>("name").orEmpty()
+                    val voice = offlineVoices().firstOrNull { it.name == name }
+                    if (voice == null) {
+                        result.success(false)
+                    } else {
+                        val tts = textToSpeech
+                        if (tts == null) {
+                            result.success(false)
+                        } else {
+                            tts.voice = voice
+                            getSharedPreferences(TTS_PREFERENCES, MODE_PRIVATE)
+                                .edit()
+                                .putString(TTS_VOICE_KEY, voice.name)
+                                .apply()
+                            result.success(true)
+                        }
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -133,6 +182,62 @@ class MainActivity : FlutterActivity() {
         )
     }
 
+    private fun splitSpeechSegments(text: String): List<String> =
+        text
+            .split(Regex("(?<=[.!?])\\s+|\\n+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(text) }
+
+    private fun speakNextSegment(): Boolean {
+        val tts = textToSpeech ?: return false
+        if (nextSpeechSegment >= speechSegments.size) {
+            clearSpeechQueue()
+            return false
+        }
+        val utteranceId = "ffm-assistant-${System.nanoTime()}"
+        activeUtteranceId = utteranceId
+        val segment = speechSegments[nextSpeechSegment]
+        nextSpeechSegment += 1
+        val code = tts.speak(segment, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        if (code != TextToSpeech.SUCCESS) clearSpeechQueue()
+        return code == TextToSpeech.SUCCESS
+    }
+
+    private fun clearSpeechQueue() {
+        speechSegments = emptyList()
+        nextSpeechSegment = 0
+        activeUtteranceId = null
+    }
+
+    private fun offlineVoices(): List<Voice> = textToSpeech
+        ?.voices
+        ?.filter { voice ->
+            !voice.isNetworkConnectionRequired && voice.locale.language == "id"
+        }
+        ?.sortedWith(
+            compareByDescending<Voice> { it.quality }
+                .thenBy { it.name.lowercase(Locale.ROOT) },
+        )
+        .orEmpty()
+
+    private fun voiceQualityLabel(voice: Voice): String = when {
+        voice.quality >= Voice.QUALITY_HIGH -> "kualitas tinggi"
+        voice.quality >= Voice.QUALITY_NORMAL -> "standar"
+        else -> "dasar"
+    }
+
+    private fun selectedVoiceName(): String? = textToSpeech?.voice?.name
+
+    private fun restoreSelectedVoice() {
+        val savedName = getSharedPreferences(TTS_PREFERENCES, MODE_PRIVATE)
+            .getString(TTS_VOICE_KEY, null)
+            ?: return
+        offlineVoices().firstOrNull { it.name == savedName }?.let { voice ->
+            textToSpeech?.voice = voice
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -148,6 +253,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         textToSpeech?.stop()
+        clearSpeechQueue()
         textToSpeech?.shutdown()
         textToSpeech = null
         super.onDestroy()
@@ -185,6 +291,8 @@ class MainActivity : FlutterActivity() {
         private const val SOUND_CHANNEL = "ffm/reminder_sound"
         private const val PRIVACY_CHANNEL = "ffm/privacy"
         private const val SPEECH_CHANNEL = "ffm/activity_speech"
+        private const val TTS_PREFERENCES = "ffm_tts_preferences"
+        private const val TTS_VOICE_KEY = "selected_voice_name"
         private const val REQUEST_CODE = 7201
     }
 }

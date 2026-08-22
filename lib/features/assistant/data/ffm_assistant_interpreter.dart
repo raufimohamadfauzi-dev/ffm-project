@@ -203,15 +203,17 @@ class FfmAssistantInterpreter {
     // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
     if (_isHijriDateRequest(normalized)) {
       final now = _clock();
+      final isTomorrow = _containsAny(normalized, const ['besok', 'esok']);
+      final targetDate = isTomorrow ? now.add(const Duration(days: 1)) : now;
       final hijri = await HijriCalendarService(_database)
-          .convert(AppContext.householdId, now);
+          .convert(AppContext.householdId, targetDate);
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.calendarQuery,
         confidence: 1,
         response:
-            'Tanggal Hijriah sekarang: ${_formatHijriDate(hijri)}. Ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
+            'Tanggal Hijriah ${isTomorrow ? 'besok' : 'sekarang'}: ${_formatHijriDate(hijri)}. Ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
       );
     }
 
@@ -479,6 +481,10 @@ class FfmAssistantInterpreter {
           'ke bagian',
           'arah ke',
           'bawa ke',
+          'pergi ke halaman',
+          'pergi ke menu',
+          'masuk halaman',
+          'masuk menu',
           'tampilkan',
         ])) {
       return FfmAssistantIntent(
