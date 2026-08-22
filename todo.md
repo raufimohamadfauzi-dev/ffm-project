@@ -65,4 +65,4 @@
 - [x] Tambahkan pintasan koreksi nominal/draft yang selalu menjalankan review ulang.
 - [x] Tambahkan regression test untuk konteks salin, ajaran, dan revisi draft.
 - [x] Jalankan formatter, analyzer, dan seluruh test.
-- [ ] Commit, ZIP source, dan build APK release.
+- [x] Commit, ZIP source, dan build APK release.

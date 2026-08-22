@@ -9,6 +9,7 @@ import '../../../backup/presentation/pages/monthly_report_page.dart';
 import '../../../goal/presentation/pages/goal_pages.dart';
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
+import 'app_diagnostics_page.dart';
 import 'database_structure_page.dart';
 import '../../../audit/presentation/pages/activity_log_page.dart';
 import 'master_data_page.dart';
@@ -154,6 +155,12 @@ class OtherMenuPage extends StatelessWidget {
             title: 'Kunci aplikasi',
             subtitle: 'Atur PIN untuk membantu menjaga akses ke data keluarga.',
             onTap: () => _open(context, const PinSecurityPage()),
+          ),
+          _MenuCard(
+            icon: Icons.bug_report_outlined,
+            title: 'Bantuan perbaikan',
+            subtitle: 'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+            onTap: () => _open(context, const AppDiagnosticsPage()),
           ),
           _MenuCard(
             icon: Icons.privacy_tip_outlined,

@@ -30,6 +30,7 @@ enum FfmAssistantIntentType {
   removeDraftItem,
   teachMemory,
   readLastResponse,
+  diagnosticStatus,
   confirm,
   cancel,
   help,
@@ -51,6 +52,8 @@ enum FfmAssistantDestination {
   backup,
   monthlyReport,
   reconciliation,
+  appSecurity,
+  diagnostics,
 }
 
 enum FfmAssistantDraftKind {
@@ -399,6 +402,18 @@ abstract final class FfmAssistantCatalog {
       description: 'Mencocokkan saldo nyata dengan catatan akun.',
       aliases: ['rekonsiliasi', 'cek saldo', 'cocokkan saldo'],
     ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.appSecurity,
+      name: 'Kunci aplikasi',
+      description: 'Mengaktifkan, mengganti, atau mematikan PIN aplikasi.',
+      aliases: ['kunci aplikasi', 'pin aplikasi', 'ganti pin', 'ubah pin'],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.diagnostics,
+      name: 'Bantuan perbaikan',
+      description: 'Melihat error teknis yang benar-benar tercatat dan menyalin laporan aman.',
+      aliases: ['bantuan perbaikan', 'laporan error', 'error aplikasi'],
+    ),
   ];
 
   static FfmAssistantPage? findByText(String normalizedText) {
@@ -437,6 +452,8 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.backup => 'Ekspor & cadangan dipakai untuk membuat atau memulihkan data FFM, termasuk data utama, transaksi, aset, target, hutang/piutang, aktivitas, pengingat, memori ajar, dan contoh belajar. Periksa preview sebelum impor.',
         FfmAssistantDestination.monthlyReport => 'Ringkasan bulanan membandingkan pemasukan, pengeluaran, dan arus kas berdasarkan periode yang kamu pilih. Laporan hanya menampilkan catatan nyata yang ada di perangkat.',
         FfmAssistantDestination.reconciliation => 'Rekonsiliasi saldo membantu mencocokkan saldo catatan FFM dengan saldo nyata di rekening atau tunai. Bila ada selisih, kamu dapat meninjau penyebabnya lalu buat penyesuaian secara sadar.',
+        FfmAssistantDestination.appSecurity => 'Kunci aplikasi dipakai untuk mengaktifkan, mengganti, atau mematikan PIN FFM. PIN hanya dimasukkan lewat keypad khusus, tidak lewat chat, dan setiap perubahan meminta konfirmasi kamu.',
+        FfmAssistantDestination.diagnostics => 'Bantuan perbaikan menampilkan error teknis yang benar-benar tertangkap secara lokal. Kamu bisa salin laporan yang sudah disaring; PIN, data keuangan, rekening, dan isi chat tidak ikut dimasukkan.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pusat Latihan Asisten.',
       };
 }

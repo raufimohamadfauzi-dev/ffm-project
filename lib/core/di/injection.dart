@@ -2,6 +2,8 @@ import 'package:get_it/get_it.dart';
 
 import '../database/app_database.dart';
 import '../database/audit_logger.dart';
+import '../diagnostics/app_diagnostics_service.dart';
+import '../security/app_pin_service.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
@@ -37,6 +39,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   if (getIt.isRegistered<AppDatabase>()) return;
   final db = database ?? AppDatabase.openDefault();
   getIt.registerSingleton<AppDatabase>(db);
+  getIt.registerLazySingleton<AppDiagnosticsService>(AppDiagnosticsService.new);
+  getIt.registerLazySingleton<AppPinService>(AppPinService.new);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
   getIt.registerLazySingleton<BudgetGuardService>(() => BudgetGuardService(db));
   getIt.registerLazySingleton<AuditLogRepository>(
@@ -142,7 +146,12 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmAssistantUpgradePackService(getIt<FfmAssistantMemoryRepository>()),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
-    () => FfmAssistantInterpreter(db, getIt<FfmAssistantLocalMemory>()),
+    () => FfmAssistantInterpreter(
+      db,
+      getIt<FfmAssistantLocalMemory>(),
+      null,
+      getIt<AppDiagnosticsService>(),
+    ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(
     () => JsonExportStudioService(db),

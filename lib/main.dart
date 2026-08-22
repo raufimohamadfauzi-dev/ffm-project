@@ -1,8 +1,13 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/database/app_database.dart';
+import 'core/diagnostics/app_diagnostics_service.dart';
 import 'core/di/injection.dart';
+import 'core/security/app_pin_service.dart';
 import 'core/theme/theme_preference.dart';
 import 'features/assistant/domain/ffm_assistant_models.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
@@ -21,13 +26,41 @@ import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
+import 'features/settings/presentation/pages/app_diagnostics_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
+import 'features/settings/presentation/pages/pin_security_page.dart';
+import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/transaction/presentation/pages/receipt_scan_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await configureDependencies();
+  final diagnostics = getIt<AppDiagnosticsService>();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    unawaited(
+      diagnostics.recordException(
+        code: 'FLUTTER_UNHANDLED_ERROR',
+        feature: 'Tampilan aplikasi',
+        error: details.exception,
+        stackTrace: details.stack,
+        impact: 'Tampilan mungkin perlu dicoba ulang.',
+      ),
+    );
+  };
+  PlatformDispatcher.instance.onError = (error, stackTrace) {
+    unawaited(
+      diagnostics.recordException(
+        code: 'ASYNC_UNHANDLED_ERROR',
+        feature: 'Proses aplikasi',
+        error: error,
+        stackTrace: stackTrace,
+        impact: 'Proses dibatalkan dengan aman.',
+      ),
+    );
+    return true;
+  };
   final reminderNotificationService = getIt<ReminderNotificationService>();
   await reminderNotificationService.initialize();
   await getIt<ReminderBloc>().recover();
@@ -43,6 +76,8 @@ class FfmApp extends StatefulWidget {
     this.database,
     this.onboardingComplete,
     this.pinEnabled,
+    this.pinService,
+    this.diagnostics,
     bool? isDarkMode,
   }) : initialDarkMode = initialDarkMode ?? isDarkMode ?? false;
 
@@ -50,19 +85,137 @@ class FfmApp extends StatefulWidget {
   final AppDatabase? database;
   final bool? onboardingComplete;
   final bool? pinEnabled;
+  final AppPinService? pinService;
+  final AppDiagnosticsService? diagnostics;
 
   @override
   State<FfmApp> createState() => _FfmAppState();
 }
 
-class _FfmAppState extends State<FfmApp> {
+class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
+  static const _lockAfterBackground = Duration(seconds: 10);
+
   late var _isDark = widget.initialDarkMode;
+  late final AppPinService _pinService =
+      widget.pinService ?? getIt<AppPinService>();
+  late final AppDiagnosticsService _diagnostics =
+      widget.diagnostics ?? getIt<AppDiagnosticsService>();
+  var _pinGateLoading = true;
+  var _isLocked = false;
+  var _securityUnavailable = false;
+  var _pinLength = AppPinService.defaultPinLength;
+  DateTime? _backgroundedAt;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.database != null && !getIt.isRegistered<AppDatabase>()) {
       configureDependencies(database: widget.database);
+    }
+    _preparePinGate();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _preparePinGate() async {
+    if (widget.pinEnabled == false) {
+      if (mounted) setState(() => _pinGateLoading = false);
+      return;
+    }
+    try {
+      final configuredLength = await _pinService.configuredPinLength();
+      if (!mounted) return;
+      setState(() {
+        _pinGateLoading = false;
+        _securityUnavailable = false;
+        _pinLength = configuredLength ?? AppPinService.defaultPinLength;
+        _isLocked = configuredLength != null || widget.pinEnabled == true;
+      });
+    } catch (error, stackTrace) {
+      await _diagnostics.recordException(
+        code: 'PIN_GATE_READ_FAILED',
+        feature: 'Kunci aplikasi',
+        error: error,
+        stackTrace: stackTrace,
+        impact: 'Aplikasi ditahan sampai keamanan bisa dibaca lagi.',
+      );
+      if (!mounted) return;
+      setState(() {
+        _pinGateLoading = false;
+        _securityUnavailable = true;
+        _isLocked = true;
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _backgroundedAt ??= DateTime.now();
+      return;
+    }
+    if (state == AppLifecycleState.resumed) {
+      final backgroundedAt = _backgroundedAt;
+      _backgroundedAt = null;
+      if (backgroundedAt != null &&
+          DateTime.now().difference(backgroundedAt) >= _lockAfterBackground) {
+        _lockAfterBackgroundDelay();
+      }
+    }
+  }
+
+  Future<void> _lockAfterBackgroundDelay() async {
+    try {
+      final configuredLength = await _pinService.configuredPinLength();
+      if (!mounted || configuredLength == null) return;
+      setState(() {
+        _pinLength = configuredLength;
+        _isLocked = true;
+      });
+    } catch (error, stackTrace) {
+      await _diagnostics.recordException(
+        code: 'PIN_GATE_RESUME_FAILED',
+        feature: 'Kunci aplikasi',
+        error: error,
+        stackTrace: stackTrace,
+        impact: 'Aplikasi ditahan sampai keamanan bisa dibaca lagi.',
+      );
+      if (mounted) setState(() => _securityUnavailable = true);
+    }
+  }
+
+  Future<String?> _unlock(String pin) async {
+    try {
+      final outcome = await _pinService.verifyPin(pin);
+      if (!mounted) return null;
+      if (outcome == FfmAppPinOperation.success) {
+        setState(() => _isLocked = false);
+        return null;
+      }
+      return switch (outcome) {
+        FfmAppPinOperation.incorrectPin =>
+          'PIN-nya belum cocok. Coba lagi, ya.',
+        FfmAppPinOperation.invalidPin => 'PIN harus berisi $_pinLength angka.',
+        FfmAppPinOperation.inactive =>
+          'PIN belum aktif. Buka Kunci aplikasi dari menu Lainnya.',
+        FfmAppPinOperation.success => null,
+      };
+    } catch (error, stackTrace) {
+      await _diagnostics.recordException(
+        code: 'PIN_GATE_VERIFY_FAILED',
+        feature: 'Kunci aplikasi',
+        error: error,
+        stackTrace: stackTrace,
+        impact: 'Aplikasi tetap terkunci.',
+      );
+      return 'PIN belum bisa dicek. Coba lagi sebentar, ya.';
     }
   }
 
@@ -73,13 +226,26 @@ class _FfmAppState extends State<FfmApp> {
     themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
     theme: _buildTheme(Brightness.light),
     darkTheme: _buildTheme(Brightness.dark),
-    home: AppShell(
-      isDark: _isDark,
-      onThemeChanged: (value) async {
-        setState(() => _isDark = value);
-        await ThemePreference.saveDark(value);
-      },
-    ),
+    home: _pinGateLoading
+        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        : _securityUnavailable
+        ? _PinSecurityUnavailable(onRetry: _preparePinGate)
+        : _isLocked
+        ? Scaffold(
+            body: AppPinEntryPanel(
+              title: 'FFM lagi dikunci',
+              message: 'Masukkan PIN untuk lanjut ke data keluarga.',
+              onCompleted: _unlock,
+              pinLength: _pinLength,
+            ),
+          )
+        : AppShell(
+            isDark: _isDark,
+            onThemeChanged: (value) async {
+              setState(() => _isDark = value);
+              await ThemePreference.saveDark(value);
+            },
+          ),
   );
 
   ThemeData _buildTheme(Brightness brightness) {
@@ -104,6 +270,47 @@ class _FfmAppState extends State<FfmApp> {
       ),
     );
   }
+}
+
+class _PinSecurityUnavailable extends StatelessWidget {
+  const _PinSecurityUnavailable({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.security_outlined, size: 48),
+              const SizedBox(height: 16),
+              Text(
+                'Keamanan FFM belum bisa dicek',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Biar data keluarga tetap aman, FFM belum dibuka. Coba cek lagi dulu, ya.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Coba lagi'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class AppShell extends StatefulWidget {
@@ -374,6 +581,13 @@ class _AppShellState extends State<AppShell> {
             .push(MaterialPageRoute(builder: (_) => const MonthlyReportPage()));
       case FfmAssistantDestination.reconciliation:
         setState(() => _index = 4);
+      case FfmAssistantDestination.appSecurity:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const PinSecurityPage()));
+      case FfmAssistantDestination.diagnostics:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AppDiagnosticsPage()));
     }
   }
 

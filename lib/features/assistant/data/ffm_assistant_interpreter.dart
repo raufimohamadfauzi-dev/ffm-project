@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' hide Column;
 
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_local_memory.dart';
@@ -16,14 +17,17 @@ class FfmAssistantInterpreter {
     this._database, [
     FfmAssistantLocalMemory? memory,
     DateTime Function()? clock,
+    AppDiagnosticsService? diagnostics,
   ]) : _memory = memory ?? FfmAssistantLocalMemory(),
        _taughtMemory = FfmAssistantMemoryRepository(_database),
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _diagnostics = diagnostics ?? AppDiagnosticsService();
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
   final FfmAssistantMemoryRepository _taughtMemory;
   final DateTime Function() _clock;
+  final AppDiagnosticsService _diagnostics;
 
   Future<List<FfmAssistantIntent>> interpretMany(
     String rawText, {
@@ -250,6 +254,36 @@ class FfmAssistantInterpreter {
     }
 
     if (_containsAny(normalized, const [
+      'ada error apa',
+      'error apa',
+      'error terakhir',
+      'cek error',
+      'cek bug',
+      'kenapa tadi gagal',
+      'masalah aplikasi',
+    ])) {
+      return _diagnosticStatus(rawText, normalized);
+    }
+
+    if (_containsAny(normalized, const [
+      'ganti pin',
+      'ubah pin',
+      'ganti kunci aplikasi',
+      'matikan pin',
+      'aktifkan pin',
+      'buat pin aplikasi',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.openPage,
+        destination: FfmAssistantDestination.appSecurity,
+        confidence: .98,
+        response: 'Siap, aku buka Kunci aplikasi. PIN lama dan PIN baru kamu masukkan di keypad khusus, bukan di chat. Setelah PIN baru kamu ulangi, kamu tetap diminta konfirmasi terakhir sebelum berubah.',
+      );
+    }
+
+    if (_containsAny(normalized, const [
       'batal',
       'jangan jadi',
       'hapus semua draft',
@@ -406,6 +440,36 @@ class FfmAssistantInterpreter {
       rawText,
       normalized,
       _unsupportedQuestionHelp(normalized) ?? 'Aku belum nangkep maksudnya nih. Aku bisa bantu cek data FFM, buka halaman, atau siapkan draft yang kamu konfirmasi sendiri. Coba: “Ada berapa transaksi minggu ini?”, “Cek anggaran”, atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
+    );
+  }
+
+  Future<FfmAssistantIntent> _diagnosticStatus(
+    String rawText,
+    String normalized,
+  ) async {
+    final latest = await _diagnostics.latestEntry();
+    if (latest == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.diagnosticStatus,
+        destination: FfmAssistantDestination.diagnostics,
+        confidence: 1,
+        response: 'Belum ada error teknis yang tercatat di FFM. Kalau masalahnya muncul lagi, coba ulangi lalu tanya aku lagi atau buka Bantuan perbaikan untuk salin laporan aman.',
+      );
+    }
+    final time = latest.occurredAt.toLocal();
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    final formattedTime =
+        '${twoDigits(time.day)}/${twoDigits(time.month)}/${time.year} ${twoDigits(time.hour)}:${twoDigits(time.minute)}';
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.diagnosticStatus,
+      destination: FfmAssistantDestination.diagnostics,
+      confidence: 1,
+      response:
+          'Ada error teknis terbaru di ${latest.feature} pada $formattedTime. Kode: ${latest.code}. Ringkasan aman: ${latest.summary}. Dampak: ${latest.impact} Buka Bantuan perbaikan untuk lihat dan salin laporan yang sudah disaring.',
     );
   }
 
