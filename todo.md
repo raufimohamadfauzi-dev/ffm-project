@@ -90,3 +90,15 @@
 - [ ] Implementasikan pengingat pagi lokal yang aman tanpa aksi latar belakang otomatis.
 - [ ] Tambahkan regresi, jalankan analyzer dan seluruh test.
 - [ ] Commit, ZIP source, dan build APK release dengan keystore lama.
+
+# Asisten FFM v63 — Query Data Nyata dan Pembelajaran Lokal
+
+- [x] Audit kontrak offline, gateway model lokal, page context, query database, dan jalur simpan data.
+- [x] Tambahkan registry query read-only untuk saldo rekening, ringkasan transaksi, aktivitas, target, serta hutang-piutang.
+- [x] Tambahkan pencocokan fuzzy berbasis Dart murni untuk memori dan Knowledge Pack tanpa mengubah format ekspor.
+- [x] Tambahkan action tool kontekstual yang hanya membuat draft tervalidasi dan tidak pernah menyimpan otomatis.
+- [x] Rapikan bubble chat, indikator pertanyaan belum terjawab, dan aksesibilitas warna.
+- [x] Tambahkan tab histori pertanyaan selesai, urutan berdasarkan frekuensi, serta ekspor histori opsional.
+- [x] Tambahkan regresi read-only, fuzzy matcher, draft kontekstual, UI unknown, dan histori antrean.
+- [x] Jalankan analyzer dan seluruh tes.
+- [ ] Commit source, buat ZIP, build APK release, dan verifikasi sertifikat lama.

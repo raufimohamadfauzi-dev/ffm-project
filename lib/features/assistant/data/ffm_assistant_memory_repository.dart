@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import 'ffm_assistant_fuzzy_matcher.dart';
 
 /// Satu ajaran eksplisit yang telah disetujui pemilik perangkat.
 ///
@@ -194,5 +195,19 @@ class FfmAssistantMemoryRepository {
       );
     }
     return resolved;
+  }
+
+  /// Menemukan jawaban ajaran yang dekat dengan pertanyaan pengguna. Ini tidak
+  /// menerapkan alias atau mengubah perintah; hasilnya hanya dipakai sebagai
+  /// jawaban pengetahuan bila kandidatnya cukup unik.
+  Future<FfmAssistantMemoryRecord?> findFuzzyAnswer(String input) async {
+    final answers = await readActive(kind: 'answer');
+    return FfmAssistantFuzzyMatcher.bestUnique(
+      input,
+      answers,
+      textOf: (record) => record.triggerText,
+      minimumScore: .82,
+      minimumLead: .08,
+    )?.value;
   }
 }

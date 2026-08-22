@@ -12,6 +12,7 @@ enum FfmAssistantIntentType {
   transactionStats,
   weeklyAnalysis,
   financialWarnings,
+  queryData,
   createIncome,
   createExpense,
   createTransfer,

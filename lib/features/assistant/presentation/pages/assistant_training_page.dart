@@ -16,11 +16,13 @@ class _AssistantTrainingData {
     required this.memories,
     required this.examples,
     required this.unansweredQuestions,
+    required this.resolvedQuestions,
   });
 
   final List<FfmAssistantMemoryRecord> memories;
   final List<FfmAssistantLearningExample> examples;
   final List<FfmAssistantUnansweredQuestion> unansweredQuestions;
+  final List<FfmAssistantUnansweredQuestion> resolvedQuestions;
 }
 
 /// Gaya v54: ajaran pengguna selalu eksplisit, lokal, dapat ditinjau, dan
@@ -42,6 +44,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _notificationService = getIt<ReminderNotificationService>();
   late Future<_AssistantTrainingData> _trainingData;
   late Future<bool> _morningReminderEnabled;
+  bool _showResolvedQuestionHistory = false;
 
   @override
   void initState() {
@@ -57,12 +60,15 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
           _repository.readAll(),
           _learningRepository.readAll(),
           _unansweredRepository.readOpen(),
+          _unansweredRepository.readResolved(),
         ]).then(
           (values) => _AssistantTrainingData(
             memories: values[0] as List<FfmAssistantMemoryRecord>,
             examples: values[1] as List<FfmAssistantLearningExample>,
             unansweredQuestions:
                 values[2] as List<FfmAssistantUnansweredQuestion>,
+            resolvedQuestions:
+                values[3] as List<FfmAssistantUnansweredQuestion>,
           ),
         );
   }
@@ -267,6 +273,23 @@ Tugas:
     );
   }
 
+  Future<void> _copyUnansweredHistory({required bool includeResolved}) async {
+    final content = await _unansweredRepository.exportForExternalLlm(
+      includeResolved: includeResolved,
+    );
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          includeResolved
+              ? 'Riwayat pertanyaan disalin untuk ditinjau. Tidak ada data finansial yang ikut.'
+              : 'Antrean pertanyaan terbuka disalin. Tidak ada data finansial yang ikut.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _resolveUnansweredQuestion(
     FfmAssistantUnansweredQuestion question,
   ) async {
@@ -387,6 +410,12 @@ Tugas:
           final unansweredQuestions =
               data?.unansweredQuestions ??
               const <FfmAssistantUnansweredQuestion>[];
+          final resolvedQuestions =
+              data?.resolvedQuestions ??
+              const <FfmAssistantUnansweredQuestion>[];
+          final visibleQuestions = _showResolvedQuestionHistory
+              ? resolvedQuestions
+              : unansweredQuestions;
           final active = memories.where((item) => !item.isArchived).toList();
           final archived = memories.where((item) => item.isArchived).toList();
           final activeExamples = examples
@@ -498,26 +527,68 @@ Tugas:
               ),
               const SizedBox(height: 20),
               AppSectionHeader(
-                title:
-                    'Pertanyaan belum terjawab (${unansweredQuestions.length})',
+                title: _showResolvedQuestionHistory
+                    ? 'Riwayat pertanyaan selesai (${resolvedQuestions.length})'
+                    : 'Pertanyaan perlu dibenahi (${unansweredQuestions.length})',
               ),
               const SizedBox(height: 8),
-              if (unansweredQuestions.isEmpty)
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    icon: Icon(Icons.pending_outlined),
+                    label: Text('Perlu dibenahi'),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    icon: Icon(Icons.history_outlined),
+                    label: Text('Riwayat selesai'),
+                  ),
+                ],
+                selected: {_showResolvedQuestionHistory},
+                onSelectionChanged: (value) {
+                  setState(() => _showResolvedQuestionHistory = value.first);
+                },
+              ),
+              const SizedBox(height: 10),
+              if (visibleQuestions.isEmpty)
                 const AppEmptyState(
                   icon: Icons.question_answer_outlined,
-                  title: 'Belum ada pertanyaan yang perlu diajarkan',
-                  message: 'Jika Asisten belum paham, pertanyaannya akan tersimpan aman di sini untuk ditinjau.',
+                  title: 'Belum ada pertanyaan di bagian ini',
+                  message: 'Jika Asisten belum paham, pertanyaannya tersimpan aman untuk ditinjau dan diprioritaskan.',
                 )
               else ...[
-                const Text(
-                  'Salin satu pertanyaan ke LLM, lalu impor satu JSON knowledge pack hasilnya. Setelah itu tandai selesai.',
+                Text(
+                  _showResolvedQuestionHistory
+                      ? 'Riwayat tetap disimpan setelah selesai agar peningkatan versi berikutnya bisa ditinjau.'
+                      : 'Urutan paling atas adalah pertanyaan yang paling sering muncul. Salin ke LLM, impor JSON hasilnya, lalu tandai selesai.',
                 ),
                 const SizedBox(height: 8),
-                ...unansweredQuestions.map(
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _copyUnansweredHistory(
+                      includeResolved: _showResolvedQuestionHistory,
+                    ),
+                    icon: const Icon(Icons.ios_share_outlined),
+                    label: Text(
+                      _showResolvedQuestionHistory
+                          ? 'Salin riwayat JSON'
+                          : 'Salin antrean JSON',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...visibleQuestions.map(
                   (question) => _UnansweredQuestionCard(
                     question: question,
-                    onCopyPrompt: () => _copyUnansweredQuestionPrompt(question),
-                    onResolve: () => _resolveUnansweredQuestion(question),
+                    resolved: _showResolvedQuestionHistory,
+                    onCopyPrompt: _showResolvedQuestionHistory
+                        ? null
+                        : () => _copyUnansweredQuestionPrompt(question),
+                    onResolve: _showResolvedQuestionHistory
+                        ? null
+                        : () => _resolveUnansweredQuestion(question),
                   ),
                 ),
               ],
@@ -555,7 +626,7 @@ Tugas:
                 const AppEmptyState(
                   icon: Icons.dataset_outlined,
                   title: 'Belum ada contoh belajar',
-                  message: 'Dari preview draft chat, pilih Bantu Asisten belajar lalu setujui contoh yang sudah disamarkan.',
+                  message: 'Koreksi pesan atau typo di chat dapat menyimpan pola bahasa lokal setelah kamu menyetujuinya.',
                 )
               else
                 ...activeExamples.map(
@@ -587,13 +658,15 @@ Tugas:
 class _UnansweredQuestionCard extends StatelessWidget {
   const _UnansweredQuestionCard({
     required this.question,
-    required this.onCopyPrompt,
-    required this.onResolve,
+    this.resolved = false,
+    this.onCopyPrompt,
+    this.onResolve,
   });
 
   final FfmAssistantUnansweredQuestion question;
-  final VoidCallback onCopyPrompt;
-  final VoidCallback onResolve;
+  final bool resolved;
+  final VoidCallback? onCopyPrompt;
+  final VoidCallback? onResolve;
 
   @override
   Widget build(BuildContext context) {
@@ -616,23 +689,28 @@ class _UnansweredQuestionCard extends StatelessWidget {
             ],
             const SizedBox(height: 4),
             Text('Ditanya ${question.occurrenceCount}×'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: onCopyPrompt,
-                  icon: const Icon(Icons.content_copy_outlined),
-                  label: const Text('Salin permintaan LLM'),
-                ),
-                FilledButton.tonalIcon(
-                  onPressed: onResolve,
-                  icon: const Icon(Icons.check_circle_outline),
-                  label: const Text('Tandai selesai'),
-                ),
-              ],
-            ),
+            if (resolved) ...[
+              const SizedBox(height: 4),
+              const Text('Sudah ditandai selesai.'),
+            ] else ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onCopyPrompt,
+                    icon: const Icon(Icons.content_copy_outlined),
+                    label: const Text('Salin permintaan LLM'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: onResolve,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('Tandai selesai'),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

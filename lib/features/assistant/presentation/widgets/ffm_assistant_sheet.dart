@@ -1029,21 +1029,47 @@ class _AssistantMessageCard extends StatelessWidget {
     final theme = Theme.of(context);
     final isUser = entry.isUser;
     final intent = entry.intent;
+    final isUnknown = !isUser && intent?.type == FfmAssistantIntentType.unknown;
+    final bubbleColor = isUser
+        ? theme.colorScheme.primary
+        : isUnknown
+        ? theme.colorScheme.tertiaryContainer
+        : theme.colorScheme.secondaryContainer;
+    final onBubbleColor = isUser
+        ? theme.colorScheme.onPrimary
+        : isUnknown
+        ? theme.colorScheme.onTertiaryContainer
+        : theme.colorScheme.onSecondaryContainer;
     return LayoutBuilder(
       builder: (context, constraints) => Align(
         alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: isUser
-                ? constraints.maxWidth * .72
-                : constraints.maxWidth,
+                ? constraints.maxWidth * .76
+                : constraints.maxWidth * .88,
           ),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: isUser
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.secondaryContainer,
-              borderRadius: BorderRadius.circular(18),
+              color: bubbleColor,
+              border: isUnknown
+                  ? Border.all(
+                      color: theme.colorScheme.tertiary.withValues(alpha: .7),
+                    )
+                  : null,
+              borderRadius: isUser
+                  ? const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(5),
+                    )
+                  : const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(5),
+                      bottomRight: Radius.circular(18),
+                    ),
             ),
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -1085,14 +1111,32 @@ class _AssistantMessageCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 10),
                   ],
-                  Text(
-                    entry.text,
-                    style: TextStyle(
-                      color: isUser
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSecondaryContainer,
+                  if (isUnknown) ...[
+                    Semantics(
+                      label: 'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.school_outlined,
+                            size: 17,
+                            color: theme.colorScheme.onTertiaryContainer,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Belum ada jawaban tetap — tersimpan untuk pembaruan',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.onTertiaryContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                  ],
+                  _ReadableChatText(text: entry.text, color: onBubbleColor),
                   if (intent?.draft != null) ...[
                     const SizedBox(height: 10),
                     _DraftPreview(draft: intent!.draft!, review: review),
@@ -1215,6 +1259,36 @@ class _AssistantMessageCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ReadableChatText extends StatelessWidget {
+  const _ReadableChatText({required this.text, required this.color});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final paragraphs = text
+        .split(RegExp(r'\n\s*\n'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < paragraphs.length; index++) ...[
+          if (index > 0) const SizedBox(height: 8),
+          Text(
+            paragraphs[index],
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: color, height: 1.42),
+          ),
+        ],
+      ],
     );
   }
 }

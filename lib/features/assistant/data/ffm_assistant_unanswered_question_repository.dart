@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import 'ffm_assistant_fuzzy_matcher.dart';
 import 'ffm_assistant_learning_repository.dart';
 
 /// Item antrean pertanyaan yang perlu diperbaiki lewat Pusat Latihan.
@@ -58,14 +59,28 @@ class FfmAssistantUnansweredQuestionRepository {
   }) async {
     final sanitized = FfmAssistantLearningSanitizer.sanitize(rawQuestion);
     if (sanitized.isEmpty || sanitized.length > 500) return;
-    final existingQuery =
-        _database.select(_database.assistantUnansweredQuestions)..where(
-          (row) =>
-              row.householdId.equals(householdId) &
-              row.questionText.equals(sanitized) &
-              row.isResolved.equals(false),
-        );
-    final existing = await existingQuery.getSingleOrNull();
+    final openRows =
+        await (_database.select(_database.assistantUnansweredQuestions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isResolved.equals(false),
+            ))
+            .get();
+    final exact = openRows.where((row) => row.questionText == sanitized);
+    final existing = exact.length == 1
+        ? exact.single
+        : FfmAssistantFuzzyMatcher.bestUnique(
+            sanitized,
+            openRows.where(
+              (row) =>
+                  pageContext == null ||
+                  row.pageContext == null ||
+                  row.pageContext == pageContext,
+            ),
+            textOf: (row) => row.questionText,
+            minimumScore: .88,
+            minimumLead: .10,
+          )?.value;
     final now = DateTime.now();
     if (existing != null) {
       await (_database.update(
@@ -99,7 +114,27 @@ class FfmAssistantUnansweredQuestionRepository {
         (row) =>
             row.householdId.equals(householdId) & row.isResolved.equals(false),
       )
-      ..orderBy([(row) => OrderingTerm.desc(row.updatedAt)]);
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.occurrenceCount),
+        (row) => OrderingTerm.desc(row.updatedAt),
+      ]);
+    return (await query.get())
+        .map(FfmAssistantUnansweredQuestion.fromRow)
+        .toList();
+  }
+
+  /// Riwayat pertanyaan yang pernah tidak dipahami tetapi sudah ditandai
+  /// selesai. Baris ini tidak pernah dihapus oleh [markResolved].
+  Future<List<FfmAssistantUnansweredQuestion>> readResolved() async {
+    final query = _database.select(_database.assistantUnansweredQuestions)
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) & row.isResolved.equals(true),
+      )
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.occurrenceCount),
+        (row) => OrderingTerm.desc(row.updatedAt),
+      ]);
     return (await query.get())
         .map(FfmAssistantUnansweredQuestion.fromRow)
         .toList();
@@ -119,11 +154,16 @@ class FfmAssistantUnansweredQuestionRepository {
     _database.assistantUnansweredQuestions,
   )..where((row) => row.id.equals(id))).go();
 
-  Future<String> exportForExternalLlm() async {
-    final questions = await readOpen();
+  Future<String> exportForExternalLlm({bool includeResolved = false}) async {
+    final openQuestions = await readOpen();
+    final resolvedQuestions = includeResolved ? await readResolved() : const [];
+    final questions = [...openQuestions, ...resolvedQuestions];
     return jsonEncode({
       'formatVersion': 'ffm-assistant-unanswered-v1',
-      'purpose': 'Pertanyaan tersanitasi yang membutuhkan knowledge baru.',
+      'purpose': includeResolved
+          ? 'Riwayat pertanyaan tersanitasi untuk meninjau peningkatan knowledge Asisten.'
+          : 'Pertanyaan tersanitasi yang membutuhkan knowledge baru.',
+      'includesResolvedHistory': includeResolved,
       'rules': [
         'Jangan membuat data transaksi, saldo, rekening, aset, hutang, atau keluarga.',
         'Kembalikan satu entri knowledge pack JSON dengan kind answer atau flow untuk setiap pertanyaan.',

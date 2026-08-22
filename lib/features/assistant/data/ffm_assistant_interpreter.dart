@@ -9,7 +9,9 @@ import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_proposal_json_service.dart';
+import 'ffm_assistant_query_tools.dart';
 import 'ffm_assistant_typo_normalizer.dart';
+import '../domain/ffm_assistant_action_tool.dart';
 import '../domain/ffm_assistant_models.dart';
 
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
@@ -23,13 +25,18 @@ class FfmAssistantInterpreter {
   ]) : _memory = memory ?? FfmAssistantLocalMemory(),
        _taughtMemory = FfmAssistantMemoryRepository(_database),
        _clock = clock ?? DateTime.now,
-       _diagnostics = diagnostics ?? AppDiagnosticsService();
+       _diagnostics = diagnostics ?? AppDiagnosticsService() {
+    _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
+    _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
+  }
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
   final FfmAssistantMemoryRepository _taughtMemory;
   final DateTime Function() _clock;
   final AppDiagnosticsService _diagnostics;
+  late final FfmAssistantQueryRegistry _queryRegistry;
+  late final FfmAssistantContextualActionRegistry _actionRegistry;
 
   Future<List<FfmAssistantIntent>> interpretMany(
     String rawText, {
@@ -394,6 +401,20 @@ class FfmAssistantInterpreter {
       return _currentPageContext(rawText, normalized, currentDestination);
     }
 
+    final queryAnswer = await _queryRegistry.tryAnswer(
+      normalized,
+      householdId: AppContext.householdId,
+    );
+    if (queryAnswer != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.queryData,
+        confidence: .98,
+        response: '${queryAnswer.title}\n${queryAnswer.message}',
+      );
+    }
+
     if (_containsAny(normalized, const [
       'buat json',
       'bikin json',
@@ -465,6 +486,13 @@ class FfmAssistantInterpreter {
 
     final accounts = await _activeAccounts();
     final categories = await _activeCategories();
+    final contextualDraft = await _actionRegistry.buildDraft(
+      input: rawText,
+      activePage: currentDestination,
+    );
+    if (contextualDraft != null) {
+      return _intentForDraft(rawText, normalized, contextualDraft);
+    }
     final draft = _parseFinancialDraft(
       rawText,
       normalized,
@@ -552,8 +580,8 @@ class FfmAssistantInterpreter {
               (normalized == trigger || normalized.contains(trigger));
         })
         .toList(growable: false);
-    if (matches.length != 1) return null;
-    return matches.single;
+    if (matches.length == 1) return matches.single;
+    return _taughtMemory.findFuzzyAnswer(normalized);
   }
 
   Future<FfmAssistantIntent> _setupGuide(
