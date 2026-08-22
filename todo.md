@@ -126,3 +126,9 @@
 - [x] Lengkapi alias navigasi Lainnya/PIN dan jawaban kalender besok Masehi-Hijriah dari waktu lokal.
 - [x] Tambahkan kontrol TTS lokal: daftar suara perangkat, pilihan suara, berhenti, dan lanjutkan per kalimat.
 - [x] Tambahkan regresi UI, riwayat, navigasi, kalender, dan suara; jalankan analyzer, test, build, serta kemas artefak rilis.
+
+# Audit Dokumen Analisis Asisten Offline
+
+- [x] Baca dan nilai rekomendasi dokumen terhadap kontrak offline-first, data lokal, serta alur draf-konfirmasi FFM.
+- [x] Terapkan hanya rekomendasi yang relevan, terukur, dan aman tanpa mengaktifkan cloud atau simpan otomatis.
+- [x] Tambahkan regresi, validasi penuh, dan kemas artefak bila ada perubahan kode.

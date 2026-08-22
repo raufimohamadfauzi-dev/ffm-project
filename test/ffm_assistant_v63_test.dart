@@ -26,6 +26,12 @@ void main() {
       expect(ambiguous, isNull);
     });
 
+    test('fuzzy matcher mengenali pertukaran huruf bersebelahan', () {
+      final score = FfmAssistantFuzzyMatcher.similarity('pni', 'pin');
+
+      expect(score, greaterThan(.40));
+    });
+
     test(
       'action kontekstual hanya membentuk rancangan dan butuh halaman',
       () async {

@@ -54,7 +54,7 @@ class FfmAssistantFuzzyMatcher {
     if (a.isEmpty || b.isEmpty) return 0;
     if (a == b) return 1;
     final maxLength = a.length > b.length ? a.length : b.length;
-    final editScore = 1 - (_levenshtein(a, b) / maxLength);
+    final editScore = 1 - (_damerauLevenshtein(a, b) / maxLength);
     final aTokens = a.split(' ').where((item) => item.isNotEmpty).toSet();
     final bTokens = b.split(' ').where((item) => item.isNotEmpty).toSet();
     final union = <String>{...aTokens, ...bTokens};
@@ -63,29 +63,42 @@ class FfmAssistantFuzzyMatcher {
     return (editScore * .65) + (tokenScore * .35);
   }
 
-  static int _levenshtein(String source, String target) {
-    if (source.length < target.length) {
-      return _levenshtein(target, source);
+  /// Variasi optimal string alignment dari Damerau-Levenshtein. Selain
+  /// substitusi, tambah, dan hapus, pertukaran dua huruf bersebelahan hanya
+  /// dihitung satu kesalahan: misalnya `pni` terhadap `pin`.
+  static int _damerauLevenshtein(String source, String target) {
+    final matrix = List<List<int>>.generate(
+      source.length + 1,
+      (_) => List<int>.filled(target.length + 1, 0),
+    );
+    for (var sourceIndex = 0; sourceIndex <= source.length; sourceIndex++) {
+      matrix[sourceIndex][0] = sourceIndex;
     }
-    var previous = List<int>.generate(target.length + 1, (index) => index);
+    for (var targetIndex = 0; targetIndex <= target.length; targetIndex++) {
+      matrix[0][targetIndex] = targetIndex;
+    }
     for (var sourceIndex = 1; sourceIndex <= source.length; sourceIndex++) {
-      final current = <int>[sourceIndex];
       for (var targetIndex = 1; targetIndex <= target.length; targetIndex++) {
         final substitution =
-            previous[targetIndex - 1] +
+            matrix[sourceIndex - 1][targetIndex - 1] +
             (source[sourceIndex - 1] == target[targetIndex - 1] ? 0 : 1);
-        final insertion = current[targetIndex - 1] + 1;
-        final deletion = previous[targetIndex] + 1;
-        current.add(
-          [
-            substitution,
-            insertion,
-            deletion,
-          ].reduce((lowest, value) => lowest < value ? lowest : value),
-        );
+        var distance = [
+          substitution,
+          matrix[sourceIndex - 1][targetIndex] + 1,
+          matrix[sourceIndex][targetIndex - 1] + 1,
+        ].reduce((lowest, value) => lowest < value ? lowest : value);
+        if (sourceIndex > 1 &&
+            targetIndex > 1 &&
+            source[sourceIndex - 1] == target[targetIndex - 2] &&
+            source[sourceIndex - 2] == target[targetIndex - 1]) {
+          distance = [
+            distance,
+            matrix[sourceIndex - 2][targetIndex - 2] + 1,
+          ].reduce((lowest, value) => lowest < value ? lowest : value);
+        }
+        matrix[sourceIndex][targetIndex] = distance;
       }
-      previous = current;
     }
-    return previous.last;
+    return matrix[source.length][target.length];
   }
 }
