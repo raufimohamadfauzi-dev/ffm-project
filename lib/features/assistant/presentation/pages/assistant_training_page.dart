@@ -6,6 +6,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_assistant_upgrade_pack_service.dart';
 import 'assistant_training_import_dialog.dart';
 
 class _AssistantTrainingData {
@@ -31,6 +32,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _repository = getIt<FfmAssistantMemoryRepository>();
   final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _knowledgePack = getIt<FfmAssistantKnowledgePackService>();
+  final _upgradePack = getIt<FfmAssistantUpgradePackService>();
   late Future<_AssistantTrainingData> _trainingData;
 
   @override
@@ -146,6 +148,19 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
       const SnackBar(
         content: Text(
           'Dataset contoh belajar disalin tanpa nominal atau nama pribadi.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyUpgradePack() async {
+    final content = await _upgradePack.buildPrompt();
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Paket upgrade ChatGPT disalin. Tidak ada transaksi, saldo, atau alias pribadi yang ikut.',
         ),
       ),
     );
@@ -319,6 +334,11 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                           onPressed: _copyLearningDataset,
                           icon: const Icon(Icons.dataset_outlined),
                           label: const Text('Salin dataset latihan'),
+                        ),
+                        FilledButton.tonalIcon(
+                          onPressed: _copyUpgradePack,
+                          icon: const Icon(Icons.auto_awesome_outlined),
+                          label: const Text('Paket upgrade ChatGPT'),
                         ),
                       ],
                     ),

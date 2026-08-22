@@ -283,7 +283,11 @@ class FfmAssistantInterpreter {
       return _setupGuide(rawText, normalized);
     }
 
-    final featureHelp = _featureHelp(rawText, normalized);
+    final featureHelp = _featureHelp(
+      rawText,
+      normalized,
+      currentDestination: currentDestination,
+    );
     if (featureHelp != null) return featureHelp;
 
     if (_isWeeklyAnalysisRequest(normalized)) {
@@ -488,11 +492,21 @@ class FfmAssistantInterpreter {
     );
   }
 
-  FfmAssistantIntent? _featureHelp(String rawText, String normalized) {
+  FfmAssistantIntent? _featureHelp(
+    String rawText,
+    String normalized, {
+    FfmAssistantDestination? currentDestination,
+  }) {
     final isQuestion = _containsAny(normalized, const [
       'fungsi',
       'buat apa',
       'apa itu',
+      'apa saja',
+      'ada apa',
+      'isinya',
+      'isi ',
+      'fitur ',
+      'menu ',
       'cara ',
       'gimana ',
       'bagaimana ',
@@ -575,6 +589,32 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.featureHelp,
         confidence: 1,
         response: 'JSON dipakai untuk menyiapkan banyak data sekaligus sebagai draft. Untuk transaksi, tiap baris biasanya berisi tipe, tanggal, nominal, kategori, rekening, catatan, dan bila perlu rincian item. Untuk transfer tambahkan rekening asal, tujuan, serta biaya admin bila ada. Tempel JSON di Transaksi, cek preview dan revisi, lalu konfirmasi. Tidak ada data yang masuk otomatis.',
+      );
+    }
+    final page = FfmAssistantCatalog.findByText(normalized);
+    final asksAboutPage =
+        isQuestion ||
+        _containsAny(normalized, const [
+          'apa saja',
+          'ada apa',
+          'isinya',
+          'isi ',
+          'fitur ',
+          'menu ',
+        ]);
+    final destination =
+        page?.destination ?? (asksAboutPage ? currentDestination : null);
+    if (destination != null && asksAboutPage) {
+      final targetPage =
+          page ?? FfmAssistantCatalog.findByDestination(destination);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        destination: destination,
+        confidence: 1,
+        response:
+            '${targetPage?.name ?? 'Halaman ini'}: ${FfmAssistantCatalog.detailFor(destination)}',
       );
     }
     return null;

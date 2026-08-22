@@ -8,6 +8,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_knowledge_pack
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_learning_repository.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_memory_repository.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_draft_validator.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/backup/data/json_backup_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -244,4 +246,82 @@ void main() {
     expect(accepted?.intent, FfmAssistantIntentType.createExpense);
     expect(rejected, isNull);
   });
+
+  test('review draft menahan transfer yang salah dan melacak revisi tanpa menyimpan data', () async {
+    final invalidDraft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.transfer,
+      createdAt: DateTime(2026, 8, 22),
+      amount: 20000,
+      fromAccountName: 'SeaBank Pribadi',
+      toAccountName: 'SeaBank Pribadi',
+      adminFee: 30000,
+    );
+    final invalidIssues = FfmAssistantDraftValidator.validate(invalidDraft);
+    final review = FfmAssistantDraftReview(
+      draft: invalidDraft,
+      version: 1,
+      issues: invalidIssues,
+    );
+
+    expect(review.canContinue, isFalse);
+    expect(
+      invalidIssues.map((issue) => issue.code),
+      containsAll(['transfer_same_account', 'admin_fee_unusual']),
+    );
+
+    final correctedDraft = invalidDraft.copyWith(
+      toAccountName: 'Tunai',
+      adminFee: 3000,
+    );
+    final correctedIssues = FfmAssistantDraftValidator.validate(correctedDraft);
+    final revised = review.revise(
+      nextDraft: correctedDraft,
+      nextIssues: correctedIssues,
+      changeSummary: 'Rekening tujuan diganti ke Tunai dan admin jadi Rp3.000.',
+    );
+
+    expect(revised.version, 2);
+    expect(revised.canContinue, isTrue);
+    expect(revised.draft.toAccountName, 'Tunai');
+    expect(await database.select(database.transfers).get(), isEmpty);
+  });
+
+  test(
+    'pertanyaan Data Utama dijawab spesifik dari katalog seluruh halaman',
+    () async {
+      final intent = await interpreter.interpret('di data utama ada apa saja?');
+
+      expect(intent.type, FfmAssistantIntentType.featureHelp);
+      expect(intent.destination, FfmAssistantDestination.masterData);
+      expect(intent.response, contains('Data Utama'));
+      expect(intent.response?.toLowerCase(), contains('rekening'));
+      expect(intent.response?.toLowerCase(), contains('kategori'));
+    },
+  );
+
+  test(
+    'paket upgrade ChatGPT membawa kontrak aman tanpa membagikan alias pribadi',
+    () async {
+      await memories.save(
+        kind: 'alias',
+        triggerText: 'tabungan rahasia',
+        valueText: 'SeaBank Pribadi',
+      );
+      await memories.save(
+        kind: 'answer',
+        triggerText: 'nomor kontak',
+        valueText: 'Nomor kontak disamarkan: 081234567890.',
+      );
+      final service = FfmAssistantUpgradePackService(memories);
+
+      final prompt = await service.buildPrompt();
+
+      expect(prompt, contains('ffm-assistant-upgrade-context-v1'));
+      expect(prompt, contains('Jangan membuat'));
+      expect(prompt, contains('Data Utama'));
+      expect(prompt, contains('<TELEPON>'));
+      expect(prompt, isNot(contains('tabungan rahasia')));
+      expect(prompt, isNot(contains('SeaBank Pribadi')));
+    },
+  );
 }

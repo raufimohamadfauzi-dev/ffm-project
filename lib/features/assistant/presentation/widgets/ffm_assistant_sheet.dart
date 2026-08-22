@@ -5,7 +5,9 @@ import '../../../activity/data/services/activity_speech_service.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_models.dart';
+import 'ffm_assistant_draft_edit_dialog.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -88,6 +90,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd();
     try {
+      if (_tryReviseActiveDraft(text)) return;
       final pending = widget.session.pendingDialog;
       final intents = pending == null
           ? await _interpreter.interpretMany(
@@ -106,6 +109,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               intent.response ??
               intent.clarification ??
               'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
+          final review = intent.draft == null
+              ? null
+              : FfmAssistantDraftReview(
+                  draft: intent.draft!,
+                  version: 1,
+                  issues: FfmAssistantDraftValidator.validate(intent.draft!),
+                );
+          if (review != null) {
+            widget.session
+              ..activeDraftReview = review
+              ..activeDraftIntent = intent;
+          }
           widget.session.lastAssistantText = response;
           _entries.add(
             FfmAssistantChatEntry(
@@ -113,6 +128,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               text: response,
               intent: intent,
               understanding: _understandingFor(intent),
+              review: review,
             ),
           );
           if (intent.needsClarification) {
@@ -183,7 +199,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     if (intent.type == FfmAssistantIntentType.cancel) {
-      widget.session.pendingDialog = null;
+      widget.session
+        ..pendingDialog = null
+        ..activeDraftReview = null
+        ..activeDraftIntent = null;
       if (!mounted) return;
       setState(
         () => _entries.add(
@@ -194,6 +213,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ),
       );
       return;
+    }
+    if (intent.draft != null) {
+      final review = widget.session.activeDraftReview;
+      if (review == null) return;
+      if (!review.canContinue) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lengkapi dulu bagian yang ditandai di draft chat.'),
+          ),
+        );
+        return;
+      }
+      intent = intent.copyWith(draft: review.draft);
     }
     final shouldNavigate =
         (intent.destination != null || intent.draft != null) &&
@@ -342,6 +374,152 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     Navigator.of(context).pop();
     await Future<void>.delayed(const Duration(milliseconds: 180));
     await handler(intents);
+  }
+
+  bool _tryReviseActiveDraft(String text) {
+    final review = widget.session.activeDraftReview;
+    final sourceIntent = widget.session.activeDraftIntent;
+    if (review == null || sourceIntent == null) return false;
+    final normalized = text.toLowerCase().trim();
+    if (!RegExp(r'\b(ubah|ganti|revisi|koreksi)\b').hasMatch(normalized)) {
+      return false;
+    }
+    final nextDraft = _draftFromTextRevision(review.draft, normalized);
+    if (nextDraft == null) return false;
+    final nextReview = review.revise(
+      nextDraft: nextDraft,
+      nextIssues: FfmAssistantDraftValidator.validate(nextDraft),
+      changeSummary: _revisionSummary(review.draft, nextDraft),
+    );
+    final revisedIntent = sourceIntent.copyWith(
+      draft: nextDraft,
+      response:
+          'Sip, ${nextReview.changeSummary} Cek versi ${nextReview.version} ini dulu, ya.',
+    );
+    setState(() {
+      widget.session
+        ..activeDraftReview = nextReview
+        ..activeDraftIntent = revisedIntent;
+      _entries.add(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: revisedIntent.response!,
+          intent: revisedIntent,
+          understanding: 'Kamu meminta revisi untuk draft yang sedang aktif.',
+          review: nextReview,
+        ),
+      );
+    });
+    _scrollToEnd();
+    return true;
+  }
+
+  FfmAssistantDraft? _draftFromTextRevision(
+    FfmAssistantDraft draft,
+    String normalized,
+  ) {
+    final amountMatch = RegExp(
+      r'(?:nominal|jumlah|nilai|jadi)\s*(?:rp\.?\s*)?([\d.,]+)\s*(ribu|rb|k|juta|jt)?',
+    ).firstMatch(normalized);
+    if (amountMatch != null) {
+      final amount = _parseRupiah(amountMatch.group(1)!, amountMatch.group(2));
+      if (amount != null) return draft.copyWith(amount: amount);
+    }
+    final fieldMatch = RegExp(
+      r'(rekening asal|asal|rekening tujuan|tujuan|kategori|target|catatan|judul|nama)\s*(?:jadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    if (fieldMatch == null) return null;
+    final field = fieldMatch.group(1)!;
+    final value = fieldMatch.group(2)!.trim();
+    if (value.isEmpty) return null;
+    return switch (field) {
+      'rekening asal' || 'asal' => draft.copyWith(fromAccountName: value),
+      'rekening tujuan' || 'tujuan' => draft.copyWith(toAccountName: value),
+      'kategori' => draft.copyWith(categoryName: value),
+      'target' => draft.copyWith(goalName: value),
+      'catatan' => draft.copyWith(note: value),
+      'judul' || 'nama' => draft.copyWith(title: value),
+      _ => null,
+    };
+  }
+
+  int? _parseRupiah(String raw, String? unit) {
+    final plain = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    final base = int.tryParse(plain);
+    if (base == null) return null;
+    return switch (unit) {
+      'ribu' || 'rb' || 'k' => base * 1000,
+      'juta' || 'jt' => base * 1000000,
+      _ => base,
+    };
+  }
+
+  String _revisionSummary(FfmAssistantDraft before, FfmAssistantDraft after) {
+    if (before.amount != after.amount) {
+      return 'nominal diubah dari ${_DraftPreview._rupiah(before.amount ?? 0)} menjadi ${_DraftPreview._rupiah(after.amount ?? 0)}.';
+    }
+    if (before.fromAccountName != after.fromAccountName) {
+      return 'rekening asal diubah menjadi ${after.fromAccountName}.';
+    }
+    if (before.toAccountName != after.toAccountName) {
+      return 'rekening tujuan diubah menjadi ${after.toAccountName}.';
+    }
+    if (before.categoryName != after.categoryName) {
+      return 'kategori diubah menjadi ${after.categoryName}.';
+    }
+    if (before.goalName != after.goalName) {
+      return 'target diubah menjadi ${after.goalName}.';
+    }
+    return 'draft diperbarui.';
+  }
+
+  Future<void> _editActiveDraft(FfmAssistantIntent intent) async {
+    final review = widget.session.activeDraftReview;
+    if (review == null) return;
+    final nextDraft = await showDialog<FfmAssistantDraft>(
+      context: context,
+      builder: (_) => FfmAssistantDraftEditDialog(draft: review.draft),
+    );
+    if (nextDraft == null || !mounted) return;
+    final nextReview = review.revise(
+      nextDraft: nextDraft,
+      nextIssues: FfmAssistantDraftValidator.validate(nextDraft),
+      changeSummary: _revisionSummary(review.draft, nextDraft),
+    );
+    final revisedIntent = intent.copyWith(
+      draft: nextDraft,
+      response:
+          'Sip, ${nextReview.changeSummary} Cek versi ${nextReview.version} ini dulu, ya.',
+    );
+    setState(() {
+      widget.session
+        ..activeDraftReview = nextReview
+        ..activeDraftIntent = revisedIntent;
+      _entries.add(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: revisedIntent.response!,
+          intent: revisedIntent,
+          understanding: 'Kamu mengubah field draft lewat form review.',
+          review: nextReview,
+        ),
+      );
+    });
+    _scrollToEnd();
+  }
+
+  void _cancelActiveDraft() {
+    setState(() {
+      widget.session
+        ..activeDraftReview = null
+        ..activeDraftIntent = null;
+      _entries.add(
+        const FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Draft aktif sudah dibatalkan. Tidak ada data yang disimpan.',
+        ),
+      );
+    });
   }
 
   Future<void> _confirmResetSession() async {
@@ -536,6 +714,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           : _savedLearningKeys.contains(
                               _learningKey(entry.intent!),
                             ),
+                      review: entry.review,
+                      onEditDraft:
+                          entry.intent?.draft != null && entry.review != null
+                          ? () => _editActiveDraft(entry.intent!)
+                          : null,
+                      onCancelDraft:
+                          entry.intent?.draft != null && entry.review != null
+                          ? _cancelActiveDraft
+                          : null,
                     );
                   },
                 ),
@@ -612,6 +799,9 @@ class _AssistantMessageCard extends StatelessWidget {
     this.teachingSaved = false,
     this.onSaveLearningExample,
     this.learningExampleSaved = false,
+    this.review,
+    this.onEditDraft,
+    this.onCancelDraft,
   });
 
   final FfmAssistantChatEntry entry;
@@ -621,6 +811,9 @@ class _AssistantMessageCard extends StatelessWidget {
   final bool teachingSaved;
   final VoidCallback? onSaveLearningExample;
   final bool learningExampleSaved;
+  final FfmAssistantDraftReview? review;
+  final VoidCallback? onEditDraft;
+  final VoidCallback? onCancelDraft;
 
   @override
   Widget build(BuildContext context) {
@@ -687,13 +880,15 @@ class _AssistantMessageCard extends StatelessWidget {
                 ),
                 if (intent?.draft != null) ...[
                   const SizedBox(height: 10),
-                  _DraftPreview(draft: intent!.draft!),
+                  _DraftPreview(draft: intent!.draft!, review: review),
                 ],
                 if (!isUser &&
                     (onSpeak != null ||
                         onIntent != null ||
                         onApproveTeaching != null ||
-                        onSaveLearningExample != null)) ...[
+                        onSaveLearningExample != null ||
+                        onEditDraft != null ||
+                        onCancelDraft != null)) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -707,7 +902,8 @@ class _AssistantMessageCard extends StatelessWidget {
                         ),
                       if (onIntent != null &&
                           intent!.type != FfmAssistantIntentType.unknown &&
-                          intent.type != FfmAssistantIntentType.listPages)
+                          intent.type != FfmAssistantIntentType.listPages &&
+                          (review?.canContinue ?? true))
                         FilledButton.tonalIcon(
                           onPressed: onIntent,
                           icon: Icon(
@@ -718,9 +914,21 @@ class _AssistantMessageCard extends StatelessWidget {
                           ),
                           label: Text(
                             intent.destination == null
-                                ? 'Lanjutkan'
+                                ? 'Lanjut ke form'
                                 : 'Buka & cek',
                           ),
+                        ),
+                      if (onEditDraft != null)
+                        TextButton.icon(
+                          onPressed: onEditDraft,
+                          icon: const Icon(Icons.edit_outlined, size: 18),
+                          label: const Text('Ubah draft'),
+                        ),
+                      if (onCancelDraft != null)
+                        TextButton.icon(
+                          onPressed: onCancelDraft,
+                          icon: const Icon(Icons.close_outlined, size: 18),
+                          label: const Text('Batal draft'),
                         ),
                       if (onApproveTeaching != null)
                         FilledButton.tonalIcon(
@@ -762,9 +970,10 @@ class _AssistantMessageCard extends StatelessWidget {
 }
 
 class _DraftPreview extends StatelessWidget {
-  const _DraftPreview({required this.draft});
+  const _DraftPreview({required this.draft, this.review});
 
   final FfmAssistantDraft draft;
+  final FfmAssistantDraftReview? review;
 
   @override
   Widget build(BuildContext context) {
@@ -785,7 +994,24 @@ class _DraftPreview extends StatelessWidget {
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Text(parts.join(' • ')),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(parts.join(' • ')),
+          if (review != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Versi ${review!.version}${review!.canContinue ? ' • siap dicek di form' : ' • masih perlu dilengkapi'}',
+              style: Theme.of(context).textTheme.labelMedium,
+            ),
+            for (final issue in review!.issues)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('• ${issue.message}'),
+              ),
+          ],
+        ],
+      ),
     );
   }
 
