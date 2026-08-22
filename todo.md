@@ -112,4 +112,4 @@
 - [x] Lengkapi detailFor untuk seluruh destination Asisten.
 - [x] Ubah DatabaseStructurePage ke sumber skema Drift dinamis dan buat query chat read-only yang sama.
 - [x] Tambahkan regresi cakupan context, struktur database, dan keamanan query read-only.
-- [ ] Jalankan analyzer, seluruh tes, commit, buat ZIP source, build APK, dan verifikasi sertifikat lama.
+- [x] Jalankan analyzer, seluruh tes, commit, buat ZIP source, build APK, dan verifikasi sertifikat lama.
