@@ -164,7 +164,7 @@ class ReceiptOcrDiagnostic {
     return const ReceiptOcrDiagnostic(
       code: ReceiptOcrDiagnosticCode.nativeFailed,
       title: 'OCR offline gagal dijalankan',
-      message: 'Mesin OCR di HP belum berhasil membaca gambar. Pastikan gambar bisa dibuka, izin kamera sudah aktif, lalu coba lagi. Jika baru pertama kali, tunggu model OCR selesai diunduh saat perangkat terhubung internet.',
+      message: 'Mesin OCR Latin sudah tersedia di APK, tetapi belum berhasil membaca gambar ini. Pastikan foto nota jelas, gambar bisa dibuka, dan izin kamera sudah aktif, lalu coba lagi.',
     );
   }
 
@@ -217,7 +217,7 @@ class ReceiptOcrService {
       throw ReceiptOcrException(
         code: ReceiptOcrDiagnosticCode.nativeFailed,
         title: 'OCR offline gagal dijalankan',
-        message: 'Mesin OCR di HP belum berhasil membaca gambar. Pastikan gambar bisa dibuka, izin kamera sudah aktif, lalu coba lagi. Jika baru pertama kali, tunggu model OCR selesai diunduh saat perangkat terhubung internet.',
+        message: 'Mesin OCR Latin sudah tersedia di APK, tetapi belum berhasil membaca gambar ini. Pastikan foto nota jelas, gambar bisa dibuka, dan izin kamera sudah aktif, lalu coba lagi.',
         cause: error,
       );
     } finally {

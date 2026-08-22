@@ -54,7 +54,10 @@ class AppPinService {
   static const _saltLength = 16;
   static const _hashLength = 32;
   static const _defaultIterations = 120000;
-  static const defaultPinLength = 6;
+
+  /// PIN baru selalu empat digit agar cepat dipakai, sedangkan PIN lama dengan
+  /// panjang lain tetap bisa diverifikasi sampai pengguna menggantinya.
+  static const defaultPinLength = 4;
   static const minPinLength = 4;
   static const maxPinLength = 12;
 

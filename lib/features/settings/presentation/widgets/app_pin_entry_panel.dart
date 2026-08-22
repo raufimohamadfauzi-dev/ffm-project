@@ -8,7 +8,7 @@ class AppPinEntryPanel extends StatefulWidget {
     required this.title,
     required this.message,
     required this.onCompleted,
-    this.pinLength = 6,
+    this.pinLength = 4,
     this.icon = Icons.lock_outline,
     this.cancelLabel,
     this.onCancel,
@@ -34,6 +34,20 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
   var _digits = '';
   var _submitting = false;
   String? _message;
+
+  @override
+  void didUpdateWidget(covariant AppPinEntryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Setiap pergantian tahap (buat, ulangi, atau ganti) wajib mulai dari
+    // keypad kosong. PIN tahap sebelumnya tidak boleh ikut terbawa.
+    if (oldWidget.title != widget.title ||
+        oldWidget.message != widget.message ||
+        oldWidget.pinLength != widget.pinLength) {
+      _digits = '';
+      _message = null;
+      _submitting = false;
+    }
+  }
 
   Future<void> _addDigit(String digit) async {
     if (_submitting || _digits.length >= widget.pinLength) return;
@@ -99,6 +113,7 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
                     ),
                     const SizedBox(height: 24),
                     Semantics(
+                      key: ValueKey('pin-progress-${_digits.length}'),
                       label:
                           'PIN terisi ${_digits.length} dari ${widget.pinLength} angka',
                       child: Row(

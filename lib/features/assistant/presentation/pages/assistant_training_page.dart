@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../reminder/data/services/reminder_notification_service.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
@@ -38,12 +39,16 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _upgradePack = getIt<FfmAssistantUpgradePackService>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
+  final _notificationService = getIt<ReminderNotificationService>();
   late Future<_AssistantTrainingData> _trainingData;
+  late Future<bool> _morningReminderEnabled;
 
   @override
   void initState() {
     super.initState();
     _reload();
+    _morningReminderEnabled = _notificationService
+        .isAssistantMorningReminderEnabled();
   }
 
   void _reload() {
@@ -60,6 +65,34 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                 values[2] as List<FfmAssistantUnansweredQuestion>,
           ),
         );
+  }
+
+  Future<void> _setMorningReminder(bool enabled) async {
+    try {
+      await _notificationService.setAssistantMorningReminderEnabled(enabled);
+      if (!mounted) return;
+      setState(() {
+        _morningReminderEnabled = Future.value(enabled);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            enabled
+                ? 'Pengingat pagi aktif. Asisten bakal menyapa jam 06.00.'
+                : 'Pengingat pagi Asisten dimatikan.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _morningReminderEnabled = _notificationService
+            .isAssistantMorningReminderEnabled();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Pengingat pagi belum bisa diatur: $error')),
+      );
+    }
   }
 
   Future<void> _teach() async {
@@ -171,6 +204,19 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
       const SnackBar(
         content: Text(
           'Paket upgrade ChatGPT disalin. Tidak ada transaksi, saldo, atau alias pribadi yang ikut.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _copyQuestionBankPrompt() async {
+    final content = await _upgradePack.buildQuestionBankPrompt();
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Prompt bank pertanyaan disalin. Balasan JSON bisa ditinjau lalu diimpor.',
         ),
       ),
     );
@@ -353,6 +399,32 @@ Tugas:
                 ),
               ),
               const SizedBox(height: 12),
+              FutureBuilder<bool>(
+                future: _morningReminderEnabled,
+                builder: (context, reminderSnapshot) {
+                  final enabled = reminderSnapshot.data ?? false;
+                  return AppCard(
+                    child: SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      secondary: const Icon(Icons.wb_sunny_outlined),
+                      title: const Text(
+                        'Pengingat pagi Asisten',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: const Text(
+                        'Jam 06.00 Asisten cuma ngingetin buat catat aktivitas. Tidak ada data yang dibuat otomatis.',
+                      ),
+                      value: enabled,
+                      onChanged:
+                          reminderSnapshot.connectionState ==
+                              ConnectionState.waiting
+                          ? null
+                          : _setMorningReminder,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
               AppCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,6 +466,11 @@ Tugas:
                           onPressed: _copyUpgradePack,
                           icon: const Icon(Icons.auto_awesome_outlined),
                           label: const Text('Paket upgrade ChatGPT'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _copyQuestionBankPrompt,
+                          icon: const Icon(Icons.quiz_outlined),
+                          label: const Text('Bank tanya LLM'),
                         ),
                       ],
                     ),

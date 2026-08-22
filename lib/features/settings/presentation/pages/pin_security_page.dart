@@ -168,7 +168,8 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
         return switch (outcome) {
           FfmAppPinOperation.incorrectPin =>
             'PIN lama belum cocok. Tidak ada perubahan.',
-          FfmAppPinOperation.invalidPin => 'PIN baru harus berisi 6 angka.',
+          FfmAppPinOperation.invalidPin =>
+            'PIN baru harus berisi ${AppPinService.defaultPinLength} angka.',
           FfmAppPinOperation.inactive =>
             'PIN lama belum bisa dipakai. Tidak ada perubahan.',
           FfmAppPinOperation.success => null,
@@ -291,7 +292,7 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
             title: _enabled ? 'PIN sedang aktif' : 'PIN belum aktif',
             message: _enabled
                 ? 'PIN membantu menjaga akses FFM saat aplikasi dibuka kembali. PIN tidak masuk backup atau chat.'
-                : 'Aktifkan PIN 6 angka supaya FFM minta verifikasi sebelum dibuka.',
+                : 'Aktifkan PIN ${AppPinService.defaultPinLength} angka supaya FFM minta verifikasi sebelum dibuka.',
             icon: _enabled ? Icons.lock_outline : Icons.lock_open_outlined,
           ),
           const SizedBox(height: 16),
@@ -333,7 +334,7 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
     _PinFlow.create => AppPinEntryPanel(
       title: 'Bikin PIN buat ngunci FFM',
       message:
-          'Pilih 6 angka yang gampang kamu ingat, tapi jangan mudah ditebak.',
+          'Pilih ${AppPinService.defaultPinLength} angka yang gampang kamu ingat, tapi jangan mudah ditebak.',
       icon: Icons.lock_outline,
       onCompleted: _handlePin,
       cancelLabel: 'Batal',
@@ -341,7 +342,8 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
     ),
     _PinFlow.confirmCreate => AppPinEntryPanel(
       title: 'Ulangi PIN baru',
-      message: 'Ketik lagi 6 angka yang sama buat memastikan tidak salah.',
+      message:
+          'Ketik lagi ${AppPinService.defaultPinLength} angka yang sama buat memastikan tidak salah.',
       icon: Icons.verified_user_outlined,
       onCompleted: _handlePin,
       cancelLabel: 'Batal',
@@ -357,7 +359,8 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
     ),
     _PinFlow.createReplacement => AppPinEntryPanel(
       title: 'Masukkan PIN baru',
-      message: 'Pilih PIN baru 6 angka untuk FFM.',
+      message:
+          'Pilih PIN baru ${AppPinService.defaultPinLength} angka untuk FFM.',
       icon: Icons.edit_outlined,
       onCompleted: _handlePin,
       cancelLabel: 'Batal',

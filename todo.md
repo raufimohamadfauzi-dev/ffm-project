@@ -78,3 +78,15 @@
 - [x] Uji OCR foto nota dari Asisten sampai menjadi preview transaksi yang menunggu konfirmasi.
 - [x] Tambahkan regresi, jalankan analyzer dan seluruh test.
 - [ ] Commit, ZIP source, dan build APK release.
+
+# Keandalan Asisten, PIN, dan OCR v61
+
+- [x] Audit ulang alur PIN, Hijriah, launcher, knowledge pack, OCR, dan notifikasi pagi.
+- [x] Ubah PIN baru menjadi empat digit dan reset keypad untuk setiap tahap verifikasi.
+- [x] Perbaiki deteksi Hijriah serta lengkapi katalog jawaban bawaan Asisten.
+- [ ] Tambahkan paket konteks/templat LLM aman untuk knowledge pack.
+- [x] Jadikan launcher Asisten dapat digeser dan tersimpan tanpa menghalangi FAB.
+- [ ] Uji OCR dengan alur nyata dan putuskan perbaiki atau hapus berdasarkan kriteria penerimaan.
+- [ ] Implementasikan pengingat pagi lokal yang aman tanpa aksi latar belakang otomatis.
+- [ ] Tambahkan regresi, jalankan analyzer dan seluruh test.
+- [ ] Commit, ZIP source, dan build APK release dengan keystore lama.

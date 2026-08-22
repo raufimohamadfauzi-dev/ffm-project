@@ -65,6 +65,66 @@ Balas HANYA dengan JSON valid berikut, tanpa Markdown atau teks tambahan:
 ''';
   }
 
+  /// Prompt untuk membuat cakupan pertanyaan baru, tanpa menyalin data
+  /// keluarga. Hasilnya tetap knowledge pack biasa yang harus ditinjau dan
+  /// diimpor eksplisit oleh pengguna.
+  Future<String> buildQuestionBankPrompt() async {
+    final memories = await _memoryRepository.readAll();
+    final safeKnowledge = memories
+        .where((memory) => !memory.isArchived)
+        .map(_safeMemoryForExternalLlm)
+        .toList(growable: false);
+    final modules = FfmAssistantCatalog.pages
+        .map(
+          (page) => {
+            'name': page.name,
+            'aliases': page.aliases,
+            'description': page.description,
+            'detail': FfmAssistantCatalog.detailFor(page.destination),
+          },
+        )
+        .toList(growable: false);
+    final context = jsonEncode({
+      'formatVersion': 'ffm-assistant-question-bank-context-v1',
+      'appModules': modules,
+      'existingKnowledge': safeKnowledge,
+      'coverageChecklist': const [
+        'langkah pertama, data utama, saldo awal, dan cara memakai aplikasi',
+        'transaksi, transfer, biaya admin, anggaran, aset, hutang, target, aktivitas, pengingat, backup, PIN, OCR, dan latihan Asisten',
+        'fungsi tiap halaman, navigasi, serta perintah yang menyiapkan draft untuk dikonfirmasi',
+        'waktu lokal, tanggal Masehi, tanggal Hijriah, serta batas offline-first',
+      ],
+      'safetyContract': const [
+        'Jangan membuat atau menyisipkan saldo, transaksi, nominal, rekening, PIN, nama keluarga, nomor telepon, atau data pribadi.',
+        'Jangan memberi Asisten izin menyimpan data otomatis atau melewati konfirmasi pengguna.',
+        'Transfer bukan pemasukan atau pengeluaran; biaya admin adalah pengeluaran terpisah.',
+        'Jangan mengulang knowledge yang sudah ada. Jika perlu data pengguna, buat flow yang meminta klarifikasi.',
+      ],
+    });
+    return '''Kamu adalah editor knowledge Asisten FFM offline.
+
+Konteks JSON aman berikut dibawa pengguna secara manual. Kamu tidak memiliki akses ke aplikasi atau data perangkat:
+$context
+
+Tugas: buat bank pertanyaan realistis tentang penggunaan FFM dan jawaban atau alur aman yang sesuai. Pilih hanya tambahan yang penting, belum ada, dan gunakan Bahasa Indonesia santai. Variasikan pertanyaan "apa", "gimana", typo ringan, dan perintah, tanpa mengarang data pengguna.
+
+Untuk aksi perubahan data, jawaban wajib menegaskan bahwa Asisten hanya menyiapkan draft atau membuka halaman; pengguna wajib meninjau dan mengonfirmasi sendiri.
+
+Balas HANYA dengan JSON valid yang bisa langsung diimpor ke FFM:
+{
+  "formatVersion": "ffm-assistant-knowledge-v1",
+  "memories": [
+    {
+      "kind": "answer|flow",
+      "triggerText": "pertanyaan atau perintah pengguna",
+      "valueText": "jawaban atau alur FFM dalam Bahasa Indonesia santai",
+      "metadata": {"source": "llm-question-bank"}
+    }
+  ]
+}
+''';
+  }
+
   Map<String, Object?> _safeMemoryForExternalLlm(
     FfmAssistantMemoryRecord memory,
   ) {

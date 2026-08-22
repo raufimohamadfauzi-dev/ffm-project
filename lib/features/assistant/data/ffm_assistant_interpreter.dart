@@ -180,17 +180,8 @@ class FfmAssistantInterpreter {
     normalized = await _memory.applyAliases(normalized);
     normalized = await _taughtMemory.applyAliases(normalized);
 
-    final taughtAnswer = await _findTaughtAnswer(normalized);
-    if (taughtAnswer != null) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.help,
-        confidence: .95,
-        response: taughtAnswer.valueText,
-      );
-    }
-
+    // Kalender Hijriah selalu lebih spesifik daripada jawaban ajaran umum
+    // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
     if (_isHijriDateRequest(normalized)) {
       final now = _clock();
       final hijri = await HijriCalendarService(_database)
@@ -201,7 +192,18 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.calendarQuery,
         confidence: 1,
         response:
-            'Sekarang ${_formatHijriDate(hijri)}. Tanggal ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
+            'Tanggal Hijriah sekarang: ${_formatHijriDate(hijri)}. Ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
+      );
+    }
+
+    final taughtAnswer = await _findTaughtAnswer(normalized);
+    if (taughtAnswer != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        confidence: .95,
+        response: taughtAnswer.valueText,
       );
     }
 
@@ -1542,8 +1544,12 @@ class FfmAssistantInterpreter {
   bool _isHijriDateRequest(String text) => _containsAny(text, const [
     'hijriah',
     'hijriyah',
+    'hijri',
+    'hijrah',
+    'islam',
     'tanggal hijri',
     'tanggal islam',
+    'kalender islam',
   ]);
 
   String _formatHijriDate(HijriDisplayDate date) {

@@ -157,9 +157,28 @@ void main() {
     );
 
     expect(intent.type, FfmAssistantIntentType.calendarQuery);
-    expect(intent.response, startsWith('Sekarang '));
+    expect(intent.response, contains('Tanggal Hijriah sekarang:'));
     expect(intent.response, contains('Kalender Hijriah FFM'));
     expect(intent.draft, isNull);
+  });
+
+  test('mengenali frasa hijri dan islam sebagai permintaan Hijriah', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 22, 10, 37),
+    );
+
+    for (final request in const [
+      'hari ini hijri berapa?',
+      'tanggal islam sekarang?',
+    ]) {
+      final intent = await localInterpreter.interpret(request);
+
+      expect(intent.type, FfmAssistantIntentType.calendarQuery);
+      expect(intent.response, contains('Kalender Hijriah FFM'));
+      expect(intent.draft, isNull);
+    }
   });
 
   test(

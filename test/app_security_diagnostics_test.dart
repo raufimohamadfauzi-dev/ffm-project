@@ -35,39 +35,34 @@ void main() {
     test(
       'menyimpan hash, bukan PIN mentah, lalu memverifikasi dengan benar',
       () async {
-        expect(await service.createPin('482913'), FfmAppPinOperation.success);
+        expect(await service.createPin('4829'), FfmAppPinOperation.success);
         expect(await service.isEnabled(), isTrue);
-        expect(await service.verifyPin('482913'), FfmAppPinOperation.success);
+        expect(await service.verifyPin('4829'), FfmAppPinOperation.success);
         expect(
-          await service.verifyPin('482914'),
+          await service.verifyPin('4830'),
           FfmAppPinOperation.incorrectPin,
         );
-        expect(await service.verifyPin('48291'), FfmAppPinOperation.invalidPin);
-        expect(store.values.values, isNot(contains('482913')));
+        expect(await service.verifyPin('482'), FfmAppPinOperation.invalidPin);
+        expect(await service.createPin('48291'), FfmAppPinOperation.invalidPin);
+        expect(store.values.values, isNot(contains('4829')));
       },
     );
 
     test('ganti dan matikan PIN selalu perlu PIN lama yang cocok', () async {
-      await service.createPin('482913');
+      await service.createPin('4829');
 
       expect(
-        await service.changePin(currentPin: '000000', nextPin: '901284'),
+        await service.changePin(currentPin: '0000', nextPin: '9012'),
         FfmAppPinOperation.incorrectPin,
       );
       expect(
-        await service.changePin(currentPin: '482913', nextPin: '901284'),
+        await service.changePin(currentPin: '4829', nextPin: '9012'),
         FfmAppPinOperation.success,
       );
-      expect(
-        await service.verifyPin('482913'),
-        FfmAppPinOperation.incorrectPin,
-      );
-      expect(await service.verifyPin('901284'), FfmAppPinOperation.success);
-      expect(
-        await service.disablePin('000000'),
-        FfmAppPinOperation.incorrectPin,
-      );
-      expect(await service.disablePin('901284'), FfmAppPinOperation.success);
+      expect(await service.verifyPin('4829'), FfmAppPinOperation.incorrectPin);
+      expect(await service.verifyPin('9012'), FfmAppPinOperation.success);
+      expect(await service.disablePin('0000'), FfmAppPinOperation.incorrectPin);
+      expect(await service.disablePin('9012'), FfmAppPinOperation.success);
       expect(await service.isEnabled(), isFalse);
     });
 

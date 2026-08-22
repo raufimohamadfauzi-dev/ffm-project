@@ -8,6 +8,10 @@ import 'package:timezone/timezone.dart' as tz;
 import '../../domain/entities/reminder_entity.dart';
 
 const _pendingReminderActionsKey = 'ffm_pending_reminder_actions';
+const _assistantMorningReminderEnabledKey =
+    'ffm_assistant_morning_reminder_enabled';
+const _assistantMorningReminderNotificationId = 61006;
+const _assistantMorningReminderChannelId = 'ffm_assistant_morning';
 
 @pragma('vm:entry-point')
 Future<void> reminderNotificationBackgroundResponse(
@@ -103,6 +107,67 @@ class ReminderNotificationService implements ReminderNotificationGateway {
           reminderNotificationBackgroundResponse,
     );
     _initialized = true;
+  }
+
+  /// Pengingat ringan yang tidak membuat atau mengubah data apa pun.
+  /// Android yang memicu notifikasi setiap pagi; FFM tidak perlu tetap terbuka.
+  Future<bool> isAssistantMorningReminderEnabled() async {
+    final preferences = await SharedPreferences.getInstance();
+    return preferences.getBool(_assistantMorningReminderEnabledKey) ?? false;
+  }
+
+  Future<void> setAssistantMorningReminderEnabled(bool enabled) async {
+    await initialize();
+    final preferences = await SharedPreferences.getInstance();
+    if (!enabled) {
+      await _plugin.cancel(id: _assistantMorningReminderNotificationId);
+      await preferences.setBool(_assistantMorningReminderEnabledKey, false);
+      return;
+    }
+
+    final permission = await requestPermissions();
+    if (!permission.canSchedule) {
+      throw StateError(
+        'Izin notifikasi dan alarm presisi perlu diaktifkan agar pengingat pagi bisa berbunyi.',
+      );
+    }
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _assistantMorningReminderChannelId,
+            'Pengingat pagi Asisten',
+            description: 'Saran pagi dari Asisten FFM',
+            importance: Importance.defaultImportance,
+          ),
+        );
+
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 6);
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    await _plugin.zonedSchedule(
+      id: _assistantMorningReminderNotificationId,
+      title: 'Asisten FFM',
+      body: 'Pagi! Kalau ada rencana atau kegiatan hari ini, yuk catat aktivitasnya biar rapi.',
+      scheduledDate: scheduled,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _assistantMorningReminderChannelId,
+          'Pengingat pagi Asisten',
+          channelDescription: 'Saran pagi dari Asisten FFM',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: jsonEncode({'type': 'assistant_morning_nudge'}),
+    );
+    await preferences.setBool(_assistantMorningReminderEnabledKey, true);
   }
 
   Future<ReminderPermissionState> permissionState() async {
