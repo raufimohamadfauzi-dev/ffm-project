@@ -33,6 +33,7 @@ import 'features/settings/presentation/pages/app_diagnostics_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
 import 'features/settings/presentation/pages/pin_security_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
+import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_scan_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 
@@ -264,6 +265,8 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
               message: 'Masukkan PIN untuk lanjut ke data keluarga.',
               onCompleted: _unlock,
               pinLength: _pinLength,
+              secondaryLabel: 'Lupa PIN?',
+              onSecondaryAction: () => showForgotPinDialog(context),
             ),
           )
         : AppShell(

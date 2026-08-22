@@ -4,6 +4,7 @@ import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
+import '../../hijri/domain/hijri_calendar_service.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
@@ -190,6 +191,20 @@ class FfmAssistantInterpreter {
       );
     }
 
+    if (_isHijriDateRequest(normalized)) {
+      final now = _clock();
+      final hijri = await HijriCalendarService(_database)
+          .convert(AppContext.householdId, now);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.calendarQuery,
+        confidence: 1,
+        response:
+            'Sekarang ${_formatHijriDate(hijri)}. Tanggal ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
+      );
+    }
+
     final calendarAnswer = FfmAssistantLocalCalendar.answer(
       normalized,
       now: _clock(),
@@ -263,6 +278,21 @@ class FfmAssistantInterpreter {
       'masalah aplikasi',
     ])) {
       return _diagnosticStatus(rawText, normalized);
+    }
+
+    if (_containsAny(normalized, const [
+      'lupa pin',
+      'lupa kunci aplikasi',
+      'pin lupa',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.openPage,
+        destination: FfmAssistantDestination.appSecurity,
+        confidence: .98,
+        response: 'Aku buka Kunci aplikasi. Demi keamanan, PIN tidak bisa diganti tanpa PIN lama. Tekan “Lupa PIN?” untuk melihat langkah reset data aplikasi dan impor cadangan.',
+      );
     }
 
     if (_containsAny(normalized, const [
@@ -439,7 +469,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      _unsupportedQuestionHelp(normalized) ?? 'Aku belum nangkep maksudnya nih. Aku bisa bantu cek data FFM, buka halaman, atau siapkan draft yang kamu konfirmasi sendiri. Coba: “Ada berapa transaksi minggu ini?”, “Cek anggaran”, atau “Pindahkan 500 ribu dari SeaBank ke Tunai, admin 3 ribu”.',
+      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Tekan “Ajarkan Asisten” supaya pertanyaan ini bisa kamu arahkan dari Pusat Latihan.',
     );
   }
 
@@ -1480,6 +1510,12 @@ class FfmAssistantInterpreter {
   bool _isSetupRequest(String text) => _containsAny(text, const [
     'harus mulai dari mana',
     'mulai dari mana',
+    'pertamakali saya harus apa',
+    'pertama kali saya harus apa',
+    'pertama kali harus apa',
+    'harus apa pertama kali',
+    'baru buka aplikasi',
+    'awal pakai',
     'cara pakai ffm',
     'cara menggunakan ffm',
     'setup awal',
@@ -1502,6 +1538,32 @@ class FfmAssistantInterpreter {
 
   bool _isReadRequest(String text) =>
       _containsAny(text, const ['baca', 'ulang']);
+
+  bool _isHijriDateRequest(String text) => _containsAny(text, const [
+    'hijriah',
+    'hijriyah',
+    'tanggal hijri',
+    'tanggal islam',
+  ]);
+
+  String _formatHijriDate(HijriDisplayDate date) {
+    const months = <String>[
+      'Muharam',
+      'Safar',
+      'Rabiulawal',
+      'Rabiulakhir',
+      'Jumadilawal',
+      'Jumadilakhir',
+      'Rajab',
+      'Syakban',
+      'Ramadan',
+      'Syawal',
+      'Zulkaidah',
+      'Zulhijah',
+    ];
+    final month = date.hijri.month.clamp(1, months.length);
+    return '${date.hijri.day} ${months[month - 1]} ${date.hijri.year} H';
+  }
 
   String? _extractAfter(String text, List<String> markers) {
     for (final marker in markers) {
@@ -1576,6 +1638,7 @@ class FfmAssistantInterpreter {
         normalizedText: normalized,
         type: FfmAssistantIntentType.unknown,
         confidence: 0,
+        response: response,
         clarification: response,
       );
 

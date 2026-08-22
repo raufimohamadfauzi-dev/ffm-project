@@ -12,6 +12,8 @@ class AppPinEntryPanel extends StatefulWidget {
     this.icon = Icons.lock_outline,
     this.cancelLabel,
     this.onCancel,
+    this.secondaryLabel,
+    this.onSecondaryAction,
   });
 
   final String title;
@@ -21,6 +23,8 @@ class AppPinEntryPanel extends StatefulWidget {
   final Future<String?> Function(String pin) onCompleted;
   final String? cancelLabel;
   final VoidCallback? onCancel;
+  final String? secondaryLabel;
+  final VoidCallback? onSecondaryAction;
 
   @override
   State<AppPinEntryPanel> createState() => _AppPinEntryPanelState();
@@ -142,6 +146,14 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
                         child: Text(widget.cancelLabel!),
                       ),
                     ],
+                    if (widget.onSecondaryAction != null &&
+                        widget.secondaryLabel != null)
+                      TextButton(
+                        onPressed: _submitting
+                            ? null
+                            : widget.onSecondaryAction,
+                        child: Text(widget.secondaryLabel!),
+                      ),
                   ],
                 ),
               ),

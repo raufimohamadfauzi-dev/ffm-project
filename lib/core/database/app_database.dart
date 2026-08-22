@@ -41,6 +41,7 @@ part 'app_database.g.dart';
     HijriCorrectionLogs,
     AssistantMemories,
     AssistantLearningExamples,
+    AssistantUnansweredQuestions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -49,7 +50,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 32;
+  int get schemaVersion => 33;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -58,6 +59,7 @@ class AppDatabase extends _$AppDatabase {
       await _createActivityIndexes();
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
+      await _createAssistantUnansweredQuestionIndexes();
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -126,6 +128,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(assistantLearningExamples);
         await _createAssistantLearningIndexes();
       }
+      if (from < 33) {
+        await m.createTable(assistantUnansweredQuestions);
+        await _createAssistantUnansweredQuestionIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -170,6 +176,14 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_assistant_learning_examples_household '
       'ON assistant_learning_examples '
       '(household_id, is_archived, intent_label, created_at)',
+    );
+  }
+
+  Future<void> _createAssistantUnansweredQuestionIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_unanswered_questions_open '
+      'ON assistant_unanswered_questions '
+      '(household_id, is_resolved, updated_at)',
     );
   }
 

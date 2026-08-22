@@ -14,6 +14,7 @@ import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
 import '../../features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
+import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
 import '../../features/assistant/data/ffm_local_model_service.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
@@ -137,6 +138,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantLearningRepository>(
     () => FfmAssistantLearningRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantUnansweredQuestionRepository>(
+    () => FfmAssistantUnansweredQuestionRepository(db),
   );
   getIt.registerLazySingleton<FfmAssistantKnowledgePackService>(
     () =>

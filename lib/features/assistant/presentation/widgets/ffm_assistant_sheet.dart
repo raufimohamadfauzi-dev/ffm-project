@@ -14,6 +14,7 @@ import '../../../transaction/presentation/pages/transaction_pages.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
 import '../../domain/ffm_assistant_models.dart';
@@ -73,6 +74,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _interpreter = getIt<FfmAssistantInterpreter>();
   final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
+  final _unansweredRepository =
+      getIt<FfmAssistantUnansweredQuestionRepository>();
   final _activityRepository = getIt<ActivityRepository>();
   final _activityVoiceParser = const ActivityVoiceParser();
   final Set<String> _savedTeachingKeys = <String>{};
@@ -161,6 +164,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
         }
       });
+      if (intents.any(
+        (intent) => intent.type == FfmAssistantIntentType.unknown,
+      )) {
+        await _unansweredRepository.record(
+          rawQuestion: text,
+          pageContext: widget.currentDestination?.name,
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(
@@ -773,6 +784,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
+  Future<void> _copyEntryText(FfmAssistantChatEntry entry) async {
+    await Clipboard.setData(ClipboardData(text: entry.text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          entry.isUser
+              ? 'Pesan kamu sudah disalin.'
+              : 'Jawaban Asisten sudah disalin.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _quickTeachFromEntry(FfmAssistantChatEntry entry) async {
     final feedback = _feedbackContextFor(entry);
     if (feedback == null) return;
@@ -1016,6 +1041,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       onCopyFeedback: entry.isUser
                           ? null
                           : () => _copyFeedbackContext(entry),
+                      onCopyText: () => _copyEntryText(entry),
                       onQuickTeach: entry.isUser
                           ? null
                           : () => _quickTeachFromEntry(entry),
@@ -1116,6 +1142,7 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onEditDraft,
     this.onCancelDraft,
     this.onCopyFeedback,
+    this.onCopyText,
     this.onQuickTeach,
     this.onConfirmActivity,
     this.activityConfirmed = false,
@@ -1132,6 +1159,7 @@ class _AssistantMessageCard extends StatelessWidget {
   final VoidCallback? onEditDraft;
   final VoidCallback? onCancelDraft;
   final VoidCallback? onCopyFeedback;
+  final VoidCallback? onCopyText;
   final VoidCallback? onQuickTeach;
   final VoidCallback? onConfirmActivity;
   final bool activityConfirmed;
@@ -1203,21 +1231,28 @@ class _AssistantMessageCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   _DraftPreview(draft: intent!.draft!, review: review),
                 ],
-                if (!isUser &&
-                    (onSpeak != null ||
-                        onIntent != null ||
-                        onApproveTeaching != null ||
-                        onSaveLearningExample != null ||
-                        onEditDraft != null ||
-                        onCancelDraft != null ||
-                        onCopyFeedback != null ||
-                        onQuickTeach != null ||
-                        onConfirmActivity != null)) ...[
+                if (onCopyText != null ||
+                    (!isUser &&
+                        (onSpeak != null ||
+                            onIntent != null ||
+                            onApproveTeaching != null ||
+                            onSaveLearningExample != null ||
+                            onEditDraft != null ||
+                            onCancelDraft != null ||
+                            onCopyFeedback != null ||
+                            onQuickTeach != null ||
+                            onConfirmActivity != null))) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
                     children: [
+                      if (onCopyText != null)
+                        TextButton.icon(
+                          onPressed: onCopyText,
+                          icon: const Icon(Icons.copy_outlined, size: 18),
+                          label: Text(isUser ? 'Salin pesan' : 'Salin jawaban'),
+                        ),
                       if (onSpeak != null)
                         TextButton.icon(
                           onPressed: onSpeak,

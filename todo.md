@@ -66,3 +66,15 @@
 - [x] Tambahkan regression test untuk konteks salin, ajaran, dan revisi draft.
 - [x] Jalankan formatter, analyzer, dan seluruh test.
 - [x] Commit, ZIP source, dan build APK release.
+
+# Perbaikan Pemahaman & Pelatihan Asisten v60
+
+- [x] Audit fallback pertanyaan tidak dikenali, knowledge pack, salin chat, lupa PIN, dan OCR nota.
+- [x] Tambahkan jawaban lokal untuk panduan awal penggunaan dan pertanyaan tanggal Hijriah.
+- [x] Ganti fallback menjadi singkat, jujur, serta mengarahkan ke Pusat Latihan tanpa contoh data fiktif.
+- [x] Tambahkan alur Lupa PIN yang menjelaskan reset data lokal dan pemulihan cadangan tanpa bypass PIN.
+- [x] Tambahkan tombol salin teks pertanyaan dan jawaban penuh pada kartu chat.
+- [x] Simpan pertanyaan belum terjawab secara tersanitasi ke antrean pelatihan lokal dan sediakan ekspor JSON untuk LLM.
+- [x] Uji OCR foto nota dari Asisten sampai menjadi preview transaksi yang menunggu konfirmasi.
+- [x] Tambahkan regresi, jalankan analyzer dan seluruh test.
+- [ ] Commit, ZIP source, dan build APK release.

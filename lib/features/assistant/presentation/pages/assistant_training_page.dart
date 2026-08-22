@@ -6,6 +6,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../data/ffm_assistant_upgrade_pack_service.dart';
 import 'assistant_training_import_dialog.dart';
 
@@ -13,10 +14,12 @@ class _AssistantTrainingData {
   const _AssistantTrainingData({
     required this.memories,
     required this.examples,
+    required this.unansweredQuestions,
   });
 
   final List<FfmAssistantMemoryRecord> memories;
   final List<FfmAssistantLearningExample> examples;
+  final List<FfmAssistantUnansweredQuestion> unansweredQuestions;
 }
 
 /// Gaya v54: ajaran pengguna selalu eksplisit, lokal, dapat ditinjau, dan
@@ -33,6 +36,8 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _knowledgePack = getIt<FfmAssistantKnowledgePackService>();
   final _upgradePack = getIt<FfmAssistantUpgradePackService>();
+  final _unansweredRepository =
+      getIt<FfmAssistantUnansweredQuestionRepository>();
   late Future<_AssistantTrainingData> _trainingData;
 
   @override
@@ -43,13 +48,18 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
 
   void _reload() {
     _trainingData =
-        Future.wait([_repository.readAll(), _learningRepository.readAll()])
-            .then(
-              (values) => _AssistantTrainingData(
-                memories: values[0] as List<FfmAssistantMemoryRecord>,
-                examples: values[1] as List<FfmAssistantLearningExample>,
-              ),
-            );
+        Future.wait([
+          _repository.readAll(),
+          _learningRepository.readAll(),
+          _unansweredRepository.readOpen(),
+        ]).then(
+          (values) => _AssistantTrainingData(
+            memories: values[0] as List<FfmAssistantMemoryRecord>,
+            examples: values[1] as List<FfmAssistantLearningExample>,
+            unansweredQuestions:
+                values[2] as List<FfmAssistantUnansweredQuestion>,
+          ),
+        );
   }
 
   Future<void> _teach() async {
@@ -166,6 +176,48 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
     );
   }
 
+  Future<void> _copyUnansweredQuestionPrompt(
+    FfmAssistantUnansweredQuestion question,
+  ) async {
+    final pageContext = question.pageContext == null
+        ? ''
+        : '\nKonteks halaman saat ditanya: ${question.pageContext}';
+    final prompt =
+        '''Bantu perbaiki knowledge Asisten FFM.
+
+Pertanyaan pengguna:
+${question.questionText}$pageContext
+
+Jawaban Asisten saat ini:
+Pertanyaan ini belum dipahami dengan cukup baik. Jangan mengarang jawaban atau data.
+
+Tugas:
+1. Usulkan jawaban atau alur yang lebih tepat untuk pertanyaan tersebut.
+2. Jangan membuat transaksi, saldo, nominal, rekening, aset, hutang, atau data keluarga.
+3. Jangan mengubah atau mengulang knowledge yang sudah ada.
+4. Kembalikan hanya satu entri knowledge pack JSON dengan kind "answer" atau "flow".''';
+    await Clipboard.setData(ClipboardData(text: prompt));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Permintaan LLM disalin. Jawaban nanti impor sebagai JSON.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resolveUnansweredQuestion(
+    FfmAssistantUnansweredQuestion question,
+  ) async {
+    await _unansweredRepository.markResolved(question.id);
+    if (!mounted) return;
+    setState(_reload);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Pertanyaan ditandai sudah diperbaiki.')),
+    );
+  }
+
   Future<void> _archiveLearningExample(
     FfmAssistantLearningExample example,
   ) async {
@@ -272,6 +324,9 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
           final memories = data?.memories ?? const <FfmAssistantMemoryRecord>[];
           final examples =
               data?.examples ?? const <FfmAssistantLearningExample>[];
+          final unansweredQuestions =
+              data?.unansweredQuestions ??
+              const <FfmAssistantUnansweredQuestion>[];
           final active = memories.where((item) => !item.isArchived).toList();
           final archived = memories.where((item) => item.isArchived).toList();
           final activeExamples = examples
@@ -346,6 +401,31 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                 ),
               ),
               const SizedBox(height: 20),
+              AppSectionHeader(
+                title:
+                    'Pertanyaan belum terjawab (${unansweredQuestions.length})',
+              ),
+              const SizedBox(height: 8),
+              if (unansweredQuestions.isEmpty)
+                const AppEmptyState(
+                  icon: Icons.question_answer_outlined,
+                  title: 'Belum ada pertanyaan yang perlu diajarkan',
+                  message: 'Jika Asisten belum paham, pertanyaannya akan tersimpan aman di sini untuk ditinjau.',
+                )
+              else ...[
+                const Text(
+                  'Salin satu pertanyaan ke LLM, lalu impor satu JSON knowledge pack hasilnya. Setelah itu tandai selesai.',
+                ),
+                const SizedBox(height: 8),
+                ...unansweredQuestions.map(
+                  (question) => _UnansweredQuestionCard(
+                    question: question,
+                    onCopyPrompt: () => _copyUnansweredQuestionPrompt(question),
+                    onResolve: () => _resolveUnansweredQuestion(question),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
               AppSectionHeader(title: 'Memori aktif (${active.length})'),
               const SizedBox(height: 8),
               if (active.isEmpty)
@@ -403,6 +483,62 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _UnansweredQuestionCard extends StatelessWidget {
+  const _UnansweredQuestionCard({
+    required this.question,
+    required this.onCopyPrompt,
+    required this.onResolve,
+  });
+
+  final FfmAssistantUnansweredQuestion question;
+  final VoidCallback onCopyPrompt;
+  final VoidCallback onResolve;
+
+  @override
+  Widget build(BuildContext context) {
+    final pageContext = question.pageContext == null
+        ? null
+        : 'Di halaman: ${question.pageContext}';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              question.questionText,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            if (pageContext != null) ...[
+              const SizedBox(height: 4),
+              Text(pageContext),
+            ],
+            const SizedBox(height: 4),
+            Text('Ditanya ${question.occurrenceCount}×'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onCopyPrompt,
+                  icon: const Icon(Icons.content_copy_outlined),
+                  label: const Text('Salin permintaan LLM'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: onResolve,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Tandai selesai'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

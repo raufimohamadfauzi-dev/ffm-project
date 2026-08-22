@@ -501,3 +501,21 @@ class AssistantLearningExamples extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Pertanyaan yang belum bisa dijawab dengan tepat oleh Asisten.
+///
+/// Teks sudah disanitasi sebelum disimpan. Antrean ini bukan riwayat chat,
+/// tidak berisi jawaban LLM, dan hanya dipakai untuk menyiapkan pelatihan.
+class AssistantUnansweredQuestions extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get questionText => text()();
+  TextColumn get pageContext => text().nullable()();
+  IntColumn get occurrenceCount => integer().withDefault(const Constant(1))();
+  BoolColumn get isResolved => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

@@ -18527,6 +18527,552 @@ class AssistantLearningExamplesCompanion
   }
 }
 
+class $AssistantUnansweredQuestionsTable extends AssistantUnansweredQuestions
+    with
+        TableInfo<
+          $AssistantUnansweredQuestionsTable,
+          AssistantUnansweredQuestion
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantUnansweredQuestionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _questionTextMeta = const VerificationMeta(
+    'questionText',
+  );
+  @override
+  late final GeneratedColumn<String> questionText = GeneratedColumn<String>(
+    'question_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageContextMeta = const VerificationMeta(
+    'pageContext',
+  );
+  @override
+  late final GeneratedColumn<String> pageContext = GeneratedColumn<String>(
+    'page_context',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurrenceCountMeta = const VerificationMeta(
+    'occurrenceCount',
+  );
+  @override
+  late final GeneratedColumn<int> occurrenceCount = GeneratedColumn<int>(
+    'occurrence_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _isResolvedMeta = const VerificationMeta(
+    'isResolved',
+  );
+  @override
+  late final GeneratedColumn<bool> isResolved = GeneratedColumn<bool>(
+    'is_resolved',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_resolved" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    questionText,
+    pageContext,
+    occurrenceCount,
+    isResolved,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_unanswered_questions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantUnansweredQuestion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('question_text')) {
+      context.handle(
+        _questionTextMeta,
+        questionText.isAcceptableOrUnknown(
+          data['question_text']!,
+          _questionTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_questionTextMeta);
+    }
+    if (data.containsKey('page_context')) {
+      context.handle(
+        _pageContextMeta,
+        pageContext.isAcceptableOrUnknown(
+          data['page_context']!,
+          _pageContextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('occurrence_count')) {
+      context.handle(
+        _occurrenceCountMeta,
+        occurrenceCount.isAcceptableOrUnknown(
+          data['occurrence_count']!,
+          _occurrenceCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_resolved')) {
+      context.handle(
+        _isResolvedMeta,
+        isResolved.isAcceptableOrUnknown(data['is_resolved']!, _isResolvedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantUnansweredQuestion map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantUnansweredQuestion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      questionText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}question_text'],
+      )!,
+      pageContext: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}page_context'],
+      ),
+      occurrenceCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}occurrence_count'],
+      )!,
+      isResolved: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_resolved'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantUnansweredQuestionsTable createAlias(String alias) {
+    return $AssistantUnansweredQuestionsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantUnansweredQuestion extends DataClass
+    implements Insertable<AssistantUnansweredQuestion> {
+  final String id;
+  final String householdId;
+  final String questionText;
+  final String? pageContext;
+  final int occurrenceCount;
+  final bool isResolved;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const AssistantUnansweredQuestion({
+    required this.id,
+    required this.householdId,
+    required this.questionText,
+    this.pageContext,
+    required this.occurrenceCount,
+    required this.isResolved,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['question_text'] = Variable<String>(questionText);
+    if (!nullToAbsent || pageContext != null) {
+      map['page_context'] = Variable<String>(pageContext);
+    }
+    map['occurrence_count'] = Variable<int>(occurrenceCount);
+    map['is_resolved'] = Variable<bool>(isResolved);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  AssistantUnansweredQuestionsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantUnansweredQuestionsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      questionText: Value(questionText),
+      pageContext: pageContext == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pageContext),
+      occurrenceCount: Value(occurrenceCount),
+      isResolved: Value(isResolved),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory AssistantUnansweredQuestion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantUnansweredQuestion(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      questionText: serializer.fromJson<String>(json['questionText']),
+      pageContext: serializer.fromJson<String?>(json['pageContext']),
+      occurrenceCount: serializer.fromJson<int>(json['occurrenceCount']),
+      isResolved: serializer.fromJson<bool>(json['isResolved']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'questionText': serializer.toJson<String>(questionText),
+      'pageContext': serializer.toJson<String?>(pageContext),
+      'occurrenceCount': serializer.toJson<int>(occurrenceCount),
+      'isResolved': serializer.toJson<bool>(isResolved),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  AssistantUnansweredQuestion copyWith({
+    String? id,
+    String? householdId,
+    String? questionText,
+    Value<String?> pageContext = const Value.absent(),
+    int? occurrenceCount,
+    bool? isResolved,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => AssistantUnansweredQuestion(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    questionText: questionText ?? this.questionText,
+    pageContext: pageContext.present ? pageContext.value : this.pageContext,
+    occurrenceCount: occurrenceCount ?? this.occurrenceCount,
+    isResolved: isResolved ?? this.isResolved,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  AssistantUnansweredQuestion copyWithCompanion(
+    AssistantUnansweredQuestionsCompanion data,
+  ) {
+    return AssistantUnansweredQuestion(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      questionText: data.questionText.present
+          ? data.questionText.value
+          : this.questionText,
+      pageContext: data.pageContext.present
+          ? data.pageContext.value
+          : this.pageContext,
+      occurrenceCount: data.occurrenceCount.present
+          ? data.occurrenceCount.value
+          : this.occurrenceCount,
+      isResolved: data.isResolved.present
+          ? data.isResolved.value
+          : this.isResolved,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantUnansweredQuestion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('questionText: $questionText, ')
+          ..write('pageContext: $pageContext, ')
+          ..write('occurrenceCount: $occurrenceCount, ')
+          ..write('isResolved: $isResolved, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    questionText,
+    pageContext,
+    occurrenceCount,
+    isResolved,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantUnansweredQuestion &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.questionText == this.questionText &&
+          other.pageContext == this.pageContext &&
+          other.occurrenceCount == this.occurrenceCount &&
+          other.isResolved == this.isResolved &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AssistantUnansweredQuestionsCompanion
+    extends UpdateCompanion<AssistantUnansweredQuestion> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> questionText;
+  final Value<String?> pageContext;
+  final Value<int> occurrenceCount;
+  final Value<bool> isResolved;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const AssistantUnansweredQuestionsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.questionText = const Value.absent(),
+    this.pageContext = const Value.absent(),
+    this.occurrenceCount = const Value.absent(),
+    this.isResolved = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantUnansweredQuestionsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String questionText,
+    this.pageContext = const Value.absent(),
+    this.occurrenceCount = const Value.absent(),
+    this.isResolved = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       questionText = Value(questionText),
+       createdAt = Value(createdAt);
+  static Insertable<AssistantUnansweredQuestion> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? questionText,
+    Expression<String>? pageContext,
+    Expression<int>? occurrenceCount,
+    Expression<bool>? isResolved,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (questionText != null) 'question_text': questionText,
+      if (pageContext != null) 'page_context': pageContext,
+      if (occurrenceCount != null) 'occurrence_count': occurrenceCount,
+      if (isResolved != null) 'is_resolved': isResolved,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantUnansweredQuestionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? questionText,
+    Value<String?>? pageContext,
+    Value<int>? occurrenceCount,
+    Value<bool>? isResolved,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantUnansweredQuestionsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      questionText: questionText ?? this.questionText,
+      pageContext: pageContext ?? this.pageContext,
+      occurrenceCount: occurrenceCount ?? this.occurrenceCount,
+      isResolved: isResolved ?? this.isResolved,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (questionText.present) {
+      map['question_text'] = Variable<String>(questionText.value);
+    }
+    if (pageContext.present) {
+      map['page_context'] = Variable<String>(pageContext.value);
+    }
+    if (occurrenceCount.present) {
+      map['occurrence_count'] = Variable<int>(occurrenceCount.value);
+    }
+    if (isResolved.present) {
+      map['is_resolved'] = Variable<bool>(isResolved.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantUnansweredQuestionsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('questionText: $questionText, ')
+          ..write('pageContext: $pageContext, ')
+          ..write('occurrenceCount: $occurrenceCount, ')
+          ..write('isResolved: $isResolved, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -18581,6 +19127,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantMemoriesTable(this);
   late final $AssistantLearningExamplesTable assistantLearningExamples =
       $AssistantLearningExamplesTable(this);
+  late final $AssistantUnansweredQuestionsTable assistantUnansweredQuestions =
+      $AssistantUnansweredQuestionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -18616,6 +19164,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     hijriCorrectionLogs,
     assistantMemories,
     assistantLearningExamples,
+    assistantUnansweredQuestions,
   ];
 }
 
@@ -27762,6 +28311,292 @@ typedef $$AssistantLearningExamplesTableProcessedTableManager =
       AssistantLearningExample,
       PrefetchHooks Function()
     >;
+typedef $$AssistantUnansweredQuestionsTableCreateCompanionBuilder =
+    AssistantUnansweredQuestionsCompanion Function({
+      required String id,
+      required String householdId,
+      required String questionText,
+      Value<String?> pageContext,
+      Value<int> occurrenceCount,
+      Value<bool> isResolved,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantUnansweredQuestionsTableUpdateCompanionBuilder =
+    AssistantUnansweredQuestionsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> questionText,
+      Value<String?> pageContext,
+      Value<int> occurrenceCount,
+      Value<bool> isResolved,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantUnansweredQuestionsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantUnansweredQuestionsTable> {
+  $$AssistantUnansweredQuestionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get questionText => $composableBuilder(
+    column: $table.questionText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pageContext => $composableBuilder(
+    column: $table.pageContext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get occurrenceCount => $composableBuilder(
+    column: $table.occurrenceCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isResolved => $composableBuilder(
+    column: $table.isResolved,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantUnansweredQuestionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantUnansweredQuestionsTable> {
+  $$AssistantUnansweredQuestionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get questionText => $composableBuilder(
+    column: $table.questionText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pageContext => $composableBuilder(
+    column: $table.pageContext,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get occurrenceCount => $composableBuilder(
+    column: $table.occurrenceCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isResolved => $composableBuilder(
+    column: $table.isResolved,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantUnansweredQuestionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantUnansweredQuestionsTable> {
+  $$AssistantUnansweredQuestionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get questionText => $composableBuilder(
+    column: $table.questionText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pageContext => $composableBuilder(
+    column: $table.pageContext,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get occurrenceCount => $composableBuilder(
+    column: $table.occurrenceCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isResolved => $composableBuilder(
+    column: $table.isResolved,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AssistantUnansweredQuestionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantUnansweredQuestionsTable,
+          AssistantUnansweredQuestion,
+          $$AssistantUnansweredQuestionsTableFilterComposer,
+          $$AssistantUnansweredQuestionsTableOrderingComposer,
+          $$AssistantUnansweredQuestionsTableAnnotationComposer,
+          $$AssistantUnansweredQuestionsTableCreateCompanionBuilder,
+          $$AssistantUnansweredQuestionsTableUpdateCompanionBuilder,
+          (
+            AssistantUnansweredQuestion,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantUnansweredQuestionsTable,
+              AssistantUnansweredQuestion
+            >,
+          ),
+          AssistantUnansweredQuestion,
+          PrefetchHooks Function()
+        > {
+  $$AssistantUnansweredQuestionsTableTableManager(
+    _$AppDatabase db,
+    $AssistantUnansweredQuestionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantUnansweredQuestionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantUnansweredQuestionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantUnansweredQuestionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> questionText = const Value.absent(),
+                Value<String?> pageContext = const Value.absent(),
+                Value<int> occurrenceCount = const Value.absent(),
+                Value<bool> isResolved = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantUnansweredQuestionsCompanion(
+                id: id,
+                householdId: householdId,
+                questionText: questionText,
+                pageContext: pageContext,
+                occurrenceCount: occurrenceCount,
+                isResolved: isResolved,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String questionText,
+                Value<String?> pageContext = const Value.absent(),
+                Value<int> occurrenceCount = const Value.absent(),
+                Value<bool> isResolved = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantUnansweredQuestionsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                questionText: questionText,
+                pageContext: pageContext,
+                occurrenceCount: occurrenceCount,
+                isResolved: isResolved,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantUnansweredQuestionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantUnansweredQuestionsTable,
+      AssistantUnansweredQuestion,
+      $$AssistantUnansweredQuestionsTableFilterComposer,
+      $$AssistantUnansweredQuestionsTableOrderingComposer,
+      $$AssistantUnansweredQuestionsTableAnnotationComposer,
+      $$AssistantUnansweredQuestionsTableCreateCompanionBuilder,
+      $$AssistantUnansweredQuestionsTableUpdateCompanionBuilder,
+      (
+        AssistantUnansweredQuestion,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantUnansweredQuestionsTable,
+          AssistantUnansweredQuestion
+        >,
+      ),
+      AssistantUnansweredQuestion,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -27833,5 +28668,11 @@ class $AppDatabaseManager {
       $$AssistantLearningExamplesTableTableManager(
         _db,
         _db.assistantLearningExamples,
+      );
+  $$AssistantUnansweredQuestionsTableTableManager
+  get assistantUnansweredQuestions =>
+      $$AssistantUnansweredQuestionsTableTableManager(
+        _db,
+        _db.assistantUnansweredQuestions,
       );
 }

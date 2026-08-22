@@ -5,6 +5,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/security/app_pin_service.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../widgets/app_pin_entry_panel.dart';
+import '../widgets/forgot_pin_dialog.dart';
 
 enum _PinFlow {
   idle,
@@ -311,6 +312,11 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
               onPressed: () => _start(_PinFlow.verifyCurrentForDisable),
               icon: const Icon(Icons.lock_open_outlined),
               label: const Text('Matikan PIN'),
+            ),
+            TextButton.icon(
+              onPressed: () => showForgotPinDialog(context),
+              icon: const Icon(Icons.help_outline),
+              label: const Text('Lupa PIN?'),
             ),
           ],
           const SizedBox(height: 18),

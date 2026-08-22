@@ -134,6 +134,49 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('menjawab pertanyaan pertama penggunaan dengan panduan lokal', () async {
+    final intent = await interpreter.interpret(
+      'pertamakali saya harus apa di aplikasi ini?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.setupGuide);
+    expect(intent.response, contains('Data Utama'));
+    expect(intent.response, contains('Catat transaksi pertama'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjawab tanggal Hijriah dari waktu lokal perangkat', () async {
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      null,
+      () => DateTime(2026, 8, 22, 10, 37),
+    );
+
+    final intent = await localInterpreter.interpret(
+      'tanggal berapa sekarang? hijriah',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.calendarQuery);
+    expect(intent.response, startsWith('Sekarang '));
+    expect(intent.response, contains('Kalender Hijriah FFM'));
+    expect(intent.draft, isNull);
+  });
+
+  test(
+    'fallback yang belum dipahami tetap singkat dan mengarahkan latihan',
+    () async {
+      final intent = await interpreter.interpret(
+        'apa arti kalimat buatan xyz?',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.unknown);
+      expect(intent.response, contains('belum punya jawaban yang pas'));
+      expect(intent.response, contains('Ajarkan Asisten'));
+      expect(intent.response, isNot(contains('Pindahkan')));
+      expect(intent.draft, isNull);
+    },
+  );
+
   test('menjelaskan fungsi tag tanpa membuat data', () async {
     final intent = await interpreter.interpret('Fungsi tag buat apa?');
 
