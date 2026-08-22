@@ -1,4 +1,6 @@
 /// Fondasi Asisten FFM Lokal: semua aksi keuangan tetap berupa draft sampai
+import '../../activity/domain/activity_voice.dart';
+
 /// pengguna melihat preview dan mengonfirmasinya.
 enum FfmAssistantIntentType {
   openPage,
@@ -246,6 +248,7 @@ class FfmAssistantChatEntry {
     required this.isUser,
     required this.text,
     this.intent,
+    this.activityIntent,
     this.understanding,
     this.review,
   });
@@ -253,6 +256,7 @@ class FfmAssistantChatEntry {
   final bool isUser;
   final String text;
   final FfmAssistantIntent? intent;
+  final ActivityVoiceIntent? activityIntent;
   final String? understanding;
   final FfmAssistantDraftReview? review;
 }

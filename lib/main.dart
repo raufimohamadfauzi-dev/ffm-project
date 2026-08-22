@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +11,8 @@ import 'core/di/injection.dart';
 import 'core/security/app_pin_service.dart';
 import 'core/theme/theme_preference.dart';
 import 'features/assistant/domain/ffm_assistant_models.dart';
+import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
+import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
@@ -105,6 +108,11 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   var _securityUnavailable = false;
   var _pinLength = AppPinService.defaultPinLength;
   DateTime? _backgroundedAt;
+  final _appShellKey = GlobalKey<_AppShellState>();
+  final _assistantLauncherState = ValueNotifier(
+    const FfmAssistantLauncherState(isSheetOpen: false),
+  );
+  final _assistantPageContext = FfmAssistantPageContextController();
 
   @override
   void initState() {
@@ -119,6 +127,8 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _assistantLauncherState.dispose();
+    _assistantPageContext.dispose();
     super.dispose();
   }
 
@@ -226,6 +236,23 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
     themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
     theme: _buildTheme(Brightness.light),
     darkTheme: _buildTheme(Brightness.dark),
+    builder: (context, child) {
+      final showAssistant =
+          !_pinGateLoading && !_securityUnavailable && !_isLocked;
+      if (!showAssistant || child == null) return child ?? const SizedBox();
+      return FfmAssistantContextScope(
+        controller: _assistantPageContext,
+        child: Stack(
+          children: [
+            child,
+            FfmAssistantGlobalLauncher(
+              state: _assistantLauncherState,
+              onOpen: () async => _appShellKey.currentState?._openAssistant(),
+            ),
+          ],
+        ),
+      );
+    },
     home: _pinGateLoading
         ? const Scaffold(body: Center(child: CircularProgressIndicator()))
         : _securityUnavailable
@@ -240,6 +267,9 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
             ),
           )
         : AppShell(
+            key: _appShellKey,
+            launcherState: _assistantLauncherState,
+            pageContext: _assistantPageContext,
             isDark: _isDark,
             onThemeChanged: (value) async {
               setState(() => _isDark = value);
@@ -318,10 +348,14 @@ class AppShell extends StatefulWidget {
     super.key,
     required this.isDark,
     required this.onThemeChanged,
+    required this.launcherState,
+    required this.pageContext,
   });
 
   final bool isDark;
   final ValueChanged<bool> onThemeChanged;
+  final ValueNotifier<FfmAssistantLauncherState> launcherState;
+  final ValueListenable<FfmAssistantDestination?> pageContext;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -601,31 +635,31 @@ class _AppShellState extends State<AppShell> {
   Future<void> _openAssistant() async {
     if (_assistantSheetOpen) return;
     setState(() => _assistantSheetOpen = true);
+    widget.launcherState.value = const FfmAssistantLauncherState(
+      isSheetOpen: true,
+    );
     try {
       await showFfmAssistantSheet(
         context,
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
         session: _assistantSession,
-        currentDestination: _assistantCurrentDestination,
+        currentDestination:
+            widget.pageContext.value ?? _assistantCurrentDestination,
       );
     } finally {
-      if (mounted) setState(() => _assistantSheetOpen = false);
+      if (mounted) {
+        setState(() => _assistantSheetOpen = false);
+        widget.launcherState.value = const FfmAssistantLauncherState(
+          isSheetOpen: false,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
     body: IndexedStack(index: _index, children: _pages),
-    floatingActionButton: _assistantSheetOpen || _index == 1
-        ? null
-        : FloatingActionButton.extended(
-            heroTag: 'ffm-assistant',
-            tooltip: 'Buka Asisten FFM',
-            onPressed: _openAssistant,
-            icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Asisten'),
-          ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
       onDestinationSelected: (value) => setState(() => _index = value),

@@ -6,6 +6,8 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -646,71 +648,74 @@ class _MasterDataPageState extends State<MasterDataPage>
       _husbandName,
       _wifeName,
     ].whereType<String>().where((item) => item.trim().isNotEmpty).join(' • ');
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Data Utama'),
-        actions: [
-          IconButton(
-            onPressed: _editProfile,
-            tooltip: 'Atur profil keluarga',
-            icon: const Icon(Icons.family_restroom_outlined),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _add(_activeTab),
-        icon: const Icon(Icons.add),
-        label: Text('Tambah ${_shortTabLabel(_activeTab)}'),
-      ),
-      body: Column(
-        children: [
-          if (!_loading)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: AppCard(
-                color: Theme.of(context).colorScheme.primaryContainer
-                    .withValues(alpha: .45),
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.family_restroom_outlined),
-                  title: Text(
-                    _householdName,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.masterData,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Data Utama'),
+          actions: [
+            IconButton(
+              onPressed: _editProfile,
+              tooltip: 'Atur profil keluarga',
+              icon: const Icon(Icons.family_restroom_outlined),
+            ),
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _add(_activeTab),
+          icon: const Icon(Icons.add),
+          label: Text('Tambah ${_shortTabLabel(_activeTab)}'),
+        ),
+        body: Column(
+          children: [
+            if (!_loading)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                child: AppCard(
+                  color: Theme.of(context).colorScheme.primaryContainer
+                      .withValues(alpha: .45),
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.family_restroom_outlined),
+                    title: Text(
+                      _householdName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      profileNames.isEmpty
+                          ? 'Profil keluarga belum lengkap'
+                          : profileNames,
+                    ),
+                    trailing: const Icon(Icons.edit_outlined),
+                    onTap: _editProfile,
                   ),
-                  subtitle: Text(
-                    profileNames.isEmpty
-                        ? 'Profil keluarga belum lengkap'
-                        : profileNames,
-                  ),
-                  trailing: const Icon(Icons.edit_outlined),
-                  onTap: _editProfile,
                 ),
               ),
-            ),
-          TabBar(
-            controller: _tabs,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            tabs: _tabLabels.map((label) => Tab(text: label)).toList(),
-          ),
-          Expanded(
-            child: TabBarView(
+            TabBar(
               controller: _tabs,
-              children: List.generate(
-                _tabLabels.length,
-                (index) => _MasterList(
-                  key: ValueKey('master-$index-$_refreshTick'),
-                  tab: index,
-                  load: () => _items(index),
-                  title: _tabLabels[index],
-                  onAdd: () => _add(index),
-                  onEdit: (item) => _edit(index, item),
-                  onArchive: (item) => _archive(index, item),
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: _tabLabels.map((label) => Tab(text: label)).toList(),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: List.generate(
+                  _tabLabels.length,
+                  (index) => _MasterList(
+                    key: ValueKey('master-$index-$_refreshTick'),
+                    tab: index,
+                    load: () => _items(index),
+                    title: _tabLabels[index],
+                    onAdd: () => _add(index),
+                    onEdit: (item) => _edit(index, item),
+                    onArchive: (item) => _archive(index, item),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

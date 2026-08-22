@@ -3,7 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
+import '../../../activity/domain/entities/activity_entity.dart';
+import '../../../activity/domain/activity_voice.dart';
+import '../../../activity/presentation/bloc/activity_bloc.dart';
+import '../../../transaction/data/services/receipt_ocr_service.dart';
+import '../../../transaction/presentation/pages/receipt_scan_page.dart';
+import '../../../transaction/presentation/pages/transaction_pages.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
@@ -66,8 +73,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _interpreter = getIt<FfmAssistantInterpreter>();
   final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
+  final _activityRepository = getIt<ActivityRepository>();
+  final _activityVoiceParser = const ActivityVoiceParser();
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _savedLearningKeys = <String>{};
+  final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
   var _listening = false;
 
@@ -95,6 +105,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd();
     try {
       if (_tryReviseActiveDraft(text)) return;
+      if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
       final intents = pending == null
           ? await _interpreter.interpretMany(
@@ -166,6 +177,160 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
+  bool _looksLikeActivityCommand(String normalized) {
+    if (widget.currentDestination != FfmAssistantDestination.activity) {
+      return normalized.contains('aktivitas') ||
+          normalized.contains('kegiatan') ||
+          normalized.contains('perjalanan');
+    }
+    return RegExp(
+      r'\b(mulai|jalankan|selesai|beres|hentikan|stop|update|sampai|tiba|durasi|berapa lama|riwayat|cari)\b',
+    ).hasMatch(normalized);
+  }
+
+  Future<bool> _tryHandleActivityRequest(String text) async {
+    final normalized = text.toLowerCase().trim();
+    if (!_looksLikeActivityCommand(normalized)) return false;
+    if (RegExp(r'\b(berapa lama|durasi)\b').hasMatch(normalized)) {
+      await _answerActivityDuration(normalized);
+      return true;
+    }
+    if (RegExp(r'\b(riwayat|cari)\b').hasMatch(normalized)) {
+      await _answerActivityHistory(normalized);
+      return true;
+    }
+    final active = await _activityRepository.getActiveSessions(
+      'local-household',
+    );
+    final activityIntent = _activityVoiceParser.parse(
+      text,
+      activeSessions: active,
+    );
+    if (activityIntent.type == ActivityVoiceIntentType.note) return false;
+    final response = activityIntent.canConfirm
+        ? '${activityIntent.actionLabel}: ${_activityIntentDetail(activityIntent)}. Cek dulu, lalu tekan Konfirmasi aktivitas. Belum ada aktivitas yang disimpan atau diubah.'
+        : activityIntent.ambiguityReason ??
+              'Aku belum cukup paham aktivitas yang dimaksud. Tidak ada perubahan yang dibuat.';
+    if (!mounted) return true;
+    setState(() {
+      widget.session.lastAssistantText = response;
+      _entries.add(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: response,
+          activityIntent: activityIntent,
+          understanding: activityIntent.canConfirm
+              ? 'Kamu ingin ${activityIntent.actionLabel.toLowerCase()}. Aku menunggu konfirmasi sebelum mengubah riwayat Aktivitas.'
+              : 'Aku perlu penjelasan tambahan sebelum menyentuh Aktivitas.',
+        ),
+      );
+    });
+    _scrollToEnd();
+    return true;
+  }
+
+  String _activityIntentDetail(
+    ActivityVoiceIntent intent,
+  ) => switch (intent.type) {
+    ActivityVoiceIntentType.start => intent.targetTitle ?? 'aktivitas baru',
+    ActivityVoiceIntentType.startChild =>
+      '${intent.targetTitle ?? 'aktivitas baru'} di dalam ${intent.parentTitle ?? 'aktivitas induk'}',
+    ActivityVoiceIntentType.finish => intent.targetTitle ?? 'aktivitas aktif',
+    ActivityVoiceIntentType.checkpoint =>
+      '${intent.checkpointLabel ?? 'update'} pada ${intent.targetTitle ?? 'aktivitas aktif'}',
+    ActivityVoiceIntentType.note => intent.checkpointLabel ?? 'catatan',
+    _ => 'aktivitas',
+  };
+
+  String _activityKey(ActivityVoiceIntent intent) =>
+      '${intent.type.name}:${intent.targetSessionId ?? intent.parentSessionId ?? intent.targetTitle}:${intent.checkpointLabel ?? ''}:${intent.normalizedText}';
+
+  Future<void> _confirmActivityIntent(ActivityVoiceIntent intent) async {
+    final key = _activityKey(intent);
+    if (!intent.canConfirm || _confirmedActivityKeys.contains(key)) return;
+    try {
+      await ActivityBloc(_activityRepository).executeVoiceIntent(intent);
+      if (!mounted) return;
+      final response = switch (intent.type) {
+        ActivityVoiceIntentType.start =>
+          'Sip, aktivitas ${intent.targetTitle} sudah dimulai.',
+        ActivityVoiceIntentType.startChild =>
+          'Sip, aktivitas ${intent.targetTitle} sudah dimulai di dalam ${intent.parentTitle}.',
+        ActivityVoiceIntentType.finish =>
+          'Sip, aktivitas ${intent.targetTitle} sudah diselesaikan.',
+        ActivityVoiceIntentType.checkpoint =>
+          'Sip, update “${intent.checkpointLabel}” sudah masuk ke aktivitas ${intent.targetTitle}.',
+        _ => 'Sip, aktivitas sudah diperbarui.',
+      };
+      setState(() {
+        _confirmedActivityKeys.add(key);
+        widget.session.lastAssistantText = response;
+        _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+      });
+      _scrollToEnd();
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _entries.add(
+          const FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Aktivitas belum berubah. Coba cek lagi nama aktivitas dan konfirmasi ulang.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _answerActivityDuration(String normalized) async {
+    final sessions = await _activityRepository.getSessions('local-household');
+    final query = normalized
+        .replaceAll(RegExp(r'\b(berapa lama|durasi|aktivitas|kegiatan)\b'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final matches = query.isEmpty
+        ? sessions.where((item) => item.status.name == 'active').toList()
+        : sessions
+              .where((item) => item.title.toLowerCase().contains(query))
+              .toList();
+    final response = matches.isEmpty
+        ? 'Aku belum menemukan aktivitas yang cocok untuk dihitung durasinya.'
+        : matches
+              .take(3)
+              .map(
+                (item) =>
+                    '${item.title}: ${ActivityDurationCalculator().format(item.durationAt())}${item.status.name == 'active' ? ' dan masih berjalan' : ''}',
+              )
+              .join('\n');
+    if (!mounted) return;
+    setState(() {
+      widget.session.lastAssistantText = response;
+      _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+    });
+    _scrollToEnd();
+  }
+
+  Future<void> _answerActivityHistory(String normalized) async {
+    final sessions = await _activityRepository.getSessions('local-household');
+    final query = normalized
+        .replaceAll(RegExp(r'\b(riwayat|cari|aktivitas|kegiatan)\b'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    final matches = query.isEmpty
+        ? sessions
+        : sessions
+              .where((item) => item.title.toLowerCase().contains(query))
+              .toList();
+    final response = matches.isEmpty
+        ? 'Belum ada riwayat aktivitas yang cocok.'
+        : 'Riwayat yang kutemukan:\n${matches.take(5).map((item) => '• ${item.title} — ${ActivityDurationCalculator().format(item.durationAt())}${item.status.name == 'active' ? ' (masih berjalan)' : ''}').join('\n')}';
+    if (!mounted) return;
+    setState(() {
+      widget.session.lastAssistantText = response;
+      _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+    });
+    _scrollToEnd();
+  }
+
   Future<void> _toggleListening() async {
     if (_listening) {
       await _speech.stop();
@@ -192,6 +357,46 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         setState(() => _controller.text = text);
         if (isFinal) _submit(text);
       },
+    );
+  }
+
+  Future<void> _scanReceiptFromAssistant() async {
+    if (_submitting) return;
+    final navigator = Navigator.of(context);
+    final result = await navigator.push<ReceiptOcrResult>(
+      MaterialPageRoute(builder: (_) => const ReceiptScanPage()),
+    );
+    if (result == null || !mounted) return;
+
+    final total = result.total ?? result.itemsTotal;
+    final itemLabel = result.items.isEmpty
+        ? 'belum ada item yang dikenali'
+        : '${result.items.length} item terbaca';
+    setState(() {
+      _entries
+        ..add(
+          const FfmAssistantChatEntry(
+            isUser: true,
+            text: 'Aku pilih foto nota untuk dibaca.',
+          ),
+        )
+        ..add(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                'Sip, OCR membaca $itemLabel${total > 0 ? ' dengan total Rp$total' : ''}. Aku buka draft transaksi supaya kamu bisa cek rekening, kategori, item, dan nominal sebelum simpan.',
+          ),
+        );
+      widget.session.lastAssistantText = _entries.last.text;
+    });
+    _scrollToEnd();
+
+    navigator.pop();
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    await navigator.push(
+      MaterialPageRoute(
+        builder: (_) => TransactionFormPage(initialScan: result),
+      ),
     );
   }
 
@@ -814,6 +1019,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       onQuickTeach: entry.isUser
                           ? null
                           : () => _quickTeachFromEntry(entry),
+                      onConfirmActivity:
+                          entry.activityIntent?.canConfirm ?? false
+                          ? () => _confirmActivityIntent(entry.activityIntent!)
+                          : null,
+                      activityConfirmed: entry.activityIntent == null
+                          ? false
+                          : _confirmedActivityKeys.contains(
+                              _activityKey(entry.activityIntent!),
+                            ),
                     );
                   },
                 ),
@@ -840,6 +1054,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      IconButton.filledTonal(
+                        tooltip: 'Foto nota dengan OCR',
+                        onPressed: _submitting
+                            ? null
+                            : _scanReceiptFromAssistant,
+                        icon: const Icon(Icons.document_scanner_outlined),
+                      ),
+                      const SizedBox(width: 8),
                       IconButton.filledTonal(
                         tooltip: _listening
                             ? 'Berhenti dengar'
@@ -895,6 +1117,8 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onCancelDraft,
     this.onCopyFeedback,
     this.onQuickTeach,
+    this.onConfirmActivity,
+    this.activityConfirmed = false,
   });
 
   final FfmAssistantChatEntry entry;
@@ -909,6 +1133,8 @@ class _AssistantMessageCard extends StatelessWidget {
   final VoidCallback? onCancelDraft;
   final VoidCallback? onCopyFeedback;
   final VoidCallback? onQuickTeach;
+  final VoidCallback? onConfirmActivity;
+  final bool activityConfirmed;
 
   @override
   Widget build(BuildContext context) {
@@ -985,7 +1211,8 @@ class _AssistantMessageCard extends StatelessWidget {
                         onEditDraft != null ||
                         onCancelDraft != null ||
                         onCopyFeedback != null ||
-                        onQuickTeach != null)) ...[
+                        onQuickTeach != null ||
+                        onConfirmActivity != null)) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -1013,6 +1240,23 @@ class _AssistantMessageCard extends StatelessWidget {
                             intent.destination == null
                                 ? 'Lanjut ke form'
                                 : 'Buka & cek',
+                          ),
+                        ),
+                      if (onConfirmActivity != null)
+                        FilledButton.tonalIcon(
+                          onPressed: activityConfirmed
+                              ? null
+                              : onConfirmActivity,
+                          icon: Icon(
+                            activityConfirmed
+                                ? Icons.check_circle_outline
+                                : Icons.play_circle_outline,
+                            size: 18,
+                          ),
+                          label: Text(
+                            activityConfirmed
+                                ? 'Aktivitas tersimpan'
+                                : 'Konfirmasi aktivitas',
                           ),
                         ),
                       if (onEditDraft != null)
