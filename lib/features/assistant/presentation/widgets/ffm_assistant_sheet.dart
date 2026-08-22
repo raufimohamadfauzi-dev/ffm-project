@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/di/injection.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../data/ffm_assistant_interpreter.dart';
+import '../../data/ffm_assistant_learning_repository.dart';
+import '../../data/ffm_assistant_memory_repository.dart';
 import '../../domain/ffm_assistant_models.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
@@ -56,6 +58,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _scrollController = ScrollController();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
+  final _learningRepository = getIt<FfmAssistantLearningRepository>();
+  final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
+  final Set<String> _savedTeachingKeys = <String>{};
+  final Set<String> _savedLearningKeys = <String>{};
   var _submitting = false;
   var _listening = false;
 
@@ -203,6 +209,106 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (mounted) setState(() => _queuedIntents.remove(intent));
   }
 
+  String _teachingKey(FfmAssistantTeachingProposal proposal) =>
+      '${proposal.kind}\u0000${proposal.triggerText}\u0000${proposal.valueText}'
+          .toLowerCase();
+
+  Future<void> _approveTeaching(FfmAssistantIntent intent) async {
+    final proposal = intent.teachingProposal;
+    if (proposal == null) return;
+    final key = _teachingKey(proposal);
+    if (_savedTeachingKeys.contains(key)) return;
+    try {
+      await _memoryRepository.save(
+        kind: proposal.kind,
+        triggerText: proposal.triggerText,
+        valueText: proposal.valueText,
+        source: 'chat_approved',
+      );
+      if (!mounted) return;
+      setState(() {
+        _savedTeachingKeys.add(key);
+        widget.session.lastAssistantText = 'Sip, ajaran ini sudah kusimpan lokal di perangkat. Kamu bisa mengubah atau mengarsipkannya di Pusat Latihan Asisten.';
+        _entries.add(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: widget.session.lastAssistantText!,
+          ),
+        );
+      });
+      _scrollToEnd();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajaran belum tersimpan. Coba lagi, ya.')),
+      );
+    }
+  }
+
+  String _learningKey(FfmAssistantIntent intent) =>
+      '${intent.type.name}\u0000${intent.rawText}'.toLowerCase();
+
+  Iterable<String> _protectedTermsFor(FfmAssistantDraft draft) => [
+    draft.fromAccountName,
+    draft.toAccountName,
+    draft.partyName,
+    draft.categoryName,
+    draft.goalName,
+    draft.title,
+  ].whereType<String>();
+
+  Future<void> _saveLearningExample(FfmAssistantIntent intent) async {
+    final draft = intent.draft;
+    if (draft == null) return;
+    final key = _learningKey(intent);
+    if (_savedLearningKeys.contains(key)) return;
+    final sanitized = FfmAssistantLearningSanitizer.sanitize(
+      intent.rawText,
+      protectedTerms: _protectedTermsFor(draft),
+    );
+    if (sanitized.isEmpty) return;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bantu Asisten belajar?'),
+        content: Text(
+          'Yang disimpan cuma contoh teranonimkan ini:\n\n“$sanitized”\n\nNominal dan nama tertentu disamarkan. Ini tidak menyimpan transaksi atau draft.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Jangan simpan'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Simpan contoh'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true) return;
+    try {
+      await _learningRepository.saveApproved(
+        rawText: intent.rawText,
+        intent: intent.type,
+        protectedTerms: _protectedTermsFor(draft),
+        source: 'draft_preview_approved',
+      );
+      if (!mounted) return;
+      setState(() => _savedLearningKeys.add(key));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contoh teranonimkan disimpan untuk Pusat Latihan.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Contoh belajar belum tersimpan.')),
+      );
+    }
+  }
+
   List<String> _pendingFieldsFor(FfmAssistantIntent intent) {
     final draft = intent.draft;
     if (draft == null) {
@@ -315,6 +421,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (intent.type == FfmAssistantIntentType.readLastResponse) {
       return 'Kamu mau jawaban terakhir dibacakan lagi.';
     }
+    if (intent.needsTeachingApproval) {
+      return 'Kamu ingin aku menyimpan ajaran lokal setelah kamu menyetujuinya.';
+    }
     if (page != null) return 'Kamu sedang menanyakan ${page.name}.';
     return 'Aku memahami permintaan ini sebagai ${intent.type.name}.';
   }
@@ -402,9 +511,31 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       onSpeak: entry.isUser
                           ? null
                           : () => _speech.speak(entry.text),
-                      onIntent: entry.intent == null
+                      onIntent:
+                          entry.intent == null ||
+                              entry.intent!.needsTeachingApproval
                           ? null
                           : () => _handleIntent(entry.intent!),
+                      onApproveTeaching:
+                          entry.intent?.needsTeachingApproval ?? false
+                          ? () => _approveTeaching(entry.intent!)
+                          : null,
+                      teachingSaved: entry.intent?.teachingProposal == null
+                          ? false
+                          : _savedTeachingKeys.contains(
+                              _teachingKey(entry.intent!.teachingProposal!),
+                            ),
+                      onSaveLearningExample:
+                          entry.intent?.draft != null &&
+                              !(entry.intent?.needsClarification ?? true) &&
+                              !(entry.intent?.needsTeachingApproval ?? false)
+                          ? () => _saveLearningExample(entry.intent!)
+                          : null,
+                      learningExampleSaved: entry.intent == null
+                          ? false
+                          : _savedLearningKeys.contains(
+                              _learningKey(entry.intent!),
+                            ),
                     );
                   },
                 ),
@@ -477,11 +608,19 @@ class _AssistantMessageCard extends StatelessWidget {
     required this.entry,
     this.onSpeak,
     this.onIntent,
+    this.onApproveTeaching,
+    this.teachingSaved = false,
+    this.onSaveLearningExample,
+    this.learningExampleSaved = false,
   });
 
   final FfmAssistantChatEntry entry;
   final VoidCallback? onSpeak;
   final VoidCallback? onIntent;
+  final VoidCallback? onApproveTeaching;
+  final bool teachingSaved;
+  final VoidCallback? onSaveLearningExample;
+  final bool learningExampleSaved;
 
   @override
   Widget build(BuildContext context) {
@@ -550,7 +689,11 @@ class _AssistantMessageCard extends StatelessWidget {
                   const SizedBox(height: 10),
                   _DraftPreview(draft: intent!.draft!),
                 ],
-                if (!isUser && (onSpeak != null || onIntent != null)) ...[
+                if (!isUser &&
+                    (onSpeak != null ||
+                        onIntent != null ||
+                        onApproveTeaching != null ||
+                        onSaveLearningExample != null)) ...[
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -577,6 +720,33 @@ class _AssistantMessageCard extends StatelessWidget {
                             intent.destination == null
                                 ? 'Lanjutkan'
                                 : 'Buka & cek',
+                          ),
+                        ),
+                      if (onApproveTeaching != null)
+                        FilledButton.tonalIcon(
+                          onPressed: teachingSaved ? null : onApproveTeaching,
+                          icon: Icon(
+                            teachingSaved
+                                ? Icons.bookmark_added_outlined
+                                : Icons.bookmark_add_outlined,
+                            size: 18,
+                          ),
+                          label: Text(
+                            teachingSaved
+                                ? 'Ajaran tersimpan'
+                                : 'Simpan ajaran',
+                          ),
+                        ),
+                      if (onSaveLearningExample != null)
+                        TextButton.icon(
+                          onPressed: learningExampleSaved
+                              ? null
+                              : onSaveLearningExample,
+                          icon: const Icon(Icons.school_outlined, size: 18),
+                          label: Text(
+                            learningExampleSaved
+                                ? 'Contoh tersimpan'
+                                : 'Bantu Asisten belajar',
                           ),
                         ),
                     ],

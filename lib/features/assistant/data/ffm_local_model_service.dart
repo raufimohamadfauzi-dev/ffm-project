@@ -50,10 +50,16 @@ class FfmLocalModelService {
     );
   }
 
+  Future<bool> matchesSha256(String expectedSha256) async {
+    final installed = await getInstalled();
+    if (installed == null) return false;
+    return installed.sha256.toLowerCase() == expectedSha256.toLowerCase();
+  }
+
   Future<FfmLocalModelInfo?> pickAndInstall() async {
     final picked = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: const ['litertlm', 'task', 'bin'],
+      allowedExtensions: const ['litertlm', 'task', 'tflite', 'bin'],
     );
     final sourcePath = picked.singleOrNull?.path;
     if (sourcePath == null) return null;
@@ -61,7 +67,7 @@ class FfmLocalModelService {
     if (!await source.exists()) return null;
 
     final extension = path.extension(source.path).toLowerCase();
-    if (!const ['.litertlm', '.task', '.bin'].contains(extension)) {
+    if (!const ['.litertlm', '.task', '.tflite', '.bin'].contains(extension)) {
       throw const FormatException('Format model belum didukung.');
     }
     final root = await getApplicationSupportDirectory();

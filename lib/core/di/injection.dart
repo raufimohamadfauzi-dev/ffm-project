@@ -7,6 +7,7 @@ import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
 import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart';
+import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
@@ -128,6 +129,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantLearningRepository>(
+    () => FfmAssistantLearningRepository(db),
   );
   getIt.registerLazySingleton<FfmAssistantKnowledgePackService>(
     () =>

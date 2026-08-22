@@ -483,3 +483,21 @@ class AssistantMemories extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Contoh perintah yang pengguna setujui untuk dijadikan bahan evaluasi
+/// pemahaman Asisten. Teks wajib sudah disanitasi; ini bukan riwayat chat.
+class AssistantLearningExamples extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get inputText => text()();
+  TextColumn get intentLabel => text()();
+  TextColumn get source =>
+      text().withDefault(const Constant('user_approved'))();
+  IntColumn get schemaVersion => integer().withDefault(const Constant(1))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

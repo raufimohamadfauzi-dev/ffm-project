@@ -1274,14 +1274,18 @@ class FfmAssistantInterpreter {
         canonical.isEmpty) {
       return null;
     }
-    _memory.saveAlias(alias, canonical);
     return FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
-      type: FfmAssistantIntentType.help,
+      type: FfmAssistantIntentType.teachMemory,
       confidence: .95,
       response:
-          'Siap. Di perangkat ini, “$alias” akan aku pahami sebagai “$canonical”. Kamu bisa mengubahnya kapan saja.',
+          'Aku menangkap ajaran ini: “$alias” berarti “$canonical”. Cek dulu lalu pilih Simpan ajaran kalau sudah pas, ya.',
+      teachingProposal: FfmAssistantTeachingProposal(
+        kind: 'alias',
+        triggerText: alias,
+        valueText: canonical,
+      ),
     );
   }
 

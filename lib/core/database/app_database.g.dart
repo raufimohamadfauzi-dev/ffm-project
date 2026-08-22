@@ -17947,6 +17947,586 @@ class AssistantMemoriesCompanion extends UpdateCompanion<AssistantMemory> {
   }
 }
 
+class $AssistantLearningExamplesTable extends AssistantLearningExamples
+    with TableInfo<$AssistantLearningExamplesTable, AssistantLearningExample> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantLearningExamplesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _inputTextMeta = const VerificationMeta(
+    'inputText',
+  );
+  @override
+  late final GeneratedColumn<String> inputText = GeneratedColumn<String>(
+    'input_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _intentLabelMeta = const VerificationMeta(
+    'intentLabel',
+  );
+  @override
+  late final GeneratedColumn<String> intentLabel = GeneratedColumn<String>(
+    'intent_label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('user_approved'),
+  );
+  static const VerificationMeta _schemaVersionMeta = const VerificationMeta(
+    'schemaVersion',
+  );
+  @override
+  late final GeneratedColumn<int> schemaVersion = GeneratedColumn<int>(
+    'schema_version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    inputText,
+    intentLabel,
+    source,
+    schemaVersion,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_learning_examples';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantLearningExample> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('input_text')) {
+      context.handle(
+        _inputTextMeta,
+        inputText.isAcceptableOrUnknown(data['input_text']!, _inputTextMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_inputTextMeta);
+    }
+    if (data.containsKey('intent_label')) {
+      context.handle(
+        _intentLabelMeta,
+        intentLabel.isAcceptableOrUnknown(
+          data['intent_label']!,
+          _intentLabelMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_intentLabelMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    }
+    if (data.containsKey('schema_version')) {
+      context.handle(
+        _schemaVersionMeta,
+        schemaVersion.isAcceptableOrUnknown(
+          data['schema_version']!,
+          _schemaVersionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantLearningExample map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantLearningExample(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      inputText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}input_text'],
+      )!,
+      intentLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}intent_label'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+      schemaVersion: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}schema_version'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantLearningExamplesTable createAlias(String alias) {
+    return $AssistantLearningExamplesTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantLearningExample extends DataClass
+    implements Insertable<AssistantLearningExample> {
+  final String id;
+  final String householdId;
+  final String inputText;
+  final String intentLabel;
+  final String source;
+  final int schemaVersion;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const AssistantLearningExample({
+    required this.id,
+    required this.householdId,
+    required this.inputText,
+    required this.intentLabel,
+    required this.source,
+    required this.schemaVersion,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['input_text'] = Variable<String>(inputText);
+    map['intent_label'] = Variable<String>(intentLabel);
+    map['source'] = Variable<String>(source);
+    map['schema_version'] = Variable<int>(schemaVersion);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  AssistantLearningExamplesCompanion toCompanion(bool nullToAbsent) {
+    return AssistantLearningExamplesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      inputText: Value(inputText),
+      intentLabel: Value(intentLabel),
+      source: Value(source),
+      schemaVersion: Value(schemaVersion),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory AssistantLearningExample.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantLearningExample(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      inputText: serializer.fromJson<String>(json['inputText']),
+      intentLabel: serializer.fromJson<String>(json['intentLabel']),
+      source: serializer.fromJson<String>(json['source']),
+      schemaVersion: serializer.fromJson<int>(json['schemaVersion']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'inputText': serializer.toJson<String>(inputText),
+      'intentLabel': serializer.toJson<String>(intentLabel),
+      'source': serializer.toJson<String>(source),
+      'schemaVersion': serializer.toJson<int>(schemaVersion),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  AssistantLearningExample copyWith({
+    String? id,
+    String? householdId,
+    String? inputText,
+    String? intentLabel,
+    String? source,
+    int? schemaVersion,
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => AssistantLearningExample(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    inputText: inputText ?? this.inputText,
+    intentLabel: intentLabel ?? this.intentLabel,
+    source: source ?? this.source,
+    schemaVersion: schemaVersion ?? this.schemaVersion,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  AssistantLearningExample copyWithCompanion(
+    AssistantLearningExamplesCompanion data,
+  ) {
+    return AssistantLearningExample(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      inputText: data.inputText.present ? data.inputText.value : this.inputText,
+      intentLabel: data.intentLabel.present
+          ? data.intentLabel.value
+          : this.intentLabel,
+      source: data.source.present ? data.source.value : this.source,
+      schemaVersion: data.schemaVersion.present
+          ? data.schemaVersion.value
+          : this.schemaVersion,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantLearningExample(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('inputText: $inputText, ')
+          ..write('intentLabel: $intentLabel, ')
+          ..write('source: $source, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    inputText,
+    intentLabel,
+    source,
+    schemaVersion,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantLearningExample &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.inputText == this.inputText &&
+          other.intentLabel == this.intentLabel &&
+          other.source == this.source &&
+          other.schemaVersion == this.schemaVersion &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AssistantLearningExamplesCompanion
+    extends UpdateCompanion<AssistantLearningExample> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> inputText;
+  final Value<String> intentLabel;
+  final Value<String> source;
+  final Value<int> schemaVersion;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const AssistantLearningExamplesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.inputText = const Value.absent(),
+    this.intentLabel = const Value.absent(),
+    this.source = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantLearningExamplesCompanion.insert({
+    required String id,
+    required String householdId,
+    required String inputText,
+    required String intentLabel,
+    this.source = const Value.absent(),
+    this.schemaVersion = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       inputText = Value(inputText),
+       intentLabel = Value(intentLabel),
+       createdAt = Value(createdAt);
+  static Insertable<AssistantLearningExample> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? inputText,
+    Expression<String>? intentLabel,
+    Expression<String>? source,
+    Expression<int>? schemaVersion,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (inputText != null) 'input_text': inputText,
+      if (intentLabel != null) 'intent_label': intentLabel,
+      if (source != null) 'source': source,
+      if (schemaVersion != null) 'schema_version': schemaVersion,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantLearningExamplesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? inputText,
+    Value<String>? intentLabel,
+    Value<String>? source,
+    Value<int>? schemaVersion,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantLearningExamplesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      inputText: inputText ?? this.inputText,
+      intentLabel: intentLabel ?? this.intentLabel,
+      source: source ?? this.source,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (inputText.present) {
+      map['input_text'] = Variable<String>(inputText.value);
+    }
+    if (intentLabel.present) {
+      map['intent_label'] = Variable<String>(intentLabel.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    if (schemaVersion.present) {
+      map['schema_version'] = Variable<int>(schemaVersion.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantLearningExamplesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('inputText: $inputText, ')
+          ..write('intentLabel: $intentLabel, ')
+          ..write('source: $source, ')
+          ..write('schemaVersion: $schemaVersion, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -17999,6 +18579,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $HijriCorrectionLogsTable(this);
   late final $AssistantMemoriesTable assistantMemories =
       $AssistantMemoriesTable(this);
+  late final $AssistantLearningExamplesTable assistantLearningExamples =
+      $AssistantLearningExamplesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -18033,27 +18615,30 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     hijriMonthOverrides,
     hijriCorrectionLogs,
     assistantMemories,
+    assistantLearningExamples,
   ];
 }
 
-typedef $$HouseholdsTableCreateCompanionBuilder = HouseholdsCompanion Function({
-  required String id,
-  required String name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$HouseholdsTableUpdateCompanionBuilder = HouseholdsCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String?> husbandName,
-  Value<String?> wifeName,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$HouseholdsTableCreateCompanionBuilder =
+    HouseholdsCompanion Function({
+      required String id,
+      required String name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$HouseholdsTableUpdateCompanionBuilder =
+    HouseholdsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String?> husbandName,
+      Value<String?> wifeName,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$HouseholdsTableFilterComposer
     extends Composer<_$AppDatabase, $HouseholdsTable> {
@@ -18252,28 +18837,30 @@ typedef $$HouseholdsTableProcessedTableManager =
       Household,
       PrefetchHooks Function()
     >;
-typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$CategoriesTableUpdateCompanionBuilder = CategoriesCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<String?> parentId,
-  Value<String> defaultBudgetPeriod,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$CategoriesTableCreateCompanionBuilder =
+    CategoriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$CategoriesTableUpdateCompanionBuilder =
+    CategoriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<String?> parentId,
+      Value<String> defaultBudgetPeriod,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$CategoriesTableFilterComposer
     extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -18505,24 +19092,26 @@ typedef $$CategoriesTableProcessedTableManager =
       Category,
       PrefetchHooks Function()
     >;
-typedef $$MerchantsTableCreateCompanionBuilder = MerchantsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<String?> details,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$MerchantsTableUpdateCompanionBuilder = MerchantsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String?> details,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$MerchantsTableCreateCompanionBuilder =
+    MerchantsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<String?> details,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$MerchantsTableUpdateCompanionBuilder =
+    MerchantsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String?> details,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$MerchantsTableFilterComposer
     extends Composer<_$AppDatabase, $MerchantsTable> {
@@ -18718,22 +19307,24 @@ typedef $$MerchantsTableProcessedTableManager =
       Merchant,
       PrefetchHooks Function()
     >;
-typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$TagsTableCreateCompanionBuilder =
+    TagsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$TagsTableUpdateCompanionBuilder =
+    TagsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$TagsTableFilterComposer extends Composer<_$AppDatabase, $TagsTable> {
   $$TagsTableFilterComposer({
@@ -18912,28 +19503,30 @@ typedef $$TagsTableProcessedTableManager =
       Tag,
       PrefetchHooks Function()
     >;
-typedef $$AccountsTableCreateCompanionBuilder = AccountsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$AccountsTableUpdateCompanionBuilder = AccountsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> type,
-  Value<int> openingBalance,
-  Value<bool> isActive,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$AccountsTableCreateCompanionBuilder =
+    AccountsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$AccountsTableUpdateCompanionBuilder =
+    AccountsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> type,
+      Value<int> openingBalance,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$AccountsTableFilterComposer
     extends Composer<_$AppDatabase, $AccountsTable> {
@@ -20680,38 +21273,40 @@ typedef $$AttachmentsTableProcessedTableManager =
       Attachment,
       PrefetchHooks Function()
     >;
-typedef $$TransfersTableCreateCompanionBuilder = TransfersCompanion Function({
-  required String id,
-  required String householdId,
-  required String fromAccountId,
-  required String toAccountId,
-  required int amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  required DateTime date,
-  required DateTime recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$TransfersTableUpdateCompanionBuilder = TransfersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> fromAccountId,
-  Value<String> toAccountId,
-  Value<int> amount,
-  Value<int> adminFee,
-  Value<String?> feeTransactionId,
-  Value<DateTime> date,
-  Value<DateTime> recordedAt,
-  Value<String?> note,
-  Value<String?> source,
-  Value<bool> isDeleted,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$TransfersTableCreateCompanionBuilder =
+    TransfersCompanion Function({
+      required String id,
+      required String householdId,
+      required String fromAccountId,
+      required String toAccountId,
+      required int amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      required DateTime date,
+      required DateTime recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$TransfersTableUpdateCompanionBuilder =
+    TransfersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> fromAccountId,
+      Value<String> toAccountId,
+      Value<int> amount,
+      Value<int> adminFee,
+      Value<String?> feeTransactionId,
+      Value<DateTime> date,
+      Value<DateTime> recordedAt,
+      Value<String?> note,
+      Value<String?> source,
+      Value<bool> isDeleted,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$TransfersTableFilterComposer
     extends Composer<_$AppDatabase, $TransfersTable> {
@@ -21756,32 +22351,34 @@ typedef $$EnvelopeTransfersTableProcessedTableManager =
       EnvelopeTransfer,
       PrefetchHooks Function()
     >;
-typedef $$AssetsTableCreateCompanionBuilder = AssetsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required String assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$AssetsTableUpdateCompanionBuilder = AssetsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<String> assetType,
-  Value<int> value,
-  Value<String> placement,
-  Value<String?> note,
-  Value<bool> isArchived,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$AssetsTableCreateCompanionBuilder =
+    AssetsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required String assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssetsTableUpdateCompanionBuilder =
+    AssetsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<String> assetType,
+      Value<int> value,
+      Value<String> placement,
+      Value<String?> note,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$AssetsTableFilterComposer
     extends Composer<_$AppDatabase, $AssetsTable> {
@@ -22047,30 +22644,32 @@ typedef $$AssetsTableProcessedTableManager =
       Asset,
       PrefetchHooks Function()
     >;
-typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
-  required String id,
-  required String householdId,
-  required String name,
-  required int targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  required DateTime createdAt,
-  Value<int> rowid,
-});
-typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> name,
-  Value<int> targetAmount,
-  Value<int> currentAmount,
-  Value<DateTime?> targetDate,
-  Value<String?> categoryId,
-  Value<bool> isActive,
-  Value<DateTime> createdAt,
-  Value<int> rowid,
-});
+typedef $$GoalsTableCreateCompanionBuilder =
+    GoalsCompanion Function({
+      required String id,
+      required String householdId,
+      required String name,
+      required int targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$GoalsTableUpdateCompanionBuilder =
+    GoalsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> name,
+      Value<int> targetAmount,
+      Value<int> currentAmount,
+      Value<DateTime?> targetDate,
+      Value<String?> categoryId,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
 
 class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   $$GoalsTableFilterComposer({
@@ -23689,40 +24288,42 @@ typedef $$RecurringTransactionRunsTableProcessedTableManager =
       RecurringTransactionRun,
       PrefetchHooks Function()
     >;
-typedef $$RemindersTableCreateCompanionBuilder = RemindersCompanion Function({
-  required String id,
-  required String householdId,
-  required String title,
-  Value<String?> note,
-  required DateTime scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  required int notificationId,
-  required DateTime createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
-typedef $$RemindersTableUpdateCompanionBuilder = RemindersCompanion Function({
-  Value<String> id,
-  Value<String> householdId,
-  Value<String> title,
-  Value<String?> note,
-  Value<DateTime> scheduledAt,
-  Value<String> recurrenceType,
-  Value<String> weekdaysJson,
-  Value<bool> isActive,
-  Value<String?> soundUri,
-  Value<String?> soundName,
-  Value<int> defaultSnoozeMinutes,
-  Value<int> notificationId,
-  Value<DateTime> createdAt,
-  Value<DateTime?> updatedAt,
-  Value<int> rowid,
-});
+typedef $$RemindersTableCreateCompanionBuilder =
+    RemindersCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      required DateTime scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      required int notificationId,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$RemindersTableUpdateCompanionBuilder =
+    RemindersCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime> scheduledAt,
+      Value<String> recurrenceType,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<String?> soundUri,
+      Value<String?> soundName,
+      Value<int> defaultSnoozeMinutes,
+      Value<int> notificationId,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
 
 class $$RemindersTableFilterComposer
     extends Composer<_$AppDatabase, $RemindersTable> {
@@ -26876,6 +27477,309 @@ typedef $$AssistantMemoriesTableProcessedTableManager =
       AssistantMemory,
       PrefetchHooks Function()
     >;
+typedef $$AssistantLearningExamplesTableCreateCompanionBuilder =
+    AssistantLearningExamplesCompanion Function({
+      required String id,
+      required String householdId,
+      required String inputText,
+      required String intentLabel,
+      Value<String> source,
+      Value<int> schemaVersion,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantLearningExamplesTableUpdateCompanionBuilder =
+    AssistantLearningExamplesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> inputText,
+      Value<String> intentLabel,
+      Value<String> source,
+      Value<int> schemaVersion,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantLearningExamplesTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantLearningExamplesTable> {
+  $$AssistantLearningExamplesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get inputText => $composableBuilder(
+    column: $table.inputText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get intentLabel => $composableBuilder(
+    column: $table.intentLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantLearningExamplesTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantLearningExamplesTable> {
+  $$AssistantLearningExamplesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get inputText => $composableBuilder(
+    column: $table.inputText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get intentLabel => $composableBuilder(
+    column: $table.intentLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantLearningExamplesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantLearningExamplesTable> {
+  $$AssistantLearningExamplesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get inputText =>
+      $composableBuilder(column: $table.inputText, builder: (column) => column);
+
+  GeneratedColumn<String> get intentLabel => $composableBuilder(
+    column: $table.intentLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+
+  GeneratedColumn<int> get schemaVersion => $composableBuilder(
+    column: $table.schemaVersion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AssistantLearningExamplesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantLearningExamplesTable,
+          AssistantLearningExample,
+          $$AssistantLearningExamplesTableFilterComposer,
+          $$AssistantLearningExamplesTableOrderingComposer,
+          $$AssistantLearningExamplesTableAnnotationComposer,
+          $$AssistantLearningExamplesTableCreateCompanionBuilder,
+          $$AssistantLearningExamplesTableUpdateCompanionBuilder,
+          (
+            AssistantLearningExample,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantLearningExamplesTable,
+              AssistantLearningExample
+            >,
+          ),
+          AssistantLearningExample,
+          PrefetchHooks Function()
+        > {
+  $$AssistantLearningExamplesTableTableManager(
+    _$AppDatabase db,
+    $AssistantLearningExamplesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantLearningExamplesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantLearningExamplesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantLearningExamplesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> inputText = const Value.absent(),
+                Value<String> intentLabel = const Value.absent(),
+                Value<String> source = const Value.absent(),
+                Value<int> schemaVersion = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantLearningExamplesCompanion(
+                id: id,
+                householdId: householdId,
+                inputText: inputText,
+                intentLabel: intentLabel,
+                source: source,
+                schemaVersion: schemaVersion,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String inputText,
+                required String intentLabel,
+                Value<String> source = const Value.absent(),
+                Value<int> schemaVersion = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantLearningExamplesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                inputText: inputText,
+                intentLabel: intentLabel,
+                source: source,
+                schemaVersion: schemaVersion,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantLearningExamplesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantLearningExamplesTable,
+      AssistantLearningExample,
+      $$AssistantLearningExamplesTableFilterComposer,
+      $$AssistantLearningExamplesTableOrderingComposer,
+      $$AssistantLearningExamplesTableAnnotationComposer,
+      $$AssistantLearningExamplesTableCreateCompanionBuilder,
+      $$AssistantLearningExamplesTableUpdateCompanionBuilder,
+      (
+        AssistantLearningExample,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantLearningExamplesTable,
+          AssistantLearningExample
+        >,
+      ),
+      AssistantLearningExample,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -26943,4 +27847,9 @@ class $AppDatabaseManager {
       $$HijriCorrectionLogsTableTableManager(_db, _db.hijriCorrectionLogs);
   $$AssistantMemoriesTableTableManager get assistantMemories =>
       $$AssistantMemoriesTableTableManager(_db, _db.assistantMemories);
+  $$AssistantLearningExamplesTableTableManager get assistantLearningExamples =>
+      $$AssistantLearningExamplesTableTableManager(
+        _db,
+        _db.assistantLearningExamples,
+      );
 }

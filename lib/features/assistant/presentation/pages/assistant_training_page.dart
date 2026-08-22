@@ -4,8 +4,19 @@ import 'package:flutter/services.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
+import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import 'assistant_training_import_dialog.dart';
+
+class _AssistantTrainingData {
+  const _AssistantTrainingData({
+    required this.memories,
+    required this.examples,
+  });
+
+  final List<FfmAssistantMemoryRecord> memories;
+  final List<FfmAssistantLearningExample> examples;
+}
 
 /// Gaya v54: ajaran pengguna selalu eksplisit, lokal, dapat ditinjau, dan
 /// tidak pernah memberi Asisten izin menyimpan data finansial secara otomatis.
@@ -18,8 +29,9 @@ class AssistantTrainingPage extends StatefulWidget {
 
 class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _repository = getIt<FfmAssistantMemoryRepository>();
+  final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _knowledgePack = getIt<FfmAssistantKnowledgePackService>();
-  late Future<List<FfmAssistantMemoryRecord>> _memories;
+  late Future<_AssistantTrainingData> _trainingData;
 
   @override
   void initState() {
@@ -28,7 +40,14 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   }
 
   void _reload() {
-    _memories = _repository.readAll();
+    _trainingData =
+        Future.wait([_repository.readAll(), _learningRepository.readAll()])
+            .then(
+              (values) => _AssistantTrainingData(
+                memories: values[0] as List<FfmAssistantMemoryRecord>,
+                examples: values[1] as List<FfmAssistantLearningExample>,
+              ),
+            );
   }
 
   Future<void> _teach() async {
@@ -119,6 +138,47 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
     );
   }
 
+  Future<void> _copyLearningDataset() async {
+    final content = await _learningRepository.exportDatasetJson();
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Dataset contoh belajar disalin tanpa nominal atau nama pribadi.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _archiveLearningExample(
+    FfmAssistantLearningExample example,
+  ) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Arsipkan contoh belajar?'),
+        content: const Text(
+          'Contoh ini tidak akan ikut ekspor dataset berikutnya. Riwayat lokalnya tetap ada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Arsipkan'),
+          ),
+        ],
+      ),
+    );
+    if (approved != true) return;
+    await _learningRepository.archive(example.id);
+    if (!mounted) return;
+    setState(_reload);
+  }
+
   Future<void> _importKnowledgePack() async {
     final content = await showDialog<String>(
       context: context,
@@ -187,15 +247,24 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
         icon: const Icon(Icons.school_outlined),
         label: const Text('Ajarkan Asisten'),
       ),
-      body: FutureBuilder<List<FfmAssistantMemoryRecord>>(
-        future: _memories,
+      body: FutureBuilder<_AssistantTrainingData>(
+        future: _trainingData,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          final memories = snapshot.data ?? const [];
+          final data = snapshot.data;
+          final memories = data?.memories ?? const <FfmAssistantMemoryRecord>[];
+          final examples =
+              data?.examples ?? const <FfmAssistantLearningExample>[];
           final active = memories.where((item) => !item.isArchived).toList();
           final archived = memories.where((item) => item.isArchived).toList();
+          final activeExamples = examples
+              .where((item) => !item.isArchived)
+              .toList();
+          final archivedExamples = examples
+              .where((item) => item.isArchived)
+              .toList();
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
             children: [
@@ -246,6 +315,11 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                           icon: const Icon(Icons.file_download_outlined),
                           label: const Text('Impor JSON'),
                         ),
+                        OutlinedButton.icon(
+                          onPressed: _copyLearningDataset,
+                          icon: const Icon(Icons.dataset_outlined),
+                          label: const Text('Salin dataset latihan'),
+                        ),
                       ],
                     ),
                   ],
@@ -276,9 +350,81 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                   (memory) => _MemoryCard(memory: memory, archived: true),
                 ),
               ],
+              const SizedBox(height: 20),
+              AppSectionHeader(
+                title: 'Contoh belajar aktif (${activeExamples.length})',
+              ),
+              const SizedBox(height: 8),
+              if (activeExamples.isEmpty)
+                const AppEmptyState(
+                  icon: Icons.dataset_outlined,
+                  title: 'Belum ada contoh belajar',
+                  message: 'Dari preview draft chat, pilih Bantu Asisten belajar lalu setujui contoh yang sudah disamarkan.',
+                )
+              else
+                ...activeExamples.map(
+                  (example) => _LearningExampleCard(
+                    example: example,
+                    onArchive: () => _archiveLearningExample(example),
+                  ),
+                ),
+              if (archivedExamples.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                AppSectionHeader(
+                  title:
+                      'Contoh belajar diarsipkan (${archivedExamples.length})',
+                ),
+                const SizedBox(height: 8),
+                ...archivedExamples.map(
+                  (example) =>
+                      _LearningExampleCard(example: example, archived: true),
+                ),
+              ],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _LearningExampleCard extends StatelessWidget {
+  const _LearningExampleCard({
+    required this.example,
+    this.archived = false,
+    this.onArchive,
+  });
+
+  final FfmAssistantLearningExample example;
+  final bool archived;
+  final VoidCallback? onArchive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            archived ? Icons.inventory_2_outlined : Icons.dataset_outlined,
+          ),
+          title: Text(
+            example.inputText,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text('Intent: ${example.intentLabel}'),
+          trailing: archived
+              ? const Tooltip(
+                  message: 'Sudah diarsipkan',
+                  child: Icon(Icons.archive_outlined),
+                )
+              : IconButton(
+                  tooltip: 'Arsipkan contoh belajar',
+                  icon: const Icon(Icons.archive_outlined),
+                  onPressed: onArchive,
+                ),
+        ),
       ),
     );
   }

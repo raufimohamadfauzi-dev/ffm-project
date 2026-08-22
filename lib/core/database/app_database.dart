@@ -40,6 +40,7 @@ part 'app_database.g.dart';
     HijriMonthOverrides,
     HijriCorrectionLogs,
     AssistantMemories,
+    AssistantLearningExamples,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -48,7 +49,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 31;
+  int get schemaVersion => 32;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -56,6 +57,7 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
       await _createActivityIndexes();
       await _createAssistantMemoryIndexes();
+      await _createAssistantLearningIndexes();
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -120,6 +122,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(assistantMemories);
         await _createAssistantMemoryIndexes();
       }
+      if (from < 32) {
+        await m.createTable(assistantLearningExamples);
+        await _createAssistantLearningIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -156,6 +162,14 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_assistant_memories_household_kind '
       'ON assistant_memories (household_id, kind, is_archived)',
+    );
+  }
+
+  Future<void> _createAssistantLearningIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_learning_examples_household '
+      'ON assistant_learning_examples '
+      '(household_id, is_archived, intent_label, created_at)',
     );
   }
 

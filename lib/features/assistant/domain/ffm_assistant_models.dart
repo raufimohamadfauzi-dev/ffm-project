@@ -28,6 +28,7 @@ enum FfmAssistantIntentType {
   exportReport,
   replaceDraftText,
   removeDraftItem,
+  teachMemory,
   readLastResponse,
   confirm,
   cancel,
@@ -78,6 +79,7 @@ class FfmAssistantIntent {
     this.confidence = 0,
     this.clarification,
     this.response,
+    this.teachingProposal,
   });
 
   final String rawText;
@@ -88,9 +90,25 @@ class FfmAssistantIntent {
   final double confidence;
   final String? clarification;
   final String? response;
+  final FfmAssistantTeachingProposal? teachingProposal;
 
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
+  bool get needsTeachingApproval => teachingProposal != null;
+}
+
+/// Ajaran yang ditampilkan dulu di chat. Repository SQLite hanya boleh
+/// menyimpan proposal ini setelah pengguna menekan aksi persetujuan.
+class FfmAssistantTeachingProposal {
+  const FfmAssistantTeachingProposal({
+    required this.kind,
+    required this.triggerText,
+    required this.valueText,
+  });
+
+  final String kind;
+  final String triggerText;
+  final String valueText;
 }
 
 class FfmAssistantDraft {
