@@ -1,4 +1,5 @@
 import '../../../core/database/app_database.dart';
+import '../../../core/database/ffm_database_structure_service.dart';
 
 import 'package:drift/drift.dart';
 
@@ -37,6 +38,7 @@ class FfmAssistantQueryRegistry {
   FfmAssistantQueryRegistry(AppDatabase database, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now,
       _tools = <FfmAssistantQueryTool>[
+        _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
         _AccountBalanceQueryTool(database),
         _TransactionSummaryQueryTool(database),
         _ActiveActivityQueryTool(database),
@@ -73,6 +75,44 @@ class FfmAssistantQueryRegistry {
       if (answer != null) return answer;
     }
     return null;
+  }
+}
+
+class _DatabaseStructureQueryTool implements FfmAssistantQueryTool {
+  const _DatabaseStructureQueryTool(this._structureService);
+
+  final FfmDatabaseStructureService _structureService;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final namesDatabase = RegExp(
+      r'\b(database|basis data|struktur database|struktur data|tabel)\b',
+    ).hasMatch(normalizedText);
+    final asksAppData =
+        normalizedText.contains('ada data apa saja') &&
+        (normalizedText.contains('aplikasi') || normalizedText.contains('ffm'));
+    return namesDatabase || asksAppData;
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final structure = await _structureService.read();
+    final categories = structure.categoryCounts.entries.toList()
+      ..sort((left, right) => left.key.compareTo(right.key));
+    final categoryText = categories
+        .map((item) => '${item.key} (${item.value})')
+        .join(', ');
+    final examples = structure.tables
+        .take(5)
+        .map((table) => table.label)
+        .join(', ');
+    return FfmAssistantQueryAnswer(
+      title: 'Struktur database FFM',
+      message:
+          'FFM memakai ${structure.tableCount} tabel lokal dalam kelompok: $categoryText. Contohnya: $examples. Aku hanya membaca metadata nama tabel, kategori, dan jumlah kolom—bukan isi transaksi, saldo, nama rekening, atau data keluarga. Untuk daftar lengkap, buka Lainnya > Struktur database.',
+    );
   }
 }
 

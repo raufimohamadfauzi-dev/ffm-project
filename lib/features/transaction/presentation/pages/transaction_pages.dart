@@ -37,6 +37,7 @@ import '../../../recurring_transaction/domain/usecases/recurring_transaction_cru
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 
 List<Category> _transactionCategoryOptions(
   List<Category> categories,
@@ -1341,401 +1342,407 @@ class _TransactionListPageState extends State<TransactionListPage> {
               entry.transaction.amount < 0,
         )
         .fold<int>(0, (sum, entry) => sum + entry.transaction.amount.abs());
-    return Scaffold(
-      appBar: AppBar(
-        titleSpacing: _isSearchOpen ? 0 : null,
-        leading: _isSearchOpen
-            ? IconButton(
-                tooltip: 'Tutup pencarian',
-                onPressed: _closeSearch,
-                icon: const Icon(Icons.arrow_back),
-              )
-            : null,
-        title: _isSearchOpen
-            ? TextField(
-                focusNode: _searchFocusNode,
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  hintText: 'Cari transaksi, kategori, toko, atau catatan',
-                  border: InputBorder.none,
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Hapus pencarian',
-                          onPressed: () {
-                            _searchController.clear();
-                            _onSearchChanged('');
-                          },
-                          icon: const Icon(Icons.clear),
-                        ),
-                ),
-              )
-            : const Text('Transaksi'),
-        actions: _isSearchOpen
-            ? const [SizedBox(width: 8)]
-            : [
-                if (widget.onOpenAssistant != null)
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.transactions,
+      child: Scaffold(
+        appBar: AppBar(
+          titleSpacing: _isSearchOpen ? 0 : null,
+          leading: _isSearchOpen
+              ? IconButton(
+                  tooltip: 'Tutup pencarian',
+                  onPressed: _closeSearch,
+                  icon: const Icon(Icons.arrow_back),
+                )
+              : null,
+          title: _isSearchOpen
+              ? TextField(
+                  focusNode: _searchFocusNode,
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Cari transaksi, kategori, toko, atau catatan',
+                    border: InputBorder.none,
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Hapus pencarian',
+                            onPressed: () {
+                              _searchController.clear();
+                              _onSearchChanged('');
+                            },
+                            icon: const Icon(Icons.clear),
+                          ),
+                  ),
+                )
+              : const Text('Transaksi'),
+          actions: _isSearchOpen
+              ? const [SizedBox(width: 8)]
+              : [
+                  if (widget.onOpenAssistant != null)
+                    IconButton(
+                      tooltip: 'Buka Asisten FFM',
+                      onPressed: widget.onOpenAssistant,
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                    ),
                   IconButton(
-                    tooltip: 'Buka Asisten FFM',
-                    onPressed: widget.onOpenAssistant,
-                    icon: const Icon(Icons.auto_awesome_outlined),
+                    tooltip: 'Cari transaksi',
+                    onPressed: _openSearch,
+                    icon: const Icon(Icons.search),
                   ),
-                IconButton(
-                  tooltip: 'Cari transaksi',
-                  onPressed: _openSearch,
-                  icon: const Icon(Icons.search),
-                ),
-                IconButton(
-                  tooltip: 'Info Transaksi',
-                  onPressed: () => showAppInfoDialog(
-                    context,
-                    title: 'Cara pakai Transaksi',
-                    message: _accounts.isEmpty
-                        ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal supaya saldo keluarga punya titik awal.'
-                        : 'Pemasukan menambah arus kas dan pengeluaran menguranginya. Kamu bisa impor JSON dari LLM, lalu selalu cek dan edit hasilnya sebelum menyimpan.',
+                  IconButton(
+                    tooltip: 'Info Transaksi',
+                    onPressed: () => showAppInfoDialog(
+                      context,
+                      title: 'Cara pakai Transaksi',
+                      message: _accounts.isEmpty
+                          ? 'Buat rekening di Data Utama dulu. Setelah itu catat pemasukan awal supaya saldo keluarga punya titik awal.'
+                          : 'Pemasukan menambah arus kas dan pengeluaran menguranginya. Kamu bisa impor JSON dari LLM, lalu selalu cek dan edit hasilnya sebelum menyimpan.',
+                    ),
+                    icon: const Icon(Icons.info_outline),
                   ),
-                  icon: const Icon(Icons.info_outline),
-                ),
-                IconButton(
-                  tooltip: 'Saring transaksi',
-                  onPressed: _showFilterSheet,
-                  icon: const Icon(Icons.tune),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Aksi transaksi lainnya',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'transfer':
-                        _openTransfer();
-                      case 'cepat':
-                        _openQuickEntry();
-                      case 'json':
-                        _openJsonBatch();
-                      case 'receipt_json':
-                        _openReceiptJsonImport();
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
-                      value: 'transfer',
-                      child: ListTile(
-                        leading: Icon(Icons.swap_horiz_rounded),
-                        title: Text('Pindah saldo'),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'cepat',
-                      child: ListTile(
-                        leading: Icon(Icons.playlist_add_rounded),
-                        title: Text('Input cepat'),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'json',
-                      child: ListTile(
-                        leading: Icon(Icons.data_object_rounded),
-                        title: Text('Impor JSON'),
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'receipt_json',
-                      child: ListTile(
-                        leading: Icon(Icons.data_object_rounded),
-                        title: Text('Impor JSON nota'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _transactions.isEmpty && _transfers.isEmpty
-          ? ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-              children: [
-                AppEmptyState(
-                  icon: _accounts.isEmpty
-                      ? Icons.account_balance_wallet_outlined
-                      : Icons.receipt_long_outlined,
-                  title: _accounts.isEmpty
-                      ? 'Rekening belum ada'
-                      : 'Belum ada transaksi',
-                  message: _accounts.isEmpty
-                      ? 'Transaksi membutuhkan tempat uang seperti Tunai, bank, atau dompet digital.'
-                      : 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
-                  action: FilledButton.icon(
-                    onPressed: _accounts.isEmpty
-                        ? () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const MasterDataPage(),
-                              ),
-                            );
-                            if (mounted) await _loadTransactions();
-                          }
-                        : _openForm,
-                    icon: Icon(
-                      _accounts.isEmpty ? Icons.tune_outlined : Icons.add,
-                    ),
-                    label: Text(
-                      _accounts.isEmpty
-                          ? 'Buka Data Utama'
-                          : AppCopy.tambahTransaksi,
-                    ),
+                  IconButton(
+                    tooltip: 'Saring transaksi',
+                    onPressed: _showFilterSheet,
+                    icon: const Icon(Icons.tune),
                   ),
-                ),
-              ],
-            )
-          : visibleTransactions.isEmpty && visibleTransfers.isEmpty
-          ? ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-              children: [
-                const AppHelpBanner(
-                  title: 'Tidak ada yang cocok',
-                  message: 'Coba ubah kata pencarian atau matikan saringan untuk melihat transaksi lain.',
-                  icon: Icons.search_off_outlined,
-                ),
-              ],
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-              itemCount:
-                  visibleTransactions.length + visibleTransfers.length + 2,
-              separatorBuilder: (_, _) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _TransactionFlowSummary(
-                    incomeTotal: incomeTotal,
-                    expenseTotal: expenseTotal,
-                    transactionCount: visibleTransactions.length,
-                    transferCount: visibleTransfers.length,
-                  );
-                }
-                if (index == 1) {
-                  return _AccountBalancesCard(
-                    accounts: _accounts,
-                    transactions: _transactions,
-                    transfers: _transfers,
-                    accountTypeLabel: _accountTypeLabel,
-                  );
-                }
-                final transferIndex = index - 2;
-                if (transferIndex >= 0 &&
-                    transferIndex < visibleTransfers.length) {
-                  final transfer = visibleTransfers[transferIndex];
-                  return _TransferHistoryCard(
-                    transfer: transfer,
-                    fromLabel: _accountLabel(transfer.fromAccountId),
-                    toLabel: _accountLabel(transfer.toAccountId),
-                    dateLabel: _dateLabel,
-                    onDelete: () => _deleteTransfer(transfer),
-                  );
-                }
-                final entry =
-                    visibleTransactions[transferIndex -
-                        visibleTransfers.length];
-                final item = entry.transaction;
-                final isIncome = item.amount >= 0;
-                final isGoalUsage =
-                    item.goalId != null && item.source == 'goal_usage';
-                final isGoalContribution = item.goalId != null && !isGoalUsage;
-                final merchantName = _merchantLabel(item.merchantId);
-                final itemSummary = entry.items.isEmpty
-                    ? null
-                    : entry.items
-                          .map((receiptItem) => receiptItem.itemName)
-                          .join(', ');
-                final color = isGoalContribution
-                    ? AppColors.primary
-                    : isGoalUsage
-                    ? AppColors.negative
-                    : isIncome
-                    ? AppColors.positive
-                    : AppColors.negative;
-                return AppCard(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  color: isIncome
-                      ? AppColors.positiveSoft.withValues(alpha: .72)
-                      : AppColors.negativeSoft.withValues(alpha: .78),
-                  onTap: () => _openDetail(entry),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: color.withValues(alpha: .14),
-                        foregroundColor: color,
-                        child: Icon(
-                          isIncome
-                              ? Icons.south_west_rounded
-                              : Icons.north_east_rounded,
-                          size: 25,
+                  PopupMenuButton<String>(
+                    tooltip: 'Aksi transaksi lainnya',
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'transfer':
+                          _openTransfer();
+                        case 'cepat':
+                          _openQuickEntry();
+                        case 'json':
+                          _openJsonBatch();
+                        case 'receipt_json':
+                          _openReceiptJsonImport();
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'transfer',
+                        child: ListTile(
+                          leading: Icon(Icons.swap_horiz_rounded),
+                          title: Text('Pindah saldo'),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                AppStatusChip(
-                                  label: isGoalContribution
-                                      ? 'Isi target'
-                                      : isGoalUsage
-                                      ? 'Pakai target'
-                                      : isIncome
-                                      ? 'Uang masuk'
-                                      : 'Uang keluar',
-                                  color: color,
-                                  backgroundColor: color.withValues(alpha: .14),
-                                ),
-                                if (isDataSusulan(
-                                  item.date,
-                                  now: item.recordedAt,
-                                ))
-                                  AppStatusChip(
-                                    label: 'Data susulan',
-                                    color: AppColors.warning,
-                                    backgroundColor: AppColors.warningSoft,
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              isGoalContribution
-                                  ? 'Uang terkumpul untuk target'
-                                  : isGoalUsage
-                                  ? 'Penggunaan dana target'
-                                  : _categoryLabel(item.categoryId),
-
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                            if (merchantName.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                merchantName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ],
-                            if (_accountLabel(item.accountId).isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.account_balance_wallet_outlined,
-                                    size: 14,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      _accountLabel(item.accountId),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            if (itemSummary != null) ...[
-                              const SizedBox(height: 3),
-                              Text(
-                                itemSummary,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ],
-                            const SizedBox(height: 4),
-                            Text(
-                              'Dipakai oleh: ${item.owner}',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppColors.inkMuted),
-                            ),
-                            const SizedBox(height: 2),
-                            HijriDateText(
-                              date: item.date,
-                              includeSeconds: true,
-                              compact: true,
-                              color: AppColors.inkMuted,
-                            ),
-                          ],
+                      PopupMenuItem(
+                        value: 'cepat',
+                        child: ListTile(
+                          leading: Icon(Icons.playlist_add_rounded),
+                          title: Text('Input cepat'),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            isIncome ? '+' : '−',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  color: color,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                          ),
-                          AppMoneyText(
-                            item.amount.abs(),
-                            compact: true,
-                            color: color,
-                          ),
-                        ],
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: 'Aksi transaksi',
-                        icon: const Icon(Icons.more_vert),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 48,
-                          minHeight: 48,
+                      PopupMenuItem(
+                        value: 'json',
+                        child: ListTile(
+                          leading: Icon(Icons.data_object_rounded),
+                          title: Text('Impor JSON'),
                         ),
-                        onSelected: (value) {
-                          if (value == 'edit') {
-                            _openEdit(entry);
-                          } else if (value == 'delete') {
-                            _deleteTransaction(entry);
-                          }
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Ubah transaksi'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Hapus transaksi'),
-                          ),
-                        ],
+                      ),
+                      PopupMenuItem(
+                        value: 'receipt_json',
+                        child: ListTile(
+                          leading: Icon(Icons.data_object_rounded),
+                          title: Text('Impor JSON nota'),
+                        ),
                       ),
                     ],
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openForm,
-        icon: const Icon(Icons.add),
-        label: const Text(AppCopy.tambah),
+                ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _transactions.isEmpty && _transfers.isEmpty
+            ? ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                children: [
+                  AppEmptyState(
+                    icon: _accounts.isEmpty
+                        ? Icons.account_balance_wallet_outlined
+                        : Icons.receipt_long_outlined,
+                    title: _accounts.isEmpty
+                        ? 'Rekening belum ada'
+                        : 'Belum ada transaksi',
+                    message: _accounts.isEmpty
+                        ? 'Transaksi membutuhkan tempat uang seperti Tunai, bank, atau dompet digital.'
+                        : 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
+                    action: FilledButton.icon(
+                      onPressed: _accounts.isEmpty
+                          ? () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MasterDataPage(),
+                                ),
+                              );
+                              if (mounted) await _loadTransactions();
+                            }
+                          : _openForm,
+                      icon: Icon(
+                        _accounts.isEmpty ? Icons.tune_outlined : Icons.add,
+                      ),
+                      label: Text(
+                        _accounts.isEmpty
+                            ? 'Buka Data Utama'
+                            : AppCopy.tambahTransaksi,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : visibleTransactions.isEmpty && visibleTransfers.isEmpty
+            ? ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                children: [
+                  const AppHelpBanner(
+                    title: 'Tidak ada yang cocok',
+                    message: 'Coba ubah kata pencarian atau matikan saringan untuk melihat transaksi lain.',
+                    icon: Icons.search_off_outlined,
+                  ),
+                ],
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                itemCount:
+                    visibleTransactions.length + visibleTransfers.length + 2,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return _TransactionFlowSummary(
+                      incomeTotal: incomeTotal,
+                      expenseTotal: expenseTotal,
+                      transactionCount: visibleTransactions.length,
+                      transferCount: visibleTransfers.length,
+                    );
+                  }
+                  if (index == 1) {
+                    return _AccountBalancesCard(
+                      accounts: _accounts,
+                      transactions: _transactions,
+                      transfers: _transfers,
+                      accountTypeLabel: _accountTypeLabel,
+                    );
+                  }
+                  final transferIndex = index - 2;
+                  if (transferIndex >= 0 &&
+                      transferIndex < visibleTransfers.length) {
+                    final transfer = visibleTransfers[transferIndex];
+                    return _TransferHistoryCard(
+                      transfer: transfer,
+                      fromLabel: _accountLabel(transfer.fromAccountId),
+                      toLabel: _accountLabel(transfer.toAccountId),
+                      dateLabel: _dateLabel,
+                      onDelete: () => _deleteTransfer(transfer),
+                    );
+                  }
+                  final entry =
+                      visibleTransactions[transferIndex -
+                          visibleTransfers.length];
+                  final item = entry.transaction;
+                  final isIncome = item.amount >= 0;
+                  final isGoalUsage =
+                      item.goalId != null && item.source == 'goal_usage';
+                  final isGoalContribution =
+                      item.goalId != null && !isGoalUsage;
+                  final merchantName = _merchantLabel(item.merchantId);
+                  final itemSummary = entry.items.isEmpty
+                      ? null
+                      : entry.items
+                            .map((receiptItem) => receiptItem.itemName)
+                            .join(', ');
+                  final color = isGoalContribution
+                      ? AppColors.primary
+                      : isGoalUsage
+                      ? AppColors.negative
+                      : isIncome
+                      ? AppColors.positive
+                      : AppColors.negative;
+                  return AppCard(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    color: isIncome
+                        ? AppColors.positiveSoft.withValues(alpha: .72)
+                        : AppColors.negativeSoft.withValues(alpha: .78),
+                    onTap: () => _openDetail(entry),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 24,
+                          backgroundColor: color.withValues(alpha: .14),
+                          foregroundColor: color,
+                          child: Icon(
+                            isIncome
+                                ? Icons.south_west_rounded
+                                : Icons.north_east_rounded,
+                            size: 25,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                children: [
+                                  AppStatusChip(
+                                    label: isGoalContribution
+                                        ? 'Isi target'
+                                        : isGoalUsage
+                                        ? 'Pakai target'
+                                        : isIncome
+                                        ? 'Uang masuk'
+                                        : 'Uang keluar',
+                                    color: color,
+                                    backgroundColor: color.withValues(
+                                      alpha: .14,
+                                    ),
+                                  ),
+                                  if (isDataSusulan(
+                                    item.date,
+                                    now: item.recordedAt,
+                                  ))
+                                    AppStatusChip(
+                                      label: 'Data susulan',
+                                      color: AppColors.warning,
+                                      backgroundColor: AppColors.warningSoft,
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                isGoalContribution
+                                    ? 'Uang terkumpul untuk target'
+                                    : isGoalUsage
+                                    ? 'Penggunaan dana target'
+                                    : _categoryLabel(item.categoryId),
+
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                              if (merchantName.isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  merchantName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                              if (_accountLabel(item.accountId).isNotEmpty) ...[
+                                const SizedBox(height: 3),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.account_balance_wallet_outlined,
+                                      size: 14,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        _accountLabel(item.accountId),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                              if (itemSummary != null) ...[
+                                const SizedBox(height: 3),
+                                Text(
+                                  itemSummary,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Text(
+                                'Dipakai oleh: ${item.owner}',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: AppColors.inkMuted),
+                              ),
+                              const SizedBox(height: 2),
+                              HijriDateText(
+                                date: item.date,
+                                includeSeconds: true,
+                                compact: true,
+                                color: AppColors.inkMuted,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              isIncome ? '+' : '−',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: color,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                            AppMoneyText(
+                              item.amount.abs(),
+                              compact: true,
+                              color: color,
+                            ),
+                          ],
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Aksi transaksi',
+                          icon: const Icon(Icons.more_vert),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
+                          onSelected: (value) {
+                            if (value == 'edit') {
+                              _openEdit(entry);
+                            } else if (value == 'delete') {
+                              _deleteTransaction(entry);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Ubah transaksi'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Hapus transaksi'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _openForm,
+          icon: const Icon(Icons.add),
+          label: const Text(AppCopy.tambah),
+        ),
       ),
     );
   }
@@ -2789,46 +2796,281 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   .map((category) => category.name)
                   .firstOrNull ??
               'Belum terbaca';
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.existingTransaction == null
-              ? (isIncome ? 'Tambah pemasukan' : 'Tambah pengeluaran')
-              : (isIncome ? 'Ubah pemasukan' : 'Ubah pengeluaran'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.transactions,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            widget.existingTransaction == null
+                ? (isIncome ? 'Tambah pemasukan' : 'Tambah pengeluaran')
+                : (isIncome ? 'Ubah pemasukan' : 'Ubah pengeluaran'),
+          ),
         ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            if (widget.showFirstTransactionGuide)
-              _FirstTransactionGuide(
-                isIncome: isIncome,
-                onOpenLiability: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const LiabilityReceivablePage(),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              if (widget.showFirstTransactionGuide)
+                _FirstTransactionGuide(
+                  isIncome: isIncome,
+                  onOpenLiability: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const LiabilityReceivablePage(),
+                      ),
+                    );
+                  },
+                ),
+              if (widget.showFirstTransactionGuide) const SizedBox(height: 16),
+              AppCard(
+                color: flowColor.withValues(alpha: isIncome ? .16 : .10),
+                border: BorderSide(color: flowColor, width: isIncome ? 2 : 1.4),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isIncome
+                              ? Icons.south_west_rounded
+                              : Icons.north_east_rounded,
+                          color: flowColor,
+                          size: 28,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                flowLabel,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(
+                                      color: flowColor,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                              Text(
+                                isIncome
+                                    ? 'Menambah saldo keluarga'
+                                    : 'Mengurangi saldo keluarga',
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Cara input suara',
+                          onPressed: _showVoiceGuide,
+                          icon: const Icon(Icons.help_outline_rounded),
+                        ),
+                        IconButton.filledTonal(
+                          tooltip: _listening
+                              ? 'Berhenti mendengar'
+                              : 'Isi dengan suara',
+                          onPressed: _categoriesLoading
+                              ? null
+                              : _startVoiceInput,
+                          icon: Icon(
+                            _listening
+                                ? Icons.stop_rounded
+                                : Icons.mic_none_rounded,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                    const SizedBox(height: 10),
+                    Text(
+                      _listening
+                          ? 'Ngomong sekarang: sebut arah, nominal, dan keperluannya.'
+                          : 'Tekan mikrofon, ucapkan satu kalimat pendek, lalu cek hasilnya.',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: flowColor.withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Jenis transaksi: $flowLabel',
+                        style: TextStyle(
+                          color: flowColor,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _amountController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: const [RupiahInputFormatter()],
+                      decoration: InputDecoration(
+                        labelText: 'Nominal $flowLabel',
+                        prefixText: 'Rp ',
+                        hintText: '0',
+                        filled: true,
+                        fillColor: scheme.surfaceContainerLowest,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                      validator: (value) {
+                        final amount = parseRupiah(value ?? '');
+                        if (amount <= 0) {
+                          return AppCopy.nominalTidakValid;
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
               ),
-            if (widget.showFirstTransactionGuide) const SizedBox(height: 16),
-            AppCard(
-              color: flowColor.withValues(alpha: isIncome ? .16 : .10),
-              border: BorderSide(color: flowColor, width: isIncome ? 2 : 1.4),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              const SizedBox(height: 16),
+              if (_voiceText != null)
+                AppCard(
+                  color: scheme.primaryContainer.withValues(alpha: .45),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.graphic_eq_rounded, color: scheme.primary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _listening
+                                  ? 'Lagi mendengarkan…'
+                                  : 'Hasil suara: “$_voiceText”',
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (!_listening && voiceResult != null) ...[
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Cek dulu hasilnya. Data belum tersimpan sampai kamu menekan Simpan.',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        _VoiceResultLine(
+                          label: 'Arah transaksi',
+                          value: voiceResult.hasExplicitType ? flowLabel : 'Belum disebut — pilih Uang masuk atau Uang keluar',
+                          isValid: voiceResult.hasExplicitType,
+                        ),
+                        _VoiceResultLine(
+                          label: 'Nominal',
+                          value: voiceResult.hasAmount
+                              ? 'Rp ${formatRupiahInput(voiceResult.amount.toString())}'
+                              : 'Belum terbaca — isi manual',
+                          isValid: voiceResult.hasAmount,
+                        ),
+                        _VoiceResultLine(
+                          label: 'Kategori',
+                          value: voiceCategoryName,
+                          isValid: voiceResult.categoryId != null,
+                        ),
+                        _VoiceResultLine(
+                          label: 'Dipakai oleh / sumber',
+                          value:
+                              voiceResult.partyName ??
+                              voiceResult.owner ??
+                              'Belum diatur',
+                          isValid: voiceResult.partyName != null,
+                        ),
+                        _VoiceResultLine(
+                          label: 'Toko / rekening',
+                          value:
+                              voiceResult.merchantId != null ||
+                                  voiceResult.accountId != null
+                              ? 'Terbaca dari Data Utama'
+                              : 'Belum cocok — pilih manual di editor',
+                          isValid:
+                              voiceResult.merchantId != null ||
+                              voiceResult.accountId != null,
+                        ),
+                        _VoiceResultLine(
+                          label: 'Tag',
+                          value: voiceResult.tagNames.isEmpty
+                              ? 'Belum ada — boleh ditambahkan'
+                              : voiceResult.tagNames
+                                    .map((tag) => '#$tag')
+                                    .join(', '),
+                          isValid: voiceResult.tagNames.isNotEmpty,
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () => _reviewVoiceResult(voiceResult),
+                            icon: const Icon(Icons.edit_note_rounded),
+                            label: const Text(
+                              'Tinjau dan terapkan ke transaksi',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 4,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _startVoiceInput,
+                              icon: const Icon(Icons.mic_none_rounded),
+                              label: const Text('Dengar lagi'),
+                            ),
+                            TextButton.icon(
+                              onPressed: _clearVoiceResult,
+                              icon: const Icon(Icons.clear_rounded),
+                              label: const Text('Hapus hasil'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (_voiceText != null) const SizedBox(height: 12),
+              AppSectionHeader(
+                title: isIncome
+                    ? '1. Lokasi uang masuk'
+                    : '1. Lokasi uang keluar',
+                helpText: isIncome
+                    ? 'Pilih rekening tujuan. Saldo rekening ini akan bertambah setelah disimpan.'
+                    : 'Pilih rekening sumber. Saldo rekening ini akan berkurang setelah disimpan.',
+              ),
+              const SizedBox(height: 8),
+              _buildAccountSelector(),
+              const SizedBox(height: 16),
+              AppSectionHeader(
+                title: isIncome
+                    ? '2. Kategori pemasukan'
+                    : '2. Kategori pengeluaran',
+                helpText: isIncome
+                    ? 'Contoh: gaji, panen, bonus, atau pemberian.'
+                    : 'Contoh: belanja, listrik, BBM, makan, atau biaya admin.',
+              ),
+              const SizedBox(height: 8),
+              if (_categoriesLoading)
+                const LinearProgressIndicator()
+              else if (categoryOptions.isEmpty)
+                AppCard(
+                  color: Theme.of(context).colorScheme.errorContainer
+                      .withValues(alpha: .45),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        isIncome
-                            ? Icons.south_west_rounded
-                            : Icons.north_east_rounded,
-                        color: flowColor,
-                        size: 28,
+                        Icons.category_outlined,
+                        color: Theme.of(context).colorScheme.error,
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -2836,536 +3078,194 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              flowLabel,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: flowColor,
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                              'Kategori ${_type == TransactionType.income ? 'pemasukan' : 'pengeluaran'} masih kosong',
+                              style: TextStyle(fontWeight: FontWeight.w800),
                             ),
+                            const SizedBox(height: 4),
                             Text(
-                              isIncome
-                                  ? 'Menambah saldo keluarga'
-                                  : 'Mengurangi saldo keluarga',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                              'Buat kategori ${_type == TransactionType.income ? 'pemasukan' : 'pengeluaran'} dulu supaya transaksi bisa masuk ke laporan dan Anggaran.',
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              onPressed: _openMasterData,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Buka Data Utama'),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Cara input suara',
-                        onPressed: _showVoiceGuide,
-                        icon: const Icon(Icons.help_outline_rounded),
-                      ),
-                      IconButton.filledTonal(
-                        tooltip: _listening
-                            ? 'Berhenti mendengar'
-                            : 'Isi dengan suara',
-                        onPressed: _categoriesLoading ? null : _startVoiceInput,
-                        icon: Icon(
-                          _listening
-                              ? Icons.stop_rounded
-                              : Icons.mic_none_rounded,
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _listening
-                        ? 'Ngomong sekarang: sebut arah, nominal, dan keperluannya.'
-                        : 'Tekan mikrofon, ucapkan satu kalimat pendek, lalu cek hasilnya.',
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: flowColor.withValues(alpha: .10),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Jenis transaksi: $flowLabel',
-                      style: TextStyle(
-                        color: flowColor,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _amountController,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: const [RupiahInputFormatter()],
-                    decoration: InputDecoration(
-                      labelText: 'Nominal $flowLabel',
-                      prefixText: 'Rp ',
-                      hintText: '0',
-                      filled: true,
-                      fillColor: scheme.surfaceContainerLowest,
-                    ),
-                    onChanged: (_) => setState(() {}),
-                    validator: (value) {
-                      final amount = parseRupiah(value ?? '');
-                      if (amount <= 0) {
-                        return AppCopy.nominalTidakValid;
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_voiceText != null)
-              AppCard(
-                color: scheme.primaryContainer.withValues(alpha: .45),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.graphic_eq_rounded, color: scheme.primary),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _listening
-                                ? 'Lagi mendengarkan…'
-                                : 'Hasil suara: “$_voiceText”',
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!_listening && voiceResult != null) ...[
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Cek dulu hasilnya. Data belum tersimpan sampai kamu menekan Simpan.',
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      const SizedBox(height: 8),
-                      _VoiceResultLine(
-                        label: 'Arah transaksi',
-                        value: voiceResult.hasExplicitType ? flowLabel : 'Belum disebut — pilih Uang masuk atau Uang keluar',
-                        isValid: voiceResult.hasExplicitType,
-                      ),
-                      _VoiceResultLine(
-                        label: 'Nominal',
-                        value: voiceResult.hasAmount
-                            ? 'Rp ${formatRupiahInput(voiceResult.amount.toString())}'
-                            : 'Belum terbaca — isi manual',
-                        isValid: voiceResult.hasAmount,
-                      ),
-                      _VoiceResultLine(
-                        label: 'Kategori',
-                        value: voiceCategoryName,
-                        isValid: voiceResult.categoryId != null,
-                      ),
-                      _VoiceResultLine(
-                        label: 'Dipakai oleh / sumber',
-                        value:
-                            voiceResult.partyName ??
-                            voiceResult.owner ??
-                            'Belum diatur',
-                        isValid: voiceResult.partyName != null,
-                      ),
-                      _VoiceResultLine(
-                        label: 'Toko / rekening',
-                        value:
-                            voiceResult.merchantId != null ||
-                                voiceResult.accountId != null
-                            ? 'Terbaca dari Data Utama'
-                            : 'Belum cocok — pilih manual di editor',
-                        isValid:
-                            voiceResult.merchantId != null ||
-                            voiceResult.accountId != null,
-                      ),
-                      _VoiceResultLine(
-                        label: 'Tag',
-                        value: voiceResult.tagNames.isEmpty
-                            ? 'Belum ada — boleh ditambahkan'
-                            : voiceResult.tagNames
-                                  .map((tag) => '#$tag')
-                                  .join(', '),
-                        isValid: voiceResult.tagNames.isNotEmpty,
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: () => _reviewVoiceResult(voiceResult),
-                          icon: const Icon(Icons.edit_note_rounded),
-                          label: const Text('Tinjau dan terapkan ke transaksi'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 4,
-                        children: [
-                          TextButton.icon(
-                            onPressed: _startVoiceInput,
-                            icon: const Icon(Icons.mic_none_rounded),
-                            label: const Text('Dengar lagi'),
-                          ),
-                          TextButton.icon(
-                            onPressed: _clearVoiceResult,
-                            icon: const Icon(Icons.clear_rounded),
-                            label: const Text('Hapus hasil'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
+                )
+              else
+                SearchableDropdown(
+                  items: categoryOptions,
+                  selectedItem: categoryOptions
+                      .where((category) => category.id == _categoryId)
+                      .firstOrNull,
+                  itemLabel: _categoryDisplayName,
+                  itemId: (category) => category.id,
+                  labelText: 'Kategori uang masuk / keluar',
+                  helperText: 'Pilih sendiri. Tidak ada kategori yang dipilih otomatis.',
+                  searchHintText: 'Cari kategori transaksi',
+                  cacheKey: 'transaksi.kategori',
+                  onChanged: (category) {
+                    if (category != null) {
+                      setState(() => _categoryId = category.id);
+                    }
+                  },
+                  validator: (category) =>
+                      category == null ? 'Pilih kategori dulu.' : null,
                 ),
-              ),
-            if (_voiceText != null) const SizedBox(height: 12),
-            AppSectionHeader(
-              title: isIncome
-                  ? '1. Lokasi uang masuk'
-                  : '1. Lokasi uang keluar',
-              helpText: isIncome
-                  ? 'Pilih rekening tujuan. Saldo rekening ini akan bertambah setelah disimpan.'
-                  : 'Pilih rekening sumber. Saldo rekening ini akan berkurang setelah disimpan.',
-            ),
-            const SizedBox(height: 8),
-            _buildAccountSelector(),
-            const SizedBox(height: 16),
-            AppSectionHeader(
-              title: isIncome
-                  ? '2. Kategori pemasukan'
-                  : '2. Kategori pengeluaran',
-              helpText: isIncome
-                  ? 'Contoh: gaji, panen, bonus, atau pemberian.'
-                  : 'Contoh: belanja, listrik, BBM, makan, atau biaya admin.',
-            ),
-            const SizedBox(height: 8),
-            if (_categoriesLoading)
-              const LinearProgressIndicator()
-            else if (categoryOptions.isEmpty)
-              AppCard(
-                color: Theme.of(context).colorScheme.errorContainer
-                    .withValues(alpha: .45),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.category_outlined,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Kategori ${_type == TransactionType.income ? 'pemasukan' : 'pengeluaran'} masih kosong',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Buat kategori ${_type == TransactionType.income ? 'pemasukan' : 'pengeluaran'} dulu supaya transaksi bisa masuk ke laporan dan Anggaran.',
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _openMasterData,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Buka Data Utama'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              SearchableDropdown(
-                items: categoryOptions,
-                selectedItem: categoryOptions
-                    .where((category) => category.id == _categoryId)
-                    .firstOrNull,
-                itemLabel: _categoryDisplayName,
-                itemId: (category) => category.id,
-                labelText: 'Kategori uang masuk / keluar',
-                helperText:
-                    'Pilih sendiri. Tidak ada kategori yang dipilih otomatis.',
-                searchHintText: 'Cari kategori transaksi',
-                cacheKey: 'transaksi.kategori',
-                onChanged: (category) {
-                  if (category != null) {
-                    setState(() => _categoryId = category.id);
-                  }
-                },
-                validator: (category) =>
-                    category == null ? 'Pilih kategori dulu.' : null,
-              ),
-            if (_type == TransactionType.expense)
-              AppCard(
-                color: Theme.of(context).colorScheme.primaryContainer
-                    .withValues(alpha: .45),
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_outlined,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Kategori ini akan dihitung otomatis ke pos Anggaran yang sesuai. Target uang terkumpul dicatat lewat menu khusus, bukan di sini.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 16),
-            AppSectionHeader(
-              title: isIncome
-                  ? '3. Waktu dan catatan pemasukan'
-                  : '3. Rincian tambahan',
-              helpText: isIncome
-                  ? 'Catat kapan uang diterima dan tambahkan keterangan bila perlu.'
-                  : 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
-            ),
-            const SizedBox(height: 4),
-            ExpansionTile(
-              initiallyExpanded:
-                  isIncome ||
-                  _merchantId != null ||
-                  _locationController.text.trim().isNotEmpty ||
-                  _partyName.trim().isNotEmpty,
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              leading: Icon(
-                isIncome ? Icons.event_note_outlined : Icons.tune_outlined,
-              ),
-              title: Text(
-                isIncome ? 'Atur waktu dan catatan' : 'Buka rincian tambahan',
-              ),
-              subtitle: Text(
-                isIncome
-                    ? 'Tanggal, jam, sumber pemasukan, dan catatan'
-                    : 'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
-              ),
-              children: [
-                if (!isIncome) ...[
-                  if (_merchants.isNotEmpty)
-                    SearchableDropdown(
-                      items: _merchants,
-                      selectedItem: _merchants
-                          .where((merchant) => merchant.id == _merchantId)
-                          .firstOrNull,
-                      itemLabel: (merchant) =>
-                          merchant.details?.trim().isNotEmpty == true
-                          ? '${merchant.name} · ${merchant.details}'
-                          : merchant.name,
-                      itemId: (merchant) => merchant.id,
-                      labelText: 'Toko / tempat',
-                      helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
-                      searchHintText: 'Cari toko atau tempat',
-                      cacheKey: 'transaksi.toko',
-                      allowClear: true,
-                      onChanged: (merchant) =>
-                          setState(() => _merchantId = merchant?.id),
-                    )
-                  else
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton.icon(
-                        onPressed: _openMasterData,
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text('Atur toko di Data Utama'),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _locationController,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Lokasi transaksi',
-                      hintText: 'Misalnya pasar, rumah, atau kantor',
-                      helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian.',
-                      prefixIcon: Icon(Icons.location_on_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.calendar_today_outlined),
-                  title: const Text('Tanggal kejadian'),
-                  subtitle: Column(
+              if (_type == TransactionType.expense)
+                AppCard(
+                  color: Theme.of(context).colorScheme.primaryContainer
+                      .withValues(alpha: .45),
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(_dateLabel(_date)),
-                      HijriDateLabel(date: _date),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _pickDate,
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.schedule_outlined),
-                  title: const Text('Jam kejadian'),
-                  subtitle: Text(formatJam(_date)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _pickTime,
-                ),
-                if (isDataSusulan(_date, now: DateTime.now()))
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      'Tanggal kejadian berbeda dari hari ini. Data ini akan ditandai sebagai susulan.',
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.warning),
-                    ),
-                  ),
-                if (_partiesLoading)
-                  const LinearProgressIndicator()
-                else
-                  _buildPartySelector(isIncome: isIncome),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _noteController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: AppCopy.catatanOpsional,
-                    alignLabelWithHint: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            AppSectionHeader(
-              title: isIncome
-                  ? '4. Opsi tambahan pemasukan (opsional)'
-                  : '4. Tag dan lampiran',
-              helpText: isIncome
-                  ? 'Tag untuk menandai sumber pemasukan. Lampiran untuk bukti penerimaan bila ada.'
-                  : 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
-            ),
-            const SizedBox(height: 4),
-            AppCard(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
+                      Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          isIncome ? 'Bukti dan penanda' : 'Tag dan lampiran',
-                          style: AppTextStyles.labelCaps,
+                          'Kategori ini akan dihitung otomatis ke pos Anggaran yang sesuai. Target uang terkumpul dicatat lewat menu khusus, bukan di sini.',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Buka penjelasan Tag',
-                        onPressed: _showTagInfo,
-                        icon: const Icon(Icons.info_outline),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _masterTags.isEmpty
-                        ? 'Belum ada tag. Atur dulu dari Data Utama.'
-                        : (isIncome
-                              ? 'Opsional. Tag tidak mengubah saldo; lampiran hanya sebagai bukti penerimaan.'
-                              : 'Pilih penanda dari Data Utama. Tag tidak mengubah saldo.'),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  if (_masterTags.isNotEmpty) ...[
+                ),
+              const SizedBox(height: 16),
+              AppSectionHeader(
+                title: isIncome
+                    ? '3. Waktu dan catatan pemasukan'
+                    : '3. Rincian tambahan',
+                helpText: isIncome
+                    ? 'Catat kapan uang diterima dan tambahkan keterangan bila perlu.'
+                    : 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
+              ),
+              const SizedBox(height: 4),
+              ExpansionTile(
+                initiallyExpanded:
+                    isIncome ||
+                    _merchantId != null ||
+                    _locationController.text.trim().isNotEmpty ||
+                    _partyName.trim().isNotEmpty,
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                leading: Icon(
+                  isIncome ? Icons.event_note_outlined : Icons.tune_outlined,
+                ),
+                title: Text(
+                  isIncome ? 'Atur waktu dan catatan' : 'Buka rincian tambahan',
+                ),
+                subtitle: Text(
+                  isIncome
+                      ? 'Tanggal, jam, sumber pemasukan, dan catatan'
+                      : 'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
+                ),
+                children: [
+                  if (!isIncome) ...[
+                    if (_merchants.isNotEmpty)
+                      SearchableDropdown(
+                        items: _merchants,
+                        selectedItem: _merchants
+                            .where((merchant) => merchant.id == _merchantId)
+                            .firstOrNull,
+                        itemLabel: (merchant) =>
+                            merchant.details?.trim().isNotEmpty == true
+                            ? '${merchant.name} · ${merchant.details}'
+                            : merchant.name,
+                        itemId: (merchant) => merchant.id,
+                        labelText: 'Toko / tempat',
+                        helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
+                        searchHintText: 'Cari toko atau tempat',
+                        cacheKey: 'transaksi.toko',
+                        allowClear: true,
+                        onChanged: (merchant) =>
+                            setState(() => _merchantId = merchant?.id),
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _openMasterData,
+                          icon: const Icon(Icons.tune_rounded),
+                          label: const Text('Atur toko di Data Utama'),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _locationController,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Lokasi transaksi',
+                        hintText: 'Misalnya pasar, rumah, atau kantor',
+                        helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian.',
+                        prefixIcon: Icon(Icons.location_on_outlined),
+                      ),
+                    ),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
+                  ],
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_today_outlined),
+                    title: const Text('Tanggal kejadian'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final tag in _masterTags)
-                          FilterChip(
-                            label: Text('#${tag.name}'),
-                            selected: _tags.contains(
-                              tag.name.trim().toLowerCase(),
-                            ),
-                            onSelected: (_) => _addTag(tag.name),
-                          ),
+                        Text(_dateLabel(_date)),
+                        HijriDateLabel(date: _date),
                       ],
                     ),
-                  ] else
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _pickDate,
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.schedule_outlined),
+                    title: const Text('Jam kejadian'),
+                    subtitle: Text(formatJam(_date)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _pickTime,
+                  ),
+                  if (isDataSusulan(_date, now: DateTime.now()))
                     Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: TextButton.icon(
-                        onPressed: _openMasterData,
-                        icon: const Icon(Icons.tune_rounded),
-                        label: const Text('Atur tag di Data Utama'),
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'Tanggal kejadian berbeda dari hari ini. Data ini akan ditandai sebagai susulan.',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: AppColors.warning),
                       ),
                     ),
-                  if (_tags.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        for (final tag in _tags)
-                          InputChip(
-                            label: Text('#$tag'),
-                            onDeleted: () =>
-                                setState(() => _tags = [..._tags]..remove(tag)),
-                          ),
-                      ],
-                    ),
-                  ],
+                  if (_partiesLoading)
+                    const LinearProgressIndicator()
+                  else
+                    _buildPartySelector(isIncome: isIncome),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _pickAttachments,
-                    icon: const Icon(Icons.attach_file_rounded),
-                    label: Text(
-                      isIncome
-                          ? 'Tambah bukti penerimaan (foto/PDF)'
-                          : 'Tambah foto atau PDF nota',
+                  TextFormField(
+                    controller: _noteController,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      labelText: AppCopy.catatanOpsional,
+                      alignLabelWithHint: true,
                     ),
                   ),
-                  if (_attachmentPaths.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    for (final path in _attachmentPaths)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.insert_drive_file_outlined),
-                        title: Text(
-                          path.split(RegExp(r'[/\\\\]')).last,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'Hapus lampiran',
-                          onPressed: () => setState(
-                            () =>
-                                _attachmentPaths = [..._attachmentPaths]
-                                  ..remove(path),
-                          ),
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ),
-                  ],
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            if (!isIncome) ...[
-              const AppSectionHeader(
-                title: '5. Rincian nota dan banyak item',
-                helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
+              const SizedBox(height: 16),
+              AppSectionHeader(
+                title: isIncome
+                    ? '4. Opsi tambahan pemasukan (opsional)'
+                    : '4. Tag dan lampiran',
+                helpText: isIncome
+                    ? 'Tag untuk menandai sumber pemasukan. Lampiran untuk bukti penerimaan bila ada.'
+                    : 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
               ),
               const SizedBox(height: 4),
               AppCard(
@@ -3375,73 +3275,187 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   children: [
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Rincian nota',
+                            isIncome ? 'Bukti dan penanda' : 'Tag dan lampiran',
                             style: AppTextStyles.labelCaps,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: _showAddItemSheet,
-                          icon: const Icon(Icons.add),
-                          label: const Text(AppCopy.tambah),
+                        IconButton(
+                          tooltip: 'Buka penjelasan Tag',
+                          onPressed: _showTagInfo,
+                          icon: const Icon(Icons.info_outline),
                         ),
                       ],
                     ),
-                    if (_items.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Belum ada item nota. Bagian ini boleh dilewati.',
-                        ),
-                      )
-                    else
-                      ..._items.map(
-                        (item) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(item.name),
-                          subtitle: item.qty == 1
-                              ? null
-                              : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              AppMoneyText(item.price, compact: true),
-                              IconButton(
-                                tooltip: 'Ubah item',
-                                onPressed: () =>
-                                    _editItem(_items.indexOf(item)),
-                                icon: const Icon(Icons.edit_outlined),
+                    const SizedBox(height: 4),
+                    Text(
+                      _masterTags.isEmpty
+                          ? 'Belum ada tag. Atur dulu dari Data Utama.'
+                          : (isIncome
+                                ? 'Opsional. Tag tidak mengubah saldo; lampiran hanya sebagai bukti penerimaan.'
+                                : 'Pilih penanda dari Data Utama. Tag tidak mengubah saldo.'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (_masterTags.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          for (final tag in _masterTags)
+                            FilterChip(
+                              label: Text('#${tag.name}'),
+                              selected: _tags.contains(
+                                tag.name.trim().toLowerCase(),
                               ),
-                              IconButton(
-                                tooltip: 'Hapus item',
-                                onPressed: () => setState(() {
-                                  _items.remove(item);
-                                  _syncAmountFromItems();
-                                }),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
-                          ),
+                              onSelected: (_) => _addTag(tag.name),
+                            ),
+                        ],
+                      ),
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: TextButton.icon(
+                          onPressed: _openMasterData,
+                          icon: const Icon(Icons.tune_rounded),
+                          label: const Text('Atur tag di Data Utama'),
                         ),
                       ),
+                    if (_tags.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          for (final tag in _tags)
+                            InputChip(
+                              label: Text('#$tag'),
+                              onDeleted: () => setState(
+                                () => _tags = [..._tags]..remove(tag),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _pickAttachments,
+                      icon: const Icon(Icons.attach_file_rounded),
+                      label: Text(
+                        isIncome
+                            ? 'Tambah bukti penerimaan (foto/PDF)'
+                            : 'Tambah foto atau PDF nota',
+                      ),
+                    ),
+                    if (_attachmentPaths.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      for (final path in _attachmentPaths)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.insert_drive_file_outlined),
+                          title: Text(
+                            path.split(RegExp(r'[/\\\\]')).last,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Hapus lampiran',
+                            onPressed: () => setState(
+                              () =>
+                                  _attachmentPaths = [..._attachmentPaths]
+                                    ..remove(path),
+                            ),
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ),
+                    ],
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 28),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _save,
-                child: Text(
-                  widget.existingTransaction == null
-                      ? AppCopy.simpanTransaksi
-                      : 'Simpan perubahan',
+              const SizedBox(height: 16),
+              if (!isIncome) ...[
+                const AppSectionHeader(
+                  title: '5. Rincian nota dan banyak item',
+                  helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
+                ),
+                const SizedBox(height: 4),
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Rincian nota',
+                              style: AppTextStyles.labelCaps,
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: _showAddItemSheet,
+                            icon: const Icon(Icons.add),
+                            label: const Text(AppCopy.tambah),
+                          ),
+                        ],
+                      ),
+                      if (_items.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Belum ada item nota. Bagian ini boleh dilewati.',
+                          ),
+                        )
+                      else
+                        ..._items.map(
+                          (item) => ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(item.name),
+                            subtitle: item.qty == 1
+                                ? null
+                                : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AppMoneyText(item.price, compact: true),
+                                IconButton(
+                                  tooltip: 'Ubah item',
+                                  onPressed: () =>
+                                      _editItem(_items.indexOf(item)),
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: 'Hapus item',
+                                  onPressed: () => setState(() {
+                                    _items.remove(item);
+                                    _syncAmountFromItems();
+                                  }),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _save,
+                  child: Text(
+                    widget.existingTransaction == null
+                        ? AppCopy.simpanTransaksi
+                        : 'Simpan perubahan',
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3829,261 +3843,271 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
         selectedGoal == null || selectedGoal.targetAmount <= 0
         ? 0.0
         : (projected! / selectedGoal.targetAmount).clamp(0.0, 1.0);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _isUsage
-              ? (widget.existingTransaction == null
-                    ? 'Pakai dana target'
-                    : 'Ubah pemakaian target')
-              : (widget.existingTransaction == null
-                    ? 'Isi target uang terkumpul'
-                    : 'Ubah isi target'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.transactions,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _isUsage
+                ? (widget.existingTransaction == null
+                      ? 'Pakai dana target'
+                      : 'Ubah pemakaian target')
+                : (widget.existingTransaction == null
+                      ? 'Isi target uang terkumpul'
+                      : 'Ubah isi target'),
+          ),
         ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            AppCard(
-              color: AppColors.primarySoft.withValues(alpha: .55),
-              border: BorderSide(color: AppColors.primary, width: 1.5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _isUsage
-                        ? 'Pakai dana target'
-                        : 'Isi target tanpa kategori',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    _isUsage
-                        ? 'Pilih target, tempat uang, dan nominal yang mau dipakai. Saldo rekening berkurang sekali dan saldo target ikut berkurang.'
-                        : 'Pilih target, tempat uang, dan nominal alokasi. Ini bukan transaksi belanja, jadi tidak perlu memilih kategori.',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            AppSectionHeader(
-              title: '1. Target tujuan',
-              helpText: _isUsage
-                  ? 'Pilih target yang dananya mau dipakai.'
-                  : 'Tentukan target yang ingin kamu tambah progresnya.',
-            ),
-            const SizedBox(height: 8),
-            if (_goalsLoading)
-              const LinearProgressIndicator()
-            else if (_goals.isEmpty)
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
               AppCard(
-                color: Theme.of(context).colorScheme.primaryContainer
-                    .withValues(alpha: .45),
+                color: AppColors.primarySoft.withValues(alpha: .55),
+                border: BorderSide(color: AppColors.primary, width: 1.5),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Belum ada target aktif',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Buat target dulu, misalnya dana darurat, sekolah, atau kebutuhan tertentu.',
-                    ),
-                    const SizedBox(height: 10),
-                    OutlinedButton.icon(
-                      onPressed: _openGoalForm,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Buat target sekarang'),
-                    ),
-                  ],
-                ),
-              )
-            else ...[
-              DropdownButtonFormField<String>(
-                initialValue: _goalId,
-                isExpanded: true,
-                decoration: InputDecoration(
-                  labelText: _isUsage
-                      ? 'Target yang dipakai · wajib dipilih'
-                      : 'Target uang terkumpul · wajib dipilih',
-                  helperText: 'Target tidak mengubah saldo keluarga menjadi saldo kedua.',
-                  prefixIcon: Icon(Icons.flag_outlined),
-                ),
-                items: _goals
-                    .map(
-                      (goal) => DropdownMenuItem<String>(
-                        value: goal.id,
-                        child: Text(goal.name, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) => setState(() => _goalId = value),
-                validator: (value) =>
-                    value == null ? 'Pilih target dulu.' : null,
-              ),
-              if (selectedGoal != null) ...[
-                const SizedBox(height: 12),
-                AppCard(
-                  color: Theme.of(context).colorScheme.surfaceContainerLowest,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Progres ${selectedGoal.name}',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(value: progress),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${formatRupiahInput(selectedGoal.currentAmount.toString())} dari ${formatRupiahInput(selectedGoal.targetAmount.toString())} · ${(progress * 100).round()}%',
-                      ),
-                      if (amount > 0) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          '${_isUsage ? 'Setelah dipakai' : 'Setelah disimpan'}: ${formatRupiahInput(projected!.toString())} · ${(projectedProgress * 100).round()}%',
-                          style: TextStyle(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-            ],
-            const SizedBox(height: 18),
-            AppSectionHeader(
-              title: '2. Tempat uang',
-              helpText: _isUsage
-                  ? 'Pilih rekening atau cash tempat dana target benar-benar dipakai.'
-                  : 'Pilih tempat uang yang dipakai untuk alokasi target: tunai, bank, atau dompet digital.',
-            ),
-            const SizedBox(height: 8),
-            if (_accountsLoading)
-              const LinearProgressIndicator()
-            else if (_accounts.isEmpty)
-              const Text('Tambahkan rekening atau tunai di Data Utama dulu.')
-            else
-              AppCard(
-                color: AppColors.negativeSoft.withValues(alpha: .28),
-                border: const BorderSide(color: AppColors.negative, width: 1.4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Tempat uang yang dipakai · wajib dipilih',
-                      style: TextStyle(
-                        color: AppColors.negative,
+                    Text(
+                      _isUsage
+                          ? 'Pakai dana target'
+                          : 'Isi target tanpa kategori',
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    SearchableDropdown<Account>(
-                      items: _accounts,
-                      selectedItem: _accounts
-                          .where((account) => account.id == _accountId)
-                          .firstOrNull,
-                      itemLabel: (account) => account.name,
-                      itemId: (account) => account.id,
-                      labelText: 'Ambil uang dari',
-                      helperText: _isUsage
-                          ? 'Saldo tempat uang ini berkurang satu kali; progres target ikut berkurang satu kali.'
-                          : 'Saldo tempat uang ini berkurang satu kali; progres target bertambah satu kali.',
-                      searchHintText: 'Cari rekening atau dompet',
-                      cacheKey: 'target.tempat_uang',
-                      onChanged: (account) {
-                        setState(() => _accountId = account?.id);
-                        _loadBalance(account?.id);
-                      },
-                      validator: (account) => account == null
-                          ? 'Pilih rekening sumber dulu.'
-                          : null,
+                    const SizedBox(height: 6),
+                    Text(
+                      _isUsage
+                          ? 'Pilih target, tempat uang, dan nominal yang mau dipakai. Saldo rekening berkurang sekali dan saldo target ikut berkurang.'
+                          : 'Pilih target, tempat uang, dan nominal alokasi. Ini bukan transaksi belanja, jadi tidak perlu memilih kategori.',
                     ),
-                    _buildBalancePreview(),
                   ],
                 ),
               ),
-            const SizedBox(height: 18),
-            AppSectionHeader(
-              title: '3. Isi nominal alokasi',
-              helpText: _isUsage
-                  ? 'Masukkan jumlah dana target yang mau dipakai.'
-                  : 'Masukkan jumlah uang yang mau ditambahkan ke target.',
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              inputFormatters: const [RupiahInputFormatter()],
-              decoration: InputDecoration(
-                labelText: _isUsage
-                    ? 'Nominal yang dipakai · wajib diisi'
-                    : 'Nominal yang dialokasikan · wajib diisi',
-                prefixText: 'Rp ',
-                hintText: '0',
-                helperText: _isUsage
-                    ? 'Nominal ini mengurangi rekening sumber dan mengurangi progres target.'
-                    : 'Nominal ini mengurangi rekening sumber dan menambah progres target.',
+              const SizedBox(height: 16),
+              AppSectionHeader(
+                title: '1. Target tujuan',
+                helpText: _isUsage
+                    ? 'Pilih target yang dananya mau dipakai.'
+                    : 'Tentukan target yang ingin kamu tambah progresnya.',
               ),
-              onChanged: (_) => setState(() {}),
-              validator: (value) => parseRupiah(value ?? '') <= 0
-                  ? (_isUsage
-                        ? 'Isi nominal pemakaian dulu.'
-                        : 'Isi nominal alokasi dulu.')
-                  : null,
-            ),
-            const SizedBox(height: 18),
-            AppSectionHeader(
-              title: '4. Waktu dan catatan',
-              helpText: 'Tanggal bisa diubah kalau alokasi dicatat belakangan.',
-            ),
-            const SizedBox(height: 4),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today_outlined),
-              title: const Text('Tanggal kejadian alokasi'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(formatTanggalLengkap(_date)),
-                  HijriDateLabel(date: _date),
+              const SizedBox(height: 8),
+              if (_goalsLoading)
+                const LinearProgressIndicator()
+              else if (_goals.isEmpty)
+                AppCard(
+                  color: Theme.of(context).colorScheme.primaryContainer
+                      .withValues(alpha: .45),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Belum ada target aktif',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Buat target dulu, misalnya dana darurat, sekolah, atau kebutuhan tertentu.',
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: _openGoalForm,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Buat target sekarang'),
+                      ),
+                    ],
+                  ),
+                )
+              else ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _goalId,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: _isUsage
+                        ? 'Target yang dipakai · wajib dipilih'
+                        : 'Target uang terkumpul · wajib dipilih',
+                    helperText: 'Target tidak mengubah saldo keluarga menjadi saldo kedua.',
+                    prefixIcon: Icon(Icons.flag_outlined),
+                  ),
+                  items: _goals
+                      .map(
+                        (goal) => DropdownMenuItem<String>(
+                          value: goal.id,
+                          child: Text(
+                            goal.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => setState(() => _goalId = value),
+                  validator: (value) =>
+                      value == null ? 'Pilih target dulu.' : null,
+                ),
+                if (selectedGoal != null) ...[
+                  const SizedBox(height: 12),
+                  AppCard(
+                    color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Progres ${selectedGoal.name}',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(value: progress),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${formatRupiahInput(selectedGoal.currentAmount.toString())} dari ${formatRupiahInput(selectedGoal.targetAmount.toString())} · ${(progress * 100).round()}%',
+                        ),
+                        if (amount > 0) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '${_isUsage ? 'Setelah dipakai' : 'Setelah disimpan'}: ${formatRupiahInput(projected!.toString())} · ${(projectedProgress * 100).round()}%',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
+              ],
+              const SizedBox(height: 18),
+              AppSectionHeader(
+                title: '2. Tempat uang',
+                helpText: _isUsage
+                    ? 'Pilih rekening atau cash tempat dana target benar-benar dipakai.'
+                    : 'Pilih tempat uang yang dipakai untuk alokasi target: tunai, bank, atau dompet digital.',
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _pickDate,
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.schedule_outlined),
-              title: const Text('Jam kejadian alokasi'),
-              subtitle: Text(formatJam(_date)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _pickTime,
-            ),
-            TextFormField(
-              controller: _noteController,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Catatan target · opsional',
-                hintText: 'Contoh: sisihan dari pemasukan minggu ini',
-                alignLabelWithHint: true,
+              const SizedBox(height: 8),
+              if (_accountsLoading)
+                const LinearProgressIndicator()
+              else if (_accounts.isEmpty)
+                const Text('Tambahkan rekening atau tunai di Data Utama dulu.')
+              else
+                AppCard(
+                  color: AppColors.negativeSoft.withValues(alpha: .28),
+                  border: const BorderSide(
+                    color: AppColors.negative,
+                    width: 1.4,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tempat uang yang dipakai · wajib dipilih',
+                        style: TextStyle(
+                          color: AppColors.negative,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SearchableDropdown<Account>(
+                        items: _accounts,
+                        selectedItem: _accounts
+                            .where((account) => account.id == _accountId)
+                            .firstOrNull,
+                        itemLabel: (account) => account.name,
+                        itemId: (account) => account.id,
+                        labelText: 'Ambil uang dari',
+                        helperText: _isUsage
+                            ? 'Saldo tempat uang ini berkurang satu kali; progres target ikut berkurang satu kali.'
+                            : 'Saldo tempat uang ini berkurang satu kali; progres target bertambah satu kali.',
+                        searchHintText: 'Cari rekening atau dompet',
+                        cacheKey: 'target.tempat_uang',
+                        onChanged: (account) {
+                          setState(() => _accountId = account?.id);
+                          _loadBalance(account?.id);
+                        },
+                        validator: (account) => account == null
+                            ? 'Pilih rekening sumber dulu.'
+                            : null,
+                      ),
+                      _buildBalancePreview(),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 18),
+              AppSectionHeader(
+                title: '3. Isi nominal alokasi',
+                helpText: _isUsage
+                    ? 'Masukkan jumlah dana target yang mau dipakai.'
+                    : 'Masukkan jumlah uang yang mau ditambahkan ke target.',
               ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _goals.isEmpty || _accounts.isEmpty ? null : _save,
-              icon: const Icon(Icons.check_rounded),
-              label: const Text('Simpan alokasi target'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: _isUsage
+                      ? 'Nominal yang dipakai · wajib diisi'
+                      : 'Nominal yang dialokasikan · wajib diisi',
+                  prefixText: 'Rp ',
+                  hintText: '0',
+                  helperText: _isUsage
+                      ? 'Nominal ini mengurangi rekening sumber dan mengurangi progres target.'
+                      : 'Nominal ini mengurangi rekening sumber dan menambah progres target.',
+                ),
+                onChanged: (_) => setState(() {}),
+                validator: (value) => parseRupiah(value ?? '') <= 0
+                    ? (_isUsage
+                          ? 'Isi nominal pemakaian dulu.'
+                          : 'Isi nominal alokasi dulu.')
+                    : null,
+              ),
+              const SizedBox(height: 18),
+              AppSectionHeader(
+                title: '4. Waktu dan catatan',
+                helpText:
+                    'Tanggal bisa diubah kalau alokasi dicatat belakangan.',
+              ),
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.calendar_today_outlined),
+                title: const Text('Tanggal kejadian alokasi'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(formatTanggalLengkap(_date)),
+                    HijriDateLabel(date: _date),
+                  ],
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _pickDate,
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.schedule_outlined),
+                title: const Text('Jam kejadian alokasi'),
+                subtitle: Text(formatJam(_date)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _pickTime,
+              ),
+              TextFormField(
+                controller: _noteController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan target · opsional',
+                  hintText: 'Contoh: sisihan dari pemasukan minggu ini',
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _goals.isEmpty || _accounts.isEmpty ? null : _save,
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('Simpan alokasi target'),
+              ),
+            ],
+          ),
         ),
       ),
     );

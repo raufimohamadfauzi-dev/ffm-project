@@ -9,8 +9,10 @@ class FfmAssistantPageContextController
   FfmAssistantPageContextController() : super(null);
 
   final _entries = <Object, FfmAssistantDestination>{};
+  var _isDisposed = false;
 
   void activate(Object token, FfmAssistantDestination destination) {
+    if (_isDisposed) return;
     _entries
       ..remove(token)
       ..[token] = destination;
@@ -18,8 +20,16 @@ class FfmAssistantPageContextController
   }
 
   void deactivate(Object token) {
+    if (_isDisposed) return;
     _entries.remove(token);
     value = _entries.values.isEmpty ? null : _entries.values.last;
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _entries.clear();
+    super.dispose();
   }
 }
 
@@ -31,10 +41,13 @@ class FfmAssistantContextScope
     required super.child,
   }) : super(notifier: controller);
 
-  static FfmAssistantPageContextController? maybeOf(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<FfmAssistantContextScope>()
-          ?.notifier;
+  /// Lookup tanpa mendaftarkan dependency. Pembungkus halaman hanya perlu
+  /// menemukan controller sekali; launcher global yang mendengarkan nilainya.
+  static FfmAssistantPageContextController? maybeOf(BuildContext context) {
+    final element = context
+        .getElementForInheritedWidgetOfExactType<FfmAssistantContextScope>();
+    return (element?.widget as FfmAssistantContextScope?)?.notifier;
+  }
 }
 
 class FfmAssistantPageContext extends StatefulWidget {
@@ -55,25 +68,41 @@ class FfmAssistantPageContext extends StatefulWidget {
 class _FfmAssistantPageContextState extends State<FfmAssistantPageContext> {
   final _token = Object();
   FfmAssistantPageContextController? _controller;
+  var _isDisposed = false;
+
+  void _scheduleActivation() {
+    final controller = _controller;
+    if (controller == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _isDisposed || controller != _controller) return;
+      controller.activate(_token, widget.destination);
+    });
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _controller = FfmAssistantContextScope.maybeOf(context);
-    _controller?.activate(_token, widget.destination);
+    _scheduleActivation();
   }
 
   @override
   void didUpdateWidget(covariant FfmAssistantPageContext oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.destination != widget.destination) {
-      _controller?.activate(_token, widget.destination);
+      _scheduleActivation();
     }
   }
 
   @override
   void dispose() {
-    _controller?.deactivate(_token);
+    _isDisposed = true;
+    final controller = _controller;
+    if (controller != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => controller.deactivate(_token),
+      );
+    }
     super.dispose();
   }
 

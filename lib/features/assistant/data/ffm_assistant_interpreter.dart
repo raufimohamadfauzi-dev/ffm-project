@@ -378,6 +378,22 @@ class FfmAssistantInterpreter {
       );
     }
 
+    if (_isDatabaseStructureRequest(normalized)) {
+      final queryAnswer = await _queryRegistry.tryAnswer(
+        normalized,
+        householdId: AppContext.householdId,
+      );
+      if (queryAnswer != null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.queryData,
+          confidence: .98,
+          response: '${queryAnswer.title}\n${queryAnswer.message}',
+        );
+      }
+    }
+
     final featureHelp = _featureHelp(
       rawText,
       normalized,
@@ -1037,6 +1053,16 @@ class FfmAssistantInterpreter {
     'kondisi halaman ini',
     'baca halaman ini',
   ]);
+
+  bool _isDatabaseStructureRequest(String text) {
+    final namesDatabase = RegExp(
+      r'\b(database|basis data|struktur database|struktur data|tabel)\b',
+    ).hasMatch(text);
+    final asksAppData =
+        text.contains('ada data apa saja') &&
+        (text.contains('aplikasi') || text.contains('ffm'));
+    return namesDatabase || asksAppData;
+  }
 
   FfmAssistantIntent _intentForDraft(
     String rawText,

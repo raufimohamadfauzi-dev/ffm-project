@@ -10,6 +10,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../settings/data/offline_tool_history_service.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../transaction/domain/entities/transaction_entity.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
@@ -799,170 +801,173 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         .where((envelope) => _statusFor(envelope) != 'Aman')
         .toList(growable: false);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Anggaran berbasis pos'),
-        actions: [
-          IconButton(
-            tooltip: _showSearch ? 'Tutup pencarian' : 'Cari pos anggaran',
-            onPressed: _showSearch ? _closeSearch : _openSearch,
-            icon: Icon(_showSearch ? Icons.close : Icons.search),
-          ),
-          IconButton(
-            tooltip: 'Buka ringkasan periode',
-            onPressed: _loading || _periodTypeFilter == 'nonrecurring'
-                ? null
-                : _showPeriodSummary,
-            icon: const Icon(Icons.analytics_outlined),
-          ),
-          PopupMenuButton<_BudgetMenuAction>(
-            tooltip: 'Aksi anggaran lainnya',
-            onSelected: _handleMenuAction,
-            itemBuilder: (_) => [
-              if (_periodTypeFilter != 'nonrecurring')
-                const PopupMenuItem(
-                  value: _BudgetMenuAction.transferFunds,
-                  child: Text('Atur ulang alokasi antarpos'),
-                ),
-              if (_periodTypeFilter == 'weekly')
-                PopupMenuItem(
-                  value: _BudgetMenuAction.weekStart,
-                  child: Text('Hari mulai: ${_weekdayName(_weekStartDay)}'),
-                ),
-            ],
-          ),
-          if (_periodTypeFilter != 'nonrecurring')
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.budget,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Anggaran berbasis pos'),
+          actions: [
             IconButton(
-              tooltip: 'Riwayat atur ulang alokasi',
-              onPressed: _loading ? null : _showTransfers,
-              icon: const Icon(Icons.history_outlined),
+              tooltip: _showSearch ? 'Tutup pencarian' : 'Cari pos anggaran',
+              onPressed: _showSearch ? _closeSearch : _openSearch,
+              icon: Icon(_showSearch ? Icons.close : Icons.search),
             ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : DefaultTabController(
-              length: 4,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Batas pengeluaran keluarga',
-                                style: AppTextStyles.labelCaps,
-                              ),
-                            ),
-                            IconButton(
-                              tooltip: 'Cara kerja anggaran',
-                              onPressed: _showBudgetHelp,
-                              icon: const Icon(Icons.info_outline),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'weekly',
-                              label: Text('Mingguan'),
-                              icon: Icon(Icons.view_week_outlined),
-                            ),
-                            ButtonSegment(
-                              value: 'monthly',
-                              label: Text('Bulanan'),
-                              icon: Icon(Icons.calendar_month_outlined),
-                            ),
-                            ButtonSegment(
-                              value: 'nonrecurring',
-                              label: Text('Tidak rutin'),
-                              icon: Icon(Icons.all_inclusive_outlined),
-                            ),
-                          ],
-                          selected: {_periodTypeFilter},
-                          onSelectionChanged: (selection) {
-                            final value = selection.first;
-                            if (value == _periodTypeFilter) return;
-                            setState(() {
-                              _periodTypeFilter = value;
-                              _loading = true;
-                            });
-                            _load();
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const Icon(Icons.date_range_outlined, size: 18),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                _activePeriodLabel(),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ),
-                            if (_periodTypeFilter == 'weekly')
-                              TextButton(
-                                onPressed: _showWeekStartPicker,
+            IconButton(
+              tooltip: 'Buka ringkasan periode',
+              onPressed: _loading || _periodTypeFilter == 'nonrecurring'
+                  ? null
+                  : _showPeriodSummary,
+              icon: const Icon(Icons.analytics_outlined),
+            ),
+            PopupMenuButton<_BudgetMenuAction>(
+              tooltip: 'Aksi anggaran lainnya',
+              onSelected: _handleMenuAction,
+              itemBuilder: (_) => [
+                if (_periodTypeFilter != 'nonrecurring')
+                  const PopupMenuItem(
+                    value: _BudgetMenuAction.transferFunds,
+                    child: Text('Atur ulang alokasi antarpos'),
+                  ),
+                if (_periodTypeFilter == 'weekly')
+                  PopupMenuItem(
+                    value: _BudgetMenuAction.weekStart,
+                    child: Text('Hari mulai: ${_weekdayName(_weekStartDay)}'),
+                  ),
+              ],
+            ),
+            if (_periodTypeFilter != 'nonrecurring')
+              IconButton(
+                tooltip: 'Riwayat atur ulang alokasi',
+                onPressed: _loading ? null : _showTransfers,
+                icon: const Icon(Icons.history_outlined),
+              ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : DefaultTabController(
+                length: 4,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              const Expanded(
                                 child: Text(
-                                  'Mulai ${_weekdayName(_weekStartDay)}',
+                                  'Batas pengeluaran keluarga',
+                                  style: AppTextStyles.labelCaps,
                                 ),
                               ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ),
-                  ),
-                  if (_showSearch)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                      child: TextField(
-                        controller: _searchController,
-                        focusNode: _searchFocusNode,
-                        onChanged: (value) =>
-                            setState(() => _searchQuery = value),
-                        decoration: InputDecoration(
-                          labelText: 'Cari pos anggaran',
-                          hintText: 'Misalnya listrik, makan, atau cicilan',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: IconButton(
-                            tooltip: 'Hapus pencarian',
-                            onPressed: _closeSearch,
-                            icon: const Icon(Icons.clear),
+                              IconButton(
+                                tooltip: 'Cara kerja anggaran',
+                                onPressed: _showBudgetHelp,
+                                icon: const Icon(Icons.info_outline),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ],
                           ),
-                          filled: true,
-                          fillColor: Theme.of(context).colorScheme.surface,
-                        ),
+                          SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'weekly',
+                                label: Text('Mingguan'),
+                                icon: Icon(Icons.view_week_outlined),
+                              ),
+                              ButtonSegment(
+                                value: 'monthly',
+                                label: Text('Bulanan'),
+                                icon: Icon(Icons.calendar_month_outlined),
+                              ),
+                              ButtonSegment(
+                                value: 'nonrecurring',
+                                label: Text('Tidak rutin'),
+                                icon: Icon(Icons.all_inclusive_outlined),
+                              ),
+                            ],
+                            selected: {_periodTypeFilter},
+                            onSelectionChanged: (selection) {
+                              final value = selection.first;
+                              if (value == _periodTypeFilter) return;
+                              setState(() {
+                                _periodTypeFilter = value;
+                                _loading = true;
+                              });
+                              _load();
+                            },
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              const Icon(Icons.date_range_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _activePeriodLabel(),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ),
+                              if (_periodTypeFilter == 'weekly')
+                                TextButton(
+                                  onPressed: _showWeekStartPicker,
+                                  child: Text(
+                                    'Mulai ${_weekdayName(_weekStartDay)}',
+                                  ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
                       ),
                     ),
-                  const SizedBox(height: 8),
-                  TabBar(
-                    isScrollable: true,
-                    tabs: [
-                      Tab(text: 'Semua (${categoryEnvelopes.length})'),
-                      Tab(text: 'Belum diatur (${unconfigured.length})'),
-                      Tab(text: 'Aktif (${configured.length})'),
-                      Tab(text: 'Perlu perhatian (${attention.length})'),
-                    ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _envelopeList(_sortEnvelopes(categoryEnvelopes)),
-                        _envelopeList(_sortEnvelopes(unconfigured)),
-                        _envelopeList(_sortEnvelopes(configured)),
-                        _envelopeList(_sortEnvelopes(attention)),
+                    if (_showSearch)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocusNode,
+                          onChanged: (value) =>
+                              setState(() => _searchQuery = value),
+                          decoration: InputDecoration(
+                            labelText: 'Cari pos anggaran',
+                            hintText: 'Misalnya listrik, makan, atau cicilan',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: IconButton(
+                              tooltip: 'Hapus pencarian',
+                              onPressed: _closeSearch,
+                              icon: const Icon(Icons.clear),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).colorScheme.surface,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 8),
+                    TabBar(
+                      isScrollable: true,
+                      tabs: [
+                        Tab(text: 'Semua (${categoryEnvelopes.length})'),
+                        Tab(text: 'Belum diatur (${unconfigured.length})'),
+                        Tab(text: 'Aktif (${configured.length})'),
+                        Tab(text: 'Perlu perhatian (${attention.length})'),
                       ],
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _envelopeList(_sortEnvelopes(categoryEnvelopes)),
+                          _envelopeList(_sortEnvelopes(unconfigured)),
+                          _envelopeList(_sortEnvelopes(configured)),
+                          _envelopeList(_sortEnvelopes(attention)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 
@@ -1234,153 +1239,159 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Atur pos ${widget.envelope.name}')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            AppHelpBanner(
-              title: 'Pos ${widget.envelope.name}',
-              message: widget.envelope.categoryIds.isEmpty
-                  ? 'Pos ini dipakai sebagai tempat alokasi. Pengeluaran otomatis tidak dikurangi dari pos ini karena belum ada kategori transaksi khusus.'
-                  : 'Pengeluaran dari kategori yang terkait akan mengurangi sisa pos ini secara otomatis.',
-              icon: Icons.mail_outline,
-            ),
-            const SizedBox(height: 18),
-            TextFormField(
-              controller: _amountController,
-              keyboardType: TextInputType.number,
-              inputFormatters: const [RupiahInputFormatter()],
-              decoration: InputDecoration(
-                labelText: _periodType == 'nonrecurring'
-                    ? 'Batas dana untuk kebutuhan ini'
-                    : 'Target nominal periode ini',
-                prefixText: 'Rp ',
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.budget,
+      child: Scaffold(
+        appBar: AppBar(title: Text('Atur pos ${widget.envelope.name}')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              AppHelpBanner(
+                title: 'Pos ${widget.envelope.name}',
+                message: widget.envelope.categoryIds.isEmpty
+                    ? 'Pos ini dipakai sebagai tempat alokasi. Pengeluaran otomatis tidak dikurangi dari pos ini karena belum ada kategori transaksi khusus.'
+                    : 'Pengeluaran dari kategori yang terkait akan mengurangi sisa pos ini secara otomatis.',
+                icon: Icons.mail_outline,
+              ),
+              const SizedBox(height: 18),
+              TextFormField(
+                controller: _amountController,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: _periodType == 'nonrecurring'
+                      ? 'Batas dana untuk kebutuhan ini'
+                      : 'Target nominal periode ini',
+                  prefixText: 'Rp ',
+                  helperText: _periodType == 'nonrecurring'
+                      ? 'Tidak reset otomatis. Pengeluaran terkait dihitung sejak tanggal mulai.'
+                      : 'Transaksi dengan kategori terkait akan mengurangi target ini.',
+                ),
+                validator: (value) => parseRupiah(value ?? '') < 0
+                    ? 'Nominal belum valid.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _rolloverController,
+                keyboardType: TextInputType.number,
+                inputFormatters: const [RupiahInputFormatter()],
+                decoration: InputDecoration(
+                  labelText: _periodType == 'nonrecurring'
+                      ? 'Dana yang sudah disisihkan (opsional)'
+                      : 'Sisa bulan lalu (opsional)',
+                  prefixText: 'Rp ',
+                ),
+                validator: (value) => parseRupiah(value ?? '') < 0
+                    ? 'Nominal belum valid.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              SearchableDropdown<String>(
+                items: const [
+                  'weekly',
+                  'biweekly',
+                  'monthly',
+                  'bimonthly',
+                  'fourmonthly',
+                  'fivemonthly',
+                  'nonrecurring',
+                ],
+                selectedItem: _periodType,
+                itemLabel: (value) => switch (value) {
+                  'weekly' => '1 minggu',
+                  'biweekly' => '2 minggu',
+                  'monthly' => '1 bulan',
+                  'bimonthly' => '2 bulan',
+                  'fourmonthly' => '4 bulan',
+                  'fivemonthly' => '5 bulan',
+                  'nonrecurring' => 'Sesuai kebutuhan / tidak rutin',
+                  _ => value,
+                },
+                labelText: 'Pola pemakaian',
                 helperText: _periodType == 'nonrecurring'
-                    ? 'Tidak reset otomatis. Pengeluaran terkait dihitung sejak tanggal mulai.'
-                    : 'Transaksi dengan kategori terkait akan mengurangi target ini.',
+                    ? 'Pos tetap ada sampai kamu mengarsipkannya; tidak reset bulanan.'
+                    : 'Pemakaian akan mulai dari nol saat periode baru dimulai.',
+                searchHintText: 'Cari periode target',
+                cacheKey: 'anggaran.periode_target',
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _periodType = value;
+                    _endDate = _periodEnd(_startDate, value);
+                  });
+                },
               ),
-              validator: (value) =>
-                  parseRupiah(value ?? '') < 0 ? 'Nominal belum valid.' : null,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _rolloverController,
-              keyboardType: TextInputType.number,
-              inputFormatters: const [RupiahInputFormatter()],
-              decoration: InputDecoration(
-                labelText: _periodType == 'nonrecurring'
-                    ? 'Dana yang sudah disisihkan (opsional)'
-                    : 'Sisa bulan lalu (opsional)',
-                prefixText: 'Rp ',
+              if (widget.suggestedPeriod == 'weekly' ||
+                  widget.suggestedPeriod == 'monthly' ||
+                  widget.suggestedPeriod == 'none')
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Saran kategori: ${switch (widget.suggestedPeriod) {
+                      'weekly' => 'mingguan',
+                      'monthly' => 'bulanan',
+                      _ => 'sesuai kebutuhan / tidak rutin',
+                    }}. Nominal tetap kamu isi sendiri.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _pickStartDate,
+                icon: const Icon(Icons.event_outlined),
+                label: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Mulai: ${formatTanggalLengkap(_startDate, includeSeconds: false)}',
+                  ),
+                ),
               ),
-              validator: (value) =>
-                  parseRupiah(value ?? '') < 0 ? 'Nominal belum valid.' : null,
-            ),
-            const SizedBox(height: 16),
-            SearchableDropdown<String>(
-              items: const [
-                'weekly',
-                'biweekly',
-                'monthly',
-                'bimonthly',
-                'fourmonthly',
-                'fivemonthly',
-                'nonrecurring',
-              ],
-              selectedItem: _periodType,
-              itemLabel: (value) => switch (value) {
-                'weekly' => '1 minggu',
-                'biweekly' => '2 minggu',
-                'monthly' => '1 bulan',
-                'bimonthly' => '2 bulan',
-                'fourmonthly' => '4 bulan',
-                'fivemonthly' => '5 bulan',
-                'nonrecurring' => 'Sesuai kebutuhan / tidak rutin',
-                _ => value,
-              },
-              labelText: 'Pola pemakaian',
-              helperText: _periodType == 'nonrecurring'
-                  ? 'Pos tetap ada sampai kamu mengarsipkannya; tidak reset bulanan.'
-                  : 'Pemakaian akan mulai dari nol saat periode baru dimulai.',
-              searchHintText: 'Cari periode target',
-              cacheKey: 'anggaran.periode_target',
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _periodType = value;
-                  _endDate = _periodEnd(_startDate, value);
-                });
-              },
-            ),
-            if (widget.suggestedPeriod == 'weekly' ||
-                widget.suggestedPeriod == 'monthly' ||
-                widget.suggestedPeriod == 'none')
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Saran kategori: ${switch (widget.suggestedPeriod) {
-                    'weekly' => 'mingguan',
-                    'monthly' => 'bulanan',
-                    _ => 'sesuai kebutuhan / tidak rutin',
-                  }}. Nominal tetap kamu isi sendiri.',
+              const SizedBox(height: 6),
+              HijriDateLabel(date: _startDate),
+              if (_periodType == 'nonrecurring')
+                Text(
+                  'Tidak ada tanggal selesai. Pos tetap aktif sampai diarsipkan.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                )
+              else ...[
+                Text(
+                  'Selesai: ${formatTanggalLengkap(_endDate, includeSeconds: false)} (${_periodName(_periodType)})',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                HijriDateLabel(date: _endDate),
+              ],
+              const SizedBox(height: 12),
+              SearchableDropdown<int>(
+                items: const [70, 80, 90],
+                selectedItem: _alertPercent,
+                itemLabel: (value) => '$value% terpakai',
+                labelText: 'Peringatan mulai dari',
+                helperText: 'Contoh: 80% berarti peringatan muncul saat pemakaian mencapai 80%.',
+                searchHintText: 'Cari ambang peringatan',
+                cacheKey: 'anggaran.ambang_peringatan',
+                onChanged: (value) =>
+                    setState(() => _alertPercent = value ?? 80),
               ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _pickStartDate,
-              icon: const Icon(Icons.event_outlined),
-              label: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Mulai: ${formatTanggalLengkap(_startDate, includeSeconds: false)}',
+              const SizedBox(height: 16),
+              Text(
+                widget.envelope.categoryIds.isEmpty
+                    ? 'Kategori terkait: belum ada'
+                    : 'Kategori terkait: ${_categoryNames(widget.envelope.categoryIds)}',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _saving ? null : _save,
+                  child: Text(_saving ? 'Menyimpan...' : 'Simpan target'),
                 ),
               ),
-            ),
-            const SizedBox(height: 6),
-            HijriDateLabel(date: _startDate),
-            if (_periodType == 'nonrecurring')
-              Text(
-                'Tidak ada tanggal selesai. Pos tetap aktif sampai diarsipkan.',
-                style: Theme.of(context).textTheme.bodySmall,
-              )
-            else ...[
-              Text(
-                'Selesai: ${formatTanggalLengkap(_endDate, includeSeconds: false)} (${_periodName(_periodType)})',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              HijriDateLabel(date: _endDate),
             ],
-            const SizedBox(height: 12),
-            SearchableDropdown<int>(
-              items: const [70, 80, 90],
-              selectedItem: _alertPercent,
-              itemLabel: (value) => '$value% terpakai',
-              labelText: 'Peringatan mulai dari',
-              helperText: 'Contoh: 80% berarti peringatan muncul saat pemakaian mencapai 80%.',
-              searchHintText: 'Cari ambang peringatan',
-              cacheKey: 'anggaran.ambang_peringatan',
-              onChanged: (value) => setState(() => _alertPercent = value ?? 80),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.envelope.categoryIds.isEmpty
-                  ? 'Kategori terkait: belum ada'
-                  : 'Kategori terkait: ${_categoryNames(widget.envelope.categoryIds)}',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: Text(_saving ? 'Menyimpan...' : 'Simpan target'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -1,58 +1,124 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/database/ffm_database_structure_service.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 
-class DatabaseStructurePage extends StatelessWidget {
+class DatabaseStructurePage extends StatefulWidget {
   const DatabaseStructurePage({super.key});
 
-  static const _tables = <(String, String)>[
-    ('Households', 'Profil rumah tangga lokal'),
-    ('Categories', 'Kategori pemasukan dan pengeluaran'),
-    ('Merchants', 'Toko atau tempat transaksi'),
-    ('Tags', 'Penanda untuk penyaringan riwayat'),
-    ('Accounts', 'Tempat uang berada: tunai, bank, atau e-wallet'),
-    ('Transactions', 'Catatan uang masuk dan uang keluar'),
-    ('TransactionItems', 'Rincian item di dalam transaksi'),
-    ('Transfers', 'Perpindahan saldo antar rekening'),
-    ('EnvelopeBudgets', 'Pos anggaran berbasis kategori'),
-    ('Assets', 'Aset keluarga'),
-    ('Goals', 'Target keuangan'),
-    ('Liabilities', 'Hutang keluarga'),
-    ('Receivables', 'Piutang keluarga'),
-    ('RecurringTransactions', 'Transaksi berkala'),
-    ('ActivitySessions', 'Sesi perjalanan atau pekerjaan dengan durasi'),
-    ('ActivityCheckpoints', 'Update posisi atau tahapan dalam sesi'),
-    ('ActivityEntries', 'Jurnal aktivitas, pertemuan, dan obrolan manual'),
-    ('HijriSettings', 'Pengaturan kalender Hijriah'),
-  ];
+  @override
+  State<DatabaseStructurePage> createState() => _DatabaseStructurePageState();
+}
+
+class _DatabaseStructurePageState extends State<DatabaseStructurePage> {
+  late final FfmDatabaseStructureService _service;
+  late Future<FfmDatabaseStructureSnapshot> _snapshot;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Struktur database')),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      children: [
-        const AppHelpBanner(
-          title: 'Database lokal FFM',
-          message: 'Daftar ini hanya menjelaskan struktur penyimpanan. Data Anda tidak dikirim atau dibagikan dari halaman ini.',
-          icon: Icons.storage_outlined,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '${_tables.length} kelompok tabel aktif',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
-        ..._tables.map(
-          (table) => AppCard(
-            child: ListTile(
-              leading: const Icon(Icons.table_chart_outlined),
-              title: Text(table.$1),
-              subtitle: Text(table.$2),
+  void initState() {
+    super.initState();
+    _service = FfmDatabaseStructureService(getIt());
+    _snapshot = _service.read();
+  }
+
+  void _reload() => setState(() => _snapshot = _service.read());
+
+  @override
+  Widget build(BuildContext context) {
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.otherMenu,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Struktur database'),
+          actions: [
+            IconButton(
+              tooltip: 'Muat ulang struktur',
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh_rounded),
             ),
-          ),
+          ],
         ),
-      ],
-    ),
-  );
+        body: FutureBuilder<FfmDatabaseStructureSnapshot>(
+          future: _snapshot,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  AppEmptyState(
+                    icon: Icons.error_outline,
+                    title: 'Struktur belum bisa dibaca',
+                    message: 'Coba muat ulang. Data keuanganmu tidak diubah.',
+                    action: FilledButton(
+                      onPressed: _reload,
+                      child: const Text('Muat ulang'),
+                    ),
+                  ),
+                ],
+              );
+            }
+            final structure = snapshot.data!;
+            final grouped = <String, List<FfmDatabaseStructureTable>>{};
+            for (final table in structure.tables) {
+              grouped.putIfAbsent(table.category, () => []).add(table);
+            }
+            final categories = grouped.keys.toList()..sort();
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              children: [
+                const AppHelpBanner(
+                  title: 'Metadata database lokal',
+                  message: 'Halaman ini membaca daftar tabel dan kolom dari skema FFM di perangkat. Tidak ada isi transaksi, saldo, nama rekening, atau data keluarga yang ditampilkan maupun dikirim.',
+                  icon: Icons.storage_outlined,
+                ),
+                const SizedBox(height: 16),
+                AppCard(
+                  child: Row(
+                    children: [
+                      const Icon(Icons.table_chart_outlined),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${structure.tableCount} tabel aktif dalam ${categories.length} kelompok',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                for (final category in categories) ...[
+                  AppSectionHeader(
+                    title: '$category · ${grouped[category]!.length} tabel',
+                  ),
+                  const SizedBox(height: 8),
+                  for (final table in grouped[category]!)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AppCard(
+                        child: ListTile(
+                          leading: const Icon(Icons.table_rows_outlined),
+                          title: Text(table.label),
+                          subtitle: Text(
+                            '${table.description}\n${table.tableName} · ${table.columnCount} kolom',
+                          ),
+                          isThreeLine: true,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

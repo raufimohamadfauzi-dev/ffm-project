@@ -7,6 +7,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../advisor/presentation/widgets/context_suggestion_card.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../receivable/presentation/pages/receivable_pages.dart';
 import '../../domain/entities/liability_entity.dart';
 import '../../domain/usecases/liability_crud_usecases.dart';
@@ -24,23 +26,26 @@ class LiabilityReceivablePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Hutang & piutang'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Hutang'),
-              Tab(text: 'Piutang'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.liabilities,
+      child: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Hutang & piutang'),
+            bottom: const TabBar(
+              tabs: [
+                Tab(text: 'Hutang'),
+                Tab(text: 'Piutang'),
+              ],
+            ),
+          ),
+          body: const TabBarView(
+            children: [
+              LiabilityListPage(embedded: true),
+              ReceivableListPage(embedded: true),
             ],
           ),
-        ),
-        body: const TabBarView(
-          children: [
-            LiabilityListPage(embedded: true),
-            ReceivableListPage(embedded: true),
-          ],
         ),
       ),
     );
@@ -200,151 +205,154 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
         .where((item) => item.remainingBalance <= 0)
         .toList(growable: false);
 
-    return Scaffold(
-      appBar: widget.embedded
-          ? null
-          : AppBar(
-              title: const Text('Hutang keluarga'),
-              actions: [
-                PopupMenuButton<_LiabilitySort>(
-                  tooltip: 'Urutkan hutang',
-                  initialValue: _sort,
-                  onSelected: (value) => setState(() => _sort = value),
-                  icon: const Icon(Icons.sort_rounded),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: _LiabilitySort.sisaTerbesar,
-                      child: Text('Sisa terbesar'),
-                    ),
-                    PopupMenuItem(
-                      value: _LiabilitySort.sisaTerkecil,
-                      child: Text('Sisa terkecil'),
-                    ),
-                    PopupMenuItem(
-                      value: _LiabilitySort.cicilanTerbesar,
-                      child: Text('Cicilan terbesar'),
-                    ),
-                    PopupMenuItem(
-                      value: _LiabilitySort.jatuhTempoTerdekat,
-                      child: Text('Jatuh tempo terdekat'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : DefaultTabController(
-              length: 4,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Column(
-                      children: [
-                        const AppHelpBanner(
-                          title: 'Cara pakainya',
-                          message: 'Catat saldo tersisa, cicilan wajib, dan jatuh tempo. Data ini dipakai untuk membaca beban cicilan dan menyusun strategi pelunasan.',
-                          icon: Icons.credit_score_outlined,
-                        ),
-                        const SizedBox(height: 12),
-                        AppCard(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const CircleAvatar(
-                                    backgroundColor: AppColors.warningSoft,
-                                    foregroundColor: AppColors.warning,
-                                    child: Icon(Icons.credit_score_outlined),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    'Beban yang masih berjalan',
-                                    style: AppTextStyles.labelCaps,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'Total sisa hutang',
-                                style: AppTextStyles.labelCaps,
-                              ),
-                              const SizedBox(height: 12),
-                              AppMoneyText(total),
-                              const SizedBox(height: 8),
-                              Text(
-                                _liabilities.isEmpty
-                                    ? 'Belum ada cicilan yang dicatat.'
-                                    : '${_liabilities.length} cicilan sedang dicatat.',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ContextSuggestionCard(
-                          title: _liabilities.isEmpty
-                              ? 'Pelan-pelan, yang penting jelas'
-                              : 'Biar cicilan nggak bikin kaget',
-                          message: _liabilities.isEmpty
-                              ? 'Begitu cicilanmu dicatat, kami bantu lihat rasio cicilan dan strategi pelunasan.'
-                              : 'Cek sisa hutang dan tanggal jatuh tempo secara berkala supaya rencana tetap aman.',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TabBar(
-                    isScrollable: true,
-                    tabs: [
-                      Tab(text: 'Semua (${_liabilities.length})'),
-                      Tab(text: 'Aktif (${active.length})'),
-                      Tab(text: 'Jatuh tempo (${dueSoon.length})'),
-                      Tab(text: 'Lunas (${paidOff.length})'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.liabilities,
+      child: Scaffold(
+        appBar: widget.embedded
+            ? null
+            : AppBar(
+                title: const Text('Hutang keluarga'),
+                actions: [
+                  PopupMenuButton<_LiabilitySort>(
+                    tooltip: 'Urutkan hutang',
+                    initialValue: _sort,
+                    onSelected: (value) => setState(() => _sort = value),
+                    icon: const Icon(Icons.sort_rounded),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: _LiabilitySort.sisaTerbesar,
+                        child: Text('Sisa terbesar'),
+                      ),
+                      PopupMenuItem(
+                        value: _LiabilitySort.sisaTerkecil,
+                        child: Text('Sisa terkecil'),
+                      ),
+                      PopupMenuItem(
+                        value: _LiabilitySort.cicilanTerbesar,
+                        child: Text('Cicilan terbesar'),
+                      ),
+                      PopupMenuItem(
+                        value: _LiabilitySort.jatuhTempoTerdekat,
+                        child: Text('Jatuh tempo terdekat'),
+                      ),
                     ],
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _liabilityList(
-                          _sortLiabilities(_liabilities),
-                          emptyTitle: 'Belum ada hutang',
-                          emptyMessage: 'Catat cicilan supaya strategi pelunasanmu lebih jelas.',
-                        ),
-                        _liabilityList(
-                          _sortLiabilities(active),
-                          emptyTitle: 'Tidak ada hutang aktif',
-                          emptyMessage:
-                              'Semua hutang sudah lunas atau belum dicatat.',
-                        ),
-                        _liabilityList(
-                          _sortLiabilities(dueSoon),
-                          emptyTitle: 'Belum ada jatuh tempo dekat',
-                          emptyMessage: 'Hutang dengan jatuh tempo 30 hari ke depan akan muncul di sini.',
-                        ),
-                        _liabilityList(
-                          _sortLiabilities(paidOff),
-                          emptyTitle: 'Belum ada hutang lunas',
-                          emptyMessage: 'Hutang yang saldonya sudah nol akan muncul di sini.',
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openForm,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah hutang'),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : DefaultTabController(
+                length: 4,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Column(
+                        children: [
+                          const AppHelpBanner(
+                            title: 'Cara pakainya',
+                            message: 'Catat saldo tersisa, cicilan wajib, dan jatuh tempo. Data ini dipakai untuk membaca beban cicilan dan menyusun strategi pelunasan.',
+                            icon: Icons.credit_score_outlined,
+                          ),
+                          const SizedBox(height: 12),
+                          AppCard(
+                            padding: const EdgeInsets.all(20),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const CircleAvatar(
+                                      backgroundColor: AppColors.warningSoft,
+                                      foregroundColor: AppColors.warning,
+                                      child: Icon(Icons.credit_score_outlined),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Beban yang masih berjalan',
+                                      style: AppTextStyles.labelCaps,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Total sisa hutang',
+                                  style: AppTextStyles.labelCaps,
+                                ),
+                                const SizedBox(height: 12),
+                                AppMoneyText(total),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _liabilities.isEmpty
+                                      ? 'Belum ada cicilan yang dicatat.'
+                                      : '${_liabilities.length} cicilan sedang dicatat.',
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ContextSuggestionCard(
+                            title: _liabilities.isEmpty
+                                ? 'Pelan-pelan, yang penting jelas'
+                                : 'Biar cicilan nggak bikin kaget',
+                            message: _liabilities.isEmpty
+                                ? 'Begitu cicilanmu dicatat, kami bantu lihat rasio cicilan dan strategi pelunasan.'
+                                : 'Cek sisa hutang dan tanggal jatuh tempo secara berkala supaya rencana tetap aman.',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TabBar(
+                      isScrollable: true,
+                      tabs: [
+                        Tab(text: 'Semua (${_liabilities.length})'),
+                        Tab(text: 'Aktif (${active.length})'),
+                        Tab(text: 'Jatuh tempo (${dueSoon.length})'),
+                        Tab(text: 'Lunas (${paidOff.length})'),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _liabilityList(
+                            _sortLiabilities(_liabilities),
+                            emptyTitle: 'Belum ada hutang',
+                            emptyMessage: 'Catat cicilan supaya strategi pelunasanmu lebih jelas.',
+                          ),
+                          _liabilityList(
+                            _sortLiabilities(active),
+                            emptyTitle: 'Tidak ada hutang aktif',
+                            emptyMessage:
+                                'Semua hutang sudah lunas atau belum dicatat.',
+                          ),
+                          _liabilityList(
+                            _sortLiabilities(dueSoon),
+                            emptyTitle: 'Belum ada jatuh tempo dekat',
+                            emptyMessage: 'Hutang dengan jatuh tempo 30 hari ke depan akan muncul di sini.',
+                          ),
+                          _liabilityList(
+                            _sortLiabilities(paidOff),
+                            emptyTitle: 'Belum ada hutang lunas',
+                            emptyMessage: 'Hutang yang saldonya sudah nol akan muncul di sini.',
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _openForm,
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah hutang'),
+        ),
       ),
     );
   }
@@ -431,71 +439,74 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Tambah hutang')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            const AppHelpBanner(
-              title: 'Catat cicilan dengan lengkap',
-              message: 'Isi sisa hutang dan cicilan bulanan. Jatuh tempo membantu kamu melihat kewajiban yang perlu disiapkan.',
-              icon: Icons.event_note_outlined,
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Nama hutang'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Nama hutang belum diisi.'
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            _numberField(
-              _originalController,
-              'Jumlah awal',
-              'Rp ',
-              required: true,
-            ),
-            const SizedBox(height: 16),
-            _numberField(
-              _remainingController,
-              'Sisa hutang',
-              'Rp ',
-              required: true,
-            ),
-            const SizedBox(height: 16),
-            _numberField(
-              _installmentController,
-              'Cicilan per bulan',
-              'Rp ',
-              required: true,
-            ),
-            const SizedBox(height: 16),
-            _numberField(_interestController, 'Bunga per tahun', '%'),
-            const SizedBox(height: 8),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_outlined),
-              title: const Text('Tanggal jatuh tempo'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(_dateLabel(_dueDate)),
-                  HijriDateLabel(date: _dueDate),
-                ],
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.liabilities,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Tambah hutang')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              const AppHelpBanner(
+                title: 'Catat cicilan dengan lengkap',
+                message: 'Isi sisa hutang dan cicilan bulanan. Jatuh tempo membantu kamu melihat kewajiban yang perlu disiapkan.',
+                icon: Icons.event_note_outlined,
               ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _pickDueDate,
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check),
-              label: const Text('Simpan hutang'),
-            ),
-          ],
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Nama hutang'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Nama hutang belum diisi.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              _numberField(
+                _originalController,
+                'Jumlah awal',
+                'Rp ',
+                required: true,
+              ),
+              const SizedBox(height: 16),
+              _numberField(
+                _remainingController,
+                'Sisa hutang',
+                'Rp ',
+                required: true,
+              ),
+              const SizedBox(height: 16),
+              _numberField(
+                _installmentController,
+                'Cicilan per bulan',
+                'Rp ',
+                required: true,
+              ),
+              const SizedBox(height: 16),
+              _numberField(_interestController, 'Bunga per tahun', '%'),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_outlined),
+                title: const Text('Tanggal jatuh tempo'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(_dateLabel(_dueDate)),
+                    HijriDateLabel(date: _dueDate),
+                  ],
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _pickDueDate,
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _save,
+                icon: const Icon(Icons.check),
+                label: const Text('Simpan hutang'),
+              ),
+            ],
+          ),
         ),
       ),
     );

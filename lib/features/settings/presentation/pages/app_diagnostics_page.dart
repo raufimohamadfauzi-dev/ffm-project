@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 
 /// Gaya halaman mengikuti FFM: status ringkas, teks santai, dan data sensitif
 /// tidak pernah dirender karena layanan hanya menyediakan ringkasan tersaring.
@@ -78,91 +80,97 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Bantuan perbaikan'),
-        actions: [
-          IconButton(
-            tooltip: 'Muat ulang',
-            onPressed: _reload,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              children: [
-                AppHelpBanner(
-                  title: _entries.isEmpty
-                      ? 'Belum ada error teknis'
-                      : '${_entries.length} error teknis tercatat',
-                  message: _entries.isEmpty
-                      ? 'Kalau masalah muncul lagi, coba ulangi lalu buka halaman ini. FFM hanya menampilkan error yang benar-benar tertangkap.'
-                      : 'Ringkasan ini aman untuk disalin saat melaporkan masalah. PIN, data keuangan, rekening, dan isi chat tidak dimasukkan.',
-                  icon: _entries.isEmpty
-                      ? Icons.check_circle_outline
-                      : Icons.bug_report_outlined,
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _copyReport,
-                  icon: const Icon(Icons.copy_all_outlined),
-                  label: const Text('Salin laporan error'),
-                ),
-                if (_entries.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: _clear,
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('Hapus riwayat error'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.diagnostics,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Bantuan perbaikan'),
+          actions: [
+            IconButton(
+              tooltip: 'Muat ulang',
+              onPressed: _reload,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: [
+                  AppHelpBanner(
+                    title: _entries.isEmpty
+                        ? 'Belum ada error teknis'
+                        : '${_entries.length} error teknis tercatat',
+                    message: _entries.isEmpty
+                        ? 'Kalau masalah muncul lagi, coba ulangi lalu buka halaman ini. FFM hanya menampilkan error yang benar-benar tertangkap.'
+                        : 'Ringkasan ini aman untuk disalin saat melaporkan masalah. PIN, data keuangan, rekening, dan isi chat tidak dimasukkan.',
+                    icon: _entries.isEmpty
+                        ? Icons.check_circle_outline
+                        : Icons.bug_report_outlined,
                   ),
-                  const SizedBox(height: 20),
-                  const AppSectionHeader(title: 'Error terbaru'),
-                  const SizedBox(height: 8),
-                  ..._entries.map(
-                    (entry) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(Icons.error_outline, color: scheme.error),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    entry.feature,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _copyReport,
+                    icon: const Icon(Icons.copy_all_outlined),
+                    label: const Text('Salin laporan error'),
+                  ),
+                  if (_entries.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _clear,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Hapus riwayat error'),
+                    ),
+                    const SizedBox(height: 20),
+                    const AppSectionHeader(title: 'Error terbaru'),
+                    const SizedBox(height: 8),
+                    ..._entries.map(
+                      (entry) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.error_outline,
+                                    color: scheme.error,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      entry.feature,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Text('Kode: ${entry.code}'),
-                            const SizedBox(height: 4),
-                            Text('Waktu: ${_formatDate(entry.occurredAt)}'),
-                            const SizedBox(height: 8),
-                            Text(entry.summary),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Dampak: ${entry.impact}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                                ],
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              Text('Kode: ${entry.code}'),
+                              const SizedBox(height: 4),
+                              Text('Waktu: ${_formatDate(entry.occurredAt)}'),
+                              const SizedBox(height: 8),
+                              Text(entry.summary),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Dampak: ${entry.impact}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
-            ),
+              ),
+      ),
     );
   }
 

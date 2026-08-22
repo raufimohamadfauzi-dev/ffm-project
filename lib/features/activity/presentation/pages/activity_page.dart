@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
@@ -24,12 +26,15 @@ class ActivityPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<ActivityBloc>()..load(),
-      child: _ActivityView(
-        initialTitle: initialTitle,
-        initialCategory: initialCategory,
-        initialNotes: initialNotes,
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.activity,
+      child: BlocProvider(
+        create: (_) => getIt<ActivityBloc>()..load(),
+        child: _ActivityView(
+          initialTitle: initialTitle,
+          initialCategory: initialCategory,
+          initialNotes: initialNotes,
+        ),
       ),
     );
   }

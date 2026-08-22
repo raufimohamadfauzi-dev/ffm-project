@@ -9,6 +9,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../domain/usecases/recurring_transaction_crud_usecases.dart';
 
 class AccountReconciliationPage extends StatefulWidget {
@@ -97,124 +99,129 @@ class _AccountReconciliationPageState extends State<AccountReconciliationPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Rekonsiliasi saldo')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          final overview = await _overviewFuture;
-          if (mounted) await _openEditor(overview.balances);
-        },
-        icon: const Icon(Icons.fact_check_outlined),
-        label: const Text('Cek saldo nyata'),
-      ),
-      body: FutureBuilder<_ReconciliationOverview>(
-        future: _overviewFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Gagal memuat saldo: ${snapshot.error}'));
-          }
-          final overview = snapshot.data!;
-          if (overview.balances.isEmpty) {
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.reconciliation,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Rekonsiliasi saldo')),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () async {
+            final overview = await _overviewFuture;
+            if (mounted) await _openEditor(overview.balances);
+          },
+          icon: const Icon(Icons.fact_check_outlined),
+          label: const Text('Cek saldo nyata'),
+        ),
+        body: FutureBuilder<_ReconciliationOverview>(
+          future: _overviewFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Gagal memuat saldo: ${snapshot.error}'),
+              );
+            }
+            final overview = snapshot.data!;
+            if (overview.balances.isEmpty) {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                children: const [
+                  AppEmptyState(
+                    icon: Icons.account_balance_wallet_outlined,
+                    title: 'Belum ada rekening aktif',
+                    message: 'Tambahkan rekening, tunai, atau dompet digital di Data Utama terlebih dahulu.',
+                  ),
+                ],
+              );
+            }
             return ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              children: const [
-                AppEmptyState(
-                  icon: Icons.account_balance_wallet_outlined,
-                  title: 'Belum ada rekening aktif',
-                  message: 'Tambahkan rekening, tunai, atau dompet digital di Data Utama terlebih dahulu.',
+              children: [
+                const AppHelpBanner(
+                  title: 'Saldo catatan vs saldo nyata',
+                  message: 'Masukkan saldo yang benar-benar terlihat di rekening. FFM tidak menghapus transaksi lama; selisihnya dicatat sebagai transaksi penyesuaian.',
+                  icon: Icons.fact_check_outlined,
                 ),
-              ],
-            );
-          }
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            children: [
-              const AppHelpBanner(
-                title: 'Saldo catatan vs saldo nyata',
-                message: 'Masukkan saldo yang benar-benar terlihat di rekening. FFM tidak menghapus transaksi lama; selisihnya dicatat sebagai transaksi penyesuaian.',
-                icon: Icons.fact_check_outlined,
-              ),
-              const SizedBox(height: 16),
-              ...overview.balances.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AppCard(
-                    child: ListTile(
-                      leading: const CircleAvatar(
-                        child: Icon(Icons.account_balance_wallet_outlined),
-                      ),
-                      title: Text(item.account.name),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Saldo buku\n${_balanceLabel(item.bookBalance)}'
-                            '${item.latest == null ? '' : '\nTerakhir dicek ${_stamp(item.latest!.checkedAt)}\nSaldo nyata ${_balanceLabel(item.latest!.actualBalance)} · Selisih ${_balanceLabel(item.latest!.difference)}'}',
-                          ),
-                          if (item.latest != null)
-                            HijriDateLabel(date: item.latest!.checkedAt),
-                        ],
-                      ),
-                      isThreeLine: item.latest != null,
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => _openEditor(
-                        overview.balances,
-                        initialAccountId: item.account.id,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Riwayat pemeriksaan',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              if (overview.history.isEmpty)
-                const AppCard(
-                  child: ListTile(
-                    leading: Icon(Icons.history_outlined),
-                    title: Text('Belum ada riwayat'),
-                    subtitle: Text(
-                      'Setelah cek saldo nyata, hasil pemeriksaannya akan muncul di sini.',
-                    ),
-                  ),
-                )
-              else
-                ...overview.history.map(
-                  (log) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                const SizedBox(height: 16),
+                ...overview.balances.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
                     child: AppCard(
                       child: ListTile(
-                        leading: Icon(
-                          log.difference == 0
-                              ? Icons.check_circle_outline
-                              : Icons.tune_rounded,
+                        leading: const CircleAvatar(
+                          child: Icon(Icons.account_balance_wallet_outlined),
                         ),
-                        title: Text(
-                          '${_balanceLabel(log.actualBalance)} · Selisih ${_balanceLabel(log.difference)}',
-                        ),
+                        title: Text(item.account.name),
                         subtitle: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${_accountName(overview.balances, log.accountId)} · ${_stamp(log.checkedAt)}\nID ${log.id}',
+                              'Saldo buku\n${_balanceLabel(item.bookBalance)}'
+                              '${item.latest == null ? '' : '\nTerakhir dicek ${_stamp(item.latest!.checkedAt)}\nSaldo nyata ${_balanceLabel(item.latest!.actualBalance)} · Selisih ${_balanceLabel(item.latest!.difference)}'}',
                             ),
-                            HijriDateLabel(date: log.checkedAt),
+                            if (item.latest != null)
+                              HijriDateLabel(date: item.latest!.checkedAt),
                           ],
                         ),
-                        isThreeLine: true,
+                        isThreeLine: item.latest != null,
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _openEditor(
+                          overview.balances,
+                          initialAccountId: item.account.id,
+                        ),
                       ),
                     ),
                   ),
                 ),
-            ],
-          );
-        },
+                const SizedBox(height: 8),
+                Text(
+                  'Riwayat pemeriksaan',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                if (overview.history.isEmpty)
+                  const AppCard(
+                    child: ListTile(
+                      leading: Icon(Icons.history_outlined),
+                      title: Text('Belum ada riwayat'),
+                      subtitle: Text(
+                        'Setelah cek saldo nyata, hasil pemeriksaannya akan muncul di sini.',
+                      ),
+                    ),
+                  )
+                else
+                  ...overview.history.map(
+                    (log) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: AppCard(
+                        child: ListTile(
+                          leading: Icon(
+                            log.difference == 0
+                                ? Icons.check_circle_outline
+                                : Icons.tune_rounded,
+                          ),
+                          title: Text(
+                            '${_balanceLabel(log.actualBalance)} · Selisih ${_balanceLabel(log.difference)}',
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_accountName(overview.balances, log.accountId)} · ${_stamp(log.checkedAt)}\nID ${log.id}',
+                              ),
+                              HijriDateLabel(date: log.checkedAt),
+                            ],
+                          ),
+                          isThreeLine: true,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/services/reminder_sound_picker.dart';
 import '../../domain/entities/reminder_entity.dart';
 import '../bloc/reminder_bloc.dart';
@@ -14,9 +16,15 @@ class ReminderPage extends StatelessWidget {
   final String? initialNote;
 
   @override
-  Widget build(BuildContext context) => BlocProvider(
-    create: (_) => getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
-    child: _ReminderView(initialTitle: initialTitle, initialNote: initialNote),
+  Widget build(BuildContext context) => FfmAssistantPageContext(
+    destination: FfmAssistantDestination.reminders,
+    child: BlocProvider(
+      create: (_) => getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
+      child: _ReminderView(
+        initialTitle: initialTitle,
+        initialNote: initialNote,
+      ),
+    ),
   );
 }
 

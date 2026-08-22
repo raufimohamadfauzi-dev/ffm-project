@@ -63,7 +63,9 @@ class AppDatabase extends _$AppDatabase {
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
-      await m.createAll();
+      // Jangan memanggil createAll() saat upgrade. Setiap tabel atau kolom
+      // baru dibuat hanya pada batas versi asalnya agar database pengguna lama
+      // tidak mencoba membuat ulang tabel yang sudah ada.
       if (from < 21) {
         await m.addColumn(tags, tags.isArchived);
       }

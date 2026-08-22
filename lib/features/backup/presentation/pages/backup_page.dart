@@ -15,6 +15,8 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../advisor/domain/usecases/financial_health_calculator.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../liability/domain/usecases/liability_crud_usecases.dart';
@@ -707,531 +709,536 @@ class _BackupPageState extends State<BackupPage> {
     final scheme = Theme.of(context).colorScheme;
     final filtered =
         _dateRange != null || _typeFilter != 'all' || _categoryFilter != 'all';
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ekspor & Cadangan')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          const AppHelpBanner(
-            title: 'Cara pakainya',
-            message: 'Cadangan penuh dipakai untuk pindah perangkat dan membawa data utama, transaksi, aset, hutang, piutang, target, anggaran, transfer, serta riwayat rekonsiliasi dan aktivitas. Ekspor analisa AI hanya membawa data sesuai filter.',
-            icon: Icons.shield_outlined,
-          ),
-          const SizedBox(height: 12),
-          AppCard(
-            color: scheme.primaryContainer,
-
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.lock_outline, size: 32, color: scheme.primary),
-                const SizedBox(height: 14),
-                Text(
-                  'Data tetap di perangkatmu.',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(color: scheme.onPrimaryContainer),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Cadangan disimpan sebagai JSON dan bisa dicek dulu sebelum dipulihkan. Tidak ada data yang dikirim ke internet oleh aplikasi.',
-                  style: TextStyle(color: scheme.onPrimaryContainer),
-                ),
-              ],
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.backup,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Ekspor & Cadangan')),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const AppHelpBanner(
+              title: 'Cara pakainya',
+              message: 'Cadangan penuh dipakai untuk pindah perangkat dan membawa data utama, transaksi, aset, hutang, piutang, target, anggaran, transfer, serta riwayat rekonsiliasi dan aktivitas. Ekspor analisa AI hanya membawa data sesuai filter.',
+              icon: Icons.shield_outlined,
             ),
-          ),
-          const SizedBox(height: 16),
-          const AppSectionHeader(title: 'Pilihan ekspor'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _working ? null : _exportPdfReport,
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            label: const Text('Buat laporan PDF bulan ini'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _working ? null : _exportWeeklyPdfReport,
-            icon: const Icon(Icons.date_range_outlined),
-            label: const Text('Buat laporan PDF minggu ini'),
-          ),
-          const SizedBox(height: 10),
-          FilledButton.icon(
-            onPressed: _working ? null : _exportBackup,
-            icon: const Icon(Icons.auto_awesome_outlined),
-            label: const Text('Ekspor JSON analisa AI (bukan backup)'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _working ? null : _exportFullBackup,
-            icon: const Icon(Icons.backup_outlined),
-            label: const Text('Buat cadangan penuh semua data (.json)'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: _working ? null : _chooseDateRange,
-            icon: const Icon(Icons.date_range_outlined),
-            label: const Text('Pilih filter tanggal'),
-          ),
-          const SizedBox(height: 8),
-          SearchableDropdown<String>(
-            items: const ['all', 'income', 'expense'],
-            selectedItem: _typeFilter,
-            itemLabel: (value) => switch (value) {
-              'income' => 'Pemasukan saja',
-              'expense' => 'Pengeluaran saja',
-              _ => 'Semua jenis',
-            },
-            labelText: 'Jenis transaksi',
-            searchHintText: 'Cari jenis transaksi',
-            cacheKey: 'backup.jenis_transaksi',
-            enabled: !_working,
-            onChanged: (value) {
-              if (value != null) setState(() => _typeFilter = value);
-            },
-          ),
-          const SizedBox(height: 8),
-          SearchableDropdown<String>(
-            items: ['all', ..._categoryLabels.keys],
-            selectedItem: _categoryLabels.containsKey(_categoryFilter)
-                ? _categoryFilter
-                : 'all',
-            itemLabel: (value) => value == 'all'
-                ? 'Semua kategori'
-                : _categoryLabels[value] ?? value,
-            labelText: 'Kategori transaksi',
-            searchHintText: 'Cari kategori transaksi',
-            cacheKey: 'backup.kategori_transaksi',
-            enabled: !_working,
-            onChanged: (value) {
-              if (value != null) setState(() => _categoryFilter = value);
-            },
-          ),
-          const SizedBox(height: 18),
-          AppCard(
-            color: filtered
-                ? AppSemanticContainers.warningContainer(context)
-                : scheme.surfaceContainer,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  filtered ? Icons.filter_alt : Icons.filter_alt_off,
-                  color: filtered
-                      ? AppSemanticColors.warning(context)
-                      : scheme.primary,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    filtered
-                        ? 'Filter aktif: hanya data yang kamu pilih yang ikut diekspor.'
-                        : 'Belum ada filter: ekspor analisa akan memakai seluruh periode.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: filtered
-                          ? AppSemanticContainers.onWarningContainer(context)
-                          : scheme.onSurface,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          const AppSectionHeader(
-            title: 'JSON analisa untuk LLM (bukan cadangan)',
-          ),
-          const SizedBox(height: 8),
-          AppCard(
-            color: scheme.primaryContainer,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Pilih modul dan periode di atas, lalu salin atau ekspor data analisa ke AI (Claude/ChatGPT). Berkas ini bukan backup dan tidak bisa dipakai untuk memulihkan seluruh aplikasi.',
-                  style: TextStyle(color: scheme.onPrimaryContainer),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Pilih modul data yang ingin disertakan:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: scheme.onPrimaryContainer,
-                  ),
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _exportIncludeFinance,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _exportIncludeFinance = value ?? true,
-                        ),
-                  title: const Text('Keuangan Keluarga'),
-                  subtitle: const Text(
-                    'Transaksi, Aset, Hutang, Goal, Budget.',
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _exportIncludeMetadata,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _exportIncludeMetadata = value ?? true,
-                        ),
-                  title: const Text('Metadata & Master Data'),
-                  subtitle: const Text('Kategori, Toko, Tag, Rekening.'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                const Divider(),
-                const Text(
-                  'Opsi Rincian:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _analysisIncludeItems,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _analysisIncludeItems = value ?? true,
-                        ),
-                  title: const Text('Sertakan rincian item belanja'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _analysisIncludeNotes,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _analysisIncludeNotes = value ?? false,
-                        ),
-                  title: const Text('Sertakan catatan transaksi'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _copyAnalysisPrompt,
-                      icon: const Icon(Icons.content_copy_outlined),
-                      label: const Text('Salin prompt'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _copyAnalysisJson,
-                      icon: const Icon(Icons.data_object_outlined),
-                      label: const Text('Salin JSON'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working
-                          ? null
-                          : () => _exportAnalysisFile('json'),
-                      icon: const Icon(Icons.file_download_outlined),
-                      label: const Text('Ekspor JSON'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working
-                          ? null
-                          : () => _exportAnalysisFile('csv'),
-                      icon: const Icon(Icons.table_chart_outlined),
-                      label: const Text('Ekspor CSV'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working
-                          ? null
-                          : () => _exportAnalysisFile('html'),
-                      icon: const Icon(Icons.language_outlined),
-                      label: const Text('Ekspor HTML'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          const AppSectionHeader(
-            title: 'JSON Export Studio untuk Gemini/Claude',
-          ),
-          const SizedBox(height: 8),
-          AppCard(
-            color: scheme.secondaryContainer,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Data tetap sama, tampilan laporan bisa berbeda. Salin prompt dan JSON ini ke Gemini atau Claude untuk membuat HTML, Markdown, atau bahan PDF.',
-                  style: TextStyle(color: scheme.onSecondaryContainer),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _studioReportStyle,
-                  decoration: const InputDecoration(
-                    labelText: 'Gaya laporan AI',
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'pembelajaran keluarga',
-                      child: Text('Pembelajaran keluarga'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'manajemen keuangan formal',
-                      child: Text('Manajemen keuangan formal'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'ringkasan visual santai',
-                      child: Text('Ringkasan visual santai'),
-                    ),
-                  ],
-                  onChanged: _working
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => _studioReportStyle = value);
-                          }
-                        },
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _studioIncludeFamilyProfile,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _studioIncludeFamilyProfile = value ?? true,
-                        ),
-                  title: const Text('Sertakan nama rumah tangga dan anggota'),
-                  subtitle: const Text(
-                    'Bisa dimatikan jika laporan akan dibagikan umum.',
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _studioIncludeActivities,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _studioIncludeActivities = value ?? true,
-                        ),
-                  title: const Text('Sertakan aktivitas dan jurnal keluarga'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _studioAnonymizeIdentity,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _studioAnonymizeIdentity = value ?? false,
-                        ),
-                  title: const Text('Samarkan nama, peserta, dan lokasi'),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _studioAnonymizeAmounts,
-                  onChanged: _working
-                      ? null
-                      : (value) => setState(
-                          () => _studioAnonymizeAmounts = value ?? false,
-                        ),
-                  title: const Text('Samarkan nominal'),
-                  subtitle: const Text(
-                    'Persentase nominal tidak akan dihitung jika nominal disamarkan.',
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _previewStudio,
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('Preview JSON'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _copyStudioPrompt,
-                      icon: const Icon(Icons.content_copy_outlined),
-                      label: const Text('Salin prompt AI'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working ? null : _copyStudioJson,
-                      icon: const Icon(Icons.data_object_outlined),
-                      label: const Text('Salin JSON Studio'),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _working ? null : _shareStudioJson,
-                      icon: const Icon(Icons.share_outlined),
-                      label: const Text('Bagikan JSON'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 18),
-          const AppSectionHeader(title: 'Masukkan hasil dari Gemini/Claude'),
-          const SizedBox(height: 8),
-          AppCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Tempel HTML atau Markdown hasil AI di bawah. FFM tidak mengubah angka; aplikasi hanya membantu preview dan membuat berkas HTML/PDF.',
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  minLines: 7,
-                  maxLines: 14,
-                  onChanged: (value) => _studioAiOutput = value,
-                  decoration: const InputDecoration(
-                    labelText: 'Hasil laporan AI',
-                    hintText: 'Tempel hasil HTML atau Markdown di sini…',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: _working || _studioAiOutput.trim().isEmpty
-                          ? null
-                          : () => showDialog<void>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Preview hasil AI'),
-                                content: SingleChildScrollView(
-                                  child: SelectableText(
-                                    _plainTextFromAiOutput(_studioAiOutput),
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(context),
-                                    child: const Text('Tutup'),
-                                  ),
-                                ],
-                              ),
-                            ),
-                      icon: const Icon(Icons.visibility_outlined),
-                      label: const Text('Preview hasil'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _working || _studioAiOutput.trim().isEmpty
-                          ? null
-                          : _shareAiHtml,
-                      icon: const Icon(Icons.language_outlined),
-                      label: const Text('Bagikan HTML'),
-                    ),
-                    FilledButton.icon(
-                      onPressed: _working || _studioAiOutput.trim().isEmpty
-                          ? null
-                          : _shareAiPdf,
-                      icon: const Icon(Icons.picture_as_pdf_outlined),
-                      label: const Text('Buat PDF'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          if (filtered) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             AppCard(
-              color: AppSemanticContainers.warningContainer(context),
+              color: scheme.primaryContainer,
+
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.lock_outline, size: 32, color: scheme.primary),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Data tetap di perangkatmu.',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Cadangan disimpan sebagai JSON dan bisa dicek dulu sebelum dipulihkan. Tidak ada data yang dikirim ke internet oleh aplikasi.',
+                    style: TextStyle(color: scheme.onPrimaryContainer),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const AppSectionHeader(title: 'Pilihan ekspor'),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _exportPdfReport,
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text('Buat laporan PDF bulan ini'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _exportWeeklyPdfReport,
+              icon: const Icon(Icons.date_range_outlined),
+              label: const Text('Buat laporan PDF minggu ini'),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: _working ? null : _exportBackup,
+              icon: const Icon(Icons.auto_awesome_outlined),
+              label: const Text('Ekspor JSON analisa AI (bukan backup)'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _exportFullBackup,
+              icon: const Icon(Icons.backup_outlined),
+              label: const Text('Buat cadangan penuh semua data (.json)'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _chooseDateRange,
+              icon: const Icon(Icons.date_range_outlined),
+              label: const Text('Pilih filter tanggal'),
+            ),
+            const SizedBox(height: 8),
+            SearchableDropdown<String>(
+              items: const ['all', 'income', 'expense'],
+              selectedItem: _typeFilter,
+              itemLabel: (value) => switch (value) {
+                'income' => 'Pemasukan saja',
+                'expense' => 'Pengeluaran saja',
+                _ => 'Semua jenis',
+              },
+              labelText: 'Jenis transaksi',
+              searchHintText: 'Cari jenis transaksi',
+              cacheKey: 'backup.jenis_transaksi',
+              enabled: !_working,
+              onChanged: (value) {
+                if (value != null) setState(() => _typeFilter = value);
+              },
+            ),
+            const SizedBox(height: 8),
+            SearchableDropdown<String>(
+              items: ['all', ..._categoryLabels.keys],
+              selectedItem: _categoryLabels.containsKey(_categoryFilter)
+                  ? _categoryFilter
+                  : 'all',
+              itemLabel: (value) => value == 'all'
+                  ? 'Semua kategori'
+                  : _categoryLabels[value] ?? value,
+              labelText: 'Kategori transaksi',
+              searchHintText: 'Cari kategori transaksi',
+              cacheKey: 'backup.kategori_transaksi',
+              enabled: !_working,
+              onChanged: (value) {
+                if (value != null) setState(() => _categoryFilter = value);
+              },
+            ),
+            const SizedBox(height: 18),
+            AppCard(
+              color: filtered
+                  ? AppSemanticContainers.warningContainer(context)
+                  : scheme.surfaceContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
+                  Icon(
+                    filtered ? Icons.filter_alt : Icons.filter_alt_off,
+                    color: filtered
+                        ? AppSemanticColors.warning(context)
+                        : scheme.primary,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Mode ekspor terbatas aktif. Berkas ini bukan cadangan pemulihan penuh.',
+                      filtered
+                          ? 'Filter aktif: hanya data yang kamu pilih yang ikut diekspor.'
+                          : 'Belum ada filter: ekspor analisa akan memakai seluruh periode.',
                       style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: filtered
+                            ? AppSemanticContainers.onWarningContainer(context)
+                            : scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            const AppSectionHeader(
+              title: 'JSON analisa untuk LLM (bukan cadangan)',
+            ),
+            const SizedBox(height: 8),
+            AppCard(
+              color: scheme.primaryContainer,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pilih modul dan periode di atas, lalu salin atau ekspor data analisa ke AI (Claude/ChatGPT). Berkas ini bukan backup dan tidak bisa dipakai untuk memulihkan seluruh aplikasi.',
+                    style: TextStyle(color: scheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Pilih modul data yang ingin disertakan:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onPrimaryContainer,
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _exportIncludeFinance,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _exportIncludeFinance = value ?? true,
+                          ),
+                    title: const Text('Keuangan Keluarga'),
+                    subtitle: const Text(
+                      'Transaksi, Aset, Hutang, Goal, Budget.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _exportIncludeMetadata,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _exportIncludeMetadata = value ?? true,
+                          ),
+                    title: const Text('Metadata & Master Data'),
+                    subtitle: const Text('Kategori, Toko, Tag, Rekening.'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const Divider(),
+                  const Text(
+                    'Opsi Rincian:',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _analysisIncludeItems,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _analysisIncludeItems = value ?? true,
+                          ),
+                    title: const Text('Sertakan rincian item belanja'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _analysisIncludeNotes,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _analysisIncludeNotes = value ?? false,
+                          ),
+                    title: const Text('Sertakan catatan transaksi'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _working ? null : _copyAnalysisPrompt,
+                        icon: const Icon(Icons.content_copy_outlined),
+                        label: const Text('Salin prompt'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working ? null : _copyAnalysisJson,
+                        icon: const Icon(Icons.data_object_outlined),
+                        label: const Text('Salin JSON'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working
+                            ? null
+                            : () => _exportAnalysisFile('json'),
+                        icon: const Icon(Icons.file_download_outlined),
+                        label: const Text('Ekspor JSON'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working
+                            ? null
+                            : () => _exportAnalysisFile('csv'),
+                        icon: const Icon(Icons.table_chart_outlined),
+                        label: const Text('Ekspor CSV'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working
+                            ? null
+                            : () => _exportAnalysisFile('html'),
+                        icon: const Icon(Icons.language_outlined),
+                        label: const Text('Ekspor HTML'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            const AppSectionHeader(
+              title: 'JSON Export Studio untuk Gemini/Claude',
+            ),
+            const SizedBox(height: 8),
+            AppCard(
+              color: scheme.secondaryContainer,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Data tetap sama, tampilan laporan bisa berbeda. Salin prompt dan JSON ini ke Gemini atau Claude untuk membuat HTML, Markdown, atau bahan PDF.',
+                    style: TextStyle(color: scheme.onSecondaryContainer),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    initialValue: _studioReportStyle,
+                    decoration: const InputDecoration(
+                      labelText: 'Gaya laporan AI',
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'pembelajaran keluarga',
+                        child: Text('Pembelajaran keluarga'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'manajemen keuangan formal',
+                        child: Text('Manajemen keuangan formal'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ringkasan visual santai',
+                        child: Text('Ringkasan visual santai'),
+                      ),
+                    ],
+                    onChanged: _working
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _studioReportStyle = value);
+                            }
+                          },
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _studioIncludeFamilyProfile,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _studioIncludeFamilyProfile = value ?? true,
+                          ),
+                    title: const Text('Sertakan nama rumah tangga dan anggota'),
+                    subtitle: const Text(
+                      'Bisa dimatikan jika laporan akan dibagikan umum.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _studioIncludeActivities,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _studioIncludeActivities = value ?? true,
+                          ),
+                    title: const Text('Sertakan aktivitas dan jurnal keluarga'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _studioAnonymizeIdentity,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _studioAnonymizeIdentity = value ?? false,
+                          ),
+                    title: const Text('Samarkan nama, peserta, dan lokasi'),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _studioAnonymizeAmounts,
+                    onChanged: _working
+                        ? null
+                        : (value) => setState(
+                            () => _studioAnonymizeAmounts = value ?? false,
+                          ),
+                    title: const Text('Samarkan nominal'),
+                    subtitle: const Text(
+                      'Persentase nominal tidak akan dihitung jika nominal disamarkan.',
+                    ),
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _working ? null : _previewStudio,
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('Preview JSON'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working ? null : _copyStudioPrompt,
+                        icon: const Icon(Icons.content_copy_outlined),
+                        label: const Text('Salin prompt AI'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working ? null : _copyStudioJson,
+                        icon: const Icon(Icons.data_object_outlined),
+                        label: const Text('Salin JSON Studio'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _working ? null : _shareStudioJson,
+                        icon: const Icon(Icons.share_outlined),
+                        label: const Text('Bagikan JSON'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+            const AppSectionHeader(title: 'Masukkan hasil dari Gemini/Claude'),
+            const SizedBox(height: 8),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tempel HTML atau Markdown hasil AI di bawah. FFM tidak mengubah angka; aplikasi hanya membantu preview dan membuat berkas HTML/PDF.',
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    minLines: 7,
+                    maxLines: 14,
+                    onChanged: (value) => _studioAiOutput = value,
+                    decoration: const InputDecoration(
+                      labelText: 'Hasil laporan AI',
+                      hintText: 'Tempel hasil HTML atau Markdown di sini…',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _working || _studioAiOutput.trim().isEmpty
+                            ? null
+                            : () => showDialog<void>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text('Preview hasil AI'),
+                                  content: SingleChildScrollView(
+                                    child: SelectableText(
+                                      _plainTextFromAiOutput(_studioAiOutput),
+                                    ),
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () => Navigator.pop(context),
+                                      child: const Text('Tutup'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                        icon: const Icon(Icons.visibility_outlined),
+                        label: const Text('Preview hasil'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _working || _studioAiOutput.trim().isEmpty
+                            ? null
+                            : _shareAiHtml,
+                        icon: const Icon(Icons.language_outlined),
+                        label: const Text('Bagikan HTML'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: _working || _studioAiOutput.trim().isEmpty
+                            ? null
+                            : _shareAiPdf,
+                        icon: const Icon(Icons.picture_as_pdf_outlined),
+                        label: const Text('Buat PDF'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (filtered) ...[
+              const SizedBox(height: 8),
+              AppCard(
+                color: AppSemanticContainers.warningContainer(context),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Mode ekspor terbatas aktif. Berkas ini bukan cadangan pemulihan penuh.',
+                        style: TextStyle(
+                          color: AppSemanticContainers.onWarningContainer(
+                            context,
+                          ),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Hapus filter',
+                      onPressed: _working
+                          ? null
+                          : () => setState(() {
+                              _dateRange = null;
+                              _typeFilter = 'all';
+                              _categoryFilter = 'all';
+                            }),
+                      icon: Icon(
+                        Icons.clear,
                         color: AppSemanticContainers.onWarningContainer(
                           context,
                         ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Hapus filter',
-                    onPressed: _working
-                        ? null
-                        : () => setState(() {
-                            _dateRange = null;
-                            _typeFilter = 'all';
-                            _categoryFilter = 'all';
-                          }),
-                    icon: Icon(
-                      Icons.clear,
-                      color: AppSemanticContainers.onWarningContainer(context),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          const AppSectionHeader(title: 'Pilihan pemulihan'),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _working ? null : _restoreBackup,
-            icon: const Icon(Icons.restore),
-            label: const Text('Impor dan pulihkan dari file'),
-          ),
-          const SizedBox(height: 10),
-          TextButton.icon(
-            onPressed: _working ? null : _checkBackup,
-            icon: const Icon(Icons.fact_check_outlined),
-            label: const Text('Cek berkas tanpa mengubah data'),
-          ),
-          if (_working) ...[
-            const SizedBox(height: 20),
-            AppCard(
-              color: scheme.surfaceContainer,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Sedang menyiapkan berkas…',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: scheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const LinearProgressIndicator(),
-                ],
-              ),
-            ),
-          ],
-          if (_lastMessage != null) ...[
-            const SizedBox(height: 20),
-            AppCard(
-              color: AppSemanticContainers.positiveContainer(context),
-              child: Text(
-                _lastMessage!,
-                style: TextStyle(
-                  color: AppSemanticContainers.onPositiveContainer(context),
+                  ],
                 ),
               ),
+            ],
+            const SizedBox(height: 16),
+            const AppSectionHeader(title: 'Pilihan pemulihan'),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _working ? null : _restoreBackup,
+              icon: const Icon(Icons.restore),
+              label: const Text('Impor dan pulihkan dari file'),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              onPressed: _working ? null : _checkBackup,
+              icon: const Icon(Icons.fact_check_outlined),
+              label: const Text('Cek berkas tanpa mengubah data'),
+            ),
+            if (_working) ...[
+              const SizedBox(height: 20),
+              AppCard(
+                color: scheme.surfaceContainer,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sedang menyiapkan berkas…',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const LinearProgressIndicator(),
+                  ],
+                ),
+              ),
+            ],
+            if (_lastMessage != null) ...[
+              const SizedBox(height: 20),
+              AppCard(
+                color: AppSemanticContainers.positiveContainer(context),
+                child: Text(
+                  _lastMessage!,
+                  style: TextStyle(
+                    color: AppSemanticContainers.onPositiveContainer(context),
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            const AppSectionHeader(title: 'Yang ikut dicadangkan'),
+            const SizedBox(height: 8),
+            const AppCard(
+              child: Text(
+                'Transaksi, aset, hutang, target, anggaran, pengingat, Dana Berkala, kategori, dan data pendukung lainnya. Berkas juga dilindungi checksum agar perubahan atau kerusakan bisa terdeteksi.',
+              ),
             ),
           ],
-          const SizedBox(height: 24),
-          const AppSectionHeader(title: 'Yang ikut dicadangkan'),
-          const SizedBox(height: 8),
-          const AppCard(
-            child: Text(
-              'Transaksi, aset, hutang, target, anggaran, pengingat, Dana Berkala, kategori, dan data pendukung lainnya. Berkas juga dilindungi checksum agar perubahan atau kerusakan bisa terdeteksi.',
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

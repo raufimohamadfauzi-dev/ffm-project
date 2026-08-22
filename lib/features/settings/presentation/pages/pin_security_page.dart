@@ -4,6 +4,8 @@ import '../../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/security/app_pin_service.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../widgets/app_pin_entry_panel.dart';
 import '../widgets/forgot_pin_dialog.dart';
 
@@ -268,64 +270,73 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_flow != _PinFlow.idle) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Kunci aplikasi'),
-          leading: IconButton(
-            tooltip: 'Batal',
-            onPressed: _cancelFlow,
-            icon: const Icon(Icons.close),
-          ),
-        ),
-        body: _buildPinFlow(),
+      return const FfmAssistantPageContext(
+        destination: FfmAssistantDestination.appSecurity,
+        child: Scaffold(body: Center(child: CircularProgressIndicator())),
       );
     }
-    return Scaffold(
-      appBar: AppBar(title: const Text('Kunci aplikasi')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        children: [
-          AppHelpBanner(
-            title: _enabled ? 'PIN sedang aktif' : 'PIN belum aktif',
-            message: _enabled
-                ? 'PIN membantu menjaga akses FFM saat aplikasi dibuka kembali. PIN tidak masuk backup atau chat.'
-                : 'Aktifkan PIN ${AppPinService.defaultPinLength} angka supaya FFM minta verifikasi sebelum dibuka.',
-            icon: _enabled ? Icons.lock_outline : Icons.lock_open_outlined,
+    if (_flow != _PinFlow.idle) {
+      return FfmAssistantPageContext(
+        destination: FfmAssistantDestination.appSecurity,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Kunci aplikasi'),
+            leading: IconButton(
+              tooltip: 'Batal',
+              onPressed: _cancelFlow,
+              icon: const Icon(Icons.close),
+            ),
           ),
-          const SizedBox(height: 16),
-          if (!_enabled)
-            FilledButton.icon(
-              onPressed: () => _start(_PinFlow.create),
-              icon: const Icon(Icons.lock_outline),
-              label: const Text('Aktifkan PIN'),
-            )
-          else ...[
-            FilledButton.icon(
-              onPressed: () => _start(_PinFlow.verifyCurrentForChange),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Ganti PIN'),
+          body: _buildPinFlow(),
+        ),
+      );
+    }
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.appSecurity,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Kunci aplikasi')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: [
+            AppHelpBanner(
+              title: _enabled ? 'PIN sedang aktif' : 'PIN belum aktif',
+              message: _enabled
+                  ? 'PIN membantu menjaga akses FFM saat aplikasi dibuka kembali. PIN tidak masuk backup atau chat.'
+                  : 'Aktifkan PIN ${AppPinService.defaultPinLength} angka supaya FFM minta verifikasi sebelum dibuka.',
+              icon: _enabled ? Icons.lock_outline : Icons.lock_open_outlined,
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () => _start(_PinFlow.verifyCurrentForDisable),
-              icon: const Icon(Icons.lock_open_outlined),
-              label: const Text('Matikan PIN'),
-            ),
-            TextButton.icon(
-              onPressed: () => showForgotPinDialog(context),
-              icon: const Icon(Icons.help_outline),
-              label: const Text('Lupa PIN?'),
+            const SizedBox(height: 16),
+            if (!_enabled)
+              FilledButton.icon(
+                onPressed: () => _start(_PinFlow.create),
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Aktifkan PIN'),
+              )
+            else ...[
+              FilledButton.icon(
+                onPressed: () => _start(_PinFlow.verifyCurrentForChange),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Ganti PIN'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () => _start(_PinFlow.verifyCurrentForDisable),
+                icon: const Icon(Icons.lock_open_outlined),
+                label: const Text('Matikan PIN'),
+              ),
+              TextButton.icon(
+                onPressed: () => showForgotPinDialog(context),
+                icon: const Icon(Icons.help_outline),
+                label: const Text('Lupa PIN?'),
+              ),
+            ],
+            const SizedBox(height: 18),
+            Text(
+              'Tips: jangan tulis atau ucapkan PIN di chat. Kalau kamu bilang “ganti PIN” ke Asisten, Asisten hanya membuka halaman ini.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-          const SizedBox(height: 18),
-          Text(
-            'Tips: jangan tulis atau ucapkan PIN di chat. Kalau kamu bilang “ganti PIN” ke Asisten, Asisten hanya membuka halaman ini.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
+        ),
       ),
     );
   }

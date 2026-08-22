@@ -5,6 +5,8 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../domain/entities/asset_entity.dart';
 import '../../domain/usecases/asset_crud_usecases.dart';
 
@@ -81,121 +83,126 @@ class _AssetListPageState extends State<AssetListPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Aset keluarga'),
-        actions: [
-          IconButton(
-            tooltip: 'Apa fungsi aset?',
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (dialogContext) => AlertDialog(
-                title: const Text('Fungsi aset'),
-                content: const Text(
-                  'Aset dipakai untuk mencatat barang atau kekayaan keluarga, misalnya motor, perhiasan, tanah, atau peralatan. Nilainya hanya untuk gambaran kekayaan dan tidak otomatis menambah atau mengurangi saldo Tunai, Bank, atau E-Wallet.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogContext),
-                    child: const Text('Oke, paham'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.assets,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Aset keluarga'),
+          actions: [
+            IconButton(
+              tooltip: 'Apa fungsi aset?',
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (dialogContext) => AlertDialog(
+                  title: const Text('Fungsi aset'),
+                  content: const Text(
+                    'Aset dipakai untuk mencatat barang atau kekayaan keluarga, misalnya motor, perhiasan, tanah, atau peralatan. Nilainya hanya untuk gambaran kekayaan dan tidak otomatis menambah atau mengurangi saldo Tunai, Bank, atau E-Wallet.',
                   ),
-                ],
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogContext),
+                      child: const Text('Oke, paham'),
+                    ),
+                  ],
+                ),
               ),
+              icon: const Icon(Icons.info_outline),
             ),
-            icon: const Icon(Icons.info_outline),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah aset'),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-              children: [
-                const AppHelpBanner(
-                  title: 'Aset itu bukan rekening',
-                  message: 'Pakai bagian ini untuk memantau nilai barang atau kekayaan keluarga. Saldo rekening tetap dihitung dari transaksi dan transfer, bukan dari aset.',
-                  icon: Icons.inventory_2_outlined,
-                ),
-                const SizedBox(height: 16),
-                if (_items.isEmpty)
-                  const AppEmptyState(
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _add,
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah aset'),
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                children: [
+                  const AppHelpBanner(
+                    title: 'Aset itu bukan rekening',
+                    message: 'Pakai bagian ini untuk memantau nilai barang atau kekayaan keluarga. Saldo rekening tetap dihitung dari transaksi dan transfer, bukan dari aset.',
                     icon: Icons.inventory_2_outlined,
-                    title: 'Belum ada aset',
-                    message: 'Belum ada data contoh. Tambahkan aset keluarga kalau memang perlu dipantau.',
-                  )
-                else ...[
-                  Text(
-                    '${_items.length} aset tercatat',
-                    style: Theme.of(context).textTheme.titleSmall,
                   ),
-                  const SizedBox(height: 8),
-                  for (final item in _items)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: AppCard(
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(context)
-                                .colorScheme
-                                .primaryContainer,
-                            child: Icon(
-                              Icons.inventory_2_outlined,
-                              color: Theme.of(context).colorScheme.primary,
+                  const SizedBox(height: 16),
+                  if (_items.isEmpty)
+                    const AppEmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Belum ada aset',
+                      message: 'Belum ada data contoh. Tambahkan aset keluarga kalau memang perlu dipantau.',
+                    )
+                  else ...[
+                    Text(
+                      '${_items.length} aset tercatat',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    for (final item in _items)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: AppCard(
+                          child: ListTile(
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 4,
                             ),
-                          ),
-                          title: Text(
-                            item.name,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          subtitle: Text(
-                            '${item.assetType} • ${item.placement}',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            tooltip: 'Kelola aset',
-                            onSelected: (value) {
-                              if (value == 'edit') {
-                                _edit(item);
-                              } else if (value == 'archive') {
-                                _archive(item);
-                              }
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.edit_outlined),
-                                  title: Text('Ubah aset'),
-                                ),
+                            leading: CircleAvatar(
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .primaryContainer,
+                              child: Icon(
+                                Icons.inventory_2_outlined,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
-                              PopupMenuItem(
-                                value: 'archive',
-                                child: ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.archive_outlined),
-                                  title: Text('Arsipkan aset'),
-                                ),
+                            ),
+                            title: Text(
+                              item.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
                               ),
-                            ],
+                            ),
+                            subtitle: Text(
+                              '${item.assetType} • ${item.placement}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: PopupMenuButton<String>(
+                              tooltip: 'Kelola aset',
+                              onSelected: (value) {
+                                if (value == 'edit') {
+                                  _edit(item);
+                                } else if (value == 'archive') {
+                                  _archive(item);
+                                }
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.edit_outlined),
+                                    title: Text('Ubah aset'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'archive',
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.archive_outlined),
+                                    title: Text('Arsipkan aset'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            onTap: () => _edit(item),
                           ),
-                          onTap: () => _edit(item),
                         ),
                       ),
-                    ),
+                  ],
                 ],
-              ],
-            ),
+              ),
+      ),
     );
   }
 }
@@ -292,94 +299,97 @@ class _AssetFormPageState extends State<AssetFormPage> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.initial != null;
-    return Scaffold(
-      appBar: AppBar(title: Text(editing ? 'Ubah aset' : 'Tambah aset')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-          children: [
-            const AppHelpBanner(
-              title: 'Catat seperlunya',
-              message: 'Nilai aset hanya untuk melihat gambaran kekayaan keluarga. Data ini tidak mengubah saldo rekening dan tidak dianggap sebagai pemasukan.',
-              icon: Icons.info_outline,
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event_note_outlined),
-              title: const Text('Tanggal dicatat'),
-              subtitle: HijriDateText(
-                date: widget.initial?.createdAt ?? DateTime.now(),
-                includeSeconds: true,
-                compact: true,
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.assets,
+      child: Scaffold(
+        appBar: AppBar(title: Text(editing ? 'Ubah aset' : 'Tambah aset')),
+        body: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+            children: [
+              const AppHelpBanner(
+                title: 'Catat seperlunya',
+                message: 'Nilai aset hanya untuk melihat gambaran kekayaan keluarga. Data ini tidak mengubah saldo rekening dan tidak dianggap sebagai pemasukan.',
+                icon: Icons.info_outline,
               ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _name,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Nama aset',
-                hintText: 'Misalnya motor atau tanah',
+              const SizedBox(height: 16),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_note_outlined),
+                title: const Text('Tanggal dicatat'),
+                subtitle: HijriDateText(
+                  date: widget.initial?.createdAt ?? DateTime.now(),
+                  includeSeconds: true,
+                  compact: true,
+                ),
               ),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Nama aset wajib diisi.'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _type,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Jenis aset (opsional)',
-                hintText: 'Kendaraan, tanah, elektronik, dan lainnya',
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _name,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Nama aset',
+                  hintText: 'Misalnya motor atau tanah',
+                ),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Nama aset wajib diisi.'
+                    : null,
               ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _value,
-              keyboardType: TextInputType.number,
-              inputFormatters: [RupiahInputFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Nilai perkiraan',
-                prefixText: 'Rp ',
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _type,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Jenis aset (opsional)',
+                  hintText: 'Kendaraan, tanah, elektronik, dan lainnya',
+                ),
               ),
-              validator: (value) => parseRupiah(value ?? '') <= 0
-                  ? 'Isi nilai aset lebih dari nol.'
-                  : null,
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _placement,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Lokasi atau penempatan',
-                hintText: 'Rumah, gudang, kebun, atau lainnya',
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _value,
+                keyboardType: TextInputType.number,
+                inputFormatters: [RupiahInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Nilai perkiraan',
+                  prefixText: 'Rp ',
+                ),
+                validator: (value) => parseRupiah(value ?? '') <= 0
+                    ? 'Isi nilai aset lebih dari nol.'
+                    : null,
               ),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _note,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Catatan (opsional)',
-                alignLabelWithHint: true,
-                hintText: 'Kondisi, tahun beli, atau keterangan lain',
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _placement,
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(
+                  labelText: 'Lokasi atau penempatan',
+                  hintText: 'Rumah, gudang, kebun, atau lainnya',
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              onPressed: _saving ? null : _save,
-              icon: _saving
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.save_outlined),
-              label: Text(_saving ? 'Menyimpan…' : 'Simpan aset'),
-            ),
-          ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _note,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan (opsional)',
+                  alignLabelWithHint: true,
+                  hintText: 'Kondisi, tahun beli, atau keterangan lain',
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _saving ? null : _save,
+                icon: _saving
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save_outlined),
+                label: Text(_saving ? 'Menyimpan…' : 'Simpan aset'),
+              ),
+            ],
+          ),
         ),
       ),
     );

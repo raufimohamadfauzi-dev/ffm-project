@@ -8,6 +8,8 @@ import '../../../../core/localization/app_copy.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../budget/presentation/pages/budget_page.dart';
@@ -192,31 +194,34 @@ class _SummaryPageState extends State<SummaryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<_SummaryData>(
-      future: _summaryFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: AppEmptyState(
-                icon: Icons.cloud_off,
-                title: 'Ringkasan belum siap',
-                message: 'Coba muat ulang halaman ini.',
-                action: FilledButton(
-                  onPressed: _refresh,
-                  child: const Text('Muat ulang'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.summary,
+      child: FutureBuilder<_SummaryData>(
+        future: _summaryFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: AppEmptyState(
+                  icon: Icons.cloud_off,
+                  title: 'Ringkasan belum siap',
+                  message: 'Coba muat ulang halaman ini.',
+                  action: FilledButton(
+                    onPressed: _refresh,
+                    child: const Text('Muat ulang'),
+                  ),
                 ),
               ),
-            ),
-          );
-        }
-        final data = snapshot.data!;
-        return _SummaryContent(data: data, onRefresh: _refresh);
-      },
+            );
+          }
+          final data = snapshot.data!;
+          return _SummaryContent(data: data, onRefresh: _refresh);
+        },
+      ),
     );
   }
 }

@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/services/receipt_import_models.dart';
 import '../../data/services/receipt_import_service.dart';
 
@@ -68,39 +70,42 @@ class _ReceiptJsonImportPageState extends State<ReceiptJsonImportPage> {
   @override
   Widget build(BuildContext context) {
     final result = _result;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Impor JSON transaksi')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: [
-          const AppHelpBanner(
-            title: 'Masukkan hasil JSON dari LLM',
-            message: 'Kirim foto nota atau teks mutasi ke LLM pilihanmu, lalu minta hasil JSON FFM. Di sini kamu hanya tempel atau pilih file JSON. FFM tidak membaca foto dan tidak menyimpan transaksi otomatis.',
-            icon: Icons.data_object_rounded,
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _pasteJson,
-            icon: const Icon(Icons.content_paste_rounded),
-            label: const Text('Tempel hasil JSON'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _pickJsonFile,
-            icon: const Icon(Icons.file_open_outlined),
-            label: const Text('Pilih file JSON'),
-          ),
-          if (result != null) ...[
-            const SizedBox(height: 16),
-            _ImportPreview(result: result),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () => Navigator.of(context).pop(result),
-              icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Lanjut cek dan edit transaksi'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.transactions,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Impor JSON transaksi')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+          children: [
+            const AppHelpBanner(
+              title: 'Masukkan hasil JSON dari LLM',
+              message: 'Kirim foto nota atau teks mutasi ke LLM pilihanmu, lalu minta hasil JSON FFM. Di sini kamu hanya tempel atau pilih file JSON. FFM tidak membaca foto dan tidak menyimpan transaksi otomatis.',
+              icon: Icons.data_object_rounded,
             ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _pasteJson,
+              icon: const Icon(Icons.content_paste_rounded),
+              label: const Text('Tempel hasil JSON'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _pickJsonFile,
+              icon: const Icon(Icons.file_open_outlined),
+              label: const Text('Pilih file JSON'),
+            ),
+            if (result != null) ...[
+              const SizedBox(height: 16),
+              _ImportPreview(result: result),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => Navigator.of(context).pop(result),
+                icon: const Icon(Icons.edit_note_rounded),
+                label: const Text('Lanjut cek dan edit transaksi'),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
