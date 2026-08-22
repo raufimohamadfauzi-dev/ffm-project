@@ -1,14 +1,32 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class ActivitySpeechService {
   ActivitySpeechService({SpeechToText? recognizer})
-    : _recognizer = recognizer ?? SpeechToText();
+    : _recognizer = recognizer ?? SpeechToText() {
+    _installTtsStateHandler();
+  }
 
   final SpeechToText _recognizer;
   static const _ttsChannel = MethodChannel('ffm/activity_speech');
+  static final _ttsStates =
+      StreamController<ActivitySpeechPlaybackState>.broadcast();
+  static var _ttsStateHandlerInstalled = false;
+
+  static void _installTtsStateHandler() {
+    if (_ttsStateHandlerInstalled) return;
+    _ttsStateHandlerInstalled = true;
+    _ttsChannel.setMethodCallHandler((call) async {
+      if (call.method != 'ttsState') return;
+      final arguments = Map<Object?, Object?>.from(call.arguments as Map);
+      _ttsStates.add(ActivitySpeechPlaybackState.fromPlatformMap(arguments));
+    });
+  }
 
   bool get isListening => _recognizer.isListening;
+  Stream<ActivitySpeechPlaybackState> get playbackStates => _ttsStates.stream;
 
   Future<bool> initialize({
     required void Function(String message) onError,
@@ -40,12 +58,24 @@ class ActivitySpeechService {
 
   Future<void> cancel() => _recognizer.cancel();
 
-  Future<void> speak(String text) async {
-    if (text.trim().isEmpty) return;
-    await _ttsChannel.invokeMethod<void>('speak', {'text': text});
+  Future<String?> speak(String text) async {
+    if (text.trim().isEmpty) return null;
+    final sessionId = 'ffm-tts-${DateTime.now().microsecondsSinceEpoch}';
+    final accepted =
+        await _ttsChannel.invokeMethod<bool>('speak', {
+          'text': text,
+          'sessionId': sessionId,
+        }) ??
+        false;
+    return accepted ? sessionId : null;
   }
 
-  Future<void> stopSpeaking() => _ttsChannel.invokeMethod<void>('stop');
+  Future<void> stopSpeaking({String? sessionId}) =>
+      _ttsChannel.invokeMethod<void>('stop', {
+        if (sessionId != null) 'sessionId': sessionId,
+      });
+
+  Future<void> cancelSpeaking() => _ttsChannel.invokeMethod<void>('cancel');
 
   Future<bool> resumeSpeaking() async =>
       await _ttsChannel.invokeMethod<bool>('resume') ?? false;
@@ -90,4 +120,32 @@ class ActivitySpeechVoice {
   final String quality;
 
   String get label => quality.isEmpty ? name : '$name • $quality';
+}
+
+enum ActivitySpeechPlaybackStatus { started, stopped, completed, error }
+
+class ActivitySpeechPlaybackState {
+  const ActivitySpeechPlaybackState({
+    required this.sessionId,
+    required this.status,
+  });
+
+  factory ActivitySpeechPlaybackState.fromPlatformMap(
+    Map<Object?, Object?> map,
+  ) {
+    final rawStatus = map['status'] as String? ?? '';
+    final status = switch (rawStatus) {
+      'started' => ActivitySpeechPlaybackStatus.started,
+      'stopped' => ActivitySpeechPlaybackStatus.stopped,
+      'completed' => ActivitySpeechPlaybackStatus.completed,
+      _ => ActivitySpeechPlaybackStatus.error,
+    };
+    return ActivitySpeechPlaybackState(
+      sessionId: map['sessionId'] as String? ?? '',
+      status: status,
+    );
+  }
+
+  final String sessionId;
+  final ActivitySpeechPlaybackStatus status;
 }

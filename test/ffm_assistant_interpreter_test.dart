@@ -256,6 +256,18 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test(
+    'menjawab langkah yang perlu dilakukan sekarang tanpa membuat draft',
+    () async {
+      final intent = await interpreter.interpret('sekarang saya harus apa?');
+
+      expect(intent.type, FfmAssistantIntentType.setupGuide);
+      expect(intent.response, contains('Kita mulai dari yang paling kepake'));
+      expect(intent.response, contains('Catat transaksi pertama'));
+      expect(intent.draft, isNull);
+    },
+  );
+
   test('menjawab tanggal Hijriah dari waktu lokal perangkat', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
@@ -318,7 +330,9 @@ void main() {
 
       expect(intent.type, FfmAssistantIntentType.unknown);
       expect(intent.response, contains('belum punya jawaban yang pas'));
-      expect(intent.response, contains('Benarkan pesan / typo'));
+      expect(intent.response, contains('Benarkan & kirim ulang'));
+      expect(intent.response, contains('Pusat Latihan Asisten'));
+      expect(intent.response, contains('salin atau ekspor'));
       expect(intent.response, isNot(contains('Pindahkan')));
       expect(intent.draft, isNull);
     },

@@ -543,7 +543,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau tulisannya keliru, tekan “Benarkan pesan / typo”. Kalau pertanyaannya memang belum ada jawabannya, cek Pusat Pengetahuan supaya bisa ditambahkan sebagai pengetahuan.',
+      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pusat Latihan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.',
     );
   }
 
@@ -1611,6 +1611,11 @@ class FfmAssistantInterpreter {
   bool _isSetupRequest(String text) => _containsAny(text, const [
     'harus mulai dari mana',
     'mulai dari mana',
+    'sekarang saya harus apa',
+    'sekarang harus apa',
+    'sekarang harus ngapain',
+    'selanjutnya apa',
+    'langkah selanjutnya apa',
     'pertamakali saya harus apa',
     'pertama kali saya harus apa',
     'pertama kali harus apa',

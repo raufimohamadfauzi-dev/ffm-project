@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
@@ -81,6 +83,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _followLatestMessages = true;
   String? _speakingEntryKey;
   String? _pausedEntryKey;
+  String? _speakingSessionId;
+  String? _pausedSpeechSessionId;
+  var _listeningSession = 0;
+  StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
@@ -89,6 +95,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   void initState() {
     super.initState();
     _scrollController.addListener(_updateLatestMessagePreference);
+    _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToEnd(force: true),
     );
@@ -100,8 +107,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _controller.dispose();
     _inputFocusNode.dispose();
     _scrollController.dispose();
+    _speechStateSubscription?.cancel();
     _speech.cancel();
-    _speech.stopSpeaking();
+    _speech.cancelSpeaking();
     super.dispose();
   }
 
@@ -353,6 +361,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _toggleListening() async {
     if (_listening) {
+      _listeningSession++;
       await _speech.stop();
       if (mounted) setState(() => _listening = false);
       return;
@@ -360,6 +369,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final ready = await _speech.initialize(
       onError: (message) {
         if (!mounted) return;
+        setState(() => _listening = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Mikrofon belum siap: $message')),
         );
@@ -371,11 +381,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
     if (!ready || !mounted) return;
     setState(() => _listening = true);
+    final session = ++_listeningSession;
+    var finalSubmitted = false;
     await _speech.listen(
       onResult: (text, isFinal) {
-        if (!mounted) return;
+        if (!mounted || session != _listeningSession) return;
         setState(() => _controller.text = text);
-        if (isFinal) _submit(text);
+        if (!isFinal || finalSubmitted || text.trim().isEmpty) return;
+        finalSubmitted = true;
+        setState(() => _listening = false);
+        _submit(text);
       },
     );
   }
@@ -385,25 +400,56 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _toggleSpeakFor(int index, FfmAssistantChatEntry entry) async {
     final key = _speechKeyFor(index, entry);
-    final speaking = await _speech.isSpeaking();
-    if (speaking && _speakingEntryKey == key) {
-      await _speech.stopSpeaking();
+    if (_speakingEntryKey == key) {
+      await _speech.stopSpeaking(sessionId: _speakingSessionId);
       if (mounted) {
         setState(() {
           _speakingEntryKey = null;
           _pausedEntryKey = key;
+          _pausedSpeechSessionId = _speakingSessionId;
+          _speakingSessionId = null;
         });
       }
       return;
     }
 
     final resumed = _pausedEntryKey == key && await _speech.resumeSpeaking();
-    if (!resumed) await _speech.speak(entry.text);
+    final sessionId = resumed
+        ? _pausedSpeechSessionId
+        : await _speech.speak(entry.text);
     if (mounted) {
       setState(() {
-        _speakingEntryKey = key;
-        _pausedEntryKey = null;
+        if (resumed || sessionId != null) {
+          _speakingEntryKey = key;
+          _pausedEntryKey = null;
+          _speakingSessionId = sessionId;
+          _pausedSpeechSessionId = null;
+        }
       });
+    }
+  }
+
+  void _onSpeechState(ActivitySpeechPlaybackState state) {
+    if (!mounted || state.sessionId != _speakingSessionId) return;
+    switch (state.status) {
+      case ActivitySpeechPlaybackStatus.started:
+        return;
+      case ActivitySpeechPlaybackStatus.stopped:
+        setState(() {
+          _pausedEntryKey = _speakingEntryKey;
+          _pausedSpeechSessionId = _speakingSessionId;
+          _speakingEntryKey = null;
+          _speakingSessionId = null;
+        });
+        return;
+      case ActivitySpeechPlaybackStatus.completed:
+      case ActivitySpeechPlaybackStatus.error:
+        setState(() {
+          _speakingEntryKey = null;
+          _pausedEntryKey = null;
+          _speakingSessionId = null;
+          _pausedSpeechSessionId = null;
+        });
     }
   }
 
@@ -1013,8 +1059,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           ),
                           Text(
                             currentPage == null
-                                ? 'Teks & suara • tetap di perangkat'
-                                : '${currentPage.name} • tetap di perangkat',
+                                ? 'Konteks umum • data chat lokal'
+                                : 'Halaman: ${currentPage.name} • data chat lokal',
                             style: theme.textTheme.bodySmall,
                           ),
                         ],
@@ -1262,7 +1308,7 @@ class _AssistantMessageCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Belum ada jawaban tetap — tersimpan untuk pembaruan',
+                              'Tersimpan di Pusat Latihan Asisten • menu Lainnya',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: theme.colorScheme.onTertiaryContainer,
                                 fontWeight: FontWeight.w700,
@@ -1306,6 +1352,7 @@ class _AssistantMessageCard extends StatelessWidget {
                       onCancelDraft: onCancelDraft,
                       onApproveTeaching: onApproveTeaching,
                       teachingSaved: teachingSaved,
+                      foregroundColor: onBubbleColor,
                     ),
                   ],
                 ],
@@ -1400,6 +1447,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
     this.onCancelDraft,
     this.onApproveTeaching,
     required this.teachingSaved,
+    required this.foregroundColor,
   });
 
   final bool isUser;
@@ -1417,6 +1465,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
   final VoidCallback? onCancelDraft;
   final VoidCallback? onApproveTeaching;
   final bool teachingSaved;
+  final Color foregroundColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1462,6 +1511,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
                 : 'Dengarkan jawaban. Ketuk lagi untuk berhenti.',
             child: IconButton(
               onPressed: onSpeak,
+              style: IconButton.styleFrom(foregroundColor: foregroundColor),
               icon: Icon(
                 isSpeaking
                     ? Icons.stop_circle_outlined
@@ -1474,6 +1524,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
             message: isUser ? 'Salin pesan' : 'Salin jawaban',
             child: IconButton(
               onPressed: onCopyText,
+              style: IconButton.styleFrom(foregroundColor: foregroundColor),
               icon: const Icon(Icons.copy_outlined),
             ),
           ),
@@ -1481,6 +1532,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
           Tooltip(
             message: 'Aksi lainnya',
             child: PopupMenuButton<_AssistantMessageMenuAction>(
+              iconColor: foregroundColor,
               icon: const Icon(Icons.more_horiz),
               tooltip: 'Aksi lainnya',
               onSelected: (action) {

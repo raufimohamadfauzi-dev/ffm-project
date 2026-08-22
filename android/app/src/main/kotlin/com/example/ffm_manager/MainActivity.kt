@@ -24,6 +24,9 @@ class MainActivity : FlutterActivity() {
     private var speechSegments: List<String> = emptyList()
     private var nextSpeechSegment = 0
     private var activeUtteranceId: String? = null
+    private var activeSpeechSessionId: String? = null
+    private var speechPaused = false
+    private var speechChannel: MethodChannel? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -32,16 +35,19 @@ class MainActivity : FlutterActivity() {
                 textToSpeech?.language = Locale("id", "ID")
                 restoreSelectedVoice()
                 textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) = Unit
+                    override fun onStart(utteranceId: String?) {
+                        if (utteranceId == activeUtteranceId) emitSpeechState("started")
+                    }
 
                     override fun onDone(utteranceId: String?) {
                         if (utteranceId != activeUtteranceId) return
+                        if (speechPaused) return
                         runOnUiThread { speakNextSegment() }
                     }
 
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
-                        if (utteranceId == activeUtteranceId) clearSpeechQueue()
+                        if (utteranceId == activeUtteranceId) clearSpeechQueue("error")
                     }
                 })
             }
@@ -89,10 +95,11 @@ class MainActivity : FlutterActivity() {
             startActivityForResult(intent, REQUEST_CODE)
         }
 
-        MethodChannel(
+        speechChannel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             SPEECH_CHANNEL,
-        ).setMethodCallHandler { call, result ->
+        )
+        speechChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "speak" -> {
                     val text = call.argument<String>("text").orEmpty().trim()
@@ -101,17 +108,31 @@ class MainActivity : FlutterActivity() {
                     } else {
                         speechSegments = splitSpeechSegments(text)
                         nextSpeechSegment = 0
+                        activeSpeechSessionId = call.argument<String>("sessionId")
+                        speechPaused = false
                         textToSpeech?.stop()
                         result.success(speakNextSegment())
                     }
                 }
                 "stop" -> {
-                    textToSpeech?.stop()
+                    val expectedSessionId = call.argument<String>("sessionId")
+                    if (expectedSessionId == null || expectedSessionId == activeSpeechSessionId) {
+                        textToSpeech?.stop()
+                        speechPaused = true
+                        emitSpeechState("stopped")
+                    }
                     result.success(true)
                 }
-                "resume" -> result.success(
-                    textToSpeech?.isSpeaking != true && speakNextSegment(),
-                )
+                "cancel" -> {
+                    textToSpeech?.stop()
+                    clearSpeechQueue("stopped")
+                    result.success(true)
+                }
+                "resume" -> {
+                    val canResume = speechPaused && textToSpeech?.isSpeaking != true
+                    if (canResume) speechPaused = false
+                    result.success(canResume && speakNextSegment())
+                }
                 "isSpeaking" -> result.success(textToSpeech?.isSpeaking == true)
                 "voices" -> result.success(
                     offlineVoices().map { voice ->
@@ -192,7 +213,7 @@ class MainActivity : FlutterActivity() {
     private fun speakNextSegment(): Boolean {
         val tts = textToSpeech ?: return false
         if (nextSpeechSegment >= speechSegments.size) {
-            clearSpeechQueue()
+            clearSpeechQueue("completed")
             return false
         }
         val utteranceId = "ffm-assistant-${System.nanoTime()}"
@@ -200,14 +221,28 @@ class MainActivity : FlutterActivity() {
         val segment = speechSegments[nextSpeechSegment]
         nextSpeechSegment += 1
         val code = tts.speak(segment, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
-        if (code != TextToSpeech.SUCCESS) clearSpeechQueue()
+        if (code != TextToSpeech.SUCCESS) clearSpeechQueue("error")
         return code == TextToSpeech.SUCCESS
     }
 
-    private fun clearSpeechQueue() {
+    private fun emitSpeechState(status: String, sessionId: String? = activeSpeechSessionId) {
+        if (sessionId.isNullOrBlank()) return
+        runOnUiThread {
+            speechChannel?.invokeMethod(
+                "ttsState",
+                mapOf("sessionId" to sessionId, "status" to status),
+            )
+        }
+    }
+
+    private fun clearSpeechQueue(status: String? = null) {
+        val sessionId = activeSpeechSessionId
         speechSegments = emptyList()
         nextSpeechSegment = 0
         activeUtteranceId = null
+        activeSpeechSessionId = null
+        speechPaused = false
+        if (status != null) emitSpeechState(status, sessionId)
     }
 
     private fun offlineVoices(): List<Voice> = textToSpeech
@@ -253,7 +288,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         textToSpeech?.stop()
-        clearSpeechQueue()
+        clearSpeechQueue("stopped")
         textToSpeech?.shutdown()
         textToSpeech = null
         super.onDestroy()
