@@ -155,3 +155,9 @@
 - [x] Simpan source terbaru ke Git lokal dengan commit rilis yang jelas.
 - [x] Build APK release memakai package ID `com.ffm_manager` dan keystore lama.
 - [ ] Verifikasi package/version, signature sertifikat lama, dan ZIP source dari commit rilis.
+
+# Asisten — Jawaban Halaman Aktif
+
+- [x] Audit page context, interpreter, dan jalur chat untuk pertanyaan halaman aktif.
+- [x] Jawab pertanyaan “sedang di halaman apa?” dari konteks UI yang nyata tanpa model atau data contoh.
+- [x] Tambahkan regresi, validasi source, dan kemas ZIP pembaruan.

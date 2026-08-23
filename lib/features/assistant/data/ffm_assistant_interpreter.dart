@@ -1296,6 +1296,17 @@ class FfmAssistantInterpreter {
   ) async {
     final page = FfmAssistantCatalog.findByDestination(destination);
     final pageName = page?.name ?? 'halaman ini';
+    if (_isCurrentPageLabelRequest(normalized)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        destination: destination,
+        confidence: 1,
+        response:
+            'Sekarang kamu ada di halaman $pageName. ${page?.description ?? 'Kamu bisa bertanya fungsi halaman ini atau data yang ingin dicek.'}',
+      );
+    }
     if (destination == FfmAssistantDestination.summary ||
         destination == FfmAssistantDestination.transactions) {
       final stats = await _transactionStats(rawText, normalized);
@@ -1378,12 +1389,26 @@ class FfmAssistantInterpreter {
     'tampilkan',
   ]);
 
-  bool _isCurrentPageRequest(String text) => _containsAny(text, const [
-    'halaman ini',
-    'di sini ada apa',
-    'di sini ada data apa',
-    'kondisi halaman ini',
-    'baca halaman ini',
+  bool _isCurrentPageRequest(String text) =>
+      _isCurrentPageLabelRequest(text) ||
+      _containsAny(text, const [
+        'halaman ini',
+        'di sini ada apa',
+        'di sini ada data apa',
+        'kondisi halaman ini',
+        'baca halaman ini',
+      ]);
+
+  bool _isCurrentPageLabelRequest(String text) => _containsAny(text, const [
+    'saya sedang di halaman apa',
+    'sedang di halaman apa',
+    'sekarang di halaman apa',
+    'lagi di halaman apa',
+    'saya ada di halaman apa',
+    'saya lagi di halaman apa',
+    'halaman sekarang apa',
+    'ini halaman apa',
+    'nama halaman ini',
   ]);
 
   bool _isDatabaseStructureRequest(String text) {

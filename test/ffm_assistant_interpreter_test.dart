@@ -430,6 +430,21 @@ void main() {
     expect(intent.response, startsWith('Kamu lagi di Ringkasan.'));
   });
 
+  test('menyebutkan halaman aktif dari konteks UI tanpa query data', () async {
+    final intent = await interpreter.interpret(
+      'saya sedang di halaman apa?',
+      currentDestination: FfmAssistantDestination.transactions,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.help);
+    expect(intent.destination, FfmAssistantDestination.transactions);
+    expect(intent.draft, isNull);
+    expect(
+      intent.response,
+      startsWith('Sekarang kamu ada di halaman Transaksi.'),
+    );
+  });
+
   test('memeriksa anggaran tanpa membuat draft atau menyimpan data', () async {
     final intent = await interpreter.interpret('Cek anggaran saya');
 
