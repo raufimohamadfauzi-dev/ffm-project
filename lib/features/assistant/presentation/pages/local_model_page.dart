@@ -81,19 +81,31 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _adoptCompletedBackground(
     List<FfmBackgroundDownloadStatus> statuses,
   ) async {
+    var staging = await _service.getStagingStatus();
     for (final status in statuses) {
       final localPath = status.localPath;
       if (!status.isComplete || localPath == null || localPath.isEmpty) {
         continue;
       }
+      if (_isAlreadyInStaging(status, staging)) continue;
       try {
         await _service.importGgufFromPath(localPath);
+        staging = await _service.getStagingStatus();
       } on Object catch (error) {
         _error =
             'Download ${status.fileName} selesai, tetapi belum dapat diverifikasi: $error';
       }
     }
   }
+
+  bool _isAlreadyInStaging(
+    FfmBackgroundDownloadStatus status,
+    FfmStagingStatus staging,
+  ) => switch (status.role) {
+    'language_model' => staging.hasModel,
+    'multimodal_projector' => staging.hasProjector,
+    _ => false,
+  };
 
   Future<void> _startBackgroundDownload() async {
     setState(() {
@@ -443,34 +455,47 @@ class _LocalModelPageState extends State<LocalModelPage>
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           for (final status in _backgroundStatuses)
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              dense: true,
-                              leading: Icon(
-                                status.isComplete
-                                    ? Icons.check_circle_outline
-                                    : status.isFailed
-                                    ? Icons.error_outline
-                                    : Icons.downloading_outlined,
-                              ),
-                              title: Text(status.fileName),
-                              subtitle: Text(
-                                status.isComplete
-                                    ? 'Selesai. Tekan Perbarui status agar file diverifikasi dan masuk staging.'
-                                    : status.isFailed
-                                    ? (status.reason ?? 'Download gagal.')
-                                    : 'Sedang berjalan. Progres lengkap terlihat di notifikasi HP.',
-                              ),
-                              trailing:
-                                  status.fraction == null || status.isComplete
-                                  ? null
-                                  : SizedBox(
-                                      width: 56,
-                                      child: Text(
-                                        '${(status.fraction! * 100).toStringAsFixed(0)}%',
-                                        textAlign: TextAlign.end,
-                                      ),
-                                    ),
+                            Builder(
+                              builder: (context) {
+                                final isAlreadyInStaging =
+                                    _stagingStatus != null &&
+                                    _isAlreadyInStaging(
+                                      status,
+                                      _stagingStatus!,
+                                    );
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                  leading: Icon(
+                                    status.isComplete
+                                        ? Icons.check_circle_outline
+                                        : status.isFailed
+                                        ? Icons.error_outline
+                                        : Icons.downloading_outlined,
+                                  ),
+                                  title: Text(status.fileName),
+                                  subtitle: Text(
+                                    isAlreadyInStaging
+                                        ? 'Sudah diverifikasi dan masuk staging.'
+                                        : status.isComplete
+                                        ? 'Selesai. Tekan Perbarui status agar file diverifikasi dan masuk staging.'
+                                        : status.isFailed
+                                        ? (status.reason ?? 'Download gagal.')
+                                        : 'Sedang berjalan. Progres lengkap terlihat di notifikasi HP.',
+                                  ),
+                                  trailing:
+                                      status.fraction == null ||
+                                          status.isComplete
+                                      ? null
+                                      : SizedBox(
+                                          width: 56,
+                                          child: Text(
+                                            '${(status.fraction! * 100).toStringAsFixed(0)}%',
+                                            textAlign: TextAlign.end,
+                                          ),
+                                        ),
+                                );
+                              },
                             ),
                           if (_backgroundStatuses.any(
                             (status) => !status.isComplete && !status.isFailed,

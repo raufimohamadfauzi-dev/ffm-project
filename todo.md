@@ -187,3 +187,9 @@
 - [x] Audit label menu navigasi dan nama halaman terkait Aktivitas.
 - [x] Sederhanakan label navigasi menjadi “Aktivitas” tanpa mengubah destination.
 - [x] Validasi source dan kemas pembaruan bila ada perubahan.
+
+# Deteksi SLM Hasil Unduhan Latar Belakang
+
+- [x] Audit lokasi file hasil unduhan, proses impor, dan pembacaan status siap.
+- [x] Perbaiki deteksi atau pesan pemulihan bila file selesai belum dapat ditemukan.
+- [x] Tambahkan regresi, validasi source, dan kemas pembaruan bila ada perubahan.

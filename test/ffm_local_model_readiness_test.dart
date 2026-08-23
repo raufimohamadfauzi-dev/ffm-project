@@ -16,6 +16,28 @@ void main() {
     expect(info.canUseAssistant, isFalse);
   });
 
+  test('staging lengkap tetap diprioritaskan setelah dua download selesai', () {
+    final info = FfmLocalModelReadiness.resolve(
+      model: null,
+      staging: const FfmStagingStatus(hasModel: true, hasProjector: true),
+      backgroundStatuses: const [
+        FfmBackgroundDownloadStatus(
+          role: 'language_model',
+          fileName: 'model.gguf',
+          state: 'complete',
+        ),
+        FfmBackgroundDownloadStatus(
+          role: 'multimodal_projector',
+          fileName: 'projector.gguf',
+          state: 'complete',
+        ),
+      ],
+    );
+
+    expect(info.state, FfmLocalModelReadinessState.stagingReady);
+    expect(info.nextStep, contains('Rakit dan Pasang SLM'));
+  });
+
   test('status download background memberi tindakan perbarui status', () {
     final info = FfmLocalModelReadiness.resolve(
       model: null,
