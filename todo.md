@@ -147,11 +147,11 @@
 - [x] Telusuri kegagalan DNS/host `github.com`, perilaku resume, dan pesan pemulihan tanpa melemahkan verifikasi ukuran, hash, atau header GGUF.
 - [x] Pastikan impor bundle offline tetap menjadi jalur setara saat jaringan perangkat tidak tersedia.
 - [x] Tambahkan regresi untuk kegagalan DNS, retry eksplisit, resume aman, dan tidak adanya unduhan otomatis.
-- [ ] Validasi source tanpa build APK, lalu buat ZIP source terbaru setelah perbaikan selesai.
+- [x] Validasi source tanpa build APK, lalu buat ZIP source terbaru setelah perbaikan selesai.
 
 # Rilis Source dan APK Qwen2-VL
 
-- [ ] Periksa source, versionCode, keystore lama, dan perubahan lokal sebelum commit rilis.
-- [ ] Simpan source terbaru ke Git lokal dengan commit rilis yang jelas.
-- [ ] Build APK release memakai package ID `com.ffm_manager` dan keystore lama.
+- [x] Periksa source, versionCode, keystore lama, dan perubahan lokal sebelum commit rilis.
+- [x] Simpan source terbaru ke Git lokal dengan commit rilis yang jelas.
+- [x] Build APK release memakai package ID `com.ffm_manager` dan keystore lama.
 - [ ] Verifikasi package/version, signature sertifikat lama, dan ZIP source dari commit rilis.
