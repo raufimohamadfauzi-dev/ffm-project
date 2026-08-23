@@ -198,4 +198,13 @@
 
 - [x] Rekonstruksi error impor ulang berdasarkan screenshot APK lama dan cocokkan dengan patch source.
 - [x] Tambahkan regresi bila masih ada jalur status yang belum tercakup.
-- [ ] Build APK release patch, verifikasi package/version/tanda tangan lama, lalu kemas source.
+- [x] Build APK release patch, verifikasi package/version/tanda tangan lama, lalu kemas source.
+
+# Penguatan Download SLM dan Cakupan Rule-Based
+
+- [x] Audit path DownloadManager, race file selesai, struktur package Kotlin, dan error diagnostik.
+- [x] Tambahkan retry, validasi ukuran, serta diagnostik aman untuk file unduhan background.
+- [x] Rapikan lokasi source Kotlin agar selaras dengan package `com.ffm_manager`.
+- [x] Audit katalog intent/query lokal dan implementasikan cek kelengkapan data yang dapat dibuktikan.
+- [x] Bedakan pertanyaan ambigu dari gap knowledge baku serta tambahkan regresi.
+- [ ] Jalankan validasi, build APK patch, verifikasi rilis, dan kemas source.
