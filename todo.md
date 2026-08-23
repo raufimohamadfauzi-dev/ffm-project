@@ -207,4 +207,4 @@
 - [x] Rapikan lokasi source Kotlin agar selaras dengan package `com.ffm_manager`.
 - [x] Audit katalog intent/query lokal dan implementasikan cek kelengkapan data yang dapat dibuktikan.
 - [x] Bedakan pertanyaan ambigu dari gap knowledge baku serta tambahkan regresi.
-- [ ] Jalankan validasi, build APK patch, verifikasi rilis, dan kemas source.
+- [x] Jalankan validasi, build APK patch, verifikasi rilis, dan kemas source.
