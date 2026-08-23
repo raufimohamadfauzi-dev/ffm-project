@@ -181,3 +181,9 @@
 - [x] Audit auto-scroll chat saat jawaban baru selesai ditambahkan.
 - [x] Audit profil pengguna/asisten serta jawaban identitas dan kemampuan.
 - [x] Tambahkan regresi, validasi source, dan kemas pembaruan.
+
+# Perapian Label Navigasi Aktivitas
+
+- [x] Audit label menu navigasi dan nama halaman terkait Aktivitas.
+- [x] Sederhanakan label navigasi menjadi “Aktivitas” tanpa mengubah destination.
+- [x] Validasi source dan kemas pembaruan bila ada perubahan.

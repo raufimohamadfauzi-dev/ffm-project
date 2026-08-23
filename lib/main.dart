@@ -761,7 +761,7 @@ class _AppShellState extends State<AppShell> {
         NavigationDestination(
           icon: Icon(Icons.timeline_outlined),
           selectedIcon: Icon(Icons.timeline),
-          label: 'Aktivitas & Jurnal',
+          label: 'Aktivitas',
         ),
         NavigationDestination(
           icon: Icon(Icons.track_changes_outlined),
