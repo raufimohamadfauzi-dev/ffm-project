@@ -736,13 +736,16 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: Column(
-      children: [
-        FfmAgentStatusIndicator(controller: _agentStatus),
-        Expanded(
-          child: IndexedStack(index: _index, children: _pages),
-        ),
-      ],
+    body: SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          FfmAgentStatusIndicator(controller: _agentStatus),
+          Expanded(
+            child: IndexedStack(index: _index, children: _pages),
+          ),
+        ],
+      ),
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,

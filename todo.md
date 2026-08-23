@@ -223,3 +223,10 @@
 - [x] Tambahkan pengunci pemuatan, batas waktu, error state yang selalu mematikan spinner, serta diagnostik aman.
 - [x] Tambahkan regresi pemuatan sukses, timeout, error, dan resume lifecycle.
 - [x] Jalankan validasi penuh, build APK patch, verifikasi rilis, dan kemas source.
+
+# SafeArea Indikator Asisten dan Spinner Perangkat
+
+- [ ] Audit AppShell tanpa AppBar untuk memastikan indikator tidak menabrak status bar pada notch maupun layar datar.
+- [ ] Terapkan SafeArea sisi atas tanpa mengubah posisi bottom navigation.
+- [ ] Audit ulang spinner perangkat setelah v72 dan tambahkan pemulihan untuk jalur yang masih dapat menggantung.
+- [ ] Tambahkan regresi layout dan pemulihan status, lalu validasi penuh serta build APK patch.

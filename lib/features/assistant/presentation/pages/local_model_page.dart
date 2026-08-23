@@ -48,6 +48,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   var _loading = true;
   var _working = false;
   var _loadEpoch = 0;
+  Timer? _loadWatchdog;
 
   @override
   void initState() {
@@ -62,6 +63,7 @@ class _LocalModelPageState extends State<LocalModelPage>
 
   @override
   void dispose() {
+    _loadWatchdog?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -76,18 +78,20 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _load({bool showLoading = true}) async {
     if (_loadGate.isRunning) return;
     final loadEpoch = ++_loadEpoch;
-    if (mounted && showLoading) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
     final trace = <String>[];
     void mark(String stage) {
       final entry = '${DateTime.now().toIso8601String()} $stage';
       trace.add(entry);
       debugPrint('[SLM_STATUS_LOAD] $entry');
     }
+
+    if (mounted && showLoading) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    final watchdog = _armLoadWatchdog(loadEpoch: loadEpoch, trace: trace);
 
     try {
       mark('mulai');
@@ -114,7 +118,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           staging: staging,
         );
       });
-      if (snapshot == null) return;
+      if (snapshot == null || loadEpoch != _loadEpoch) return;
       if (!mounted) return;
       setState(() {
         _model = snapshot.model;
@@ -125,6 +129,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       });
       mark('setState selesai');
     } catch (error, stackTrace) {
+      if (loadEpoch != _loadEpoch) return;
       // Future.timeout tidak membatalkan platform/IO yang lama. Menambah epoch
       // mencegah kelanjutan Future lama melakukan tahap impor berikutnya.
       _loadEpoch++;
@@ -141,7 +146,39 @@ class _LocalModelPageState extends State<LocalModelPage>
             ? 'Gagal memuat status dalam 10 detik. Tekan tombol Perbarui status download.'
             : 'Status model lokal belum dapat dibaca. Tekan tombol Perbarui status download.';
       });
+    } finally {
+      watchdog.cancel();
+      if (identical(_loadWatchdog, watchdog)) {
+        _loadWatchdog = null;
+      }
     }
+  }
+
+  Timer _armLoadWatchdog({
+    required int loadEpoch,
+    required List<String> trace,
+  }) {
+    _loadWatchdog?.cancel();
+    final watchdog = Timer(widget.statusLoadTimeout, () {
+      if (!mounted || loadEpoch != _loadEpoch) return;
+      _loadEpoch++;
+      final timeout = TimeoutException('Status model tidak selesai dimuat');
+      trace.add('${DateTime.now().toIso8601String()} watchdog timeout');
+      debugPrint('[SLM_STATUS_LOAD] watchdog timeout');
+      setState(() {
+        _loading = false;
+        _error = 'Gagal memuat status dalam 10 detik. Tekan tombol Perbarui status download.';
+      });
+      unawaited(
+        _recordLoadFailure(
+          error: timeout,
+          stackTrace: StackTrace.current,
+          trace: trace,
+        ),
+      );
+    });
+    _loadWatchdog = watchdog;
+    return watchdog;
   }
 
   Future<void> _recordLoadFailure({
