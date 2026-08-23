@@ -152,4 +152,81 @@ void main() {
       // Test ini cukup memverifikasi tombol Buka memicu handler.
     },
   );
+
+  testWidgets('aksi Buka lintas halaman tetap tersedia tanpa draft', (
+    tester,
+  ) async {
+    final session = FfmAssistantChatSession();
+    final intent = FfmAssistantIntent(
+      rawText: 'buka anggaran',
+      normalizedText: 'buka anggaran',
+      type: FfmAssistantIntentType.openPage,
+      destination: FfmAssistantDestination.budget,
+    );
+    session.entries.add(
+      FfmAssistantChatEntry(
+        isUser: false,
+        text: 'Aku bisa membuka Anggaran.',
+        intent: intent,
+      ),
+    );
+    var handled = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FfmAssistantSheet(
+            session: session,
+            currentDestination: FfmAssistantDestination.transactions,
+            onIntent: (_) async => handled = true,
+            onIntents: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Buka'), findsOneWidget);
+    final button = tester.widget<FilledButton>(
+      find.ancestor(of: find.text('Buka'), matching: find.byType(FilledButton)),
+    );
+    expect(button.onPressed, isNotNull);
+    button.onPressed?.call();
+    await tester.pumpAndSettle();
+    expect(handled, isTrue);
+  });
+
+  testWidgets(
+    'halaman aktif memakai aksi Cek halaman, bukan menghilangkan tombol',
+    (tester) async {
+      final session = FfmAssistantChatSession();
+      final intent = FfmAssistantIntent(
+        rawText: 'cek anggaran',
+        normalizedText: 'cek anggaran',
+        type: FfmAssistantIntentType.financialWarnings,
+        destination: FfmAssistantDestination.budget,
+      );
+      session.entries.add(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Kamu sudah di Anggaran.',
+          intent: intent,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FfmAssistantSheet(
+              session: session,
+              currentDestination: FfmAssistantDestination.budget,
+              onIntent: (_) async {},
+              onIntents: (_) async {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Cek halaman'), findsOneWidget);
+    },
+  );
 }

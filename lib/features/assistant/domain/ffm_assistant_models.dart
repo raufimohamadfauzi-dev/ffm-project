@@ -358,12 +358,41 @@ class FfmAssistantPage {
     required this.name,
     required this.description,
     required this.aliases,
+    this.dataSection,
   });
 
   final FfmAssistantDestination destination;
   final String name;
   final String description;
   final List<String> aliases;
+  final FfmAssistantDataSection? dataSection;
+}
+
+/// Section dengan data lokal yang dapat diperiksa kelengkapannya secara
+/// deterministik. Section lain tetap ada di katalog untuk pertanyaan
+/// kemampuan dan isi, tetapi tidak dipaksa memiliki status data yang semu.
+enum FfmAssistantDataSection {
+  masterData,
+  profile,
+  budget,
+  goals,
+  assets,
+  liabilities,
+  reminders,
+  activities,
+  transactions,
+}
+
+/// Tiga bentuk pertanyaan dasar yang dapat dijawab tanpa membuat draft atau
+/// menyentuh data finansial. Pengenalan topik selalu memakai [FfmAssistantCatalog]
+/// supaya sinonim tidak tersebar sebagai tambalan di interpreter dan query tool.
+enum FfmAssistantBasicQuestionKind { capability, completeness, contents }
+
+class FfmAssistantBasicQuestion {
+  const FfmAssistantBasicQuestion({required this.kind, required this.page});
+
+  final FfmAssistantBasicQuestionKind kind;
+  final FfmAssistantPage page;
 }
 
 class FfmAssistantOtherMenuItem {
@@ -393,12 +422,14 @@ abstract final class FfmAssistantCatalog {
       description:
           'Mencatat pemasukan, pengeluaran, transfer, target, dan impor JSON.',
       aliases: ['transaksi', 'catatan uang', 'uang masuk', 'uang keluar'],
+      dataSection: FfmAssistantDataSection.transactions,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.budget,
       name: 'Anggaran',
       description: 'Mengatur batas biaya mingguan atau bulanan.',
       aliases: ['anggaran', 'budget', 'batas belanja'],
+      dataSection: FfmAssistantDataSection.budget,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.analysis,
@@ -425,36 +456,42 @@ abstract final class FfmAssistantCatalog {
       name: 'Data Utama',
       description: 'Mengelola kategori, toko, tag, rekening, sumber pemasukan, dan keluarga.',
       aliases: ['data utama', 'rekening', 'kategori', 'master data'],
+      dataSection: FfmAssistantDataSection.masterData,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.assets,
       name: 'Aset keluarga',
       description: 'Mencatat aset yang ingin dipantau.',
       aliases: ['aset', 'kekayaan'],
+      dataSection: FfmAssistantDataSection.assets,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.goals,
       name: 'Target keuangan',
       description: 'Memantau uang yang sedang dikumpulkan.',
       aliases: ['target', 'tujuan keuangan', 'dana target'],
+      dataSection: FfmAssistantDataSection.goals,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.liabilities,
       name: 'Hutang & piutang',
       description: 'Mencatat kewajiban dan uang yang masih perlu diterima.',
       aliases: ['hutang', 'utang', 'piutang', 'pinjaman'],
+      dataSection: FfmAssistantDataSection.liabilities,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.activity,
       name: 'Aktivitas',
       description: 'Melacak aktivitas harian serta durasinya.',
       aliases: ['aktivitas', 'jurnal', 'kegiatan'],
+      dataSection: FfmAssistantDataSection.activities,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.reminders,
       name: 'Pengingat',
       description: 'Membuat pengingat lokal yang tidak boleh terlewat.',
       aliases: ['pengingat', 'reminder', 'alarm'],
+      dataSection: FfmAssistantDataSection.reminders,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.backup,
@@ -579,6 +616,7 @@ abstract final class FfmAssistantCatalog {
         'kenalkan diri',
         'personalisasi',
       ],
+      dataSection: FfmAssistantDataSection.profile,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.localModel,
@@ -724,6 +762,58 @@ abstract final class FfmAssistantCatalog {
     }
     return null;
   }
+
+  static FfmAssistantBasicQuestion? classifyBasicQuestion(
+    String normalizedText,
+  ) {
+    final page = findByText(normalizedText);
+    if (page == null) return null;
+    if (RegExp(r'\b(lengkap|kelengkapan|terisi|diisi)\b')
+        .hasMatch(normalizedText)) {
+      return FfmAssistantBasicQuestion(
+        kind: FfmAssistantBasicQuestionKind.completeness,
+        page: page,
+      );
+    }
+    final asksContents =
+        normalizedText.contains('ada apa saja') ||
+        normalizedText.contains('apa saja di') ||
+        normalizedText.contains('apa isi') ||
+        normalizedText.contains('isinya apa') ||
+        normalizedText.startsWith('daftar ') ||
+        normalizedText.contains('daftar isi') ||
+        normalizedText.contains('fitur apa saja');
+    if (asksContents) {
+      return FfmAssistantBasicQuestion(
+        kind: FfmAssistantBasicQuestionKind.contents,
+        page: page,
+      );
+    }
+    final asksCapability = RegExp(r'\b(bisa|bisakah|mampu|dapat)\b')
+        .hasMatch(normalizedText);
+    if (asksCapability) {
+      return FfmAssistantBasicQuestion(
+        kind: FfmAssistantBasicQuestionKind.capability,
+        page: page,
+      );
+    }
+    return null;
+  }
+
+  static String answerBasicQuestion(
+    FfmAssistantBasicQuestion question,
+  ) => switch (question.kind) {
+    FfmAssistantBasicQuestionKind.capability =>
+      'Ya. ${question.page.name} bisa digunakan untuk ${question.page.description.toLowerCase()} Cara pakainya: buka ${question.page.name}, periksa pilihan yang tersedia, lalu simpan hanya setelah kamu setuju.',
+    FfmAssistantBasicQuestionKind.contents =>
+      question.page.destination == FfmAssistantDestination.otherMenu
+          ? 'Menu Lainnya berisi:\n${listOtherMenuForChat()}'
+          : '${question.page.name} berisi: ${detailFor(question.page.destination)}',
+    FfmAssistantBasicQuestionKind.completeness =>
+      question.page.dataSection == null
+          ? '${question.page.name} bukan section data yang memiliki status lengkap/belum lengkap. ${question.page.description} Kamu bisa membuka halamannya untuk memeriksa pengaturan atau hasil terakhir yang tersedia.'
+          : 'Kelengkapan ${question.page.name} akan dicek dari data lokal yang relevan.',
+  };
 
   static String listForChat() =>
       pages.map((page) => '• ${page.name} — ${page.description}').join('\n');

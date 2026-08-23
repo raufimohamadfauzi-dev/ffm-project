@@ -330,6 +330,34 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final basicQuestion = FfmAssistantCatalog.classifyBasicQuestion(normalized);
+    if (basicQuestion != null && !_isNavigationRequest(normalized)) {
+      if (basicQuestion.kind == FfmAssistantBasicQuestionKind.completeness) {
+        final queryAnswer = await _queryRegistry.tryAnswer(
+          normalized,
+          householdId: AppContext.householdId,
+        );
+        if (queryAnswer != null) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.queryData,
+            destination: basicQuestion.page.destination,
+            confidence: .98,
+            response: '${queryAnswer.title}\n${queryAnswer.message}',
+          );
+        }
+      }
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.featureHelp,
+        destination: basicQuestion.page.destination,
+        confidence: .98,
+        response: FfmAssistantCatalog.answerBasicQuestion(basicQuestion),
+      );
+    }
+
     if (_containsAny(normalized, const [
       'kamu siapa',
       'kamu itu siapa',
@@ -484,23 +512,6 @@ class FfmAssistantInterpreter {
 
     final correction = _parseCorrection(rawText, normalized);
     if (correction != null) return correction;
-
-    if (_isDataCompletenessRequest(normalized) &&
-        !_isNavigationRequest(normalized)) {
-      final queryAnswer = await _queryRegistry.tryAnswer(
-        normalized,
-        householdId: AppContext.householdId,
-      );
-      if (queryAnswer != null) {
-        return FfmAssistantIntent(
-          rawText: rawText,
-          normalizedText: normalized,
-          type: FfmAssistantIntentType.queryData,
-          confidence: .98,
-          response: '${queryAnswer.title}\n${queryAnswer.message}',
-        );
-      }
-    }
 
     if (_isSetupRequest(normalized)) {
       return _setupGuide(rawText, normalized);
@@ -2073,30 +2084,6 @@ class FfmAssistantInterpreter {
     'isi data utama dulu',
     'cek data utama',
   ]);
-  bool _isDataCompletenessRequest(String text) =>
-      _containsAny(text, const [
-        'data utama',
-        'master data',
-        'rekening',
-        'kategori',
-        'profil',
-        'personalisasi',
-        'anggaran',
-        'budget',
-        'target',
-        'tujuan',
-        'aset',
-        'hutang',
-        'utang',
-        'piutang',
-        'kewajiban',
-        'pengingat',
-        'reminder',
-        'aktivitas',
-        'kegiatan',
-        'transaksi',
-      ]) &&
-      _containsAny(text, const ['lengkap', 'kelengkapan', 'terisi', 'diisi']);
   bool _isKnownFfmFeatureGap(String text) => _containsAny(text, const [
     'rekonsiliasi',
     'cadangan',

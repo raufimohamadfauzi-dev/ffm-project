@@ -1,5 +1,6 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
+import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 
@@ -613,82 +614,39 @@ class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
   }
 }
 
-enum _DataCompletenessSection {
-  masterData,
-  profile,
-  budget,
-  goals,
-  assets,
-  liabilities,
-  reminders,
-  activities,
-  transactions,
-}
-
 class _DataCompletenessQueryTool implements FfmAssistantQueryTool {
   const _DataCompletenessQueryTool(this._database);
 
   final AppDatabase _database;
 
   @override
-  bool canHandle(String normalizedText) =>
-      _sectionFor(normalizedText) != null &&
-      RegExp(r'\b(lengkap|kelengkapan|terisi|diisi)\b')
-          .hasMatch(normalizedText);
+  bool canHandle(String normalizedText) {
+    final question = FfmAssistantCatalog.classifyBasicQuestion(normalizedText);
+    return question?.kind == FfmAssistantBasicQuestionKind.completeness &&
+        question?.page.dataSection != null;
+  }
 
   @override
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
-    final section = _sectionFor(request.normalizedText);
+    final section = FfmAssistantCatalog.classifyBasicQuestion(
+      request.normalizedText,
+    )?.page.dataSection;
     if (section == null) return null;
     return switch (section) {
-      _DataCompletenessSection.masterData => _masterData(request.householdId),
-      _DataCompletenessSection.profile => _profile(request.householdId),
-      _DataCompletenessSection.budget => _budget(request.householdId),
-      _DataCompletenessSection.goals => _goals(request.householdId),
-      _DataCompletenessSection.assets => _assets(request.householdId),
-      _DataCompletenessSection.liabilities => _liabilities(request.householdId),
-      _DataCompletenessSection.reminders => _reminders(request.householdId),
-      _DataCompletenessSection.activities => _activities(request.householdId),
-      _DataCompletenessSection.transactions => _transactions(
+      FfmAssistantDataSection.masterData => _masterData(request.householdId),
+      FfmAssistantDataSection.profile => _profile(request.householdId),
+      FfmAssistantDataSection.budget => _budget(request.householdId),
+      FfmAssistantDataSection.goals => _goals(request.householdId),
+      FfmAssistantDataSection.assets => _assets(request.householdId),
+      FfmAssistantDataSection.liabilities => _liabilities(request.householdId),
+      FfmAssistantDataSection.reminders => _reminders(request.householdId),
+      FfmAssistantDataSection.activities => _activities(request.householdId),
+      FfmAssistantDataSection.transactions => _transactions(
         request.householdId,
       ),
     };
-  }
-
-  _DataCompletenessSection? _sectionFor(String text) {
-    if (text.contains('data utama') ||
-        text.contains('master data') ||
-        text.contains('rekening') ||
-        text.contains('kategori')) {
-      return _DataCompletenessSection.masterData;
-    }
-    if (text.contains('profil') || text.contains('personalisasi')) {
-      return _DataCompletenessSection.profile;
-    }
-    if (text.contains('anggaran') || text.contains('budget')) {
-      return _DataCompletenessSection.budget;
-    }
-    if (text.contains('target') || text.contains('tujuan')) {
-      return _DataCompletenessSection.goals;
-    }
-    if (text.contains('aset')) return _DataCompletenessSection.assets;
-    if (text.contains('hutang') ||
-        text.contains('utang') ||
-        text.contains('piutang') ||
-        text.contains('kewajiban')) {
-      return _DataCompletenessSection.liabilities;
-    }
-    if (text.contains('pengingat') || text.contains('reminder')) {
-      return _DataCompletenessSection.reminders;
-    }
-    if (text.contains('aktivitas') || text.contains('kegiatan')) {
-      return _DataCompletenessSection.activities;
-    }
-    if (text.contains('transaksi'))
-      return _DataCompletenessSection.transactions;
-    return null;
   }
 
   Future<FfmAssistantQueryAnswer> _masterData(String householdId) async {

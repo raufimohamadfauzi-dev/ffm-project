@@ -889,6 +889,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final shouldNavigate =
         (intent.destination != null || intent.draft != null) &&
         intent.type != FfmAssistantIntentType.confirm;
+    final isCurrentPageCheck =
+        intent.destination != null &&
+        intent.destination == widget.currentDestination &&
+        intent.draft == null;
 
     final plan = _actionPlanner.planFor(intent);
     if (plan != null) {
@@ -900,6 +904,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
 
     if (shouldNavigate) {
+      if (isCurrentPageCheck) {
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+        return;
+      }
       final handler = widget.onIntent;
       setState(() {
         _navigatingFromChat = true;
@@ -1652,10 +1662,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           _speakingEntryKey == _speechKeyFor(index, entry),
                       onIntent:
                           entry.intent == null ||
-                              entry.intent!.needsTeachingApproval ||
-                              opensCurrentPage
+                              entry.intent!.needsTeachingApproval
                           ? null
                           : () => _handleIntent(entry.intent!),
+                      primaryActionLabel: opensCurrentPage
+                          ? 'Cek halaman'
+                          : entry.intent?.destination == null
+                          ? 'Lanjut'
+                          : 'Buka',
                       onApproveTeaching:
                           entry.intent?.needsTeachingApproval ?? false
                           ? () => _approveTeaching(entry.intent!)
@@ -1784,6 +1798,7 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onSpeak,
     this.isSpeaking = false,
     this.onIntent,
+    this.primaryActionLabel,
     this.onApproveTeaching,
     this.teachingSaved = false,
     this.review,
@@ -1802,6 +1817,7 @@ class _AssistantMessageCard extends StatelessWidget {
   final VoidCallback? onSpeak;
   final bool isSpeaking;
   final VoidCallback? onIntent;
+  final String? primaryActionLabel;
   final VoidCallback? onApproveTeaching;
   final bool teachingSaved;
   final FfmAssistantDraftReview? review;
@@ -1932,9 +1948,9 @@ class _AssistantMessageCard extends StatelessWidget {
                           intent!.type != FfmAssistantIntentType.unknown &&
                           intent.type != FfmAssistantIntentType.listPages &&
                           (review?.canContinue ?? true),
-                      primaryActionLabel: intent?.destination == null
-                          ? 'Lanjut'
-                          : 'Buka',
+                      primaryActionLabel:
+                          primaryActionLabel ??
+                          (intent?.destination == null ? 'Lanjut' : 'Buka'),
                       onPrimaryAction: onIntent,
                       onConfirmActivity: onConfirmActivity,
                       activityConfirmed: activityConfirmed,
@@ -2173,6 +2189,11 @@ class _AssistantMessageToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final includesNavigation =
+        actionPlan?.steps.any(
+          (step) => step.capabilityId.startsWith('navigate.'),
+        ) ??
+        false;
     final hasMoreActions =
         onCorrectMessage != null ||
         onCopyFeedback != null ||
@@ -2186,24 +2207,27 @@ class _AssistantMessageToolbar extends StatelessWidget {
         if (hasPrimaryAction)
           Tooltip(
             message:
-                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                    !includesNavigation
                 ? 'Arahan ini sudah diselesaikan.'
                 : 'Buka arahan ini. Data belum disimpan otomatis.',
             child: FilledButton.tonalIcon(
               onPressed:
-                  (actionPlan?.isTerminal ?? false) ||
+                  (actionPlan?.isTerminal ?? false) && !includesNavigation ||
                       actionPlan?.status ==
                           FfmAssistantActionPlanStatus.executing
                   ? null
                   : onPrimaryAction,
               icon: Icon(
-                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                        !includesNavigation
                     ? Icons.done_all
                     : Icons.open_in_new,
                 size: 17,
               ),
               label: Text(
-                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed &&
+                        !includesNavigation
                     ? 'Selesai'
                     : primaryActionLabel,
               ),

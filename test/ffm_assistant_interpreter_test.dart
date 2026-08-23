@@ -217,6 +217,27 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('menjawab isi Data Utama dari katalog, bukan fallback', () async {
+    final intent = await interpreter.interpret('ada apa saja di data utama?');
+
+    expect(intent.type, FfmAssistantIntentType.featureHelp);
+    expect(intent.destination, FfmAssistantDestination.masterData);
+    expect(intent.response, contains('enam bagian'));
+    expect(intent.draft, isNull);
+  });
+
+  test(
+    'memahami pertanyaan kemampuan ekspor PDF dari sinonim katalog',
+    () async {
+      final intent = await interpreter.interpret('bisa buat file pdf?');
+
+      expect(intent.type, FfmAssistantIntentType.featureHelp);
+      expect(intent.destination, FfmAssistantDestination.backup);
+      expect(intent.response, startsWith('Ya. Ekspor & cadangan'));
+      expect(intent.draft, isNull);
+    },
+  );
+
   test('proposal JSON rekening hanya membuat rancangan yang jelas', () {
     const proposal = '''
 {
@@ -459,14 +480,14 @@ void main() {
     expect(intent.normalizedText, contains('zayra'));
   });
 
-  test('membedakan gap fitur FFM dari pertanyaan di luar cakupan', () async {
+  test('menjawab status fitur non-data secara jujur dari katalog', () async {
     final intent = await interpreter.interpret(
       'apakah cadangan saya sudah lengkap?',
     );
 
-    expect(intent.type, FfmAssistantIntentType.unknown);
-    expect(intent.response, contains('gap fitur'));
-    expect(intent.response, contains('Pengetahuan Asisten'));
+    expect(intent.type, FfmAssistantIntentType.featureHelp);
+    expect(intent.destination, FfmAssistantDestination.backup);
+    expect(intent.response, contains('bukan section data'));
     expect(intent.draft, isNull);
   });
 

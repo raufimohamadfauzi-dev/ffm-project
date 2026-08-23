@@ -208,3 +208,11 @@
 - [x] Audit katalog intent/query lokal dan implementasikan cek kelengkapan data yang dapat dibuktikan.
 - [x] Bedakan pertanyaan ambigu dari gap knowledge baku serta tambahkan regresi.
 - [x] Jalankan validasi, build APK patch, verifikasi rilis, dan kemas source.
+
+# Aksi Chat dan Katalog Kemampuan/Data
+
+- [x] Audit hilangnya tombol Cek/Buka dari respons chat serta pastikan lintas halaman tetap dapat dinavigasi.
+- [x] Pulihkan aksi Cek/Buka pada respons yang memiliki destination atau draft tanpa menciptakan loop halaman aktif.
+- [x] Petakan seluruh section dan fitur FFM ke katalog kemampuan/data terpusat dengan sinonim serta tipe pertanyaan dasar.
+- [x] Bangun handler generik untuk pertanyaan kemampuan, kelengkapan/status, dan daftar isi berbasis katalog.
+- [ ] Tambahkan regresi katalog, validasi penuh, build APK patch, dan kemas source.
