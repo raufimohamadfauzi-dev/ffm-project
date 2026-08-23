@@ -156,6 +156,25 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('mengenali variasi pertanyaan kemampuan Asisten', () async {
+    final intent = await interpreter.interpret(
+      'kemampuan asisten itu bagaimana?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.assistantIdentity);
+    expect(intent.response, contains('Yang bisa kulakukan sekarang'));
+    expect(intent.response, contains('tidak ada autosave'));
+  });
+
+  test('mengarahkan pertanyaan identitas pengguna ke profil lokal', () async {
+    final intent = await interpreter.interpret('saya itu siapa?');
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Profil Pribadi'));
+    expect(intent.response, contains('Profil Personalisasi Asisten'));
+    expect(intent.draft, isNull);
+  });
+
   test('memandu setup berdasarkan data utama yang masih kosong', () async {
     final intent = await interpreter.interpret('Harus mulai dari mana?');
 

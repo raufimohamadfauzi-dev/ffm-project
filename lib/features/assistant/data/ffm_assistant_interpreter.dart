@@ -332,13 +332,25 @@ class FfmAssistantInterpreter {
 
     if (_containsAny(normalized, const [
       'kamu siapa',
+      'kamu itu siapa',
       'anda siapa',
+      'asisten siapa',
+      'asisten ini siapa',
+      'dia itu siapa',
       'asisten ffm itu apa',
       'siapa pembuat aplikasi',
       'pembuat aplikasi ini siapa',
       'dibuat oleh siapa',
       'kamu bisa apa',
+      'kamu bisa apa saja',
+      'asisten bisa apa',
       'anda bisa apa',
+      'kemampuan kamu',
+      'kemampuanmu',
+      'kemampuan asisten',
+      'apa saja yang kamu bisa',
+      'kamu dapat melakukan apa',
+      'tugas kamu',
     ])) {
       final slmConfigured = await _isSlmReady();
       return FfmAssistantIntent(

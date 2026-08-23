@@ -115,6 +115,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
+  var _navigatingFromChat = false;
   var _modelReady = false;
   var _modelChecking = true;
   String? _modelStatusError;
@@ -371,7 +372,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _appendEntry(FfmAssistantChatEntry(isUser: true, text: text));
       _controller.clear();
     });
-    _scrollToEnd();
+    _scrollToEnd(force: true);
     _agentStatus.working('Membaca konteks dan memahami permintaan...');
     try {
       if (_tryReviseActiveDraft(text)) return;
@@ -487,7 +488,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
-      _scrollToEnd();
+      _scrollToEnd(force: true);
     }
   }
 
@@ -845,6 +846,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
+    if (_navigatingFromChat) return;
     if (intent.type == FfmAssistantIntentType.exportReport) {
       await _showReportPreview(intent);
       return;
@@ -899,7 +901,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
     if (shouldNavigate) {
       final handler = widget.onIntent;
-      setState(() => _queuedIntents.remove(intent));
+      setState(() {
+        _navigatingFromChat = true;
+        _queuedIntents.remove(intent);
+      });
       Navigator.of(context).pop();
       await Future<void>.delayed(const Duration(milliseconds: 180));
       await handler(intent);
@@ -1399,7 +1404,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _followLatestMessages = distanceToEnd < 88;
   }
 
-  void _scrollToEnd({bool force = false}) {
+  void _scrollToEnd({bool force = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients || (!force && !_followLatestMessages)) {
         return;
@@ -1633,6 +1638,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
                     final entry = _entries[index];
+                    final opensCurrentPage =
+                        entry.intent?.destination != null &&
+                        entry.intent!.destination ==
+                            widget.currentDestination &&
+                        entry.intent!.draft == null;
                     return _AssistantMessageCard(
                       entry: entry,
                       onSpeak: entry.isUser
@@ -1642,7 +1652,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           _speakingEntryKey == _speechKeyFor(index, entry),
                       onIntent:
                           entry.intent == null ||
-                              entry.intent!.needsTeachingApproval
+                              entry.intent!.needsTeachingApproval ||
+                              opensCurrentPage
                           ? null
                           : () => _handleIntent(entry.intent!),
                       onApproveTeaching:

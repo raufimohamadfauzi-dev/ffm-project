@@ -174,3 +174,10 @@
 - [x] Audit status bundle model, verifikasi, halaman setup, dan indikator di chat setelah unduhan.
 - [x] Tampilkan status siap/belum siap/gagal yang jujur beserta alasan dan tindakan berikutnya.
 - [x] Tambahkan regresi status SLM, validasi source, dan kemas pembaruan.
+
+# Asisten — Navigasi, Respons, dan Profil
+
+- [x] Audit pemindahan halaman, tombol cek/buka, dan pencegahan navigasi berulang.
+- [x] Audit auto-scroll chat saat jawaban baru selesai ditambahkan.
+- [x] Audit profil pengguna/asisten serta jawaban identitas dan kemampuan.
+- [x] Tambahkan regresi, validasi source, dan kemas pembaruan.

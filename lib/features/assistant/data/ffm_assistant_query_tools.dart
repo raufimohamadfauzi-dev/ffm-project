@@ -619,7 +619,7 @@ class _PersonalProfileQueryTool implements FfmAssistantQueryTool {
   @override
   bool canHandle(String normalizedText) {
     return RegExp(
-      r'\b(profil|pekerjaan|rutinitas|tujuan|kebiasaan|identitas|siapa saya|tentang saya|mengenal saya)\b',
+      r'\b(profil|pekerjaan|rutinitas|tujuan|kebiasaan|identitas|siapa saya|saya siapa|saya itu siapa|tentang saya|mengenal saya)\b',
     ).hasMatch(normalizedText);
   }
 
@@ -627,15 +627,13 @@ class _PersonalProfileQueryTool implements FfmAssistantQueryTool {
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
-    final prefs =
-        await (database.select(database.userPreferences)
-              ..where((row) => row.householdId.equals(request.householdId)))
-            .get();
+    final prefs = await (database.select(
+      database.userPreferences,
+    )..where((row) => row.householdId.equals(request.householdId))).get();
     if (prefs.isEmpty) {
       return const FfmAssistantQueryAnswer(
         title: 'Profil Pribadi',
-        message:
-            'Aku belum punya catatan tentang profil, rutinitas, atau kebiasaanmu. Kamu bisa mengisinya di menu Lainnya > Profil Personalisasi Asisten > Kenalkan Diri.',
+        message: 'Aku belum punya catatan tentang profil, rutinitas, atau kebiasaanmu. Kamu bisa mengisinya di menu Lainnya > Profil Personalisasi Asisten > Kenalkan Diri.',
       );
     }
 
