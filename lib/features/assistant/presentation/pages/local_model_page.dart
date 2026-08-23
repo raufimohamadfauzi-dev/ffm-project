@@ -84,10 +84,7 @@ class _LocalModelPageState extends State<LocalModelPage>
     var staging = await _service.getStagingStatus();
     for (final status in statuses) {
       final localPath = status.localPath;
-      if (!status.isComplete || localPath == null || localPath.isEmpty) {
-        continue;
-      }
-      if (_isAlreadyInStaging(status, staging)) continue;
+      if (!status.needsStagingImport(staging) || localPath == null) continue;
       try {
         await _service.importGgufFromPath(localPath);
         staging = await _service.getStagingStatus();
@@ -97,15 +94,6 @@ class _LocalModelPageState extends State<LocalModelPage>
       }
     }
   }
-
-  bool _isAlreadyInStaging(
-    FfmBackgroundDownloadStatus status,
-    FfmStagingStatus staging,
-  ) => switch (status.role) {
-    'language_model' => staging.hasModel,
-    'multimodal_projector' => staging.hasProjector,
-    _ => false,
-  };
 
   Future<void> _startBackgroundDownload() async {
     setState(() {
@@ -459,10 +447,7 @@ class _LocalModelPageState extends State<LocalModelPage>
                               builder: (context) {
                                 final isAlreadyInStaging =
                                     _stagingStatus != null &&
-                                    _isAlreadyInStaging(
-                                      status,
-                                      _stagingStatus!,
-                                    );
+                                    status.isAlreadyInStaging(_stagingStatus!);
                                 return ListTile(
                                   contentPadding: EdgeInsets.zero,
                                   dense: true,

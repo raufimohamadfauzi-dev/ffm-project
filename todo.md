@@ -193,3 +193,9 @@
 - [x] Audit lokasi file hasil unduhan, proses impor, dan pembacaan status siap.
 - [x] Perbaiki deteksi atau pesan pemulihan bila file selesai belum dapat ditemukan.
 - [x] Tambahkan regresi, validasi source, dan kemas pembaruan bila ada perubahan.
+
+# Verifikasi APK Patch SLM
+
+- [x] Rekonstruksi error impor ulang berdasarkan screenshot APK lama dan cocokkan dengan patch source.
+- [x] Tambahkan regresi bila masih ada jalur status yang belum tercakup.
+- [ ] Build APK release patch, verifikasi package/version/tanda tangan lama, lalu kemas source.

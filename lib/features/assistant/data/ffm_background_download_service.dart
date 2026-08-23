@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 
 import 'ffm_local_model_service.dart';
+import 'ffm_staging_status.dart';
 
 class FfmBackgroundDownloadStatus {
   const FfmBackgroundDownloadStatus({
@@ -24,6 +25,18 @@ class FfmBackgroundDownloadStatus {
   bool get isComplete => state == 'complete';
   bool get isFailed => state == 'failed';
   double? get fraction => totalBytes <= 0 ? null : receivedBytes / totalBytes;
+
+  bool isAlreadyInStaging(FfmStagingStatus staging) => switch (role) {
+    'language_model' => staging.hasModel,
+    'multimodal_projector' => staging.hasProjector,
+    _ => false,
+  };
+
+  bool needsStagingImport(FfmStagingStatus staging) =>
+      isComplete &&
+      localPath != null &&
+      localPath!.isNotEmpty &&
+      !isAlreadyInStaging(staging);
 
   factory FfmBackgroundDownloadStatus.fromMap(Map<Object?, Object?> map) =>
       FfmBackgroundDownloadStatus(

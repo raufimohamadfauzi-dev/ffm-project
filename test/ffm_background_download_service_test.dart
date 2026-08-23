@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/assistant/data/ffm_background_download_service.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_staging_status.dart';
 
 void main() {
   test('memetakan status download selesai beserta path lokal', () {
@@ -32,5 +33,18 @@ void main() {
     expect(status.isComplete, isFalse);
     expect(status.reason, 'Kode DownloadManager 1006');
     expect(status.fraction, isNull);
+  });
+
+  test('file selesai yang sudah ada di staging tidak diimpor ulang', () {
+    const status = FfmBackgroundDownloadStatus(
+      role: 'multimodal_projector',
+      fileName: 'mmproj.gguf',
+      state: 'complete',
+      localPath: '/storage/emulated/0/Android/data/ffm/mmproj.gguf',
+    );
+    const staging = FfmStagingStatus(hasModel: true, hasProjector: true);
+
+    expect(status.isAlreadyInStaging(staging), isTrue);
+    expect(status.needsStagingImport(staging), isFalse);
   });
 }
