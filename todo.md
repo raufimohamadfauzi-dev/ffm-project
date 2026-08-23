@@ -215,4 +215,4 @@
 - [x] Pulihkan aksi Cek/Buka pada respons yang memiliki destination atau draft tanpa menciptakan loop halaman aktif.
 - [x] Petakan seluruh section dan fitur FFM ke katalog kemampuan/data terpusat dengan sinonim serta tipe pertanyaan dasar.
 - [x] Bangun handler generik untuk pertanyaan kemampuan, kelengkapan/status, dan daftar isi berbasis katalog.
-- [ ] Tambahkan regresi katalog, validasi penuh, build APK patch, dan kemas source.
+- [x] Tambahkan regresi katalog, validasi penuh, build APK patch, dan kemas source.
