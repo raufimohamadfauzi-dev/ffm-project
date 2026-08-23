@@ -219,7 +219,7 @@
 
 # Pemulihan Spinner Model Asisten Lokal
 
-- [ ] Audit semua tahap `_load()`, timeout yang mungkin terjadi, dan pemanggilan lifecycle yang tumpang tindih.
-- [ ] Tambahkan pengunci pemuatan, batas waktu, error state yang selalu mematikan spinner, serta diagnostik aman.
-- [ ] Tambahkan regresi pemuatan sukses, timeout, error, dan resume lifecycle.
-- [ ] Jalankan validasi penuh, build APK patch, verifikasi rilis, dan kemas source.
+- [x] Audit semua tahap `_load()`, timeout yang mungkin terjadi, dan pemanggilan lifecycle yang tumpang tindih.
+- [x] Tambahkan pengunci pemuatan, batas waktu, error state yang selalu mematikan spinner, serta diagnostik aman.
+- [x] Tambahkan regresi pemuatan sukses, timeout, error, dan resume lifecycle.
+- [x] Jalankan validasi penuh, build APK patch, verifikasi rilis, dan kemas source.
