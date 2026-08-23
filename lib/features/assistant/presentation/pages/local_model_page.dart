@@ -11,6 +11,7 @@ import '../../domain/ffm_assistant_models.dart';
 import '../widgets/ffm_assistant_page_context.dart';
 import '../../data/ffm_background_download_service.dart';
 import '../../data/ffm_local_model_service.dart';
+import '../../data/ffm_local_model_readiness.dart';
 import '../../data/ffm_staging_status.dart';
 
 class LocalModelPage extends StatefulWidget {
@@ -20,7 +21,8 @@ class LocalModelPage extends StatefulWidget {
   State<LocalModelPage> createState() => _LocalModelPageState();
 }
 
-class _LocalModelPageState extends State<LocalModelPage> {
+class _LocalModelPageState extends State<LocalModelPage>
+    with WidgetsBindingObserver {
   final _service = FfmLocalModelService();
   final _backgroundService = const FfmBackgroundDownloadService();
   FfmLocalModelInfo? _model;
@@ -35,7 +37,21 @@ class _LocalModelPageState extends State<LocalModelPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_working) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -49,6 +65,7 @@ class _LocalModelPageState extends State<LocalModelPage> {
         _model = model;
         _stagingStatus = staging;
         _backgroundStatuses = background;
+        _error = null;
         _loading = false;
       });
     } on Object {
@@ -341,15 +358,31 @@ class _LocalModelPageState extends State<LocalModelPage> {
     });
   }
 
+  void _returnToFfm() => Navigator.of(context).pop();
+
   String _size(int bytes) =>
       '${NumberFormat.decimalPattern('id_ID').format(bytes / (1024 * 1024))} MB';
 
   @override
   Widget build(BuildContext context) {
+    final readiness = FfmLocalModelReadiness.resolve(
+      model: _model,
+      staging: _stagingStatus,
+      backgroundStatuses: _backgroundStatuses,
+    );
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.localModel,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Model Asisten Lokal')),
+        appBar: AppBar(
+          title: const Text('Model Asisten Lokal'),
+          actions: [
+            IconButton(
+              onPressed: _working ? null : _load,
+              tooltip: 'Perbarui status',
+              icon: const Icon(Icons.refresh_outlined),
+            ),
+          ],
+        ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
@@ -362,23 +395,33 @@ class _LocalModelPageState extends State<LocalModelPage> {
                   ),
                   const SizedBox(height: 20),
                   AppCard(
-                    child: _model == null
-                        ? const ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.smart_toy_outlined),
-                            title: Text('Belum ada model terpasang'),
-                            subtitle: Text(
-                              'Asisten tetap berjalan dengan aturan lokal bawaan. Download model hanya dilakukan setelah kamu memilihnya.',
-                            ),
-                          )
-                        : ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: const Icon(Icons.verified_outlined),
-                            title: const Text('Qwen2-VL terverifikasi'),
-                            subtitle: Text(
-                              '${_size(_model!.bytes)} + ${_size(_model!.projectorBytes ?? 0)} projector\nSHA-256 model ${_model!.sha256.substring(0, 12)}…\nTersimpan privat sejak ${DateFormat('d MMM y, HH:mm', 'id_ID').format(_model!.installedAt)}',
-                            ),
-                          ),
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        readiness.canUseAssistant
+                            ? Icons.verified_outlined
+                            : readiness.state ==
+                                  FfmLocalModelReadinessState.downloadFailed
+                            ? Icons.error_outline
+                            : readiness.state ==
+                                  FfmLocalModelReadinessState
+                                      .downloadingBackground
+                            ? Icons.downloading_outlined
+                            : Icons.smart_toy_outlined,
+                        color: readiness.canUseAssistant
+                            ? Colors.green.shade700
+                            : readiness.state ==
+                                  FfmLocalModelReadinessState.downloadFailed
+                            ? Theme.of(context).colorScheme.error
+                            : null,
+                      ),
+                      title: Text(readiness.title),
+                      subtitle: Text(
+                        _model == null
+                            ? '${readiness.message}\n\nLangkah berikutnya: ${readiness.nextStep}'
+                            : '${readiness.message}\n\nLangkah berikutnya: ${readiness.nextStep}\n\n${_size(_model!.bytes)} + ${_size(_model!.projectorBytes ?? 0)} projector\nSHA-256 model ${_model!.sha256.substring(0, 12)}…\nTersimpan privat sejak ${DateFormat('d MMM y, HH:mm', 'id_ID').format(_model!.installedAt)}',
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   AppCard(
@@ -413,7 +456,7 @@ class _LocalModelPageState extends State<LocalModelPage> {
                               title: Text(status.fileName),
                               subtitle: Text(
                                 status.isComplete
-                                    ? 'Selesai. Buka halaman ini untuk memasukkan file ke staging.'
+                                    ? 'Selesai. Tekan Perbarui status agar file diverifikasi dan masuk staging.'
                                     : status.isFailed
                                     ? (status.reason ?? 'Download gagal.')
                                     : 'Sedang berjalan. Progres lengkap terlihat di notifikasi HP.',
@@ -444,6 +487,11 @@ class _LocalModelPageState extends State<LocalModelPage> {
                                 ),
                               ),
                             ),
+                          OutlinedButton.icon(
+                            onPressed: _working ? null : _load,
+                            icon: const Icon(Icons.refresh_outlined),
+                            label: const Text('Perbarui status download'),
+                          ),
                         ],
                         if (_progress case final progress?) ...[
                           const SizedBox(height: 16),
@@ -563,6 +611,11 @@ class _LocalModelPageState extends State<LocalModelPage> {
                                 label: const Text('Batal & Hapus Staging'),
                               ),
                             ] else ...[
+                              FilledButton.icon(
+                                onPressed: _working ? null : _returnToFfm,
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: const Text('Kembali & coba Asisten'),
+                              ),
                               OutlinedButton.icon(
                                 onPressed: _working ? null : _remove,
                                 icon: const Icon(Icons.delete_outline),
@@ -581,7 +634,7 @@ class _LocalModelPageState extends State<LocalModelPage> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Unduh di background tetap berjalan saat aplikasi diminimalkan dan menampilkan progres di notifikasi HP. Setelah selesai, buka halaman ini untuk memasukkan dua file ke staging lalu tekan Rakit dan Pasang SLM. Mode teks akan kembali ke aturan lokal bila model belum siap atau inference gagal.',
+                    'Unduh di background tetap berjalan saat aplikasi diminimalkan dan menampilkan progres di notifikasi HP. Setelah notifikasi selesai, buka halaman ini atau tekan Perbarui status. Jika dua file sudah masuk staging, tekan Rakit dan Pasang SLM. Setelah status AI lokal siap dipakai muncul, kembali lalu buka ✨ Asisten. Mode teks tetap kembali ke aturan lokal bila model belum siap atau inference gagal.',
                     style: TextStyle(fontSize: 13),
                   ),
                 ],

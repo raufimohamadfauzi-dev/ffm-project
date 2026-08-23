@@ -168,3 +168,9 @@
 - [x] Klasifikasikan halaman menjadi konteks nama-saja atau nama-plus-ringkasan aman.
 - [x] Tetapkan desain injeksi konteks tanpa tool call/Action Plan serta batas detail sensitif.
 - [x] Jawab keputusan desain pengguna sebelum implementasi kode.
+
+# Asisten — Status SLM dan Langkah Berikutnya
+
+- [x] Audit status bundle model, verifikasi, halaman setup, dan indikator di chat setelah unduhan.
+- [x] Tampilkan status siap/belum siap/gagal yang jujur beserta alasan dan tindakan berikutnya.
+- [x] Tambahkan regresi status SLM, validasi source, dan kemas pembaruan.
