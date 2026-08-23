@@ -12,6 +12,8 @@ void main() {
       'receivedBytes': 100,
       'totalBytes': 100,
       'localPath': '/data/user/0/ffm/model.gguf',
+      'diskBytes': 100,
+      'parentExists': true,
     });
 
     expect(status.role, 'language_model');
@@ -19,6 +21,8 @@ void main() {
     expect(status.isFailed, isFalse);
     expect(status.fraction, 1);
     expect(status.localPath, '/data/user/0/ffm/model.gguf');
+    expect(status.diskBytes, 100);
+    expect(status.parentExists, isTrue);
   });
 
   test('status gagal menyimpan alasan dan tidak dianggap selesai', () {

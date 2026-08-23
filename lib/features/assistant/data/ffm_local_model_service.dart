@@ -266,13 +266,18 @@ class FfmLocalModelService {
     }
   }
 
-  Future<void> importGgufFromPath(String filePath) async {
-    final file = File(filePath);
-    if (!await file.exists()) {
-      throw const FfmLocalModelManifestException(
-        'File download background belum tersedia di storage aplikasi.',
-      );
-    }
+  Future<void> importGgufFromPath(
+    String filePath, {
+    int? expectedBytes,
+    int retryAttempts = 3,
+    Duration retryDelay = const Duration(milliseconds: 750),
+  }) async {
+    final file = await _waitForBackgroundFile(
+      filePath,
+      expectedBytes: expectedBytes,
+      retryAttempts: retryAttempts,
+      retryDelay: retryDelay,
+    );
     final hash = await checksum(file);
     final destinationName = switch (hash) {
       FfmQwen2VlBundle.modelSha256 => FfmQwen2VlBundle.modelFileName,
@@ -291,6 +296,59 @@ class FfmLocalModelService {
       destination,
     );
     await _deleteIfExists(file);
+  }
+
+  /// Ringkasan diagnostik untuk laporan perbaikan. Pemanggil harus
+  /// menyimpannya melalui [AppDiagnosticsService] karena layanan itu menyaring
+  /// path perangkat sebelum data dapat diekspor.
+  Future<String> inspectBackgroundFile(
+    String filePath, {
+    int? expectedBytes,
+  }) async {
+    final file = File(filePath);
+    final parent = file.parent;
+    final exists = await file.exists();
+    final actualBytes = exists ? await file.length() : null;
+    final parentExists = await parent.exists();
+    final children = parentExists
+        ? await parent
+              .list(followLinks: false)
+              .map((entity) => path.basename(entity.path))
+              .take(8)
+              .toList()
+        : const <String>[];
+    return 'path=$filePath; fileExists=$exists; actualBytes=${actualBytes ?? 'none'}; '
+        'expectedBytes=${expectedBytes ?? 'unknown'}; parentExists=$parentExists; '
+        'parentEntries=${children.join('|')}';
+  }
+
+  Future<File> _waitForBackgroundFile(
+    String filePath, {
+    required int? expectedBytes,
+    required int retryAttempts,
+    required Duration retryDelay,
+  }) async {
+    final attempts = retryAttempts.clamp(1, 5);
+    final file = File(filePath);
+    String? lastState;
+    for (var attempt = 1; attempt <= attempts; attempt++) {
+      if (await file.exists()) {
+        final actualBytes = await file.length();
+        if (expectedBytes == null ||
+            expectedBytes <= 0 ||
+            actualBytes == expectedBytes) {
+          return file;
+        }
+        lastState =
+            'ukuran file $actualBytes byte, menunggu $expectedBytes byte';
+      } else {
+        lastState = 'file belum terlihat di storage aplikasi';
+      }
+      if (attempt < attempts) await Future<void>.delayed(retryDelay);
+    }
+    throw FfmLocalModelManifestException(
+      'File download background belum stabil setelah $attempts pemeriksaan: ${lastState ?? 'status file tidak diketahui'}. Tekan Perbarui status untuk mencoba lagi.',
+    );
   }
 
   Future<FfmLocalModelInfo> commitStaging() async {

@@ -48,6 +48,7 @@ class FfmAssistantQueryRegistry {
         _DebtStatusQueryTool(database),
         _AssetSummaryQueryTool(database),
         _LoanAffordabilityQueryTool(database),
+        _DataCompletenessQueryTool(database),
         _PersonalProfileQueryTool(database),
       ];
   final DateTime Function() _clock;
@@ -610,6 +611,284 @@ class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
       );
     return buffer.toString();
   }
+}
+
+enum _DataCompletenessSection {
+  masterData,
+  profile,
+  budget,
+  goals,
+  assets,
+  liabilities,
+  reminders,
+  activities,
+  transactions,
+}
+
+class _DataCompletenessQueryTool implements FfmAssistantQueryTool {
+  const _DataCompletenessQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) =>
+      _sectionFor(normalizedText) != null &&
+      RegExp(r'\b(lengkap|kelengkapan|terisi|diisi)\b')
+          .hasMatch(normalizedText);
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final section = _sectionFor(request.normalizedText);
+    if (section == null) return null;
+    return switch (section) {
+      _DataCompletenessSection.masterData => _masterData(request.householdId),
+      _DataCompletenessSection.profile => _profile(request.householdId),
+      _DataCompletenessSection.budget => _budget(request.householdId),
+      _DataCompletenessSection.goals => _goals(request.householdId),
+      _DataCompletenessSection.assets => _assets(request.householdId),
+      _DataCompletenessSection.liabilities => _liabilities(request.householdId),
+      _DataCompletenessSection.reminders => _reminders(request.householdId),
+      _DataCompletenessSection.activities => _activities(request.householdId),
+      _DataCompletenessSection.transactions => _transactions(
+        request.householdId,
+      ),
+    };
+  }
+
+  _DataCompletenessSection? _sectionFor(String text) {
+    if (text.contains('data utama') ||
+        text.contains('master data') ||
+        text.contains('rekening') ||
+        text.contains('kategori')) {
+      return _DataCompletenessSection.masterData;
+    }
+    if (text.contains('profil') || text.contains('personalisasi')) {
+      return _DataCompletenessSection.profile;
+    }
+    if (text.contains('anggaran') || text.contains('budget')) {
+      return _DataCompletenessSection.budget;
+    }
+    if (text.contains('target') || text.contains('tujuan')) {
+      return _DataCompletenessSection.goals;
+    }
+    if (text.contains('aset')) return _DataCompletenessSection.assets;
+    if (text.contains('hutang') ||
+        text.contains('utang') ||
+        text.contains('piutang') ||
+        text.contains('kewajiban')) {
+      return _DataCompletenessSection.liabilities;
+    }
+    if (text.contains('pengingat') || text.contains('reminder')) {
+      return _DataCompletenessSection.reminders;
+    }
+    if (text.contains('aktivitas') || text.contains('kegiatan')) {
+      return _DataCompletenessSection.activities;
+    }
+    if (text.contains('transaksi'))
+      return _DataCompletenessSection.transactions;
+    return null;
+  }
+
+  Future<FfmAssistantQueryAnswer> _masterData(String householdId) async {
+    final accounts =
+        await (_database.select(_database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final categories =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final merchants =
+        await (_database.select(_database.merchants)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final tags =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final missing = <String>[
+      if (accounts.isEmpty) 'minimal satu rekening aktif',
+      if (categories.isEmpty) 'minimal satu kategori aktif',
+    ];
+    final message = missing.isEmpty
+        ? 'Data Utama sudah siap untuk pencatatan: ${accounts.length} rekening aktif dan ${categories.length} kategori aktif. Merchant (${merchants.length}) dan tag (${tags.length}) bersifat opsional.'
+        : 'Data Utama belum lengkap untuk pencatatan. Yang masih kosong: ${missing.join(', ')}. Saat ini ada ${accounts.length} rekening aktif dan ${categories.length} kategori aktif. Merchant dan tag tetap opsional.';
+    return FfmAssistantQueryAnswer(
+      title: 'Kelengkapan Data Utama',
+      message: message,
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _profile(String householdId) async {
+    final rows = await (_database.select(
+      _database.userPreferences,
+    )..where((row) => row.householdId.equals(householdId))).get();
+    final values = <String, String>{
+      for (final row in rows) row.preferenceKey: row.preferenceValue.trim(),
+    };
+    const labels = <String, String>{
+      'profile_name': 'nama/panggilan',
+      'profile_occupation': 'pekerjaan/peran',
+      'profile_routine': 'rutinitas penting',
+      'profile_goals': 'tujuan/prioritas',
+    };
+    final missing = labels.entries
+        .where((entry) => (values[entry.key] ?? '').isEmpty)
+        .map((entry) => entry.value)
+        .toList(growable: false);
+    return FfmAssistantQueryAnswer(
+      title: 'Kelengkapan Profil Asisten',
+      message: missing.isEmpty
+          ? 'Profil personalisasi sudah lengkap: nama/panggilan, pekerjaan/peran, rutinitas penting, dan tujuan/prioritas sudah terisi.'
+          : 'Profil personalisasi belum lengkap. Yang masih kosong: ${missing.join(', ')}. Ini opsional dan tidak menghalangi pencatatan keuangan; isi di Lainnya > Profil Personalisasi Asisten > Kenalkan Diri bila kamu ingin jawaban lebih sesuai konteksmu.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _budget(String householdId) async {
+    final rows =
+        await (_database.select(_database.envelopeBudgets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    return _optionalSection(
+      title: 'Kelengkapan Anggaran',
+      count: rows.length,
+      configured: 'Ada ${rows.length} pos anggaran aktif yang dapat dipantau.',
+      empty: 'Belum ada pos anggaran aktif. Ini bukan kesalahan bila kamu belum ingin memakai anggaran; kamu dapat menambahkannya di halaman Anggaran.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _goals(String householdId) async {
+    final rows =
+        await (_database.select(_database.goals)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    return _optionalSection(
+      title: 'Kelengkapan Target Keuangan',
+      count: rows.length,
+      configured: 'Ada ${rows.length} target keuangan aktif.',
+      empty: 'Belum ada target keuangan aktif. Ini opsional; buat target hanya bila ada tujuan dana yang ingin dilacak.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _assets(String householdId) async {
+    final rows =
+        await (_database.select(_database.assets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    return _optionalSection(
+      title: 'Kelengkapan Aset',
+      count: rows.length,
+      configured: 'Ada ${rows.length} aset yang masih dicatat.',
+      empty: 'Belum ada aset yang dicatat. Ini opsional dan tidak menghalangi transaksi atau laporan arus kas.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _liabilities(String householdId) async {
+    final liabilities =
+        await (_database.select(_database.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final receivables =
+        await (_database.select(_database.receivables)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final total = liabilities.length + receivables.length;
+    return FfmAssistantQueryAnswer(
+      title: 'Kelengkapan Hutang & Piutang',
+      message: total == 0
+          ? 'Belum ada hutang atau piutang aktif yang dicatat. Ini bukan data yang wajib diisi bila memang tidak ada kewajiban atau tagihan.'
+          : 'Ada ${liabilities.length} hutang aktif dan ${receivables.length} piutang aktif yang dicatat.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _reminders(String householdId) async {
+    final rows =
+        await (_database.select(_database.reminders)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    return _optionalSection(
+      title: 'Kelengkapan Pengingat',
+      count: rows.length,
+      configured: 'Ada ${rows.length} pengingat aktif.',
+      empty: 'Belum ada pengingat aktif. Ini opsional; tambahkan bila ada jadwal yang ingin diingatkan di perangkat ini.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _activities(String householdId) async {
+    final rows =
+        await (_database.select(_database.activityEntries)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    return _optionalSection(
+      title: 'Kelengkapan Aktivitas',
+      count: rows.length,
+      configured: 'Ada ${rows.length} catatan aktivitas yang tersimpan.',
+      empty: 'Belum ada catatan aktivitas. Ini opsional; mulai aktivitas saat kamu ingin melacak durasi kegiatan.',
+    );
+  }
+
+  Future<FfmAssistantQueryAnswer> _transactions(String householdId) async {
+    final rows =
+        await (_database.select(_database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+            .get();
+    return FfmAssistantQueryAnswer(
+      title: 'Kelengkapan Transaksi',
+      message: rows.isEmpty
+          ? 'Belum ada transaksi aktif yang dicatat. Data Utama tetap dapat disiapkan lebih dulu, lalu catat transaksi pertama ketika ada pemasukan, pengeluaran, atau transfer nyata.'
+          : 'Ada ${rows.length} transaksi aktif yang tersimpan. Angka ini hanya menghitung catatan aktif dan tidak membuat perubahan apa pun.',
+    );
+  }
+
+  FfmAssistantQueryAnswer _optionalSection({
+    required String title,
+    required int count,
+    required String configured,
+    required String empty,
+  }) => FfmAssistantQueryAnswer(
+    title: title,
+    message: count > 0 ? configured : empty,
+  );
 }
 
 class _PersonalProfileQueryTool implements FfmAssistantQueryTool {

@@ -485,6 +485,23 @@ class FfmAssistantInterpreter {
     final correction = _parseCorrection(rawText, normalized);
     if (correction != null) return correction;
 
+    if (_isDataCompletenessRequest(normalized) &&
+        !_isNavigationRequest(normalized)) {
+      final queryAnswer = await _queryRegistry.tryAnswer(
+        normalized,
+        householdId: AppContext.householdId,
+      );
+      if (queryAnswer != null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.queryData,
+          confidence: .98,
+          response: '${queryAnswer.title}\n${queryAnswer.message}',
+        );
+      }
+    }
+
     if (_isSetupRequest(normalized)) {
       return _setupGuide(rawText, normalized);
     }
@@ -728,7 +745,10 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.',
+      _unsupportedQuestionHelp(normalized) ??
+          (_isKnownFfmFeatureGap(normalized)
+              ? 'Pertanyaanmu berkaitan dengan fitur FFM, tetapi pengecekan khususnya belum tersedia di aturan lokal saat ini. Aku simpan sebagai gap fitur di Pengetahuan Asisten pada menu Lainnya supaya bisa disalin atau diekspor untuk update berikutnya. Tidak ada data yang dibuat atau diubah.'
+              : 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.'),
     );
   }
 
@@ -2052,6 +2072,49 @@ class FfmAssistantInterpreter {
     'apa yang harus diisi dulu',
     'isi data utama dulu',
     'cek data utama',
+  ]);
+  bool _isDataCompletenessRequest(String text) =>
+      _containsAny(text, const [
+        'data utama',
+        'master data',
+        'rekening',
+        'kategori',
+        'profil',
+        'personalisasi',
+        'anggaran',
+        'budget',
+        'target',
+        'tujuan',
+        'aset',
+        'hutang',
+        'utang',
+        'piutang',
+        'kewajiban',
+        'pengingat',
+        'reminder',
+        'aktivitas',
+        'kegiatan',
+        'transaksi',
+      ]) &&
+      _containsAny(text, const ['lengkap', 'kelengkapan', 'terisi', 'diisi']);
+  bool _isKnownFfmFeatureGap(String text) => _containsAny(text, const [
+    'rekonsiliasi',
+    'cadangan',
+    'backup',
+    'pemulihan',
+    'export',
+    'ekspor',
+    'lampiran',
+    'nota',
+    'json',
+    'ocr',
+    'model lokal',
+    'slm',
+    'notifikasi',
+    'nada dering',
+    'widget',
+    'pelatihan',
+    'pengetahuan asisten',
   ]);
 
   bool _isDraftHelpRequest(String text) => _containsAny(text, const [

@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../../core/diagnostics/app_diagnostics_service.dart';
+import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../widgets/ffm_assistant_page_context.dart';
@@ -86,11 +88,25 @@ class _LocalModelPageState extends State<LocalModelPage>
       final localPath = status.localPath;
       if (!status.needsStagingImport(staging) || localPath == null) continue;
       try {
-        await _service.importGgufFromPath(localPath);
+        await _service.importGgufFromPath(
+          localPath,
+          expectedBytes: status.totalBytes > 0 ? status.totalBytes : null,
+        );
         staging = await _service.getStagingStatus();
-      } on Object catch (error) {
+      } on Object catch (error, stackTrace) {
+        final inspection = await _service.inspectBackgroundFile(
+          localPath,
+          expectedBytes: status.totalBytes > 0 ? status.totalBytes : null,
+        );
+        await getIt<AppDiagnosticsService>().recordException(
+          code: 'SLM_BACKGROUND_IMPORT_RETRY',
+          feature: 'Unduhan SLM latar belakang',
+          error: '$error\n$inspection',
+          stackTrace: stackTrace,
+          impact: 'Model belum dipasang. Perbarui status download atau gunakan impor bundle offline.',
+        );
         _error =
-            'Download ${status.fileName} selesai, tetapi belum dapat diverifikasi: $error';
+            'Download ${status.fileName} belum dapat diverifikasi. FFM akan mencoba lagi saat Perbarui status; detail teknis tersimpan di Bantuan perbaikan.';
       }
     }
   }

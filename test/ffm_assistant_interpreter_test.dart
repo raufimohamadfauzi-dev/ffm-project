@@ -196,6 +196,27 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test(
+    'menjawab kelengkapan Data Utama dari query lokal sebelum setup umum',
+    () async {
+      final intent = await interpreter.interpret('data utama sudah terisi?');
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Kelengkapan Data Utama'));
+      expect(intent.response, contains('kategori aktif'));
+      expect(intent.draft, isNull);
+    },
+  );
+
+  test('menjawab field profil personalisasi yang belum lengkap', () async {
+    final intent = await interpreter.interpret('apakah profil sudah lengkap?');
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Kelengkapan Profil Asisten'));
+    expect(intent.response, contains('nama/panggilan'));
+    expect(intent.draft, isNull);
+  });
+
   test('proposal JSON rekening hanya membuat rancangan yang jelas', () {
     const proposal = '''
 {
@@ -436,6 +457,17 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.unknown);
     expect(intent.normalizedText, contains('zayra'));
+  });
+
+  test('membedakan gap fitur FFM dari pertanyaan di luar cakupan', () async {
+    final intent = await interpreter.interpret(
+      'apakah cadangan saya sudah lengkap?',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.unknown);
+    expect(intent.response, contains('gap fitur'));
+    expect(intent.response, contains('Pengetahuan Asisten'));
+    expect(intent.draft, isNull);
   });
 
   test('menjawab konteks ringkasan dari halaman yang sedang dibuka', () async {

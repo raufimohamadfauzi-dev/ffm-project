@@ -131,6 +131,36 @@ void main() {
       );
     });
 
+    test(
+      'file background yang belum stabil menunggu lalu memberi pesan retry',
+      () async {
+        final missing = File('${root.path}/Download/mmproj.gguf');
+
+        await expectLater(
+          () => service.importGgufFromPath(
+            missing.path,
+            expectedBytes: FfmQwen2VlBundle.projectorBytes,
+            retryAttempts: 1,
+            retryDelay: Duration.zero,
+          ),
+          throwsA(
+            isA<FfmLocalModelManifestException>().having(
+              (error) => error.message,
+              'message',
+              allOf(contains('1 pemeriksaan'), contains('Perbarui status')),
+            ),
+          ),
+        );
+
+        final inspection = await service.inspectBackgroundFile(
+          missing.path,
+          expectedBytes: FfmQwen2VlBundle.projectorBytes,
+        );
+        expect(inspection, contains('fileExists=false'));
+        expect(inspection, contains('parentExists=false'));
+      },
+    );
+
     test('commitStaging menolak jika file di staging belum lengkap', () async {
       final status = await service.getStagingStatus();
       expect(status.isEmpty, isTrue);

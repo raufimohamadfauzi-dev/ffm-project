@@ -11,6 +11,8 @@ class FfmBackgroundDownloadStatus {
     this.receivedBytes = 0,
     this.totalBytes = 0,
     this.localPath,
+    this.diskBytes,
+    this.parentExists,
     this.reason,
   });
 
@@ -20,6 +22,8 @@ class FfmBackgroundDownloadStatus {
   final int receivedBytes;
   final int totalBytes;
   final String? localPath;
+  final int? diskBytes;
+  final bool? parentExists;
   final String? reason;
 
   bool get isComplete => state == 'complete';
@@ -46,6 +50,8 @@ class FfmBackgroundDownloadStatus {
         receivedBytes: (map['receivedBytes'] as num?)?.toInt() ?? 0,
         totalBytes: (map['totalBytes'] as num?)?.toInt() ?? 0,
         localPath: map['localPath'] as String?,
+        diskBytes: (map['diskBytes'] as num?)?.toInt(),
+        parentExists: map['parentExists'] as bool?,
         reason: map['reason'] as String?,
       );
 }

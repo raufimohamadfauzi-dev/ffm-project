@@ -141,6 +141,14 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
             DownloadSpec("multimodal_projector", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/mmproj-Qwen2-VL-2B-Instruct-f16.gguf", "mmproj-Qwen2-VL-2B-Instruct-f16.gguf"),
         )
         requests.forEach { spec ->
+            if (backgroundFilePath(spec.fileName) == null) {
+                postError(
+                    result,
+                    "STORAGE_UNAVAILABLE",
+                    "Storage aplikasi untuk download SLM belum tersedia. Periksa storage perangkat lalu coba lagi.",
+                )
+                return
+            }
             val key = "${spec.role}_id"
             val existingId = prefs.getLong(key, -1L)
             if (existingId != -1L && isDownloadActive(manager, existingId)) return@forEach
@@ -174,6 +182,9 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
         appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
             ?.let { java.io.File(it, "ffm_models/qwen2-vl/$fileName").absolutePath }
 
+    private fun backgroundFile(fileName: String): java.io.File? =
+        backgroundFilePath(fileName)?.let(::java.io.File)
+
     private fun backgroundBundleStatus(): List<Map<String, Any?>> {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
         val manager = downloadManager()
@@ -199,13 +210,18 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                     DownloadManager.STATUS_FAILED -> "failed"
                     else -> "unknown"
                 }
+                val file = backgroundFile(fileName)
+                val diskBytes = if (file?.isFile == true) file.length() else null
+                val parentExists = file?.parentFile?.isDirectory
                 mapOf(
                     "role" to role,
                     "fileName" to fileName,
                     "state" to state,
                     "receivedBytes" to received,
                     "totalBytes" to total,
-                    "localPath" to backgroundFilePath(fileName),
+                    "localPath" to file?.absolutePath,
+                    "diskBytes" to diskBytes,
+                    "parentExists" to parentExists,
                     "reason" to if (state == "failed") "Kode DownloadManager $reason" else null,
                 )
             }
