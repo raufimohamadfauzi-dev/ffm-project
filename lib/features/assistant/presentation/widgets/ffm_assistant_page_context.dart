@@ -31,6 +31,88 @@ class FfmAssistantPageContextSnapshot {
   );
 }
 
+/// Mengubah context layar UI menjadi teks pendek untuk prompt Asisten.
+///
+/// Context ini bukan tool call dan tidak boleh berisi data mentah halaman.
+/// Detail yang tersedia pada snapshot sengaja tidak diteruskan sampai setiap
+/// halaman detail memiliki policy field aman yang ditinjau secara eksplisit.
+abstract final class FfmAssistantScreenContextPolicy {
+  static const maxCharacters = 280;
+
+  static const _nameOnlyDestinations = <FfmAssistantDestination>{
+    FfmAssistantDestination.appSecurity,
+    FfmAssistantDestination.privacyCenter,
+    FfmAssistantDestination.backup,
+    FfmAssistantDestination.diagnostics,
+    FfmAssistantDestination.databaseStructure,
+    FfmAssistantDestination.assistantTraining,
+    FfmAssistantDestination.assistantProfile,
+    FfmAssistantDestination.masterData,
+    FfmAssistantDestination.activityLog,
+    FfmAssistantDestination.reconciliation,
+    FfmAssistantDestination.recurringTransaction,
+  };
+
+  static String forPrompt({
+    FfmAssistantDestination? destination,
+    FfmAssistantPageContextSnapshot? snapshot,
+  }) {
+    final activeDestination = snapshot?.destination ?? destination;
+    if (activeDestination == null) {
+      return 'Konteks layar FFM: halaman aktif belum diketahui.';
+    }
+
+    final page = FfmAssistantCatalog.findByDestination(activeDestination);
+    final pageName = page?.name ?? activeDestination.name;
+    final base = 'Konteks layar FFM: Halaman aktif: $pageName.';
+    if (_nameOnlyDestinations.contains(activeDestination)) {
+      return base;
+    }
+
+    final summary = _genericSummary(activeDestination);
+    return _clip('$base Ringkasan layar: $summary');
+  }
+
+  static bool isNameOnly(FfmAssistantDestination destination) =>
+      _nameOnlyDestinations.contains(destination);
+
+  static String _genericSummary(
+    FfmAssistantDestination destination,
+  ) => switch (destination) {
+    FfmAssistantDestination.summary =>
+      'Sedang melihat ringkasan periode berjalan.',
+    FfmAssistantDestination.transactions =>
+      'Sedang melihat daftar transaksi dan tindakan pencatatan.',
+    FfmAssistantDestination.budget =>
+      'Sedang melihat pengaturan dan pemantauan anggaran.',
+    FfmAssistantDestination.analysis =>
+      'Sedang melihat analisa dari data yang tersimpan.',
+    FfmAssistantDestination.otherMenu =>
+      'Sedang melihat daftar fitur pendukung FFM.',
+    FfmAssistantDestination.assets => 'Sedang melihat daftar aset keluarga.',
+    FfmAssistantDestination.goals => 'Sedang melihat target keuangan.',
+    FfmAssistantDestination.liabilities => 'Sedang melihat hutang dan piutang.',
+    FfmAssistantDestination.activity =>
+      'Sedang melihat aktivitas dan durasinya.',
+    FfmAssistantDestination.reminders => 'Sedang melihat pengingat lokal.',
+    FfmAssistantDestination.monthlyReport =>
+      'Sedang melihat laporan periode bulanan.',
+    FfmAssistantDestination.offlineAdvanced =>
+      'Sedang melihat alat pemeriksaan offline.',
+    FfmAssistantDestination.offlineFeatures =>
+      'Sedang melihat panduan fitur tanpa internet.',
+    FfmAssistantDestination.localModel =>
+      'Sedang melihat setup model Asisten lokal.',
+    _ => 'Sedang melihat halaman fitur FFM.',
+  };
+
+  static String _clip(String value) {
+    final normalized = value.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+    if (normalized.length <= maxCharacters) return normalized;
+    return '${normalized.substring(0, maxCharacters - 1)}…';
+  }
+}
+
 /// Menyimpan konteks route aktif untuk launcher Asisten global.
 /// Stack token menjaga konteks halaman induk kembali aktif setelah detail ditutup.
 class FfmAssistantPageContextController

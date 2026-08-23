@@ -161,3 +161,10 @@
 - [x] Audit page context, interpreter, dan jalur chat untuk pertanyaan halaman aktif.
 - [x] Jawab pertanyaan “sedang di halaman apa?” dari konteks UI yang nyata tanpa model atau data contoh.
 - [x] Tambahkan regresi, validasi source, dan kemas ZIP pembaruan.
+
+# Asisten — Screen Awareness
+
+- [x] Audit router aktif, page context yang sudah ada, dan budget prompt 1.900 token.
+- [x] Klasifikasikan halaman menjadi konteks nama-saja atau nama-plus-ringkasan aman.
+- [x] Tetapkan desain injeksi konteks tanpa tool call/Action Plan serta batas detail sensitif.
+- [x] Jawab keputusan desain pengguna sebelum implementasi kode.

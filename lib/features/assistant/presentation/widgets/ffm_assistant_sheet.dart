@@ -276,9 +276,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final intent = await _interpreter.interpret(
         '',
         imagePath: file.path,
-        pageContext:
-            widget.currentPageContext?.dataSummary ??
-            widget.currentDestination?.name,
+        pageContext: FfmAssistantScreenContextPolicy.forPrompt(
+          destination: widget.currentDestination,
+          snapshot: widget.currentPageContext,
+        ),
         capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
       );
       if (!mounted) return;
@@ -380,9 +381,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? await _interpreter.interpretMany(
               text,
               currentDestination: widget.currentDestination,
-              pageContext:
-                  widget.currentPageContext?.dataSummary ??
-                  widget.currentDestination?.name,
+              pageContext: FfmAssistantScreenContextPolicy.forPrompt(
+                destination: widget.currentDestination,
+                snapshot: widget.currentPageContext,
+              ),
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
             )
@@ -390,9 +392,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               text,
               pending,
               currentDestination: widget.currentDestination,
-              pageContext:
-                  widget.currentPageContext?.dataSummary ??
-                  widget.currentDestination?.name,
+              pageContext: FfmAssistantScreenContextPolicy.forPrompt(
+                destination: widget.currentDestination,
+                snapshot: widget.currentPageContext,
+              ),
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
             );
