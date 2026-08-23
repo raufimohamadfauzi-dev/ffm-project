@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,10 +15,20 @@ import '../widgets/ffm_assistant_page_context.dart';
 import '../../data/ffm_background_download_service.dart';
 import '../../data/ffm_local_model_service.dart';
 import '../../data/ffm_local_model_readiness.dart';
+import '../../data/ffm_local_model_status_load_gate.dart';
 import '../../data/ffm_staging_status.dart';
 
 class LocalModelPage extends StatefulWidget {
-  const LocalModelPage({super.key});
+  const LocalModelPage({
+    super.key,
+    this.modelService,
+    this.backgroundService,
+    this.statusLoadTimeout = const Duration(seconds: 10),
+  });
+
+  final FfmLocalModelService? modelService;
+  final FfmBackgroundDownloadService? backgroundService;
+  final Duration statusLoadTimeout;
 
   @override
   State<LocalModelPage> createState() => _LocalModelPageState();
@@ -25,8 +36,9 @@ class LocalModelPage extends StatefulWidget {
 
 class _LocalModelPageState extends State<LocalModelPage>
     with WidgetsBindingObserver {
-  final _service = FfmLocalModelService();
-  final _backgroundService = const FfmBackgroundDownloadService();
+  late final FfmLocalModelService _service;
+  late final FfmBackgroundDownloadService _backgroundService;
+  late final FfmLocalModelStatusLoadGate _loadGate;
   FfmLocalModelInfo? _model;
   FfmStagingStatus? _stagingStatus;
   FfmModelProgress? _progress;
@@ -35,10 +47,15 @@ class _LocalModelPageState extends State<LocalModelPage>
   String? _error;
   var _loading = true;
   var _working = false;
+  var _loadEpoch = 0;
 
   @override
   void initState() {
     super.initState();
+    _service = widget.modelService ?? FfmLocalModelService();
+    _backgroundService =
+        widget.backgroundService ?? const FfmBackgroundDownloadService();
+    _loadGate = FfmLocalModelStatusLoadGate(timeout: widget.statusLoadTimeout);
     WidgetsBinding.instance.addObserver(this);
     _load();
   }
@@ -52,31 +69,100 @@ class _LocalModelPageState extends State<LocalModelPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && !_working) {
-      _load();
+      _load(showLoading: false);
     }
   }
 
-  Future<void> _load() async {
+  Future<void> _load({bool showLoading = true}) async {
+    if (_loadGate.isRunning) return;
+    final loadEpoch = ++_loadEpoch;
+    if (mounted && showLoading) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    final trace = <String>[];
+    void mark(String stage) {
+      final entry = '${DateTime.now().toIso8601String()} $stage';
+      trace.add(entry);
+      debugPrint('[SLM_STATUS_LOAD] $entry');
+    }
+
     try {
-      final model = await _service.getInstalled();
-      final background = await _backgroundService.status();
-      if (model == null) await _adoptCompletedBackground(background);
-      final staging = await _service.getStagingStatus();
+      mark('mulai');
+      final snapshot = await _loadGate.run(() async {
+        mark('getInstalled mulai');
+        final model = await _service.getInstalled();
+        mark('getInstalled selesai');
+        if (loadEpoch != _loadEpoch) return null;
+        final background = await _backgroundService.status();
+        mark('background.status selesai (${background.length} item)');
+        if (loadEpoch != _loadEpoch) return null;
+        if (model == null) {
+          mark('adoptCompletedBackground mulai');
+          await _adoptCompletedBackground(background);
+          mark('adoptCompletedBackground selesai');
+          if (loadEpoch != _loadEpoch) return null;
+        }
+        final staging = await _service.getStagingStatus();
+        mark('getStagingStatus selesai');
+        if (loadEpoch != _loadEpoch) return null;
+        return _LocalModelStatusSnapshot(
+          model: model,
+          background: background,
+          staging: staging,
+        );
+      });
+      if (snapshot == null) return;
       if (!mounted) return;
       setState(() {
-        _model = model;
-        _stagingStatus = staging;
-        _backgroundStatuses = background;
+        _model = snapshot.model;
+        _stagingStatus = snapshot.staging;
+        _backgroundStatuses = snapshot.background;
         _error = null;
         _loading = false;
       });
-    } on Object {
+      mark('setState selesai');
+    } catch (error, stackTrace) {
+      // Future.timeout tidak membatalkan platform/IO yang lama. Menambah epoch
+      // mencegah kelanjutan Future lama melakukan tahap impor berikutnya.
+      _loadEpoch++;
+      mark('gagal: $error');
+      await _recordLoadFailure(
+        error: error,
+        stackTrace: stackTrace,
+        trace: trace,
+      );
       if (!mounted) return;
       setState(() {
-        _model = null;
         _loading = false;
-        _error = 'Status model lokal belum dapat dibaca. Coba buka ulang halaman ini.';
+        _error = error is TimeoutException
+            ? 'Gagal memuat status dalam 10 detik. Tekan tombol Perbarui status download.'
+            : 'Status model lokal belum dapat dibaca. Tekan tombol Perbarui status download.';
       });
+    }
+  }
+
+  Future<void> _recordLoadFailure({
+    required Object error,
+    required StackTrace stackTrace,
+    required List<String> trace,
+  }) async {
+    try {
+      await getIt<AppDiagnosticsService>().recordException(
+        code: error is TimeoutException
+            ? 'SLM_STATUS_LOAD_TIMEOUT'
+            : 'SLM_STATUS_LOAD_FAILED',
+        feature: 'Status Model Asisten Lokal',
+        error: '$error\nTahap pemuatan:\n${trace.join('\n')}',
+        stackTrace: stackTrace,
+        impact: 'Halaman model menampilkan tindakan pemulihan; model dan data keuangan tidak diubah.',
+      );
+    } catch (diagnosticError) {
+      debugPrint(
+        '[SLM_STATUS_LOAD] gagal mencatat diagnostik: $diagnosticError',
+      );
     }
   }
 
@@ -393,7 +479,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           title: const Text('Model Asisten Lokal'),
           actions: [
             IconButton(
-              onPressed: _working ? null : _load,
+              onPressed: _working || _loadGate.isRunning ? null : _load,
               tooltip: 'Perbarui status',
               icon: const Icon(Icons.refresh_outlined),
             ),
@@ -514,7 +600,9 @@ class _LocalModelPageState extends State<LocalModelPage>
                               ),
                             ),
                           OutlinedButton.icon(
-                            onPressed: _working ? null : _load,
+                            onPressed: _working || _loadGate.isRunning
+                                ? null
+                                : _load,
                             icon: const Icon(Icons.refresh_outlined),
                             label: const Text('Perbarui status download'),
                           ),
@@ -668,4 +756,16 @@ class _LocalModelPageState extends State<LocalModelPage>
       ),
     );
   }
+}
+
+class _LocalModelStatusSnapshot {
+  const _LocalModelStatusSnapshot({
+    required this.model,
+    required this.background,
+    required this.staging,
+  });
+
+  final FfmLocalModelInfo? model;
+  final List<FfmBackgroundDownloadStatus> background;
+  final FfmStagingStatus staging;
 }

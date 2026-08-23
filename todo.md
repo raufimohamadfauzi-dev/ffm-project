@@ -216,3 +216,10 @@
 - [x] Petakan seluruh section dan fitur FFM ke katalog kemampuan/data terpusat dengan sinonim serta tipe pertanyaan dasar.
 - [x] Bangun handler generik untuk pertanyaan kemampuan, kelengkapan/status, dan daftar isi berbasis katalog.
 - [x] Tambahkan regresi katalog, validasi penuh, build APK patch, dan kemas source.
+
+# Pemulihan Spinner Model Asisten Lokal
+
+- [ ] Audit semua tahap `_load()`, timeout yang mungkin terjadi, dan pemanggilan lifecycle yang tumpang tindih.
+- [ ] Tambahkan pengunci pemuatan, batas waktu, error state yang selalu mematikan spinner, serta diagnostik aman.
+- [ ] Tambahkan regresi pemuatan sukses, timeout, error, dan resume lifecycle.
+- [ ] Jalankan validasi penuh, build APK patch, verifikasi rilis, dan kemas source.
