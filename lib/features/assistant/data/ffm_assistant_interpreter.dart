@@ -812,6 +812,9 @@ class FfmAssistantInterpreter {
         now: _clock(),
       );
       final financialContext = _financialSnapshot.buildBoundedPrompt(evidence);
+      final masterDataContext = await _financialSnapshot.buildMasterDataContext(
+        householdId: AppContext.householdId,
+      );
       final personalizationContext = await _personalization
           .buildPersonalizedContext(
             householdId: AppContext.householdId,
@@ -824,6 +827,7 @@ class FfmAssistantInterpreter {
         pageSummary: [
           if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
           financialContext,
+          masterDataContext,
         ].join('\\n'),
         capabilityIds: capabilityIds,
         approvedUserContext: userContext,

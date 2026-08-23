@@ -75,6 +75,29 @@ void main() {
               createdAt: now,
             ),
           );
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'seabank-context',
+              householdId: AppContext.householdId,
+              name: 'SeaBank',
+              type: 'bank',
+              openingBalance: const Value(987654),
+              createdAt: now,
+            ),
+          );
+      await database
+          .into(database.categories)
+          .insert(
+            CategoriesCompanion.insert(
+              id: 'food-context',
+              householdId: AppContext.householdId,
+              name: 'Belanja Pasar',
+              type: 'expense',
+              createdAt: now,
+            ),
+          );
 
       final gateway = _CapturingGateway();
       final interpreter = FfmAssistantInterpreter(
@@ -92,6 +115,11 @@ void main() {
       expect(gateway.pageContext, contains('income=8000000'));
       expect(gateway.pageContext, contains('expenses=3000000'));
       expect(gateway.pageContext, contains('quality=sufficient'));
+      expect(gateway.pageContext, contains('rekening_aktif=SeaBank'));
+      expect(gateway.pageContext, contains('kategori_aktif='));
+      expect(gateway.pageContext, contains('Belanja Pasar'));
+      expect(gateway.pageContext, contains('nama saja; tanpa saldo'));
+      expect(gateway.pageContext, isNot(contains('987654')));
       expect(gateway.pageContext, isNot(contains('Rahasia keluarga')));
     },
   );

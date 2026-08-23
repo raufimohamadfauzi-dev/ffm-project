@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -186,6 +187,20 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
     private fun backgroundFile(fileName: String): File? =
         backgroundFilePath(fileName)?.let(::File)
 
+    private fun fileFromDownloadManagerUri(rawUri: String?): File? {
+        if (rawUri.isNullOrBlank()) return null
+        return try {
+            val uri = Uri.parse(rawUri)
+            if (uri.scheme.equals("file", ignoreCase = true)) {
+                uri.path?.let(::File)
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     private fun backgroundBundleStatus(): List<Map<String, Any?>> {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
         val manager = downloadManager()
@@ -211,7 +226,26 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                     DownloadManager.STATUS_FAILED -> "failed"
                     else -> "unknown"
                 }
-                val file = backgroundFile(fileName)
+                // DownloadManager adalah sumber kebenaran untuk lokasi hasil
+                // unduhan. Path tujuan manual hanya fallback bila Android tidak
+                // dapat mengembalikan URI file yang dapat dibuka sebagai File.
+                val localUri = it.getString(it.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+                val uriFile = fileFromDownloadManagerUri(localUri)
+                val fallbackFile = backgroundFile(fileName)
+                val pathMismatch = uriFile != null && fallbackFile != null &&
+                    uriFile.absolutePath != fallbackFile.absolutePath
+                if (pathMismatch) {
+                    Log.w(
+                        "FFMModelDownload",
+                        "DownloadManager URI berbeda dari fallback untuk $fileName: ${uriFile.absolutePath} != ${fallbackFile.absolutePath}",
+                    )
+                }
+                val file = uriFile ?: fallbackFile
+                val pathSource = when {
+                    uriFile != null -> "download_manager_local_uri"
+                    fallbackFile != null -> "manual_destination_fallback"
+                    else -> "unavailable"
+                }
                 val diskBytes = if (file?.isFile == true) file.length() else null
                 val parentExists = file?.parentFile?.isDirectory
                 mapOf(
@@ -221,6 +255,9 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                     "receivedBytes" to received,
                     "totalBytes" to total,
                     "localPath" to file?.absolutePath,
+                    "downloadManagerUri" to localUri,
+                    "pathSource" to pathSource,
+                    "pathMismatch" to pathMismatch,
                     "diskBytes" to diskBytes,
                     "parentExists" to parentExists,
                     "reason" to if (state == "failed") "Kode DownloadManager $reason" else null,

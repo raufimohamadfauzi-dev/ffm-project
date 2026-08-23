@@ -89,6 +89,57 @@ class FfmAssistantFinancialSnapshotService {
         'Jika quality bukan sufficient, nyatakan keterbatasan data.';
   }
 
+  /// Daftar nama Data Utama untuk grounding SLM. Nilai saldo, ID, detail
+  /// rekening, dan data transaksi sengaja tidak pernah masuk ke prompt.
+  Future<String> buildMasterDataContext({
+    required String householdId,
+    int maxAccounts = 8,
+    int maxCategories = 16,
+    int maxCharacters = 520,
+  }) async {
+    final accounts =
+        await (_database.select(_database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final categories =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+
+    final accountNames = accounts.map((row) => row.name).toList()..sort();
+    final categoryNames = categories.map((row) => row.name).toList()..sort();
+    final context =
+        'Data Utama lokal (nama saja; tanpa saldo, ID, atau detail): '
+        'rekening_aktif=${_nameList(accountNames, maxAccounts)}; '
+        'kategori_aktif=${_nameList(categoryNames, maxCategories)}. '
+        'Gunakan hanya nama yang tercantum sebagai evidence; jangan membuat nama baru.';
+    return _clip(context, maxCharacters);
+  }
+
+  String _nameList(List<String> names, int limit) {
+    final cleaned = names
+        .map((name) => name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim())
+        .where((name) => name.isNotEmpty)
+        .toList(growable: false);
+    if (cleaned.isEmpty) return '(belum ada)';
+    final visible = cleaned.take(limit).join(', ');
+    return cleaned.length > limit
+        ? '$visible, … (+${cleaned.length - limit})'
+        : visible;
+  }
+
+  String _clip(String value, int maxCharacters) {
+    if (value.length <= maxCharacters) return value;
+    return '${value.substring(0, maxCharacters - 1)}…';
+  }
+
   String _monthLabel(int month) {
     const names = <String>[
       'Januari',

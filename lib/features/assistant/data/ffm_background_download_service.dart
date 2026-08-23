@@ -11,6 +11,9 @@ class FfmBackgroundDownloadStatus {
     this.receivedBytes = 0,
     this.totalBytes = 0,
     this.localPath,
+    this.downloadManagerUri,
+    this.pathSource,
+    this.pathMismatch = false,
     this.diskBytes,
     this.parentExists,
     this.reason,
@@ -22,6 +25,9 @@ class FfmBackgroundDownloadStatus {
   final int receivedBytes;
   final int totalBytes;
   final String? localPath;
+  final String? downloadManagerUri;
+  final String? pathSource;
+  final bool pathMismatch;
   final int? diskBytes;
   final bool? parentExists;
   final String? reason;
@@ -50,6 +56,9 @@ class FfmBackgroundDownloadStatus {
         receivedBytes: (map['receivedBytes'] as num?)?.toInt() ?? 0,
         totalBytes: (map['totalBytes'] as num?)?.toInt() ?? 0,
         localPath: map['localPath'] as String?,
+        downloadManagerUri: map['downloadManagerUri'] as String?,
+        pathSource: map['pathSource'] as String?,
+        pathMismatch: map['pathMismatch'] as bool? ?? false,
         diskBytes: (map['diskBytes'] as num?)?.toInt(),
         parentExists: map['parentExists'] as bool?,
         reason: map['reason'] as String?,

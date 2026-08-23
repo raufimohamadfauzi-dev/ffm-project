@@ -12,6 +12,9 @@ void main() {
       'receivedBytes': 100,
       'totalBytes': 100,
       'localPath': '/data/user/0/ffm/model.gguf',
+      'downloadManagerUri': 'file:///data/user/0/ffm/model.gguf',
+      'pathSource': 'download_manager_local_uri',
+      'pathMismatch': false,
       'diskBytes': 100,
       'parentExists': true,
     });
@@ -21,6 +24,9 @@ void main() {
     expect(status.isFailed, isFalse);
     expect(status.fraction, 1);
     expect(status.localPath, '/data/user/0/ffm/model.gguf');
+    expect(status.downloadManagerUri, 'file:///data/user/0/ffm/model.gguf');
+    expect(status.pathSource, 'download_manager_local_uri');
+    expect(status.pathMismatch, isFalse);
     expect(status.diskBytes, 100);
     expect(status.parentExists, isTrue);
   });
@@ -51,4 +57,21 @@ void main() {
     expect(status.isAlreadyInStaging(staging), isTrue);
     expect(status.needsStagingImport(staging), isFalse);
   });
+
+  test(
+    'metadata menandai fallback manual dan mismatch path untuk diagnostik',
+    () {
+      final status = FfmBackgroundDownloadStatus.fromMap({
+        'role': 'language_model',
+        'fileName': 'model.gguf',
+        'state': 'complete',
+        'localPath': '/fallback/model.gguf',
+        'pathSource': 'manual_destination_fallback',
+        'pathMismatch': true,
+      });
+
+      expect(status.pathSource, 'manual_destination_fallback');
+      expect(status.pathMismatch, isTrue);
+    },
+  );
 }
