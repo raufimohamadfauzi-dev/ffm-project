@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -182,8 +183,8 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
         appContext.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
             ?.let { java.io.File(it, "ffm_models/qwen2-vl/$fileName").absolutePath }
 
-    private fun backgroundFile(fileName: String): java.io.File? =
-        backgroundFilePath(fileName)?.let(::java.io.File)
+    private fun backgroundFile(fileName: String): File? =
+        backgroundFilePath(fileName)?.let(::File)
 
     private fun backgroundBundleStatus(): List<Map<String, Any?>> {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
