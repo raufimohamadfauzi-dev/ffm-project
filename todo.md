@@ -233,8 +233,8 @@
 
 # Path DownloadManager dan Konteks Data Utama SLM
 
-- [ ] Audit penggunaan `COLUMN_LOCAL_URI`, fallback path manual, dan diagnostik perbedaan path pada bridge Android.
-- [ ] Jadikan URI DownloadManager sebagai sumber path utama, dengan fallback yang aman bila URI tidak dapat dibuka.
-- [ ] Verifikasi katalog kemampuan/data generik yang sudah ada dan dokumentasikan cakupannya.
-- [ ] Tambahkan konteks privat nama rekening dan kategori aktif ke prompt SLM dengan batas jumlah/token.
-- [ ] Tambahkan regresi URI/path, katalog, konteks Data Utama, validasi penuh, dan build APK patch.
+- [x] Audit penggunaan `COLUMN_LOCAL_URI`, fallback path manual, dan diagnostik perbedaan path pada bridge Android.
+- [x] Jadikan URI DownloadManager sebagai sumber path utama, dengan fallback yang aman bila URI tidak dapat dibuka.
+- [x] Verifikasi katalog kemampuan/data generik yang sudah ada dan dokumentasikan cakupannya.
+- [x] Tambahkan konteks privat nama rekening dan kategori aktif ke prompt SLM dengan batas jumlah/token.
+- [x] Tambahkan regresi URI/path, katalog, konteks Data Utama, validasi penuh, dan build APK patch.
