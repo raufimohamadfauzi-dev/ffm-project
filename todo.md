@@ -226,7 +226,7 @@
 
 # SafeArea Indikator Asisten dan Spinner Perangkat
 
-- [ ] Audit AppShell tanpa AppBar untuk memastikan indikator tidak menabrak status bar pada notch maupun layar datar.
-- [ ] Terapkan SafeArea sisi atas tanpa mengubah posisi bottom navigation.
-- [ ] Audit ulang spinner perangkat setelah v72 dan tambahkan pemulihan untuk jalur yang masih dapat menggantung.
-- [ ] Tambahkan regresi layout dan pemulihan status, lalu validasi penuh serta build APK patch.
+- [x] Audit AppShell tanpa AppBar untuk memastikan indikator tidak menabrak status bar pada notch maupun layar datar.
+- [x] Terapkan SafeArea sisi atas tanpa mengubah posisi bottom navigation.
+- [x] Audit ulang spinner perangkat setelah v72 dan tambahkan pemulihan untuk jalur yang masih dapat menggantung.
+- [x] Tambahkan regresi layout dan pemulihan status, lalu validasi penuh serta build APK patch.
