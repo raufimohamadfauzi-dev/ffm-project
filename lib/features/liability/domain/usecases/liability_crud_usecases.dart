@@ -2,7 +2,14 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/di/injection.dart';
+import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../entities/liability_entity.dart';
+
+FfmAgentStatusController? _statusController() =>
+    getIt.isRegistered<FfmAgentStatusController>()
+    ? getIt<FfmAgentStatusController>()
+    : null;
 
 class GetLiabilities {
   const GetLiabilities(this.database);
@@ -43,6 +50,9 @@ class SaveLiability {
   final AppDatabase database;
 
   Future<void> call(LiabilityEntity entity) async {
+    _statusController()?.working(
+      'Menyimpan hutang dan memperbarui konteks asisten...',
+    );
     await database
         .into(database.liabilities)
         .insertOnConflictUpdate(
@@ -71,6 +81,7 @@ class SaveLiability {
         'remainingBalance': entity.remainingBalance,
       },
     );
+    _statusController()?.done('Hutang tersimpan; konteks asisten diperbarui.');
   }
 }
 
@@ -79,6 +90,7 @@ class DeleteLiability {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
+    _statusController()?.working('Mengarsipkan hutang...');
     await (database.update(database.liabilities)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -89,5 +101,6 @@ class DeleteLiability {
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
     );
+    _statusController()?.done('Hutang diarsipkan.');
   }
 }

@@ -13,6 +13,32 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
+  test('final transcript hanya diterima sekali per sesi', () {
+    final gate = ActivitySpeechFinalGate();
+    final session = gate.begin();
+
+    expect(
+      gate.accept(session: session, text: '  Catat kopi! ', isFinal: false),
+      isTrue,
+    );
+    expect(
+      gate.accept(session: session, text: 'Catat kopi!', isFinal: true),
+      isTrue,
+    );
+    expect(gate.acceptedFinalFingerprint, 'catat kopi');
+    expect(
+      gate.accept(session: session, text: 'catat kopi', isFinal: true),
+      isFalse,
+    );
+    expect(gate.accept(session: session, text: '   ', isFinal: true), isFalse);
+
+    gate.invalidate();
+    expect(
+      gate.accept(session: session, text: 'catat kopi', isFinal: true),
+      isFalse,
+    );
+  });
+
   test(
     'mengambil dan memilih suara lokal perangkat tanpa membaca data FFM',
     () async {

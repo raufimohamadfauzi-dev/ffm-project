@@ -2,7 +2,14 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/di/injection.dart';
+import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../entities/asset_entity.dart';
+
+FfmAgentStatusController? _statusController() =>
+    getIt.isRegistered<FfmAgentStatusController>()
+    ? getIt<FfmAgentStatusController>()
+    : null;
 
 class GetAssets {
   const GetAssets(this.database);
@@ -42,6 +49,9 @@ class SaveAsset {
   final AppDatabase database;
 
   Future<void> call(AssetEntity entity) async {
+    _statusController()?.working(
+      'Menyimpan aset dan memperbarui konteks asisten...',
+    );
     await database
         .into(database.assets)
         .insertOnConflictUpdate(
@@ -70,6 +80,7 @@ class SaveAsset {
         'placement': entity.placement,
       },
     );
+    _statusController()?.done('Aset tersimpan; konteks asisten diperbarui.');
   }
 }
 
@@ -78,6 +89,7 @@ class ArchiveAsset {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
+    _statusController()?.working('Mengarsipkan aset...');
     await (database.update(database.assets)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -93,5 +105,6 @@ class ArchiveAsset {
       householdId: householdId,
       newValue: {'id': id, 'isArchived': true},
     );
+    _statusController()?.done('Aset diarsipkan.');
   }
 }

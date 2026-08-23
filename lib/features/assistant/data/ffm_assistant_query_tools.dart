@@ -1,5 +1,7 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
+import '../domain/ffm_assistant_financial_analysis.dart';
+import 'ffm_assistant_financial_snapshot_service.dart';
 
 import 'package:drift/drift.dart';
 
@@ -45,8 +47,9 @@ class FfmAssistantQueryRegistry {
         _GoalStatusQueryTool(database),
         _DebtStatusQueryTool(database),
         _AssetSummaryQueryTool(database),
+        _LoanAffordabilityQueryTool(database),
+        _PersonalProfileQueryTool(database),
       ];
-
   final DateTime Function() _clock;
   final List<FfmAssistantQueryTool> _tools;
 
@@ -264,12 +267,50 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
       normalizedText.contains('aktivitas aktif') ||
       normalizedText.contains('lagi apa') ||
       normalizedText.contains('sedang apa') ||
-      normalizedText.contains('aktivitas berjalan');
+      normalizedText.contains('aktivitas berjalan') ||
+      normalizedText.contains('riwayat aktivitas') ||
+      normalizedText.contains('kebiasaan kegiatan') ||
+      normalizedText.contains('kegiatan saya');
 
   @override
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
+    final isAskingHistory =
+        request.normalizedText.contains('riwayat') ||
+        request.normalizedText.contains('kebiasaan') ||
+        request.normalizedText.contains('kegiatan saya');
+
+    if (isAskingHistory) {
+      final history =
+          await (_database.select(_database.activityEntries)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(request.householdId) &
+                      row.isArchived.equals(false),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+                ..limit(5))
+              .get();
+      if (history.isEmpty) {
+        return const FfmAssistantQueryAnswer(
+          title: 'Riwayat Aktivitas',
+          message: 'Belum ada riwayat aktivitas atau jurnal yang tersimpan.',
+        );
+      }
+      final buffer = StringBuffer();
+      buffer.writeln('Ini 5 riwayat aktivitas terakhirmu:');
+      for (final entry in history) {
+        final date =
+            '${entry.startedAt.day}/${entry.startedAt.month}/${entry.startedAt.year}';
+        buffer.writeln('- $date: ${entry.title} (${entry.activityType})');
+      }
+      return FfmAssistantQueryAnswer(
+        title: 'Riwayat Aktivitas',
+        message: buffer.toString(),
+      );
+    }
+
     final rows =
         await (_database.select(_database.activitySessions)
               ..where(
@@ -453,4 +494,173 @@ String _duration(Duration value) {
     return '${value.inHours} jam ${value.inMinutes.remainder(60)} menit';
   }
   return '${value.inMinutes} menit';
+}
+
+class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
+  _LoanAffordabilityQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final asksDebt =
+        normalizedText.contains('pinjam') ||
+        normalizedText.contains('cicil') ||
+        normalizedText.contains('kredit') ||
+        normalizedText.contains('utang') ||
+        normalizedText.contains('hutang');
+    final asksAssessment =
+        normalizedText.contains('kemampuan') ||
+        normalizedText.contains('bisa') ||
+        normalizedText.contains('aman') ||
+        normalizedText.contains('maksimal') ||
+        normalizedText.contains('layak') ||
+        normalizedText.contains('sanggup') ||
+        normalizedText.contains('berapa');
+    return asksDebt && asksAssessment;
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final evidence = await FfmAssistantFinancialSnapshotService(_database)
+        .readCurrentMonth(householdId: request.householdId, now: request.now);
+    final analysis = FfmAssistantLoanAffordabilityAnalysis.calculate(
+      evidence: evidence,
+    );
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Kemampuan Pinjaman',
+      message: _formatAnalysis(analysis),
+    );
+  }
+
+  String _formatAnalysis(FfmAssistantLoanAffordabilityAnalysis analysis) {
+    final evidence = analysis.evidence;
+    final buffer = StringBuffer()
+      ..writeln('Status: ${analysis.qualityLabel}.')
+      ..writeln('Periode: ${evidence.periodLabel}.')
+      ..writeln('Pemasukan tercatat: ${_rupiah(evidence.income)}.')
+      ..writeln('Pengeluaran tercatat: ${_rupiah(evidence.expenses)}.')
+      ..writeln(
+        'Cicilan aktif: ${_rupiah(evidence.currentInstallments)} '
+        '(${evidence.activeLiabilityCount} kewajiban).',
+      );
+
+    if (!analysis.hasEnoughData) {
+      buffer
+        ..writeln()
+        ..writeln(
+          'Belum ada dasar data yang cukup untuk menilai kemampuan pinjaman secara personal.',
+        )
+        ..writeln(analysis.reason)
+        ..writeln(
+          'Secara edukatif, total cicilan baru dan lama sebaiknya dijaga maksimal sekitar 30% dari pemasukan bulanan, tetapi angka ini bukan persetujuan kredit.',
+        )
+        ..writeln(
+          'Saran: catat pemasukan dan pengeluaran rutin di FFM selama beberapa periode, lalu evaluasi kembali dari Ringkasan dan Analisis.',
+        );
+      return buffer.toString();
+    }
+
+    buffer
+      ..writeln(
+        'Cashflow sebelum cicilan: ${_rupiah(evidence.cashflowBeforeDebt)}.',
+      )
+      ..writeln(
+        'Cashflow setelah cicilan aktif: ${_rupiah(evidence.cashflowAfterDebt)}.',
+      )
+      ..writeln(
+        'Batas total cicilan konservatif (30% pemasukan): ${_rupiah(analysis.safeDebtServiceLimit)}.',
+      )
+      ..writeln(
+        'Sisa ruang berdasarkan batas cicilan: ${_rupiah(analysis.remainingDebtServiceCapacity)}.',
+      )
+      ..writeln(
+        'Sisa ruang berdasarkan cashflow: ${_rupiah(analysis.cashflowCapacity)}.',
+      )
+      ..writeln();
+
+    if (analysis.shouldAvoidNewLoan) {
+      buffer
+        ..writeln('Saran utama: **jangan menambah pinjaman baru dulu**.')
+        ..writeln(analysis.reason)
+        ..writeln(
+          'Prioritaskan menstabilkan cashflow, meninjau pengeluaran, dan mengecek kewajiban aktif di halaman Liabilities.',
+        );
+    } else {
+      buffer
+        ..writeln(
+          'Estimasi cicilan baru konservatif: maksimal ${_rupiah(analysis.recommendedNewInstallment)} per bulan.',
+        )
+        ..writeln(
+          'Angka ini adalah batas internal untuk simulasi, bukan nominal pinjaman pokok. Untuk menghitung pokok pinjaman diperlukan bunga, biaya, dan tenor nyata dari pemberi pinjaman.',
+        )
+        ..writeln(
+          'Sebelum mengambil keputusan, sisakan dana kebutuhan rutin dan dana darurat; jangan menganggap piutang sebagai kas sampai benar-benar diterima.',
+        );
+    }
+
+    buffer
+      ..writeln()
+      ..writeln('Asumsi: ${analysis.assumptions.join(' ')}')
+      ..writeln(
+        'Catatan: hasil ini adalah analisis berbasis data lokal FFM, bukan persetujuan kredit atau jaminan pinjaman aman.',
+      );
+    return buffer.toString();
+  }
+}
+
+class _PersonalProfileQueryTool implements FfmAssistantQueryTool {
+  const _PersonalProfileQueryTool(this.database);
+  final AppDatabase database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return RegExp(
+      r'\b(profil|pekerjaan|rutinitas|tujuan|kebiasaan|identitas|siapa saya|tentang saya|mengenal saya)\b',
+    ).hasMatch(normalizedText);
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final prefs =
+        await (database.select(database.userPreferences)
+              ..where((row) => row.householdId.equals(request.householdId)))
+            .get();
+    if (prefs.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Profil Pribadi',
+        message:
+            'Aku belum punya catatan tentang profil, rutinitas, atau kebiasaanmu. Kamu bisa mengisinya di menu Lainnya > Profil Personalisasi Asisten > Kenalkan Diri.',
+      );
+    }
+
+    final values = <String, String>{
+      for (final p in prefs) p.preferenceKey: p.preferenceValue,
+    };
+    final name = values['profile_name'] ?? 'Belum diisi';
+    final occupation = values['profile_occupation'] ?? 'Belum diisi';
+    final routine = values['profile_routine'] ?? 'Belum diisi';
+    final goals = values['profile_goals'] ?? 'Belum diisi';
+
+    final buffer = StringBuffer();
+    buffer.writeln('Berdasarkan catatan perkenalan dirimu:');
+    buffer.writeln('- Nama/Panggilan: $name');
+    buffer.writeln('- Pekerjaan/Peran: $occupation');
+    buffer.writeln('- Rutinitas Penting: $routine');
+    buffer.writeln('- Tujuan/Prioritas: $goals');
+    buffer.writeln();
+    buffer.write(
+      'Informasi ini aku pakai untuk menyesuaikan jawaban dan saran, tanpa melatih ulang model AI.',
+    );
+
+    return FfmAssistantQueryAnswer(
+      title: 'Profil & Kebiasaan',
+      message: buffer.toString(),
+    );
+  }
 }

@@ -78,8 +78,8 @@ class _ReceiptJsonImportPageState extends State<ReceiptJsonImportPage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             const AppHelpBanner(
-              title: 'Masukkan hasil JSON dari LLM',
-              message: 'Kirim foto nota atau teks mutasi ke LLM pilihanmu, lalu minta hasil JSON FFM. Di sini kamu hanya tempel atau pilih file JSON. FFM tidak membaca foto dan tidak menyimpan transaksi otomatis.',
+              title: 'Masukkan hasil JSON transaksi',
+              message: 'Jika SLM lokal Qwen2-VL sudah siap, foto nota atau teks mutasi dapat dipahami dari Asisten. AI eksternal juga opsional. Di sini kamu menempel atau memilih file JSON untuk ditinjau; FFM tidak menyimpan transaksi otomatis.',
               icon: Icons.data_object_rounded,
             ),
             const SizedBox(height: 16),

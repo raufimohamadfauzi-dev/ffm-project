@@ -148,7 +148,6 @@ void main() {
 
       final proposal = await gateway.propose(
         input: 'pemasukan 30 ribu ke SeaBank Pribadi',
-        knownAccountNames: const ['SeaBank Pribadi'],
       );
       final intent = await interpreter.interpret(
         'pemasukan 30 ribu ke SeaBank Pribadi',

@@ -132,3 +132,19 @@
 - [x] Baca dan nilai rekomendasi dokumen terhadap kontrak offline-first, data lokal, serta alur draf-konfirmasi FFM.
 - [x] Terapkan hanya rekomendasi yang relevan, terukur, dan aman tanpa mengaktifkan cloud atau simpan otomatis.
 - [x] Tambahkan regresi, validasi penuh, dan kemas artefak bila ada perubahan kode.
+
+# Fondasi ZIP Terbaru dan Qwen2-VL Offline
+
+- [ ] Inventarisasi ZIP `FFM-af35a82-v08.zip` dan dua dokumen pelengkap tanpa menimpa proyek aktif.
+- [ ] Bandingkan struktur, commit, konfigurasi build, database, serta aturan keamanan ZIP terbaru terhadap fondasi FFM aktif.
+- [ ] Lengkapi dan buktikan seluruh gerbang Fase 0: release asset, ukuran byte, hash, header GGUF, ABI, lisensi, dan kompatibilitas `llama.cpp`.
+- [ ] Konsolidasikan spesifikasi model, penyimpanan/impor lokal, orkestrator single-shot, fallback rule-based, dan test case terukur.
+- [ ] Minta persetujuan fondasi final sebelum menulis kode Fase 1.
+
+# Pemulihan Unduhan Model Qwen2-VL
+
+- [x] Hentikan build audit yang tidak diminta; jangan buat APK debug atau release untuk pekerjaan ini.
+- [x] Telusuri kegagalan DNS/host `github.com`, perilaku resume, dan pesan pemulihan tanpa melemahkan verifikasi ukuran, hash, atau header GGUF.
+- [x] Pastikan impor bundle offline tetap menjadi jalur setara saat jaringan perangkat tidak tersedia.
+- [x] Tambahkan regresi untuk kegagalan DNS, retry eksplisit, resume aman, dan tidak adanya unduhan otomatis.
+- [ ] Validasi source tanpa build APK, lalu buat ZIP source terbaru setelah perbaikan selesai.

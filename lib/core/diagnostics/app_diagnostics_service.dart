@@ -84,12 +84,81 @@ class AppDiagnosticsService {
        _clock = clock ?? DateTime.now;
 
   static const _entriesKey = 'entries.v1';
+  static const _startupKey = 'startup.v1';
   static const maxEntries = 20;
   static const _maxSummaryLength = 300;
   static const _maxStackLength = 1800;
 
   final FfmDiagnosticsStore _store;
   final DateTime Function() _clock;
+
+  Future<void> markStartupStarted({required String phase}) async {
+    try {
+      await _store.write(
+        _startupKey,
+        jsonEncode({
+          'status': 'started',
+          'phase': _sanitize(phase, limit: 80),
+          'startedAt': _clock().toIso8601String(),
+        }),
+      );
+    } catch (_) {
+      // Startup marker bersifat best effort.
+    }
+  }
+
+  Future<void> markStartupPhase(String phase) async {
+    try {
+      final marker = await readStartupMarker() ?? <String, String>{};
+      marker['status'] = 'started';
+      marker['phase'] = _sanitize(phase, limit: 80);
+      marker['updatedAt'] = _clock().toIso8601String();
+      await _store.write(_startupKey, jsonEncode(marker));
+    } catch (_) {
+      // Startup marker bersifat best effort.
+    }
+  }
+
+  Future<void> markStartupComplete() async {
+    try {
+      await _store.write(
+        _startupKey,
+        jsonEncode({
+          'status': 'complete',
+          'phase': 'first_frame',
+          'completedAt': _clock().toIso8601String(),
+        }),
+      );
+    } catch (_) {
+      // Startup marker bersifat best effort.
+    }
+  }
+
+  Future<Map<String, String>?> readStartupMarker() async {
+    try {
+      final content = await _store.read(_startupKey);
+      if (content == null || content.trim().isEmpty) return null;
+      final decoded = jsonDecode(content);
+      if (decoded is! Map) return null;
+      return decoded.map(
+        (key, value) => MapEntry(key.toString(), value.toString()),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> recordInterruptedStartupIfNeeded() async {
+    final marker = await readStartupMarker();
+    if (marker?['status'] != 'started') return;
+    await recordException(
+      code: 'STARTUP_INTERRUPTED',
+      feature: 'Bootstrap aplikasi',
+      error:
+          'Startup sebelumnya berhenti pada fase ${marker?['phase'] ?? 'tidak diketahui'}.',
+      impact: 'Aplikasi berhasil dibuka kembali; periksa Bantuan perbaikan bila masalah berulang.',
+    );
+  }
 
   Future<void> recordException({
     required String code,

@@ -12,11 +12,12 @@ import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import java.util.Locale
 import androidx.core.content.ContextCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import com.ffm_manager.FfmLocalModelBridgePlugin
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingWidgetAction: String? = null
     private var widgetChannel: MethodChannel? = null
@@ -30,6 +31,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        flutterEngine.plugins.add(FfmLocalModelBridgePlugin())
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale("id", "ID")
@@ -59,11 +61,22 @@ class MainActivity : FlutterActivity() {
             WIDGET_CHANNEL,
         ).also { channel ->
             channel.setMethodCallHandler { call, result ->
-                if (call.method == "consumePendingAction") {
-                    result.success(pendingWidgetAction)
-                    pendingWidgetAction = null
-                } else {
-                    result.notImplemented()
+                when (call.method) {
+                    "consumePendingAction" -> {
+                        result.success(pendingWidgetAction)
+                        pendingWidgetAction = null
+                    }
+                    "updateWidgetState" -> {
+                        val title = call.argument<String>("title").orEmpty().trim()
+                        val subtitle = call.argument<String>("subtitle").orEmpty().trim()
+                        if (title.isBlank() || subtitle.isBlank()) {
+                            result.success(false)
+                        } else {
+                            FfmWidgetProvider.updateState(this, title, subtitle)
+                            result.success(true)
+                        }
+                    }
+                    else -> result.notImplemented()
                 }
             }
         }

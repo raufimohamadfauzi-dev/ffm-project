@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
@@ -130,68 +132,71 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Log aktivitas'),
-        actions: [
-          IconButton(
-            tooltip: 'Muat ulang',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-          children: [
-            const AppHelpBanner(
-              title: 'Jejak perubahan keluarga',
-              message: 'Di sini kamu bisa melihat perubahan penting seperti transaksi, transfer, impor, dan rekonsiliasi. Nilai rahasia seperti PIN atau kredensial tidak ditampilkan.',
-              icon: Icons.history,
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.activityLog,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Log aktivitas'),
+          actions: [
+            IconButton(
+              tooltip: 'Muat ulang',
+              onPressed: _loading ? null : _load,
+              icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(height: 16),
-            _buildFilters(),
-            const SizedBox(height: 16),
-            if (_loading)
-              const Padding(
-                padding: EdgeInsets.all(32),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error != null)
-              AppCard(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.error_outline),
-                  title: Text(_error!),
-                  trailing: TextButton(
-                    onPressed: _load,
-                    child: const Text('Coba lagi'),
-                  ),
-                ),
-              )
-            else if (_logs.isEmpty)
-              const AppCard(
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.inbox_outlined),
-                  title: Text('Belum ada aktivitas penting'),
-                  subtitle: Text(
-                    'Setelah kamu menambah transaksi atau melakukan rekonsiliasi, jejaknya akan muncul di sini.',
-                  ),
-                ),
-              )
-            else ...[
-              Text(
-                '${_logs.length} aktivitas ditemukan',
-                style: const TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              for (final log in _logs) _buildLogCard(log),
-            ],
           ],
+        ),
+        body: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
+            children: [
+              const AppHelpBanner(
+                title: 'Jejak perubahan keluarga',
+                message: 'Di sini kamu bisa melihat perubahan penting seperti transaksi, transfer, impor, dan rekonsiliasi. Nilai rahasia seperti PIN atau kredensial tidak ditampilkan.',
+                icon: Icons.history,
+              ),
+              const SizedBox(height: 16),
+              _buildFilters(),
+              const SizedBox(height: 16),
+              if (_loading)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (_error != null)
+                AppCard(
+                  color: Theme.of(context).colorScheme.errorContainer,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.error_outline),
+                    title: Text(_error!),
+                    trailing: TextButton(
+                      onPressed: _load,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ),
+                )
+              else if (_logs.isEmpty)
+                const AppCard(
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.inbox_outlined),
+                    title: Text('Belum ada aktivitas penting'),
+                    subtitle: Text(
+                      'Setelah kamu menambah transaksi atau melakukan rekonsiliasi, jejaknya akan muncul di sini.',
+                    ),
+                  ),
+                )
+              else ...[
+                Text(
+                  '${_logs.length} aktivitas ditemukan',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                for (final log in _logs) _buildLogCard(log),
+              ],
+            ],
+          ),
         ),
       ),
     );

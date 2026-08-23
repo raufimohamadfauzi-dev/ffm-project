@@ -551,7 +551,7 @@ class _ActivityViewState extends State<_ActivityView>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Aktivitas & waktu'),
+          title: const Text('Aktivitas & Jurnal'),
           actions: [
             IconButton(
               tooltip: 'Cara kerja aktivitas',

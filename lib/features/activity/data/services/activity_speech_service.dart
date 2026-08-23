@@ -10,6 +10,7 @@ class ActivitySpeechService {
   }
 
   final SpeechToText _recognizer;
+  final ActivitySpeechFinalGate _finalGate = ActivitySpeechFinalGate();
   static const _ttsChannel = MethodChannel('ffm/activity_speech');
   static final _ttsStates =
       StreamController<ActivitySpeechPlaybackState>.broadcast();
@@ -40,9 +41,18 @@ class ActivitySpeechService {
     required void Function(String text, bool isFinal) onResult,
     void Function(double level)? onSoundLevel,
   }) async {
+    final session = _finalGate.begin();
     await _recognizer.listen(
-      onResult: (result) =>
-          onResult(result.recognizedWords, result.finalResult),
+      onResult: (result) {
+        if (!_finalGate.accept(
+          session: session,
+          text: result.recognizedWords,
+          isFinal: result.finalResult,
+        )) {
+          return;
+        }
+        onResult(result.recognizedWords, result.finalResult);
+      },
       onSoundLevelChange: onSoundLevel,
       listenOptions: SpeechListenOptions(
         partialResults: true,
@@ -54,9 +64,15 @@ class ActivitySpeechService {
     );
   }
 
-  Future<void> stop() => _recognizer.stop();
+  Future<void> stop() async {
+    _finalGate.invalidate();
+    await _recognizer.stop();
+  }
 
-  Future<void> cancel() => _recognizer.cancel();
+  Future<void> cancel() async {
+    _finalGate.invalidate();
+    await _recognizer.cancel();
+  }
 
   Future<String?> speak(String text) async {
     if (text.trim().isEmpty) return null;
@@ -99,6 +115,49 @@ class ActivitySpeechService {
   Future<bool> selectVoice(String name) async =>
       await _ttsChannel.invokeMethod<bool>('selectVoice', {'name': name}) ??
       false;
+}
+
+class ActivitySpeechFinalGate {
+  int _generation = 0;
+  int? _acceptedFinalGeneration;
+  String? _acceptedFinalFingerprint;
+
+  int begin() {
+    _generation += 1;
+    _acceptedFinalGeneration = null;
+    _acceptedFinalFingerprint = null;
+    return _generation;
+  }
+
+  bool accept({
+    required int session,
+    required String text,
+    required bool isFinal,
+  }) {
+    if (session != _generation) return false;
+    if (!isFinal) return true;
+    final fingerprint = _canonicalize(text);
+    if (fingerprint.isEmpty || _acceptedFinalGeneration == session) {
+      return false;
+    }
+    _acceptedFinalGeneration = session;
+    _acceptedFinalFingerprint = fingerprint;
+    return true;
+  }
+
+  String? get acceptedFinalFingerprint => _acceptedFinalFingerprint;
+
+  String _canonicalize(String value) => value
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+
+  void invalidate() {
+    _generation += 1;
+    _acceptedFinalGeneration = null;
+    _acceptedFinalFingerprint = null;
+  }
 }
 
 class ActivitySpeechVoice {

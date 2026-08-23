@@ -2,6 +2,13 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../../core/di/injection.dart';
+import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
+
+FfmAgentStatusController? _statusController() =>
+    getIt.isRegistered<FfmAgentStatusController>()
+    ? getIt<FfmAgentStatusController>()
+    : null;
 
 class GetRecurringTransactions {
   const GetRecurringTransactions(this.database);
@@ -37,6 +44,9 @@ class CreateRecurringTransaction {
     String calcMode = 'fixed',
     double? ratePercent,
   }) async {
+    _statusController()?.working(
+      'Menyimpan pemasukan berkala dan memperbarui konteks asisten...',
+    );
     _validateCalculation(calcMode, amount, ratePercent, accountId);
     final id = _newId('rutin');
     await database
@@ -75,6 +85,9 @@ class CreateRecurringTransaction {
         'accountId': accountId,
       },
     );
+    _statusController()?.done(
+      'Pemasukan berkala tersimpan; konteks asisten diperbarui.',
+    );
     return id;
   }
 }
@@ -99,6 +112,7 @@ class UpdateRecurringTransaction {
     String calcMode = 'fixed',
     double? ratePercent,
   }) async {
+    _statusController()?.working('Memperbarui pemasukan berkala...');
     _validateCalculation(calcMode, amount, ratePercent, accountId);
     await (database.update(database.recurringTransactions)..where(
           (row) => row.id.equals(id) & row.householdId.equals(householdId),
@@ -134,6 +148,7 @@ class UpdateRecurringTransaction {
         'accountId': accountId,
       },
     );
+    _statusController()?.done('Pemasukan berkala diperbarui.');
   }
 }
 
@@ -164,6 +179,7 @@ class ArchiveRecurringTransaction {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
+    _statusController()?.working('Mengarsipkan pemasukan berkala...');
     await (database.update(database.recurringTransactions)..where(
           (row) => row.id.equals(id) & row.householdId.equals(householdId),
         ))
@@ -174,6 +190,7 @@ class ArchiveRecurringTransaction {
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
     );
+    _statusController()?.done('Pemasukan berkala diarsipkan.');
   }
 }
 

@@ -17,6 +17,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../advisor/domain/usecases/financial_health_calculator.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../liability/domain/usecases/liability_crud_usecases.dart';
@@ -53,6 +54,7 @@ class _BackupPageState extends State<BackupPage> {
   var _studioAnonymizeAmounts = false;
   var _studioReportStyle = 'pembelajaran keluarga';
   var _studioAiOutput = '';
+  var _exportIncludeChatHistory = false;
 
   JsonBackupService get _service => getIt<JsonBackupService>();
   DataExportService get _smartExport => getIt<DataExportService>();
@@ -422,7 +424,7 @@ class _BackupPageState extends State<BackupPage> {
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
-          text: 'Laporan HTML hasil Gemini/Claude dari FFM.',
+          text: 'Laporan HTML hasil AI eksternal dari FFM.',
         ),
       );
       if (!mounted) return;
@@ -450,7 +452,7 @@ class _BackupPageState extends State<BackupPage> {
       document.addPage(
         pw.MultiPage(
           build: (context) => [
-            pw.Text('Laporan FFM dari Gemini/Claude'),
+            pw.Text('Laporan FFM dari AI eksternal'),
             pw.SizedBox(height: 12),
             pw.Text(plainText),
           ],
@@ -541,7 +543,22 @@ class _BackupPageState extends State<BackupPage> {
   Future<void> _exportFullBackup() async {
     setState(() => _working = true);
     try {
-      final content = await _service.exportJson();
+      final historyRepo = FfmAssistantChatHistoryRepository();
+      final historyRows = await historyRepo.readRaw();
+      // Filter path gambar jika ada, karena file tidak disalin
+      final filteredHistory = historyRows
+          .map((row) {
+            final mutable = Map<String, Object?>.of(row);
+            mutable.remove('imagePath');
+            return mutable;
+          })
+          .toList(growable: false);
+      final content = await _service.exportJson(
+        assistantChatHistory:
+            _exportIncludeChatHistory && filteredHistory.isNotEmpty
+            ? filteredHistory
+            : null,
+      );
       final directory = await getApplicationDocumentsDirectory();
       final stamp = _fileStamp(DateTime.now());
       final file = File('${directory.path}/ffm-cadangan-penuh-$stamp.json');
@@ -610,7 +627,12 @@ class _BackupPageState extends State<BackupPage> {
       final confirmed = await _showRestorePreview(preview);
       if (!confirmed || !mounted) return;
       setState(() => _working = true);
-      await _service.importAndRestore(path);
+      await _service.importAndRestore(
+        path,
+        onRestoreChatHistory: (rows) async {
+          await FfmAssistantChatHistoryRepository().importRaw(rows);
+        },
+      );
       if (!mounted) return;
       setState(
         () => _lastMessage = 'Data berhasil dipulihkan. Semua data lokal sudah diganti sesuai cadangan.',
@@ -765,6 +787,20 @@ class _BackupPageState extends State<BackupPage> {
               label: const Text('Ekspor JSON analisa AI (bukan backup)'),
             ),
             const SizedBox(height: 10),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _exportIncludeChatHistory,
+              onChanged: _working
+                  ? null
+                  : (value) => setState(
+                      () => _exportIncludeChatHistory = value ?? false,
+                    ),
+              title: const Text('Sertakan riwayat obrolan Asisten'),
+              subtitle: const Text(
+                'Opsional. Gambar yang dikirim tidak akan ikut dicadangkan.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
             OutlinedButton.icon(
               onPressed: _working ? null : _exportFullBackup,
               icon: const Icon(Icons.backup_outlined),
@@ -959,7 +995,7 @@ class _BackupPageState extends State<BackupPage> {
             ),
             const SizedBox(height: 18),
             const AppSectionHeader(
-              title: 'JSON Export Studio untuk Gemini/Claude',
+              title: 'JSON Export Studio untuk AI eksternal',
             ),
             const SizedBox(height: 8),
             AppCard(
@@ -1079,7 +1115,9 @@ class _BackupPageState extends State<BackupPage> {
               ),
             ),
             const SizedBox(height: 18),
-            const AppSectionHeader(title: 'Masukkan hasil dari Gemini/Claude'),
+            const AppSectionHeader(
+              title: 'Masukkan hasil dari AI eksternal (opsional)',
+            ),
             const SizedBox(height: 8),
             AppCard(
               child: Column(

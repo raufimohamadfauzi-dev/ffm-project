@@ -506,6 +506,48 @@ class AssistantLearningExamples extends Table {
 ///
 /// Teks sudah disanitasi sebelum disimpan. Antrean ini bukan riwayat chat,
 /// tidak berisi jawaban LLM, dan hanya dipakai untuk menyiapkan pelatihan.
+/// Koreksi user terhadap nilai yang diusulkan SLM. Teks disimpan sebagai
+/// nilai terstruktur, bukan riwayat percakapan mentah.
+class UserCorrections extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get merchantName => text()();
+  TextColumn get fieldName => text()();
+  TextColumn get slmValue => text().nullable()();
+  TextColumn get correctedValue => text()();
+  DateTimeColumn get timestamp => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Preferensi eksplisit yang ditetapkan user, terpisah dari observasi transaksi.
+class UserPreferences extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get preferenceKey => text()();
+  TextColumn get preferenceValue => text()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Ringkasan deterministik dari koreksi user, bukan hasil training model.
+class InteractionPatterns extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get merchantName => text()();
+  TextColumn get fieldName => text()();
+  TextColumn get mostCommonValue => text()();
+  RealColumn get confidenceScore => real()();
+  IntColumn get sampleCount => integer()();
+  DateTimeColumn get lastUpdated => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AssistantUnansweredQuestions extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

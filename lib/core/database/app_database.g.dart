@@ -19073,6 +19073,1407 @@ class AssistantUnansweredQuestionsCompanion
   }
 }
 
+class $UserCorrectionsTable extends UserCorrections
+    with TableInfo<$UserCorrectionsTable, UserCorrection> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserCorrectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _merchantNameMeta = const VerificationMeta(
+    'merchantName',
+  );
+  @override
+  late final GeneratedColumn<String> merchantName = GeneratedColumn<String>(
+    'merchant_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fieldNameMeta = const VerificationMeta(
+    'fieldName',
+  );
+  @override
+  late final GeneratedColumn<String> fieldName = GeneratedColumn<String>(
+    'field_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _slmValueMeta = const VerificationMeta(
+    'slmValue',
+  );
+  @override
+  late final GeneratedColumn<String> slmValue = GeneratedColumn<String>(
+    'slm_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _correctedValueMeta = const VerificationMeta(
+    'correctedValue',
+  );
+  @override
+  late final GeneratedColumn<String> correctedValue = GeneratedColumn<String>(
+    'corrected_value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _timestampMeta = const VerificationMeta(
+    'timestamp',
+  );
+  @override
+  late final GeneratedColumn<DateTime> timestamp = GeneratedColumn<DateTime>(
+    'timestamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    merchantName,
+    fieldName,
+    slmValue,
+    correctedValue,
+    timestamp,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_corrections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UserCorrection> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('merchant_name')) {
+      context.handle(
+        _merchantNameMeta,
+        merchantName.isAcceptableOrUnknown(
+          data['merchant_name']!,
+          _merchantNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_merchantNameMeta);
+    }
+    if (data.containsKey('field_name')) {
+      context.handle(
+        _fieldNameMeta,
+        fieldName.isAcceptableOrUnknown(data['field_name']!, _fieldNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fieldNameMeta);
+    }
+    if (data.containsKey('slm_value')) {
+      context.handle(
+        _slmValueMeta,
+        slmValue.isAcceptableOrUnknown(data['slm_value']!, _slmValueMeta),
+      );
+    }
+    if (data.containsKey('corrected_value')) {
+      context.handle(
+        _correctedValueMeta,
+        correctedValue.isAcceptableOrUnknown(
+          data['corrected_value']!,
+          _correctedValueMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_correctedValueMeta);
+    }
+    if (data.containsKey('timestamp')) {
+      context.handle(
+        _timestampMeta,
+        timestamp.isAcceptableOrUnknown(data['timestamp']!, _timestampMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_timestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserCorrection map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserCorrection(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      merchantName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merchant_name'],
+      )!,
+      fieldName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_name'],
+      )!,
+      slmValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}slm_value'],
+      ),
+      correctedValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}corrected_value'],
+      )!,
+      timestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}timestamp'],
+      )!,
+    );
+  }
+
+  @override
+  $UserCorrectionsTable createAlias(String alias) {
+    return $UserCorrectionsTable(attachedDatabase, alias);
+  }
+}
+
+class UserCorrection extends DataClass implements Insertable<UserCorrection> {
+  final String id;
+  final String householdId;
+  final String merchantName;
+  final String fieldName;
+  final String? slmValue;
+  final String correctedValue;
+  final DateTime timestamp;
+  const UserCorrection({
+    required this.id,
+    required this.householdId,
+    required this.merchantName,
+    required this.fieldName,
+    this.slmValue,
+    required this.correctedValue,
+    required this.timestamp,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['merchant_name'] = Variable<String>(merchantName);
+    map['field_name'] = Variable<String>(fieldName);
+    if (!nullToAbsent || slmValue != null) {
+      map['slm_value'] = Variable<String>(slmValue);
+    }
+    map['corrected_value'] = Variable<String>(correctedValue);
+    map['timestamp'] = Variable<DateTime>(timestamp);
+    return map;
+  }
+
+  UserCorrectionsCompanion toCompanion(bool nullToAbsent) {
+    return UserCorrectionsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      merchantName: Value(merchantName),
+      fieldName: Value(fieldName),
+      slmValue: slmValue == null && nullToAbsent
+          ? const Value.absent()
+          : Value(slmValue),
+      correctedValue: Value(correctedValue),
+      timestamp: Value(timestamp),
+    );
+  }
+
+  factory UserCorrection.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserCorrection(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      merchantName: serializer.fromJson<String>(json['merchantName']),
+      fieldName: serializer.fromJson<String>(json['fieldName']),
+      slmValue: serializer.fromJson<String?>(json['slmValue']),
+      correctedValue: serializer.fromJson<String>(json['correctedValue']),
+      timestamp: serializer.fromJson<DateTime>(json['timestamp']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'merchantName': serializer.toJson<String>(merchantName),
+      'fieldName': serializer.toJson<String>(fieldName),
+      'slmValue': serializer.toJson<String?>(slmValue),
+      'correctedValue': serializer.toJson<String>(correctedValue),
+      'timestamp': serializer.toJson<DateTime>(timestamp),
+    };
+  }
+
+  UserCorrection copyWith({
+    String? id,
+    String? householdId,
+    String? merchantName,
+    String? fieldName,
+    Value<String?> slmValue = const Value.absent(),
+    String? correctedValue,
+    DateTime? timestamp,
+  }) => UserCorrection(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    merchantName: merchantName ?? this.merchantName,
+    fieldName: fieldName ?? this.fieldName,
+    slmValue: slmValue.present ? slmValue.value : this.slmValue,
+    correctedValue: correctedValue ?? this.correctedValue,
+    timestamp: timestamp ?? this.timestamp,
+  );
+  UserCorrection copyWithCompanion(UserCorrectionsCompanion data) {
+    return UserCorrection(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      merchantName: data.merchantName.present
+          ? data.merchantName.value
+          : this.merchantName,
+      fieldName: data.fieldName.present ? data.fieldName.value : this.fieldName,
+      slmValue: data.slmValue.present ? data.slmValue.value : this.slmValue,
+      correctedValue: data.correctedValue.present
+          ? data.correctedValue.value
+          : this.correctedValue,
+      timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCorrection(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('fieldName: $fieldName, ')
+          ..write('slmValue: $slmValue, ')
+          ..write('correctedValue: $correctedValue, ')
+          ..write('timestamp: $timestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    merchantName,
+    fieldName,
+    slmValue,
+    correctedValue,
+    timestamp,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserCorrection &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.merchantName == this.merchantName &&
+          other.fieldName == this.fieldName &&
+          other.slmValue == this.slmValue &&
+          other.correctedValue == this.correctedValue &&
+          other.timestamp == this.timestamp);
+}
+
+class UserCorrectionsCompanion extends UpdateCompanion<UserCorrection> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> merchantName;
+  final Value<String> fieldName;
+  final Value<String?> slmValue;
+  final Value<String> correctedValue;
+  final Value<DateTime> timestamp;
+  final Value<int> rowid;
+  const UserCorrectionsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.merchantName = const Value.absent(),
+    this.fieldName = const Value.absent(),
+    this.slmValue = const Value.absent(),
+    this.correctedValue = const Value.absent(),
+    this.timestamp = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserCorrectionsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String merchantName,
+    required String fieldName,
+    this.slmValue = const Value.absent(),
+    required String correctedValue,
+    required DateTime timestamp,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       merchantName = Value(merchantName),
+       fieldName = Value(fieldName),
+       correctedValue = Value(correctedValue),
+       timestamp = Value(timestamp);
+  static Insertable<UserCorrection> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? merchantName,
+    Expression<String>? fieldName,
+    Expression<String>? slmValue,
+    Expression<String>? correctedValue,
+    Expression<DateTime>? timestamp,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (merchantName != null) 'merchant_name': merchantName,
+      if (fieldName != null) 'field_name': fieldName,
+      if (slmValue != null) 'slm_value': slmValue,
+      if (correctedValue != null) 'corrected_value': correctedValue,
+      if (timestamp != null) 'timestamp': timestamp,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserCorrectionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? merchantName,
+    Value<String>? fieldName,
+    Value<String?>? slmValue,
+    Value<String>? correctedValue,
+    Value<DateTime>? timestamp,
+    Value<int>? rowid,
+  }) {
+    return UserCorrectionsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      merchantName: merchantName ?? this.merchantName,
+      fieldName: fieldName ?? this.fieldName,
+      slmValue: slmValue ?? this.slmValue,
+      correctedValue: correctedValue ?? this.correctedValue,
+      timestamp: timestamp ?? this.timestamp,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (merchantName.present) {
+      map['merchant_name'] = Variable<String>(merchantName.value);
+    }
+    if (fieldName.present) {
+      map['field_name'] = Variable<String>(fieldName.value);
+    }
+    if (slmValue.present) {
+      map['slm_value'] = Variable<String>(slmValue.value);
+    }
+    if (correctedValue.present) {
+      map['corrected_value'] = Variable<String>(correctedValue.value);
+    }
+    if (timestamp.present) {
+      map['timestamp'] = Variable<DateTime>(timestamp.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserCorrectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('fieldName: $fieldName, ')
+          ..write('slmValue: $slmValue, ')
+          ..write('correctedValue: $correctedValue, ')
+          ..write('timestamp: $timestamp, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $UserPreferencesTable extends UserPreferences
+    with TableInfo<$UserPreferencesTable, UserPreference> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UserPreferencesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _preferenceKeyMeta = const VerificationMeta(
+    'preferenceKey',
+  );
+  @override
+  late final GeneratedColumn<String> preferenceKey = GeneratedColumn<String>(
+    'preference_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _preferenceValueMeta = const VerificationMeta(
+    'preferenceValue',
+  );
+  @override
+  late final GeneratedColumn<String> preferenceValue = GeneratedColumn<String>(
+    'preference_value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    preferenceKey,
+    preferenceValue,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'user_preferences';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UserPreference> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('preference_key')) {
+      context.handle(
+        _preferenceKeyMeta,
+        preferenceKey.isAcceptableOrUnknown(
+          data['preference_key']!,
+          _preferenceKeyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_preferenceKeyMeta);
+    }
+    if (data.containsKey('preference_value')) {
+      context.handle(
+        _preferenceValueMeta,
+        preferenceValue.isAcceptableOrUnknown(
+          data['preference_value']!,
+          _preferenceValueMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_preferenceValueMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UserPreference map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UserPreference(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      preferenceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preference_key'],
+      )!,
+      preferenceValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}preference_value'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $UserPreferencesTable createAlias(String alias) {
+    return $UserPreferencesTable(attachedDatabase, alias);
+  }
+}
+
+class UserPreference extends DataClass implements Insertable<UserPreference> {
+  final String id;
+  final String householdId;
+  final String preferenceKey;
+  final String preferenceValue;
+  final DateTime updatedAt;
+  const UserPreference({
+    required this.id,
+    required this.householdId,
+    required this.preferenceKey,
+    required this.preferenceValue,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['preference_key'] = Variable<String>(preferenceKey);
+    map['preference_value'] = Variable<String>(preferenceValue);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  UserPreferencesCompanion toCompanion(bool nullToAbsent) {
+    return UserPreferencesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      preferenceKey: Value(preferenceKey),
+      preferenceValue: Value(preferenceValue),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory UserPreference.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UserPreference(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      preferenceKey: serializer.fromJson<String>(json['preferenceKey']),
+      preferenceValue: serializer.fromJson<String>(json['preferenceValue']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'preferenceKey': serializer.toJson<String>(preferenceKey),
+      'preferenceValue': serializer.toJson<String>(preferenceValue),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  UserPreference copyWith({
+    String? id,
+    String? householdId,
+    String? preferenceKey,
+    String? preferenceValue,
+    DateTime? updatedAt,
+  }) => UserPreference(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    preferenceKey: preferenceKey ?? this.preferenceKey,
+    preferenceValue: preferenceValue ?? this.preferenceValue,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  UserPreference copyWithCompanion(UserPreferencesCompanion data) {
+    return UserPreference(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      preferenceKey: data.preferenceKey.present
+          ? data.preferenceKey.value
+          : this.preferenceKey,
+      preferenceValue: data.preferenceValue.present
+          ? data.preferenceValue.value
+          : this.preferenceValue,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserPreference(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('preferenceKey: $preferenceKey, ')
+          ..write('preferenceValue: $preferenceValue, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, householdId, preferenceKey, preferenceValue, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UserPreference &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.preferenceKey == this.preferenceKey &&
+          other.preferenceValue == this.preferenceValue &&
+          other.updatedAt == this.updatedAt);
+}
+
+class UserPreferencesCompanion extends UpdateCompanion<UserPreference> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> preferenceKey;
+  final Value<String> preferenceValue;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const UserPreferencesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.preferenceKey = const Value.absent(),
+    this.preferenceValue = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UserPreferencesCompanion.insert({
+    required String id,
+    required String householdId,
+    required String preferenceKey,
+    required String preferenceValue,
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       preferenceKey = Value(preferenceKey),
+       preferenceValue = Value(preferenceValue),
+       updatedAt = Value(updatedAt);
+  static Insertable<UserPreference> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? preferenceKey,
+    Expression<String>? preferenceValue,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (preferenceKey != null) 'preference_key': preferenceKey,
+      if (preferenceValue != null) 'preference_value': preferenceValue,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UserPreferencesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? preferenceKey,
+    Value<String>? preferenceValue,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return UserPreferencesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      preferenceKey: preferenceKey ?? this.preferenceKey,
+      preferenceValue: preferenceValue ?? this.preferenceValue,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (preferenceKey.present) {
+      map['preference_key'] = Variable<String>(preferenceKey.value);
+    }
+    if (preferenceValue.present) {
+      map['preference_value'] = Variable<String>(preferenceValue.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UserPreferencesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('preferenceKey: $preferenceKey, ')
+          ..write('preferenceValue: $preferenceValue, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $InteractionPatternsTable extends InteractionPatterns
+    with TableInfo<$InteractionPatternsTable, InteractionPattern> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $InteractionPatternsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _merchantNameMeta = const VerificationMeta(
+    'merchantName',
+  );
+  @override
+  late final GeneratedColumn<String> merchantName = GeneratedColumn<String>(
+    'merchant_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fieldNameMeta = const VerificationMeta(
+    'fieldName',
+  );
+  @override
+  late final GeneratedColumn<String> fieldName = GeneratedColumn<String>(
+    'field_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _mostCommonValueMeta = const VerificationMeta(
+    'mostCommonValue',
+  );
+  @override
+  late final GeneratedColumn<String> mostCommonValue = GeneratedColumn<String>(
+    'most_common_value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _confidenceScoreMeta = const VerificationMeta(
+    'confidenceScore',
+  );
+  @override
+  late final GeneratedColumn<double> confidenceScore = GeneratedColumn<double>(
+    'confidence_score',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sampleCountMeta = const VerificationMeta(
+    'sampleCount',
+  );
+  @override
+  late final GeneratedColumn<int> sampleCount = GeneratedColumn<int>(
+    'sample_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastUpdatedMeta = const VerificationMeta(
+    'lastUpdated',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastUpdated = GeneratedColumn<DateTime>(
+    'last_updated',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    merchantName,
+    fieldName,
+    mostCommonValue,
+    confidenceScore,
+    sampleCount,
+    lastUpdated,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'interaction_patterns';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<InteractionPattern> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('merchant_name')) {
+      context.handle(
+        _merchantNameMeta,
+        merchantName.isAcceptableOrUnknown(
+          data['merchant_name']!,
+          _merchantNameMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_merchantNameMeta);
+    }
+    if (data.containsKey('field_name')) {
+      context.handle(
+        _fieldNameMeta,
+        fieldName.isAcceptableOrUnknown(data['field_name']!, _fieldNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fieldNameMeta);
+    }
+    if (data.containsKey('most_common_value')) {
+      context.handle(
+        _mostCommonValueMeta,
+        mostCommonValue.isAcceptableOrUnknown(
+          data['most_common_value']!,
+          _mostCommonValueMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_mostCommonValueMeta);
+    }
+    if (data.containsKey('confidence_score')) {
+      context.handle(
+        _confidenceScoreMeta,
+        confidenceScore.isAcceptableOrUnknown(
+          data['confidence_score']!,
+          _confidenceScoreMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_confidenceScoreMeta);
+    }
+    if (data.containsKey('sample_count')) {
+      context.handle(
+        _sampleCountMeta,
+        sampleCount.isAcceptableOrUnknown(
+          data['sample_count']!,
+          _sampleCountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sampleCountMeta);
+    }
+    if (data.containsKey('last_updated')) {
+      context.handle(
+        _lastUpdatedMeta,
+        lastUpdated.isAcceptableOrUnknown(
+          data['last_updated']!,
+          _lastUpdatedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastUpdatedMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  InteractionPattern map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return InteractionPattern(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      merchantName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}merchant_name'],
+      )!,
+      fieldName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}field_name'],
+      )!,
+      mostCommonValue: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}most_common_value'],
+      )!,
+      confidenceScore: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence_score'],
+      )!,
+      sampleCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sample_count'],
+      )!,
+      lastUpdated: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_updated'],
+      )!,
+    );
+  }
+
+  @override
+  $InteractionPatternsTable createAlias(String alias) {
+    return $InteractionPatternsTable(attachedDatabase, alias);
+  }
+}
+
+class InteractionPattern extends DataClass
+    implements Insertable<InteractionPattern> {
+  final String id;
+  final String householdId;
+  final String merchantName;
+  final String fieldName;
+  final String mostCommonValue;
+  final double confidenceScore;
+  final int sampleCount;
+  final DateTime lastUpdated;
+  const InteractionPattern({
+    required this.id,
+    required this.householdId,
+    required this.merchantName,
+    required this.fieldName,
+    required this.mostCommonValue,
+    required this.confidenceScore,
+    required this.sampleCount,
+    required this.lastUpdated,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['merchant_name'] = Variable<String>(merchantName);
+    map['field_name'] = Variable<String>(fieldName);
+    map['most_common_value'] = Variable<String>(mostCommonValue);
+    map['confidence_score'] = Variable<double>(confidenceScore);
+    map['sample_count'] = Variable<int>(sampleCount);
+    map['last_updated'] = Variable<DateTime>(lastUpdated);
+    return map;
+  }
+
+  InteractionPatternsCompanion toCompanion(bool nullToAbsent) {
+    return InteractionPatternsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      merchantName: Value(merchantName),
+      fieldName: Value(fieldName),
+      mostCommonValue: Value(mostCommonValue),
+      confidenceScore: Value(confidenceScore),
+      sampleCount: Value(sampleCount),
+      lastUpdated: Value(lastUpdated),
+    );
+  }
+
+  factory InteractionPattern.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return InteractionPattern(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      merchantName: serializer.fromJson<String>(json['merchantName']),
+      fieldName: serializer.fromJson<String>(json['fieldName']),
+      mostCommonValue: serializer.fromJson<String>(json['mostCommonValue']),
+      confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
+      sampleCount: serializer.fromJson<int>(json['sampleCount']),
+      lastUpdated: serializer.fromJson<DateTime>(json['lastUpdated']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'merchantName': serializer.toJson<String>(merchantName),
+      'fieldName': serializer.toJson<String>(fieldName),
+      'mostCommonValue': serializer.toJson<String>(mostCommonValue),
+      'confidenceScore': serializer.toJson<double>(confidenceScore),
+      'sampleCount': serializer.toJson<int>(sampleCount),
+      'lastUpdated': serializer.toJson<DateTime>(lastUpdated),
+    };
+  }
+
+  InteractionPattern copyWith({
+    String? id,
+    String? householdId,
+    String? merchantName,
+    String? fieldName,
+    String? mostCommonValue,
+    double? confidenceScore,
+    int? sampleCount,
+    DateTime? lastUpdated,
+  }) => InteractionPattern(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    merchantName: merchantName ?? this.merchantName,
+    fieldName: fieldName ?? this.fieldName,
+    mostCommonValue: mostCommonValue ?? this.mostCommonValue,
+    confidenceScore: confidenceScore ?? this.confidenceScore,
+    sampleCount: sampleCount ?? this.sampleCount,
+    lastUpdated: lastUpdated ?? this.lastUpdated,
+  );
+  InteractionPattern copyWithCompanion(InteractionPatternsCompanion data) {
+    return InteractionPattern(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      merchantName: data.merchantName.present
+          ? data.merchantName.value
+          : this.merchantName,
+      fieldName: data.fieldName.present ? data.fieldName.value : this.fieldName,
+      mostCommonValue: data.mostCommonValue.present
+          ? data.mostCommonValue.value
+          : this.mostCommonValue,
+      confidenceScore: data.confidenceScore.present
+          ? data.confidenceScore.value
+          : this.confidenceScore,
+      sampleCount: data.sampleCount.present
+          ? data.sampleCount.value
+          : this.sampleCount,
+      lastUpdated: data.lastUpdated.present
+          ? data.lastUpdated.value
+          : this.lastUpdated,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InteractionPattern(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('fieldName: $fieldName, ')
+          ..write('mostCommonValue: $mostCommonValue, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('lastUpdated: $lastUpdated')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    merchantName,
+    fieldName,
+    mostCommonValue,
+    confidenceScore,
+    sampleCount,
+    lastUpdated,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is InteractionPattern &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.merchantName == this.merchantName &&
+          other.fieldName == this.fieldName &&
+          other.mostCommonValue == this.mostCommonValue &&
+          other.confidenceScore == this.confidenceScore &&
+          other.sampleCount == this.sampleCount &&
+          other.lastUpdated == this.lastUpdated);
+}
+
+class InteractionPatternsCompanion extends UpdateCompanion<InteractionPattern> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> merchantName;
+  final Value<String> fieldName;
+  final Value<String> mostCommonValue;
+  final Value<double> confidenceScore;
+  final Value<int> sampleCount;
+  final Value<DateTime> lastUpdated;
+  final Value<int> rowid;
+  const InteractionPatternsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.merchantName = const Value.absent(),
+    this.fieldName = const Value.absent(),
+    this.mostCommonValue = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    this.sampleCount = const Value.absent(),
+    this.lastUpdated = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  InteractionPatternsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String merchantName,
+    required String fieldName,
+    required String mostCommonValue,
+    required double confidenceScore,
+    required int sampleCount,
+    required DateTime lastUpdated,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       merchantName = Value(merchantName),
+       fieldName = Value(fieldName),
+       mostCommonValue = Value(mostCommonValue),
+       confidenceScore = Value(confidenceScore),
+       sampleCount = Value(sampleCount),
+       lastUpdated = Value(lastUpdated);
+  static Insertable<InteractionPattern> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? merchantName,
+    Expression<String>? fieldName,
+    Expression<String>? mostCommonValue,
+    Expression<double>? confidenceScore,
+    Expression<int>? sampleCount,
+    Expression<DateTime>? lastUpdated,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (merchantName != null) 'merchant_name': merchantName,
+      if (fieldName != null) 'field_name': fieldName,
+      if (mostCommonValue != null) 'most_common_value': mostCommonValue,
+      if (confidenceScore != null) 'confidence_score': confidenceScore,
+      if (sampleCount != null) 'sample_count': sampleCount,
+      if (lastUpdated != null) 'last_updated': lastUpdated,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  InteractionPatternsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? merchantName,
+    Value<String>? fieldName,
+    Value<String>? mostCommonValue,
+    Value<double>? confidenceScore,
+    Value<int>? sampleCount,
+    Value<DateTime>? lastUpdated,
+    Value<int>? rowid,
+  }) {
+    return InteractionPatternsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      merchantName: merchantName ?? this.merchantName,
+      fieldName: fieldName ?? this.fieldName,
+      mostCommonValue: mostCommonValue ?? this.mostCommonValue,
+      confidenceScore: confidenceScore ?? this.confidenceScore,
+      sampleCount: sampleCount ?? this.sampleCount,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (merchantName.present) {
+      map['merchant_name'] = Variable<String>(merchantName.value);
+    }
+    if (fieldName.present) {
+      map['field_name'] = Variable<String>(fieldName.value);
+    }
+    if (mostCommonValue.present) {
+      map['most_common_value'] = Variable<String>(mostCommonValue.value);
+    }
+    if (confidenceScore.present) {
+      map['confidence_score'] = Variable<double>(confidenceScore.value);
+    }
+    if (sampleCount.present) {
+      map['sample_count'] = Variable<int>(sampleCount.value);
+    }
+    if (lastUpdated.present) {
+      map['last_updated'] = Variable<DateTime>(lastUpdated.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('InteractionPatternsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('merchantName: $merchantName, ')
+          ..write('fieldName: $fieldName, ')
+          ..write('mostCommonValue: $mostCommonValue, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('lastUpdated: $lastUpdated, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -19129,6 +20530,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantLearningExamplesTable(this);
   late final $AssistantUnansweredQuestionsTable assistantUnansweredQuestions =
       $AssistantUnansweredQuestionsTable(this);
+  late final $UserCorrectionsTable userCorrections = $UserCorrectionsTable(
+    this,
+  );
+  late final $UserPreferencesTable userPreferences = $UserPreferencesTable(
+    this,
+  );
+  late final $InteractionPatternsTable interactionPatterns =
+      $InteractionPatternsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -19165,6 +20574,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     assistantMemories,
     assistantLearningExamples,
     assistantUnansweredQuestions,
+    userCorrections,
+    userPreferences,
+    interactionPatterns,
   ];
 }
 
@@ -28597,6 +30009,753 @@ typedef $$AssistantUnansweredQuestionsTableProcessedTableManager =
       AssistantUnansweredQuestion,
       PrefetchHooks Function()
     >;
+typedef $$UserCorrectionsTableCreateCompanionBuilder =
+    UserCorrectionsCompanion Function({
+      required String id,
+      required String householdId,
+      required String merchantName,
+      required String fieldName,
+      Value<String?> slmValue,
+      required String correctedValue,
+      required DateTime timestamp,
+      Value<int> rowid,
+    });
+typedef $$UserCorrectionsTableUpdateCompanionBuilder =
+    UserCorrectionsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> merchantName,
+      Value<String> fieldName,
+      Value<String?> slmValue,
+      Value<String> correctedValue,
+      Value<DateTime> timestamp,
+      Value<int> rowid,
+    });
+
+class $$UserCorrectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldName => $composableBuilder(
+    column: $table.fieldName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get slmValue => $composableBuilder(
+    column: $table.slmValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get correctedValue => $composableBuilder(
+    column: $table.correctedValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UserCorrectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldName => $composableBuilder(
+    column: $table.fieldName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get slmValue => $composableBuilder(
+    column: $table.slmValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get correctedValue => $composableBuilder(
+    column: $table.correctedValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get timestamp => $composableBuilder(
+    column: $table.timestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UserCorrectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserCorrectionsTable> {
+  $$UserCorrectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fieldName =>
+      $composableBuilder(column: $table.fieldName, builder: (column) => column);
+
+  GeneratedColumn<String> get slmValue =>
+      $composableBuilder(column: $table.slmValue, builder: (column) => column);
+
+  GeneratedColumn<String> get correctedValue => $composableBuilder(
+    column: $table.correctedValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get timestamp =>
+      $composableBuilder(column: $table.timestamp, builder: (column) => column);
+}
+
+class $$UserCorrectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UserCorrectionsTable,
+          UserCorrection,
+          $$UserCorrectionsTableFilterComposer,
+          $$UserCorrectionsTableOrderingComposer,
+          $$UserCorrectionsTableAnnotationComposer,
+          $$UserCorrectionsTableCreateCompanionBuilder,
+          $$UserCorrectionsTableUpdateCompanionBuilder,
+          (
+            UserCorrection,
+            BaseReferences<
+              _$AppDatabase,
+              $UserCorrectionsTable,
+              UserCorrection
+            >,
+          ),
+          UserCorrection,
+          PrefetchHooks Function()
+        > {
+  $$UserCorrectionsTableTableManager(
+    _$AppDatabase db,
+    $UserCorrectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserCorrectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserCorrectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserCorrectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> merchantName = const Value.absent(),
+                Value<String> fieldName = const Value.absent(),
+                Value<String?> slmValue = const Value.absent(),
+                Value<String> correctedValue = const Value.absent(),
+                Value<DateTime> timestamp = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UserCorrectionsCompanion(
+                id: id,
+                householdId: householdId,
+                merchantName: merchantName,
+                fieldName: fieldName,
+                slmValue: slmValue,
+                correctedValue: correctedValue,
+                timestamp: timestamp,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String merchantName,
+                required String fieldName,
+                Value<String?> slmValue = const Value.absent(),
+                required String correctedValue,
+                required DateTime timestamp,
+                Value<int> rowid = const Value.absent(),
+              }) => UserCorrectionsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                merchantName: merchantName,
+                fieldName: fieldName,
+                slmValue: slmValue,
+                correctedValue: correctedValue,
+                timestamp: timestamp,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UserCorrectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UserCorrectionsTable,
+      UserCorrection,
+      $$UserCorrectionsTableFilterComposer,
+      $$UserCorrectionsTableOrderingComposer,
+      $$UserCorrectionsTableAnnotationComposer,
+      $$UserCorrectionsTableCreateCompanionBuilder,
+      $$UserCorrectionsTableUpdateCompanionBuilder,
+      (
+        UserCorrection,
+        BaseReferences<_$AppDatabase, $UserCorrectionsTable, UserCorrection>,
+      ),
+      UserCorrection,
+      PrefetchHooks Function()
+    >;
+typedef $$UserPreferencesTableCreateCompanionBuilder =
+    UserPreferencesCompanion Function({
+      required String id,
+      required String householdId,
+      required String preferenceKey,
+      required String preferenceValue,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$UserPreferencesTableUpdateCompanionBuilder =
+    UserPreferencesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> preferenceKey,
+      Value<String> preferenceValue,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$UserPreferencesTableFilterComposer
+    extends Composer<_$AppDatabase, $UserPreferencesTable> {
+  $$UserPreferencesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get preferenceKey => $composableBuilder(
+    column: $table.preferenceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get preferenceValue => $composableBuilder(
+    column: $table.preferenceValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UserPreferencesTableOrderingComposer
+    extends Composer<_$AppDatabase, $UserPreferencesTable> {
+  $$UserPreferencesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get preferenceKey => $composableBuilder(
+    column: $table.preferenceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get preferenceValue => $composableBuilder(
+    column: $table.preferenceValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UserPreferencesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UserPreferencesTable> {
+  $$UserPreferencesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get preferenceKey => $composableBuilder(
+    column: $table.preferenceKey,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get preferenceValue => $composableBuilder(
+    column: $table.preferenceValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$UserPreferencesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UserPreferencesTable,
+          UserPreference,
+          $$UserPreferencesTableFilterComposer,
+          $$UserPreferencesTableOrderingComposer,
+          $$UserPreferencesTableAnnotationComposer,
+          $$UserPreferencesTableCreateCompanionBuilder,
+          $$UserPreferencesTableUpdateCompanionBuilder,
+          (
+            UserPreference,
+            BaseReferences<
+              _$AppDatabase,
+              $UserPreferencesTable,
+              UserPreference
+            >,
+          ),
+          UserPreference,
+          PrefetchHooks Function()
+        > {
+  $$UserPreferencesTableTableManager(
+    _$AppDatabase db,
+    $UserPreferencesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UserPreferencesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UserPreferencesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UserPreferencesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> preferenceKey = const Value.absent(),
+                Value<String> preferenceValue = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UserPreferencesCompanion(
+                id: id,
+                householdId: householdId,
+                preferenceKey: preferenceKey,
+                preferenceValue: preferenceValue,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String preferenceKey,
+                required String preferenceValue,
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => UserPreferencesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                preferenceKey: preferenceKey,
+                preferenceValue: preferenceValue,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UserPreferencesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UserPreferencesTable,
+      UserPreference,
+      $$UserPreferencesTableFilterComposer,
+      $$UserPreferencesTableOrderingComposer,
+      $$UserPreferencesTableAnnotationComposer,
+      $$UserPreferencesTableCreateCompanionBuilder,
+      $$UserPreferencesTableUpdateCompanionBuilder,
+      (
+        UserPreference,
+        BaseReferences<_$AppDatabase, $UserPreferencesTable, UserPreference>,
+      ),
+      UserPreference,
+      PrefetchHooks Function()
+    >;
+typedef $$InteractionPatternsTableCreateCompanionBuilder =
+    InteractionPatternsCompanion Function({
+      required String id,
+      required String householdId,
+      required String merchantName,
+      required String fieldName,
+      required String mostCommonValue,
+      required double confidenceScore,
+      required int sampleCount,
+      required DateTime lastUpdated,
+      Value<int> rowid,
+    });
+typedef $$InteractionPatternsTableUpdateCompanionBuilder =
+    InteractionPatternsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> merchantName,
+      Value<String> fieldName,
+      Value<String> mostCommonValue,
+      Value<double> confidenceScore,
+      Value<int> sampleCount,
+      Value<DateTime> lastUpdated,
+      Value<int> rowid,
+    });
+
+class $$InteractionPatternsTableFilterComposer
+    extends Composer<_$AppDatabase, $InteractionPatternsTable> {
+  $$InteractionPatternsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fieldName => $composableBuilder(
+    column: $table.fieldName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mostCommonValue => $composableBuilder(
+    column: $table.mostCommonValue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastUpdated => $composableBuilder(
+    column: $table.lastUpdated,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$InteractionPatternsTableOrderingComposer
+    extends Composer<_$AppDatabase, $InteractionPatternsTable> {
+  $$InteractionPatternsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fieldName => $composableBuilder(
+    column: $table.fieldName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mostCommonValue => $composableBuilder(
+    column: $table.mostCommonValue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastUpdated => $composableBuilder(
+    column: $table.lastUpdated,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$InteractionPatternsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $InteractionPatternsTable> {
+  $$InteractionPatternsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get merchantName => $composableBuilder(
+    column: $table.merchantName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fieldName =>
+      $composableBuilder(column: $table.fieldName, builder: (column) => column);
+
+  GeneratedColumn<String> get mostCommonValue => $composableBuilder(
+    column: $table.mostCommonValue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidenceScore => $composableBuilder(
+    column: $table.confidenceScore,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get sampleCount => $composableBuilder(
+    column: $table.sampleCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastUpdated => $composableBuilder(
+    column: $table.lastUpdated,
+    builder: (column) => column,
+  );
+}
+
+class $$InteractionPatternsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $InteractionPatternsTable,
+          InteractionPattern,
+          $$InteractionPatternsTableFilterComposer,
+          $$InteractionPatternsTableOrderingComposer,
+          $$InteractionPatternsTableAnnotationComposer,
+          $$InteractionPatternsTableCreateCompanionBuilder,
+          $$InteractionPatternsTableUpdateCompanionBuilder,
+          (
+            InteractionPattern,
+            BaseReferences<
+              _$AppDatabase,
+              $InteractionPatternsTable,
+              InteractionPattern
+            >,
+          ),
+          InteractionPattern,
+          PrefetchHooks Function()
+        > {
+  $$InteractionPatternsTableTableManager(
+    _$AppDatabase db,
+    $InteractionPatternsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$InteractionPatternsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$InteractionPatternsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$InteractionPatternsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> merchantName = const Value.absent(),
+                Value<String> fieldName = const Value.absent(),
+                Value<String> mostCommonValue = const Value.absent(),
+                Value<double> confidenceScore = const Value.absent(),
+                Value<int> sampleCount = const Value.absent(),
+                Value<DateTime> lastUpdated = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => InteractionPatternsCompanion(
+                id: id,
+                householdId: householdId,
+                merchantName: merchantName,
+                fieldName: fieldName,
+                mostCommonValue: mostCommonValue,
+                confidenceScore: confidenceScore,
+                sampleCount: sampleCount,
+                lastUpdated: lastUpdated,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String merchantName,
+                required String fieldName,
+                required String mostCommonValue,
+                required double confidenceScore,
+                required int sampleCount,
+                required DateTime lastUpdated,
+                Value<int> rowid = const Value.absent(),
+              }) => InteractionPatternsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                merchantName: merchantName,
+                fieldName: fieldName,
+                mostCommonValue: mostCommonValue,
+                confidenceScore: confidenceScore,
+                sampleCount: sampleCount,
+                lastUpdated: lastUpdated,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$InteractionPatternsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $InteractionPatternsTable,
+      InteractionPattern,
+      $$InteractionPatternsTableFilterComposer,
+      $$InteractionPatternsTableOrderingComposer,
+      $$InteractionPatternsTableAnnotationComposer,
+      $$InteractionPatternsTableCreateCompanionBuilder,
+      $$InteractionPatternsTableUpdateCompanionBuilder,
+      (
+        InteractionPattern,
+        BaseReferences<
+          _$AppDatabase,
+          $InteractionPatternsTable,
+          InteractionPattern
+        >,
+      ),
+      InteractionPattern,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -28675,4 +30834,10 @@ class $AppDatabaseManager {
         _db,
         _db.assistantUnansweredQuestions,
       );
+  $$UserCorrectionsTableTableManager get userCorrections =>
+      $$UserCorrectionsTableTableManager(_db, _db.userCorrections);
+  $$UserPreferencesTableTableManager get userPreferences =>
+      $$UserPreferencesTableTableManager(_db, _db.userPreferences);
+  $$InteractionPatternsTableTableManager get interactionPatterns =>
+      $$InteractionPatternsTableTableManager(_db, _db.interactionPatterns);
 }

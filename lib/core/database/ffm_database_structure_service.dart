@@ -252,6 +252,21 @@ class FfmDatabaseStructureService {
       'Asisten',
       'Antrian pertanyaan yang belum dipahami atau sedang ditinjau.',
     ),
+    'user_corrections': _TableDefinition(
+      'Koreksi pengguna',
+      'Personalisasi',
+      'Perbandingan tebakan SLM dengan nilai final yang dikonfirmasi pengguna.',
+    ),
+    'user_preferences': _TableDefinition(
+      'Preferensi pengguna',
+      'Personalisasi',
+      'Preferensi eksplisit yang ditetapkan pengguna untuk membantu orchestrator.',
+    ),
+    'interaction_patterns': _TableDefinition(
+      'Pola interaksi',
+      'Personalisasi',
+      'Ringkasan deterministik pola koreksi yang sudah cukup konsisten.',
+    ),
   };
 }
 

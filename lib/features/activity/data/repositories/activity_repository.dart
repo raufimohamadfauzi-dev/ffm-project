@@ -2,13 +2,18 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
+import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../../domain/entities/activity_entity.dart';
 
 class ActivityRepository {
-  const ActivityRepository(this.database, this.auditLogger);
+  const ActivityRepository(this.database, this.auditLogger, {this.status});
 
   final AppDatabase database;
   final AuditLogger auditLogger;
+  final FfmAgentStatusController? status;
+
+  void _working(String message) => status?.working(message);
+  void _done(String message) => status?.done(message);
 
   Future<List<ActivitySessionEntity>> getSessions(String householdId) async {
     final rows =
@@ -115,6 +120,7 @@ class ActivityRepository {
   }
 
   Future<void> saveSession(ActivitySessionEntity entity) async {
+    _working('Menyimpan aktivitas dan memperbarui konteks asisten...');
     await database
         .into(database.activitySessions)
         .insertOnConflictUpdate(
@@ -143,9 +149,11 @@ class ActivityRepository {
         'status': entity.status.value,
       },
     );
+    _done('Aktivitas tersimpan; konteks asisten diperbarui.');
   }
 
   Future<void> saveCheckpoint(ActivityCheckpointEntity entity) async {
+    _working('Menyimpan checkpoint aktivitas...');
     await database
         .into(database.activityCheckpoints)
         .insertOnConflictUpdate(
@@ -170,9 +178,11 @@ class ActivityRepository {
         'occurredAt': entity.occurredAt.toIso8601String(),
       },
     );
+    _done('Checkpoint aktivitas tersimpan.');
   }
 
   Future<void> saveEntry(ActivityJournalEntryEntity entity) async {
+    _working('Menyimpan jurnal aktivitas...');
     await database
         .into(database.activityEntries)
         .insertOnConflictUpdate(
@@ -204,6 +214,7 @@ class ActivityRepository {
         'activityType': entity.activityType,
       },
     );
+    _done('Jurnal aktivitas tersimpan.');
   }
 
   Future<void> recordVoiceCommand({
@@ -231,6 +242,7 @@ class ActivityRepository {
   );
 
   Future<void> deleteSessionPermanently(String householdId, String id) async {
+    _working('Menghapus aktivitas dan memperbarui konteks asisten...');
     final session = await getSession(householdId, id);
     if (session == null) return;
 
@@ -301,6 +313,7 @@ class ActivityRepository {
     if (remainingSessions.isNotEmpty ||
         remainingCheckpoints.isNotEmpty ||
         remainingEntries.isNotEmpty) {
+      status?.failed('Aktivitas belum terhapus bersih.');
       throw StateError('Aktivitas belum terhapus bersih dari perangkat.');
     }
 
@@ -317,9 +330,11 @@ class ActivityRepository {
         'linkedEntryCount': linkedEntryCount,
       },
     );
+    _done('Aktivitas dihapus; konteks asisten diperbarui.');
   }
 
   Future<void> archiveSession(String householdId, String id) async {
+    _working('Mengarsipkan aktivitas...');
     await (database.update(database.activitySessions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -335,9 +350,11 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
+    _done('Aktivitas diarsipkan.');
   }
 
   Future<void> archiveEntry(String householdId, String id) async {
+    _working('Mengarsipkan jurnal aktivitas...');
     await (database.update(database.activityEntries)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -353,6 +370,7 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
+    _done('Jurnal aktivitas diarsipkan.');
   }
 
   ActivitySessionEntity _sessionFromRow(ActivitySession row) =>

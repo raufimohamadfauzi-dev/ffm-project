@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
 import '../../../backup/presentation/pages/monthly_report_page.dart';
 import '../../../budget/presentation/pages/budget_page.dart';
@@ -417,74 +419,77 @@ class OfflineFeaturesPage extends StatelessWidget {
     ];
 
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Fitur tanpa internet')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-        children: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(28),
-                  ),
-                  child: const SizedBox(
-                    width: 116,
-                    height: 116,
-                    child: Icon(
-                      Icons.account_balance_wallet_outlined,
-                      size: 64,
-                      semanticLabel: 'Lambang keluarga dan keuangan FFM',
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.offlineFeatures,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Fitur tanpa internet')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          children: [
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: const SizedBox(
+                      width: 116,
+                      height: 116,
+                      child: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        size: 64,
+                        semanticLabel: 'Lambang keluarga dan keuangan FFM',
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          const AppHelpBanner(
-            title: 'Semua tetap jalan tanpa internet',
-            message: 'Data keuangan, pindai nota, input suara, analisa, dan cadangan diproses di perangkat. Beberapa fitur perlu izin kamera, mikrofon, atau penyimpanan dari sistem HP.',
-            icon: Icons.wifi_off_outlined,
-          ),
-          const SizedBox(height: 16),
-          AppCard(
-            color: scheme.primaryContainer,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.privacy_tip_outlined, color: scheme.primary),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Catatan privasi: aplikasi ini tidak memakai sinkronisasi awan dan tidak mengirim catatan ke server. Hasil pindai tetap perlu dicek karena pembacaan nota dan suara bisa keliru.',
-                    style: TextStyle(color: scheme.onPrimaryContainer),
+            const AppHelpBanner(
+              title: 'Semua tetap jalan tanpa internet',
+              message: 'Data keuangan, pindai nota, input suara, analisa, dan cadangan diproses di perangkat. Beberapa fitur perlu izin kamera, mikrofon, atau penyimpanan dari sistem HP.',
+              icon: Icons.wifi_off_outlined,
+            ),
+            const SizedBox(height: 16),
+            AppCard(
+              color: scheme.primaryContainer,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.privacy_tip_outlined, color: scheme.primary),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Catatan privasi: aplikasi ini tidak memakai sinkronisasi awan dan tidak mengirim catatan ke server. Hasil pindai tetap perlu dicek karena pembacaan nota dan suara bisa keliru.',
+                      style: TextStyle(color: scheme.onPrimaryContainer),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          const AppSectionHeader(title: 'Sudah selesai'),
-          const SizedBox(height: 8),
-          ...features.map(
-            (feature) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _OfflineFeatureCard(feature: feature),
+            const SizedBox(height: 24),
+            const AppSectionHeader(title: 'Sudah selesai'),
+            const SizedBox(height: 8),
+            ...features.map(
+              (feature) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _OfflineFeatureCard(feature: feature),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          const AppSectionHeader(title: 'Sedang dibereskan'),
-          const SizedBox(height: 8),
-          const AppCard(
-            child: Text(
-              'Tidak ada fitur target V1.1 yang tertunda. Penyelarasan awan dan wawasan AI belum diaktifkan karena memang termasuk rencana V2.',
+            const SizedBox(height: 12),
+            const AppSectionHeader(title: 'Sedang dibereskan'),
+            const SizedBox(height: 8),
+            const AppCard(
+              child: Text(
+                'Tidak ada fitur target V1.1 yang tertunda. Penyelarasan awan dan wawasan AI belum diaktifkan karena memang termasuk rencana V2.',
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

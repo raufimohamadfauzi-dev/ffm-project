@@ -36,8 +36,10 @@ import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
+import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 
 List<Category> _transactionCategoryOptions(
   List<Category> categories,
@@ -136,6 +138,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
               initialCategoryName: draft.categoryName,
               initialNote: draft.note,
               initialDate: draft.date,
+              assistantMerchantName: draft.merchantName,
+              assistantSlmFieldValues: draft.slmFieldValues,
             ),
           ),
         );
@@ -163,6 +167,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.masterData:
       case FfmAssistantDraftKind.reminder:
       case FfmAssistantDraftKind.activity:
+      case FfmAssistantDraftKind.profile:
         return;
     }
   }
@@ -416,7 +421,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Pilih alurnya dulu. Semua pilihan ada di sini, termasuk Input cepat dan JSON Gemini.',
+                'Pilih alurnya dulu. Semua pilihan ada di sini, termasuk Input cepat dan JSON batch.',
               ),
               const SizedBox(height: 16),
               _NewEntryChoiceTile(
@@ -907,6 +912,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    getIt<FfmAgentStatusController>().working(
+      'Menghapus transaksi dan memperbarui konteks asisten...',
+    );
     await getIt<DeleteTransaction>()(
       AppContext.householdId,
       entry.transaction.id,
@@ -924,6 +932,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     await _loadTransactions();
     if (!mounted) return;
+    getIt<FfmAgentStatusController>().done(
+      'Transaksi dihapus; konteks asisten diperbarui.',
+    );
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Transaksi dihapus.')));
   }
@@ -1156,17 +1167,26 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _saveDrafts(List<TransactionDraft> drafts) async {
+    getIt<FfmAgentStatusController>().working(
+      'Menyimpan transaksi dan memperbarui konteks asisten...',
+    );
     for (final draft in drafts) {
       await _saveDraft(draft, refresh: false, showMessage: false);
     }
     await _loadTransactions();
     if (!mounted) return;
+    getIt<FfmAgentStatusController>().done(
+      '${drafts.length} transaksi tersimpan; konteks asisten diperbarui.',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${drafts.length} transaksi berhasil dicatat.')),
     );
   }
 
   Future<void> _saveBatchDrafts(List<TransactionDraft> drafts) async {
+    getIt<FfmAgentStatusController>().working(
+      'Menyimpan beberapa transaksi dan memperbarui konteks asisten...',
+    );
     final now = DateTime.now();
     final entities = <TransactionEntity>[];
     final itemsByTransactionId = <String, List<TransactionItemEntity>>{};
@@ -1219,6 +1239,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       entities,
       itemsByTransactionId: itemsByTransactionId,
     );
+    for (final draft in drafts) {
+      await _recordPersonalizationCorrections(draft);
+    }
     final auditLogger = AuditLogger(getIt<AppDatabase>());
     for (final row in auditRows) {
       await auditLogger.record(
@@ -1229,6 +1252,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
     }
     await _loadTransactions();
     if (!mounted) return;
+    getIt<FfmAgentStatusController>().done(
+      '${drafts.length} transaksi tersimpan; konteks asisten diperbarui.',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${drafts.length} transaksi berhasil dicatat sekaligus.'),
@@ -1242,6 +1268,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
     bool refresh = true,
     bool showMessage = true,
   }) async {
+    getIt<FfmAgentStatusController>().working(
+      transactionId == null
+          ? 'Menyimpan transaksi dan memperbarui konteks asisten...'
+          : 'Memperbarui transaksi dan konteks asisten...',
+    );
     final id = transactionId ?? const Uuid().v4();
     final categoryId = draft.categoryId;
     final previous = transactionId == null
@@ -1292,6 +1323,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       nextSource: savedTransaction.source,
     );
     await _saveMetadata(id, draft);
+    await _recordPersonalizationCorrections(draft);
     await AuditLogger(getIt<AppDatabase>()).record(
       action: transactionId == null ? 'tambah' : 'ubah',
       entity: 'transaksi',
@@ -1312,9 +1344,41 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     if (refresh) await _loadTransactions();
     if (!mounted || !showMessage) return;
+    getIt<FfmAgentStatusController>().done(
+      transactionId == null
+          ? 'Transaksi tersimpan; konteks asisten diperbarui.'
+          : 'Transaksi diperbarui; konteks asisten diperbarui.',
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Transaksi berhasil dicatat.')),
     );
+  }
+
+  Future<void> _recordPersonalizationCorrections(TransactionDraft draft) async {
+    final merchant = draft.assistantMerchantName?.trim();
+    if (merchant == null || merchant.isEmpty) return;
+
+    final repository = getIt<FfmAssistantPersonalizationRepository>();
+    for (final entry in draft.assistantSlmFieldValues.entries) {
+      final slmValue = entry.value.trim();
+      if (slmValue.isEmpty) continue;
+      final finalValue = switch (entry.key) {
+        'category' => _categoryLabel(draft.categoryId),
+        'account' => _accountLabel(draft.accountId),
+        'amount' => draft.amount.toString(),
+        _ => null,
+      };
+      if (finalValue == null || finalValue.isEmpty || finalValue == slmValue) {
+        continue;
+      }
+      await repository.recordCorrection(
+        householdId: AppContext.householdId,
+        merchantName: merchant,
+        fieldName: entry.key,
+        slmValue: slmValue,
+        correctedValue: finalValue,
+      );
+    }
   }
 
   @override
@@ -1793,6 +1857,8 @@ class TransactionFormPage extends StatefulWidget {
     this.initialAccountName,
     this.initialCategoryName,
     this.initialDate,
+    this.assistantMerchantName,
+    this.assistantSlmFieldValues = const <String, String>{},
     this.showFirstTransactionGuide = false,
   });
 
@@ -1804,6 +1870,8 @@ class TransactionFormPage extends StatefulWidget {
   final String? initialAccountName;
   final String? initialCategoryName;
   final DateTime? initialDate;
+  final String? assistantMerchantName;
+  final Map<String, String> assistantSlmFieldValues;
   final bool showFirstTransactionGuide;
 
   @override
@@ -2462,6 +2530,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         items: _items,
         tags: _tags,
         attachmentPaths: _attachmentPaths,
+        assistantMerchantName: widget.assistantMerchantName,
+        assistantSlmFieldValues: widget.assistantSlmFieldValues,
       ),
     ]);
   }
@@ -4137,6 +4207,8 @@ class TransactionDraft {
     required this.items,
     this.tags = const [],
     this.attachmentPaths = const [],
+    this.assistantMerchantName,
+    this.assistantSlmFieldValues = const <String, String>{},
   });
 
   final TransactionType type;
@@ -4158,6 +4230,8 @@ class TransactionDraft {
   final List<ReceiptItemDraft> items;
   final List<String> tags;
   final List<String> attachmentPaths;
+  final String? assistantMerchantName;
+  final Map<String, String> assistantSlmFieldValues;
 }
 
 class ReceiptItemDraft {
@@ -6585,7 +6659,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     await Clipboard.setData(
       ClipboardData(text: ReceiptImportService.buildGeminiBatchPrompt()),
     );
-    _showMessage('Prompt Gemini untuk banyak transaksi sudah disalin.');
+    _showMessage('Prompt JSON batch untuk banyak transaksi sudah disalin.');
   }
 
   void _showMessage(String message) {
@@ -6787,7 +6861,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text(
-                  'Tempel hasil Gemini di sini',
+                  'Tempel JSON batch di sini',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
@@ -6802,7 +6876,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                     OutlinedButton.icon(
                       onPressed: _copyPrompt,
                       icon: const Icon(Icons.copy_all_outlined),
-                      label: const Text('Salin instruksi untuk Gemini'),
+                      label: const Text('Salin instruksi untuk JSON batch'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _copyTemplate,
@@ -6812,7 +6886,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                     OutlinedButton.icon(
                       onPressed: _pasteFromClipboard,
                       icon: const Icon(Icons.content_paste_go_outlined),
-                      label: const Text('Tempel hasil Gemini'),
+                      label: const Text('Tempel JSON batch'),
                     ),
                     OutlinedButton.icon(
                       onPressed: _pickFile,
@@ -6829,7 +6903,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                     maxLines: 16,
                     keyboardType: TextInputType.multiline,
                     decoration: const InputDecoration(
-                      labelText: 'JSON hasil Gemini',
+                      labelText: 'JSON batch',
                       hintText: '{ "format": "ffm-transaction-batch-v1", ... }',
                       alignLabelWithHint: true,
                       border: OutlineInputBorder(),
@@ -7685,12 +7759,12 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Mau input lewat JSON Gemini?',
+                    'Mau input lewat JSON batch?',
                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    'Bisa. Tempel hasil Gemini untuk 10+ transaksi sekaligus, lengkap dengan rincian barang, lalu edit sebelum dipakai.',
+                    'Bisa. Tempel JSON batch untuk 10+ transaksi sekaligus, lengkap dengan rincian barang, lalu edit sebelum dipakai.',
                   ),
                   const SizedBox(height: 10),
                   FilledButton.icon(

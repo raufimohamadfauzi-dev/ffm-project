@@ -2,12 +2,15 @@
 import '../../activity/domain/activity_voice.dart';
 
 /// pengguna melihat preview dan mengonfirmasinya.
+enum FfmAssistantResponseMode { localRules, localModel }
+
 enum FfmAssistantIntentType {
   openPage,
   listPages,
   setupGuide,
   featureHelp,
   assistantIdentity,
+  createProfile,
   calendarQuery,
   transactionStats,
   weeklyAnalysis,
@@ -37,6 +40,7 @@ enum FfmAssistantIntentType {
   confirm,
   cancel,
   help,
+  outOfDomain,
   unknown,
 }
 
@@ -57,6 +61,15 @@ enum FfmAssistantDestination {
   reconciliation,
   appSecurity,
   diagnostics,
+  activityLog,
+  assistantTraining,
+  recurringTransaction,
+  offlineAdvanced,
+  privacyCenter,
+  databaseStructure,
+  offlineFeatures,
+  localModel,
+  assistantProfile,
 }
 
 enum FfmAssistantDraftKind {
@@ -73,6 +86,7 @@ enum FfmAssistantDraftKind {
   masterData,
   reminder,
   activity,
+  profile,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan
@@ -139,6 +153,7 @@ class FfmAssistantIntent {
     this.clarification,
     this.response,
     this.teachingProposal,
+    this.responseMode = FfmAssistantResponseMode.localRules,
   });
 
   final String rawText;
@@ -150,6 +165,7 @@ class FfmAssistantIntent {
   final String? clarification;
   final String? response;
   final FfmAssistantTeachingProposal? teachingProposal;
+  final FfmAssistantResponseMode responseMode;
 
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
@@ -159,6 +175,7 @@ class FfmAssistantIntent {
     FfmAssistantDraft? draft,
     String? response,
     String? clarification,
+    FfmAssistantResponseMode? responseMode,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -169,6 +186,7 @@ class FfmAssistantIntent {
     clarification: clarification ?? this.clarification,
     response: response ?? this.response,
     teachingProposal: teachingProposal,
+    responseMode: responseMode ?? this.responseMode,
   );
 }
 
@@ -201,6 +219,8 @@ class FfmAssistantDraft {
     this.note,
     this.date,
     this.formValues = const <String, String>{},
+    this.merchantName,
+    this.slmFieldValues = const <String, String>{},
   });
 
   final FfmAssistantDraftKind kind;
@@ -217,6 +237,11 @@ class FfmAssistantDraft {
   final DateTime? date;
   final Map<String, String> formValues;
 
+  /// Merchant dan nilai field yang berasal dari tebakan awal SLM/rule parser.
+  /// Hanya dipakai untuk pembelajaran setelah user mengonfirmasi form.
+  final String? merchantName;
+  final Map<String, String> slmFieldValues;
+
   bool get hasAmount => amount != null && amount! > 0;
 
   FfmAssistantDraft copyWith({
@@ -231,6 +256,8 @@ class FfmAssistantDraft {
     String? note,
     DateTime? date,
     Map<String, String>? formValues,
+    String? merchantName,
+    Map<String, String>? slmFieldValues,
   }) => FfmAssistantDraft(
     kind: kind,
     createdAt: createdAt,
@@ -245,6 +272,8 @@ class FfmAssistantDraft {
     note: note ?? this.note,
     date: date ?? this.date,
     formValues: formValues ?? this.formValues,
+    merchantName: merchantName ?? this.merchantName,
+    slmFieldValues: slmFieldValues ?? this.slmFieldValues,
   );
 }
 
@@ -256,6 +285,10 @@ class FfmAssistantChatEntry {
     this.activityIntent,
     this.understanding,
     this.review,
+    this.imagePath,
+    this.filePath,
+    this.fileFormat,
+    this.createdAt,
   });
 
   final bool isUser;
@@ -264,6 +297,10 @@ class FfmAssistantChatEntry {
   final ActivityVoiceIntent? activityIntent;
   final String? understanding;
   final FfmAssistantDraftReview? review;
+  final String? imagePath;
+  final String? filePath;
+  final String? fileFormat;
+  final DateTime? createdAt;
 }
 
 /// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.
@@ -329,6 +366,18 @@ class FfmAssistantPage {
   final List<String> aliases;
 }
 
+class FfmAssistantOtherMenuItem {
+  const FfmAssistantOtherMenuItem({
+    required this.name,
+    required this.description,
+    required this.destination,
+  });
+
+  final String name;
+  final String description;
+  final FfmAssistantDestination destination;
+}
+
 abstract final class FfmAssistantCatalog {
   static const pages = <FfmAssistantPage>[
     FfmAssistantPage(
@@ -360,7 +409,7 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.otherMenu,
       name: 'Lainnya',
-      description: 'Membuka menu fitur pendukung, termasuk Data Utama, cadangan, keamanan, dan Pusat Latihan Asisten.',
+      description: 'Membuka menu fitur pendukung, termasuk Data Utama, cadangan, keamanan, dan Pengetahuan Asisten.',
       aliases: [
         'lainnya',
         'menu lainnya',
@@ -451,15 +500,220 @@ abstract final class FfmAssistantCatalog {
       description: 'Melihat error teknis yang benar-benar tercatat dan menyalin laporan aman.',
       aliases: ['bantuan perbaikan', 'laporan error', 'error aplikasi'],
     ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.activityLog,
+      name: 'Log aktivitas',
+      description: 'Melihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+      aliases: [
+        'log aktivitas',
+        'riwayat aktivitas',
+        'riwayat perubahan',
+        'jejak perubahan',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.assistantTraining,
+      name: 'Pengetahuan Asisten',
+      description: 'Mengelola ajaran lokal, alias, pertanyaan belum terjawab, dan contoh belajar yang disetujui.',
+      aliases: [
+        'pengetahuan asisten',
+        'latihan asisten',
+        'belajar asisten',
+        'ajaran asisten',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.recurringTransaction,
+      name: 'Pemasukan berkala',
+      description: 'Mengatur pemasukan atau pengeluaran rutin harian, mingguan, dan bulanan.',
+      aliases: [
+        'pemasukan berkala',
+        'pemasukan rutin',
+        'transaksi berkala',
+        'transaksi rutin',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.offlineAdvanced,
+      name: 'Alat offline lanjutan',
+      description: 'Membuka pemeriksaan lokal, cek saldo, rekonsiliasi, dan alat impor di perangkat.',
+      aliases: [
+        'alat offline lanjutan',
+        'offline lanjutan',
+        'pemeriksaan offline',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.privacyCenter,
+      name: 'Pusat privasi',
+      description:
+          'Melihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+      aliases: ['pusat privasi', 'privasi aplikasi', 'keamanan privasi'],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.databaseStructure,
+      name: 'Struktur database',
+      description: 'Melihat tabel dan gambaran struktur database lokal FFM.',
+      aliases: ['struktur database', 'struktur basis data', 'tabel database'],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.offlineFeatures,
+      name: 'Fitur tanpa internet',
+      description:
+          'Membaca panduan teknologi dan fitur yang berjalan tanpa internet.',
+      aliases: [
+        'fitur tanpa internet',
+        'fitur offline',
+        'mode offline',
+        'bisa tanpa internet',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.assistantProfile,
+      name: 'Profil Personalisasi Asisten',
+      description: 'Mengenalkan diri, serta mengelola ekspor dan impor profil personalisasi terenkripsi.',
+      aliases: [
+        'profil',
+        'profil saya',
+        'identitas',
+        'kenalkan diri',
+        'personalisasi',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.localModel,
+      name: 'Model Asisten Lokal',
+      description: 'Mengunduh, mengimpor, memverifikasi, atau membagikan bundle SLM lokal.',
+      aliases: [
+        'model asisten lokal',
+        'model lokal',
+        'slm lokal',
+        'qwen lokal',
+        'qwen2-vl',
+      ],
+    ),
   ];
 
+  static const otherMenuItems = <FfmAssistantOtherMenuItem>[
+    FfmAssistantOtherMenuItem(
+      name: 'Data Utama',
+      description: 'Mengisi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+      destination: FfmAssistantDestination.masterData,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Aset keluarga',
+      description:
+          'Mencatat barang atau kekayaan keluarga yang ingin dipantau.',
+      destination: FfmAssistantDestination.assets,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Target keuangan',
+      description:
+          'Memantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
+      destination: FfmAssistantDestination.goals,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Hutang & piutang',
+      description:
+          'Mengelola kewajiban dan uang yang masih perlu diterima keluarga.',
+      destination: FfmAssistantDestination.liabilities,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Ekspor & cadangan',
+      description:
+          'Membuat JSON, CSV, HTML, PDF, atau memulihkan data dari berkas.',
+      destination: FfmAssistantDestination.backup,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Ringkasan bulanan',
+      description:
+          'Membandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
+      destination: FfmAssistantDestination.monthlyReport,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Log aktivitas',
+      description: 'Melihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+      destination: FfmAssistantDestination.activityLog,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Pengetahuan Asisten',
+      description: 'Mengajarkan istilah, jawaban fitur, dan kebiasaan lokal secara eksplisit.',
+      destination: FfmAssistantDestination.assistantTraining,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Pengingat',
+      description:
+          'Membuat pengingat lokal untuk hal yang tidak boleh terlupakan.',
+      destination: FfmAssistantDestination.reminders,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Pemasukan berkala',
+      description:
+          'Mengatur pemasukan atau biaya rutin harian, mingguan, dan bulanan.',
+      destination: FfmAssistantDestination.recurringTransaction,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Alat offline lanjutan',
+      description: 'Mengecek saldo, rekonsiliasi, impor data, dan pemeriksaan lokal di perangkat.',
+      destination: FfmAssistantDestination.offlineAdvanced,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Kunci aplikasi',
+      description:
+          'Mengatur PIN untuk membantu menjaga akses ke data keluarga.',
+      destination: FfmAssistantDestination.appSecurity,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Bantuan perbaikan',
+      description: 'Melihat error teknis lokal dan menyalin laporan yang sudah disaring.',
+      destination: FfmAssistantDestination.diagnostics,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Pusat privasi',
+      description:
+          'Melihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+      destination: FfmAssistantDestination.privacyCenter,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Struktur database',
+      description: 'Melihat tabel dan gambaran isi database lokal FFM.',
+      destination: FfmAssistantDestination.databaseStructure,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Fitur tanpa internet',
+      description:
+          'Membaca panduan lengkap tentang teknologi offline yang tersedia.',
+      destination: FfmAssistantDestination.offlineFeatures,
+    ),
+    FfmAssistantOtherMenuItem(
+      name: 'Model Asisten Lokal',
+      description: 'Mengunduh SLM dari GitHub atau mengimpor bundle offline yang sudah diverifikasi.',
+      destination: FfmAssistantDestination.localModel,
+    ),
+  ];
+
+  static String listOtherMenuForChat() => otherMenuItems
+      .asMap()
+      .entries
+      .map(
+        (entry) =>
+            '${entry.key + 1}. ${entry.value.name} — ${entry.value.description}',
+      )
+      .join('\\n');
+
   static FfmAssistantPage? findByText(String normalizedText) {
-    final matches = pages.where(
-      (page) => page.aliases.any(
-        (alias) => normalizedText.contains(alias.toLowerCase()),
-      ),
-    );
-    return matches.isEmpty ? null : matches.first;
+    FfmAssistantPage? best;
+    var bestScore = 0;
+    for (final page in pages) {
+      for (final alias in page.aliases) {
+        if (normalizedText.contains(alias.toLowerCase()) &&
+            alias.length > bestScore) {
+          best = page;
+          bestScore = alias.length;
+        }
+      }
+    }
+    return best;
   }
 
   static FfmAssistantPage? findByDestination(
@@ -491,6 +745,15 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.reconciliation => 'Rekonsiliasi saldo membantu mencocokkan saldo catatan FFM dengan saldo nyata di rekening atau tunai. Bila ada selisih, kamu dapat meninjau penyebabnya lalu buat penyesuaian secara sadar.',
         FfmAssistantDestination.appSecurity => 'Kunci aplikasi dipakai untuk mengaktifkan, mengganti, atau mematikan PIN FFM. PIN hanya dimasukkan lewat keypad khusus, tidak lewat chat, dan setiap perubahan meminta konfirmasi kamu.',
         FfmAssistantDestination.diagnostics => 'Bantuan perbaikan menampilkan error teknis yang benar-benar tertangkap secara lokal. Kamu bisa salin laporan yang sudah disaring; PIN, data keuangan, rekening, dan isi chat tidak ikut dimasukkan.',
-        FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pusat Latihan Asisten.',
+        FfmAssistantDestination.activityLog => 'Log aktivitas menampilkan jejak perubahan lokal, termasuk transaksi, transfer, impor, dan rekonsiliasi.',
+        FfmAssistantDestination.assistantTraining => 'Pengetahuan Asisten mengelola alias, ajaran lokal, pertanyaan belum terjawab, dan contoh belajar yang harus disetujui sebelum disimpan.',
+        FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan. Penyimpanan dan perubahan aturan tetap dilakukan lewat form.',
+        FfmAssistantDestination.offlineAdvanced => 'Alat offline lanjutan menyediakan pemeriksaan lokal, cek saldo, rekonsiliasi, dan alat impor yang berjalan di perangkat.',
+        FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
+        FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM tanpa memberi model akses langsung ke database.',
+        FfmAssistantDestination.offlineFeatures => 'Fitur tanpa internet menjelaskan bagian FFM yang tetap berjalan lokal, termasuk database, Asisten aturan, dan setup SLM setelah model tersedia.',
+        FfmAssistantDestination.localModel => 'Model Asisten Lokal dipakai untuk mengunduh dari GitHub, mengimpor bundle offline, memverifikasi, menghapus, atau membagikan bundle SLM.',
+        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas, pekerjaan, rutinitas, dan preferensi untuk membantu asisten menjawab lebih relevan tanpa mengirim data transaksi mentah. Kamu juga bisa ekspor atau impor profil di sini.',
+        FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pengetahuan Asisten.',
       };
 }

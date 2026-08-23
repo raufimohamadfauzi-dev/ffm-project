@@ -11,10 +11,16 @@ import 'core/di/injection.dart';
 import 'core/security/app_pin_service.dart';
 import 'core/theme/theme_preference.dart';
 import 'features/assistant/domain/ffm_assistant_models.dart';
+import 'features/assistant/domain/ffm_assistant_widget_protocol.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
+import 'features/assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
+import 'features/assistant/presentation/pages/assistant_training_page.dart';
+import 'features/assistant/presentation/pages/assistant_profile_page.dart';
+import 'features/assistant/presentation/pages/local_model_page.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
+import 'features/audit/presentation/pages/activity_log_page.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
 import 'features/backup/presentation/pages/monthly_report_page.dart';
 import 'features/goal/presentation/pages/goal_pages.dart';
@@ -25,22 +31,31 @@ import 'features/reminder/data/services/reminder_notification_service.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/reminder/presentation/pages/reminder_page.dart';
 import 'features/settings/presentation/pages/master_data_page.dart';
-import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
+import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
 import 'features/settings/presentation/pages/app_diagnostics_page.dart';
+import 'features/settings/presentation/pages/database_structure_page.dart';
+import 'features/settings/presentation/pages/offline_advanced_page.dart';
+import 'features/settings/presentation/pages/offline_features_page.dart';
+import 'features/settings/presentation/pages/privacy_center_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
 import 'features/settings/presentation/pages/pin_security_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
+import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final bootstrapDiagnostics = AppDiagnosticsService();
+  await bootstrapDiagnostics.recordInterruptedStartupIfNeeded();
+  await bootstrapDiagnostics.markStartupStarted(phase: 'bindings_ready');
   await configureDependencies();
   final diagnostics = getIt<AppDiagnosticsService>();
+  await diagnostics.markStartupPhase('dependencies_ready');
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     unawaited(
@@ -119,6 +134,9 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_diagnostics.markStartupComplete());
+    });
     if (widget.database != null && !getIt.isRegistered<AppDatabase>()) {
       configureDependencies(database: widget.database);
     }
@@ -273,6 +291,7 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
             key: _appShellKey,
             launcherState: _assistantLauncherState,
             pageContext: _assistantPageContext,
+            pageContextController: _assistantPageContext,
             isDark: _isDark,
             onThemeChanged: (value) async {
               setState(() => _isDark = value);
@@ -353,12 +372,14 @@ class AppShell extends StatefulWidget {
     required this.onThemeChanged,
     required this.launcherState,
     required this.pageContext,
+    required this.pageContextController,
   });
 
   final bool isDark;
   final ValueChanged<bool> onThemeChanged;
   final ValueNotifier<FfmAssistantLauncherState> launcherState;
   final ValueListenable<FfmAssistantDestination?> pageContext;
+  final FfmAssistantPageContextController pageContextController;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -369,6 +390,7 @@ class _AppShellState extends State<AppShell> {
   var _index = 0;
   var _assistantRequestId = 0;
   var _assistantSheetOpen = false;
+  final _agentStatus = getIt<FfmAgentStatusController>();
   FfmAssistantDraft? _assistantTransactionDraft;
   final _assistantSession = FfmAssistantChatSession();
 
@@ -397,20 +419,30 @@ class _AppShellState extends State<AppShell> {
 
   void _openWidgetAction(String? action) {
     if (!mounted) return;
-    switch (action) {
-      case 'transaction':
+    final parsed = action == null
+        ? null
+        : FfmAssistantWidgetAction.fromWireName(action);
+    switch (parsed) {
+      case FfmAssistantWidgetAction.openAssistant:
+        _openAssistant();
+      case FfmAssistantWidgetAction.readSummary:
+        setState(() => _index = 0);
+      case FfmAssistantWidgetAction.openModelSetup:
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const LocalModelPage()));
+      case FfmAssistantWidgetAction.openTransactions:
         setState(() => _index = 1);
-      case 'budget':
+      case FfmAssistantWidgetAction.openBudget:
+        setState(() => _index = 3);
+      case FfmAssistantWidgetAction.openActivity:
         setState(() => _index = 2);
-      case 'activity':
-        setState(() => _index = 4);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
           }
         });
-      case 'scan':
+      case FfmAssistantWidgetAction.openScan:
         setState(() => _index = 1);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -419,6 +451,8 @@ class _AppShellState extends State<AppShell> {
             );
           }
         });
+      case null:
+        return;
     }
   }
 
@@ -435,16 +469,16 @@ class _AppShellState extends State<AppShell> {
       assistantRequestId: _assistantRequestId,
       onOpenAssistant: _openAssistant,
     ),
+    const ActivityPage(), // Menggantikan posisi Anggaran/Analisa sebagai menu harian utama
     const EnvelopeBudgetPage(),
-    const AnalysisPage(),
     const OtherMenuPage(),
   ];
 
   FfmAssistantDestination get _assistantCurrentDestination => switch (_index) {
     0 => FfmAssistantDestination.summary,
     1 => FfmAssistantDestination.transactions,
-    2 => FfmAssistantDestination.budget,
-    3 => FfmAssistantDestination.analysis,
+    2 => FfmAssistantDestination.activity,
+    3 => FfmAssistantDestination.budget,
     _ => FfmAssistantDestination.otherMenu,
   };
 
@@ -503,10 +537,12 @@ class _AppShellState extends State<AppShell> {
             ),
           );
         } else {
-          setState(() => _index = 2);
+          setState(() => _index = 3);
         }
       case FfmAssistantDestination.analysis:
-        setState(() => _index = 3);
+        setState(() => _index = 4);
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const AnalysisPage()));
       case FfmAssistantDestination.otherMenu:
         setState(() => _index = 4);
       case FfmAssistantDestination.masterData:
@@ -629,6 +665,39 @@ class _AppShellState extends State<AppShell> {
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const AppDiagnosticsPage()));
+      case FfmAssistantDestination.activityLog:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ActivityLogPage()));
+      case FfmAssistantDestination.assistantTraining:
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AssistantTrainingPage()),
+        );
+      case FfmAssistantDestination.recurringTransaction:
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const RecurringTransactionPage()),
+        );
+      case FfmAssistantDestination.offlineAdvanced:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OfflineAdvancedPage()));
+      case FfmAssistantDestination.privacyCenter:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const PrivacyCenterPage()));
+      case FfmAssistantDestination.databaseStructure:
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DatabaseStructurePage()),
+        );
+      case FfmAssistantDestination.offlineFeatures:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const OfflineFeaturesPage()));
+      case FfmAssistantDestination.localModel:
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const LocalModelPage()));
+      case FfmAssistantDestination.assistantProfile:
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AssistantProfilePage()));
     }
   }
 
@@ -653,6 +722,7 @@ class _AppShellState extends State<AppShell> {
         session: _assistantSession,
         currentDestination:
             widget.pageContext.value ?? _assistantCurrentDestination,
+        currentPageContext: widget.pageContextController.currentSnapshot,
       );
     } finally {
       if (mounted) {
@@ -666,7 +736,14 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(index: _index, children: _pages),
+    body: Column(
+      children: [
+        FfmAgentStatusIndicator(controller: _agentStatus),
+        Expanded(
+          child: IndexedStack(index: _index, children: _pages),
+        ),
+      ],
+    ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
       onDestinationSelected: (value) => setState(() => _index = value),
@@ -682,14 +759,14 @@ class _AppShellState extends State<AppShell> {
           label: 'Transaksi',
         ),
         NavigationDestination(
+          icon: Icon(Icons.timeline_outlined),
+          selectedIcon: Icon(Icons.timeline),
+          label: 'Aktivitas & Jurnal',
+        ),
+        NavigationDestination(
           icon: Icon(Icons.track_changes_outlined),
           selectedIcon: Icon(Icons.track_changes),
           label: 'Anggaran',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.insights_outlined),
-          selectedIcon: Icon(Icons.insights),
-          label: 'Analisa',
         ),
         NavigationDestination(
           icon: Icon(Icons.more_horiz),

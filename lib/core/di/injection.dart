@@ -7,15 +7,22 @@ import '../security/app_pin_service.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
+import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
 import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
+import '../../features/assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import '../../features/assistant/data/ffm_local_inference_queue.dart';
+import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
+import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
+import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
 import '../../features/assistant/data/ffm_local_model_service.dart';
+import '../../features/assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -40,6 +47,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   if (getIt.isRegistered<AppDatabase>()) return;
   final db = database ?? AppDatabase.openDefault();
   getIt.registerSingleton<AppDatabase>(db);
+  getIt.registerSingleton<FfmAgentStatusController>(FfmAgentStatusController());
   getIt.registerLazySingleton<AppDiagnosticsService>(AppDiagnosticsService.new);
   getIt.registerLazySingleton<AppPinService>(AppPinService.new);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
@@ -100,7 +108,11 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<AuditLogger>(() => AuditLogger(db));
   getIt.registerLazySingleton<ActivityRepository>(
-    () => ActivityRepository(db, getIt<AuditLogger>()),
+    () => ActivityRepository(
+      db,
+      getIt<AuditLogger>(),
+      status: getIt<FfmAgentStatusController>(),
+    ),
   );
   getIt.registerFactory<ActivityBloc>(
     () => ActivityBloc(getIt<ActivityRepository>()),
@@ -121,6 +133,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       notificationService: getIt<ReminderNotificationService>(),
       occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
       householdId: 'local-household',
+      status: getIt<FfmAgentStatusController>(),
     ),
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
@@ -130,8 +143,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     FfmAssistantLocalMemory.new,
   );
   getIt.registerLazySingleton<FfmLocalModelService>(FfmLocalModelService.new);
+  getIt.registerLazySingleton<FfmSingleInferenceQueue>(
+    FfmSingleInferenceQueue.new,
+  );
+  getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
+    () => FfmQwen2VlInferenceService(getIt<FfmSingleInferenceQueue>()),
+  );
   getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
-    FfmAssistantDisabledLocalModelGateway.new,
+    () => FfmQwen2VlGateway(
+      getIt<FfmLocalModelService>(),
+      getIt<FfmQwen2VlInferenceService>(),
+    ),
   );
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),
@@ -142,6 +164,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantUnansweredQuestionRepository>(
     () => FfmAssistantUnansweredQuestionRepository(db),
   );
+  getIt.registerLazySingleton<FfmAssistantPersonalizationRepository>(
+    () => FfmAssistantPersonalizationRepository(db),
+  );
   getIt.registerLazySingleton<FfmAssistantKnowledgePackService>(
     () =>
         FfmAssistantKnowledgePackService(getIt<FfmAssistantMemoryRepository>()),
@@ -149,15 +174,26 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantUpgradePackService>(
     () => FfmAssistantUpgradePackService(getIt<FfmAssistantMemoryRepository>()),
   );
+  getIt.registerLazySingleton<FfmAssistantCapabilityAdapterRegistry>(
+    () => FfmAssistantCapabilityAdapterRegistry(
+      database: db,
+      householdId: 'local-household',
+    ),
+  );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
     () => FfmAssistantInterpreter(
       db,
-      getIt<FfmAssistantLocalMemory>(),
-      null,
-      getIt<AppDiagnosticsService>(),
+      memory: getIt<FfmAssistantLocalMemory>(),
+      modelGateway: getIt<FfmAssistantLocalModelGateway>(),
+      diagnostics: getIt<AppDiagnosticsService>(),
+      slmReadyCheck: () async =>
+          await getIt<FfmLocalModelService>().getInstalled() != null,
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(
     () => JsonExportStudioService(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantReportService>(
+    () => FfmAssistantReportService(getIt<JsonExportStudioService>()),
   );
 }

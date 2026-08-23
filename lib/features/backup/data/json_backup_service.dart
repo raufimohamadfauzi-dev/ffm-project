@@ -57,17 +57,23 @@ class JsonBackupService {
     'audit_logs',
     'assistant_memories',
     'assistant_learning_examples',
+    'assistant_unanswered_questions',
   ];
 
-  Future<String> exportJson() async {
+  Future<String> exportJson({
+    List<Map<String, Object?>>? assistantChatHistory,
+  }) async {
     final modules = <String, Object?>{};
     for (final table in _tables.reversed) {
       if (!await _tableExists(table)) continue;
       final rows = await database.customSelect('SELECT * FROM "$table"').get();
       modules[table] = rows.map((row) => _jsonSafe(row.data)).toList();
     }
+    if (assistantChatHistory != null) {
+      modules['assistant_chat_history'] = assistantChatHistory;
+    }
     return jsonEncode({
-      'formatVersion': 'ffm-v21-full',
+      'formatVersion': 'ffm-v23-full',
       'householdId': AppContext.householdId,
       'exportedAt': DateTime.now().toIso8601String(),
       'isFull': true,
@@ -120,7 +126,11 @@ class JsonBackupService {
     );
   }
 
-  Future<void> importAndRestore(String path) async {
+  Future<void> importAndRestore(
+    String path, {
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreChatHistory,
+  }) async {
     final content = await File(path).readAsString();
     final decoded = jsonDecode(content);
     if (decoded is! Map<String, dynamic> || decoded['isFull'] != true) {
@@ -140,6 +150,14 @@ class JsonBackupService {
           .map((row) => Map<String, dynamic>.from(row))
           .toList();
     }
+    final chatHistoryRows = rawModules['assistant_chat_history'];
+    final safeChatHistory = chatHistoryRows is List
+        ? chatHistoryRows
+              .whereType<Map>()
+              .map((row) => Map<String, Object?>.from(row))
+              .toList()
+        : null;
+
     await database.transaction(() async {
       await database.customStatement('PRAGMA foreign_keys = OFF');
       try {
@@ -155,6 +173,10 @@ class JsonBackupService {
         await database.customStatement('PRAGMA foreign_keys = ON');
       }
     });
+
+    if (onRestoreChatHistory != null && safeChatHistory != null) {
+      await onRestoreChatHistory(safeChatHistory);
+    }
   }
 
   Future<bool> _tableExists(String table) async {
@@ -224,6 +246,7 @@ class JsonBackupService {
     'activity_entries' => 'activity_entries',
     'assistant_memories' => 'assistant_memories',
     'assistant_learning_examples' => 'assistant_learning_examples',
+    'assistant_chat_history' => 'assistant_chat_history',
     _ => table,
   };
 }

@@ -5,6 +5,8 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/usecases/recurring_transaction_crud_usecases.dart';
@@ -133,111 +135,114 @@ class _RecurringTransactionPageState extends State<RecurringTransactionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Pemasukan & biaya berkala')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEditor(),
-        icon: const Icon(Icons.add),
-        label: const Text('Tambah jadwal'),
-      ),
-      body: FutureBuilder<_RecurringOptions>(
-        future: _optionsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Text('Gagal memuat jadwal: ${snapshot.error}'),
-            );
-          }
-          final options = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-            children: [
-              const AppHelpBanner(
-                title: 'Bunga dan biaya tetap offline',
-                message: 'Atur bunga, pemasukan rutin, atau biaya admin bulanan di sini. Saat FFM dibuka, jadwal jatuh tempo dibuat menjadi transaksi satu kali saja.',
-                icon: Icons.autorenew_rounded,
-              ),
-              const SizedBox(height: 16),
-              if (options.accounts.isEmpty)
-                const AppCard(
-                  child: ListTile(
-                    leading: Icon(Icons.info_outline),
-                    title: Text('Lengkapi Data Utama dulu'),
-                    subtitle: Text(
-                      'Siapkan rekening, kategori, dan sumber pemasukan supaya jadwalnya punya tujuan yang jelas.',
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.recurringTransaction,
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Pemasukan & biaya berkala')),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _openEditor(),
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah jadwal'),
+        ),
+        body: FutureBuilder<_RecurringOptions>(
+          future: _optionsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(
+                child: Text('Gagal memuat jadwal: ${snapshot.error}'),
+              );
+            }
+            final options = snapshot.data!;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              children: [
+                const AppHelpBanner(
+                  title: 'Bunga dan biaya tetap offline',
+                  message: 'Atur bunga, pemasukan rutin, atau biaya admin bulanan di sini. Saat FFM dibuka, jadwal jatuh tempo dibuat menjadi transaksi satu kali saja.',
+                  icon: Icons.autorenew_rounded,
+                ),
+                const SizedBox(height: 16),
+                if (options.accounts.isEmpty)
+                  const AppCard(
+                    child: ListTile(
+                      leading: Icon(Icons.info_outline),
+                      title: Text('Lengkapi Data Utama dulu'),
+                      subtitle: Text(
+                        'Siapkan rekening, kategori, dan sumber pemasukan supaya jadwalnya punya tujuan yang jelas.',
+                      ),
                     ),
                   ),
-                ),
-              if (options.warnings.isNotEmpty)
-                AppCard(
-                  child: ListTile(
-                    leading: const Icon(Icons.warning_amber_rounded),
-                    title: const Text('Ada jadwal yang perlu dicek'),
-                    subtitle: Text(
-                      options.warnings
-                          .map(
-                            (warning) => warning.willSkip
-                                ? '${warning.rule.name}: saldo nol/minus, jadwal persentase akan dilewati.'
-                                : '${warning.rule.name}: biaya sekitar Rp ${formatRupiahInput(warning.estimatedAmount.toString())} melebihi saldo buku Rp ${formatRupiahInput(warning.bookBalance.toString())}.',
-                          )
-                          .join('\\n'),
+                if (options.warnings.isNotEmpty)
+                  AppCard(
+                    child: ListTile(
+                      leading: const Icon(Icons.warning_amber_rounded),
+                      title: const Text('Ada jadwal yang perlu dicek'),
+                      subtitle: Text(
+                        options.warnings
+                            .map(
+                              (warning) => warning.willSkip
+                                  ? '${warning.rule.name}: saldo nol/minus, jadwal persentase akan dilewati.'
+                                  : '${warning.rule.name}: biaya sekitar Rp ${formatRupiahInput(warning.estimatedAmount.toString())} melebihi saldo buku Rp ${formatRupiahInput(warning.bookBalance.toString())}.',
+                            )
+                            .join('\\n'),
+                      ),
                     ),
                   ),
-                ),
-              if (_rules.isEmpty)
-                const AppEmptyState(
-                  icon: Icons.event_repeat_outlined,
-                  title: 'Belum ada jadwal berkala',
-                  message: 'Tambahkan bunga harian, pemasukan mingguan, atau biaya admin bulanan. Jadwal tidak mengubah saldo sebelum tanggalnya jatuh tempo.',
-                )
-              else
-                ..._rules.map(
-                  (rule) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: AppCard(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Icon(
-                            rule.type == 'expense'
-                                ? Icons.trending_down_rounded
-                                : Icons.trending_up_rounded,
+                if (_rules.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.event_repeat_outlined,
+                    title: 'Belum ada jadwal berkala',
+                    message: 'Tambahkan bunga harian, pemasukan mingguan, atau biaya admin bulanan. Jadwal tidak mengubah saldo sebelum tanggalnya jatuh tempo.',
+                  )
+                else
+                  ..._rules.map(
+                    (rule) => Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppCard(
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            child: Icon(
+                              rule.type == 'expense'
+                                  ? Icons.trending_down_rounded
+                                  : Icons.trending_up_rounded,
+                            ),
                           ),
-                        ),
-                        title: Text(rule.name),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${_typeLabel(rule.type)} · ${_periodLabel(rule.periodType)}\n'
-                              '${_amountLabel(rule)} · Mulai ${formatTanggalLengkap(rule.startDate)}',
-                            ),
-                            HijriDateLabel(date: rule.startDate),
-                          ],
-                        ),
-                        isThreeLine: true,
-                        trailing: PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') _openEditor(existing: rule);
-                            if (value == 'archive') _archive(rule);
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            PopupMenuItem(
-                              value: 'archive',
-                              child: Text('Nonaktifkan'),
-                            ),
-                          ],
+                          title: Text(rule.name),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${_typeLabel(rule.type)} · ${_periodLabel(rule.periodType)}\n'
+                                '${_amountLabel(rule)} · Mulai ${formatTanggalLengkap(rule.startDate)}',
+                              ),
+                              HijriDateLabel(date: rule.startDate),
+                            ],
+                          ),
+                          isThreeLine: true,
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') _openEditor(existing: rule);
+                              if (value == 'archive') _archive(rule);
+                            },
+                            itemBuilder: (context) => const [
+                              PopupMenuItem(value: 'edit', child: Text('Edit')),
+                              PopupMenuItem(
+                                value: 'archive',
+                                child: Text('Nonaktifkan'),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

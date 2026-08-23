@@ -38,11 +38,28 @@ void main() {
     );
 
     final service = JsonBackupService(source);
-    final content = await service.exportJson();
+    final historyRows = [
+      {
+        'isUser': true,
+        'text': 'catat gaji',
+        'imagePath': '/path/to/image.jpg',
+        'createdAt': now.toIso8601String(),
+      },
+    ];
+    final filteredHistory = historyRows
+        .map((row) {
+          final mutable = Map<String, Object?>.of(row);
+          mutable.remove('imagePath');
+          return mutable;
+        })
+        .toList(growable: false);
+    final content = await service.exportJson(
+      assistantChatHistory: filteredHistory,
+    );
     final decoded = jsonDecode(content) as Map<String, dynamic>;
     final modules = decoded['modules'] as Map<String, dynamic>;
 
-    expect(decoded['formatVersion'], 'ffm-v21-full');
+    expect(decoded['formatVersion'], 'ffm-v23-full');
     expect(decoded['isFull'], isTrue);
     expect(
       modules.keys,
@@ -66,6 +83,10 @@ void main() {
         'hijri_month_overrides',
         'account_reconciliation_logs',
         'audit_logs',
+        'assistant_memories',
+        'assistant_learning_examples',
+        'assistant_unanswered_questions',
+        'assistant_chat_history',
       ]),
     );
     expect((modules['audit_logs'] as List), hasLength(1));
@@ -78,7 +99,13 @@ void main() {
 
     final restored = createInMemoryDatabaseForTests();
     addTearDown(restored.close);
-    await JsonBackupService(restored).importAndRestore(file.path);
+    List<Map<String, Object?>>? restoredHistory;
+    await JsonBackupService(restored).importAndRestore(
+      file.path,
+      onRestoreChatHistory: (rows) async {
+        restoredHistory = rows;
+      },
+    );
 
     final auditRows = await restored
         .customSelect('SELECT id, action FROM audit_logs')
@@ -90,5 +117,10 @@ void main() {
     expect(auditRows.single.read<String>('action'), 'create');
     expect(reconciliationRows, hasLength(1));
     expect(reconciliationRows.single.read<int>('difference'), -1000);
+
+    expect(restoredHistory, isNotNull);
+    expect(restoredHistory, hasLength(1));
+    expect(restoredHistory!.single['text'], 'catat gaji');
+    expect(restoredHistory!.single.containsKey('imagePath'), isFalse);
   });
 }

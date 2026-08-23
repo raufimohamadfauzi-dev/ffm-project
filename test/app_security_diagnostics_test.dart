@@ -117,6 +117,33 @@ void main() {
       expect(report, isNot(contains('rahasia')));
     });
 
+    test(
+      'mendeteksi startup yang sebelumnya terputus tanpa data sensitif',
+      () async {
+        await diagnostics.markStartupStarted(phase: 'database_bootstrap');
+        await diagnostics.recordInterruptedStartupIfNeeded();
+
+        final entry = await diagnostics.latestEntry();
+        expect(entry, isNotNull);
+        expect(entry!.code, 'STARTUP_INTERRUPTED');
+        expect(entry.feature, 'Bootstrap aplikasi');
+        expect(entry.summary, contains('database_bootstrap'));
+        expect(await diagnostics.readStartupMarker(), isNotNull);
+      },
+    );
+
+    test(
+      'startup normal ditandai complete dan tidak dilaporkan sebagai crash',
+      () async {
+        await diagnostics.markStartupStarted(phase: 'bindings_ready');
+        await diagnostics.markStartupComplete();
+        await diagnostics.recordInterruptedStartupIfNeeded();
+
+        expect(await diagnostics.latest(), isEmpty);
+        expect((await diagnostics.readStartupMarker())!['status'], 'complete');
+      },
+    );
+
     test('menyimpan maksimal dua puluh error terbaru', () async {
       for (var index = 0; index < 24; index++) {
         await diagnostics.recordException(
@@ -155,9 +182,7 @@ void main() {
         );
         final interpreter = FfmAssistantInterpreter(
           database,
-          null,
-          null,
-          diagnostics,
+          diagnostics: diagnostics,
         );
 
         final errorIntent = await interpreter.interpret('Ada error apa?');
@@ -176,9 +201,7 @@ void main() {
     test('menjelaskan saat belum ada error tanpa mengarang masalah', () async {
       final interpreter = FfmAssistantInterpreter(
         database,
-        null,
-        null,
-        AppDiagnosticsService(store: _MemoryStore()),
+        diagnostics: AppDiagnosticsService(store: _MemoryStore()),
       );
 
       final intent = await interpreter.interpret('Cek error aplikasi');

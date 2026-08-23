@@ -42,6 +42,9 @@ part 'app_database.g.dart';
     AssistantMemories,
     AssistantLearningExamples,
     AssistantUnansweredQuestions,
+    UserCorrections,
+    UserPreferences,
+    InteractionPatterns,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -50,7 +53,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 33;
+  int get schemaVersion => 34;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -60,6 +63,7 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
+      await _createPersonalizationIndexes();
       await _seedInitialData();
     },
     onUpgrade: (Migrator m, int from, int to) async {
@@ -134,6 +138,12 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(assistantUnansweredQuestions);
         await _createAssistantUnansweredQuestionIndexes();
       }
+      if (from < 34) {
+        await m.createTable(userCorrections);
+        await m.createTable(userPreferences);
+        await m.createTable(interactionPatterns);
+        await _createPersonalizationIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -186,6 +196,22 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_assistant_unanswered_questions_open '
       'ON assistant_unanswered_questions '
       '(household_id, is_resolved, updated_at)',
+    );
+  }
+
+  Future<void> _createPersonalizationIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_user_corrections_lookup '
+      'ON user_corrections '
+      '(household_id, merchant_name, field_name, timestamp)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_user_preferences_key '
+      'ON user_preferences (household_id, preference_key)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_interaction_patterns_lookup '
+      'ON interaction_patterns (household_id, merchant_name, field_name)',
     );
   }
 

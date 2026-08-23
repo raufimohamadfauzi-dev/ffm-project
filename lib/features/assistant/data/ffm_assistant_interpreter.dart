@@ -6,41 +6,80 @@ import '../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import 'ffm_assistant_memory_repository.dart';
+import 'ffm_assistant_user_model_service.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_query_tools.dart';
+import 'ffm_assistant_financial_snapshot_service.dart';
+import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_assistant_typo_normalizer.dart';
 import '../domain/ffm_assistant_action_tool.dart';
+import '../domain/ffm_assistant_execution_limits.dart';
 import '../domain/ffm_assistant_models.dart';
+import '../domain/ffm_assistant_self_description.dart';
+import '../domain/ffm_assistant_reasoning_context.dart';
+import '../domain/ffm_assistant_financial_education.dart';
 
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
+import 'ffm_assistant_local_model_gateway.dart';
+import 'ffm_local_inference_queue.dart';
+
 class FfmAssistantInterpreter {
   FfmAssistantInterpreter(
-    this._database, [
+    this._database, {
     FfmAssistantLocalMemory? memory,
+    FfmAssistantLocalModelGateway? modelGateway,
     DateTime Function()? clock,
     AppDiagnosticsService? diagnostics,
-  ]) : _memory = memory ?? FfmAssistantLocalMemory(),
+    FfmAssistantSelfDescriptionService? selfDescription,
+    FfmAssistantPersonalizationRepository? personalization,
+    Future<bool> Function()? slmReadyCheck,
+  }) : _memory = memory ?? FfmAssistantLocalMemory(),
+       _modelGateway = modelGateway,
+       _personalization =
+           personalization ?? FfmAssistantPersonalizationRepository(_database),
+       _slmReadyCheck = slmReadyCheck,
        _taughtMemory = FfmAssistantMemoryRepository(_database),
        _clock = clock ?? DateTime.now,
-       _diagnostics = diagnostics ?? AppDiagnosticsService() {
+       _diagnostics = diagnostics ?? AppDiagnosticsService(),
+       _selfDescription =
+           selfDescription ?? const FfmAssistantSelfDescriptionService() {
+    _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
   }
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
+  final FfmAssistantLocalModelGateway? _modelGateway;
+  final FfmAssistantPersonalizationRepository _personalization;
+  final Future<bool> Function()? _slmReadyCheck;
   final FfmAssistantMemoryRepository _taughtMemory;
   final DateTime Function() _clock;
   final AppDiagnosticsService _diagnostics;
+  final FfmAssistantSelfDescriptionService _selfDescription;
+  final _financialEducation = const FfmAssistantFinancialEducationService();
+  late final FfmAssistantFinancialSnapshotService _financialSnapshot;
   late final FfmAssistantQueryRegistry _queryRegistry;
   late final FfmAssistantContextualActionRegistry _actionRegistry;
+
+  Future<bool> _isSlmReady() async {
+    final check = _slmReadyCheck;
+    if (check == null) return false;
+    try {
+      return await check();
+    } on Object {
+      return false;
+    }
+  }
 
   Future<List<FfmAssistantIntent>> interpretMany(
     String rawText, {
     FfmAssistantDestination? currentDestination,
+    String? pageContext,
+    List<String> capabilityIds = const <String>[],
   }) async {
     final commands = rawText
         .split(
@@ -52,14 +91,40 @@ class FfmAssistantInterpreter {
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
-    if (commands.length <= 1) {
-      return [await interpret(rawText, currentDestination: currentDestination)];
+    if (commands.length >
+        FfmAssistantExecutionLimits.maxSubCommandsPerMessage) {
+      return [
+        FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: _normalize(rawText),
+          type: FfmAssistantIntentType.unknown,
+          confidence: 1,
+          response: FfmAssistantExecutionLimits.tooComplexMessage,
+        ),
+      ];
     }
-    return Future.wait(
-      commands.map(
-        (command) => interpret(command, currentDestination: currentDestination),
-      ),
-    );
+    if (commands.length <= 1) {
+      return [
+        await interpret(
+          rawText,
+          currentDestination: currentDestination,
+          pageContext: pageContext,
+          capabilityIds: capabilityIds,
+        ),
+      ];
+    }
+    final results = <FfmAssistantIntent>[];
+    for (final command in commands) {
+      results.add(
+        await interpret(
+          command,
+          currentDestination: currentDestination,
+          pageContext: pageContext,
+          capabilityIds: capabilityIds,
+        ),
+      );
+    }
+    return results;
   }
 
   /// Menjawab pertanyaan lanjutan hanya terhadap draft yang masih tertahan.
@@ -68,6 +133,8 @@ class FfmAssistantInterpreter {
     String rawText,
     FfmAssistantPendingDialog pending, {
     FfmAssistantDestination? currentDestination,
+    String? pageContext,
+    List<String> capabilityIds = const <String>[],
   }) async {
     final normalized = _normalize(rawText);
     if (_containsAny(normalized, const ['batal', 'jangan jadi'])) {
@@ -99,6 +166,8 @@ class FfmAssistantInterpreter {
             await interpret(
               '$rawText ${pending.originalRequest}',
               currentDestination: currentDestination,
+              pageContext: pageContext,
+              capabilityIds: capabilityIds,
             ),
           ];
         }
@@ -112,7 +181,14 @@ class FfmAssistantInterpreter {
           ),
         ];
       }
-      return [await interpret(rawText, currentDestination: currentDestination)];
+      return [
+        await interpret(
+          rawText,
+          currentDestination: currentDestination,
+          pageContext: pageContext,
+          capabilityIds: capabilityIds,
+        ),
+      ];
     }
 
     var draft = initial;
@@ -173,8 +249,18 @@ class FfmAssistantInterpreter {
   Future<FfmAssistantIntent> interpret(
     String rawText, {
     FfmAssistantDestination? currentDestination,
+    String? imagePath,
+    String? pageContext,
+    List<String> capabilityIds = const <String>[],
   }) async {
     var normalized = _normalize(rawText);
+
+    // Semua guard deterministik berjalan lebih dahulu. Jika tidak menangani
+    // permintaan, barulah SLM lokal dicoba sebagai classifier/proposal maker.
+    // Dengan urutan ini, PIN, diagnostik, konfirmasi, dan query lokal tidak
+    // pernah diserahkan kepada teks bebas dari model.
+
+    // Fallback rule-based
     if (normalized.isEmpty) {
       return _unknown(
         rawText,
@@ -194,6 +280,8 @@ class FfmAssistantInterpreter {
       return _unknown(rawText, normalized, proposal.error!);
     }
 
+    final userProfileIntent = _parseUserProfileMemory(rawText, normalized);
+    if (userProfileIntent != null) return userProfileIntent;
     final aliasIntent = _parseAliasMemory(rawText, normalized);
     if (aliasIntent != null) return aliasIntent;
     normalized = await _memory.applyAliases(normalized);
@@ -246,15 +334,34 @@ class FfmAssistantInterpreter {
       'kamu siapa',
       'anda siapa',
       'asisten ffm itu apa',
+      'siapa pembuat aplikasi',
+      'pembuat aplikasi ini siapa',
+      'dibuat oleh siapa',
       'kamu bisa apa',
       'anda bisa apa',
     ])) {
+      final slmConfigured = await _isSlmReady();
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.assistantIdentity,
         confidence: 1,
-        response: 'Aku Asisten FFM, pendamping lokal di Family Finance Manager. Aku bisa bantu cek data yang tersimpan, jelaskan fitur, pindah halaman, siapkan draft form, dan jawab kalender atau jam dari waktu lokal HP kamu. Aku tidak menyimpan transaksi atau data lain sendiri—kamu tetap cek lalu tekan Simpan di form.',
+        response: _selfDescription.build(
+          slmConfigured: slmConfigured,
+          currentDestination: currentDestination,
+        ),
+      );
+    }
+
+    if (_isOtherMenuListRequest(normalized)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.listPages,
+        destination: FfmAssistantDestination.otherMenu,
+        confidence: 1,
+        response:
+            'Menu Lainnya memiliki ${FfmAssistantCatalog.otherMenuItems.length} menu berikut beserta fungsinya:\n${FfmAssistantCatalog.listOtherMenuForChat()}',
       );
     }
 
@@ -380,7 +487,8 @@ class FfmAssistantInterpreter {
       );
     }
 
-    if (_isDatabaseStructureRequest(normalized)) {
+    if (_isDatabaseStructureRequest(normalized) &&
+        !_isNavigationRequest(normalized)) {
       final queryAnswer = await _queryRegistry.tryAnswer(
         normalized,
         householdId: AppContext.householdId,
@@ -396,11 +504,13 @@ class FfmAssistantInterpreter {
       }
     }
 
-    final featureHelp = _featureHelp(
-      rawText,
-      normalized,
-      currentDestination: currentDestination,
-    );
+    final featureHelp = _isNavigationRequest(normalized)
+        ? null
+        : _featureHelp(
+            rawText,
+            normalized,
+            currentDestination: currentDestination,
+          );
     if (featureHelp != null) return featureHelp;
 
     if (_isWeeklyAnalysisRequest(normalized)) {
@@ -419,17 +529,52 @@ class FfmAssistantInterpreter {
       return _currentPageContext(rawText, normalized, currentDestination);
     }
 
-    final queryAnswer = await _queryRegistry.tryAnswer(
-      normalized,
-      householdId: AppContext.householdId,
-    );
-    if (queryAnswer != null) {
+    if (!_isNavigationRequest(normalized)) {
+      final queryAnswer = await _queryRegistry.tryAnswer(
+        normalized,
+        householdId: AppContext.householdId,
+      );
+      if (queryAnswer != null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.queryData,
+          confidence: .98,
+          response: '${queryAnswer.title}\n${queryAnswer.message}',
+        );
+      }
+    }
+
+    final financialEducation = _financialEducation.answer(normalized);
+    final isActionRequest = _containsAny(normalized, const [
+      'buat',
+      'tambah',
+      'catat',
+      'simpan',
+      'ubah',
+      'hapus',
+      'buka',
+      'jalankan',
+    ]);
+    final isQuestion = _containsAny(normalized, const [
+      'bagaimana',
+      'gimana',
+      'cara',
+      'apa ',
+      'berapa',
+      'boleh',
+      'sebaiknya',
+      'mengapa',
+      'kenapa',
+      'tips',
+    ]);
+    if (financialEducation != null && isQuestion && !isActionRequest) {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
-        type: FfmAssistantIntentType.queryData,
-        confidence: .98,
-        response: '${queryAnswer.title}\n${queryAnswer.message}',
+        type: FfmAssistantIntentType.help,
+        confidence: 1,
+        response: '${financialEducation.title}\n${financialEducation.message}',
       );
     }
 
@@ -506,6 +651,34 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final modelIntent = await _tryModelFirst(
+      rawText,
+      normalized,
+      imagePath: imagePath,
+      pageContext: pageContext,
+      capabilityIds: capabilityIds,
+      currentDestination: currentDestination,
+    );
+    if (modelIntent != null) {
+      if (modelIntent.type == FfmAssistantIntentType.outOfDomain) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.outOfDomain,
+          confidence: 1,
+          response: 'Maaf, aku dirancang khusus sebagai asisten keuangan keluarga untuk FFM. Aku belum bisa menjawab atau membahas topik di luar fitur dan catatan aplikasi ini.',
+        );
+      }
+      return modelIntent;
+    }
+    if (imagePath != null) {
+      return _unknown(
+        rawText,
+        normalized,
+        'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau pastikan fitur AI lokal sudah terpasang.',
+      );
+    }
+
     final accounts = await _activeAccounts();
     final categories = await _activeCategories();
     final contextualDraft = await _actionRegistry.buildDraft(
@@ -543,7 +716,7 @@ class FfmAssistantInterpreter {
     return _unknown(
       rawText,
       normalized,
-      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pusat Latihan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.',
+      _unsupportedQuestionHelp(normalized) ?? 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.',
     );
   }
 
@@ -575,6 +748,132 @@ class FfmAssistantInterpreter {
       response:
           'Ada error teknis terbaru di ${latest.feature} pada $formattedTime. Kode: ${latest.code}. Ringkasan aman: ${latest.summary}. Dampak: ${latest.impact} Buka Bantuan perbaikan untuk lihat dan salin laporan yang sudah disaring.',
     );
+  }
+
+  Future<FfmAssistantIntent?> _tryModelFirst(
+    String rawText,
+    String normalized, {
+    String? imagePath,
+    String? pageContext,
+    List<String> capabilityIds = const <String>[],
+    FfmAssistantDestination? currentDestination,
+  }) async {
+    final gateway = _modelGateway;
+    if (gateway == null) return null;
+    FfmAssistantModelProposal? proposal;
+    try {
+      final userContext = await FfmAssistantUserModelService(_taughtMemory)
+          .buildContext(query: normalized);
+      final evidence = await _financialSnapshot.readCurrentMonth(
+        householdId: AppContext.householdId,
+        now: _clock(),
+      );
+      final financialContext = _financialSnapshot.buildBoundedPrompt(evidence);
+      final personalizationContext = await _personalization
+          .buildPersonalizedContext(
+            householdId: AppContext.householdId,
+            query: normalized,
+          );
+      final reasoningContext = FfmAssistantReasoningContext(
+        request: rawText,
+        capturedAt: _clock(),
+        currentPage: currentDestination,
+        pageSummary: [
+          if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
+          financialContext,
+        ].join('\\n'),
+        capabilityIds: capabilityIds,
+        approvedUserContext: userContext,
+        personalizationContext: personalizationContext,
+        modelReady: true,
+      );
+      final modelContext = reasoningContext.toBoundedPrompt();
+      proposal = await gateway.proposeWithContext(
+        input: rawText,
+        imagePath: imagePath,
+        pageContext: modelContext.isEmpty ? null : modelContext,
+        capabilityIds: capabilityIds,
+      );
+    } catch (error) {
+      if (error is FfmInferenceCancelledException) rethrow;
+      // Native/model failure is not an assistant failure; continue with the
+      // deterministic local interpreter below.
+      return null;
+    }
+    if (proposal == null || !proposal.isUsable) return null;
+
+    if (proposal.intent == FfmAssistantIntentType.help) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        confidence: proposal.confidence,
+        responseMode: FfmAssistantResponseMode.localModel,
+      );
+    }
+
+    if (proposal.intent == FfmAssistantIntentType.outOfDomain) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.outOfDomain,
+        confidence: proposal.confidence,
+        responseMode: FfmAssistantResponseMode.localModel,
+      );
+    }
+
+    if (proposal.intent == FfmAssistantIntentType.openPage) {
+      final target = proposal.actionTarget;
+      if (target == null || target.trim().isEmpty) return null;
+      final page = _parseDestination(_normalize(target));
+      if (page == null) return null;
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.openPage,
+        destination: page.destination,
+        confidence: proposal.confidence,
+        responseMode: FfmAssistantResponseMode.localModel,
+        response:
+            'Siap, aku pindahkan kamu ke ${page.name}. Tekan “Buka & cek” kalau sudah siap.',
+      );
+    }
+
+    if (proposal.intent == FfmAssistantIntentType.queryData) {
+      final answer = await _queryRegistry.tryAnswer(
+        normalized,
+        householdId: AppContext.householdId,
+      );
+      if (answer == null) return null;
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.queryData,
+        confidence: proposal.confidence,
+        responseMode: FfmAssistantResponseMode.localModel,
+        response: '${answer.title}\n${answer.message}',
+      );
+    }
+
+    if (proposal.intent == FfmAssistantIntentType.createExpense ||
+        proposal.intent == FfmAssistantIntentType.createIncome ||
+        proposal.intent == FfmAssistantIntentType.createTransfer) {
+      final draft = proposal.draft;
+      if (draft == null) return null;
+      // Reuse deterministic validation and clarification rules. The model never
+      // gets to choose account/category IDs or write to the database.
+      final validated = _intentForDraft(rawText, normalized, draft);
+      return validated.copyWith(
+        responseMode: FfmAssistantResponseMode.localModel,
+        response:
+            validated.response ??
+            'Draf dari AI lokal siap ditinjau. Belum ada data yang disimpan.',
+      );
+    }
+
+    // Help/unknown and malformed/ambiguous actions fall back to the existing
+    // deterministic interpreter rather than displaying model-authored prose.
+    return null;
   }
 
   Future<List<Account>> _activeAccounts() =>
@@ -1052,6 +1351,33 @@ class FfmAssistantInterpreter {
     );
   }
 
+  bool _isOtherMenuListRequest(String text) =>
+      (text.contains('menu lainnya') || text.contains('bagian lainnya')) &&
+      _containsAny(text, const [
+        'apa saja',
+        'daftar',
+        'isi',
+        'fitur',
+        'menu',
+        'tampilkan',
+        'fungsi',
+        'ada apa',
+      ]);
+
+  bool _isNavigationRequest(String text) => _containsAny(text, const [
+    'buka',
+    'pindah',
+    'ke halaman',
+    'ke bagian',
+    'arah ke',
+    'bawa ke',
+    'pergi ke halaman',
+    'pergi ke menu',
+    'masuk halaman',
+    'masuk menu',
+    'tampilkan',
+  ]);
+
   bool _isCurrentPageRequest(String text) => _containsAny(text, const [
     'halaman ini',
     'di sini ada apa',
@@ -1140,6 +1466,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createActivity,
         destination: FfmAssistantDestination.activity,
         action: 'aktivitas',
+      ),
+      FfmAssistantDraftKind.profile => (
+        type: FfmAssistantIntentType.createProfile,
+        destination: FfmAssistantDestination.assistantProfile,
+        action: 'profil',
       ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
@@ -1260,6 +1591,22 @@ class FfmAssistantInterpreter {
         createdAt: now,
         title: _draftTitle(normalized, masterData.$2),
         categoryName: masterData.$1,
+        note: rawText.trim(),
+        date: now,
+      );
+    }
+    final createProfile = _containsAny(normalized, const [
+      'buat profil',
+      'isi profil',
+      'ubah profil',
+      'perbarui profil',
+      'kenalan',
+    ]);
+    if (createProfile) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.profile,
+        createdAt: now,
+        title: 'Perkenalan Diri',
         note: rawText.trim(),
         date: now,
       );
@@ -1463,6 +1810,11 @@ class FfmAssistantInterpreter {
     if (!income && !expense) return null;
     final transactionType = income && !expense ? 'income' : 'expense';
     final category = _matchCategory(normalized, categories, transactionType);
+    final selectedAccount = _matchAccount(normalized, accounts);
+    final slmFieldValues = <String, String>{
+      if (category != null) 'category': category.name,
+      if (selectedAccount != null) 'account': selectedAccount.name,
+    };
     return FfmAssistantDraft(
       kind: income && !expense
           ? FfmAssistantDraftKind.income
@@ -1470,11 +1822,11 @@ class FfmAssistantInterpreter {
       createdAt: now,
       amount: amount,
       categoryName: category?.name,
-      toAccountName: income ? _matchAccount(normalized, accounts)?.name : null,
-      fromAccountName: expense
-          ? _matchAccount(normalized, accounts)?.name
-          : null,
+      toAccountName: income ? selectedAccount?.name : null,
+      fromAccountName: expense ? selectedAccount?.name : null,
       note: rawText.trim(),
+      merchantName: _extractMerchant(normalized),
+      slmFieldValues: slmFieldValues,
       date: now,
     );
   }
@@ -1493,6 +1845,35 @@ class FfmAssistantInterpreter {
       confidence: .95,
       response:
           'Siap, aku akan mengganti “$oldText” menjadi “$newText” di draft yang sedang aktif. Cek hasilnya sebelum disimpan, ya.',
+    );
+  }
+
+  FfmAssistantIntent? _parseUserProfileMemory(
+    String rawText,
+    String normalized,
+  ) {
+    final match = RegExp(
+      r'^(?:nama saya|panggil saya|panggil aku|ingat nama saya)\s+(.+)$',
+    ).firstMatch(normalized);
+    final displayName = match
+        ?.group(1)
+        ?.trim()
+        .replaceAll(RegExp(r'[.!?]+$'), '');
+    if (displayName == null || displayName.isEmpty || displayName.length > 80) {
+      return null;
+    }
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.teachMemory,
+      confidence: .98,
+      response:
+          'Aku bisa mengingat bahwa kamu ingin dipanggil “$displayName”. Cek dulu lalu pilih Simpan ajaran jika sudah pas, ya.',
+      teachingProposal: FfmAssistantTeachingProposal(
+        kind: 'user_profile',
+        triggerText: 'nama_panggilan',
+        valueText: displayName,
+      ),
     );
   }
 
@@ -1742,6 +2123,16 @@ class FfmAssistantInterpreter {
     'sumber_pemasukan' => 'Tambah sumber pemasukan',
     _ => 'Tambah kategori',
   };
+
+  String? _extractMerchant(String text) {
+    final match = RegExp(
+      r'\b(?:di|pada)\s+([a-z0-9][a-z0-9 .&-]{1,80}?)(?=\s+(?:sebesar|senilai|rp|harga|untuk|dengan|hari ini|kemarin|besok)\b|\s+[0-9]|$)',
+    ).firstMatch(text);
+    final value = match?.group(1)?.trim();
+    return value == null || value.isEmpty
+        ? null
+        : value.split(' ').map(_capitalize).join(' ');
+  }
 
   String? _extractParty(String text, List<String> markers) {
     for (final marker in markers) {

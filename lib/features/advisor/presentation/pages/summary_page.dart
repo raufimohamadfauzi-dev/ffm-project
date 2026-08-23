@@ -1,4 +1,7 @@
 import 'package:drift/drift.dart' hide Column;
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/database/app_context.dart';
@@ -8,6 +11,7 @@ import '../../../../core/localization/app_copy.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../assistant/data/ffm_assistant_widget_sync_service.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
@@ -162,7 +166,7 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
         )
         .firstWhere((item) => item.placement == SuggestionPlacement.dashboard);
-    return _SummaryData(
+    final summary = _SummaryData(
       score: score,
       financialSuggestions: financialSuggestions,
       income: income,
@@ -186,6 +190,14 @@ class _SummaryPageState extends State<SummaryPage> {
       householdName: householdName?.isNotEmpty == true ? householdName : null,
       hijriToday: hijriToday,
     );
+    unawaited(
+      const FfmAssistantWidgetSyncService().updateSummary(
+        title: 'FFM · Ringkasan bulan ini',
+        subtitle:
+            'Masuk ${formatCompactRupiah(summary.income)} · Keluar ${formatCompactRupiah(summary.expenses)}',
+      ),
+    );
+    return summary;
   }
 
   void _refresh() {

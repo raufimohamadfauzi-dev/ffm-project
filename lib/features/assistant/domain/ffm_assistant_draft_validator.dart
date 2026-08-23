@@ -92,6 +92,7 @@ abstract final class FfmAssistantDraftValidator {
       case FfmAssistantDraftKind.masterData:
       case FfmAssistantDraftKind.reminder:
       case FfmAssistantDraftKind.activity:
+      case FfmAssistantDraftKind.profile:
         if (_isBlank(draft.title)) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -120,7 +121,8 @@ abstract final class FfmAssistantDraftValidator {
   static bool _needsAmount(FfmAssistantDraftKind kind) => switch (kind) {
     FfmAssistantDraftKind.masterData ||
     FfmAssistantDraftKind.reminder ||
-    FfmAssistantDraftKind.activity => false,
+    FfmAssistantDraftKind.activity ||
+    FfmAssistantDraftKind.profile => false,
     _ => true,
   };
 

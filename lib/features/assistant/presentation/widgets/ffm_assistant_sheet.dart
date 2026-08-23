@@ -1,24 +1,41 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../activity/domain/activity_voice.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
+import '../../data/ffm_assistant_capability_adapters.dart';
+import '../../domain/ffm_assistant_capability_executor.dart';
+import '../../data/ffm_assistant_chat_history_repository.dart';
 import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
+import '../../data/ffm_assistant_report_service.dart';
+import '../../data/ffm_assistant_chat_export_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
+import '../../data/ffm_local_model_service.dart';
+import '../../domain/ffm_assistant_action_plan.dart';
+import '../../domain/ffm_assistant_action_planner.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
 import '../../domain/ffm_assistant_models.dart';
+import '../../domain/ffm_assistant_proactive_service.dart';
+import '../../data/ffm_assistant_user_model_service.dart';
+import 'ffm_assistant_page_context.dart';
+import 'ffm_agent_status_indicator.dart';
+import '../../data/ffm_image_helper.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
 import 'ffm_assistant_message_correction_dialog.dart';
+import 'ffm_assistant_markdown_text.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -34,6 +51,7 @@ Future<void> showFfmAssistantSheet(
   required FfmAssistantIntentBatchHandler onIntents,
   required FfmAssistantChatSession session,
   FfmAssistantDestination? currentDestination,
+  FfmAssistantPageContextSnapshot? currentPageContext,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -44,6 +62,7 @@ Future<void> showFfmAssistantSheet(
     onIntents: onIntents,
     session: session,
     currentDestination: currentDestination,
+    currentPageContext: currentPageContext,
   ),
 );
 
@@ -54,12 +73,14 @@ class FfmAssistantSheet extends StatefulWidget {
     required this.onIntents,
     required this.session,
     this.currentDestination,
+    this.currentPageContext,
   });
 
   final FfmAssistantIntentHandler onIntent;
   final FfmAssistantIntentBatchHandler onIntents;
   final FfmAssistantChatSession session;
   final FfmAssistantDestination? currentDestination;
+  final FfmAssistantPageContextSnapshot? currentPageContext;
 
   @override
   State<FfmAssistantSheet> createState() => _FfmAssistantSheetState();
@@ -69,8 +90,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _controller = TextEditingController();
   final _inputFocusNode = FocusNode();
   final _scrollController = ScrollController();
+  final _imageHelper = FfmImageHelper();
+  final _historyRepository = FfmAssistantChatHistoryRepository();
+  final _actionPlanController = FfmAssistantActionPlanController();
+  final _actionPlanner = const FfmAssistantActionPlanner();
+  late final _capabilityExecutor = FfmAssistantCapabilityExecutor(
+    controller: _actionPlanController,
+    handlers: getIt<FfmAssistantCapabilityAdapterRegistry>().handlers,
+    readTransaction: <T>(action) => getIt<AppDatabase>().transaction(action),
+  );
+  final _proactiveService = const FfmAssistantProactiveSuggestionService();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
+  final _agentStatus = getIt.isRegistered<FfmAgentStatusController>()
+      ? getIt<FfmAgentStatusController>()
+      : FfmAgentStatusController();
+  final _modelService = getIt<FfmLocalModelService>();
+  final _chatExportService = FfmAssistantChatExportService();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
@@ -79,6 +115,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
+  var _modelReady = false;
+  var _modelChecking = true;
+  String? _modelStatusError;
   var _listening = false;
   var _followLatestMessages = true;
   String? _speakingEntryKey;
@@ -87,8 +126,30 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   String? _pausedSpeechSessionId;
   var _listeningSession = 0;
   StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
+  Future<void>? _historyRestoreFuture;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
+
+  void _appendEntry(FfmAssistantChatEntry entry) {
+    _entries.add(entry);
+    unawaited(_historyRepository.save(_entries));
+  }
+
+  Future<void> _restoreChatHistory() async {
+    final restored = await _historyRepository.load();
+    if (!mounted) return;
+    if (restored.isEmpty) {
+      await _historyRepository.save(_entries);
+      return;
+    }
+    if (_entries.length != 1) return;
+    setState(() {
+      _entries
+        ..clear()
+        ..addAll(restored);
+    });
+  }
+
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
   @override
@@ -96,8 +157,80 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     super.initState();
     _scrollController.addListener(_updateLatestMessagePreference);
     _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
+    _historyRestoreFuture = _restoreChatHistory();
+    _refreshModelStatus();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToEnd(force: true),
+    );
+  }
+
+  Future<void> _refreshModelStatus() async {
+    try {
+      final installed = await _modelService.getInstalled();
+      if (!mounted) return;
+      setState(() {
+        _modelReady =
+            installed?.isVerified == true && installed?.projectorPath != null;
+        _modelChecking = false;
+        _modelStatusError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _modelReady = false;
+        _modelChecking = false;
+        _modelStatusError = 'Status model tidak dapat dibaca';
+      });
+    }
+  }
+
+  Future<void> _openLocalModelPage() async {
+    await _handleIntent(
+      FfmAssistantIntent(
+        rawText: 'siapkan AI lokal',
+        normalizedText: 'siapkan ai lokal',
+        type: FfmAssistantIntentType.openPage,
+        destination: FfmAssistantDestination.localModel,
+        confidence: 1,
+        response: 'Aku buka Model Asisten Lokal supaya kamu bisa memilih download GitHub atau impor bundle offline.',
+      ),
+    );
+  }
+
+  Widget _modelStatusChip(ThemeData theme) {
+    final Color color;
+    final IconData icon;
+    final String label;
+    if (_modelChecking) {
+      color = theme.colorScheme.outline;
+      icon = Icons.sync_outlined;
+      label = 'Memeriksa AI lokal';
+    } else if (_modelReady) {
+      color = Colors.green.shade700;
+      icon = Icons.offline_bolt_outlined;
+      label = 'AI lokal siap • offline';
+    } else {
+      color = theme.colorScheme.tertiary;
+      icon = Icons.rule_outlined;
+      label = _modelStatusError ?? 'Aturan lokal • model belum siap';
+    }
+    return InkWell(
+      onTap: _refreshModelStatus,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(color: color),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -113,15 +246,132 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     super.dispose();
   }
 
-  Future<void> _submit([String? rawText]) async {
-    final text = (rawText ?? _controller.text).trim();
+  Future<void> _submitImage(bool fromCamera) async {
+    await _historyRestoreFuture;
+    if (_submitting) return;
+
+    final file = fromCamera
+        ? await _imageHelper.pickFromCamera()
+        : await _imageHelper.pickFromGallery();
+
+    if (file == null || !mounted) return;
+    final chatFile = await _imageHelper.copyToPrivateChatStorage(file);
+    if (!mounted) return;
+
+    setState(() {
+      _submitting = true;
+      _appendEntry(
+        FfmAssistantChatEntry(
+          isUser: true,
+          text: 'Gambar dilampirkan',
+          imagePath: chatFile.path,
+          createdAt: DateTime.now(),
+        ),
+      );
+    });
+    _scrollToEnd(force: true);
+    _agentStatus.working('Membaca gambar dan memahami permintaan...');
+
+    try {
+      final intent = await _interpreter.interpret(
+        '',
+        imagePath: file.path,
+        pageContext:
+            widget.currentPageContext?.dataSummary ??
+            widget.currentDestination?.name,
+        capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _submitting = false;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: intent.response ?? 'Struk sudah aku baca.',
+            intent: intent,
+            createdAt: DateTime.now(),
+            understanding: _understandingFor(intent),
+          ),
+        );
+      });
+      _scrollToEnd();
+      _agentStatus.done('Gambar dipahami; jawaban siap diperiksa.');
+    } catch (e) {
+      _agentStatus.failed('Gambar belum berhasil dipahami.');
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau pastikan fitur AI lokal sudah terpasang.',
+          ),
+        );
+      });
+      _scrollToEnd();
+    }
+  }
+
+  Future<void> _executeReadPlan(String planId) async {
+    _agentStatus.working('Membaca data yang diperlukan secara lokal...');
+    final plan = await _capabilityExecutor.execute(planId);
+    if (!mounted || plan == null) return;
+    if (plan.status == FfmAssistantActionPlanStatus.failed ||
+        plan.status == FfmAssistantActionPlanStatus.blocked ||
+        plan.status == FfmAssistantActionPlanStatus.blockedByBudget) {
+      final completed = plan.steps
+          .where(
+            (step) => step.status == FfmAssistantActionStepStatus.completed,
+          )
+          .map((step) => _capabilityLabel(step.capabilityId))
+          .toList(growable: false);
+      final failed = plan.steps.where(
+        (step) => step.status == FfmAssistantActionStepStatus.failed,
+      );
+      final failedStep = failed.isEmpty ? null : failed.first;
+      final failureLabel = failedStep == null
+          ? (plan.blockedReason == null
+                ? 'batas proses'
+                : 'batas proses (${plan.blockedReason})')
+          : _capabilityLabel(failedStep.capabilityId);
+      final partial = completed.isEmpty
+          ? 'Belum ada hasil langkah yang berhasil.'
+          : 'Hasil yang sudah berhasil: ${completed.join(', ')}.';
+      final detail = failedStep?.error;
+      final message =
+          'Proses berhenti pada $failureLabel. $partial${detail == null || detail.isEmpty ? '' : ' Detail: $detail'} Tidak ada perubahan data yang dijalankan.';
+      _agentStatus.failed('Pembacaan data belum selesai.');
+      setState(() {
+        widget.session.lastAssistantText = message;
+        _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
+      });
+      _scrollToEnd();
+      return;
+    }
+    _agentStatus.done('Data dibaca; jawaban siap diperiksa.');
+    setState(() {});
+  }
+
+  String _capabilityLabel(String capabilityId) {
+    final value = capabilityId.replaceFirst(
+      RegExp(r'^(read|draft|mutate|verify)\\.'),
+      '',
+    );
+    return value.replaceAll('_', ' ');
+  }
+
+  Future<void> _submit([String? overrideText]) async {
+    await _historyRestoreFuture;
+    final text = (overrideText ?? _controller.text).trim();
     if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
-      _entries.add(FfmAssistantChatEntry(isUser: true, text: text));
+      _appendEntry(FfmAssistantChatEntry(isUser: true, text: text));
       _controller.clear();
     });
     _scrollToEnd();
+    _agentStatus.working('Membaca konteks dan memahami permintaan...');
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
@@ -130,19 +380,43 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? await _interpreter.interpretMany(
               text,
               currentDestination: widget.currentDestination,
+              pageContext:
+                  widget.currentPageContext?.dataSummary ??
+                  widget.currentDestination?.name,
+              capabilityIds:
+                  widget.currentPageContext?.capabilityIds ?? const [],
             )
           : await _interpreter.resolvePendingDialog(
               text,
               pending,
               currentDestination: widget.currentDestination,
+              pageContext:
+                  widget.currentPageContext?.dataSummary ??
+                  widget.currentDestination?.name,
+              capabilityIds:
+                  widget.currentPageContext?.capabilityIds ?? const [],
             );
       if (!mounted) return;
+      final readPlanIds = <String>[];
       setState(() {
         for (final intent in intents) {
-          final response =
-              intent.response ??
-              intent.clarification ??
-              'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
+          String response = intent.response ?? intent.clarification ?? '';
+          if (response.isEmpty) {
+            if (intent.responseMode == FfmAssistantResponseMode.localModel &&
+                intent.type == FfmAssistantIntentType.help) {
+              response = 'Aku mengerti ini terkait literasi keuangan keluarga. (Jawaban SLM offline akan muncul di sini).';
+            } else if (intent.draft != null) {
+              response =
+                  'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
+            } else {
+              response = 'Permintaanmu sedang diproses.';
+            }
+          }
+          final actionPlan = _actionPlanner.planFor(intent);
+          if (actionPlan != null) {
+            _actionPlanController.register(actionPlan);
+            if (!actionPlan.hasMutation) readPlanIds.add(actionPlan.id);
+          }
           final review = intent.draft == null
               ? null
               : FfmAssistantDraftReview(
@@ -156,7 +430,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ..activeDraftIntent = intent;
           }
           widget.session.lastAssistantText = response;
-          _entries.add(
+          _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
               text: response,
@@ -181,6 +455,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
         }
       });
+      for (final planId in readPlanIds) {
+        await _executeReadPlan(planId);
+      }
+      if (readPlanIds.isEmpty) {
+        _agentStatus.done(
+          'Permintaan dipahami; menunggu konfirmasi jika diperlukan.',
+        );
+      }
       if (intents.any(
         (intent) => intent.type == FfmAssistantIntentType.unknown,
       )) {
@@ -190,9 +472,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
       }
     } catch (_) {
+      _agentStatus.failed('Permintaan belum berhasil diproses.');
       if (!mounted) return;
       setState(
-        () => _entries.add(
+        () => _appendEntry(
           const FfmAssistantChatEntry(
             isUser: false,
             text: 'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
@@ -242,7 +525,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!mounted) return true;
     setState(() {
       widget.session.lastAssistantText = response;
-      _entries.add(
+      _appendEntry(
         FfmAssistantChatEntry(
           isUser: false,
           text: response,
@@ -293,13 +576,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       setState(() {
         _confirmedActivityKeys.add(key);
         widget.session.lastAssistantText = response;
-        _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+        _appendEntry(FfmAssistantChatEntry(isUser: false, text: response));
       });
       _scrollToEnd();
     } catch (_) {
       if (!mounted) return;
       setState(
-        () => _entries.add(
+        () => _appendEntry(
           const FfmAssistantChatEntry(
             isUser: false,
             text: 'Aktivitas belum berubah. Coba cek lagi nama aktivitas dan konfirmasi ulang.',
@@ -332,7 +615,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!mounted) return;
     setState(() {
       widget.session.lastAssistantText = response;
-      _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+      _appendEntry(FfmAssistantChatEntry(isUser: false, text: response));
     });
     _scrollToEnd();
   }
@@ -354,9 +637,34 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!mounted) return;
     setState(() {
       widget.session.lastAssistantText = response;
-      _entries.add(FfmAssistantChatEntry(isUser: false, text: response));
+      _appendEntry(FfmAssistantChatEntry(isUser: false, text: response));
     });
     _scrollToEnd();
+  }
+
+  Future<void> _openAttachmentPicker() async {
+    final choice = await showModalBottomSheet<bool>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Ambil foto struk'),
+              onTap: () => Navigator.of(sheetContext).pop(true),
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined),
+              title: const Text('Pilih gambar dari galeri'),
+              onTap: () => Navigator.of(sheetContext).pop(false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    await _submitImage(choice);
   }
 
   Future<void> _toggleListening() async {
@@ -368,6 +676,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
     final ready = await _speech.initialize(
       onError: (message) {
+        _listeningSession++;
         if (!mounted) return;
         setState(() => _listening = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -375,8 +684,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
       },
       onStatus: (status) {
-        if (!mounted || status != 'done' && status != 'notListening') return;
-        setState(() => _listening = false);
+        if (status != 'done' && status != 'notListening') return;
+        _listeningSession++;
+        if (mounted) setState(() => _listening = false);
       },
     );
     if (!ready || !mounted) return;
@@ -389,6 +699,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         setState(() => _controller.text = text);
         if (!isFinal || finalSubmitted || text.trim().isEmpty) return;
         finalSubmitted = true;
+        _listeningSession++;
         setState(() => _listening = false);
         _submit(text);
       },
@@ -531,6 +842,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
+    if (intent.type == FfmAssistantIntentType.exportReport) {
+      await _showReportPreview(intent);
+      return;
+    }
     if (intent.type == FfmAssistantIntentType.readLastResponse) {
       await _speech.speak(
         widget.session.lastAssistantText ?? 'Belum ada jawaban untuk dibaca.',
@@ -544,7 +859,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..activeDraftIntent = null;
       if (!mounted) return;
       setState(
-        () => _entries.add(
+        () => _appendEntry(
           const FfmAssistantChatEntry(
             isUser: false,
             text: 'Oke, tidak ada draft dari Asisten yang akan disimpan.',
@@ -569,6 +884,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final shouldNavigate =
         (intent.destination != null || intent.draft != null) &&
         intent.type != FfmAssistantIntentType.confirm;
+
+    final plan = _actionPlanner.planFor(intent);
+    if (plan != null) {
+      if (intent.draft != null) {
+        _actionPlanController.markAwaitingConfirmation(plan.id);
+      } else {
+        _actionPlanController.complete(plan.id);
+      }
+    }
+
     if (shouldNavigate) {
       final handler = widget.onIntent;
       setState(() => _queuedIntents.remove(intent));
@@ -581,6 +906,118 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (mounted) setState(() => _queuedIntents.remove(intent));
   }
 
+  Future<void> _shareFile(String path, String? format) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('File tidak lagi tersedia di perangkat.'),
+          ),
+        );
+      }
+      return;
+    }
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        subject: 'File dari Asisten FFM${format == null ? '' : ' ($format)'}',
+      ),
+    );
+  }
+
+  Future<void> _showReportPreview(FfmAssistantIntent intent) async {
+    final now = DateTime.now();
+    final isPreviousMonth = intent.normalizedText.contains('bulan lalu');
+    final base = DateTime(now.year, now.month - (isPreviousMonth ? 1 : 0), 1);
+    final request = FfmAssistantReportRequest(
+      from: base,
+      to: DateTime(base.year, base.month + 1, 1),
+      reportStyle: intent.normalizedText.contains('cashflow')
+          ? 'cashflow ringkas'
+          : 'ringkas dan praktis',
+    );
+    try {
+      final report = await getIt<FfmAssistantReportService>().prepare(request);
+      if (!mounted) return;
+      final format = await showDialog<FfmAssistantExportFormat>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Preview dan format laporan'),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: FfmAssistantMarkdownText(
+                text:
+                    '${report.previewMarkdown}\n\nPilih format untuk membuat file lokal. Data default disaring dan belum dibagikan ke mana pun.',
+                color: Theme.of(dialogContext).colorScheme.onSurface,
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Batal'),
+            ),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext)
+                      .pop(FfmAssistantExportFormat.json),
+              child: const Text('JSON'),
+            ),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext)
+                      .pop(FfmAssistantExportFormat.markdown),
+              child: const Text('Markdown'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(FfmAssistantExportFormat.pdf),
+              child: const Text('PDF'),
+            ),
+          ],
+        ),
+      );
+      if (format == null || !mounted) return;
+      final result = await _chatExportService.create(
+        FfmAssistantExportRequest(report: report, format: format),
+      );
+      if (!mounted) return;
+      final label = switch (format) {
+        FfmAssistantExportFormat.json => 'JSON',
+        FfmAssistantExportFormat.markdown => 'Markdown',
+        FfmAssistantExportFormat.pdf => 'PDF',
+      };
+      final text =
+          'File $label berhasil dibuat secara lokal: ${result.fileName}. Ketuk Bagikan jika ingin mengirimkannya ke aplikasi lain.';
+      setState(() {
+        widget.session.lastAssistantText = text;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: text,
+            filePath: result.file.path,
+            fileFormat: label,
+          ),
+        );
+      });
+      _scrollToEnd();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        widget.session.lastAssistantText =
+            'File laporan belum dapat dibuat: $error';
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: widget.session.lastAssistantText!,
+          ),
+        );
+      });
+    }
+  }
+
   String _teachingKey(FfmAssistantTeachingProposal proposal) =>
       '${proposal.kind}\u0000${proposal.triggerText}\u0000${proposal.valueText}'
           .toLowerCase();
@@ -591,17 +1028,25 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final key = _teachingKey(proposal);
     if (_savedTeachingKeys.contains(key)) return;
     try {
-      await _memoryRepository.save(
-        kind: proposal.kind,
-        triggerText: proposal.triggerText,
-        valueText: proposal.valueText,
-        source: 'chat_approved',
-      );
+      if (proposal.kind == 'user_profile') {
+        await FfmAssistantUserModelService(_memoryRepository).saveApproved(
+          kind: 'profile',
+          key: proposal.triggerText,
+          value: proposal.valueText,
+        );
+      } else {
+        await _memoryRepository.save(
+          kind: proposal.kind,
+          triggerText: proposal.triggerText,
+          valueText: proposal.valueText,
+          source: 'chat_approved',
+        );
+      }
       if (!mounted) return;
       setState(() {
         _savedTeachingKeys.add(key);
-        widget.session.lastAssistantText = 'Sip, ajaran ini sudah kusimpan lokal di perangkat. Kamu bisa mengubah atau mengarsipkannya di Pusat Latihan Asisten.';
-        _entries.add(
+        widget.session.lastAssistantText = 'Sip, ajaran ini sudah kusimpan lokal di perangkat. Kamu bisa mengubah atau mengarsipkannya di Pengetahuan Asisten.';
+        _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
             text: widget.session.lastAssistantText!,
@@ -677,7 +1122,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       widget.session
         ..activeDraftReview = nextReview
         ..activeDraftIntent = revisedIntent;
-      _entries.add(
+      _appendEntry(
         FfmAssistantChatEntry(
           isUser: false,
           text: revisedIntent.response!,
@@ -772,7 +1217,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       widget.session
         ..activeDraftReview = nextReview
         ..activeDraftIntent = revisedIntent;
-      _entries.add(
+      _appendEntry(
         FfmAssistantChatEntry(
           isUser: false,
           text: revisedIntent.response!,
@@ -790,7 +1235,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       widget.session
         ..activeDraftReview = null
         ..activeDraftIntent = null;
-      _entries.add(
+      _appendEntry(
         const FfmAssistantChatEntry(
           isUser: false,
           text: 'Draft aktif sudah dibatalkan. Tidak ada data yang disimpan.',
@@ -938,6 +1383,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
     if (confirmed == true && mounted) {
       setState(widget.session.reset);
+      await _historyRepository.clear();
+      await _historyRepository.save(_entries);
       _scrollToEnd();
     }
   }
@@ -963,15 +1410,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   String _understandingFor(FfmAssistantIntent intent) {
+    final mode = intent.responseMode == FfmAssistantResponseMode.localModel
+        ? 'AI lokal di perangkat'
+        : 'aturan lokal';
+    String label(String text) => 'Mode: $mode. $text';
+
     final page = intent.destination == null
         ? null
         : FfmAssistantCatalog.findByDestination(intent.destination!);
     final draft = intent.draft;
     if (intent.type == FfmAssistantIntentType.unknown) {
-      return 'Belum yakin dengan maksudnya. Tidak ada aksi yang akan dijalankan.';
+      return label(
+        'Belum yakin dengan maksudnya. Tidak ada aksi yang akan dijalankan.',
+      );
     }
     if (intent.type == FfmAssistantIntentType.listPages) {
-      return 'Kamu mau tahu jumlah dan daftar halaman FFM.';
+      return label('Kamu mau tahu jumlah dan daftar halaman FFM.');
     }
     if (intent.type == FfmAssistantIntentType.transactionStats) {
       final time = intent.normalizedText.contains('hari ini')
@@ -979,13 +1433,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : intent.normalizedText.contains('minggu ini')
           ? 'minggu ini'
           : 'bulan ini';
-      return 'Kamu mau cek jumlah transaksi $time.';
+      return label('Kamu mau cek jumlah transaksi $time.');
     }
     if (intent.type == FfmAssistantIntentType.financialWarnings) {
-      return 'Kamu mau cek kondisi anggaran dan arus kas.';
+      return label('Kamu mau cek kondisi anggaran dan arus kas.');
     }
     if (intent.type == FfmAssistantIntentType.openPage && page != null) {
-      return 'Kamu mau pindah ke ${page.name}.';
+      return label('Kamu mau pindah ke ${page.name}.');
     }
     if (draft != null) {
       final details = <String>[
@@ -994,19 +1448,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         if (draft.fromAccountName != null) 'dari ${draft.fromAccountName}',
         if (draft.toAccountName != null) 'ke ${draft.toAccountName}',
       ];
-      return 'Kamu mau buat ${details.join(' • ')}.';
+      return label('Kamu mau buat ${details.join(' • ')}.');
     }
     if (intent.type == FfmAssistantIntentType.cancel) {
-      return 'Kamu mau membatalkan draft yang sedang dibahas.';
+      return label('Kamu mau membatalkan draft yang sedang dibahas.');
     }
     if (intent.type == FfmAssistantIntentType.readLastResponse) {
-      return 'Kamu mau jawaban terakhir dibacakan lagi.';
+      return label('Kamu mau jawaban terakhir dibacakan lagi.');
     }
     if (intent.needsTeachingApproval) {
-      return 'Kamu ingin aku menyimpan ajaran lokal setelah kamu menyetujuinya.';
+      return label(
+        'Kamu ingin aku menyimpan ajaran lokal setelah kamu menyetujuinya.',
+      );
     }
-    if (page != null) return 'Kamu sedang menanyakan ${page.name}.';
-    return 'Aku memahami permintaan ini sebagai ${intent.type.name}.';
+    if (page != null) return label('Kamu sedang menanyakan ${page.name}.');
+    return label('Aku memahami permintaan ini sebagai ${intent.type.name}.');
   }
 
   @override
@@ -1021,6 +1477,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final currentPage = widget.currentDestination == null
         ? null
         : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
+    final proactiveSuggestion = _proactiveService.suggest(
+      destination: widget.currentDestination,
+      modelReady: _modelReady,
+      hasConversation: _entries.any((entry) => entry.isUser),
+    );
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
@@ -1063,18 +1524,38 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                 : 'Halaman: ${currentPage.name} • data chat lokal',
                             style: theme.textTheme.bodySmall,
                           ),
+                          _modelStatusChip(theme),
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Pilih suara bacaan',
-                      onPressed: _openVoicePicker,
-                      icon: const Icon(Icons.record_voice_over_outlined),
-                    ),
-                    IconButton(
-                      tooltip: 'Reset chat',
-                      onPressed: _confirmResetSession,
-                      icon: const Icon(Icons.refresh),
+                    PopupMenuButton<String>(
+                      tooltip: 'Menu Asisten',
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'voice':
+                            _openVoicePicker();
+                          case 'reset':
+                            _confirmResetSession();
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'voice',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.record_voice_over_outlined),
+                            title: Text('Pilih suara bacaan'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: 'reset',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.refresh),
+                            title: Text('Reset chat'),
+                          ),
+                        ),
+                      ],
                     ),
                     IconButton(
                       tooltip: 'Tutup asisten',
@@ -1085,6 +1566,62 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ),
               ),
               const Divider(height: 1),
+              if (!_modelChecking && !_modelReady)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    color: theme.colorScheme.primaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.memory_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'AI lokal belum siap. Unduh SLM dari GitHub atau impor bundle offline yang sudah dibagikan.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton.tonal(
+                            onPressed: _submitting ? null : _openLocalModelPage,
+                            child: const Text('Siapkan'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (proactiveSuggestion != null && _modelReady)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: ListTile(
+                      dense: true,
+                      leading: Icon(
+                        Icons.lightbulb_outline,
+                        color: theme.colorScheme.primary,
+                      ),
+                      title: Text(
+                        proactiveSuggestion.message,
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: TextButton(
+                        onPressed: _submitting
+                            ? null
+                            : () =>
+                                  _submit(proactiveSuggestion.suggestedPrompt),
+                        child: const Text('Coba'),
+                      ),
+                    ),
+                  ),
+                ),
               Expanded(
                 child: ListView.separated(
                   controller: _scrollController,
@@ -1127,6 +1664,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           ? null
                           : () => _copyFeedbackContext(entry),
                       onCopyText: () => _copyEntryText(entry),
+                      onShareFile: entry.filePath == null
+                          ? null
+                          : () => _shareFile(entry.filePath!, entry.fileFormat),
                       onCorrectMessage: entry.isUser
                           ? () => _correctUserMessage(entry)
                           : () => _correctMessageFromEntry(entry),
@@ -1138,6 +1678,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           ? false
                           : _confirmedActivityKeys.contains(
                               _activityKey(entry.activityIntent!),
+                            ),
+                      actionPlan: entry.intent == null
+                          ? null
+                          : _actionPlanController.get(
+                              _actionPlanner.planFor(entry.intent!)?.id ?? '',
                             ),
                     );
                   },
@@ -1169,19 +1714,35 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         onPressed: _submitting ? null : _toggleListening,
                         icon: Icon(_listening ? Icons.stop : Icons.mic_none),
                       ),
+                      const SizedBox(width: 6),
+                      IconButton.filledTonal(
+                        tooltip: 'Lampirkan foto',
+                        onPressed: _submitting ? null : _openAttachmentPicker,
+                        icon: const Icon(Icons.attach_file),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _controller,
                           focusNode: _inputFocusNode,
-                          minLines: 1,
-                          maxLines: 4,
+                          minLines: 2,
+                          maxLines: 5,
                           textInputAction: TextInputAction.send,
                           onSubmitted: (_) => _submit(),
                           onTap: _scrollToEnd,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             hintText: 'Tulis perintah atau pertanyaan…',
-                            border: OutlineInputBorder(),
+                            filled: true,
+                            fillColor:
+                                theme.colorScheme.surfaceContainerHighest,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(20),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ),
@@ -1216,9 +1777,11 @@ class _AssistantMessageCard extends StatelessWidget {
     this.onCancelDraft,
     this.onCopyFeedback,
     this.onCopyText,
+    this.onShareFile,
     this.onCorrectMessage,
     this.onConfirmActivity,
     this.activityConfirmed = false,
+    this.actionPlan,
   });
 
   final FfmAssistantChatEntry entry;
@@ -1232,9 +1795,11 @@ class _AssistantMessageCard extends StatelessWidget {
   final VoidCallback? onCancelDraft;
   final VoidCallback? onCopyFeedback;
   final VoidCallback? onCopyText;
+  final VoidCallback? onShareFile;
   final VoidCallback? onCorrectMessage;
   final VoidCallback? onConfirmActivity;
   final bool activityConfirmed;
+  final FfmAssistantActionPlan? actionPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -1308,7 +1873,7 @@ class _AssistantMessageCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Tersimpan di Pusat Latihan Asisten • menu Lainnya',
+                              'Tersimpan di Pengetahuan Asisten • menu Lainnya',
                               style: theme.textTheme.labelSmall?.copyWith(
                                 color: theme.colorScheme.onTertiaryContainer,
                                 fontWeight: FontWeight.w700,
@@ -1320,7 +1885,23 @@ class _AssistantMessageCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                   ],
-                  _ReadableChatText(text: entry.text, color: onBubbleColor),
+                  if (entry.imagePath != null) ...[
+                    _ChatImagePreview(path: entry.imagePath!),
+                    if (entry.text.isNotEmpty) const SizedBox(height: 8),
+                  ],
+                  if (entry.filePath != null) ...[
+                    _ChatFileCard(
+                      path: entry.filePath!,
+                      format: entry.fileFormat,
+                      onShare: onShareFile,
+                    ),
+                    if (entry.text.isNotEmpty) const SizedBox(height: 8),
+                  ],
+                  if (entry.text.isNotEmpty)
+                    FfmAssistantMarkdownText(
+                      text: entry.text,
+                      color: onBubbleColor,
+                    ),
                   if (intent?.draft != null) ...[
                     const SizedBox(height: 10),
                     _DraftPreview(draft: intent!.draft!, review: review),
@@ -1343,6 +1924,7 @@ class _AssistantMessageCard extends StatelessWidget {
                       onPrimaryAction: onIntent,
                       onConfirmActivity: onConfirmActivity,
                       activityConfirmed: activityConfirmed,
+                      actionPlan: actionPlan,
                       onCopyText: onCopyText,
                       onSpeak: onSpeak,
                       isSpeaking: isSpeaking,
@@ -1360,6 +1942,112 @@ class _AssistantMessageCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChatImagePreview extends StatelessWidget {
+  const _ChatImagePreview({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Pratinjau gambar. Ketuk untuk memperbesar.',
+      child: GestureDetector(
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (dialogContext) => Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: InteractiveViewer(
+              minScale: .8,
+              maxScale: 4,
+              child: Image.file(
+                File(path),
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text('Gambar tidak lagi tersedia di perangkat.'),
+                ),
+              ),
+            ),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.file(
+            File(path),
+            height: 150,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              height: 80,
+              alignment: Alignment.center,
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              child: const Text('Gambar tidak tersedia'),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatFileCard extends StatelessWidget {
+  const _ChatFileCard({required this.path, required this.format, this.onShare});
+
+  final String path;
+  final String? format;
+  final VoidCallback? onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fileName = path.split('/').last;
+    final icon = switch (format?.toLowerCase()) {
+      'pdf' => Icons.picture_as_pdf_outlined,
+      'json' => Icons.data_object_outlined,
+      _ => Icons.description_outlined,
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: .72),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                Text(
+                  '${format ?? 'File'} • tersimpan lokal • belum dibagikan',
+                  style: theme.textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ),
+          if (onShare != null)
+            IconButton(
+              tooltip: 'Bagikan file',
+              onPressed: onShare,
+              icon: const Icon(Icons.share_outlined),
+            ),
+        ],
       ),
     );
   }
@@ -1448,6 +2136,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
     this.onApproveTeaching,
     required this.teachingSaved,
     required this.foregroundColor,
+    this.actionPlan,
   });
 
   final bool isUser;
@@ -1466,6 +2155,7 @@ class _AssistantMessageToolbar extends StatelessWidget {
   final VoidCallback? onApproveTeaching;
   final bool teachingSaved;
   final Color foregroundColor;
+  final FfmAssistantActionPlan? actionPlan;
 
   @override
   Widget build(BuildContext context) {
@@ -1481,11 +2171,28 @@ class _AssistantMessageToolbar extends StatelessWidget {
       children: [
         if (hasPrimaryAction)
           Tooltip(
-            message: 'Buka arahan ini. Data belum disimpan otomatis.',
+            message:
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                ? 'Arahan ini sudah diselesaikan.'
+                : 'Buka arahan ini. Data belum disimpan otomatis.',
             child: FilledButton.tonalIcon(
-              onPressed: onPrimaryAction,
-              icon: const Icon(Icons.open_in_new, size: 17),
-              label: Text(primaryActionLabel),
+              onPressed:
+                  (actionPlan?.isTerminal ?? false) ||
+                      actionPlan?.status ==
+                          FfmAssistantActionPlanStatus.executing
+                  ? null
+                  : onPrimaryAction,
+              icon: Icon(
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                    ? Icons.done_all
+                    : Icons.open_in_new,
+                size: 17,
+              ),
+              label: Text(
+                actionPlan?.status == FfmAssistantActionPlanStatus.completed
+                    ? 'Selesai'
+                    : primaryActionLabel,
+              ),
             ),
           ),
         if (onConfirmActivity != null)
@@ -1620,36 +2327,6 @@ class _AssistantMenuLabel extends StatelessWidget {
   );
 }
 
-class _ReadableChatText extends StatelessWidget {
-  const _ReadableChatText({required this.text, required this.color});
-
-  final String text;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final paragraphs = text
-        .split(RegExp(r'\n\s*\n'))
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList(growable: false);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var index = 0; index < paragraphs.length; index++) ...[
-          if (index > 0) const SizedBox(height: 8),
-          Text(
-            paragraphs[index],
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: color, height: 1.42),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
 class _DraftPreview extends StatelessWidget {
   const _DraftPreview({required this.draft, this.review});
 
@@ -1747,6 +2424,7 @@ class _DraftPreview extends StatelessWidget {
     FfmAssistantDraftKind.masterData => 'Draft Data Utama',
     FfmAssistantDraftKind.reminder => 'Draft pengingat',
     FfmAssistantDraftKind.activity => 'Draft aktivitas',
+    FfmAssistantDraftKind.profile => 'Draft perkenalan diri',
   };
 
   static String _rupiah(int amount) =>

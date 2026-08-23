@@ -75,6 +75,8 @@ class _FfmAssistantDraftEditDialogState
         goalName: _textOrNull(_goalController),
         note: _textOrNull(_noteController),
         date: widget.draft.date,
+        merchantName: widget.draft.merchantName,
+        slmFieldValues: widget.draft.slmFieldValues,
       ),
     );
   }

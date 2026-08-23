@@ -97,8 +97,7 @@ void main() {
   test('menjawab jam dari waktu lokal perangkat yang sedang dipakai', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 21, 14, 30),
+      clock: () => DateTime(2026, 8, 21, 14, 30),
     );
 
     final intent = await localInterpreter.interpret('Sekarang jam berapa?');
@@ -113,8 +112,7 @@ void main() {
   test('menghitung 90 hari lagi dari tanggal lokal perangkat', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 21, 14, 30),
+      clock: () => DateTime(2026, 8, 21, 14, 30),
     );
 
     final intent = await localInterpreter.interpret(
@@ -129,8 +127,7 @@ void main() {
   test('menjawab hari dan tanggal Masehi besok dari waktu lokal', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 21, 14, 30),
+      clock: () => DateTime(2026, 8, 21, 14, 30),
     );
 
     final intent = await localInterpreter.interpret('Besok hari apa?');
@@ -145,8 +142,17 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.assistantIdentity);
     expect(intent.response, contains('Asisten FFM'));
-    expect(intent.response, contains('waktu lokal HP'));
-    expect(intent.response, contains('tidak menyimpan'));
+    expect(intent.response, contains('menyiapkan preview laporan'));
+    expect(intent.response, contains('tidak ada autosave'));
+    expect(intent.response, contains('Rafi Sinkkat'));
+    expect(
+      intent.response,
+      contains('https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe'),
+    );
+    expect(
+      intent.response,
+      contains('https://www.tiktok.com/@clip.smarts?_r=1&_t=ZS-997Uzi7kXma'),
+    );
     expect(intent.draft, isNull);
   });
 
@@ -271,8 +277,7 @@ void main() {
   test('menjawab tanggal Hijriah dari waktu lokal perangkat', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 22, 10, 37),
+      clock: () => DateTime(2026, 8, 22, 10, 37),
     );
 
     final intent = await localInterpreter.interpret(
@@ -288,8 +293,7 @@ void main() {
   test('menjawab tanggal Hijriah besok dari waktu lokal perangkat', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 22, 10, 37),
+      clock: () => DateTime(2026, 8, 22, 10, 37),
     );
 
     final intent = await localInterpreter.interpret(
@@ -302,11 +306,63 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('menjawab pertanyaan tentang profil pribadi dan rutinitas', () async {
+    await (database.into(database.userPreferences)).insert(
+      UserPreferencesCompanion.insert(
+        id: 'pref-1',
+        householdId: AppContext.householdId,
+        preferenceKey: 'profile_occupation',
+        preferenceValue: 'Petani cengkeh',
+        updatedAt: DateTime.now(),
+      ),
+    );
+
+    final intent = await interpreter.interpret('apa pekerjaan saya?');
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Petani cengkeh'));
+    expect(intent.response, contains('Profil & Kebiasaan'));
+    expect(intent.draft, isNull);
+  });
+
+  test('menjawab pertanyaan tentang riwayat aktivitas dan kebiasaan', () async {
+    await (database.into(database.activityEntries)).insert(
+      ActivityEntriesCompanion.insert(
+        id: 'entry-1',
+        householdId: AppContext.householdId,
+        title: 'Panen Mingguan',
+        activityType: const Value('Rutinitas'),
+        startedAt: DateTime.now().subtract(const Duration(days: 1)),
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    final intent = await interpreter.interpret('apa kebiasaan kegiatan saya?');
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Riwayat Aktivitas'));
+    expect(intent.response, contains('Panen Mingguan'));
+    expect(intent.draft, isNull);
+  });
+
+  test(
+    'menjawab query analisis kemampuan cicilan (Loan Affordability)',
+    () async {
+      final intent = await interpreter.interpret(
+        'berapa cicilan maksimal yang aman untuk saya?',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.response, contains('Kemampuan Pinjaman'));
+      expect(intent.response, contains('30%'));
+      expect(intent.draft, isNull);
+    },
+  );
+
   test('mengenali frasa hijri dan islam sebagai permintaan Hijriah', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,
-      null,
-      () => DateTime(2026, 8, 22, 10, 37),
+      clock: () => DateTime(2026, 8, 22, 10, 37),
     );
 
     for (final request in const [
@@ -331,7 +387,7 @@ void main() {
       expect(intent.type, FfmAssistantIntentType.unknown);
       expect(intent.response, contains('belum punya jawaban yang pas'));
       expect(intent.response, contains('Benarkan & kirim ulang'));
-      expect(intent.response, contains('Pusat Latihan Asisten'));
+      expect(intent.response, contains('Pengetahuan Asisten'));
       expect(intent.response, contains('salin atau ekspor'));
       expect(intent.response, isNot(contains('Pindahkan')));
       expect(intent.draft, isNull);
@@ -396,6 +452,22 @@ void main() {
     expect(intent.draft?.fromAccountName, 'SeaBank');
     expect(intent.draft?.toAccountName, 'Tunai');
     expect(intent.needsClarification, isFalse);
+  });
+
+  test('membuat draft perkenalan diri dari perintah profil', () async {
+    final intent = await interpreter.interpret(
+      'buat profil saya: nama Rudi, pekerjaan petani, rutinitas panen jumat',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.createProfile);
+    expect(intent.destination, FfmAssistantDestination.assistantProfile);
+    expect(intent.draft?.kind, FfmAssistantDraftKind.profile);
+    expect(intent.draft?.title, 'Perkenalan Diri');
+    expect(intent.needsClarification, isFalse);
+    expect(
+      intent.response,
+      contains('Draft profil sudah siap. Cek dulu, lalu konfirmasi'),
+    );
   });
 
   test('memilih kategori aktif yang cocok untuk draft pengeluaran', () async {

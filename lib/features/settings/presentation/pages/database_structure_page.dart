@@ -29,7 +29,7 @@ class _DatabaseStructurePageState extends State<DatabaseStructurePage> {
   @override
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
-      destination: FfmAssistantDestination.otherMenu,
+      destination: FfmAssistantDestination.databaseStructure,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Struktur database'),

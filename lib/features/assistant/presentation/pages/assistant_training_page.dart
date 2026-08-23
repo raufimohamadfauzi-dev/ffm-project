@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../domain/ffm_assistant_models.dart';
+import '../widgets/ffm_assistant_page_context.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../reminder/data/services/reminder_notification_service.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
@@ -267,7 +269,7 @@ Tugas:
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
-          'Bahan perbaikan disalin. Tinjau jawaban dari LLM pilihanmu sebelum impor JSON.',
+          'Bahan perbaikan disalin. Tinjau jawaban dari AI eksternal secara opsional sebelum impor JSON.',
         ),
       ),
     );
@@ -377,279 +379,283 @@ Tugas:
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pusat Pengetahuan Asisten'),
-        actions: [
-          IconButton(
-            tooltip: 'Info latihan Asisten',
-            icon: const Icon(Icons.info_outline),
-            onPressed: () => showAppInfoDialog(
-              context,
-              title: 'Cara kerja pengetahuan',
-              message: 'Untuk typo atau maksud pesan yang keliru, pakai tombol “Benarkan pesan / typo” di chat. Halaman ini dipakai hanya untuk menyimpan aturan, jawaban fitur, atau alias yang memang ingin kamu ingat secara lokal. Asisten tetap hanya menyiapkan rancangan—bukan menyimpan data otomatis.',
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.assistantTraining,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Pusat Pengetahuan Asisten'),
+          actions: [
+            IconButton(
+              tooltip: 'Info latihan Asisten',
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => showAppInfoDialog(
+                context,
+                title: 'Cara kerja pengetahuan',
+                message: 'Untuk typo atau maksud pesan yang keliru, pakai tombol “Benarkan pesan / typo” di chat. Halaman ini dipakai hanya untuk menyimpan aturan, jawaban fitur, atau alias yang memang ingin kamu ingat secara lokal. Asisten tetap hanya menyiapkan rancangan—bukan menyimpan data otomatis.',
+              ),
             ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _teach,
-        icon: const Icon(Icons.school_outlined),
-        label: const Text('Tambah pengetahuan'),
-      ),
-      body: FutureBuilder<_AssistantTrainingData>(
-        future: _trainingData,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final data = snapshot.data;
-          final memories = data?.memories ?? const <FfmAssistantMemoryRecord>[];
-          final examples =
-              data?.examples ?? const <FfmAssistantLearningExample>[];
-          final unansweredQuestions =
-              data?.unansweredQuestions ??
-              const <FfmAssistantUnansweredQuestion>[];
-          final resolvedQuestions =
-              data?.resolvedQuestions ??
-              const <FfmAssistantUnansweredQuestion>[];
-          final visibleQuestions = _showResolvedQuestionHistory
-              ? resolvedQuestions
-              : unansweredQuestions;
-          final active = memories.where((item) => !item.isArchived).toList();
-          final archived = memories.where((item) => item.isArchived).toList();
-          final activeExamples = examples
-              .where((item) => !item.isArchived)
-              .toList();
-          final archivedExamples = examples
-              .where((item) => item.isArchived)
-              .toList();
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-            children: [
-              AppCard(
-                color: Theme.of(context).colorScheme.primaryContainer,
-                child: const ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.psychology_alt_outlined),
-                  title: Text(
-                    'Ajar dengan contoh yang jelas',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  subtitle: Text(
-                    'Contoh: “tabungan” artinya SeaBank Pribadi. Kamu selalu bisa mengarsipkan ajaran yang sudah tidak berlaku.',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              FutureBuilder<bool>(
-                future: _morningReminderEnabled,
-                builder: (context, reminderSnapshot) {
-                  final enabled = reminderSnapshot.data ?? false;
-                  return AppCard(
-                    child: SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      secondary: const Icon(Icons.wb_sunny_outlined),
-                      title: const Text(
-                        'Pengingat pagi Asisten',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      subtitle: const Text(
-                        'Jam 06.00 Asisten cuma ngingetin buat catat aktivitas. Tidak ada data yang dibuat otomatis.',
-                      ),
-                      value: enabled,
-                      onChanged:
-                          reminderSnapshot.connectionState ==
-                              ConnectionState.waiting
-                          ? null
-                          : _setMorningReminder,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              AppCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Knowledge pack & LLM',
+          ],
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _teach,
+          icon: const Icon(Icons.school_outlined),
+          label: const Text('Tambah pengetahuan'),
+        ),
+        body: FutureBuilder<_AssistantTrainingData>(
+          future: _trainingData,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final data = snapshot.data;
+            final memories =
+                data?.memories ?? const <FfmAssistantMemoryRecord>[];
+            final examples =
+                data?.examples ?? const <FfmAssistantLearningExample>[];
+            final unansweredQuestions =
+                data?.unansweredQuestions ??
+                const <FfmAssistantUnansweredQuestion>[];
+            final resolvedQuestions =
+                data?.resolvedQuestions ??
+                const <FfmAssistantUnansweredQuestion>[];
+            final visibleQuestions = _showResolvedQuestionHistory
+                ? resolvedQuestions
+                : unansweredQuestions;
+            final active = memories.where((item) => !item.isArchived).toList();
+            final archived = memories.where((item) => item.isArchived).toList();
+            final activeExamples = examples
+                .where((item) => !item.isArchived)
+                .toList();
+            final archivedExamples = examples
+                .where((item) => item.isArchived)
+                .toList();
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+              children: [
+                AppCard(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: const ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(Icons.psychology_alt_outlined),
+                    title: Text(
+                      'Ajar dengan contoh yang jelas',
                       style: TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Salin prompt ke LLM pilihanmu, lalu tempel JSON hasilnya di sini untuk ditinjau. FFM tidak mengirim data ke internet sendiri.',
+                    subtitle: Text(
+                      'Contoh: “tabungan” artinya SeaBank Pribadi. Kamu selalu bisa mengarsipkan ajaran yang sudah tidak berlaku.',
                     ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _copyLlmPrompt,
-                          icon: const Icon(Icons.content_copy_outlined),
-                          label: const Text('Salin prompt LLM'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FutureBuilder<bool>(
+                  future: _morningReminderEnabled,
+                  builder: (context, reminderSnapshot) {
+                    final enabled = reminderSnapshot.data ?? false;
+                    return AppCard(
+                      child: SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        secondary: const Icon(Icons.wb_sunny_outlined),
+                        title: const Text(
+                          'Pengingat pagi Asisten',
+                          style: TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        OutlinedButton.icon(
-                          onPressed: _copyKnowledgePack,
-                          icon: const Icon(Icons.ios_share_outlined),
-                          label: const Text('Salin JSON'),
+                        subtitle: const Text(
+                          'Jam 06.00 Asisten cuma ngingetin buat catat aktivitas. Tidak ada data yang dibuat otomatis.',
                         ),
-                        FilledButton.icon(
-                          onPressed: _importKnowledgePack,
-                          icon: const Icon(Icons.file_download_outlined),
-                          label: const Text('Impor JSON'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _copyLearningDataset,
-                          icon: const Icon(Icons.dataset_outlined),
-                          label: const Text('Salin dataset latihan'),
-                        ),
-                        FilledButton.tonalIcon(
-                          onPressed: _copyUpgradePack,
-                          icon: const Icon(Icons.auto_awesome_outlined),
-                          label: const Text('Paket perbaikan Asisten'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _copyQuestionBankPrompt,
-                          icon: const Icon(Icons.quiz_outlined),
-                          label: const Text('Bank tanya LLM'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _copyMasterDataProposalPrompt,
-                          icon: const Icon(Icons.account_tree_outlined),
-                          label: const Text('Proposal Data Utama'),
-                        ),
-                      ],
+                        value: enabled,
+                        onChanged:
+                            reminderSnapshot.connectionState ==
+                                ConnectionState.waiting
+                            ? null
+                            : _setMorningReminder,
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pengetahuan lokal (opsional)',
+                        style: TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Qwen2-VL tidak dilatih ulang dari halaman ini. Kamu hanya mengelola aturan atau preferensi lokal yang disetujui. Review dengan AI eksternal bersifat opsional; FFM tidak mengirim data ke internet sendiri.',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _copyLlmPrompt,
+                            icon: const Icon(Icons.content_copy_outlined),
+                            label: const Text('Prompt review eksternal'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _copyKnowledgePack,
+                            icon: const Icon(Icons.ios_share_outlined),
+                            label: const Text('Salin knowledge pack'),
+                          ),
+                          FilledButton.icon(
+                            onPressed: _importKnowledgePack,
+                            icon: const Icon(Icons.file_download_outlined),
+                            label: const Text('Impor knowledge pack'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _copyLearningDataset,
+                            icon: const Icon(Icons.dataset_outlined),
+                            label: const Text('Ekspor contoh terkontrol'),
+                          ),
+                          FilledButton.tonalIcon(
+                            onPressed: _copyUpgradePack,
+                            icon: const Icon(Icons.auto_awesome_outlined),
+                            label: const Text('Paket perbaikan Asisten'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _copyQuestionBankPrompt,
+                            icon: const Icon(Icons.quiz_outlined),
+                            label: const Text('Bank pertanyaan'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _copyMasterDataProposalPrompt,
+                            icon: const Icon(Icons.account_tree_outlined),
+                            label: const Text('Proposal Data Utama'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                AppSectionHeader(
+                  title: _showResolvedQuestionHistory
+                      ? 'Riwayat pertanyaan selesai (${resolvedQuestions.length})'
+                      : 'Pertanyaan perlu dibenahi (${unansweredQuestions.length})',
+                ),
+                const SizedBox(height: 8),
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: false,
+                      icon: Icon(Icons.pending_outlined),
+                      label: Text('Perlu dibenahi'),
+                    ),
+                    ButtonSegment(
+                      value: true,
+                      icon: Icon(Icons.history_outlined),
+                      label: Text('Riwayat selesai'),
                     ),
                   ],
+                  selected: {_showResolvedQuestionHistory},
+                  onSelectionChanged: (value) {
+                    setState(() => _showResolvedQuestionHistory = value.first);
+                  },
                 ),
-              ),
-              const SizedBox(height: 20),
-              AppSectionHeader(
-                title: _showResolvedQuestionHistory
-                    ? 'Riwayat pertanyaan selesai (${resolvedQuestions.length})'
-                    : 'Pertanyaan perlu dibenahi (${unansweredQuestions.length})',
-              ),
-              const SizedBox(height: 8),
-              SegmentedButton<bool>(
-                segments: const [
-                  ButtonSegment(
-                    value: false,
-                    icon: Icon(Icons.pending_outlined),
-                    label: Text('Perlu dibenahi'),
+                const SizedBox(height: 10),
+                if (visibleQuestions.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.question_answer_outlined,
+                    title: 'Belum ada pertanyaan di bagian ini',
+                    message: 'Jika Asisten belum paham, pertanyaannya tersimpan aman untuk ditinjau dan diprioritaskan.',
+                  )
+                else ...[
+                  Text(
+                    _showResolvedQuestionHistory
+                        ? 'Riwayat tetap disimpan setelah selesai agar peningkatan versi berikutnya bisa ditinjau.'
+                        : 'Urutan paling atas adalah pertanyaan yang paling sering muncul. Salin ke LLM, impor JSON hasilnya, lalu tandai selesai.',
                   ),
-                  ButtonSegment(
-                    value: true,
-                    icon: Icon(Icons.history_outlined),
-                    label: Text('Riwayat selesai'),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: () => _copyUnansweredHistory(
+                        includeResolved: _showResolvedQuestionHistory,
+                      ),
+                      icon: const Icon(Icons.ios_share_outlined),
+                      label: Text(
+                        _showResolvedQuestionHistory
+                            ? 'Salin riwayat JSON'
+                            : 'Salin antrean JSON',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ...visibleQuestions.map(
+                    (question) => _UnansweredQuestionCard(
+                      question: question,
+                      resolved: _showResolvedQuestionHistory,
+                      onCopyPrompt: _showResolvedQuestionHistory
+                          ? null
+                          : () => _copyUnansweredQuestionPrompt(question),
+                      onResolve: _showResolvedQuestionHistory
+                          ? null
+                          : () => _resolveUnansweredQuestion(question),
+                    ),
                   ),
                 ],
-                selected: {_showResolvedQuestionHistory},
-                onSelectionChanged: (value) {
-                  setState(() => _showResolvedQuestionHistory = value.first);
-                },
-              ),
-              const SizedBox(height: 10),
-              if (visibleQuestions.isEmpty)
-                const AppEmptyState(
-                  icon: Icons.question_answer_outlined,
-                  title: 'Belum ada pertanyaan di bagian ini',
-                  message: 'Jika Asisten belum paham, pertanyaannya tersimpan aman untuk ditinjau dan diprioritaskan.',
-                )
-              else ...[
-                Text(
-                  _showResolvedQuestionHistory
-                      ? 'Riwayat tetap disimpan setelah selesai agar peningkatan versi berikutnya bisa ditinjau.'
-                      : 'Urutan paling atas adalah pertanyaan yang paling sering muncul. Salin ke LLM, impor JSON hasilnya, lalu tandai selesai.',
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: () => _copyUnansweredHistory(
-                      includeResolved: _showResolvedQuestionHistory,
-                    ),
-                    icon: const Icon(Icons.ios_share_outlined),
-                    label: Text(
-                      _showResolvedQuestionHistory
-                          ? 'Salin riwayat JSON'
-                          : 'Salin antrean JSON',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...visibleQuestions.map(
-                  (question) => _UnansweredQuestionCard(
-                    question: question,
-                    resolved: _showResolvedQuestionHistory,
-                    onCopyPrompt: _showResolvedQuestionHistory
-                        ? null
-                        : () => _copyUnansweredQuestionPrompt(question),
-                    onResolve: _showResolvedQuestionHistory
-                        ? null
-                        : () => _resolveUnansweredQuestion(question),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              AppSectionHeader(title: 'Memori aktif (${active.length})'),
-              const SizedBox(height: 8),
-              if (active.isEmpty)
-                const AppEmptyState(
-                  icon: Icons.school_outlined,
-                  title: 'Belum ada pengetahuan tambahan',
-                  message: 'Tambah aturan, alias, jawaban fitur, kebiasaan, atau alur FFM yang memang ingin kamu ingat di perangkat ini.',
-                )
-              else
-                ...active.map(
-                  (memory) => _MemoryCard(
-                    memory: memory,
-                    onEdit: () => _edit(memory),
-                    onArchive: () => _archive(memory),
-                  ),
-                ),
-              if (archived.isNotEmpty) ...[
                 const SizedBox(height: 20),
-                AppSectionHeader(title: 'Diarsipkan (${archived.length})'),
+                AppSectionHeader(title: 'Memori aktif (${active.length})'),
                 const SizedBox(height: 8),
-                ...archived.map(
-                  (memory) => _MemoryCard(memory: memory, archived: true),
-                ),
-              ],
-              const SizedBox(height: 20),
-              AppSectionHeader(
-                title: 'Contoh belajar aktif (${activeExamples.length})',
-              ),
-              const SizedBox(height: 8),
-              if (activeExamples.isEmpty)
-                const AppEmptyState(
-                  icon: Icons.dataset_outlined,
-                  title: 'Belum ada contoh belajar',
-                  message: 'Koreksi pesan atau typo di chat dapat menyimpan pola bahasa lokal setelah kamu menyetujuinya.',
-                )
-              else
-                ...activeExamples.map(
-                  (example) => _LearningExampleCard(
-                    example: example,
-                    onArchive: () => _archiveLearningExample(example),
+                if (active.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.school_outlined,
+                    title: 'Belum ada pengetahuan tambahan',
+                    message: 'Tambah aturan, alias, jawaban fitur, kebiasaan, atau alur FFM yang memang ingin kamu ingat di perangkat ini.',
+                  )
+                else
+                  ...active.map(
+                    (memory) => _MemoryCard(
+                      memory: memory,
+                      onEdit: () => _edit(memory),
+                      onArchive: () => _archive(memory),
+                    ),
                   ),
-                ),
-              if (archivedExamples.isNotEmpty) ...[
-                const SizedBox(height: 16),
+                if (archived.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  AppSectionHeader(title: 'Diarsipkan (${archived.length})'),
+                  const SizedBox(height: 8),
+                  ...archived.map(
+                    (memory) => _MemoryCard(memory: memory, archived: true),
+                  ),
+                ],
+                const SizedBox(height: 20),
                 AppSectionHeader(
-                  title:
-                      'Contoh belajar diarsipkan (${archivedExamples.length})',
+                  title: 'Contoh belajar aktif (${activeExamples.length})',
                 ),
                 const SizedBox(height: 8),
-                ...archivedExamples.map(
-                  (example) =>
-                      _LearningExampleCard(example: example, archived: true),
-                ),
+                if (activeExamples.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.dataset_outlined,
+                    title: 'Belum ada contoh belajar',
+                    message: 'Koreksi pesan atau typo di chat dapat menyimpan pola bahasa lokal setelah kamu menyetujuinya.',
+                  )
+                else
+                  ...activeExamples.map(
+                    (example) => _LearningExampleCard(
+                      example: example,
+                      onArchive: () => _archiveLearningExample(example),
+                    ),
+                  ),
+                if (archivedExamples.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  AppSectionHeader(
+                    title:
+                        'Contoh belajar diarsipkan (${archivedExamples.length})',
+                  ),
+                  const SizedBox(height: 8),
+                  ...archivedExamples.map(
+                    (example) =>
+                        _LearningExampleCard(example: example, archived: true),
+                  ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
