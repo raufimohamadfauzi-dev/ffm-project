@@ -36,9 +36,10 @@ class FfmQwen2VlGateway
     required List<String> conversationTopics,
   }) async {
     if (conversationTopics.isEmpty) return const <String>[];
+    if (_inferenceService.isBusy) return const <String>[];
     try {
       await _ensureInitialized();
-      final response = await _inferenceService.generateJson(
+      final response = await _inferenceService.tryGenerateJsonWhenIdle(
         systemPrompt: '''
 Anda adalah generator rekomendasi pertanyaan untuk Asisten Family Finance Manager.
 Berdasarkan topik percakapan yang telah disanitasi, buat TEPAT tiga pertanyaan lanjutan dalam Bahasa Indonesia yang membantu pengguna melanjutkan topik yang sama.
@@ -54,6 +55,7 @@ ATURAN MUTLAK:
         userPrompt:
             'Topik percakapan terakhir:\n${conversationTopics.join('\n')}',
       );
+      if (response == null) return const <String>[];
       return FfmAssistantSlmFollowUpContract.parseJsonResponse(response);
     } on Object {
       return const <String>[];

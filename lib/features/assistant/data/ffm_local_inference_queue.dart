@@ -45,6 +45,7 @@ class FfmSingleInferenceQueue {
 
   int get activeCount => _activeCount;
   int get queuedCount => _sequence;
+  bool get isBusy => _activeCount > 0 || _sequence > 0;
 
   FfmInferenceRequest<T> enqueueRequest<T>(
     Future<T> Function(FfmInferenceCancellationToken token) operation,

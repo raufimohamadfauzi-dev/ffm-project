@@ -9,6 +9,8 @@ class FfmQwen2VlInferenceService {
 
   final FfmSingleInferenceQueue _queue;
 
+  bool get isBusy => _queue.isBusy;
+
   Future<String> generateJson({
     required String systemPrompt,
     required String userPrompt,
@@ -21,6 +23,22 @@ class FfmQwen2VlInferenceService {
       imagePath: imagePath,
     );
   });
+
+  Future<String?> tryGenerateJsonWhenIdle({
+    required String systemPrompt,
+    required String userPrompt,
+    String? imagePath,
+  }) {
+    if (_queue.isBusy) return Future<String?>.value();
+    return _queue.enqueue((token) async {
+      token.throwIfCancelled();
+      return FfmLocalModelBridgePlugin.generateSingleShotNative(
+        systemPrompt: systemPrompt,
+        userPrompt: userPrompt,
+        imagePath: imagePath,
+      );
+    });
+  }
 
   Future<FfmLocalProposalParseResult> generateProposal({
     required String systemPrompt,

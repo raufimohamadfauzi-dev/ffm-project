@@ -39,6 +39,26 @@ void main() {
   });
 
   test(
+    'isBusy aktif sejak pekerjaan dijadwalkan sampai antrean selesai',
+    () async {
+      final queue = FfmSingleInferenceQueue();
+      final gate = Completer<void>();
+
+      final request = queue.enqueueRequest((_) async {
+        await gate.future;
+        return 1;
+      });
+
+      expect(queue.isBusy, isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(queue.isBusy, isTrue);
+      gate.complete();
+      expect(await request.future, 1);
+      expect(queue.isBusy, isFalse);
+    },
+  );
+
+  test(
     'cancel sebelum giliran tidak menjalankan operasi dan idempoten',
     () async {
       final queue = FfmSingleInferenceQueue();
