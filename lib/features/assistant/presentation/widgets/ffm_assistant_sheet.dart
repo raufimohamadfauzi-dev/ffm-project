@@ -363,18 +363,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return value.replaceAll('_', ' ');
   }
 
-  bool _isDirectTransactionMutation(FfmAssistantDraft? draft) =>
-      switch (draft?.kind) {
-        FfmAssistantDraftKind.transactionUpdate ||
-        FfmAssistantDraftKind.transactionArchive ||
-        FfmAssistantDraftKind.transactionDelete => true,
-        _ => false,
-      };
+  bool _isDirectMutation(FfmAssistantDraft? draft) => switch (draft?.kind) {
+    FfmAssistantDraftKind.transactionUpdate ||
+    FfmAssistantDraftKind.transactionArchive ||
+    FfmAssistantDraftKind.transactionDelete ||
+    FfmAssistantDraftKind.activityArchive ||
+    FfmAssistantDraftKind.activityDelete => true,
+    _ => false,
+  };
 
-  Future<void> _executeTransactionMutationPlan(
+  Future<void> _executeDirectMutationPlan(
     FfmAssistantIntent intent,
     String planId,
   ) async {
+    final isActivity = intent.draft?.formValues['entity'] == 'activity_session';
+    final subject = isActivity ? 'Aktivitas' : 'Transaksi';
     _agentStatus.working('Menyimpan perubahan yang sudah kamu konfirmasi...');
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
@@ -386,8 +389,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final detail = failed.isEmpty
           ? 'Perubahan tidak dijalankan.'
           : failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
-      final message = 'Perubahan transaksi tidak selesai. $detail';
-      _agentStatus.failed('Perubahan transaksi belum selesai.');
+      final message =
+          'Perubahan ${subject.toLowerCase()} tidak selesai. $detail';
+      _agentStatus.failed('Perubahan ${subject.toLowerCase()} belum selesai.');
       setState(() {
         widget.session.lastAssistantText = message;
         _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -397,13 +401,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     final verify = plan.steps.where(
-      (step) => step.capabilityId == 'verify.transaction_mutation',
+      (step) =>
+          step.capabilityId == 'verify.transaction_mutation' ||
+          step.capabilityId == 'verify.activity_mutation',
     );
     final message = verify.isEmpty
-        ? 'Perubahan transaksi selesai dan sudah dicatat secara lokal.'
+        ? 'Perubahan ${subject.toLowerCase()} selesai dan sudah dicatat secara lokal.'
         : verify.first.result ??
-              'Perubahan transaksi selesai dan telah diverifikasi.';
-    _agentStatus.done('Perubahan transaksi selesai dan terverifikasi.');
+              'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.';
+    _agentStatus.done(
+      'Perubahan ${subject.toLowerCase()} selesai dan terverifikasi.',
+    );
     setState(() {
       widget.session.lastAssistantText = message;
       _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -415,23 +423,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd();
   }
 
-  Future<bool> _confirmDirectTransactionMutation(
-    FfmAssistantDraft draft,
-  ) async {
+  Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
     final operation = draft.formValues['operation'] ?? 'perubahan';
+    final isActivity = draft.formValues['entity'] == 'activity_session';
     final target =
         draft.formValues['targetSummary'] ?? draft.title ?? 'transaksi ini';
     final detail = switch (operation) {
       'update' =>
         'Nominal lama ${draft.formValues['oldAmount'] ?? '-'} akan diubah menjadi ${draft.amount ?? '-'}.',
-      'archive' => 'Transaksi dipindahkan dari daftar aktif ke arsip.',
-      'delete' => 'Transaksi dihapus dari daftar aktif. Jejak audit lokal tetap tersimpan.',
+      'archive' =>
+        isActivity
+            ? 'Aktivitas dipindahkan dari daftar aktif ke arsip.'
+            : 'Transaksi dipindahkan dari daftar aktif ke arsip.',
+      'delete' =>
+        isActivity
+            ? 'Aktivitas beserta checkpoint dan catatan terkait akan dihapus permanen.'
+            : 'Transaksi dihapus dari daftar aktif. Jejak audit lokal tetap tersimpan.',
       _ => 'Perubahan akan diterapkan ke transaksi ini.',
     };
     return await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('Konfirmasi perubahan transaksi'),
+            title: const Text('Konfirmasi perubahan data'),
             content: Text(
               '$target\n\n$detail\n\nLanjutkan hanya jika preview ini benar.',
             ),
@@ -973,13 +986,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       intent = intent.copyWith(draft: review.draft);
     }
-    final directTransactionMutation = _isDirectTransactionMutation(
-      intent.draft,
-    );
+    final directMutation = _isDirectMutation(intent.draft);
     final shouldNavigate =
         (intent.destination != null || intent.draft != null) &&
         intent.type != FfmAssistantIntentType.confirm &&
-        !directTransactionMutation;
+        !directMutation;
     final isCurrentPageCheck =
         intent.destination != null &&
         intent.destination == widget.currentDestination &&
@@ -994,8 +1005,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
     }
 
-    if (directTransactionMutation && plan != null && intent.draft != null) {
-      final confirmed = await _confirmDirectTransactionMutation(intent.draft!);
+    if (directMutation && plan != null && intent.draft != null) {
+      final confirmed = await _confirmDirectMutation(intent.draft!);
       if (!confirmed) {
         _actionPlanController.cancel(plan.id);
         if (mounted) {
@@ -1018,7 +1029,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         }
         return;
       }
-      await _executeTransactionMutationPlan(intent, plan.id);
+      await _executeDirectMutationPlan(intent, plan.id);
       return;
     }
 
@@ -1784,8 +1795,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               entry.intent!.needsTeachingApproval
                           ? null
                           : () => _handleIntent(entry.intent!),
-                      primaryActionLabel:
-                          _isDirectTransactionMutation(entry.intent?.draft)
+                      primaryActionLabel: _isDirectMutation(entry.intent?.draft)
                           ? 'Konfirmasi'
                           : opensCurrentPage
                           ? 'Cek halaman'
@@ -2588,6 +2598,8 @@ class _DraftPreview extends StatelessWidget {
     FfmAssistantDraftKind.transactionUpdate => 'Preview perubahan transaksi',
     FfmAssistantDraftKind.transactionArchive => 'Preview arsip transaksi',
     FfmAssistantDraftKind.transactionDelete => 'Preview hapus transaksi',
+    FfmAssistantDraftKind.activityArchive => 'Preview arsip aktivitas',
+    FfmAssistantDraftKind.activityDelete => 'Preview hapus aktivitas',
   };
 
   static String _rupiah(int amount) =>

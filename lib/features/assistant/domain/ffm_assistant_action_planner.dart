@@ -49,6 +49,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
         FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
         FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
+        FfmAssistantDraftKind.activityArchive => 'draft.activity_archive',
+        FfmAssistantDraftKind.activityDelete => 'draft.activity_delete',
       };
       steps.add(
         FfmAssistantActionStep(
@@ -62,6 +64,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
         FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.activityArchive => 'mutate.archive',
+        FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -80,6 +84,8 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.transactionArchive ||
             FfmAssistantDraftKind.transactionDelete =>
               'verify.transaction_mutation',
+            FfmAssistantDraftKind.activityArchive ||
+            FfmAssistantDraftKind.activityDelete => 'verify.activity_mutation',
             _ => 'verify.saved_draft',
           },
           parameters: {...parameters, '_idempotencyKey': idempotencyKey},

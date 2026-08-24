@@ -253,3 +253,10 @@
 - [x] Catat mismatch aktual dan prioritaskan capability P0 yang aman untuk diselesaikan pada arsitektur sekarang.
 - [x] Implementasikan capability P0 terpilih melalui jalur chat sampai hasil terverifikasi dan konfirmasi eksplisit.
 - [x] Tambahkan regresi lintas jalur, validasi penuh, build APK patch, dan matriks capability aktual.
+
+# Phase 1 Lanjutan — Mutation Entity Non-Transaksi
+
+- [x] Audit kontrak update, archive/delete, verifikasi, dan audit log pada Aktivitas serta Pengingat.
+- [x] Implementasikan hanya entity yang memiliki kontrak repository dan semantik aman dari chat sampai hasil terverifikasi.
+- [x] Catat entity yang ditunda karena relasi/side-effect belum dapat disinkronkan oleh jalur resmi.
+- [ ] Tambahkan regresi lintas entity, validasi penuh, build APK patch, dan perbarui matriks capability.

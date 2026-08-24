@@ -171,6 +171,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
+      case FfmAssistantDraftKind.activityArchive:
+      case FfmAssistantDraftKind.activityDelete:
         return;
     }
   }

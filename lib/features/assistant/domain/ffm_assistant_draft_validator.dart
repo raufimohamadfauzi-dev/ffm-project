@@ -106,6 +106,8 @@ abstract final class FfmAssistantDraftValidator {
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
+      case FfmAssistantDraftKind.activityArchive:
+      case FfmAssistantDraftKind.activityDelete:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -137,7 +139,9 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.activity ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.transactionArchive ||
-    FfmAssistantDraftKind.transactionDelete => false,
+    FfmAssistantDraftKind.transactionDelete ||
+    FfmAssistantDraftKind.activityArchive ||
+    FfmAssistantDraftKind.activityDelete => false,
     _ => true,
   };
 

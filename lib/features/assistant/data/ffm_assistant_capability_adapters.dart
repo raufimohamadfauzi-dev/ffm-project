@@ -2,6 +2,8 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
+import '../../activity/data/repositories/activity_repository.dart';
+import '../../activity/domain/entities/activity_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
@@ -28,6 +30,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.transaction_update': _prepareTransactionMutation,
     'draft.transaction_archive': _prepareTransactionMutation,
     'draft.transaction_delete': _prepareTransactionMutation,
+    'draft.activity_archive': _prepareActivityMutation,
+    'draft.activity_delete': _prepareActivityMutation,
     'draft.income': _prepareDraft,
     'draft.expense': _prepareDraft,
     'draft.transfer': _prepareDraft,
@@ -44,10 +48,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.goal_usage': _prepareDraft,
     'mutate.save_draft': _saveDraft,
     'mutate.update': _updateTransaction,
-    'mutate.archive': _archiveTransaction,
-    'sensitive.delete': _deleteTransaction,
+    'mutate.archive': _archiveMutation,
+    'sensitive.delete': _deleteMutation,
     'verify.saved_draft': _verifySavedDraft,
     'verify.transaction_mutation': _verifyTransactionMutation,
+    'verify.activity_mutation': _verifyActivityMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -288,6 +293,24 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _archiveMutation(
+    FfmAssistantActionStep step,
+  ) {
+    if (step.parameters['entity'] == 'activity_session') {
+      return _archiveActivity(step);
+    }
+    return _archiveTransaction(step);
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteMutation(
+    FfmAssistantActionStep step,
+  ) {
+    if (step.parameters['entity'] == 'activity_session') {
+      return _deleteActivity(step);
+    }
+    return _deleteTransaction(step);
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _archiveTransaction(
     FfmAssistantActionStep step,
   ) => _setTransactionVisibility(step, archive: true);
@@ -350,6 +373,116 @@ class FfmAssistantCapabilityAdapterRegistry {
           ? 'Transaksi diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.'
           : 'Transaksi dihapus dari daftar aktif. Jejak audit tetap tersimpan secara lokal.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareActivityMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final session = await _mutableActivityTarget(step);
+    if (session == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas target tidak ditemukan, sudah diarsipkan, atau masih aktif.',
+      );
+    }
+    final checkpoints = await ActivityRepository(
+      _database,
+      AuditLogger(_database),
+    ).getCheckpoints(session.id);
+    final operation = step.parameters['operation']?.toString() ?? 'perubahan';
+    final impact = operation == 'delete'
+        ? ' Penghapusan akan menghapus ${checkpoints.length} checkpoint dan seluruh catatan aktivitas yang terkait.'
+        : '';
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview $operation siap untuk aktivitas “${session.title}”.$impact Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveActivity(
+    FfmAssistantActionStep step,
+  ) async {
+    final session = await _mutableActivityTarget(step);
+    if (session == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas target tidak ditemukan, sudah diarsipkan, atau masih aktif.',
+      );
+    }
+    await ActivityRepository(
+      _database,
+      AuditLogger(_database),
+    ).archiveSession(_householdId, session.id);
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Aktivitas diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteActivity(
+    FfmAssistantActionStep step,
+  ) async {
+    final session = await _mutableActivityTarget(step);
+    if (session == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas target tidak ditemukan, sudah diarsipkan, atau masih aktif.',
+      );
+    }
+    await ActivityRepository(
+      _database,
+      AuditLogger(_database),
+    ).deleteSessionPermanently(_householdId, session.id);
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Aktivitas dan data turunannya dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyActivityMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || operation == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload verifikasi perubahan aktivitas tidak lengkap.',
+      );
+    }
+    final repository = ActivityRepository(_database, AuditLogger(_database));
+    final session = await repository.getSession(_householdId, targetId);
+    if (operation == 'archive') {
+      return session?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: aktivitas sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: aktivitas belum berstatus arsip.',
+            );
+    }
+    if (operation == 'delete') {
+      return session == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: aktivitas beserta data turunan yang terkait sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: aktivitas masih ditemukan setelah penghapusan.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis perubahan aktivitas tidak dikenal saat verifikasi.',
+    );
+  }
+
+  Future<ActivitySessionEntity?> _mutableActivityTarget(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) return null;
+    final session = await ActivityRepository(
+      _database,
+      AuditLogger(_database),
+    ).getSession(_householdId, targetId);
+    if (session == null ||
+        session.isArchived ||
+        session.status == ActivitySessionStatus.active) {
+      return null;
+    }
+    return session;
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _verifyTransactionMutation(

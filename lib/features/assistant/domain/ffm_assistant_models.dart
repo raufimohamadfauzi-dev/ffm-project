@@ -32,6 +32,8 @@ enum FfmAssistantIntentType {
   updateTransaction,
   archiveTransaction,
   deleteTransaction,
+  archiveActivity,
+  deleteActivity,
   explainJson,
   createJsonTemplate,
   exportReport,
@@ -93,6 +95,8 @@ enum FfmAssistantDraftKind {
   transactionUpdate,
   transactionArchive,
   transactionDelete,
+  activityArchive,
+  activityDelete,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan

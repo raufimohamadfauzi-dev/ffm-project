@@ -510,6 +510,9 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final activityMutation = await _parseActivityMutation(rawText, normalized);
+    if (activityMutation != null) return activityMutation;
+
     final transactionMutation = await _parseTransactionMutation(
       rawText,
       normalized,
@@ -1565,6 +1568,16 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.transactions,
         action: 'hapus transaksi',
       ),
+      FfmAssistantDraftKind.activityArchive => (
+        type: FfmAssistantIntentType.archiveActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'arsip aktivitas',
+      ),
+      FfmAssistantDraftKind.activityDelete => (
+        type: FfmAssistantIntentType.deleteActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'hapus aktivitas',
+      ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
       final target = _masterDataTargetName(draft.categoryName);
@@ -1645,6 +1658,108 @@ class FfmAssistantInterpreter {
           ? 'Draft ${config.action} sudah siap.$categoryHint Cek dulu, lalu konfirmasi di halaman terkait.'
           : null,
     );
+  }
+
+  Future<FfmAssistantIntent?> _parseActivityMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+aktivitas\s+(.+)$')
+        .firstMatch(normalized);
+    final delete = RegExp(r'^hapus\s+aktivitas\s+(.+)$').firstMatch(normalized);
+    if (archive == null && delete == null) return null;
+    final operation = archive != null ? 'archive' : 'delete';
+    final targetText = (archive?.group(1) ?? delete!.group(1)!).trim();
+    final candidates = await _findActivityCandidates(targetText);
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: operation == 'archive'
+            ? FfmAssistantIntentType.archiveActivity
+            : FfmAssistantIntentType.deleteActivity,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu aktivitas selesai yang cocok dengan “$targetText”. Aktivitas yang masih berjalan harus diselesaikan dari halaman Aktivitas dulu. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      final options = candidates
+          .take(3)
+          .map(_activityCandidateLabel)
+          .join('; ');
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: operation == 'archive'
+            ? FfmAssistantIntentType.archiveActivity
+            : FfmAssistantIntentType.deleteActivity,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} aktivitas yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'archive'
+          ? FfmAssistantDraftKind.activityArchive
+          : FfmAssistantDraftKind.activityDelete,
+      createdAt: _clock(),
+      title: _activityCandidateLabel(target),
+      note: target.notes,
+      date: target.startedAt,
+      formValues: {
+        'entity': 'activity_session',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': _activityCandidateLabel(target),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'archive'
+          ? 'Aku menemukan satu aktivitas selesai untuk diarsipkan. Cek preview dulu; belum ada data yang diubah.'
+          : 'Aku menemukan satu aktivitas selesai untuk dihapus permanen beserta data turunannya. Cek preview dampaknya dulu; belum ada data yang diubah.',
+    );
+  }
+
+  Future<List<ActivitySession>> _findActivityCandidates(
+    String targetText,
+  ) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {'aktivitas', 'pada', 'tanggal'}.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.activitySessions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false) &
+                    row.status.isNotValue('active'),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
+            .get();
+    return rows
+        .where((row) {
+          final haystack = '${row.title} ${row.category} ${row.notes ?? ''}'
+              .toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _activityCandidateLabel(ActivitySession row) {
+    final date = row.startedAt.toIso8601String().substring(0, 10);
+    return '${row.title} • ${row.category} • $date';
   }
 
   Future<FfmAssistantIntent?> _parseTransactionMutation(
