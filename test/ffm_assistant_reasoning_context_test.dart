@@ -37,4 +37,29 @@ void main() {
     expect(context.previousStepResults, ['pertama']);
     expect(next.previousStepResults, ['pertama', 'kedua']);
   });
+
+  test(
+    'evidence context dipilih sesuai maksud tanpa data finansial berlebih',
+    () {
+      final identity = FfmAssistantReasoningEvidencePolicy.forRequest(
+        'kamu siapa?',
+      );
+      final summary = FfmAssistantReasoningEvidencePolicy.forRequest(
+        'berapa transaksi minggu ini?',
+      );
+      final draft = FfmAssistantReasoningEvidencePolicy.forRequest(
+        'catat pengeluaran dari rekening tunai',
+      );
+
+      expect(identity.includeFinancialSummary, isFalse);
+      expect(identity.includeMasterData, isFalse);
+      expect(identity.includeRecentTransactions, isFalse);
+      expect(summary.includeFinancialSummary, isTrue);
+      expect(summary.includeMasterData, isFalse);
+      expect(summary.includeRecentTransactions, isTrue);
+      expect(draft.includeFinancialSummary, isTrue);
+      expect(draft.includeMasterData, isTrue);
+      expect(draft.includeRecentTransactions, isFalse);
+    },
+  );
 }

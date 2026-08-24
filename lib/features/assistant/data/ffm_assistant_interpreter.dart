@@ -1478,14 +1478,22 @@ class FfmAssistantInterpreter {
     try {
       final userContext = await FfmAssistantUserModelService(_taughtMemory)
           .buildContext(query: normalized);
-      final evidence = await _financialSnapshot.readCurrentMonth(
-        householdId: AppContext.householdId,
-        now: _clock(),
+      final evidenceScope = FfmAssistantReasoningEvidencePolicy.forRequest(
+        normalized,
       );
-      final financialContext = _financialSnapshot.buildBoundedPrompt(evidence);
-      final masterDataContext = await _financialSnapshot.buildMasterDataContext(
-        householdId: AppContext.householdId,
-      );
+      final financialContext = evidenceScope.includeFinancialSummary
+          ? _financialSnapshot.buildBoundedPrompt(
+              await _financialSnapshot.readCurrentMonth(
+                householdId: AppContext.householdId,
+                now: _clock(),
+              ),
+            )
+          : '';
+      final masterDataContext = evidenceScope.includeMasterData
+          ? await _financialSnapshot.buildMasterDataContext(
+              householdId: AppContext.householdId,
+            )
+          : '';
       final personalizationContext = await _personalization
           .buildPersonalizedContext(
             householdId: AppContext.householdId,
@@ -1504,9 +1512,11 @@ class FfmAssistantInterpreter {
         approvedUserContext: userContext,
         personalizationContext: personalizationContext,
         modelReady: true,
-        recentTransactions: await _recentTransactionSummaries(
-          householdId: AppContext.householdId,
-        ),
+        recentTransactions: evidenceScope.includeRecentTransactions
+            ? await _recentTransactionSummaries(
+                householdId: AppContext.householdId,
+              )
+            : const <String>[],
       );
       final modelContext = reasoningContext.toBoundedPrompt();
       proposal = await gateway

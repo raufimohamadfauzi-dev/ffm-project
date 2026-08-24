@@ -1,5 +1,39 @@
 import 'ffm_assistant_models.dart';
 
+class FfmAssistantReasoningEvidenceScope {
+  const FfmAssistantReasoningEvidenceScope({
+    required this.includeFinancialSummary,
+    required this.includeMasterData,
+    required this.includeRecentTransactions,
+  });
+
+  final bool includeFinancialSummary;
+  final bool includeMasterData;
+  final bool includeRecentTransactions;
+}
+
+/// Memilih evidence lokal minimum yang relevan sebelum konteks diberikan ke
+/// proposal SLM. Ini bukan penentu akses: executor tetap memakai allowlist.
+abstract final class FfmAssistantReasoningEvidencePolicy {
+  static FfmAssistantReasoningEvidenceScope forRequest(String request) {
+    final normalized = request.toLowerCase();
+    final needsFinancial = RegExp(
+      r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening)\b',
+    ).hasMatch(normalized);
+    final needsMasterData = RegExp(
+      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan)\b',
+    ).hasMatch(normalized);
+    final needsRecentTransactions = RegExp(
+      r'\b(terakhir|terbaru|riwayat|minggu ini|bulan ini|hari ini|kemarin)\b',
+    ).hasMatch(normalized);
+    return FfmAssistantReasoningEvidenceScope(
+      includeFinancialSummary: needsFinancial,
+      includeMasterData: needsMasterData,
+      includeRecentTransactions: needsRecentTransactions && needsFinancial,
+    );
+  }
+}
+
 class FfmAssistantReasoningContext {
   const FfmAssistantReasoningContext({
     required this.request,
