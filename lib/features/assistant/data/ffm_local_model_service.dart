@@ -327,6 +327,19 @@ class FfmLocalModelService {
     await _deleteIfExists(file);
   }
 
+  /// Menghapus hasil DownloadManager hanya bila namanya adalah aset bundle
+  /// resmi dan ukurannya lengkap. Pemanggil hanya boleh memakainya setelah
+  /// salinan staging untuk role yang sama sudah tervalidasi.
+  Future<void> deleteAdoptedBackgroundDuplicate(String filePath) async {
+    final file = File(filePath);
+    final spec = FfmQwen2VlBundle.files.where(
+      (item) => item.fileName == path.basename(file.path),
+    );
+    if (spec.isEmpty || !await file.exists()) return;
+    if (await file.length() != spec.single.expectedSizeBytes) return;
+    await _deleteIfExists(file);
+  }
+
   /// Ringkasan diagnostik untuk laporan perbaikan. Pemanggil harus
   /// menyimpannya melalui [AppDiagnosticsService] karena layanan itu menyaring
   /// path perangkat sebelum data dapat diekspor.
@@ -651,9 +664,21 @@ class FfmLocalModelService {
     );
     await bundleDownload.create(recursive: true);
 
-    final verifiedParts = <File>[];
+    final verifiedSources = <File>[];
     try {
       for (final spec in FfmQwen2VlBundle.files) {
+        final existingStaging = File(
+          path.join((await _stagingDirectory()).path, spec.fileName),
+        );
+        if (await existingStaging.exists()) {
+          try {
+            await _verifyFile(spec, existingStaging);
+            verifiedSources.add(existingStaging);
+            continue;
+          } on Object {
+            await _deleteIfExists(existingStaging);
+          }
+        }
         final part = File(
           path.join(bundleDownload.path, '${spec.fileName}.part'),
         );
@@ -687,7 +712,7 @@ class FfmLocalModelService {
           );
           await _verifyFile(spec, part);
         }
-        verifiedParts.add(part);
+        verifiedSources.add(part);
       }
 
       final staging = Directory(
@@ -698,9 +723,9 @@ class FfmLocalModelService {
       final actualFiles = <Map<String, dynamic>>[];
       for (var index = 0; index < FfmQwen2VlBundle.files.length; index++) {
         final spec = FfmQwen2VlBundle.files[index];
-        final source = verifiedParts[index];
+        final source = verifiedSources[index];
         final destination = File(path.join(staging.path, spec.fileName));
-        await source.rename(destination.path);
+        await source.copy(destination.path);
         actualFiles.add({
           'role': spec.role,
           'fileName': spec.fileName,
@@ -741,6 +766,10 @@ class FfmLocalModelService {
         await finalDirectory.rename(backup.path);
       await staging.rename(finalDirectory.path);
       if (await backup.exists()) await backup.delete(recursive: true);
+      final persistentStaging = await _stagingDirectory();
+      if (await persistentStaging.exists()) {
+        await persistentStaging.delete(recursive: true);
+      }
       await bundleDownload.delete(recursive: true);
 
       final installed = await getInstalled();
@@ -1303,18 +1332,18 @@ class FfmLocalModelService {
     } on FfmLocalModelDownloadException {
       rethrow;
     } catch (error) {
-      if (error is SocketException) {
+      if (error is SocketException || error is HttpException) {
         throw FfmLocalModelDownloadException(
-          'Tidak bisa menghubungi GitHub dari HP ini. Periksa internet, '
-          'Private DNS, atau VPN; lalu pilih Coba lagi. File unduhan parsial '
-          'tetap disimpan agar tidak mulai dari nol. Jika jaringan tetap tidak '
-          'tersedia, gunakan Impor bundle offline.',
+          'Koneksi ke server file terputus. Tekan Coba lagi untuk melanjutkan '
+          'komponen ini dari data parsial yang sudah tersimpan. Jika jaringan '
+          'tetap tidak stabil, gunakan Impor bundle offline.',
           canRetry: true,
         );
       }
       throw FfmLocalModelDownloadException(
-        'Unduhan ${spec.fileName} terhenti: $error',
-        canRestart: true,
+        'Unduhan ${spec.fileName} terhenti. Data parsial tetap disimpan; '
+        'tekan Coba lagi untuk melanjutkan.',
+        canRetry: true,
       );
     } finally {
       await sink?.close();

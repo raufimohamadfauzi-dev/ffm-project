@@ -70,7 +70,7 @@ class FfmBackgroundDownloadService {
 
   static const _channel = MethodChannel('ffm_local_model_bridge');
 
-  Future<List<FfmBackgroundDownloadStatus>> start() async {
+  Future<List<FfmBackgroundDownloadStatus>> start({Set<String>? roles}) async {
     final raw = await _channel.invokeMethod<List<Object?>>(
       'startBackgroundBundleDownload',
       {
@@ -79,6 +79,7 @@ class FfmBackgroundDownloadService {
         'modelFileName': FfmQwen2VlBundle.modelFileName,
         'projectorUrl': FfmQwen2VlBundle.projectorUrl,
         'projectorFileName': FfmQwen2VlBundle.projectorFileName,
+        if (roles != null) 'roles': roles.toList(growable: false),
       },
     );
     return _parse(raw);

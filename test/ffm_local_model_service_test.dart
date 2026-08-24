@@ -192,6 +192,42 @@ void main() {
     });
 
     test(
+      'menghapus duplikat background lengkap dengan nama aset resmi',
+      () async {
+        final duplicate = File(
+          '${root.path}/${FfmQwen2VlBundle.modelFileName}',
+        );
+        await duplicate.create(recursive: true);
+        await duplicate.open(mode: FileMode.write).then((handle) async {
+          await handle.truncate(FfmQwen2VlBundle.modelBytes);
+          await handle.close();
+        });
+
+        await service.deleteAdoptedBackgroundDuplicate(duplicate.path);
+
+        expect(await duplicate.exists(), isFalse);
+      },
+    );
+
+    test(
+      'tidak menghapus file asing atau file aset yang belum lengkap',
+      () async {
+        final foreign = File('${root.path}/catatan-pribadi.gguf');
+        await foreign.writeAsString('jangan dihapus');
+        final partial = File(
+          '${root.path}/${FfmQwen2VlBundle.projectorFileName}',
+        );
+        await partial.writeAsString('belum lengkap');
+
+        await service.deleteAdoptedBackgroundDuplicate(foreign.path);
+        await service.deleteAdoptedBackgroundDuplicate(partial.path);
+
+        expect(await foreign.exists(), isTrue);
+        expect(await partial.exists(), isTrue);
+      },
+    );
+
+    test(
       'manifest dengan hash, header, atau bundle yang tidak cocok ditolak',
       () async {
         final finalDirectory = Directory(

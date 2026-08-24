@@ -217,7 +217,14 @@ class _LocalModelPageState extends State<LocalModelPage>
     var staging = await _service.getStagingStatus();
     for (final status in statuses) {
       final localPath = status.localPath;
-      if (!status.needsStagingImport(staging) || localPath == null) continue;
+      if (localPath == null) continue;
+      if (status.isAlreadyInStaging(staging)) {
+        if (status.isComplete) {
+          await _service.deleteAdoptedBackgroundDuplicate(localPath);
+        }
+        continue;
+      }
+      if (!status.needsStagingImport(staging)) continue;
       try {
         await _service.importGgufFromPath(
           localPath,
@@ -243,18 +250,29 @@ class _LocalModelPageState extends State<LocalModelPage>
   }
 
   Future<void> _startBackgroundDownload() async {
+    final staging = _stagingStatus;
+    final roles = <String>{
+      if (staging == null || !staging.hasModel) 'language_model',
+      if (staging == null || !staging.hasProjector) 'multimodal_projector',
+    };
+    if (roles.isEmpty) {
+      await _load(showLoading: false);
+      return;
+    }
     setState(() {
       _working = true;
       _error = null;
     });
     try {
-      final statuses = await _backgroundService.start();
+      final statuses = await _backgroundService.start(roles: roles);
       if (!mounted) return;
       setState(() => _backgroundStatuses = statuses);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Download berjalan di latar belakang. Progres tersedia di notifikasi HP.',
+            roles.length == 1
+                ? 'Hanya komponen yang belum ada sedang diunduh di background.'
+                : 'Dua komponen yang belum ada sedang diunduh di background.',
           ),
         ),
       );
@@ -923,6 +941,20 @@ class _LocalModelPageState extends State<LocalModelPage>
                                 _stagingStatus != null &&
                                 !_stagingStatus!.isReadyToCommit) ...[
                               FilledButton.icon(
+                                onPressed: _working ? null : _download,
+                                icon: const Icon(Icons.download_outlined),
+                                label: const Text('Unduh komponen yang kurang'),
+                              ),
+                              OutlinedButton.icon(
+                                onPressed: _working
+                                    ? null
+                                    : _startBackgroundDownload,
+                                icon: const Icon(
+                                  Icons.notifications_active_outlined,
+                                ),
+                                label: const Text('Unduh kurang di background'),
+                              ),
+                              OutlinedButton.icon(
                                 onPressed: _working ? null : _importGguf,
                                 icon: const Icon(Icons.file_open_outlined),
                                 label: const Text('Pilih GGUF Berikutnya'),

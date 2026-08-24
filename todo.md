@@ -267,3 +267,11 @@
 - [x] Pastikan ketukan notifikasi membuka Pengingat lalu rincian/riwayat kejadian yang tepat, bukan hanya menutup notifikasi.
 - [x] Pastikan aksi notifikasi dan ketukan biasa mempertahankan ID pengingat/kejadian yang sama tanpa membuat alarm duplikat.
 - [x] Tambahkan regresi, validasi penuh, build APK patch, dan dokumentasikan uji perangkat nyata.
+
+# Pemulihan Unduh Parsial dan Deduplikasi SLM
+
+- [x] Audit file final, staging, unduhan background, dan state komponen model/projector setelah koneksi terputus.
+- [x] Deteksi komponen valid per file dan unduh hanya komponen yang belum lengkap atau hash-nya tidak cocok.
+- [x] Lanjutkan unduhan parsial bila server mendukung resume; hapus hanya salinan sementara/duplikat yang terbukti tidak valid.
+- [x] Ringkas pesan koneksi tanpa menampilkan URL signed dan tampilkan tindakan pemulihan per komponen.
+- [ ] Tambahkan regresi, validasi penuh, build APK patch, serta dokumentasikan uji perangkat nyata.

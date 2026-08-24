@@ -101,7 +101,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                     }
                 }
             }
-            "startBackgroundBundleDownload" -> startBackgroundBundleDownload(result)
+            "startBackgroundBundleDownload" -> startBackgroundBundleDownload(call, result)
             "backgroundBundleStatus" -> postSuccess(result, backgroundBundleStatus())
             "cancelBackgroundBundleDownload" -> cancelBackgroundBundleDownload(result)
             "generateSingleShotNative" -> {
@@ -135,14 +135,16 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
     private fun downloadManager(): DownloadManager =
         appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
 
-    private fun startBackgroundBundleDownload(result: Result) {
+    private fun startBackgroundBundleDownload(call: MethodCall, result: Result) {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
         val manager = downloadManager()
         val requests = listOf(
-            DownloadSpec("language_model", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/Qwen2-VL-2B-Instruct-IQ4_NL.gguf", "Qwen2-VL-2B-Instruct-IQ4_NL.gguf"),
-            DownloadSpec("multimodal_projector", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/mmproj-Qwen2-VL-2B-Instruct-f16.gguf", "mmproj-Qwen2-VL-2B-Instruct-f16.gguf"),
+            DownloadSpec("language_model", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/Qwen2-VL-2B-Instruct-IQ4_NL.gguf", "Qwen2-VL-2B-Instruct-IQ4_NL.gguf", 936329984L),
+            DownloadSpec("multimodal_projector", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/mmproj-Qwen2-VL-2B-Instruct-f16.gguf", "mmproj-Qwen2-VL-2B-Instruct-f16.gguf", 1331656192L),
         )
-        requests.forEach { spec ->
+        val requestedRoles = call.argument<List<String>>("roles")?.toSet()
+            ?: requests.map { it.role }.toSet()
+        requests.filter { it.role in requestedRoles }.forEach { spec ->
             if (backgroundFilePath(spec.fileName) == null) {
                 postError(
                     result,
@@ -154,7 +156,9 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
             val key = "${spec.role}_id"
             val existingId = prefs.getLong(key, -1L)
             if (existingId != -1L && isDownloadActive(manager, existingId)) return@forEach
+            if (existingId != -1L && isDownloadCompleteAndReadable(manager, existingId, spec)) return@forEach
             if (existingId != -1L) manager.remove(existingId)
+            cleanupIncompleteDestination(spec)
             val request = DownloadManager.Request(Uri.parse(spec.url))
                 .setTitle("FFM: ${spec.fileName}")
                 .setDescription("Download SLM Qwen2-VL berjalan di latar belakang")
@@ -177,6 +181,30 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                 DownloadManager.STATUS_PAUSED -> true
                 else -> false
             }
+        }
+    }
+
+    private fun isDownloadCompleteAndReadable(
+        manager: DownloadManager,
+        id: Long,
+        spec: DownloadSpec,
+    ): Boolean {
+        val cursor = manager.query(DownloadManager.Query().setFilterById(id)) ?: return false
+        return cursor.use {
+            if (!it.moveToFirst()) return@use false
+            if (it.getInt(it.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS)) != DownloadManager.STATUS_SUCCESSFUL) {
+                return@use false
+            }
+            val localUri = it.getString(it.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI))
+            val file = fileFromDownloadManagerUri(localUri) ?: backgroundFile(spec.fileName)
+            file?.isFile == true && file.length() == spec.expectedBytes
+        }
+    }
+
+    private fun cleanupIncompleteDestination(spec: DownloadSpec) {
+        val file = backgroundFile(spec.fileName) ?: return
+        if (file.isFile && file.length() != spec.expectedBytes) {
+            file.delete()
         }
     }
 
@@ -277,7 +305,12 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
         postSuccess(result, null)
     }
 
-    private data class DownloadSpec(val role: String, val url: String, val fileName: String)
+    private data class DownloadSpec(
+        val role: String,
+        val url: String,
+        val fileName: String,
+        val expectedBytes: Long,
+    )
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
