@@ -86,6 +86,35 @@ class FfmAssistantActionPlan {
         capability.risk.index >= FfmAssistantCapabilityRisk.mutation.index;
   });
 
+  /// Memastikan workflow yang membawa write tetap kecil, serial, dan dapat
+  /// dibuktikan melalui langkah verifikasi setelah mutation.
+  String? get workflowSafetyIssue {
+    final mutationIndexes = <int>[];
+    for (var index = 0; index < steps.length; index++) {
+      final capability = FfmAssistantCapabilityRegistry.find(
+        steps[index].capabilityId,
+      );
+      if (capability != null &&
+          capability.risk.index >= FfmAssistantCapabilityRisk.mutation.index) {
+        mutationIndexes.add(index);
+      }
+    }
+    if (mutationIndexes.length > 1) {
+      return 'Workflow memuat lebih dari satu mutasi. Pecah menjadi konfirmasi terpisah.';
+    }
+    if (mutationIndexes.isEmpty) return null;
+    if (!requiresConfirmation) {
+      return 'Workflow mutasi wajib meminta konfirmasi eksplisit.';
+    }
+    final mutationIndex = mutationIndexes.single;
+    final hasVerification = steps
+        .skip(mutationIndex + 1)
+        .any((step) => step.capabilityId.startsWith('verify.'));
+    return hasVerification
+        ? null
+        : 'Workflow mutasi wajib memiliki pembacaan ulang untuk verifikasi.';
+  }
+
   bool get isTerminal => const {
     FfmAssistantActionPlanStatus.completed,
     FfmAssistantActionPlanStatus.cancelled,

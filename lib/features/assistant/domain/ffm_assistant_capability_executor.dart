@@ -80,6 +80,10 @@ class FfmAssistantCapabilityExecutor {
         ),
       );
     }
+    final workflowSafetyIssue = plan.workflowSafetyIssue;
+    if (workflowSafetyIssue != null) {
+      return _report(_controller.block(planId, workflowSafetyIssue));
+    }
     if (plan.hasMutation &&
         plan.status != FfmAssistantActionPlanStatus.executing) {
       return _report(

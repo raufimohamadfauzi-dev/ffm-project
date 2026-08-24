@@ -59,6 +59,10 @@ void main() {
         status: FfmAssistantActionPlanStatus.executing,
         steps: const [
           FfmAssistantActionStep(id: 'save', capabilityId: 'mutate.save_draft'),
+          FfmAssistantActionStep(
+            id: 'verify',
+            capabilityId: 'verify.saved_draft',
+          ),
         ],
       ),
     );
@@ -72,6 +76,8 @@ void main() {
       handlers: {
         'mutate.save_draft': (_) async =>
             const FfmAssistantCapabilityExecutionResult.success('saved'),
+        'verify.saved_draft': (_) async =>
+            const FfmAssistantCapabilityExecutionResult.success('verified'),
       },
     );
 
