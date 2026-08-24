@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
@@ -56,6 +58,37 @@ void main() {
     expect(
       await database.select(database.assistantResponseFeedbacks).get(),
       isEmpty,
+    );
+  });
+
+  test('ekspor hanya memuat feedback yang sudah disetujui', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = FfmAssistantResponseFeedbackRepository(database);
+    final approved = await repository.record(
+      questionText: 'Apa fungsi anggaran?',
+      responseText: 'Jawaban belum cukup jelas.',
+      kind: FfmAssistantResponseFeedbackKind.incomplete,
+    );
+    await repository.record(
+      questionText: 'Apa fungsi target?',
+      responseText: 'Jawaban keliru.',
+      kind: FfmAssistantResponseFeedbackKind.incorrect,
+    );
+    await repository.setReviewStatus(
+      approved!.id,
+      FfmAssistantResponseFeedbackReviewStatus.approved,
+    );
+
+    final exported = jsonDecode(
+      await repository.exportApprovedForExternalReview(),
+    ) as Map<String, dynamic>;
+
+    expect(exported['formatVersion'], 'ffm-assistant-response-feedback-v1');
+    expect(exported['feedback'], hasLength(1));
+    expect(
+      (exported['feedback'] as List).single['question'],
+      'Apa fungsi anggaran?',
     );
   });
 }

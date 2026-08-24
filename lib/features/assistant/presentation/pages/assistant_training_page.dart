@@ -298,6 +298,19 @@ Tugas:
     );
   }
 
+  Future<void> _copyApprovedFeedback() async {
+    final content = await _feedbackRepository.exportApprovedForExternalReview();
+    await Clipboard.setData(ClipboardData(text: content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Feedback yang sudah disetujui disalin. Feedback pending tidak ikut.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _resolveUnansweredQuestion(
     FfmAssistantUnansweredQuestion question,
   ) async {
@@ -549,6 +562,11 @@ Tugas:
                             onPressed: _copyMasterDataProposalPrompt,
                             icon: const Icon(Icons.account_tree_outlined),
                             label: const Text('Proposal Data Utama'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _copyApprovedFeedback,
+                            icon: const Icon(Icons.rate_review_outlined),
+                            label: const Text('Ekspor feedback tersetujui'),
                           ),
                         ],
                       ),

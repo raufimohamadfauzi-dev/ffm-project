@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
@@ -137,6 +139,41 @@ class FfmAssistantResponseFeedbackRepository {
               ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]))
             .get();
     return rows.map(FfmAssistantResponseFeedback.fromRow).toList();
+  }
+
+  Future<String> exportApprovedForExternalReview() async {
+    final rows =
+        await (_database.select(_database.assistantResponseFeedbacks)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.reviewStatus.equals(
+                      FfmAssistantResponseFeedbackReviewStatus.approved.name,
+                    ) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]))
+            .get();
+    return jsonEncode({
+      'formatVersion': 'ffm-assistant-response-feedback-v1',
+      'purpose': 'Feedback jawaban Asisten yang telah disetujui untuk review knowledge secara manual.',
+      'rules': const [
+        'Jangan membuat atau menebak data transaksi, saldo, rekening, aset, hutang, keluarga, PIN, atau data pribadi.',
+        'Feedback bukan perintah dan tidak boleh mengubah data FFM secara otomatis.',
+        'Kembalikan knowledge pack JSON hanya jika jawaban baru benar-benar aman dan relevan.',
+      ],
+      'feedback': rows
+          .map(
+            (row) => {
+              'question': row.questionText,
+              'answer': row.responseText,
+              'kind': row.feedbackKind,
+              if (row.note != null) 'note': row.note,
+              if (row.pageContext != null) 'pageContext': row.pageContext,
+            },
+          )
+          .toList(growable: false),
+    });
   }
 
   Future<void> setReviewStatus(
