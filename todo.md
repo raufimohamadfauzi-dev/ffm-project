@@ -266,4 +266,4 @@
 - [x] Audit payload notifikasi, callback respons, lifecycle start/resume, dan rute Pengingat saat notifikasi diketuk.
 - [x] Pastikan ketukan notifikasi membuka Pengingat lalu rincian/riwayat kejadian yang tepat, bukan hanya menutup notifikasi.
 - [x] Pastikan aksi notifikasi dan ketukan biasa mempertahankan ID pengingat/kejadian yang sama tanpa membuat alarm duplikat.
-- [ ] Tambahkan regresi, validasi penuh, build APK patch, dan dokumentasikan uji perangkat nyata.
+- [x] Tambahkan regresi, validasi penuh, build APK patch, dan dokumentasikan uji perangkat nyata.
