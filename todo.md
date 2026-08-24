@@ -275,3 +275,16 @@
 - [x] Lanjutkan unduhan parsial bila server mendukung resume; hapus hanya salinan sementara/duplikat yang terbukti tidak valid.
 - [x] Ringkas pesan koneksi tanpa menampilkan URL signed dan tampilkan tindakan pemulihan per komponen.
 - [x] Tambahkan regresi, validasi penuh, build APK patch, serta dokumentasikan uji perangkat nyata.
+
+# Audit dan Sinkronisasi GitHub Lintas Perangkat
+
+- [x] Audit commit, branch, file, ukuran, dan konfigurasi repository GitHub terbaru.
+- [x] Periksa secret, keystore, file konfigurasi lokal, artefak build, model besar, dan data pengguna yang tidak boleh disinkronkan.
+- [x] Bandingkan baseline GitHub dengan source FFM lokal v79 tanpa force push atau overwrite.
+- [x] Dokumentasikan cara mendeteksi update dari perangkat lain sebelum source lokal diubah.
+
+# Publikasi Source FFM v79 ke GitHub
+
+- [x] Audit akhir file tracked dan aturan ignore sebelum source lokal dipush ke GitHub.
+- [ ] Push commit source FFM v79 ke branch baru tanpa mengubah branch `main` legacy.
+- [ ] Verifikasi commit, branch, dan file remote setelah push; catat baseline sinkronisasi lintas perangkat.
