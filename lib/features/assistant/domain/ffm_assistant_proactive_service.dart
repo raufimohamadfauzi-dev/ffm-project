@@ -59,6 +59,26 @@ class FfmAssistantProactiveSuggestionService {
         suggestedPrompt: 'cek progres target di halaman ini',
         destination: FfmAssistantDestination.goals,
       ),
+      FfmAssistantDestination.masterData =>
+        const FfmAssistantProactiveSuggestion(
+          id: 'review-master-data',
+          message: 'Aku bisa mengecek apakah Data Utama sudah cukup untuk mulai mencatat, tanpa menambah data sendiri.',
+          suggestedPrompt: 'cek kesiapan Data Utama',
+          destination: FfmAssistantDestination.masterData,
+        ),
+      FfmAssistantDestination.activity => const FfmAssistantProactiveSuggestion(
+        id: 'review-activities',
+        message: 'Aku bisa membantu melihat aktivitas yang aktif atau menyiapkan aktivitas baru untuk kamu tinjau.',
+        suggestedPrompt: 'cek aktivitas yang perlu diperhatikan',
+        destination: FfmAssistantDestination.activity,
+      ),
+      FfmAssistantDestination.reminders =>
+        const FfmAssistantProactiveSuggestion(
+          id: 'review-reminders',
+          message: 'Aku bisa membantu meninjau pengingat aktif atau menyiapkan pengingat baru tanpa langsung menjadwalkannya.',
+          suggestedPrompt: 'cek pengingat aktif',
+          destination: FfmAssistantDestination.reminders,
+        ),
       _ => const FfmAssistantProactiveSuggestion(
         id: 'ask-ffm',
         message: 'Aku siap membaca konteks halaman ini, menjawab pertanyaan, atau menyiapkan pekerjaan untuk kamu tinjau.',

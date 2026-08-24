@@ -38,4 +38,23 @@ void main() {
       isNull,
     );
   });
+
+  test('halaman personal manager memberi saran aman sesuai konteks', () {
+    final cases = {
+      FfmAssistantDestination.masterData: 'review-master-data',
+      FfmAssistantDestination.activity: 'review-activities',
+      FfmAssistantDestination.reminders: 'review-reminders',
+    };
+
+    for (final entry in cases.entries) {
+      final suggestion = service.suggest(
+        destination: entry.key,
+        modelReady: true,
+        hasConversation: false,
+      );
+
+      expect(suggestion?.id, entry.value);
+      expect(suggestion?.message, isNot(contains('langsung menyimpan')));
+    }
+  });
 }
