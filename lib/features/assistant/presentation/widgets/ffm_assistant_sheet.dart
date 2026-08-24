@@ -17,9 +17,9 @@ import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
 import '../../data/ffm_assistant_chat_history_repository.dart';
 import '../../data/ffm_assistant_interpreter.dart';
-import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
+import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_slm_follow_up_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
@@ -120,6 +120,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _modelService = getIt<FfmLocalModelService>();
   final _chatExportService = FfmAssistantChatExportService();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
+  final _responseFeedbackRepository =
+      getIt<FfmAssistantResponseFeedbackRepository>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
   final _activityRepository = getIt<ActivityRepository>();
@@ -1603,26 +1605,57 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return null;
   }
 
-  Future<void> _copyFeedbackContext(FfmAssistantChatEntry entry) async {
+  Future<void> _showFeedbackActions(FfmAssistantChatEntry entry) async {
     final feedback = _feedbackContextFor(entry);
     if (feedback == null) return;
-    final sanitizedQuestion = FfmAssistantLearningSanitizer.sanitize(
-      feedback.userQuestion,
+    final kind = await showDialog<FfmAssistantResponseFeedbackKind>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Tinjau jawaban Asisten'),
+        content: const Text(
+          'Pilih masalahnya. Laporan akan disanitasi dan masuk Pusat Pengetahuan untuk review; tidak langsung menjadi knowledge.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext)
+                    .pop(FfmAssistantResponseFeedbackKind.unhelpful),
+            child: const Text('Tidak membantu'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.of(dialogContext)
+                    .pop(FfmAssistantResponseFeedbackKind.incomplete),
+            child: const Text('Kurang lengkap'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext)
+                    .pop(FfmAssistantResponseFeedbackKind.incorrect),
+            child: const Text('Keliru'),
+          ),
+        ],
+      ),
     );
-    final sanitizedAnswer = FfmAssistantLearningSanitizer.sanitize(
-      feedback.assistantAnswer,
-    );
-    final safeFeedback = FfmAssistantFeedbackContext(
-      userQuestion: sanitizedQuestion,
-      assistantAnswer: sanitizedAnswer,
-    );
-    await Clipboard.setData(
-      ClipboardData(text: safeFeedback.buildTrainingSeed()),
+    if (kind == null) return;
+    final saved = await _responseFeedbackRepository.record(
+      questionText: feedback.userQuestion,
+      responseText: feedback.assistantAnswer,
+      kind: kind,
+      pageContext: widget.currentDestination?.name,
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Konteks aman disalin. Tempel ke ChatGPT bila perlu.'),
+      SnackBar(
+        content: Text(
+          saved == null
+              ? 'Feedback belum dapat disimpan. Coba periksa kembali pesannya.'
+              : 'Feedback tersimpan untuk ditinjau di Pusat Pengetahuan.',
+        ),
       ),
     );
   }
@@ -1960,7 +1993,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               : null,
                           onCopyFeedback: entry.isUser
                               ? null
-                              : () => _copyFeedbackContext(entry),
+                              : () => _showFeedbackActions(entry),
                           onShowTechnical: entry.intent == null
                               ? null
                               : () => _showTechnicalDetails(entry.intent!),
