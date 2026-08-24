@@ -51,8 +51,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   String? _error;
   var _loading = true;
   var _working = false;
-  var _loadingMessage = 'Menyiapkan status model lokal...';
-  var _workingMessage = 'Menyiapkan proses...';
+  var _loadingMessage = 'Sedang memeriksa status model lokal...';
+  var _workingMessage = 'Sedang menyiapkan proses...';
   var _loadEpoch = 0;
   Timer? _loadWatchdog;
 
@@ -76,27 +76,27 @@ class _LocalModelPageState extends State<LocalModelPage>
 
   String _messageForLoadStage(String stage) {
     if (stage.contains('getAssemblyStatus mulai')) {
-      return 'Memeriksa apakah ada proses perakitan model yang masih berjalan...';
+      return 'Sedang memeriksa apakah ada proses perakitan model yang perlu dilanjutkan...';
     }
     if (stage.contains('getInstalled mulai')) {
-      return 'Memeriksa model yang sudah terpasang di perangkat...';
+      return 'Sedang mencari model yang sudah terpasang di perangkat...';
     }
     if (stage.contains('background.status')) {
-      return 'Memeriksa status download yang berjalan di background...';
+      return 'Sedang memeriksa download yang berjalan di background...';
     }
     if (stage.contains('adoptCompletedBackground mulai')) {
-      return 'Memverifikasi dan memasukkan hasil download ke staging...';
+      return 'Sedang memindahkan hasil download yang selesai ke staging...';
     }
     if (stage.contains('getStagingStatus')) {
-      return 'Membaca file model yang siap dipasang...';
+      return 'Sedang membaca file model yang siap dipasang...';
     }
     if (stage.contains('setState selesai')) {
-      return 'Menyiapkan tampilan status terbaru...';
+      return 'Sedang menyiapkan ringkasan status terbaru...';
     }
     if (stage.contains('gagal')) {
-      return 'Menyiapkan informasi pemulihan...';
+      return 'Sedang menyiapkan detail pemulihan...';
     }
-    return 'Menyiapkan status model lokal...';
+    return 'Sedang memuat status model lokal...';
   }
 
   @override
@@ -122,7 +122,7 @@ class _LocalModelPageState extends State<LocalModelPage>
     if (mounted && showLoading) {
       setState(() {
         _loading = true;
-        _loadingMessage = 'Menyiapkan status model lokal...';
+        _loadingMessage = 'Sedang memeriksa status model lokal...';
         _error = null;
       });
     }
@@ -311,7 +311,7 @@ class _LocalModelPageState extends State<LocalModelPage>
     }
     setState(() {
       _working = true;
-      _workingMessage = 'Menyiapkan download model di background...';
+      _workingMessage = 'Sedang menyiapkan download model di background...';
       _error = null;
     });
     try {
@@ -338,7 +338,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _cancelBackgroundDownload() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Membatalkan download background...';
+      _workingMessage = 'Sedang membatalkan download background...';
     });
     try {
       await _backgroundService.cancel();
@@ -351,7 +351,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _download({bool restart = false}) async {
     setState(() {
       _working = true;
-      _workingMessage = 'Mengunduh dan memverifikasi paket model...';
+      _workingMessage = 'Sedang mengunduh paket model dan memeriksa integritasnya...';
       _error = null;
       _progress = null;
     });
@@ -363,7 +363,7 @@ class _LocalModelPageState extends State<LocalModelPage>
             setState(() {
               _progress = progress;
               _workingMessage =
-                  'Mengunduh dan memverifikasi ${progress.fileName}...';
+                  'Sedang mengunduh ${progress.fileName} dan menyiapkan pemeriksaan integritas...';
             });
           }
         },
@@ -410,7 +410,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _importGguf() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menunggu file GGUF dipilih...';
+      _workingMessage = 'Menunggu Anda memilih file GGUF dari perangkat...';
       _error = null;
       _importProgress = null;
       _importStageDescription = null;
@@ -425,9 +425,9 @@ class _LocalModelPageState extends State<LocalModelPage>
       final selectedFiles = picked;
       if (selectedFiles.isEmpty) return;
       setState(() {
-        _workingMessage = 'Membaca dan memverifikasi file GGUF...';
+        _workingMessage = 'Sedang membaca file GGUF dan memeriksa isinya...';
         _importStageDescription =
-            'Membaca dan memverifikasi file GGUF (~1-1.3 GB)... Mohon tunggu beberapa detik.';
+            'Sedang membaca dan memverifikasi file GGUF berukuran besar. Ini bisa memerlukan beberapa saat.';
       });
       for (final selected in selectedFiles) {
         await _service.importSingleGguf(
@@ -479,7 +479,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _commitStaging() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menyiapkan pemasangan bundle terverifikasi...';
+      _workingMessage = 'Sedang menyiapkan pemasangan bundle yang sudah diverifikasi...';
       _error = null;
     });
     try {
@@ -490,17 +490,17 @@ class _LocalModelPageState extends State<LocalModelPage>
               _assemblyStatus = status;
               _workingMessage = switch (status.stage) {
                 FfmLocalModelAssemblyStage.verifyingModel =>
-                  'Memverifikasi file model GGUF... ',
+                  'Sedang memeriksa isi file model GGUF...',
                 FfmLocalModelAssemblyStage.verifyingProjector =>
-                  'Memverifikasi file projector GGUF... ',
+                  'Sedang memeriksa isi file projector GGUF...',
                 FfmLocalModelAssemblyStage.committing =>
-                  'Memasang bundle dan menyimpan manifest...',
+                  'Sedang memasang bundle dan menyimpan manifest...',
                 FfmLocalModelAssemblyStage.ready =>
-                  'Perakitan selesai, menyiapkan hasil...',
+                  'Model selesai dirakit. Sedang menyiapkan hasil...',
                 FfmLocalModelAssemblyStage.failed =>
-                  'Menyiapkan informasi kegagalan perakitan...',
+                  'Sedang menyiapkan detail kesalahan perakitan...',
                 FfmLocalModelAssemblyStage.idle =>
-                  'Menyiapkan proses perakitan...',
+                  'Sedang menyiapkan proses perakitan...',
               };
             });
           }
@@ -535,7 +535,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _clearStaging() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menghapus file staging yang tersimpan...';
+      _workingMessage = 'Sedang membersihkan file staging yang tersimpan...';
       _error = null;
     });
     try {
@@ -553,7 +553,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _importBundle() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menunggu bundle offline dipilih...';
+      _workingMessage = 'Menunggu Anda memilih bundle offline dari perangkat...';
       _error = null;
       _importProgress = null;
       _importStageDescription = null;
@@ -601,7 +601,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _exportBundle() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menyiapkan bundle terverifikasi untuk dibagikan...';
+      _workingMessage = 'Sedang menyiapkan bundle terverifikasi untuk dibagikan...';
       _error = null;
     });
     try {
@@ -651,7 +651,7 @@ class _LocalModelPageState extends State<LocalModelPage>
     if (confirmed != true) return;
     setState(() {
       _working = true;
-      _workingMessage = 'Menghapus model lokal dan metadata verifikasi...';
+      _workingMessage = 'Sedang menghapus model lokal dan metadata verifikasi...';
     });
     await _service.clear();
     await _service.clearStaging();
@@ -1148,7 +1148,7 @@ class _LocalModelPageState extends State<LocalModelPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Sedang diproses',
+                  'Aktivitas saat ini',
                   style: TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
@@ -1182,7 +1182,7 @@ class _LocalModelPageState extends State<LocalModelPage>
             ),
             const SizedBox(height: 8),
             Text(
-              'FFM sedang membaca status file model dan proses download. Data keuangan tidak diubah.',
+              'Sedang membaca status file model dan download. Data keuangan tidak diubah.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),
