@@ -51,6 +51,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   String? _error;
   var _loading = true;
   var _working = false;
+  var _loadingMessage = 'Menyiapkan status model lokal...';
+  var _workingMessage = 'Menyiapkan proses...';
   var _loadEpoch = 0;
   Timer? _loadWatchdog;
 
@@ -72,6 +74,31 @@ class _LocalModelPageState extends State<LocalModelPage>
     super.dispose();
   }
 
+  String _messageForLoadStage(String stage) {
+    if (stage.contains('getAssemblyStatus mulai')) {
+      return 'Memeriksa apakah ada proses perakitan model yang masih berjalan...';
+    }
+    if (stage.contains('getInstalled mulai')) {
+      return 'Memeriksa model yang sudah terpasang di perangkat...';
+    }
+    if (stage.contains('background.status')) {
+      return 'Memeriksa status download yang berjalan di background...';
+    }
+    if (stage.contains('adoptCompletedBackground mulai')) {
+      return 'Memverifikasi dan memasukkan hasil download ke staging...';
+    }
+    if (stage.contains('getStagingStatus')) {
+      return 'Membaca file model yang siap dipasang...';
+    }
+    if (stage.contains('setState selesai')) {
+      return 'Menyiapkan tampilan status terbaru...';
+    }
+    if (stage.contains('gagal')) {
+      return 'Menyiapkan informasi pemulihan...';
+    }
+    return 'Menyiapkan status model lokal...';
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && !_working) {
@@ -87,11 +114,15 @@ class _LocalModelPageState extends State<LocalModelPage>
       final entry = '${DateTime.now().toIso8601String()} $stage';
       trace.add(entry);
       debugPrint('[SLM_STATUS_LOAD] $entry');
+      if (mounted && showLoading) {
+        setState(() => _loadingMessage = _messageForLoadStage(stage));
+      }
     }
 
     if (mounted && showLoading) {
       setState(() {
         _loading = true;
+        _loadingMessage = 'Menyiapkan status model lokal...';
         _error = null;
       });
     }
@@ -236,6 +267,8 @@ class _LocalModelPageState extends State<LocalModelPage>
               setState(() {
                 _importProgress = progress;
                 _importStageDescription = stage;
+                _loadingMessage = stage;
+                _workingMessage = stage;
               });
             }
           },
@@ -278,6 +311,7 @@ class _LocalModelPageState extends State<LocalModelPage>
     }
     setState(() {
       _working = true;
+      _workingMessage = 'Menyiapkan download model di background...';
       _error = null;
     });
     try {
@@ -302,7 +336,10 @@ class _LocalModelPageState extends State<LocalModelPage>
   }
 
   Future<void> _cancelBackgroundDownload() async {
-    setState(() => _working = true);
+    setState(() {
+      _working = true;
+      _workingMessage = 'Membatalkan download background...';
+    });
     try {
       await _backgroundService.cancel();
       if (mounted) setState(() => _backgroundStatuses = const []);
@@ -314,6 +351,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _download({bool restart = false}) async {
     setState(() {
       _working = true;
+      _workingMessage = 'Mengunduh dan memverifikasi paket model...';
       _error = null;
       _progress = null;
     });
@@ -321,7 +359,13 @@ class _LocalModelPageState extends State<LocalModelPage>
       final model = await _service.downloadBundle(
         restartPartial: restart,
         onProgress: (progress) {
-          if (mounted) setState(() => _progress = progress);
+          if (mounted) {
+            setState(() {
+              _progress = progress;
+              _workingMessage =
+                  'Mengunduh dan memverifikasi ${progress.fileName}...';
+            });
+          }
         },
       );
       if (!mounted) return;
@@ -366,6 +410,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _importGguf() async {
     setState(() {
       _working = true;
+      _workingMessage = 'Menunggu file GGUF dipilih...';
       _error = null;
       _importProgress = null;
       _importStageDescription = null;
@@ -380,6 +425,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       final selectedFiles = picked;
       if (selectedFiles.isEmpty) return;
       setState(() {
+        _workingMessage = 'Membaca dan memverifikasi file GGUF...';
         _importStageDescription =
             'Membaca dan memverifikasi file GGUF (~1-1.3 GB)... Mohon tunggu beberapa detik.';
       });
@@ -391,6 +437,8 @@ class _LocalModelPageState extends State<LocalModelPage>
               setState(() {
                 _importProgress = progress;
                 _importStageDescription = stage;
+                _loadingMessage = stage;
+                _workingMessage = stage;
               });
             }
           },
@@ -431,12 +479,31 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _commitStaging() async {
     setState(() {
       _working = true;
+      _workingMessage = 'Menyiapkan pemasangan bundle terverifikasi...';
       _error = null;
     });
     try {
       final model = await _service.commitStaging(
         onStatus: (status) {
-          if (mounted) setState(() => _assemblyStatus = status);
+          if (mounted) {
+            setState(() {
+              _assemblyStatus = status;
+              _workingMessage = switch (status.stage) {
+                FfmLocalModelAssemblyStage.verifyingModel =>
+                  'Memverifikasi file model GGUF... ',
+                FfmLocalModelAssemblyStage.verifyingProjector =>
+                  'Memverifikasi file projector GGUF... ',
+                FfmLocalModelAssemblyStage.committing =>
+                  'Memasang bundle dan menyimpan manifest...',
+                FfmLocalModelAssemblyStage.ready =>
+                  'Perakitan selesai, menyiapkan hasil...',
+                FfmLocalModelAssemblyStage.failed =>
+                  'Menyiapkan informasi kegagalan perakitan...',
+                FfmLocalModelAssemblyStage.idle =>
+                  'Menyiapkan proses perakitan...',
+              };
+            });
+          }
         },
       );
       if (!mounted) return;
@@ -468,6 +535,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _clearStaging() async {
     setState(() {
       _working = true;
+      _workingMessage = 'Menghapus file staging yang tersimpan...';
       _error = null;
     });
     try {
@@ -485,6 +553,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _importBundle() async {
     setState(() {
       _working = true;
+      _workingMessage = 'Menunggu bundle offline dipilih...';
       _error = null;
       _importProgress = null;
       _importStageDescription = null;
@@ -496,6 +565,7 @@ class _LocalModelPageState extends State<LocalModelPage>
             setState(() {
               _importProgress = progress;
               _importStageDescription = stage;
+              _workingMessage = stage;
             });
           }
         },
@@ -531,6 +601,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _exportBundle() async {
     setState(() {
       _working = true;
+      _workingMessage = 'Menyiapkan bundle terverifikasi untuk dibagikan...';
       _error = null;
     });
     try {
@@ -578,7 +649,10 @@ class _LocalModelPageState extends State<LocalModelPage>
       ),
     );
     if (confirmed != true) return;
-    setState(() => _working = true);
+    setState(() {
+      _working = true;
+      _workingMessage = 'Menghapus model lokal dan metadata verifikasi...';
+    });
     await _service.clear();
     await _service.clearStaging();
     if (!mounted) return;
@@ -1054,6 +1128,70 @@ class _LocalModelPageState extends State<LocalModelPage>
     );
   }
 
+  Widget _buildOperationStatus(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: colorScheme.primary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sedang diproses',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(_workingMessage),
+                const SizedBox(height: 4),
+                Text(
+                  'Jangan tutup halaman ini sampai proses selesai.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInitialLoading(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 18),
+            Text(
+              _loadingMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'FFM sedang membaca status file model dan proses download. Data keuangan tidak diubah.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final readiness = FfmLocalModelReadiness.resolve(
@@ -1075,7 +1213,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           ],
         ),
         body: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? _buildInitialLoading(context)
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
                 children: [
@@ -1086,6 +1224,10 @@ class _LocalModelPageState extends State<LocalModelPage>
                     icon: Icons.memory_outlined,
                   ),
                   const SizedBox(height: 16),
+                  if (_working) ...[
+                    _buildOperationStatus(context),
+                    const SizedBox(height: 12),
+                  ],
                   if (_model != null)
                     _buildInstalledModelDashboard(context, _model!)
                   else ...[
