@@ -2,18 +2,31 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_capability_adapters.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.dart';
+import 'package:ffm_manager/features/reminder/data/repositories/reminder_repository.dart';
+import 'package:ffm_manager/features/reminder/data/services/reminder_notification_service.dart';
+import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
+import 'package:ffm_manager/features/reminder/domain/usecases/reminder_usecases.dart';
 
 void main() {
   late AppDatabase database;
   late FfmAssistantCapabilityAdapterRegistry adapters;
+  late _FakeReminderGateway reminderGateway;
 
   setUp(() {
     database = createInMemoryDatabaseForTests();
+    reminderGateway = _FakeReminderGateway();
     adapters = FfmAssistantCapabilityAdapterRegistry(
       database: database,
       householdId: 'local-household',
       clock: () => DateTime(2026, 8, 23),
+      reminderMutations: FfmAssistantReminderMutationService(
+        repository: ReminderRepository(database),
+        notificationGateway: reminderGateway,
+        occurrenceCalculator: const ReminderOccurrenceCalculator(),
+        clock: () => DateTime(2026, 8, 23),
+      ),
     );
   });
 
@@ -99,6 +112,42 @@ void main() {
       expect(result.message, contains('pengingat belum ditemukan'));
     },
   );
+
+  test('izin notifikasi ditolak tidak menyimpan pengingat sebagian', () async {
+    final deniedGateway = _FakeReminderGateway(
+      permission: const ReminderPermissionState(
+        notificationsEnabled: false,
+        exactAlarmEnabled: false,
+      ),
+    );
+    final protectedAdapters = FfmAssistantCapabilityAdapterRegistry(
+      database: database,
+      householdId: 'local-household',
+      clock: () => DateTime(2026, 8, 23),
+      reminderMutations: FfmAssistantReminderMutationService(
+        repository: ReminderRepository(database),
+        notificationGateway: deniedGateway,
+        occurrenceCalculator: const ReminderOccurrenceCalculator(),
+        clock: () => DateTime(2026, 8, 23),
+      ),
+    );
+    final result = await protectedAdapters.handlers['mutate.save_draft']!(
+      FfmAssistantActionStep(
+        id: 'save-reminder-denied',
+        capabilityId: 'mutate.save_draft',
+        parameters: {
+          'kind': 'reminder',
+          'title': 'Bayar listrik',
+          'date': DateTime(2026, 8, 30),
+          '_idempotencyKey': 'reminder-denied',
+        },
+      ),
+    );
+
+    expect(result.isSuccess, isFalse);
+    expect(await database.select(database.reminders).get(), isEmpty);
+    expect(deniedGateway.scheduledNotificationIds, isEmpty);
+  });
 
   test(
     'idempotency aset menolak draft berbeda dengan kunci yang sama',
@@ -223,6 +272,50 @@ void main() {
           reason: '${item.kind}: ${verified.message}',
         );
       }
+      expect(reminderGateway.scheduledNotificationIds, isNotEmpty);
     },
   );
+}
+
+class _FakeReminderGateway implements ReminderNotificationGateway {
+  _FakeReminderGateway({
+    this.permission = const ReminderPermissionState(
+      notificationsEnabled: true,
+      exactAlarmEnabled: true,
+    ),
+  });
+
+  final ReminderPermissionState permission;
+  final scheduledNotificationIds = <int>[];
+  final cancelledNotificationIds = <int>[];
+
+  @override
+  Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
+
+  @override
+  Future<void> cancel(int notificationId) async {
+    cancelledNotificationIds.add(notificationId);
+  }
+
+  @override
+  Future<void> cancelAll() async {}
+
+  @override
+  Future<List<ReminderNotificationAction>> consumePendingActions() async =>
+      const [];
+
+  @override
+  Future<ReminderPermissionState> permissionState() async => permission;
+
+  @override
+  Future<ReminderPermissionState> requestPermissions() async => permission;
+
+  @override
+  Future<void> schedule({
+    required ReminderEntity reminder,
+    required ReminderOccurrence occurrence,
+    String? historyId,
+  }) async {
+    scheduledNotificationIds.add(occurrence.notificationId);
+  }
 }

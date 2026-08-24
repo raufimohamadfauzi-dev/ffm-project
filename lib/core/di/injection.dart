@@ -8,6 +8,7 @@ import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
+import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
 import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
@@ -185,6 +186,11 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmAssistantCapabilityAdapterRegistry(
       database: db,
       householdId: 'local-household',
+      reminderMutations: FfmAssistantReminderMutationService(
+        repository: getIt<ReminderRepository>(),
+        notificationGateway: getIt<ReminderNotificationService>(),
+        occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
+      ),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(

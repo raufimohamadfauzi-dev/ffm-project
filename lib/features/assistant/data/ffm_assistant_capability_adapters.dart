@@ -6,22 +6,27 @@ import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
+import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
+import 'ffm_assistant_reminder_mutation_service.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
     required AppDatabase database,
     required String householdId,
     DateTime Function()? clock,
+    FfmAssistantReminderMutationService? reminderMutations,
   }) : _database = database,
        _householdId = householdId,
-       _clock = clock ?? DateTime.now;
+       _clock = clock ?? DateTime.now,
+       _reminderMutations = reminderMutations;
 
   final AppDatabase _database;
   final String _householdId;
   final DateTime Function() _clock;
+  final FfmAssistantReminderMutationService? _reminderMutations;
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -1534,6 +1539,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Waktu pengingat tidak valid.',
       );
     }
+    if (!date.isAfter(_clock())) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Waktu pengingat harus masih di masa depan.',
+      );
+    }
+    final reminderMutations = _reminderMutations;
+    if (reminderMutations == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Layanan jadwal pengingat belum siap. Pengingat belum disimpan.',
+      );
+    }
     final now = _clock();
     final id = _stableId(idempotencyKey);
     final previous =
@@ -1550,20 +1566,25 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Idempotency key sudah dipakai oleh pengingat dengan isi berbeda.',
             );
     }
-    await _database
-        .into(_database.reminders)
-        .insert(
-          RemindersCompanion.insert(
-            id: id,
-            householdId: _householdId,
-            title: title.trim(),
-            note: Value(step.parameters['note']?.toString()),
-            scheduledAt: date,
-            notificationId: id.hashCode.abs(),
-            isActive: const Value(true),
-            createdAt: now,
-          ),
-        );
+    try {
+      await reminderMutations.save(
+        ReminderEntity(
+          id: id,
+          householdId: _householdId,
+          title: title.trim(),
+          note: step.parameters['note']?.toString(),
+          scheduledAt: date,
+          recurrenceType: ReminderRecurrenceType.once,
+          weekdays: const [],
+          notificationId: id.hashCode.abs(),
+          createdAt: now,
+        ),
+      );
+    } on Object {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat belum disimpan karena izin atau jadwal notifikasi belum siap.',
+      );
+    }
     return const FfmAssistantCapabilityExecutionResult.success(
       'Pengingat berhasil disimpan.',
     );
