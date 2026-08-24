@@ -274,4 +274,4 @@
 - [x] Deteksi komponen valid per file dan unduh hanya komponen yang belum lengkap atau hash-nya tidak cocok.
 - [x] Lanjutkan unduhan parsial bila server mendukung resume; hapus hanya salinan sementara/duplikat yang terbukti tidak valid.
 - [x] Ringkas pesan koneksi tanpa menampilkan URL signed dan tampilkan tindakan pemulihan per komponen.
-- [ ] Tambahkan regresi, validasi penuh, build APK patch, serta dokumentasikan uji perangkat nyata.
+- [x] Tambahkan regresi, validasi penuh, build APK patch, serta dokumentasikan uji perangkat nyata.
