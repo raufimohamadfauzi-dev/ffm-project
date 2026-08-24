@@ -241,8 +241,8 @@
 
 # Progres Rakit dan Pasang SLM
 
-- [ ] Audit verifikasi hash streaming, commit staging, dan status yang bertahan setelah halaman ditutup.
-- [ ] Tambahkan model status persisten untuk tahap, byte diproses, hasil sukses, dan ringkasan kegagalan.
-- [ ] Hubungkan callback progres byte nyata dari verifikasi model dan projector ke proses rakit SLM.
-- [ ] Tampilkan progress bar, tahap 1/2 dan 2/2, peringatan navigasi, serta aksi sukses/gagal yang relevan.
-- [ ] Tambahkan regresi progres, recovery lifecycle, validasi penuh, dan build APK patch.
+- [x] Audit verifikasi hash streaming, commit staging, dan status yang bertahan setelah halaman ditutup.
+- [x] Tambahkan model status persisten untuk tahap, byte diproses, hasil sukses, dan ringkasan kegagalan.
+- [x] Hubungkan callback progres byte nyata dari verifikasi model dan projector ke proses rakit SLM.
+- [x] Tampilkan progress bar, tahap 1/2 dan 2/2, peringatan navigasi, serta aksi sukses/gagal yang relevan.
+- [x] Tambahkan regresi progres, recovery lifecycle, validasi penuh, dan build APK patch.
