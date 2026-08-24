@@ -167,6 +167,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     required bool hasImage,
   }) {
     final origin = intent.responseOrigin;
+    final visionFailure = intent.visionFailure;
     final sourceEvent = switch (origin) {
       FfmAssistantResponseOrigin.agentOrchestrator => const (
         label: 'Agent Orkestrator menyelesaikan rute lokal',
@@ -186,7 +187,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       origin: origin,
       elapsed: elapsed,
       fallbackReason: origin == FfmAssistantResponseOrigin.localFallback
-          ? 'Model tidak siap, sibuk, timeout, atau hasilnya tidak lolos validasi.'
+          ? visionFailure?.traceLabel ?? 'Proposal visi ditolak validator'
           : null,
       events: [
         FfmAssistantProcessEvent(
@@ -196,8 +197,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           elapsed: Duration.zero,
         ),
         FfmAssistantProcessEvent(
-          label: sourceEvent.label,
-          detail: sourceEvent.detail,
+          label: visionFailure?.traceLabel ?? sourceEvent.label,
+          detail: visionFailure == null ? sourceEvent.detail : 'FFM menampilkan fallback lokal tanpa membuat atau mengubah data.',
           elapsed: elapsed,
         ),
       ],
@@ -245,6 +246,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..clear()
         ..addAll(restored);
     });
+    await WidgetsBinding.instance.endOfFrame;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted || !_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    setState(() {
+      _followLatestMessages = true;
+      _showScrollToBottom = false;
+    });
   }
 
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
@@ -258,7 +267,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _refreshModelStatus();
     _refreshMemoryCount();
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _scrollToEnd(force: true),
+      (_) => _scrollToEnd(force: true, animated: false),
     );
   }
 
@@ -1757,16 +1766,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return lines.isEmpty ? null : lines.join('\n');
   }
 
-  void _scrollToEnd({bool force = true}) {
+  void _scrollToEnd({bool force = true, bool animated = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients || (!force && !_followLatestMessages)) {
         return;
       }
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+      final offset = _scrollController.position.maxScrollExtent;
+      if (animated) {
+        _scrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _scrollController.jumpTo(offset);
+      }
     });
   }
 
@@ -1883,9 +1897,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ListView.separated(
                       controller: _scrollController,
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 76),
                       itemCount: _entries.length + (_submitting ? 1 : 0),
-                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
                       itemBuilder: (_, index) {
                         if (_submitting && index == _entries.length) {
                           return GeminiTypingIndicator(
@@ -2178,8 +2192,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                 focusNode: _inputFocusNode,
                                 minLines: 1,
                                 maxLines: 5,
-                                textInputAction: TextInputAction.send,
-                                onSubmitted: (_) => canSend ? _submit() : null,
+                                textInputAction: TextInputAction.newline,
                                 onTap: _scrollToEnd,
                                 decoration: const InputDecoration(
                                   hintText: 'Tulis perintah atau pertanyaan…',

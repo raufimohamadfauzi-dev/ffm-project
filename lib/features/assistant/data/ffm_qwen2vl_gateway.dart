@@ -9,19 +9,35 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_know
 import 'ffm_assistant_slm_follow_up_contract.dart';
 
 class FfmQwen2VlGateway
-    implements FfmAssistantLocalModelGateway, FfmAssistantSlmFollowUpGenerator {
+    implements
+        FfmAssistantLocalModelGateway,
+        FfmAssistantSlmFollowUpGenerator,
+        FfmAssistantVisionDiagnostics {
   FfmQwen2VlGateway(this._modelService, this._inferenceService);
 
   final FfmLocalModelService _modelService;
   final FfmQwen2VlInferenceService _inferenceService;
   bool _isNativeInitialized = false;
+  FfmAssistantVisionFailure? _lastVisionFailure;
+
+  @override
+  FfmAssistantVisionFailure? get lastVisionFailure => _lastVisionFailure;
 
   Future<void> _ensureInitialized() async {
     if (_isNativeInitialized) return;
 
     final installed = await _modelService.getInstalled();
     if (installed == null || installed.projectorPath == null) {
+      _lastVisionFailure = const FfmAssistantVisionFailure(
+        FfmAssistantVisionFailureCode.modelUnavailable,
+      );
       throw Exception('Model Qwen2-VL belum terinstal atau tidak lengkap.');
+    }
+    if (!installed.isVerified) {
+      _lastVisionFailure = const FfmAssistantVisionFailure(
+        FfmAssistantVisionFailureCode.modelNotVerified,
+      );
+      throw Exception('Model Qwen2-VL belum terverifikasi.');
     }
 
     await FfmLocalModelBridgePlugin.initNative(
@@ -76,6 +92,7 @@ ATURAN MUTLAK:
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
   }) async {
+    _lastVisionFailure = null;
     try {
       await _ensureInitialized();
 
@@ -218,8 +235,22 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
             ? proposal.actionTarget
             : null,
       );
+    } on FormatException {
+      if (imagePath != null) {
+        _lastVisionFailure = const FfmAssistantVisionFailure(
+          FfmAssistantVisionFailureCode.responseInvalid,
+        );
+      }
+      return null;
     } catch (e) {
       if (e is FfmInferenceCancelledException) rethrow;
+      if (imagePath != null && _lastVisionFailure == null) {
+        _lastVisionFailure = FfmAssistantVisionFailure(
+          _isNativeInitialized
+              ? FfmAssistantVisionFailureCode.inferenceFailed
+              : FfmAssistantVisionFailureCode.nativeInitializationFailed,
+        );
+      }
       // Kegagalan native/model biasa tetap kembali ke interpreter lokal.
       return null;
     }

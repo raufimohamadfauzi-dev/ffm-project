@@ -25,8 +25,12 @@ class _ImageObservationGateway implements FfmAssistantLocalModelGateway {
   }) async => _proposal;
 }
 
-class _NullImageGateway implements FfmAssistantLocalModelGateway {
-  const _NullImageGateway();
+class _DiagnosedNullImageGateway
+    implements FfmAssistantLocalModelGateway, FfmAssistantVisionDiagnostics {
+  const _DiagnosedNullImageGateway(this.lastVisionFailure);
+
+  @override
+  final FfmAssistantVisionFailure lastVisionFailure;
 
   @override
   Future<FfmAssistantModelProposal?> propose({
@@ -79,7 +83,11 @@ void main() {
       addTearDown(database.close);
       final interpreter = FfmAssistantInterpreter(
         database,
-        modelGateway: const _NullImageGateway(),
+        modelGateway: const _DiagnosedNullImageGateway(
+          FfmAssistantVisionFailure(
+            FfmAssistantVisionFailureCode.nativeInitializationFailed,
+          ),
+        ),
       );
 
       final intent = await interpreter.interpret(
@@ -90,7 +98,14 @@ void main() {
 
       expect(intent.type, FfmAssistantIntentType.unknown);
       expect(intent.responseOrigin, FfmAssistantResponseOrigin.localFallback);
-      expect(intent.response, contains('hasil gambar yang valid'));
+      expect(
+        intent.visionFailure?.code,
+        FfmAssistantVisionFailureCode.nativeInitializationFailed,
+      );
+      expect(
+        intent.response,
+        contains('mesin visi lokal belum berhasil disiapkan'),
+      );
       expect(intent.response, isNot(contains('Lainnya berisi jalan')));
     },
   );

@@ -9,12 +9,14 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   const FfmAssistantMarkdownText({
     required this.text,
     required this.color,
+    this.fontSize = 16.5,
     this.onOpenLink,
     super.key,
   });
 
   final String text;
   final Color color;
+  final double fontSize;
   final Future<bool> Function(Uri uri)? onOpenLink;
 
   @override
@@ -40,7 +42,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontFamily: 'monospace',
-              fontSize: 12,
+              fontSize: fontSize - 3,
               height: 1.35,
             ),
           ),
@@ -87,10 +89,10 @@ class FfmAssistantMarkdownText extends StatelessWidget {
               style: TextStyle(
                 color: color,
                 fontSize: level == 1
-                    ? 17
+                    ? fontSize + 2
                     : level == 2
-                    ? 15
-                    : 14,
+                    ? fontSize + 1
+                    : fontSize,
                 fontWeight: FontWeight.w800,
                 height: 1.25,
               ),
@@ -110,13 +112,21 @@ class FfmAssistantMarkdownText extends StatelessWidget {
                   width: 24,
                   child: Text(
                     marker == '-' || marker == '*' ? '•' : marker,
-                    style: TextStyle(color: color, height: 1.42),
+                    style: TextStyle(
+                      color: color,
+                      height: 1.42,
+                      fontSize: fontSize,
+                    ),
                   ),
                 ),
                 Expanded(
                   child: Text.rich(
                     _inlineSpans(content, color),
-                    style: TextStyle(color: color, height: 1.42),
+                    style: TextStyle(
+                      color: color,
+                      height: 1.42,
+                      fontSize: fontSize,
+                    ),
                   ),
                 ),
               ],
@@ -140,6 +150,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
                 color: color,
                 fontStyle: FontStyle.italic,
                 height: 1.42,
+                fontSize: fontSize,
               ),
             ),
           ),
@@ -148,7 +159,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
         children.add(
           Text.rich(
             _inlineSpans(line.trim(), color),
-            style: TextStyle(color: color, height: 1.42),
+            style: TextStyle(color: color, height: 1.42, fontSize: fontSize),
           ),
         );
       }

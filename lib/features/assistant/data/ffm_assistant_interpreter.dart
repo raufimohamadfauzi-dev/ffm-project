@@ -1169,11 +1169,20 @@ class FfmAssistantInterpreter {
       currentDestination: currentDestination,
     );
     if (modelIntent != null) return modelIntent;
+    final diagnostics = _modelGateway is FfmAssistantVisionDiagnostics
+        ? _modelGateway as FfmAssistantVisionDiagnostics
+        : null;
+    final visionFailure =
+        diagnostics?.lastVisionFailure ??
+        const FfmAssistantVisionFailure(
+          FfmAssistantVisionFailureCode.proposalRejected,
+        );
     return _unknown(
       rawText,
       normalized,
-      'Aku belum mendapatkan hasil gambar yang valid dari AI lokal. Pastikan model visi siap, lalu coba foto yang lebih jelas atau lampirkan ulang.',
+      '${visionFailure.userMessage}${visionFailure.code == FfmAssistantVisionFailureCode.proposalRejected || visionFailure.code == FfmAssistantVisionFailureCode.responseInvalid ? ' Kamu boleh mencoba lampirkan ulang gambar yang lebih jelas.' : ''}',
       responseOrigin: FfmAssistantResponseOrigin.localFallback,
+      visionFailure: visionFailure,
     );
   }
 
@@ -1892,18 +1901,18 @@ class FfmAssistantInterpreter {
       );
     }
     final page = FfmAssistantCatalog.findByText(normalized);
-    final asksAboutPage =
-        isQuestion ||
-        _containsAny(normalized, const [
-          'apa saja',
-          'ada apa',
-          'isinya',
-          'isi ',
-          'fitur ',
-          'menu ',
-        ]);
-    final destination =
-        page?.destination ?? (asksAboutPage ? currentDestination : null);
+    final asksAboutCurrentPage = _containsAny(normalized, const [
+      'halaman ini',
+      'menu ini',
+      'fitur di sini',
+      'fitur halaman ini',
+      'yang ada di sini',
+      'isi halaman ini',
+      'menu yang ini',
+    ]);
+    final asksAboutPage = page != null || asksAboutCurrentPage;
+    final destination = page?.destination ??
+        (asksAboutCurrentPage ? currentDestination : null);
     if (destination != null && asksAboutPage) {
       final targetPage =
           page ?? FfmAssistantCatalog.findByDestination(destination);
@@ -3459,6 +3468,7 @@ class FfmAssistantInterpreter {
     String response, {
     FfmAssistantResponseOrigin responseOrigin =
         FfmAssistantResponseOrigin.agentOrchestrator,
+    FfmAssistantVisionFailure? visionFailure,
   }) {
     _maybeSaveUnansweredQuestion(raw, normalized);
     final enriched = _enrichUnknownResponse(normalized, response);
@@ -3470,6 +3480,7 @@ class FfmAssistantInterpreter {
       response: enriched,
       clarification: enriched,
       responseOrigin: responseOrigin,
+      visionFailure: visionFailure,
     );
   }
 

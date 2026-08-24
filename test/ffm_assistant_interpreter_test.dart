@@ -95,6 +95,16 @@ void main() {
     expect(intent.response, contains('Ringkasan'));
   });
 
+  test('pertanyaan umum tidak diambil alih katalog halaman aktif', () async {
+    final intent = await interpreter.interpret(
+      'apa itu?',
+      currentDestination: FfmAssistantDestination.otherMenu,
+    );
+
+    expect(intent.destination, isNot(FfmAssistantDestination.otherMenu));
+    expect(intent.response, isNot(contains('Lainnya berisi jalan')));
+  });
+
   test('menjawab jam dari waktu lokal perangkat yang sedang dipakai', () async {
     final localInterpreter = FfmAssistantInterpreter(
       database,

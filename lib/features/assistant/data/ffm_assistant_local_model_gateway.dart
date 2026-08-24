@@ -36,6 +36,12 @@ class FfmAssistantModelProposal {
   bool get isUsable => confidence >= 0.85;
 }
 
+abstract interface class FfmAssistantVisionDiagnostics {
+  /// Alasan terakhir hanya untuk trace gambar tersanitasi; tidak memuat error
+  /// native, prompt, path privat, atau data keuangan.
+  FfmAssistantVisionFailure? get lastVisionFailure;
+}
+
 abstract class FfmAssistantLocalModelGateway {
   /// Mengembalikan null bila model belum diinstal, tidak kompatibel, atau
   /// proposal tidak dapat dipercaya. Pemanggil wajib memakai parser lokal.

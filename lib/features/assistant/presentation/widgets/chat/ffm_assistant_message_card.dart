@@ -75,7 +75,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
             trace: entry.processTrace!,
             actionPlan: actionPlan,
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
         ],
         if (isUnknown) ...[
           Semantics(
@@ -100,11 +100,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 5),
         ],
         if (entry.imagePath != null) ...[
           FfmChatImagePreview(path: entry.imagePath!),
-          if (entry.text.isNotEmpty) const SizedBox(height: 8),
+          if (entry.text.isNotEmpty) const SizedBox(height: 5),
         ],
         if (entry.filePath != null) ...[
           FfmChatFileCard(
@@ -112,12 +112,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
             format: entry.fileFormat,
             onShare: onShareFile,
           ),
-          if (entry.text.isNotEmpty) const SizedBox(height: 8),
+          if (entry.text.isNotEmpty) const SizedBox(height: 5),
         ],
         if (entry.text.isNotEmpty)
           FfmAssistantMarkdownText(text: entry.text, color: textColor),
         if (intent?.draft != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 7),
           FfmAssistantDraftPreview(draft: intent!.draft!, review: review),
         ],
         if (onCopyText != null ||
@@ -125,7 +125,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onIntent != null ||
             onConfirmActivity != null ||
             onShowTechnical != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           FfmAssistantMessageToolbar(
             isUser: isUser,
             hasPrimaryAction:
@@ -188,13 +188,13 @@ class FfmAssistantMessageCard extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 14,
-                      vertical: 12,
+                      vertical: 10,
                     ),
                     child: content,
                   ),
                 )
               : Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 5, 4, 7),
+                  padding: const EdgeInsets.fromLTRB(2, 2, 4, 4),
                   child: content,
                 ),
         ),

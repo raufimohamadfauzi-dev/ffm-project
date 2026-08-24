@@ -6,6 +6,48 @@ enum FfmAssistantResponseMode { localRules, localModel }
 
 enum FfmAssistantResponseOrigin { agentOrchestrator, localSlm, localFallback }
 
+enum FfmAssistantVisionFailureCode {
+  modelUnavailable,
+  modelNotVerified,
+  nativeInitializationFailed,
+  inferenceFailed,
+  responseInvalid,
+  proposalRejected,
+  timedOut,
+}
+
+class FfmAssistantVisionFailure {
+  const FfmAssistantVisionFailure(this.code);
+
+  final FfmAssistantVisionFailureCode code;
+
+  String get userMessage => switch (code) {
+    FfmAssistantVisionFailureCode.modelUnavailable => 'Model visi belum terpasang lengkap. Buka Model Asisten Lokal untuk memeriksa model dan projector.',
+    FfmAssistantVisionFailureCode.modelNotVerified => 'File model visi belum lolos verifikasi. Periksa ulang status model sebelum mengirim gambar.',
+    FfmAssistantVisionFailureCode.nativeInitializationFailed => 'Model terpasang, tetapi mesin visi lokal belum berhasil disiapkan. Buka Model Asisten Lokal lalu periksa statusnya.',
+    FfmAssistantVisionFailureCode.inferenceFailed => 'Mesin visi lokal belum berhasil menjalankan analisis gambar. Tidak ada data yang dibuat atau diubah.',
+    FfmAssistantVisionFailureCode.responseInvalid => 'Model selesai merespons, tetapi hasilnya tidak sesuai format aman FFM. Tidak ada data yang dibuat atau diubah.',
+    FfmAssistantVisionFailureCode.proposalRejected => 'Model belum menghasilkan proposal gambar yang dapat diperiksa dengan aman. Tidak ada data yang dibuat atau diubah.',
+    FfmAssistantVisionFailureCode.timedOut => 'Analisis gambar melampaui batas waktu lokal. Coba lagi setelah model tidak sedang dipakai proses lain.',
+  };
+
+  String get traceLabel => switch (code) {
+    FfmAssistantVisionFailureCode.modelUnavailable =>
+      'Model visi belum terpasang lengkap',
+    FfmAssistantVisionFailureCode.modelNotVerified =>
+      'Model visi belum terverifikasi',
+    FfmAssistantVisionFailureCode.nativeInitializationFailed =>
+      'Inisialisasi mesin visi gagal',
+    FfmAssistantVisionFailureCode.inferenceFailed =>
+      'Inferensi visi lokal gagal',
+    FfmAssistantVisionFailureCode.responseInvalid => 'Respons visi tidak valid',
+    FfmAssistantVisionFailureCode.proposalRejected =>
+      'Proposal visi ditolak validator',
+    FfmAssistantVisionFailureCode.timedOut =>
+      'Analisis visi melewati batas waktu',
+  };
+}
+
 class FfmAssistantProcessEvent {
   const FfmAssistantProcessEvent({
     required this.label,
@@ -193,6 +235,7 @@ class FfmAssistantIntent {
     this.teachingProposal,
     this.responseMode = FfmAssistantResponseMode.localRules,
     this.responseOrigin = FfmAssistantResponseOrigin.agentOrchestrator,
+    this.visionFailure,
   });
 
   final String rawText;
@@ -206,6 +249,7 @@ class FfmAssistantIntent {
   final FfmAssistantTeachingProposal? teachingProposal;
   final FfmAssistantResponseMode responseMode;
   final FfmAssistantResponseOrigin responseOrigin;
+  final FfmAssistantVisionFailure? visionFailure;
 
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
@@ -217,6 +261,7 @@ class FfmAssistantIntent {
     String? clarification,
     FfmAssistantResponseMode? responseMode,
     FfmAssistantResponseOrigin? responseOrigin,
+    FfmAssistantVisionFailure? visionFailure,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -229,6 +274,7 @@ class FfmAssistantIntent {
     teachingProposal: teachingProposal,
     responseMode: responseMode ?? this.responseMode,
     responseOrigin: responseOrigin ?? this.responseOrigin,
+    visionFailure: visionFailure ?? this.visionFailure,
   );
 }
 
