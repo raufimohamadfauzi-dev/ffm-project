@@ -6,6 +6,7 @@ import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
+import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
@@ -64,6 +65,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.goal_usage': _prepareDraft,
     'draft.goal_update': _prepareGoalMutation,
     'draft.goal_archive': _prepareGoalMutation,
+    'draft.reminder_archive': _prepareReminderMutation,
     'mutate.save_draft': _saveDraft,
     'mutate.update': _updateTransaction,
     'mutate.archive': _archiveMutation,
@@ -72,6 +74,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
     'verify.goal_mutation': _verifyGoalMutation,
+    'verify.reminder_mutation': _verifyReminderMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -316,6 +319,7 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _archiveMutation(
     FfmAssistantActionStep step,
   ) {
+    if (step.parameters['entity'] == 'reminder') return _archiveReminder(step);
     if (step.parameters['entity'] == 'goal') return _archiveGoal(step);
     if (step.parameters['entity'] == 'activity_session') {
       return _archiveActivity(step);
@@ -487,6 +491,86 @@ class FfmAssistantCapabilityAdapterRegistry {
     return const FfmAssistantCapabilityExecutionResult.failure(
       'Jenis perubahan aktivitas tidak dikenal saat verifikasi.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareReminderMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null || step.parameters['operation'] != 'archive') {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload arsip pengingat tidak lengkap.',
+      );
+    }
+    if (_reminderMutations == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Layanan jadwal pengingat belum siap. Pengingat belum diubah.',
+      );
+    }
+    final reminder = await ReminderRepository(_database)
+        .getReminder(_householdId, targetId);
+    if (reminder == null || !reminder.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat tidak ditemukan atau sudah nonaktif.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview arsip pengingat “${reminder.title}”. Alarm berikutnya akan dibatalkan dan riwayat tetap disimpan. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveReminder(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final reminderMutations = _reminderMutations;
+    if (targetId == null || reminderMutations == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Layanan atau target pengingat belum siap.',
+      );
+    }
+    final reminder = await ReminderRepository(_database)
+        .getReminder(_householdId, targetId);
+    if (reminder == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat tidak ditemukan.',
+      );
+    }
+    if (!reminder.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: pengingat sudah nonaktif.',
+      );
+    }
+    try {
+      await reminderMutations.archive(reminder);
+    } on Object {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat belum dapat diarsipkan karena jadwal notifikasi belum siap.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Pengingat “${reminder.title}” dinonaktifkan. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyReminderMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null || step.parameters['operation'] != 'archive') {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload verifikasi arsip pengingat tidak lengkap.',
+      );
+    }
+    final reminder = await ReminderRepository(_database)
+        .getReminder(_householdId, targetId);
+    return reminder != null && !reminder.isActive
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: pengingat “${reminder.title}” sudah nonaktif dan tidak akan dijadwalkan lagi.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: pengingat masih aktif atau tidak ditemukan.',
+          );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareGoalMutation(

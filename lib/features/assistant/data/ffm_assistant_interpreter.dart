@@ -833,6 +833,9 @@ class FfmAssistantInterpreter {
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
+    final reminderMutation = await _parseReminderMutation(rawText, normalized);
+    if (reminderMutation != null) return reminderMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2357,6 +2360,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.assistantProfile,
         action: 'profil',
       ),
+      FfmAssistantDraftKind.reminderArchive => (
+        type: FfmAssistantIntentType.archiveReminder,
+        destination: FfmAssistantDestination.reminders,
+        action: 'arsip pengingat',
+      ),
       FfmAssistantDraftKind.goalUpdate => (
         type: FfmAssistantIntentType.updateGoal,
         destination: FfmAssistantDestination.goals,
@@ -2612,6 +2620,95 @@ class FfmAssistantInterpreter {
     final date = row.startedAt.toIso8601String().substring(0, 10);
     return '${row.title} • ${row.category} • $date';
   }
+
+  Future<FfmAssistantIntent?> _parseReminderMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan|nonaktifkan|matikan)\s+pengingat\s+(.+)$',
+    ).firstMatch(normalized);
+    if (archive == null) return null;
+    final targetText = archive.group(1)!.trim();
+    final candidates = await _findReminderCandidates(targetText);
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.archiveReminder,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu pengingat aktif yang cocok dengan “$targetText”. Sebut judul pengingat yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      final options = candidates
+          .take(3)
+          .map(_reminderCandidateLabel)
+          .join('; ');
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.archiveReminder,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} pengingat yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.reminderArchive,
+      createdAt: _clock(),
+      title: _reminderCandidateLabel(target),
+      date: target.scheduledAt,
+      formValues: {
+        'entity': 'reminder',
+        'targetId': target.id,
+        'operation': 'archive',
+        'targetSummary': _reminderCandidateLabel(target),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: 'Aku menemukan satu pengingat aktif untuk dinonaktifkan. Alarm berikutnya akan dibatalkan, tetapi riwayat tetap tersimpan. Cek preview dulu sebelum mengonfirmasi.',
+    );
+  }
+
+  Future<List<Reminder>> _findReminderCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {
+                'pengingat',
+                'pada',
+                'tanggal',
+                'hari',
+                'besok',
+              }.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.reminders)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.scheduledAt)]))
+            .get();
+    return rows
+        .where((row) => terms.every(row.title.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _reminderCandidateLabel(Reminder row) =>
+      '${row.title} • ${row.scheduledAt.toIso8601String().substring(0, 16)}';
 
   Future<FfmAssistantIntent?> _parseGoalMutation(
     String rawText,

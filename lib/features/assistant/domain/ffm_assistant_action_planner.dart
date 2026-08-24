@@ -48,6 +48,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.profile => 'draft.profile',
         FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
         FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
+        FfmAssistantDraftKind.reminderArchive => 'draft.reminder_archive',
         FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
         FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
         FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
@@ -65,6 +66,7 @@ class FfmAssistantActionPlanner {
       final mutationCapability = switch (draft.kind) {
         FfmAssistantDraftKind.goalUpdate => 'mutate.update',
         FfmAssistantDraftKind.goalArchive => 'mutate.archive',
+        FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
         FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
@@ -92,6 +94,7 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.activityDelete => 'verify.activity_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
+            FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
             _ => 'verify.saved_draft',
           },
           parameters: {...parameters, '_idempotencyKey': idempotencyKey},

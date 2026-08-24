@@ -87,6 +87,17 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.reminderArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'reminder_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'pengingat',
+              message: 'Pengingat target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.liability:
       case FfmAssistantDraftKind.receivable:
         if (_isBlank(draft.partyName)) {
@@ -151,6 +162,7 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.activity ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
+    FfmAssistantDraftKind.reminderArchive ||
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||

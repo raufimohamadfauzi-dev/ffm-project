@@ -293,6 +293,14 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['title', 'date', 'note'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.reminder_archive',
+      label: 'Siapkan arsip pengingat',
+      description: 'Menampilkan pengingat yang akan dinonaktifkan tanpa menghapus history.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.reminders,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.activity',
       label: 'Siapkan aktivitas',
       description: 'Membuat draft aktivitas tanpa menyimpan.',
@@ -374,6 +382,13 @@ class FfmAssistantCapabilityRegistry {
       id: 'verify.goal_mutation',
       label: 'Verifikasi perubahan target',
       description: 'Membaca kembali target setelah perubahan atau arsip.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.reminder_mutation',
+      label: 'Verifikasi arsip pengingat',
+      description: 'Membaca kembali status pengingat setelah dinonaktifkan.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),
