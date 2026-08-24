@@ -1483,16 +1483,36 @@ class FfmAssistantInterpreter {
     }
 
     if (proposal.intent == FfmAssistantIntentType.help) {
+      final imageObservation = _safeImageObservation(
+        imagePath: imagePath,
+        message: proposal.notes,
+      );
+      if (imagePath != null && imageObservation == null) return null;
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.help,
         confidence: proposal.confidence,
         responseMode: FfmAssistantResponseMode.localModel,
+        response: imageObservation,
       );
     }
 
     if (proposal.intent == FfmAssistantIntentType.outOfDomain) {
+      final imageObservation = _safeImageObservation(
+        imagePath: imagePath,
+        message: proposal.notes,
+      );
+      if (imageObservation != null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: proposal.confidence,
+          responseMode: FfmAssistantResponseMode.localModel,
+          response: imageObservation,
+        );
+      }
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1554,6 +1574,16 @@ class FfmAssistantInterpreter {
     // Help/unknown and malformed/ambiguous actions fall back to the existing
     // deterministic interpreter rather than displaying model-authored prose.
     return null;
+  }
+
+  String? _safeImageObservation({
+    required String? imagePath,
+    required String? message,
+  }) {
+    if (imagePath == null || message == null) return null;
+    final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.length < 4 || compact.length > 720) return null;
+    return 'Dari gambar ini, aku membaca: $compact';
   }
 
   Future<List<Account>> _activeAccounts() =>

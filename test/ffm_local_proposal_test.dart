@@ -164,6 +164,37 @@ void main() {
     });
 
     test(
+      'observasi screenshot memakai help dan assistantMessage yang dibatasi',
+      () {
+        final result = FfmLocalProposalParser.parse(
+          jsonEncode({
+            'formatVersion': 'ffm-local-vision-proposal-v2',
+            'proposalType': 'help',
+            'assistantMessage': 'Gambar menampilkan layar error Flutter dengan teks Invalid argument(s): 380.0.',
+            'needsClarification': false,
+          }),
+        );
+
+        expect(result.proposal.needsReview, isFalse);
+        expect(result.proposal.assistantMessage, contains('380.0'));
+      },
+    );
+
+    test('out_of_domain valid agar respons gambar tidak dibuang parser', () {
+      final result = FfmLocalProposalParser.parse(
+        jsonEncode({
+          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'proposalType': 'out_of_domain',
+          'assistantMessage': 'Gambar menampilkan pesan error aplikasi.',
+          'needsClarification': false,
+        }),
+      );
+
+      expect(result.proposal.needsReview, isFalse);
+      expect(result.proposal.proposalType, 'out_of_domain');
+    });
+
+    test(
       'proposalType dan target kosong tetap ditolak sebagai response model',
       () {
         final result = FfmLocalProposalParser.parse(

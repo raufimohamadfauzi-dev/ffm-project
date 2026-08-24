@@ -88,7 +88,7 @@ ATURAN MUTLAK:
       final systemPrompt =
           '''
 Anda adalah Asisten Family Finance Manager (FFM).
-Tugas Anda HANYA mengekstrak informasi keuangan atau maksud pengguna menjadi JSON yang valid.
+Tugas Anda mengekstrak informasi keuangan atau maksud pengguna menjadi JSON yang valid.
 Gunakan timezone Asia/Jakarta.
 Patuhi format ffm-local-vision-proposal-v2.
 proposalType yang didukung: "expense", "income", "transfer", "navigation", "read_query", "help", "out_of_domain", "unknown".
@@ -100,6 +100,8 @@ ATURAN INTI:
 4. Jika data belum ada, gunakan "help" untuk edukasi yang jujur dan menyatakan data apa yang belum tersedia.
 5. Jangan menyatakan pinjaman disetujui, menjamin keamanan, atau memberi kepastian hasil.
 6. Jangan memberi nasihat hukum, pajak, medis, atau janji imbal hasil investasi.
+7. Jika pengguna melampirkan gambar dan meminta penjelasan visual, screenshot, atau teks error, gunakan proposalType "help" dan isi assistantMessage dengan observasi faktual singkat dari gambar. Jangan membuat transaksi, nominal, atau diagnosis teknis yang tidak tampak pada gambar.
+8. assistantMessage hanya untuk menjelaskan gambar; maksimal 3 kalimat. Jika gambar adalah nota yang cukup terbaca dan pengguna ingin mencatatnya, gunakan proposal transaksi seperti biasa, bukan assistantMessage.
 
 PANDUAN JAWABAN:
 - Untuk pertanyaan finansial umum (asuransi, pajak, investasi dasar, dana darurat), berikan jawaban edukatif dengan disclaimer bahwa ini bukan rekomendasi personal.
@@ -208,6 +210,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
         extractedFields: proposal.extractedFields,
         suggestedCapabilities: proposal.suggestedCapabilities,
         reasoning: reasoning,
+        notes: proposal.assistantMessage,
         actionTarget: proposal.proposalType == 'navigation'
             ? proposal.actionTarget
             : null,

@@ -107,6 +107,7 @@ class FfmLocalProposal {
     this.extractedFields = const <String, String>{},
     this.suggestedCapabilities = const <String>[],
     this.reasoning,
+    this.assistantMessage,
   });
 
   final String formatVersion;
@@ -129,6 +130,7 @@ class FfmLocalProposal {
   final Map<String, String> extractedFields;
   final List<String> suggestedCapabilities;
   final String? reasoning;
+  final String? assistantMessage;
 
   bool get needsReview {
     final isTransaction =
@@ -163,6 +165,7 @@ class FfmLocalProposal {
     'extractedFields': extractedFields,
     'suggestedCapabilities': suggestedCapabilities,
     'reasoning': reasoning,
+    'assistantMessage': assistantMessage,
   };
 }
 
@@ -216,6 +219,7 @@ class FfmLocalProposalParser {
           'navigation',
           'read_query',
           'help',
+          'out_of_domain',
           'unknown',
         }.contains(proposalType)) {
       issues.add('invalid_proposal_type');
@@ -342,6 +346,7 @@ class FfmLocalProposalParser {
         extractedFields: _extractedFields(map),
         suggestedCapabilities: _suggestedCapabilities(map),
         reasoning: _text(map['reasoning']),
+        assistantMessage: _assistantMessage(map['assistantMessage']),
       ),
     );
   }
@@ -368,6 +373,7 @@ class FfmLocalProposalParser {
         extractedFields: const {},
         suggestedCapabilities: const [],
         reasoning: null,
+        assistantMessage: null,
       );
 
   static Object? _tryDecode(String value) {
@@ -391,13 +397,25 @@ class FfmLocalProposalParser {
     return value.trim();
   }
 
+  static String? _assistantMessage(Object? value) {
+    final text = _text(value);
+    if (text == null) return null;
+    final compact = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.length < 4) return null;
+    return compact.length > 700 ? '${compact.substring(0, 700)}…' : compact;
+  }
+
   static List<String> _missingFieldsFromIssues(List<String> issues) {
     final missing = <String>{};
     for (final issue in issues) {
-      if (issue == 'invalid_total_amount') missing.add('totalAmount');
-      else if (issue == 'invalid_transaction_date') missing.add('transactionDate');
-      else if (issue == 'invalid_items') missing.add('items');
-      else if (issue == 'invalid_field_confidence') missing.add('fieldConfidence');
+      if (issue == 'invalid_total_amount')
+        missing.add('totalAmount');
+      else if (issue == 'invalid_transaction_date')
+        missing.add('transactionDate');
+      else if (issue == 'invalid_items')
+        missing.add('items');
+      else if (issue == 'invalid_field_confidence')
+        missing.add('fieldConfidence');
       else if (issue.startsWith('low_confidence:'))
         missing.add(issue.substring('low_confidence:'.length));
       else if (issue == 'missing_clarification_question')
@@ -431,7 +449,11 @@ class FfmLocalProposalParser {
       'income' => const ['draft.income', 'mutate.save_draft'],
       'transfer' => const ['draft.transfer', 'mutate.save_draft'],
       'navigation' => const ['navigate'],
-      'read_query' => const ['read.transactions', 'read.summary', 'read.analysis'],
+      'read_query' => const [
+        'read.transactions',
+        'read.summary',
+        'read.analysis',
+      ],
       'help' => const ['read.summary', 'read.transactions'],
       _ => const [],
     };
