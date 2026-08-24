@@ -794,14 +794,185 @@ class FfmAssistantCapabilityAdapterRegistry {
               'verified: transfer ${transfer.amount} berhasil dibaca kembali dari database lokal.',
             );
     }
+    if (kind == 'profile') return _verifyProfileSaved();
+    if (kind == 'activity') {
+      final activity =
+          await (_database.select(_database.activitySessions)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return activity == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: aktivitas belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: aktivitas “${activity.title}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'reminder') {
+      final reminder =
+          await (_database.select(_database.reminders)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return reminder == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: pengingat belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: pengingat “${reminder.title}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'master_data') {
+      return _verifyMasterDataSaved(step, id);
+    }
+    if (kind == 'goal') {
+      final goal =
+          await (_database.select(_database.goals)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return goal == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: target keuangan belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: target “${goal.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'asset') {
+      final asset =
+          await (_database.select(_database.assets)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return asset == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: aset belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: aset “${asset.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'liability') {
+      final liability =
+          await (_database.select(_database.liabilities)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return liability == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: hutang belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: hutang “${liability.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'receivable') {
+      final receivable =
+          await (_database.select(_database.receivables)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return receivable == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: piutang belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: piutang “${receivable.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (kind == 'budget') {
+      final budget =
+          await (_database.select(_database.envelopeBudgets)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return budget == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: anggaran belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: anggaran “${budget.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
     final transaction = await GetTransaction(_database)(_householdId, id);
     return transaction == null
         ? const FfmAssistantCapabilityExecutionResult.failure(
-            'Transaksi belum ditemukan saat verifikasi.',
+            'Verifikasi gagal: transaksi hasil draft belum ditemukan di data lokal.',
           )
         : FfmAssistantCapabilityExecutionResult.success(
             'verified: transaksi ${transaction.transaction.amount} berhasil dibaca kembali dari database lokal.',
           );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyProfileSaved() async {
+    final preferences = await (_database.select(
+      _database.userPreferences,
+    )..where((row) => row.householdId.equals(_householdId))).get();
+    const profileKeys = <String>{
+      'profile_name',
+      'profile_occupation',
+      'profile_routine',
+      'profile_goals',
+    };
+    final exists = preferences.any(
+      (item) => profileKeys.contains(item.preferenceKey),
+    );
+    return exists
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: setidaknya satu preferensi profil berhasil dibaca kembali dari data lokal.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: preferensi profil belum ditemukan di data lokal.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyMasterDataSaved(
+    FfmAssistantActionStep step,
+    String id,
+  ) async {
+    final category = step.parameters['category']?.toString();
+    if (category == 'rekening') {
+      final account =
+          await (_database.select(_database.accounts)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return account == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: rekening belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: rekening “${account.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (category == 'toko') {
+      final merchant =
+          await (_database.select(_database.merchants)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      return merchant == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: toko belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: toko “${merchant.name}” berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Verifikasi gagal: jenis Data Utama hasil draft tidak dikenali.',
+    );
   }
 
   Future<dynamic> _findAccount(String? name) async {
@@ -889,7 +1060,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.envelopeBudgets)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (rows.isEmpty) {
@@ -911,7 +1083,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.goals)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (rows.isEmpty) {
@@ -936,7 +1109,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.assets)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isArchived.equals(false),
+                  row.householdId.equals(_householdId) &
+                  row.isArchived.equals(false),
             ))
             .get();
     if (rows.isEmpty) {
@@ -958,13 +1132,15 @@ class FfmAssistantCapabilityAdapterRegistry {
     final liabilities =
         await (_database.select(_database.liabilities)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     final receivables =
         await (_database.select(_database.receivables)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (liabilities.isEmpty && receivables.isEmpty) {
@@ -994,7 +1170,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.receivables)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (rows.isEmpty) {
@@ -1016,7 +1193,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.recurringTransactions)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (rows.isEmpty) {
@@ -1038,7 +1216,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     final rows =
         await (_database.select(_database.reminders)..where(
               (row) =>
-                  row.householdId.equals(_householdId) & row.isActive.equals(true),
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (rows.isEmpty) {
@@ -1160,9 +1339,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Aktivitas sudah tersimpan sebelumnya.',
-      );
+      return previous.title == title.trim()
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: aktivitas sudah tersimpan sebelumnya.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh aktivitas dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.activitySessions)
@@ -1207,9 +1390,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Pengingat sudah tersimpan sebelumnya.',
-      );
+      return previous.title == title.trim() && previous.scheduledAt == date
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: pengingat sudah tersimpan sebelumnya.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh pengingat dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.reminders)
@@ -1252,9 +1439,13 @@ class FfmAssistantCapabilityAdapterRegistry {
               ))
               .getSingleOrNull();
       if (previous != null) {
-        return const FfmAssistantCapabilityExecutionResult.success(
-          'Rekening sudah tersimpan.',
-        );
+        return previous.name == title.trim()
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: rekening sudah tersimpan.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh rekening dengan isi berbeda.',
+              );
       }
       await _database
           .into(_database.accounts)
@@ -1275,9 +1466,13 @@ class FfmAssistantCapabilityAdapterRegistry {
               ))
               .getSingleOrNull();
       if (previous != null) {
-        return const FfmAssistantCapabilityExecutionResult.success(
-          'Toko sudah tersimpan.',
-        );
+        return previous.name == title.trim()
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: toko sudah tersimpan.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh toko dengan isi berbeda.',
+              );
       }
       await _database
           .into(_database.merchants)
@@ -1325,9 +1520,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Target sudah tersimpan.',
-      );
+      return previous.name == title.trim() && previous.targetAmount == amount
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: target sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh target dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.goals)
@@ -1368,9 +1567,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Aset sudah tersimpan.',
-      );
+      return previous.name == title.trim() && previous.value == amount
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: aset sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh aset dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.assets)
@@ -1413,9 +1616,14 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Hutang sudah tersimpan.',
-      );
+      final expectedName = '${title.trim()} - ${party.trim()}';
+      return previous.name == expectedName && previous.originalAmount == amount
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: hutang sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh hutang dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.liabilities)
@@ -1458,9 +1666,14 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Piutang sudah tersimpan.',
-      );
+      final expectedName = '${title.trim()} - ${party.trim()}';
+      return previous.name == expectedName && previous.originalAmount == amount
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: piutang sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh piutang dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.receivables)
@@ -1498,9 +1711,13 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Anggaran sudah tersimpan.',
-      );
+      return previous.allocated == amount
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: anggaran sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh anggaran dengan isi berbeda.',
+            );
     }
     await _database
         .into(_database.envelopeBudgets)
