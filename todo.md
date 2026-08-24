@@ -259,4 +259,4 @@
 - [x] Audit kontrak update, archive/delete, verifikasi, dan audit log pada Aktivitas serta Pengingat.
 - [x] Implementasikan hanya entity yang memiliki kontrak repository dan semantik aman dari chat sampai hasil terverifikasi.
 - [x] Catat entity yang ditunda karena relasi/side-effect belum dapat disinkronkan oleh jalur resmi.
-- [ ] Tambahkan regresi lintas entity, validasi penuh, build APK patch, dan perbarui matriks capability.
+- [x] Tambahkan regresi lintas entity, validasi penuh, build APK patch, dan perbarui matriks capability.
