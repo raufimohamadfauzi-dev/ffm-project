@@ -9,6 +9,7 @@ import '../../../reminder/data/services/reminder_notification_service.dart';
 import '../../data/ffm_assistant_knowledge_pack_service.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../data/ffm_assistant_upgrade_pack_service.dart';
 import 'assistant_training_import_dialog.dart';
@@ -19,12 +20,14 @@ class _AssistantTrainingData {
     required this.examples,
     required this.unansweredQuestions,
     required this.resolvedQuestions,
+    required this.responseFeedbacks,
   });
 
   final List<FfmAssistantMemoryRecord> memories;
   final List<FfmAssistantLearningExample> examples;
   final List<FfmAssistantUnansweredQuestion> unansweredQuestions;
   final List<FfmAssistantUnansweredQuestion> resolvedQuestions;
+  final List<FfmAssistantResponseFeedback> responseFeedbacks;
 }
 
 /// Gaya v54: ajaran pengguna selalu eksplisit, lokal, dapat ditinjau, dan
@@ -43,6 +46,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _upgradePack = getIt<FfmAssistantUpgradePackService>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
+  final _feedbackRepository = getIt<FfmAssistantResponseFeedbackRepository>();
   final _notificationService = getIt<ReminderNotificationService>();
   late Future<_AssistantTrainingData> _trainingData;
   late Future<bool> _morningReminderEnabled;
@@ -63,6 +67,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
           _learningRepository.readAll(),
           _unansweredRepository.readOpen(),
           _unansweredRepository.readResolved(),
+          _feedbackRepository.readPending(),
         ]).then(
           (values) => _AssistantTrainingData(
             memories: values[0] as List<FfmAssistantMemoryRecord>,
@@ -71,6 +76,7 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
                 values[2] as List<FfmAssistantUnansweredQuestion>,
             resolvedQuestions:
                 values[3] as List<FfmAssistantUnansweredQuestion>,
+            responseFeedbacks: values[4] as List<FfmAssistantResponseFeedback>,
           ),
         );
   }
@@ -303,6 +309,21 @@ Tugas:
     );
   }
 
+  Future<void> _reviewFeedback(
+    FfmAssistantResponseFeedback feedback,
+    FfmAssistantResponseFeedbackReviewStatus status,
+  ) async {
+    await _feedbackRepository.setReviewStatus(feedback.id, status);
+    if (!mounted) return;
+    setState(_reload);
+  }
+
+  Future<void> _archiveFeedback(FfmAssistantResponseFeedback feedback) async {
+    await _feedbackRepository.archive(feedback.id);
+    if (!mounted) return;
+    setState(_reload);
+  }
+
   Future<void> _archiveLearningExample(
     FfmAssistantLearningExample example,
   ) async {
@@ -419,6 +440,9 @@ Tugas:
             final resolvedQuestions =
                 data?.resolvedQuestions ??
                 const <FfmAssistantUnansweredQuestion>[];
+            final responseFeedbacks =
+                data?.responseFeedbacks ??
+                const <FfmAssistantResponseFeedback>[];
             final visibleQuestions = _showResolvedQuestionHistory
                 ? resolvedQuestions
                 : unansweredQuestions;
@@ -598,6 +622,60 @@ Tugas:
                     ),
                   ),
                 ],
+                const SizedBox(height: 20),
+                AppSectionHeader(
+                  title:
+                      'Feedback jawaban perlu review (${responseFeedbacks.length})',
+                ),
+                const SizedBox(height: 8),
+                if (responseFeedbacks.isEmpty)
+                  const AppEmptyState(
+                    icon: Icons.rate_review_outlined,
+                    title: 'Belum ada feedback jawaban',
+                    message: 'Feedback atas jawaban Asisten yang keliru, kurang lengkap, atau tidak membantu akan muncul di sini untuk ditinjau.',
+                  )
+                else
+                  ...responseFeedbacks.map(
+                    (feedback) => AppCard(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.rate_review_outlined),
+                        title: Text(feedback.questionText),
+                        subtitle: Text(
+                          'Jawaban: ${feedback.responseText}\nJenis: ${feedback.kind.name}${feedback.note == null ? '' : '\nCatatan: ${feedback.note}'}',
+                        ),
+                        isThreeLine: true,
+                        trailing: Wrap(
+                          spacing: 0,
+                          children: [
+                            IconButton(
+                              tooltip: 'Setujui untuk review lanjutan',
+                              icon: const Icon(Icons.check_circle_outline),
+                              onPressed: () => _reviewFeedback(
+                                feedback,
+                                FfmAssistantResponseFeedbackReviewStatus
+                                    .approved,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Tolak feedback',
+                              icon: const Icon(Icons.cancel_outlined),
+                              onPressed: () => _reviewFeedback(
+                                feedback,
+                                FfmAssistantResponseFeedbackReviewStatus
+                                    .rejected,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Arsipkan feedback',
+                              icon: const Icon(Icons.archive_outlined),
+                              onPressed: () => _archiveFeedback(feedback),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 20),
                 AppSectionHeader(title: 'Memori aktif (${active.length})'),
                 const SizedBox(height: 8),
