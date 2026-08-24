@@ -1,14 +1,21 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+
+import 'ffm_assistant_external_link.dart';
 
 class FfmAssistantMarkdownText extends StatelessWidget {
   const FfmAssistantMarkdownText({
     required this.text,
     required this.color,
+    this.onOpenLink,
     super.key,
   });
 
   final String text;
   final Color color;
+  final Future<bool> Function(Uri uri)? onOpenLink;
 
   @override
   Widget build(BuildContext context) {
@@ -161,19 +168,34 @@ class FfmAssistantMarkdownText extends StatelessWidget {
     var cursor = 0;
     for (final match in pattern.allMatches(value)) {
       if (match.start > cursor) {
-        spans.add(TextSpan(text: value.substring(cursor, match.start)));
+        spans.add(
+          TextSpan(
+            children: _linkSpans(
+              value.substring(cursor, match.start),
+              color,
+              bold: bold,
+            ),
+          ),
+        );
       }
       spans.add(
         TextSpan(
-          text: match.group(2),
-          style: TextStyle(fontWeight: FontWeight.w800, color: color),
+          children: _linkSpans(match.group(2)!, color, bold: true),
+          style: const TextStyle(fontWeight: FontWeight.w800),
         ),
       );
       cursor = match.end;
     }
-    if (cursor < value.length)
-      spans.add(TextSpan(text: value.substring(cursor)));
-    if (spans.isEmpty) spans.add(TextSpan(text: value));
+    if (cursor < value.length) {
+      spans.add(
+        TextSpan(
+          children: _linkSpans(value.substring(cursor), color, bold: bold),
+        ),
+      );
+    }
+    if (spans.isEmpty) {
+      spans.add(TextSpan(children: _linkSpans(value, color, bold: bold)));
+    }
     if (bold) {
       return TextSpan(
         children: spans
@@ -193,4 +215,40 @@ class FfmAssistantMarkdownText extends StatelessWidget {
     }
     return TextSpan(children: spans);
   }
+
+  List<InlineSpan> _linkSpans(String value, Color color, {required bool bold}) {
+    final spans = <InlineSpan>[];
+    final links = FfmAssistantExternalLinkParser.parse(value);
+    var cursor = 0;
+    for (final link in links) {
+      if (link.start > cursor) {
+        spans.add(TextSpan(text: value.substring(cursor, link.start)));
+      }
+      final linkColor = color.computeLuminance() > .45
+          ? const Color(0xFF9BE8E0)
+          : const Color(0xFF006E64);
+      spans.add(
+        TextSpan(
+          text: link.label,
+          semanticsLabel: 'Buka tautan eksternal ${link.label}',
+          recognizer: TapGestureRecognizer()
+            ..onTap = () => unawaited(_openLink(link.uri)),
+          style: TextStyle(
+            color: linkColor,
+            fontWeight: bold ? FontWeight.w800 : null,
+            decoration: TextDecoration.underline,
+            decorationColor: linkColor,
+          ),
+        ),
+      );
+      cursor = link.end;
+    }
+    if (cursor < value.length) {
+      spans.add(TextSpan(text: value.substring(cursor)));
+    }
+    return spans;
+  }
+
+  Future<bool> _openLink(Uri uri) =>
+      onOpenLink?.call(uri) ?? FfmAssistantExternalLinkOpener.open(uri);
 }

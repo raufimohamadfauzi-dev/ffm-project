@@ -9,21 +9,29 @@ class FfmQwen2VlInferenceService {
 
   final FfmSingleInferenceQueue _queue;
 
+  Future<String> generateJson({
+    required String systemPrompt,
+    required String userPrompt,
+    String? imagePath,
+  }) => _queue.enqueue((token) async {
+    token.throwIfCancelled();
+    return FfmLocalModelBridgePlugin.generateSingleShotNative(
+      systemPrompt: systemPrompt,
+      userPrompt: userPrompt,
+      imagePath: imagePath,
+    );
+  });
+
   Future<FfmLocalProposalParseResult> generateProposal({
     required String systemPrompt,
     required String userPrompt,
     String? imagePath,
   }) async {
-    final responseJson = await _queue.enqueue((token) async {
-      // Pembatalan sebelum JNI dimulai:
-      token.throwIfCancelled();
-
-      return FfmLocalModelBridgePlugin.generateSingleShotNative(
-        systemPrompt: systemPrompt,
-        userPrompt: userPrompt,
-        imagePath: imagePath,
-      );
-    });
+    final responseJson = await generateJson(
+      systemPrompt: systemPrompt,
+      userPrompt: userPrompt,
+      imagePath: imagePath,
+    );
 
     final decoded = jsonDecode(responseJson);
     if (decoded is Map<String, dynamic> && decoded.containsKey('error')) {

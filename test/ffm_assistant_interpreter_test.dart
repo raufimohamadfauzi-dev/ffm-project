@@ -4,7 +4,7 @@ import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
-import 'package:ffm_manager/features/assistant/domain/ffm_assistant_follow_up_suggestions.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 void main() {
@@ -524,7 +524,7 @@ void main() {
     expect(intent.type, FfmAssistantIntentType.financialWarnings);
     expect(intent.destination, FfmAssistantDestination.budget);
     expect(intent.draft, isNull);
-    expect(intent.response, contains('Belum ada peringatan'));
+    expect(intent.response, contains('Belum ada anggaran aktif'));
   });
 
   test('membuat draft transfer SeaBank ke Tunai dengan biaya admin', () async {
@@ -553,10 +553,7 @@ void main() {
     expect(intent.draft?.title, 'Perkenalan Diri');
     expect(intent.needsClarification, isTrue);
     expect(intent.clarification, contains('tujuan'));
-    expect(
-      intent.response,
-      isNull,
-    );
+    expect(intent.response, isNull);
   });
 
   test('jawaban lanjutan melengkapi draft profil yang tertahan', () async {
@@ -759,76 +756,147 @@ void main() {
     expect(intent.clarification, contains('tersimpan di FFM'));
   });
 
-  test('Pilar 1: Multi-Action Chaining memecah perintah majemuk dengan "dan"', () async {
-    final intents = await interpreter.interpretMany(
-      'catat belanja 50 ribu dari Tunai dan transfer 100 ribu dari SeaBank ke Tunai',
-    );
+  test(
+    'Pilar 1: Multi-Action Chaining memecah perintah majemuk dengan "dan"',
+    () async {
+      final intents = await interpreter.interpretMany(
+        'catat belanja 50 ribu dari Tunai dan transfer 100 ribu dari SeaBank ke Tunai',
+      );
 
-    expect(intents, hasLength(2));
-    expect(intents.first.type, FfmAssistantIntentType.createExpense);
-    expect(intents.first.draft?.amount, 50000);
-    expect(intents.last.type, FfmAssistantIntentType.createTransfer);
-    expect(intents.last.draft?.amount, 100000);
-  });
+      expect(intents, hasLength(2));
+      expect(intents.first.type, FfmAssistantIntentType.createExpense);
+      expect(intents.first.draft?.amount, 50000);
+      expect(intents.last.type, FfmAssistantIntentType.createTransfer);
+      expect(intents.last.draft?.amount, 100000);
+    },
+  );
 
-  test('Pilar 2: Coreference resolution memahami rujukan "dari situ"', () async {
-    // 1. Simpan entitas SeaBank
-    await interpreter.interpret('catat belanja 50 ribu dari SeaBank');
-    // 2. Gunakan kata rujukan "dari situ"
-    final intent = await interpreter.interpret('beli bensin 20 ribu dari situ');
+  test(
+    'Pilar 2: Coreference resolution memahami rujukan "dari situ"',
+    () async {
+      // 1. Simpan entitas SeaBank
+      await interpreter.interpret('catat belanja 50 ribu dari SeaBank');
+      // 2. Gunakan kata rujukan "dari situ"
+      final intent = await interpreter.interpret(
+        'beli bensin 20 ribu dari situ',
+      );
 
-    expect(intent.type, FfmAssistantIntentType.createExpense);
-    expect(intent.draft?.amount, 20000);
-    expect(intent.draft?.fromAccountName, 'SeaBank');
-  });
+      expect(intent.type, FfmAssistantIntentType.createExpense);
+      expect(intent.draft?.amount, 20000);
+      expect(intent.draft?.fromAccountName, 'SeaBank');
+    },
+  );
 
   test('Pilar 3: Knowledge Base menjawab pertanyaan panduan cara penggunaan fitur FFM', () async {
     final budgetHelp = await interpreter.interpret('gimana cara buat anggaran');
     expect(budgetHelp.type, FfmAssistantIntentType.help);
     expect(budgetHelp.response, contains('Cara Mengatur Anggaran'));
 
-    final zakatHelp = await interpreter.interpret('bagaimana cara hitung zakat');
+    final zakatHelp = await interpreter.interpret(
+      'bagaimana cara hitung zakat',
+    );
     expect(zakatHelp.type, FfmAssistantIntentType.help);
     expect(zakatHelp.response, contains('Simulasi Kewajiban Zakat'));
 
-    final backupHelp = await interpreter.interpret('cara backup data saat ganti hp');
+    final backupHelp = await interpreter.interpret(
+      'cara backup data saat ganti hp',
+    );
     expect(backupHelp.type, FfmAssistantIntentType.help);
     expect(backupHelp.response, contains('Cara Backup & Pindah Data'));
   });
 
-  test('menjelaskan fitur kalender perangkat dan Hijriah secara informatif', () async {
-    final calendarIntent = await interpreter.interpret('kalender perangkat ada apa saja?');
-    expect(calendarIntent.type, FfmAssistantIntentType.calendarQuery);
-    expect(calendarIntent.response, contains('Kalender di FFM & Perangkat'));
-    expect(calendarIntent.response, contains('Kalender Masehi'));
-    expect(calendarIntent.response, contains('Kalender Hijriah'));
+  test(
+    'menjelaskan fitur kalender perangkat dan Hijriah secara informatif',
+    () async {
+      final calendarIntent = await interpreter.interpret(
+        'kalender perangkat ada apa saja?',
+      );
+      expect(calendarIntent.type, FfmAssistantIntentType.calendarQuery);
+      expect(calendarIntent.response, contains('Kalender di FFM & Perangkat'));
+      expect(calendarIntent.response, contains('Kalender Masehi'));
+      expect(calendarIntent.response, contains('Kalender Hijriah'));
+    },
+  );
+
+  test(
+    'merutekan identitas aplikasi dan kemampuan gambar tanpa jadi unknown',
+    () async {
+      final app = await interpreter.interpret('aplikasi apa ini?');
+      final image = await interpreter.interpret('bisa lihat gambar?');
+
+      expect(app.type, FfmAssistantIntentType.assistantIdentity);
+      expect(image.type, FfmAssistantIntentType.help);
+      expect(image.response, contains('Model lokal belum aktif'));
+    },
+  );
+
+  test('Cash satu kata meminta klarifikasi tanpa action plan', () async {
+    final intent = await interpreter.interpret('cash');
+
+    expect(intent.type, FfmAssistantIntentType.help);
+    expect(intent.clarification, contains('Maksud Cash'));
+    expect(const FfmAssistantActionPlanner().planFor(intent), isNull);
   });
 
-  test('menghasilkan 3 rekomendasi pertanyaan lanjutan cerdas sesuai konteks percakapan', () {
-    final visionSuggestions = FfmAssistantFollowUpSuggestions.generate(
-      intent: null,
-      lastResponseText: 'Ya, aku bisa membaca foto struk belanja dengan AI lokal.',
-      userQuestion: 'kenapa gak bisa baca gambar?',
-    );
-    expect(visionSuggestions.length, 3);
-    expect(visionSuggestions.first, contains('foto struk'));
+  test('verifikasi Cash membaca rekening aktif dan tidak menyusun read-plan transaksi', () async {
+    final intent = await interpreter.interpret('sudah saya tambahkan cash');
 
-    final calendarSuggestions = FfmAssistantFollowUpSuggestions.generate(
-      intent: const FfmAssistantIntent(
-        rawText: 'kalender perangkat',
-        type: FfmAssistantIntentType.calendarQuery,
-        normalizedText: 'kalender perangkat',
-        confidence: 0.99,
-      ),
-      lastResponseText: 'Kalender Hijriah & Masehi lokal aktif.',
-      userQuestion: 'kalender perangkat ada apa saja?',
-    );
-    expect(calendarSuggestions.length, 3);
-    expect(calendarSuggestions.any((s) => s.contains('Ramadan')), isTrue);
+    expect(intent.type, FfmAssistantIntentType.help);
+    expect(intent.response, contains('satu rekening Cash yang aktif'));
+    expect(const FfmAssistantActionPlanner().planFor(intent), isNull);
   });
+
+  test(
+    'status SLM memakai readiness lokal dan navigasi anggaran tetap eksplisit',
+    () async {
+      final unavailable = await interpreter.interpret(
+        'sekarang sudah terhubung SLM?',
+      );
+      final readyInterpreter = FfmAssistantInterpreter(
+        database,
+        slmReadyCheck: () async => true,
+      );
+      final ready = await readyInterpreter.interpret(
+        'sekarang sudah terhubung SLM?',
+      );
+      final budget = await interpreter.interpret('cek halaman anggaran');
+
+      expect(unavailable.type, FfmAssistantIntentType.help);
+      expect(unavailable.destination, FfmAssistantDestination.localModel);
+      expect(unavailable.response, contains('Belum'));
+      expect(ready.response, contains('siap dipakai'));
+      expect(budget.type, FfmAssistantIntentType.openPage);
+      expect(budget.destination, FfmAssistantDestination.budget);
+    },
+  );
+
+  test(
+    'pertanyaan anggaran hampir habis memakai query peringatan lokal',
+    () async {
+      final intent = await interpreter.interpret(
+        'Apakah ada anggaran yang hampir habis?',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.financialWarnings);
+      expect(intent.destination, FfmAssistantDestination.budget);
+      expect(intent.response, contains('Belum ada anggaran aktif'));
+    },
+  );
+
+  test(
+    'panduan awal ditangani sebagai setup flow berbasis data lokal',
+    () async {
+      final intent = await interpreter.interpret('sekarang saya harus apa?');
+
+      expect(intent.type, isNot(FfmAssistantIntentType.unknown));
+      expect(intent.response, isNotEmpty);
+    },
+  );
 
   test('menjawab pertanyaan identitas pembuat dan konsep data lokal', () async {
-    final creatorIntent = await interpreter.interpret('siapa yang membuat kamu?');
+    final creatorIntent = await interpreter.interpret(
+      'siapa yang membuat kamu?',
+    );
     expect(creatorIntent.type, FfmAssistantIntentType.assistantIdentity);
     expect(creatorIntent.response, contains('Rafi Sinkkat'));
 
@@ -842,6 +910,3 @@ void main() {
     expect(dataLokalIntent.response, contains('100% Offline'));
   });
 }
-
-
-

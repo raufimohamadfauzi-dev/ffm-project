@@ -6,7 +6,10 @@ import 'package:ffm_manager/features/assistant/data/ffm_local_inference_queue.da
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_knowledge.dart';
 
-class FfmQwen2VlGateway implements FfmAssistantLocalModelGateway {
+import 'ffm_assistant_slm_follow_up_contract.dart';
+
+class FfmQwen2VlGateway
+    implements FfmAssistantLocalModelGateway, FfmAssistantSlmFollowUpGenerator {
   FfmQwen2VlGateway(this._modelService, this._inferenceService);
 
   final FfmLocalModelService _modelService;
@@ -29,6 +32,35 @@ class FfmQwen2VlGateway implements FfmAssistantLocalModelGateway {
   }
 
   @override
+  Future<List<String>> generateFollowUpSuggestions({
+    required List<String> conversationTopics,
+  }) async {
+    if (conversationTopics.isEmpty) return const <String>[];
+    try {
+      await _ensureInitialized();
+      final response = await _inferenceService.generateJson(
+        systemPrompt: '''
+Anda adalah generator rekomendasi pertanyaan untuk Asisten Family Finance Manager.
+Berdasarkan topik percakapan yang telah disanitasi, buat TEPAT tiga pertanyaan lanjutan dalam Bahasa Indonesia yang membantu pengguna melanjutkan topik yang sama.
+
+ATURAN MUTLAK:
+1. Keluarkan JSON valid saja: {"suggestions":["pertanyaan 1?","pertanyaan 2?","pertanyaan 3?"]}.
+2. Setiap item harus pertanyaan singkat, relevan, unik, dan diakhiri tanda tanya.
+3. Jangan mengarang saldo, nominal, transaksi, rekening, atau data keluarga.
+4. Jangan memberi instruksi untuk menyimpan, menghapus, atau mengubah data secara otomatis.
+5. Jangan membuat URL, Markdown, kode, atau teks di luar JSON.
+6. Jika konteks tidak cukup, tetap buat tiga pertanyaan klarifikasi yang aman tentang topik terakhir.
+''',
+        userPrompt:
+            'Topik percakapan terakhir:\n${conversationTopics.join('\n')}',
+      );
+      return FfmAssistantSlmFollowUpContract.parseJsonResponse(response);
+    } on Object {
+      return const <String>[];
+    }
+  }
+
+  @override
   Future<FfmAssistantModelProposal?> propose({
     required String input,
     String? imagePath,
@@ -47,8 +79,8 @@ class FfmQwen2VlGateway implements FfmAssistantLocalModelGateway {
 
       final knowledge = FfmAssistantRuntimeKnowledgeRegistry()
           .buildPromptContext(query: input, capabilityIds: capabilityIds);
-      final historySection = conversationHistory != null &&
-              conversationHistory.trim().isNotEmpty
+      final historySection =
+          conversationHistory != null && conversationHistory.trim().isNotEmpty
           ? '\nRiwayat dialog sebelumnya:\n$conversationHistory\n'
           : '';
       final systemPrompt =
@@ -86,8 +118,8 @@ Jika diminta melakukan perubahan, hanya usulkan langkah dan data terstruktur; ja
 Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, literasi keuangan keluarga, cara menabung, manajemen keuangan, saran budgeting, cashflow, target, keputusan finansial, asuransi keluarga, perencanaan pajak, investasi dasar, dana darurat, penghasilan sampingan.
 	''';
 
-      final userPromptWithContext = conversationHistory != null &&
-              conversationHistory.trim().isNotEmpty
+      final userPromptWithContext =
+          conversationHistory != null && conversationHistory.trim().isNotEmpty
           ? '[Konteks percakapan: perhatikan respons sebelumnya]\n$input'
           : input;
 
@@ -159,7 +191,8 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
       }
 
       final reasoning = switch (proposal.proposalType) {
-        'navigation' => 'Navigasi ke halaman ${proposal.actionTarget ?? 'tujuan'}',
+        'navigation' =>
+          'Navigasi ke halaman ${proposal.actionTarget ?? 'tujuan'}',
         'read_query' => 'Baca data lokal untuk query pengguna',
         'help' => 'Berikan bantuan atau edukasi',
         'out_of_domain' => 'Topik di luar domain FFM',

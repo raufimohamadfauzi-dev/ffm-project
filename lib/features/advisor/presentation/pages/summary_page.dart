@@ -465,6 +465,7 @@ class _SummaryContent extends StatelessWidget {
     final page = switch (suggestion.kind) {
       FinancialGuardKind.budgetExceeded ||
       FinancialGuardKind.budgetNearLimit ||
+      FinancialGuardKind.budgetFastUse ||
       FinancialGuardKind.budgetLargeRemaining => const EnvelopeBudgetPage(),
       FinancialGuardKind.monthlyCashDeficit => const TransactionListPage(),
       FinancialGuardKind.liabilityDue => const LiabilityReceivablePage(),

@@ -170,6 +170,44 @@ void main() {
       expect(suggestion.trace, contains('Anggaran tidak rutin sejak'));
     },
   );
+
+  test(
+    'menandai pemakaian cepat sesuai porsi waktu periode anggaran',
+    () async {
+      final now = DateTime(2026, 9, 2, 12);
+      await _insertExpenseCategory(database, 'cat-makan', 'Makan');
+      await database
+          .into(database.envelopeBudgets)
+          .insert(
+            EnvelopeBudgetsCompanion.insert(
+              id: 'envelope-makan-september',
+              householdId: AppContext.householdId,
+              name: 'Makan September',
+              categoryIdsJson: const Value('["cat-makan"]'),
+              allocated: const Value(100000),
+              periodType: const Value('monthly'),
+              startDate: DateTime(2026, 9, 1),
+              endDate: DateTime(2026, 9, 30, 23, 59, 59),
+              alertPercent: const Value(80),
+              createdAt: now,
+            ),
+          );
+      await _insertTransaction(
+        database,
+        id: 'makan-awal-periode',
+        amount: -20000,
+        date: now,
+        categoryId: 'cat-makan',
+      );
+
+      final suggestions = await service.check(AppContext.householdId, at: now);
+
+      expect(
+        suggestions.map((item) => item.kind),
+        contains(FinancialGuardKind.budgetFastUse),
+      );
+    },
+  );
 }
 
 Future<void> _insertExpenseCategory(

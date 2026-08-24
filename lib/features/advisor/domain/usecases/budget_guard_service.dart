@@ -9,6 +9,7 @@ enum FinancialGuardSeverity { critical, warning, info }
 enum FinancialGuardKind {
   budgetExceeded,
   budgetNearLimit,
+  budgetFastUse,
   budgetLargeRemaining,
   monthlyCashDeficit,
   liabilityDue,
@@ -105,11 +106,10 @@ class BudgetGuardService {
 
     for (final budget in budgets) {
       if (!_isInPeriod(localNow, budget.startDate, budget.endDate)) continue;
-      if (budget.allocated <= 0) continue;
-
       final categoryIds = _budgetCategoryIds(budget);
       final isOverall = budget.id.startsWith('overall-');
       final isNonRecurring = budget.periodType == 'nonrecurring';
+      if (!isOverall && budget.allocated <= 0) continue;
       final spent = activeTransactions
           .where(
             (item) =>
@@ -124,18 +124,10 @@ class BudgetGuardService {
           )
           .fold<int>(0, (total, item) => total + item.amount.abs());
       final transferredIn = envelopeTransfers
-          .where(
-            (item) =>
-                item.toEnvelopeId == budget.id &&
-                _isInPeriod(item.createdAt, budget.startDate, budget.endDate),
-          )
+          .where((item) => item.toEnvelopeId == budget.id)
           .fold<int>(0, (total, item) => total + item.amount);
       final transferredOut = envelopeTransfers
-          .where(
-            (item) =>
-                item.fromEnvelopeId == budget.id &&
-                _isInPeriod(item.createdAt, budget.startDate, budget.endDate),
-          )
+          .where((item) => item.fromEnvelopeId == budget.id)
           .fold<int>(0, (total, item) => total + item.amount);
       final limit = budget.allocated + budget.rollover + transferredIn;
       if (limit <= 0) continue;
@@ -146,7 +138,7 @@ class BudgetGuardService {
           ? '${_periodLabel(budget.periodType)} sejak ${_shortDate(budget.startDate)} · ${_money(spent)} terpakai dari ${_money(limit)}'
           : '${_periodLabel(budget.periodType)} ${_dateRange(budget.startDate, budget.endDate)} · ${_money(spent)} terpakai dari ${_money(limit)}';
 
-      if (remaining < 0) {
+      if (spent / limit >= 1) {
         results.add(
           FinancialGuardSuggestion(
             id: 'budget-exceeded-${budget.id}',
@@ -154,7 +146,7 @@ class BudgetGuardService {
             severity: FinancialGuardSeverity.critical,
             title: 'Anggaran ${budget.name} sudah jebol',
             message:
-                'Pengeluaran sudah ${_money(spent)} dari batas ${_money(limit)}. Lewat ${_money(remaining.abs())}.',
+                'Pengeluaran sudah ${_money(spent)} dari batas ${_money(limit)}. Lewat ${_money(spent - limit)}.',
             trace: trace,
             currentAmount: spent,
             limitAmount: limit,
@@ -174,6 +166,31 @@ class BudgetGuardService {
             message: isNonRecurring
                 ? 'Sudah $spentPercent% terpakai. Sisa ${_money(remaining)}.'
                 : 'Sudah $spentPercent% terpakai. Sisa ${_money(remaining)} sampai ${_shortDate(budget.endDate)}.',
+            trace: trace,
+            currentAmount: spent,
+            limitAmount: limit,
+            date: budget.endDate,
+          ),
+        );
+        continue;
+      }
+
+      if (!isNonRecurring &&
+          _isFastUse(
+            localNow,
+            budget.startDate,
+            budget.endDate,
+            spent,
+            limit,
+          )) {
+        results.add(
+          FinancialGuardSuggestion(
+            id: 'budget-fast-${budget.id}',
+            kind: FinancialGuardKind.budgetFastUse,
+            severity: FinancialGuardSeverity.warning,
+            title: 'Pemakaian ${budget.name} lebih cepat',
+            message:
+                'Sudah $spentPercent% terpakai, lebih cepat dari porsi waktu periode ini. Sisa ${_money(remaining)}.',
             trace: trace,
             currentAmount: spent,
             limitAmount: limit,
@@ -265,9 +282,13 @@ class BudgetGuardService {
     return results;
   }
 
-  String responseForAssistant(List<FinancialGuardSuggestion> suggestions) {
+  String responseForAssistant(
+    List<FinancialGuardSuggestion> suggestions, {
+    String? emptyMessage,
+  }) {
     if (suggestions.isEmpty) {
-      return 'Belum ada peringatan dari anggaran, arus kas, atau jatuh tempo yang datanya cukup untuk dicek sekarang.';
+      return emptyMessage ??
+          'Belum ada peringatan dari anggaran, arus kas, atau jatuh tempo yang datanya cukup untuk dicek sekarang.';
     }
     final visible = suggestions.take(3).toList(growable: false);
     final lines = visible
@@ -348,6 +369,24 @@ class BudgetGuardService {
     final daysLeft = endDate.difference(_dateOnly(now)).inDays;
     final lastQuarterDays = (totalDays / 4).ceil().clamp(1, 7);
     return daysLeft >= 0 && daysLeft <= lastQuarterDays;
+  }
+
+  static bool _isFastUse(
+    DateTime now,
+    DateTime start,
+    DateTime end,
+    int spent,
+    int limit,
+  ) {
+    if (limit <= 0) return false;
+    final endExclusive = end.add(const Duration(days: 1));
+    final elapsed = now.isBefore(start)
+        ? 0.0
+        : !now.isBefore(endExclusive)
+        ? 1.0
+        : now.difference(start).inSeconds /
+              endExclusive.difference(start).inSeconds;
+    return spent / limit > elapsed + .15;
   }
 
   static DateTime _dateOnly(DateTime value) =>

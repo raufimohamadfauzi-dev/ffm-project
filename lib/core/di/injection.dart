@@ -14,6 +14,7 @@ import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
 import '../../features/assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import '../../features/assistant/data/ffm_assistant_slm_follow_up_service.dart';
 import '../../features/assistant/data/ffm_local_inference_queue.dart';
 import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
 import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
@@ -149,11 +150,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
     () => FfmQwen2VlInferenceService(getIt<FfmSingleInferenceQueue>()),
   );
-  getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
+  getIt.registerLazySingleton<FfmQwen2VlGateway>(
     () => FfmQwen2VlGateway(
       getIt<FfmLocalModelService>(),
       getIt<FfmQwen2VlInferenceService>(),
     ),
+  );
+  getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
+    () => getIt<FfmQwen2VlGateway>(),
+  );
+  getIt.registerLazySingleton<FfmAssistantSlmFollowUpService>(
+    () => FfmAssistantSlmFollowUpService(getIt<FfmQwen2VlGateway>()),
   );
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),

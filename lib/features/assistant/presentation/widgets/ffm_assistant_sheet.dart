@@ -21,6 +21,7 @@ import '../../data/ffm_assistant_interpreter.dart';
 import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
+import '../../data/ffm_assistant_slm_follow_up_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../data/ffm_local_model_service.dart';
@@ -28,7 +29,6 @@ import '../../domain/ffm_assistant_action_plan.dart';
 import '../../domain/ffm_assistant_action_planner.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
-import '../../domain/ffm_assistant_follow_up_suggestions.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../../domain/ffm_assistant_proactive_service.dart';
 import '../../data/ffm_assistant_user_model_service.dart';
@@ -109,6 +109,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     readTransaction: <T>(action) => getIt<AppDatabase>().transaction(action),
   );
   final _proactiveService = const FfmAssistantProactiveSuggestionService();
+  final _slmFollowUpService = getIt<FfmAssistantSlmFollowUpService>();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
   final _agentStatus = getIt.isRegistered<FfmAgentStatusController>()
@@ -132,6 +133,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   String? _modelStatusError;
   var _listening = false;
   var _followLatestMessages = true;
+  List<String> _slmFollowUpSuggestions = const <String>[];
+  var _followUpGeneration = 0;
   String? _speakingEntryKey;
   String? _pausedEntryKey;
   String? _speakingSessionId;
@@ -210,6 +213,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     setState(() => _memoryCount = all.length);
   }
 
+  Future<void> _refreshSlmFollowUpSuggestions() async {
+    final generation = ++_followUpGeneration;
+    if (!_modelReady || _submitting || !_entries.any((entry) => entry.isUser)) {
+      if (mounted && _slmFollowUpSuggestions.isNotEmpty) {
+        setState(() => _slmFollowUpSuggestions = const <String>[]);
+      }
+      return;
+    }
+    final suggestions = await _slmFollowUpService.generateForConversation(
+      List<FfmAssistantChatEntry>.of(_entries),
+    );
+    if (!mounted || generation != _followUpGeneration || _submitting) return;
+    setState(() => _slmFollowUpSuggestions = suggestions);
+  }
+
   void _checkForMemoryNudge(String userMessage) {
     if (userMessage.trim().isEmpty) return;
     final insight = _personalMemoryService.extractFromMessage(userMessage);
@@ -245,7 +263,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       ),
     );
   }
-
 
   @override
   void dispose() {
@@ -429,6 +446,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final displayText = text.isEmpty && hasImage ? 'Gambar dilampirkan' : text;
     setState(() {
       _submitting = true;
+      _followUpGeneration++;
+      _slmFollowUpSuggestions = const <String>[];
       _appendEntry(
         FfmAssistantChatEntry(
           isUser: true,
@@ -464,7 +483,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 intent.type == FfmAssistantIntentType.help) {
               response = 'Aku mengerti ini terkait literasi keuangan keluarga. (Jawaban SLM offline akan muncul di sini).';
             } else if (intent.draft != null) {
-              response = 'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
+              response =
+                  'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
             } else {
               response = 'Struk sudah aku baca.';
             }
@@ -535,6 +555,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _scrollToEnd();
       } finally {
         if (mounted) setState(() => _submitting = false);
+        unawaited(_refreshSlmFollowUpSuggestions());
         _scrollToEnd(force: true);
       }
       return;
@@ -657,6 +678,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
     } finally {
       if (mounted) setState(() => _submitting = false);
+      unawaited(_refreshSlmFollowUpSuggestions());
       _scrollToEnd(force: true);
     }
   }
@@ -1615,8 +1637,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   String? _buildRecentConversationHistory() {
     if (_entries.isEmpty) return null;
-    final recent =
-        _entries.length > 5 ? _entries.sublist(_entries.length - 5) : _entries;
+    final recent = _entries.length > 5
+        ? _entries.sublist(_entries.length - 5)
+        : _entries;
     final lines = <String>[];
     for (final entry in recent) {
       final role = entry.isUser ? 'Pengguna' : 'Asisten';
@@ -1650,10 +1673,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final mediaQuery = MediaQuery.of(context);
     final keyboardInset = mediaQuery.viewInsets.bottom;
     final maxAvailableHeight =
-        (mediaQuery.size.height - keyboardInset - mediaQuery.padding.top)
-            .clamp(120.0, double.infinity);
+        (mediaQuery.size.height - keyboardInset - mediaQuery.padding.top).clamp(
+          120.0,
+          double.infinity,
+        );
     final minHeight = math.min(260.0, maxAvailableHeight);
-    final targetHeight = mediaQuery.size.height *
+    final targetHeight =
+        mediaQuery.size.height *
         (_isFullScreen
             ? 1.0
             : (mediaQuery.orientation == Orientation.landscape ? 0.95 : 0.82));
@@ -1668,23 +1694,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       hasConversation: _entries.any((entry) => entry.isUser),
     );
 
-    FfmAssistantChatEntry? lastAssistantEntry;
-    FfmAssistantChatEntry? lastUserEntry;
-    for (var i = _entries.length - 1; i >= 0; i--) {
-      final e = _entries[i];
-      if (lastAssistantEntry == null && !e.isUser) {
-        lastAssistantEntry = e;
-      }
-      if (lastUserEntry == null && e.isUser) {
-        lastUserEntry = e;
-      }
-      if (lastAssistantEntry != null && lastUserEntry != null) break;
-    }
-    final followUpSuggestions = FfmAssistantFollowUpSuggestions.generate(
-      intent: lastAssistantEntry?.intent,
-      lastResponseText: lastAssistantEntry?.text,
-      userQuestion: lastUserEntry?.text,
-    );
     return AnimatedPadding(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
@@ -1711,14 +1720,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 modelStatusError: _modelStatusError,
                 onRefreshModelStatus: _refreshModelStatus,
                 memoryCount: _memoryCount,
-                onOpenMemory: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const FfmMemoryViewerPage(),
-                    fullscreenDialog: true,
-                  ),
-                ).then((_) => _refreshMemoryCount()),
+                onOpenMemory: () => Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(
+                        builder: (_) => const FfmMemoryViewerPage(),
+                        fullscreenDialog: true,
+                      ),
+                    )
+                    .then((_) => _refreshMemoryCount()),
               ),
-              Divider(height: 1, color: isDark ? const Color(0xFF2E2A26) : const Color(0xFFE8E0D0)),
+              Divider(
+                height: 1,
+                color: isDark
+                    ? const Color(0xFF2E2A26)
+                    : const Color(0xFFE8E0D0),
+              ),
               if (!_modelChecking && !_modelReady)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -1803,8 +1819,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               entry.intent!.needsTeachingApproval ||
                               (entry.intent!.destination == null &&
                                   entry.intent!.draft == null &&
-                                  entry.intent!.type != FfmAssistantIntentType.exportReport &&
-                                  entry.intent!.type != FfmAssistantIntentType.confirm)
+                                  entry.intent!.type !=
+                                      FfmAssistantIntentType.exportReport &&
+                                  entry.intent!.type !=
+                                      FfmAssistantIntentType.confirm)
                           ? null
                           : () => _handleIntent(entry.intent!),
                       primaryActionLabel: _isDirectMutation(entry.intent?.draft)
@@ -1872,7 +1890,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ),
                   ),
                 ),
-              if (!_submitting && followUpSuggestions.isNotEmpty)
+              if (!_submitting &&
+                  _modelReady &&
+                  _slmFollowUpSuggestions.length == 3)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
                   child: Column(
@@ -1883,7 +1903,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         FfmMemoryNudgeCard(
                           insight: _pendingMemoryNudge!,
                           onSave: _saveMemoryNudge,
-                          onDismiss: () => setState(() => _pendingMemoryNudge = null),
+                          onDismiss: () =>
+                              setState(() => _pendingMemoryNudge = null),
                         ),
                       // Follow-up suggestion chips
                       SingleChildScrollView(
@@ -1891,7 +1912,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         physics: const BouncingScrollPhysics(),
                         child: Row(
                           children: [
-                            for (final suggestion in followUpSuggestions.take(3))
+                            for (final suggestion in _slmFollowUpSuggestions)
                               Padding(
                                 padding: const EdgeInsets.only(right: 6),
                                 child: ActionChip(
@@ -1908,13 +1929,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     ),
                                   ),
                                   visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
                                   onPressed: () {
                                     _controller.text = suggestion;
-                                    _controller.selection = TextSelection.fromPosition(
+                                    _controller
+                                        .selection = TextSelection.fromPosition(
                                       TextPosition(offset: suggestion.length),
                                     );
                                     _inputFocusNode.requestFocus();
@@ -1960,10 +1984,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               decoration: BoxDecoration(
                                 color: theme.colorScheme.error,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: theme.colorScheme.surface, width: 2),
+                                border: Border.all(
+                                  color: theme.colorScheme.surface,
+                                  width: 2,
+                                ),
                               ),
                               padding: const EdgeInsets.all(4),
-                              child: const Icon(Icons.close, size: 14, color: Colors.white),
+                              child: const Icon(
+                                Icons.close,
+                                size: 14,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -2004,7 +2035,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           decoration: InputDecoration(
                             hintText: 'Tulis perintah atau pertanyaan…',
                             filled: true,
-                            fillColor: isDark ? const Color(0xFF2A2A28) : const Color(0xFFF3F0E7),
+                            fillColor: isDark
+                                ? const Color(0xFF2A2A28)
+                                : const Color(0xFFF3F0E7),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 12,
