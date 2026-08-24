@@ -252,4 +252,4 @@
 - [x] Inventarisasi intent, registry, adapter, planner, executor, draft, repository, ekspor, knowledge, dan audit yang benar-benar tersambung.
 - [x] Catat mismatch aktual dan prioritaskan capability P0 yang aman untuk diselesaikan pada arsitektur sekarang.
 - [x] Implementasikan capability P0 terpilih melalui jalur chat sampai hasil terverifikasi dan konfirmasi eksplisit.
-- [ ] Tambahkan regresi lintas jalur, validasi penuh, build APK patch, dan matriks capability aktual.
+- [x] Tambahkan regresi lintas jalur, validasi penuh, build APK patch, dan matriks capability aktual.
