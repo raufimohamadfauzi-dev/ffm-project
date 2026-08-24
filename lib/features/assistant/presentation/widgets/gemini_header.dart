@@ -24,11 +24,7 @@ class GeminiAvatar extends StatelessWidget {
         ),
       ),
       child: const Center(
-        child: Icon(
-          Icons.auto_awesome,
-          size: 20,
-          color: Colors.white,
-        ),
+        child: Icon(Icons.auto_awesome, size: 20, color: Colors.white),
       ),
     );
   }
@@ -42,6 +38,7 @@ class GeminiHeader extends StatelessWidget {
     required this.currentPage,
     required this.isFullScreen,
     required this.onToggleFullScreen,
+    this.showFullscreenToggle = true,
     required this.onOpenVoicePicker,
     required this.onResetChat,
     required this.onClose,
@@ -56,6 +53,7 @@ class GeminiHeader extends StatelessWidget {
   final FfmAssistantPage? currentPage;
   final bool isFullScreen;
   final VoidCallback onToggleFullScreen;
+  final bool showFullscreenToggle;
   final VoidCallback onOpenVoicePicker;
   final VoidCallback onResetChat;
   final VoidCallback onClose;
@@ -122,7 +120,9 @@ class GeminiHeader extends StatelessWidget {
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.3,
-                        color: isDark ? const Color(0xFFEDE8E0) : const Color(0xFF2B2117),
+                        color: isDark
+                            ? const Color(0xFFEDE8E0)
+                            : const Color(0xFF2B2117),
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -131,7 +131,9 @@ class GeminiHeader extends StatelessWidget {
                           ? 'Konteks umum • data chat lokal'
                           : 'Halaman: ${currentPage!.name}',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: isDark ? const Color(0xFF9A9590) : const Color(0xFF8A7E6B),
+                        color: isDark
+                            ? const Color(0xFF9A9590)
+                            : const Color(0xFF8A7E6B),
                         fontSize: 12,
                       ),
                       maxLines: 1,
@@ -140,18 +142,21 @@ class GeminiHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: isFullScreen ? 'Tampilan normal' : 'Layar penuh',
-                onPressed: onToggleFullScreen,
-                icon: Icon(
-                  isFullScreen
-                      ? Icons.fullscreen_exit_rounded
-                      : Icons.fullscreen_rounded,
-                  size: 22,
-                  color: isDark ? const Color(0xFF9A9590) : const Color(0xFF6B5E4F),
+              if (showFullscreenToggle)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: isFullScreen ? 'Tampilan normal' : 'Layar penuh',
+                  onPressed: onToggleFullScreen,
+                  icon: Icon(
+                    isFullScreen
+                        ? Icons.fullscreen_exit_rounded
+                        : Icons.fullscreen_rounded,
+                    size: 22,
+                    color: isDark
+                        ? const Color(0xFF9A9590)
+                        : const Color(0xFF6B5E4F),
+                  ),
                 ),
-              ),
               if (onOpenMemory != null)
                 Stack(
                   alignment: Alignment.topRight,
@@ -164,7 +169,9 @@ class GeminiHeader extends StatelessWidget {
                       icon: Icon(
                         Icons.psychology_outlined,
                         size: 21,
-                        color: isDark ? const Color(0xFF9A9590) : const Color(0xFF6B5E4F),
+                        color: isDark
+                            ? const Color(0xFF9A9590)
+                            : const Color(0xFF6B5E4F),
                       ),
                     ),
                     if (memoryCount > 0)
@@ -176,7 +183,9 @@ class GeminiHeader extends StatelessWidget {
                           height: 14,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: isDark ? const Color(0xFF7BA37B) : const Color(0xFFC27B5F),
+                            color: isDark
+                                ? const Color(0xFF7BA37B)
+                                : const Color(0xFFC27B5F),
                           ),
                           child: Center(
                             child: Text(
@@ -228,7 +237,9 @@ class GeminiHeader extends StatelessWidget {
                 icon: Icon(
                   Icons.close,
                   size: 22,
-                  color: isDark ? const Color(0xFF9A9590) : const Color(0xFF6B5E4F),
+                  color: isDark
+                      ? const Color(0xFF9A9590)
+                      : const Color(0xFF6B5E4F),
                 ),
               ),
             ],

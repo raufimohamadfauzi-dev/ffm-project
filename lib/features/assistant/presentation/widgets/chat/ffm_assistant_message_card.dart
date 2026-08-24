@@ -59,26 +59,104 @@ class FfmAssistantMessageCard extends StatelessWidget {
     final intent = entry.intent;
     final isUnknown = !isUser && intent?.type == FfmAssistantIntentType.unknown;
 
-    // Claude palette: warm paper, flat, no shadow
-    final bubbleColor = isUser
-        ? (isDark ? const Color(0xFF2E2E2C) : const Color(0xFFF0EBE0))
-        : isUnknown
-        ? (isDark ? const Color(0xFF2E2520) : const Color(0xFFFFF3E0))
-        : (isDark ? const Color(0xFF1E1E1C) : Colors.white);
-
-    final onBubbleColor = isUser
+    final userBubbleColor = isDark
+        ? const Color(0xFF302F2B)
+        : const Color(0xFFF0ECE3);
+    final textColor = isUser
         ? (isDark ? const Color(0xFFEDE8E0) : const Color(0xFF2B2117))
-        : isUnknown
-        ? (isDark ? const Color(0xFFFFD180) : const Color(0xFF8A4B00))
         : (isDark ? const Color(0xFFEDE8E0) : const Color(0xFF2B2117));
 
-    final bubbleBorder = Border.all(
-      color: isUnknown
-          ? const Color(0xFFFFA726).withValues(alpha: 0.6)
-          : isDark
-          ? const Color(0xFF3A3530)
-          : const Color(0xFFE8E0D0),
-      width: 0.8,
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!isUser && entry.processTrace != null) ...[
+          FfmAssistantProcessDisclosure(
+            trace: entry.processTrace!,
+            actionPlan: actionPlan,
+          ),
+          const SizedBox(height: 6),
+        ],
+        if (isUnknown) ...[
+          Semantics(
+            label: 'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.school_outlined,
+                  size: 17,
+                  color: theme.colorScheme.onTertiaryContainer,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Tersimpan di Pengetahuan Asisten • menu Lainnya',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onTertiaryContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (entry.imagePath != null) ...[
+          FfmChatImagePreview(path: entry.imagePath!),
+          if (entry.text.isNotEmpty) const SizedBox(height: 8),
+        ],
+        if (entry.filePath != null) ...[
+          FfmChatFileCard(
+            path: entry.filePath!,
+            format: entry.fileFormat,
+            onShare: onShareFile,
+          ),
+          if (entry.text.isNotEmpty) const SizedBox(height: 8),
+        ],
+        if (entry.text.isNotEmpty)
+          FfmAssistantMarkdownText(text: entry.text, color: textColor),
+        if (intent?.draft != null) ...[
+          const SizedBox(height: 10),
+          FfmAssistantDraftPreview(draft: intent!.draft!, review: review),
+        ],
+        if (onCopyText != null ||
+            onSpeak != null ||
+            onIntent != null ||
+            onConfirmActivity != null ||
+            onShowTechnical != null) ...[
+          const SizedBox(height: 8),
+          FfmAssistantMessageToolbar(
+            isUser: isUser,
+            hasPrimaryAction:
+                onIntent != null &&
+                intent != null &&
+                (intent.destination != null ||
+                    intent.draft != null ||
+                    intent.type == FfmAssistantIntentType.exportReport ||
+                    intent.type == FfmAssistantIntentType.confirm) &&
+                (review?.canContinue ?? true),
+            primaryActionLabel:
+                primaryActionLabel ??
+                (intent?.destination != null ? 'Buka' : 'Lanjut'),
+            onPrimaryAction: onIntent,
+            onConfirmActivity: onConfirmActivity,
+            onShowTechnical: onShowTechnical,
+            activityConfirmed: activityConfirmed,
+            actionPlan: actionPlan,
+            onCopyText: onCopyText,
+            onSpeak: onSpeak,
+            isSpeaking: isSpeaking,
+            onCorrectMessage: onCorrectMessage,
+            onCopyFeedback: onCopyFeedback,
+            onEditDraft: onEditDraft,
+            onCancelDraft: onCancelDraft,
+            onApproveTeaching: onApproveTeaching,
+            teachingSaved: teachingSaved,
+            foregroundColor: textColor,
+          ),
+        ],
+      ],
     );
 
     return LayoutBuilder(
@@ -87,127 +165,38 @@ class FfmAssistantMessageCard extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: isUser
-                ? constraints.maxWidth * .80
+                ? constraints.maxWidth * .78
                 : constraints.maxWidth * .90,
           ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: bubbleColor,
-              border: bubbleBorder,
-              borderRadius: isUser
-                  ? const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(4),
-                    )
-                  : const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
-                      bottomLeft: Radius.circular(4),
-                      bottomRight: Radius.circular(12),
+          child: isUser
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: userBubbleColor,
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF45413C)
+                          : const Color(0xFFE1DACE),
+                      width: .8,
                     ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (!isUser && entry.processTrace != null) ...[
-                    FfmAssistantProcessDisclosure(trace: entry.processTrace!),
-                    const SizedBox(height: 6),
-                  ],
-                  if (isUnknown) ...[
-                    Semantics(
-                      label: 'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.school_outlined,
-                            size: 17,
-                            color: theme.colorScheme.onTertiaryContainer,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              'Tersimpan di Pengetahuan Asisten • menu Lainnya',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: theme.colorScheme.onTertiaryContainer,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.circular(5),
                     ),
-                    const SizedBox(height: 8),
-                  ],
-                  if (entry.imagePath != null) ...[
-                    FfmChatImagePreview(path: entry.imagePath!),
-                    if (entry.text.isNotEmpty) const SizedBox(height: 8),
-                  ],
-                  if (entry.filePath != null) ...[
-                    FfmChatFileCard(
-                      path: entry.filePath!,
-                      format: entry.fileFormat,
-                      onShare: onShareFile,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
                     ),
-                    if (entry.text.isNotEmpty) const SizedBox(height: 8),
-                  ],
-                  if (entry.text.isNotEmpty)
-                    FfmAssistantMarkdownText(
-                      text: entry.text,
-                      color: onBubbleColor,
-                    ),
-                  if (intent?.draft != null) ...[
-                    const SizedBox(height: 10),
-                    FfmAssistantDraftPreview(
-                      draft: intent!.draft!,
-                      review: review,
-                    ),
-                  ],
-                  if (onCopyText != null ||
-                      onSpeak != null ||
-                      onIntent != null ||
-                      onConfirmActivity != null ||
-                      onShowTechnical != null) ...[
-                    const SizedBox(height: 8),
-                    FfmAssistantMessageToolbar(
-                      isUser: isUser,
-                      hasPrimaryAction:
-                          onIntent != null &&
-                          intent != null &&
-                          (intent.destination != null ||
-                              intent.draft != null ||
-                              intent.type ==
-                                  FfmAssistantIntentType.exportReport ||
-                              intent.type == FfmAssistantIntentType.confirm) &&
-                          (review?.canContinue ?? true),
-                      primaryActionLabel:
-                          primaryActionLabel ??
-                          (intent?.destination != null ? 'Buka' : 'Lanjut'),
-                      onPrimaryAction: onIntent,
-                      onConfirmActivity: onConfirmActivity,
-                      onShowTechnical: onShowTechnical,
-                      activityConfirmed: activityConfirmed,
-                      actionPlan: actionPlan,
-                      onCopyText: onCopyText,
-                      onSpeak: onSpeak,
-                      isSpeaking: isSpeaking,
-                      onCorrectMessage: onCorrectMessage,
-                      onCopyFeedback: onCopyFeedback,
-                      onEditDraft: onEditDraft,
-                      onCancelDraft: onCancelDraft,
-                      onApproveTeaching: onApproveTeaching,
-                      teachingSaved: teachingSaved,
-                      foregroundColor: onBubbleColor,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
+                    child: content,
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(2, 5, 4, 7),
+                  child: content,
+                ),
         ),
       ),
     );

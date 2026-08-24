@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -62,17 +61,16 @@ Future<void> showFfmAssistantSheet(
   required FfmAssistantChatSession session,
   FfmAssistantDestination? currentDestination,
   FfmAssistantPageContextSnapshot? currentPageContext,
-}) => showModalBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  backgroundColor: Colors.transparent,
-  builder: (_) => FfmAssistantSheet(
-    onIntent: onIntent,
-    onIntents: onIntents,
-    session: session,
-    currentDestination: currentDestination,
-    currentPageContext: currentPageContext,
+}) => Navigator.of(context).push<void>(
+  MaterialPageRoute(
+    fullscreenDialog: true,
+    builder: (_) => FfmAssistantSheet(
+      onIntent: onIntent,
+      onIntents: onIntents,
+      session: session,
+      currentDestination: currentDestination,
+      currentPageContext: currentPageContext,
+    ),
   ),
 );
 
@@ -108,6 +106,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     controller: _actionPlanController,
     handlers: getIt<FfmAssistantCapabilityAdapterRegistry>().handlers,
     readTransaction: <T>(action) => getIt<AppDatabase>().transaction(action),
+    onPlanProgress: (_) {
+      if (mounted) setState(() {});
+    },
   );
   final _proactiveService = const FfmAssistantProactiveSuggestionService();
   final _slmFollowUpService = getIt<FfmAssistantSlmFollowUpService>();
@@ -131,10 +132,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _navigatingFromChat = false;
   var _modelReady = false;
   var _modelChecking = true;
-  var _isFullScreen = false;
+  var _isFullScreen = true;
   String? _modelStatusError;
   var _listening = false;
   var _followLatestMessages = true;
+  var _showScrollToBottom = false;
   List<String> _slmFollowUpSuggestions = const <String>[];
   var _followUpGeneration = 0;
   String? _speakingEntryKey;
@@ -1723,7 +1725,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!_scrollController.hasClients) return;
     final distanceToEnd =
         _scrollController.position.maxScrollExtent - _scrollController.offset;
-    _followLatestMessages = distanceToEnd < 88;
+    final followLatest = distanceToEnd < 88;
+    final showScrollControl = distanceToEnd > 200;
+    if (_followLatestMessages == followLatest &&
+        _showScrollToBottom == showScrollControl) {
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _followLatestMessages = followLatest;
+        _showScrollToBottom = showScrollControl;
+      });
+    }
   }
 
   String? _buildRecentConversationHistory() {
@@ -1751,7 +1764,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       _scrollController.animateTo(
         _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     });
@@ -1761,21 +1774,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final mediaQuery = MediaQuery.of(context);
-    final keyboardInset = mediaQuery.viewInsets.bottom;
-    final maxAvailableHeight =
-        (mediaQuery.size.height - keyboardInset - mediaQuery.padding.top).clamp(
-          120.0,
-          double.infinity,
-        );
-    final minHeight = math.min(260.0, maxAvailableHeight);
-    final targetHeight =
-        mediaQuery.size.height *
-        (_isFullScreen
-            ? 1.0
-            : (mediaQuery.orientation == Orientation.landscape ? 0.95 : 0.82));
-    final sheetHeight = targetHeight.clamp(minHeight, maxAvailableHeight);
-
     final currentPage = widget.currentDestination == null
         ? null
         : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
@@ -1785,24 +1783,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       hasConversation: _entries.any((entry) => entry.isUser),
     );
 
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: keyboardInset),
-      child: Material(
-        color: isDark ? const Color(0xFF1E1B18) : const Color(0xFFFDFCF9),
-        borderRadius: _isFullScreen
-            ? BorderRadius.zero
-            : const BorderRadius.vertical(top: Radius.circular(16)),
-        child: SizedBox(
-          height: sheetHeight,
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: isDark
+          ? const Color(0xFF1E1B18)
+          : const Color(0xFFFDFCF9),
+      body: SafeArea(
+        child: Material(
+          color: isDark ? const Color(0xFF1E1B18) : const Color(0xFFFDFCF9),
           child: Column(
             children: [
               GeminiHeader(
                 currentPage: currentPage,
                 isFullScreen: _isFullScreen,
-                onToggleFullScreen: () =>
-                    setState(() => _isFullScreen = !_isFullScreen),
+                showFullscreenToggle: false,
+                onToggleFullScreen: () {},
                 onOpenVoicePicker: _openVoicePicker,
                 onResetChat: _confirmResetSession,
                 onClose: () => Navigator.of(context).pop(),
@@ -1883,95 +1878,130 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   ),
                 ),
               Expanded(
-                child: ListView.separated(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  itemCount: _entries.length + (_submitting ? 1 : 0),
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, index) {
-                    if (_submitting && index == _entries.length) {
-                      return GeminiTypingIndicator(
-                        message: _activeProcessLabel,
-                      );
-                    }
-                    final entry = _entries[index];
-                    final opensCurrentPage =
-                        entry.intent?.destination != null &&
-                        entry.intent!.destination ==
-                            widget.currentDestination &&
-                        entry.intent!.draft == null;
-                    return FfmAssistantMessageCard(
-                      entry: entry,
-                      onSpeak: entry.isUser
-                          ? null
-                          : () => _toggleSpeakFor(index, entry),
-                      isSpeaking:
-                          _speakingEntryKey == _speechKeyFor(index, entry),
-                      onIntent:
-                          entry.intent == null ||
-                              entry.intent!.needsTeachingApproval ||
-                              (entry.intent!.destination == null &&
-                                  entry.intent!.draft == null &&
-                                  entry.intent!.type !=
-                                      FfmAssistantIntentType.exportReport &&
-                                  entry.intent!.type !=
-                                      FfmAssistantIntentType.confirm)
-                          ? null
-                          : () => _handleIntent(entry.intent!),
-                      primaryActionLabel: _isDirectMutation(entry.intent?.draft)
-                          ? 'Konfirmasi'
-                          : opensCurrentPage
-                          ? 'Cek halaman'
-                          : entry.intent?.destination != null
-                          ? 'Buka'
-                          : 'Lanjut',
-                      onApproveTeaching:
-                          entry.intent?.needsTeachingApproval ?? false
-                          ? () => _approveTeaching(entry.intent!)
-                          : null,
-                      teachingSaved: entry.intent?.teachingProposal == null
-                          ? false
-                          : _savedTeachingKeys.contains(
-                              _teachingKey(entry.intent!.teachingProposal!),
+                child: Stack(
+                  children: [
+                    ListView.separated(
+                      controller: _scrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
+                      itemCount: _entries.length + (_submitting ? 1 : 0),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
+                      itemBuilder: (_, index) {
+                        if (_submitting && index == _entries.length) {
+                          return GeminiTypingIndicator(
+                            message: _activeProcessLabel,
+                          );
+                        }
+                        final entry = _entries[index];
+                        final opensCurrentPage =
+                            entry.intent?.destination != null &&
+                            entry.intent!.destination ==
+                                widget.currentDestination &&
+                            entry.intent!.draft == null;
+                        return FfmAssistantMessageCard(
+                          entry: entry,
+                          onSpeak: entry.isUser
+                              ? null
+                              : () => _toggleSpeakFor(index, entry),
+                          isSpeaking:
+                              _speakingEntryKey == _speechKeyFor(index, entry),
+                          onIntent:
+                              entry.intent == null ||
+                                  entry.intent!.needsTeachingApproval ||
+                                  (entry.intent!.destination == null &&
+                                      entry.intent!.draft == null &&
+                                      entry.intent!.type !=
+                                          FfmAssistantIntentType.exportReport &&
+                                      entry.intent!.type !=
+                                          FfmAssistantIntentType.confirm)
+                              ? null
+                              : () => _handleIntent(entry.intent!),
+                          primaryActionLabel:
+                              _isDirectMutation(entry.intent?.draft)
+                              ? 'Konfirmasi'
+                              : opensCurrentPage
+                              ? 'Cek halaman'
+                              : entry.intent?.destination != null
+                              ? 'Buka'
+                              : 'Lanjut',
+                          onApproveTeaching:
+                              entry.intent?.needsTeachingApproval ?? false
+                              ? () => _approveTeaching(entry.intent!)
+                              : null,
+                          teachingSaved: entry.intent?.teachingProposal == null
+                              ? false
+                              : _savedTeachingKeys.contains(
+                                  _teachingKey(entry.intent!.teachingProposal!),
+                                ),
+                          review: entry.review,
+                          onEditDraft:
+                              entry.intent?.draft != null &&
+                                  entry.review != null
+                              ? () => _editActiveDraft(entry.intent!)
+                              : null,
+                          onCancelDraft:
+                              entry.intent?.draft != null &&
+                                  entry.review != null
+                              ? _cancelActiveDraft
+                              : null,
+                          onCopyFeedback: entry.isUser
+                              ? null
+                              : () => _copyFeedbackContext(entry),
+                          onShowTechnical: entry.intent == null
+                              ? null
+                              : () => _showTechnicalDetails(entry.intent!),
+                          onCopyText: () => _copyEntryText(entry),
+                          onShareFile: entry.filePath == null
+                              ? null
+                              : () => _shareFile(
+                                  entry.filePath!,
+                                  entry.fileFormat,
+                                ),
+                          onCorrectMessage: entry.isUser
+                              ? () => _correctUserMessage(entry)
+                              : () => _correctMessageFromEntry(entry),
+                          onConfirmActivity:
+                              entry.activityIntent?.canConfirm ?? false
+                              ? () => _confirmActivityIntent(
+                                  entry.activityIntent!,
+                                )
+                              : null,
+                          activityConfirmed: entry.activityIntent == null
+                              ? false
+                              : _confirmedActivityKeys.contains(
+                                  _activityKey(entry.activityIntent!),
+                                ),
+                          actionPlan: entry.intent == null
+                              ? null
+                              : _actionPlanController.get(
+                                  _actionPlanner.planFor(entry.intent!)?.id ??
+                                      '',
+                                ),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      right: 18,
+                      bottom: 14,
+                      child: AnimatedOpacity(
+                        opacity: _showScrollToBottom ? 1 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: IgnorePointer(
+                          ignoring: !_showScrollToBottom,
+                          child: Semantics(
+                            button: true,
+                            label: 'Lompat ke pesan terbaru',
+                            child: FloatingActionButton.small(
+                              heroTag: 'ffm-assistant-scroll-bottom',
+                              tooltip: 'Pesan terbaru',
+                              onPressed: () => _scrollToEnd(force: true),
+                              child: const Icon(Icons.arrow_downward_rounded),
                             ),
-                      review: entry.review,
-                      onEditDraft:
-                          entry.intent?.draft != null && entry.review != null
-                          ? () => _editActiveDraft(entry.intent!)
-                          : null,
-                      onCancelDraft:
-                          entry.intent?.draft != null && entry.review != null
-                          ? _cancelActiveDraft
-                          : null,
-                      onCopyFeedback: entry.isUser
-                          ? null
-                          : () => _copyFeedbackContext(entry),
-                      onShowTechnical: entry.intent == null
-                          ? null
-                          : () => _showTechnicalDetails(entry.intent!),
-                      onCopyText: () => _copyEntryText(entry),
-                      onShareFile: entry.filePath == null
-                          ? null
-                          : () => _shareFile(entry.filePath!, entry.fileFormat),
-                      onCorrectMessage: entry.isUser
-                          ? () => _correctUserMessage(entry)
-                          : () => _correctMessageFromEntry(entry),
-                      onConfirmActivity:
-                          entry.activityIntent?.canConfirm ?? false
-                          ? () => _confirmActivityIntent(entry.activityIntent!)
-                          : null,
-                      activityConfirmed: entry.activityIntent == null
-                          ? false
-                          : _confirmedActivityKeys.contains(
-                              _activityKey(entry.activityIntent!),
-                            ),
-                      actionPlan: entry.intent == null
-                          ? null
-                          : _actionPlanController.get(
-                              _actionPlanner.planFor(entry.intent!)?.id ?? '',
-                            ),
-                    );
-                  },
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               if (_submitting) const LinearProgressIndicator(minHeight: 2),
@@ -2102,56 +2132,86 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      IconButton.filledTonal(
-                        tooltip: _listening
-                            ? 'Berhenti dengar'
-                            : 'Bicara ke Asisten',
-                        onPressed: _submitting ? null : _toggleListening,
-                        icon: Icon(_listening ? Icons.stop : Icons.mic_none),
-                      ),
-                      const SizedBox(width: 6),
-                      IconButton.filledTonal(
-                        tooltip: 'Lampirkan foto',
-                        onPressed: _submitting ? null : _openAttachmentPicker,
-                        icon: const Icon(Icons.attach_file),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _inputFocusNode,
-                          minLines: 2,
-                          maxLines: 5,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _submit(),
-                          onTap: _scrollToEnd,
-                          decoration: InputDecoration(
-                            hintText: 'Tulis perintah atau pertanyaan…',
-                            filled: true,
-                            fillColor: isDark
-                                ? const Color(0xFF2A2A28)
-                                : const Color(0xFFF3F0E7),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              borderSide: BorderSide.none,
-                            ),
+                  child: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _controller,
+                    builder: (context, value, _) {
+                      final canSend =
+                          !_submitting &&
+                          (value.text.trim().isNotEmpty ||
+                              _pendingImage != null);
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF292724)
+                              : const Color(0xFFF4F1EA),
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF403C37)
+                                : const Color(0xFFE1DAD0),
                           ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(
+                                alpha: isDark ? .18 : .06,
+                              ),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        tooltip: 'Kirim',
-                        onPressed: _submitting ? null : _submit,
-                        icon: const Icon(Icons.arrow_upward),
-                      ),
-                    ],
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              tooltip: _listening
+                                  ? 'Berhenti dengar'
+                                  : 'Bicara ke Asisten',
+                              onPressed: _submitting ? null : _toggleListening,
+                              icon: Icon(
+                                _listening ? Icons.stop : Icons.mic_none,
+                              ),
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                focusNode: _inputFocusNode,
+                                minLines: 1,
+                                maxLines: 5,
+                                textInputAction: TextInputAction.send,
+                                onSubmitted: (_) => canSend ? _submit() : null,
+                                onTap: _scrollToEnd,
+                                decoration: const InputDecoration(
+                                  hintText: 'Tulis perintah atau pertanyaan…',
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: 13,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Lampirkan foto',
+                              onPressed: _submitting
+                                  ? null
+                                  : _openAttachmentPicker,
+                              icon: const Icon(Icons.attach_file),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                right: 5,
+                                bottom: 5,
+                              ),
+                              child: IconButton.filled(
+                                tooltip: 'Kirim',
+                                onPressed: canSend ? _submit : null,
+                                icon: const Icon(Icons.arrow_upward),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),

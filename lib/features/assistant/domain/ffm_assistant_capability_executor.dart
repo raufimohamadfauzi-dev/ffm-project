@@ -24,6 +24,10 @@ typedef FfmAssistantCapabilityHandler =
       FfmAssistantActionStep step,
     );
 
+typedef FfmAssistantPlanProgressListener = void Function(
+  FfmAssistantActionPlan plan,
+);
+
 /// Menjalankan plan secara serial melalui handler yang di-allowlist aplikasi.
 /// SLM tidak pernah menjadi handler dan tidak dapat menulis database langsung.
 class FfmAssistantCapabilityExecutor {
@@ -32,22 +36,30 @@ class FfmAssistantCapabilityExecutor {
     Map<String, FfmAssistantCapabilityHandler> handlers = const {},
     FfmAssistantReadTransaction? readTransaction,
     Future<void> Function()? pageReadySignal,
+    FfmAssistantPlanProgressListener? onPlanProgress,
     Duration stepTimeout = const Duration(seconds: 10),
     int maxRetries = 2,
   }) : _controller = controller,
-        _handlers = Map.unmodifiable(handlers),
-        _readTransaction = readTransaction,
-        _pageReadySignal = pageReadySignal,
-        _stepTimeout = stepTimeout,
-        _maxRetries = maxRetries;
+       _handlers = Map.unmodifiable(handlers),
+       _readTransaction = readTransaction,
+       _pageReadySignal = pageReadySignal,
+       _onPlanProgress = onPlanProgress,
+       _stepTimeout = stepTimeout,
+       _maxRetries = maxRetries;
 
   final FfmAssistantActionPlanController _controller;
   final Map<String, FfmAssistantCapabilityHandler> _handlers;
   final Set<String> _executedSteps = <String>{};
   final FfmAssistantReadTransaction? _readTransaction;
   final Future<void> Function()? _pageReadySignal;
+  final FfmAssistantPlanProgressListener? _onPlanProgress;
   final Duration _stepTimeout;
   final int _maxRetries;
+
+  FfmAssistantActionPlan? _report(FfmAssistantActionPlan? plan) {
+    if (plan != null) _onPlanProgress?.call(plan);
+    return plan;
+  }
 
   Future<FfmAssistantActionPlan?> execute(String planId) async {
     final plan = _controller.get(planId);
@@ -61,18 +73,22 @@ class FfmAssistantCapabilityExecutor {
     var plan = _controller.get(planId);
     if (plan == null || plan.isTerminal) return plan;
     if (plan.steps.length > FfmAssistantExecutionLimits.maxStepsPerPlan) {
-      return _controller.blockByBudget(
-        planId,
-        FfmAssistantBudgetBlockReason.tooManySteps,
+      return _report(
+        _controller.blockByBudget(
+          planId,
+          FfmAssistantBudgetBlockReason.tooManySteps,
+        ),
       );
     }
     if (plan.hasMutation &&
         plan.status != FfmAssistantActionPlanStatus.executing) {
-      return _controller.block(planId, 'Plan mutation belum dikonfirmasi.');
+      return _report(
+        _controller.block(planId, 'Plan mutation belum dikonfirmasi.'),
+      );
     }
     if (!plan.hasMutation &&
         plan.status == FfmAssistantActionPlanStatus.planned) {
-      plan = _controller.start(planId);
+      plan = _report(_controller.start(planId));
     }
     if (plan == null) return null;
 
@@ -82,10 +98,12 @@ class FfmAssistantCapabilityExecutor {
         continue;
       }
       if (step.capabilityId.startsWith('navigate.')) {
-        plan = _controller.skipStep(
-          planId,
-          step.id,
-          'Navigasi ditangani oleh AppShell/UI.',
+        plan = _report(
+          _controller.skipStep(
+            planId,
+            step.id,
+            'Navigasi ditangani oleh AppShell/UI.',
+          ),
         );
         if (plan == null) return null;
         if (_pageReadySignal != null) {
@@ -102,19 +120,23 @@ class FfmAssistantCapabilityExecutor {
       }
       final executionKey = '$planId:${step.id}';
       if (_executedSteps.contains(executionKey)) {
-        return _controller.blockByBudget(
-          planId,
-          FfmAssistantBudgetBlockReason.stepAlreadyExecuted,
+        return _report(
+          _controller.blockByBudget(
+            planId,
+            FfmAssistantBudgetBlockReason.stepAlreadyExecuted,
+          ),
         );
       }
       final handler = _handlers[step.capabilityId];
       if (handler == null) {
-        return _controller.failPlan(
-          planId,
-          'Capability ${step.capabilityId} belum memiliki adapter eksekusi.',
+        return _report(
+          _controller.failPlan(
+            planId,
+            'Capability ${step.capabilityId} belum memiliki adapter eksekusi.',
+          ),
         );
       }
-      _controller.startStep(planId, step.id);
+      _report(_controller.startStep(planId, step.id));
       _executedSteps.add(executionKey);
       final capability = FfmAssistantCapabilityRegistry.find(step.capabilityId);
       final isReadOnly = capability?.readOnly ?? false;
@@ -122,7 +144,9 @@ class FfmAssistantCapabilityExecutor {
       var succeeded = false;
       final maxAttempts = isReadOnly ? _maxRetries + 1 : 1;
       FfmAssistantCapabilityExecutionResult result =
-          const FfmAssistantCapabilityExecutionResult.failure('Tidak dijalankan');
+          const FfmAssistantCapabilityExecutionResult.failure(
+            'Tidak dijalankan',
+          );
       while (!succeeded && attempts < maxAttempts) {
         attempts++;
         try {
@@ -140,13 +164,15 @@ class FfmAssistantCapabilityExecutor {
         if (result.isSuccess) {
           succeeded = true;
         } else if (!isReadOnly || attempts >= maxAttempts) {
-          return _controller.failStepAndPlan(planId, step.id, result.message);
+          return _report(
+            _controller.failStepAndPlan(planId, step.id, result.message),
+          );
         }
       }
-      plan = _controller.completeStep(planId, step.id, result.message);
+      plan = _report(_controller.completeStep(planId, step.id, result.message));
       if (plan == null) return null;
     }
-    return _controller.complete(planId);
+    return _report(_controller.complete(planId));
   }
 }
 

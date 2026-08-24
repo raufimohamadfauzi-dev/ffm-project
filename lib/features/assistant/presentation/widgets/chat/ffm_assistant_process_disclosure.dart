@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../domain/ffm_assistant_action_plan.dart';
 import '../../../domain/ffm_assistant_models.dart';
 
 class FfmAssistantProcessDisclosure extends StatefulWidget {
-  const FfmAssistantProcessDisclosure({super.key, required this.trace});
+  const FfmAssistantProcessDisclosure({
+    super.key,
+    required this.trace,
+    this.actionPlan,
+  });
 
   final FfmAssistantProcessTrace trace;
+  final FfmAssistantActionPlan? actionPlan;
 
   @override
   State<FfmAssistantProcessDisclosure> createState() =>
@@ -48,11 +54,68 @@ class _FfmAssistantProcessDisclosureState
         : 'T+${(milliseconds / 1000).toStringAsFixed(2)} dtk';
   }
 
+  String _capabilityLabel(String capabilityId) => switch (capabilityId) {
+    'read.summary' => 'Membaca ringkasan transaksi',
+    'read.transactions' => 'Membaca transaksi yang tersimpan',
+    'read.budget' => 'Memeriksa anggaran',
+    'read.activity' => 'Membaca aktivitas',
+    'read.accounts' => 'Memeriksa rekening',
+    'read.categories' => 'Memeriksa kategori',
+    'read.model_status' => 'Memeriksa status model lokal',
+    'navigate.budget' => 'Membuka halaman Anggaran',
+    _ =>
+      capabilityId
+          .replaceFirst(RegExp(r'^(read|draft|mutate|verify|navigate)\.'), '')
+          .replaceAll('_', ' '),
+  };
+
+  ({IconData icon, Color color, String label}) _stepStyle(
+    FfmAssistantActionStepStatus status,
+    ColorScheme scheme,
+  ) => switch (status) {
+    FfmAssistantActionStepStatus.completed => (
+      icon: Icons.check_circle_outline,
+      color: const Color(0xFF25854A),
+      label: 'Selesai',
+    ),
+    FfmAssistantActionStepStatus.failed => (
+      icon: Icons.cancel_outlined,
+      color: scheme.error,
+      label: 'Gagal',
+    ),
+    FfmAssistantActionStepStatus.running => (
+      icon: Icons.hourglass_top_rounded,
+      color: scheme.primary,
+      label: 'Berjalan',
+    ),
+    FfmAssistantActionStepStatus.skipped => (
+      icon: Icons.subdirectory_arrow_right_outlined,
+      color: scheme.onSurfaceVariant,
+      label: 'Dilewati',
+    ),
+    FfmAssistantActionStepStatus.pending => (
+      icon: Icons.schedule_outlined,
+      color: scheme.onSurfaceVariant,
+      label: 'Menunggu',
+    ),
+    FfmAssistantActionStepStatus.blocked => (
+      icon: Icons.block_outlined,
+      color: scheme.error,
+      label: 'Terblokir',
+    ),
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final origin = _origin;
+    final plan = widget.actionPlan;
+    final planSummary = plan == null
+        ? '${origin.label} · $_duration'
+        : plan.status == FfmAssistantActionPlanStatus.planned
+        ? 'Menunggu ${plan.steps.length} langkah · perlu konfirmasi'
+        : 'Menjalankan ${plan.steps.length} langkah · $_duration';
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -73,7 +136,7 @@ class _FfmAssistantProcessDisclosureState
             child: Semantics(
               button: true,
               label:
-                  '${origin.label}, $_duration. ${_expanded ? 'Tutup' : 'Buka'} detail proses.',
+                  '$planSummary. ${_expanded ? 'Tutup' : 'Buka'} detail proses.',
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 11,
@@ -85,7 +148,7 @@ class _FfmAssistantProcessDisclosureState
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${origin.label} · $_duration',
+                        planSummary,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w700,
@@ -142,6 +205,49 @@ class _FfmAssistantProcessDisclosureState
                       Text(event.detail!, style: theme.textTheme.bodySmall),
                     ],
                     const SizedBox(height: 8),
+                  ],
+                  if (plan != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Langkah Action Plan',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    for (final step in plan.steps) ...[
+                      Builder(
+                        builder: (context) {
+                          final style = _stepStyle(
+                            step.status,
+                            theme.colorScheme,
+                          );
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(style.icon, size: 17, color: style.color),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _capabilityLabel(step.capabilityId),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                style.label,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: style.color,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 7),
+                    ],
                   ],
                   if (widget.trace.fallbackReason != null)
                     Text(

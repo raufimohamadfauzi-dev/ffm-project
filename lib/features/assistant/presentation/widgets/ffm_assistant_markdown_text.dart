@@ -218,6 +218,46 @@ class FfmAssistantMarkdownText extends StatelessWidget {
 
   List<InlineSpan> _linkSpans(String value, Color color, {required bool bold}) {
     final spans = <InlineSpan>[];
+    final inlineCode = RegExp(r'`([^`]+)`');
+    var cursor = 0;
+    for (final match in inlineCode.allMatches(value)) {
+      if (match.start > cursor) {
+        spans.addAll(
+          _plainOrLinkSpans(
+            value.substring(cursor, match.start),
+            color,
+            bold: bold,
+          ),
+        );
+      }
+      spans.add(
+        TextSpan(
+          text: match.group(1),
+          style: TextStyle(
+            color: color,
+            fontFamily: 'monospace',
+            fontSize: 12.5,
+            fontWeight: bold ? FontWeight.w800 : null,
+            backgroundColor: color.withValues(alpha: .12),
+          ),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < value.length) {
+      spans.addAll(
+        _plainOrLinkSpans(value.substring(cursor), color, bold: bold),
+      );
+    }
+    return spans;
+  }
+
+  List<InlineSpan> _plainOrLinkSpans(
+    String value,
+    Color color, {
+    required bool bold,
+  }) {
+    final spans = <InlineSpan>[];
     final links = FfmAssistantExternalLinkParser.parse(value);
     var cursor = 0;
     for (final link in links) {

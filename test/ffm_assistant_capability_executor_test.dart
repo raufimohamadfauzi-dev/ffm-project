@@ -48,6 +48,46 @@ void main() {
     );
   });
 
+  test(
+    'executor melaporkan status langkah aktual kepada panel proses',
+    () async {
+      final controller = FfmAssistantActionPlanController();
+      controller.register(
+        FfmAssistantActionPlan(
+          id: 'trace-plan',
+          summary: 'Baca anggaran',
+          createdAt: DateTime(2026, 8, 24),
+          steps: const [
+            FfmAssistantActionStep(id: 'budget', capabilityId: 'read.budget'),
+          ],
+        ),
+      );
+      final reportedStatuses = <FfmAssistantActionStepStatus>[];
+      final executor = FfmAssistantCapabilityExecutor(
+        controller: controller,
+        handlers: {
+          'read.budget': (_) async =>
+              const FfmAssistantCapabilityExecutionResult.success('aman'),
+        },
+        onPlanProgress: (plan) {
+          reportedStatuses.add(plan.steps.single.status);
+        },
+      );
+
+      final result = await executor.execute('trace-plan');
+
+      expect(result?.status, FfmAssistantActionPlanStatus.completed);
+      expect(
+        reportedStatuses,
+        containsAllInOrder([
+          FfmAssistantActionStepStatus.pending,
+          FfmAssistantActionStepStatus.running,
+          FfmAssistantActionStepStatus.completed,
+        ]),
+      );
+    },
+  );
+
   test('executor memblokir mutation sebelum confirmation', () async {
     final controller = FfmAssistantActionPlanController();
     controller.register(
