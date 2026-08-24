@@ -344,11 +344,25 @@ class FfmAssistantInterpreter {
     // pernah diserahkan kepada teks bebas dari model.
 
     // Fallback rule-based
-    if (normalized.isEmpty) {
+    if (normalized.isEmpty && imagePath == null) {
       return _unknown(
         rawText,
         normalized,
         'Tulis atau ucapkan dulu yang mau kamu lakukan, ya.',
+      );
+    }
+
+    // Lampiran selalu mendapat kesempatan melalui visi lokal sebelum bantuan
+    // halaman aktif atau katalog aturan dapat mengambil alih pertanyaan singkat.
+    if (imagePath != null) {
+      return _interpretImageRequest(
+        rawText,
+        normalized,
+        imagePath: imagePath,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
       );
     }
 
@@ -1136,6 +1150,33 @@ class FfmAssistantInterpreter {
     );
   }
 
+  Future<FfmAssistantIntent> _interpretImageRequest(
+    String rawText,
+    String normalized, {
+    required String imagePath,
+    required FfmAssistantDestination? currentDestination,
+    required String? pageContext,
+    required String? conversationHistory,
+    required List<String> capabilityIds,
+  }) async {
+    final modelIntent = await _tryModelFirst(
+      rawText,
+      normalized,
+      imagePath: imagePath,
+      pageContext: pageContext,
+      conversationHistory: conversationHistory,
+      capabilityIds: capabilityIds,
+      currentDestination: currentDestination,
+    );
+    if (modelIntent != null) return modelIntent;
+    return _unknown(
+      rawText,
+      normalized,
+      'Aku belum mendapatkan hasil gambar yang valid dari AI lokal. Pastikan model visi siap, lalu coba foto yang lebih jelas atau lampirkan ulang.',
+      responseOrigin: FfmAssistantResponseOrigin.localFallback,
+    );
+  }
+
   /// Memahami respon percakapan multi-turn yang menanggapi pesan/pertanyaan
   /// asisten sebelumnya (seperti sapaan, tawaran bantuan, atau klarifikasi).
   Future<FfmAssistantIntent?> _resolveConversationalDialogueTurn(
@@ -1479,6 +1520,7 @@ class FfmAssistantInterpreter {
         confidence: proposal.confidence,
         clarification: proposal.clarification!.trim(),
         responseMode: FfmAssistantResponseMode.localModel,
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
 
@@ -1495,6 +1537,7 @@ class FfmAssistantInterpreter {
         confidence: proposal.confidence,
         responseMode: FfmAssistantResponseMode.localModel,
         response: imageObservation,
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
 
@@ -1511,6 +1554,7 @@ class FfmAssistantInterpreter {
           confidence: proposal.confidence,
           responseMode: FfmAssistantResponseMode.localModel,
           response: imageObservation,
+          responseOrigin: FfmAssistantResponseOrigin.localSlm,
         );
       }
       return FfmAssistantIntent(
@@ -1519,6 +1563,7 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.outOfDomain,
         confidence: proposal.confidence,
         responseMode: FfmAssistantResponseMode.localModel,
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
 
@@ -1536,6 +1581,7 @@ class FfmAssistantInterpreter {
         responseMode: FfmAssistantResponseMode.localModel,
         response:
             'Siap, aku pindahkan kamu ke ${page.name}. Tekan “Buka & cek” kalau sudah siap.',
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
 
@@ -1552,6 +1598,7 @@ class FfmAssistantInterpreter {
         confidence: proposal.confidence,
         responseMode: FfmAssistantResponseMode.localModel,
         response: '${answer.title}\n${answer.message}',
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
 
@@ -1565,6 +1612,7 @@ class FfmAssistantInterpreter {
       final validated = _intentForDraft(rawText, normalized, draft);
       return validated.copyWith(
         responseMode: FfmAssistantResponseMode.localModel,
+        responseOrigin: FfmAssistantResponseOrigin.localSlm,
         response:
             validated.response ??
             'Draf dari AI lokal siap ditinjau. Belum ada data yang disimpan.',
@@ -3405,7 +3453,13 @@ class FfmAssistantInterpreter {
     return 'Rp$buffer';
   }
 
-  FfmAssistantIntent _unknown(String raw, String normalized, String response) {
+  FfmAssistantIntent _unknown(
+    String raw,
+    String normalized,
+    String response, {
+    FfmAssistantResponseOrigin responseOrigin =
+        FfmAssistantResponseOrigin.agentOrchestrator,
+  }) {
     _maybeSaveUnansweredQuestion(raw, normalized);
     final enriched = _enrichUnknownResponse(normalized, response);
     return FfmAssistantIntent(
@@ -3415,6 +3469,7 @@ class FfmAssistantInterpreter {
       confidence: 0,
       response: enriched,
       clarification: enriched,
+      responseOrigin: responseOrigin,
     );
   }
 

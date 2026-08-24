@@ -4,6 +4,34 @@ import '../../activity/domain/activity_voice.dart';
 /// pengguna melihat preview dan mengonfirmasinya.
 enum FfmAssistantResponseMode { localRules, localModel }
 
+enum FfmAssistantResponseOrigin { agentOrchestrator, localSlm, localFallback }
+
+class FfmAssistantProcessEvent {
+  const FfmAssistantProcessEvent({
+    required this.label,
+    required this.elapsed,
+    this.detail,
+  });
+
+  final String label;
+  final Duration elapsed;
+  final String? detail;
+}
+
+class FfmAssistantProcessTrace {
+  const FfmAssistantProcessTrace({
+    required this.origin,
+    required this.elapsed,
+    required this.events,
+    this.fallbackReason,
+  });
+
+  final FfmAssistantResponseOrigin origin;
+  final Duration elapsed;
+  final List<FfmAssistantProcessEvent> events;
+  final String? fallbackReason;
+}
+
 enum FfmAssistantIntentType {
   openPage,
   listPages,
@@ -164,6 +192,7 @@ class FfmAssistantIntent {
     this.response,
     this.teachingProposal,
     this.responseMode = FfmAssistantResponseMode.localRules,
+    this.responseOrigin = FfmAssistantResponseOrigin.agentOrchestrator,
   });
 
   final String rawText;
@@ -176,6 +205,7 @@ class FfmAssistantIntent {
   final String? response;
   final FfmAssistantTeachingProposal? teachingProposal;
   final FfmAssistantResponseMode responseMode;
+  final FfmAssistantResponseOrigin responseOrigin;
 
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
@@ -186,6 +216,7 @@ class FfmAssistantIntent {
     String? response,
     String? clarification,
     FfmAssistantResponseMode? responseMode,
+    FfmAssistantResponseOrigin? responseOrigin,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -197,6 +228,7 @@ class FfmAssistantIntent {
     response: response ?? this.response,
     teachingProposal: teachingProposal,
     responseMode: responseMode ?? this.responseMode,
+    responseOrigin: responseOrigin ?? this.responseOrigin,
   );
 }
 
@@ -298,6 +330,7 @@ class FfmAssistantChatEntry {
     this.imagePath,
     this.filePath,
     this.fileFormat,
+    this.processTrace,
     this.createdAt,
   });
 
@@ -310,6 +343,7 @@ class FfmAssistantChatEntry {
   final String? imagePath;
   final String? filePath;
   final String? fileFormat;
+  final FfmAssistantProcessTrace? processTrace;
   final DateTime? createdAt;
 }
 

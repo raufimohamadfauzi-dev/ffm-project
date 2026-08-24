@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 /// Indikator berpikir ala Claude: pill warm dengan spinner, bukan 3 titik Gemini.
 /// Nama class dipertahankan untuk kompatibilitas.
 class GeminiTypingIndicator extends StatelessWidget {
-  const GeminiTypingIndicator({super.key});
+  const GeminiTypingIndicator({super.key, required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -37,14 +39,18 @@ class GeminiTypingIndicator extends StatelessWidget {
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: isDark ? const Color(0xFF9A9590) : const Color(0xFFC27B5F),
+                  color: isDark
+                      ? const Color(0xFF9A9590)
+                      : const Color(0xFFC27B5F),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
-                'Sedang berpikir...',
+                message,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: isDark ? const Color(0xFF9A9590) : const Color(0xFF6B5E4F),
+                  color: isDark
+                      ? const Color(0xFF9A9590)
+                      : const Color(0xFF6B5E4F),
                   fontWeight: FontWeight.w600,
                   fontStyle: FontStyle.italic,
                 ),

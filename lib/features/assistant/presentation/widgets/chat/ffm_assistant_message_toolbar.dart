@@ -8,6 +8,7 @@ enum FfmAssistantMessageMenuAction {
   editDraft,
   cancelDraft,
   approveTeaching,
+  technicalDetails,
 }
 
 class FfmAssistantMenuLabel extends StatelessWidget {
@@ -22,7 +23,12 @@ class FfmAssistantMenuLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    children: [Icon(icon, size: 18), const SizedBox(width: 10), Text(label)],
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 18),
+      const SizedBox(width: 10),
+      Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+    ],
   );
 }
 
@@ -43,6 +49,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
     this.onEditDraft,
     this.onCancelDraft,
     this.onApproveTeaching,
+    this.onShowTechnical,
     required this.teachingSaved,
     required this.foregroundColor,
     this.actionPlan,
@@ -62,6 +69,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   final VoidCallback? onEditDraft;
   final VoidCallback? onCancelDraft;
   final VoidCallback? onApproveTeaching;
+  final VoidCallback? onShowTechnical;
   final bool teachingSaved;
   final Color foregroundColor;
   final FfmAssistantActionPlan? actionPlan;
@@ -78,7 +86,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
         onCopyFeedback != null ||
         onEditDraft != null ||
         onCancelDraft != null ||
-        onApproveTeaching != null;
+        onApproveTeaching != null ||
+        onShowTechnical != null;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 2,
@@ -137,7 +146,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
               onPressed: onSpeak,
               style: IconButton.styleFrom(foregroundColor: foregroundColor),
               icon: Icon(
-                isSpeaking ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                isSpeaking
+                    ? Icons.volume_off_outlined
+                    : Icons.volume_up_outlined,
               ),
             ),
           ),
@@ -173,6 +184,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     return;
                   case FfmAssistantMessageMenuAction.approveTeaching:
                     onApproveTeaching?.call();
+                    return;
+                  case FfmAssistantMessageMenuAction.technicalDetails:
+                    onShowTechnical?.call();
                     return;
                 }
               },
@@ -220,6 +234,14 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     child: FfmAssistantMenuLabel(
                       icon: Icons.copy_all_outlined,
                       label: 'Salin bahan perbaikan',
+                    ),
+                  ),
+                if (onShowTechnical != null)
+                  const PopupMenuItem(
+                    value: FfmAssistantMessageMenuAction.technicalDetails,
+                    child: FfmAssistantMenuLabel(
+                      icon: Icons.data_object_outlined,
+                      label: 'Lihat detail teknis',
                     ),
                   ),
               ],

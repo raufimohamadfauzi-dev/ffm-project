@@ -34,6 +34,7 @@ import '../../domain/ffm_assistant_proactive_service.dart';
 import '../../data/ffm_assistant_user_model_service.dart';
 import '../../data/ffm_personal_memory_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
+import 'chat/ffm_json_expandable.dart';
 import 'chat/ffm_assistant_message_card.dart';
 import 'ffm_memory_nudge_card.dart';
 import 'gemini_header.dart';
@@ -125,6 +126,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
   var _submitting = false;
+  var _activeProcessLabel = 'Menyiapkan permintaan...';
   File? _pendingImage;
   var _navigatingFromChat = false;
   var _modelReady = false;
@@ -151,6 +153,77 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _memoryCount = 0;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
+
+  void _setActiveProcess(String message) {
+    if (mounted) setState(() => _activeProcessLabel = message);
+    _agentStatus.working(message);
+  }
+
+  FfmAssistantProcessTrace _traceFor(
+    FfmAssistantIntent intent,
+    Duration elapsed, {
+    required bool hasImage,
+  }) {
+    final origin = intent.responseOrigin;
+    final sourceEvent = switch (origin) {
+      FfmAssistantResponseOrigin.agentOrchestrator => const (
+        label: 'Agent Orkestrator menyelesaikan rute lokal',
+        detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
+      ),
+      FfmAssistantResponseOrigin.localSlm => const (
+        label: 'SLM lokal mengembalikan proposal valid',
+        detail: 'Proposal tetap divalidasi FFM sebelum ditampilkan.',
+      ),
+      FfmAssistantResponseOrigin.localFallback => const (
+        label: 'SLM lokal belum menghasilkan proposal yang dapat dipakai',
+        detail:
+            'FFM menampilkan fallback lokal tanpa membuat atau mengubah data.',
+      ),
+    };
+    return FfmAssistantProcessTrace(
+      origin: origin,
+      elapsed: elapsed,
+      fallbackReason: origin == FfmAssistantResponseOrigin.localFallback
+          ? 'Model tidak siap, sibuk, timeout, atau hasilnya tidak lolos validasi.'
+          : null,
+      events: [
+        FfmAssistantProcessEvent(
+          label: hasImage
+              ? 'Lampiran diterima untuk dianalisis'
+              : 'Permintaan diterima untuk dirutekan',
+          elapsed: Duration.zero,
+        ),
+        FfmAssistantProcessEvent(
+          label: sourceEvent.label,
+          detail: sourceEvent.detail,
+          elapsed: elapsed,
+        ),
+      ],
+    );
+  }
+
+  String _completedProcessLabel(FfmAssistantIntent intent) =>
+      switch (intent.responseOrigin) {
+        FfmAssistantResponseOrigin.localSlm =>
+          'Jawaban dibantu SLM lokal dan siap diperiksa.',
+        FfmAssistantResponseOrigin.localFallback =>
+          'SLM lokal belum memberi hasil valid; fallback siap diperiksa.',
+        FfmAssistantResponseOrigin.agentOrchestrator =>
+          'Agent Orkestrator menyelesaikan jawaban lokal.',
+      };
+
+  void _showTechnicalDetails(FfmAssistantIntent intent) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (dialogContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FfmJsonExpandable(intent: intent, initiallyExpanded: true),
+        ),
+      ),
+    );
+  }
 
   void _appendEntry(FfmAssistantChatEntry entry) {
     _entries.add(entry);
@@ -462,7 +535,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
     if (hasImage) {
-      _agentStatus.working('Membaca gambar dan memahami permintaan...');
+      final stopwatch = Stopwatch()..start();
+      _setActiveProcess('Meneruskan lampiran ke visi SLM lokal...');
       try {
         final intent = await _interpreter.interpret(
           text,
@@ -474,7 +548,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ),
           capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
         );
+        stopwatch.stop();
         if (!mounted) return;
+        final processTrace = _traceFor(
+          intent,
+          stopwatch.elapsed,
+          hasImage: true,
+        );
         final readPlanIds = <String>[];
         setState(() {
           String response = intent.response ?? intent.clarification ?? '';
@@ -513,6 +593,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               text: response,
               intent: intent,
               review: review,
+              processTrace: processTrace,
               createdAt: DateTime.now(),
             ),
           );
@@ -533,7 +614,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           await _executeReadPlan(planId);
         }
         if (readPlanIds.isEmpty) {
-          _agentStatus.done('Gambar dipahami; jawaban siap diperiksa.');
+          _agentStatus.done(_completedProcessLabel(intent));
         }
         if (intent.type == FfmAssistantIntentType.unknown) {
           await _unansweredRepository.record(
@@ -560,7 +641,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       return;
     }
-    _agentStatus.working('Membaca konteks dan memahami permintaan...');
+    final stopwatch = Stopwatch()..start();
+    _setActiveProcess('Merutekan permintaan melalui Agent Orkestrator...');
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
@@ -591,6 +673,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
             );
+      stopwatch.stop();
       if (!mounted) return;
       final readPlanIds = <String>[];
       setState(() {
@@ -625,12 +708,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ..activeDraftIntent = intent;
           }
           widget.session.lastAssistantText = response;
+          final processTrace = _traceFor(
+            intent,
+            stopwatch.elapsed,
+            hasImage: false,
+          );
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
               text: response,
               intent: intent,
               review: review,
+              processTrace: processTrace,
             ),
           );
           if (intent.needsClarification) {
@@ -654,7 +743,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       if (readPlanIds.isEmpty) {
         _agentStatus.done(
-          'Permintaan dipahami; menunggu konfirmasi jika diperlukan.',
+          intents.length == 1
+              ? _completedProcessLabel(intents.single)
+              : 'Agent Orkestrator menyelesaikan ${intents.length} respons.',
         );
       }
       if (intents.any(
@@ -1799,7 +1890,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, index) {
                     if (_submitting && index == _entries.length) {
-                      return const GeminiTypingIndicator();
+                      return GeminiTypingIndicator(
+                        message: _activeProcessLabel,
+                      );
                     }
                     final entry = _entries[index];
                     final opensCurrentPage =
@@ -1853,6 +1946,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       onCopyFeedback: entry.isUser
                           ? null
                           : () => _copyFeedbackContext(entry),
+                      onShowTechnical: entry.intent == null
+                          ? null
+                          : () => _showTechnicalDetails(entry.intent!),
                       onCopyText: () => _copyEntryText(entry),
                       onShareFile: entry.filePath == null
                           ? null

@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../domain/ffm_assistant_action_plan.dart';
@@ -6,8 +7,7 @@ import '../../../domain/ffm_assistant_models.dart';
 import '../ffm_assistant_markdown_text.dart';
 import 'ffm_assistant_draft_preview.dart';
 import 'ffm_assistant_message_toolbar.dart';
-import 'ffm_json_expandable.dart';
-import 'ffm_reasoning_journey_disclosure.dart';
+import 'ffm_assistant_process_disclosure.dart';
 
 class FfmAssistantMessageCard extends StatelessWidget {
   const FfmAssistantMessageCard({
@@ -27,6 +27,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onShareFile,
     this.onCorrectMessage,
     this.onConfirmActivity,
+    this.onShowTechnical,
     required this.activityConfirmed,
     this.actionPlan,
   });
@@ -46,6 +47,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onShareFile;
   final VoidCallback? onCorrectMessage;
   final VoidCallback? onConfirmActivity;
+  final VoidCallback? onShowTechnical;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
 
@@ -74,8 +76,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
       color: isUnknown
           ? const Color(0xFFFFA726).withValues(alpha: 0.6)
           : isDark
-              ? const Color(0xFF3A3530)
-              : const Color(0xFFE8E0D0),
+          ? const Color(0xFF3A3530)
+          : const Color(0xFFE8E0D0),
       width: 0.8,
     );
 
@@ -112,18 +114,13 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (!isUser && !isUnknown) ...[
-                    FfmReasoningJourneyDisclosure(
-                      intent: intent,
-                      isSlm: intent?.responseMode ==
-                          FfmAssistantResponseMode.localModel,
-                    ),
+                  if (!isUser && entry.processTrace != null) ...[
+                    FfmAssistantProcessDisclosure(trace: entry.processTrace!),
                     const SizedBox(height: 6),
                   ],
                   if (isUnknown) ...[
                     Semantics(
-                      label:
-                          'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
+                      label: 'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
                       child: Row(
                         children: [
                           Icon(
@@ -170,14 +167,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
                       review: review,
                     ),
                   ],
-                  if (intent != null) ...[
-                    const SizedBox(height: 8),
-                    FfmJsonExpandable(intent: intent),
-                  ],
                   if (onCopyText != null ||
                       onSpeak != null ||
                       onIntent != null ||
-                      onConfirmActivity != null) ...[
+                      onConfirmActivity != null ||
+                      onShowTechnical != null) ...[
                     const SizedBox(height: 8),
                     FfmAssistantMessageToolbar(
                       isUser: isUser,
@@ -186,7 +180,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
                           intent != null &&
                           (intent.destination != null ||
                               intent.draft != null ||
-                              intent.type == FfmAssistantIntentType.exportReport ||
+                              intent.type ==
+                                  FfmAssistantIntentType.exportReport ||
                               intent.type == FfmAssistantIntentType.confirm) &&
                           (review?.canContinue ?? true),
                       primaryActionLabel:
@@ -194,6 +189,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
                           (intent?.destination != null ? 'Buka' : 'Lanjut'),
                       onPrimaryAction: onIntent,
                       onConfirmActivity: onConfirmActivity,
+                      onShowTechnical: onShowTechnical,
                       activityConfirmed: activityConfirmed,
                       actionPlan: actionPlan,
                       onCopyText: onCopyText,
@@ -328,4 +324,3 @@ class FfmChatFileCard extends StatelessWidget {
     );
   }
 }
-

@@ -8,16 +8,21 @@ import '../../../domain/ffm_assistant_models.dart';
 /// Viewer JSON proposal di dalam chat — collapsed by default, expand on tap.
 /// Gaya ala Claude: header pill + block monospace yang bisa disalin.
 class FfmJsonExpandable extends StatefulWidget {
-  const FfmJsonExpandable({super.key, required this.intent});
+  const FfmJsonExpandable({
+    super.key,
+    required this.intent,
+    this.initiallyExpanded = false,
+  });
 
   final FfmAssistantIntent intent;
+  final bool initiallyExpanded;
 
   @override
   State<FfmJsonExpandable> createState() => _FfmJsonExpandableState();
 }
 
 class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
-  var _expanded = false;
+  late var _expanded = widget.initiallyExpanded;
 
   Map<String, dynamic> _intentToMap(FfmAssistantIntent intent) {
     Map<String, dynamic>? draftMap;
@@ -29,7 +34,8 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
         if (draft.amount != null) 'amount': draft.amount,
         if (draft.title != null) 'title': draft.title,
         if (draft.partyName != null) 'partyName': draft.partyName,
-        if (draft.fromAccountName != null) 'fromAccountName': draft.fromAccountName,
+        if (draft.fromAccountName != null)
+          'fromAccountName': draft.fromAccountName,
         if (draft.toAccountName != null) 'toAccountName': draft.toAccountName,
         if (draft.categoryName != null) 'categoryName': draft.categoryName,
         if (draft.adminFee != null) 'adminFee': draft.adminFee,
@@ -38,7 +44,8 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
         if (draft.date != null) 'date': draft.date!.toIso8601String(),
         if (draft.merchantName != null) 'merchantName': draft.merchantName,
         if (draft.formValues.isNotEmpty) 'formValues': draft.formValues,
-        if (draft.slmFieldValues.isNotEmpty) 'slmFieldValues': draft.slmFieldValues,
+        if (draft.slmFieldValues.isNotEmpty)
+          'slmFieldValues': draft.slmFieldValues,
       };
     }
     return <String, dynamic>{
@@ -64,7 +71,8 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final jsonString = const JsonEncoder.withIndent('  ').convert(_intentToMap(widget.intent));
+    final jsonString = const JsonEncoder.withIndent('  ')
+        .convert(_intentToMap(widget.intent));
 
     return Container(
       width: double.infinity,
@@ -112,7 +120,9 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
                       tooltip: 'Salin JSON',
                       icon: const Icon(Icons.copy_outlined, size: 16),
                       onPressed: () async {
-                        await Clipboard.setData(ClipboardData(text: jsonString));
+                        await Clipboard.setData(
+                          ClipboardData(text: jsonString),
+                        );
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('JSON disalin.')),
@@ -125,7 +135,10 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
             ),
           ),
           if (_expanded) ...[
-            Divider(height: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4)),
+            Divider(
+              height: 1,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+            ),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Padding(
@@ -134,10 +147,16 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
                   jsonString,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    fontFamilyFallback: const ['Menlo', 'Consolas', 'monospace'],
+                    fontFamilyFallback: const [
+                      'Menlo',
+                      'Consolas',
+                      'monospace',
+                    ],
                     fontSize: 11,
                     height: 1.4,
-                    color: isDark ? const Color(0xFFE8E8E8) : const Color(0xFF1A1A1A),
+                    color: isDark
+                        ? const Color(0xFFE8E8E8)
+                        : const Color(0xFF1A1A1A),
                   ),
                 ),
               ),
