@@ -4,6 +4,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
+import '../../daily_notes/data/daily_note_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
@@ -49,6 +50,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.transaction_delete': _prepareTransactionMutation,
     'draft.activity_archive': _prepareActivityMutation,
     'draft.activity_delete': _prepareActivityMutation,
+    'draft.daily_note': _prepareDraft,
+    'draft.daily_note_archive': _prepareDailyNoteMutation,
     'draft.income': _prepareDraft,
     'draft.expense': _prepareDraft,
     'draft.transfer': _prepareDraft,
@@ -73,6 +76,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.saved_draft': _verifySavedDraft,
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
+    'verify.daily_note_mutation': _verifyDailyNoteMutation,
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
   };
@@ -202,7 +206,11 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final needsAmount = switch (kind) {
-      'profile' || 'activity' || 'reminder' || 'master_data' => false,
+      'profile' ||
+      'activity' ||
+      'dailyNote' ||
+      'reminder' ||
+      'master_data' => false,
       _ => true,
     };
 
@@ -324,6 +332,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'activity_session') {
       return _archiveActivity(step);
     }
+    if (step.parameters['entity'] == 'daily_note') {
+      return _archiveDailyNote(step);
+    }
     return _archiveTransaction(step);
   }
 
@@ -422,6 +433,54 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _prepareDailyNoteMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null || step.parameters['operation'] != 'archive') {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload arsip Catatan Harian tidak lengkap.',
+      );
+    }
+    final note = await DailyNoteRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    ).get(_householdId, targetId);
+    if (note == null || note.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Catatan Harian target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview arsip Catatan Harian “${note.title ?? note.noteDate.toIso8601String().substring(0, 10)}”. Catatan tidak akan dihapus permanen. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveDailyNote(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Catatan Harian belum valid.',
+      );
+    }
+    final archived = await DailyNoteRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    ).archive(householdId: _householdId, id: targetId);
+    if (archived == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Catatan Harian tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Catatan Harian diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _archiveActivity(
     FfmAssistantActionStep step,
   ) async {
@@ -490,6 +549,49 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     return const FfmAssistantCapabilityExecutionResult.failure(
       'Jenis perubahan aktivitas tidak dikenal saat verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyDailyNoteMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final kind = step.parameters['kind']?.toString();
+    final repository = DailyNoteRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    );
+    if (kind == 'dailyNote') {
+      final key = step.parameters['_idempotencyKey']?.toString();
+      if (key == null || key.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Kunci verifikasi Catatan Harian belum ada.',
+        );
+      }
+      final note = await repository.get(_householdId, _stableId(key));
+      return note != null && !note.isArchived
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: Catatan Harian “${note.title ?? note.noteDate.toIso8601String().substring(0, 10)}” berhasil dibaca kembali dari data lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Catatan Harian belum ditemukan setelah simpan.',
+            );
+    }
+    if (kind == 'dailyNoteArchive') {
+      final targetId = _targetId(step);
+      final note = targetId == null
+          ? null
+          : await repository.get(_householdId, targetId);
+      return note?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Catatan Harian sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Catatan Harian belum berstatus arsip.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis mutasi Catatan Harian tidak dikenal saat verifikasi.',
     );
   }
 
@@ -832,6 +934,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'transfer') return _saveTransfer(step, idempotencyKey);
     if (kind == 'profile') return _saveProfile(step, idempotencyKey);
     if (kind == 'activity') return _saveActivity(step, idempotencyKey);
+    if (kind == 'dailyNote') return _saveDailyNote(step, idempotencyKey);
     if (kind == 'reminder') return _saveReminder(step, idempotencyKey);
     if (kind == 'master_data') return _saveMasterData(step, idempotencyKey);
     if (kind == 'goal') return _saveGoal(step, idempotencyKey);
@@ -1603,6 +1706,36 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
     return const FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas berhasil dimulai.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveDailyNote(
+    FfmAssistantActionStep step,
+    String idempotencyKey,
+  ) async {
+    final body =
+        step.parameters['body']?.toString() ??
+        step.parameters['note']?.toString();
+    if (body == null || body.trim().isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Isi Catatan Harian belum diisi.',
+      );
+    }
+    final date = _dateParameter(step.parameters['date']) ?? _clock();
+    final note =
+        await DailyNoteRepository(
+          _database,
+          AuditLogger(_database),
+          clock: _clock,
+        ).create(
+          id: _stableId(idempotencyKey),
+          householdId: _householdId,
+          noteDate: date,
+          title: step.parameters['title']?.toString(),
+          body: body,
+        );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Catatan Harian “${note.title ?? note.noteDate.toIso8601String().substring(0, 10)}” disimpan. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
   }
 

@@ -24,6 +24,8 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.reminder => 'Draft Pengingat',
     FfmAssistantDraftKind.reminderArchive => 'Preview Arsip Pengingat',
     FfmAssistantDraftKind.activity => 'Draft Aktivitas',
+    FfmAssistantDraftKind.dailyNote => 'Draft Catatan Harian',
+    FfmAssistantDraftKind.dailyNoteArchive => 'Preview Arsip Catatan Harian',
     FfmAssistantDraftKind.profile => 'Draft Perkenalan Diri',
     FfmAssistantDraftKind.goalUpdate => 'Preview Perubahan Target',
     FfmAssistantDraftKind.goalArchive => 'Preview Arsip Target',

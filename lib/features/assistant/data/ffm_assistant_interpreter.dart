@@ -830,6 +830,12 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final dailyNoteMutation = await _parseDailyNoteMutation(
+      rawText,
+      normalized,
+    );
+    if (dailyNoteMutation != null) return dailyNoteMutation;
+
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
@@ -2365,6 +2371,16 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.activity,
         action: 'aktivitas',
       ),
+      FfmAssistantDraftKind.dailyNote => (
+        type: FfmAssistantIntentType.createDailyNote,
+        destination: FfmAssistantDestination.activity,
+        action: 'Catatan Harian',
+      ),
+      FfmAssistantDraftKind.dailyNoteArchive => (
+        type: FfmAssistantIntentType.archiveDailyNote,
+        destination: FfmAssistantDestination.activity,
+        action: 'arsip Catatan Harian',
+      ),
       FfmAssistantDraftKind.profile => (
         type: FfmAssistantIntentType.createProfile,
         destination: FfmAssistantDestination.assistantProfile,
@@ -2629,6 +2645,90 @@ class FfmAssistantInterpreter {
   String _activityCandidateLabel(ActivitySession row) {
     final date = row.startedAt.toIso8601String().substring(0, 10);
     return '${row.title} • ${row.category} • $date';
+  }
+
+  Future<FfmAssistantIntent?> _parseDailyNoteMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan)\s+(?:catatan harian|catatan)\s+(.+)$',
+    ).firstMatch(normalized);
+    if (archive == null) return null;
+    final targetText = archive.group(1)!.trim();
+    final candidates = await _findDailyNoteCandidates(targetText);
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.archiveDailyNote,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu Catatan Harian aktif yang cocok dengan “$targetText”. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.archiveDailyNote,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} Catatan Harian yang cocok: ${candidates.take(3).map(_dailyNoteCandidateLabel).join('; ')}. Sebut judul atau isi yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.dailyNoteArchive,
+      createdAt: _clock(),
+      title: _dailyNoteCandidateLabel(target),
+      note: target.body,
+      date: target.noteDate,
+      formValues: {
+        'entity': 'daily_note',
+        'targetId': target.id,
+        'operation': 'archive',
+        'targetSummary': _dailyNoteCandidateLabel(target),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: 'Aku menemukan satu Catatan Harian untuk diarsipkan. Cek preview dulu; catatan tidak akan dihapus permanen.',
+    );
+  }
+
+  Future<List<DailyNote>> _findDailyNoteCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where((term) => term.length >= 3 && !RegExp(r'^\d+$').hasMatch(term))
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.dailyNotes)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)]))
+            .get();
+    return rows
+        .where((row) {
+          final haystack =
+              '${row.title ?? ''} ${row.body} ${row.noteDate.toIso8601String().substring(0, 10)}'
+                  .toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _dailyNoteCandidateLabel(DailyNote row) {
+    final date = row.noteDate.toIso8601String().substring(0, 10);
+    return row.title?.trim().isNotEmpty == true
+        ? '${row.title} ($date)'
+        : 'Catatan $date';
   }
 
   Future<FfmAssistantIntent?> _parseReminderMutation(
@@ -3039,6 +3139,20 @@ class FfmAssistantInterpreter {
         note: profileNote.isEmpty ? rawText.trim() : profileNote,
         formValues: profileValues,
         date: now,
+      );
+    }
+    final dailyNote = RegExp(
+      r'^(?:catat|tulis|buat)(?:kan)?\s+(?:catatan harian|catatan)\s*[:\-]?\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (dailyNote != null) {
+      final body = dailyNote.group(1)?.trim() ?? '';
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.dailyNote,
+        createdAt: now,
+        note: body,
+        date: now,
+        formValues: {'body': body},
       );
     }
     final createActivity = _containsAny(normalized, const [

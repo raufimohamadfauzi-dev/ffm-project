@@ -126,6 +126,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.dailyNote:
+        if (_isBlank(draft.note)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_note_body_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'isi catatan',
+              message: 'Isi Catatan Harian belum ada.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.dailyNoteArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_note_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Catatan Harian',
+              message: 'Catatan Harian target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
@@ -160,6 +182,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.masterData ||
     FfmAssistantDraftKind.reminder ||
     FfmAssistantDraftKind.activity ||
+    FfmAssistantDraftKind.dailyNote ||
+    FfmAssistantDraftKind.dailyNoteArchive ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||

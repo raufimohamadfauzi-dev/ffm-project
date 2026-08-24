@@ -6,6 +6,7 @@ import '../diagnostics/app_diagnostics_service.dart';
 import '../security/app_pin_service.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
+import '../../features/daily_notes/data/daily_note_repository.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
@@ -116,6 +117,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       getIt<AuditLogger>(),
       status: getIt<FfmAgentStatusController>(),
     ),
+  );
+  getIt.registerLazySingleton<DailyNoteRepository>(
+    () => DailyNoteRepository(db, getIt<AuditLogger>()),
   );
   getIt.registerFactory<ActivityBloc>(
     () => ActivityBloc(getIt<ActivityRepository>()),

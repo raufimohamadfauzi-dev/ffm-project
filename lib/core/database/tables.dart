@@ -388,6 +388,24 @@ class ActivityEntries extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Catatan refleksi atau ringkasan harian, terpisah dari sesi Aktivitas.
+///
+/// Tabel ini tidak boleh dipakai untuk menggantikan ActivitySessions,
+/// ActivityCheckpoints, maupun ActivityEntries yang sudah ada.
+class DailyNotes extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  DateTimeColumn get noteDate => dateTime()();
+  TextColumn get title => text().nullable()();
+  TextColumn get body => text()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

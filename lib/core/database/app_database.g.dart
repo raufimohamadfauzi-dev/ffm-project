@@ -15212,6 +15212,524 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
   }
 }
 
+class $DailyNotesTable extends DailyNotes
+    with TableInfo<$DailyNotesTable, DailyNote> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyNotesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteDateMeta = const VerificationMeta(
+    'noteDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> noteDate = GeneratedColumn<DateTime>(
+    'note_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bodyMeta = const VerificationMeta('body');
+  @override
+  late final GeneratedColumn<String> body = GeneratedColumn<String>(
+    'body',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    noteDate,
+    title,
+    body,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_notes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyNote> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('note_date')) {
+      context.handle(
+        _noteDateMeta,
+        noteDate.isAcceptableOrUnknown(data['note_date']!, _noteDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_noteDateMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('body')) {
+      context.handle(
+        _bodyMeta,
+        body.isAcceptableOrUnknown(data['body']!, _bodyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_bodyMeta);
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DailyNote map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyNote(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      noteDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}note_date'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      ),
+      body: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}body'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $DailyNotesTable createAlias(String alias) {
+    return $DailyNotesTable(attachedDatabase, alias);
+  }
+}
+
+class DailyNote extends DataClass implements Insertable<DailyNote> {
+  final String id;
+  final String householdId;
+  final DateTime noteDate;
+  final String? title;
+  final String body;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const DailyNote({
+    required this.id,
+    required this.householdId,
+    required this.noteDate,
+    this.title,
+    required this.body,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['note_date'] = Variable<DateTime>(noteDate);
+    if (!nullToAbsent || title != null) {
+      map['title'] = Variable<String>(title);
+    }
+    map['body'] = Variable<String>(body);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  DailyNotesCompanion toCompanion(bool nullToAbsent) {
+    return DailyNotesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      noteDate: Value(noteDate),
+      title: title == null && nullToAbsent
+          ? const Value.absent()
+          : Value(title),
+      body: Value(body),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory DailyNote.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyNote(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      noteDate: serializer.fromJson<DateTime>(json['noteDate']),
+      title: serializer.fromJson<String?>(json['title']),
+      body: serializer.fromJson<String>(json['body']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'noteDate': serializer.toJson<DateTime>(noteDate),
+      'title': serializer.toJson<String?>(title),
+      'body': serializer.toJson<String>(body),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  DailyNote copyWith({
+    String? id,
+    String? householdId,
+    DateTime? noteDate,
+    Value<String?> title = const Value.absent(),
+    String? body,
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => DailyNote(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    noteDate: noteDate ?? this.noteDate,
+    title: title.present ? title.value : this.title,
+    body: body ?? this.body,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  DailyNote copyWithCompanion(DailyNotesCompanion data) {
+    return DailyNote(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      noteDate: data.noteDate.present ? data.noteDate.value : this.noteDate,
+      title: data.title.present ? data.title.value : this.title,
+      body: data.body.present ? data.body.value : this.body,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyNote(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('noteDate: $noteDate, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    noteDate,
+    title,
+    body,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyNote &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.noteDate == this.noteDate &&
+          other.title == this.title &&
+          other.body == this.body &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<DateTime> noteDate;
+  final Value<String?> title;
+  final Value<String> body;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const DailyNotesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.noteDate = const Value.absent(),
+    this.title = const Value.absent(),
+    this.body = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyNotesCompanion.insert({
+    required String id,
+    required String householdId,
+    required DateTime noteDate,
+    this.title = const Value.absent(),
+    required String body,
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       noteDate = Value(noteDate),
+       body = Value(body),
+       createdAt = Value(createdAt);
+  static Insertable<DailyNote> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<DateTime>? noteDate,
+    Expression<String>? title,
+    Expression<String>? body,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (noteDate != null) 'note_date': noteDate,
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyNotesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<DateTime>? noteDate,
+    Value<String?>? title,
+    Value<String>? body,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DailyNotesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      noteDate: noteDate ?? this.noteDate,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (noteDate.present) {
+      map['note_date'] = Variable<DateTime>(noteDate.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (body.present) {
+      map['body'] = Variable<String>(body.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyNotesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('noteDate: $noteDate, ')
+          ..write('title: $title, ')
+          ..write('body: $body, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AccountReconciliationLogsTable extends AccountReconciliationLogs
     with TableInfo<$AccountReconciliationLogsTable, AccountReconciliationLog> {
   @override
@@ -21211,6 +21729,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ActivityEntriesTable activityEntries = $ActivityEntriesTable(
     this,
   );
+  late final $DailyNotesTable dailyNotes = $DailyNotesTable(this);
   late final $AccountReconciliationLogsTable accountReconciliationLogs =
       $AccountReconciliationLogsTable(this);
   late final $HijriSettingsTable hijriSettings = $HijriSettingsTable(this);
@@ -21263,6 +21782,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     activitySessions,
     activityCheckpoints,
     activityEntries,
+    dailyNotes,
     accountReconciliationLogs,
     hijriSettings,
     hijriMonthOverrides,
@@ -28720,6 +29240,264 @@ typedef $$ActivityEntriesTableProcessedTableManager =
       ActivityEntry,
       PrefetchHooks Function()
     >;
+typedef $$DailyNotesTableCreateCompanionBuilder =
+    DailyNotesCompanion Function({
+      required String id,
+      required String householdId,
+      required DateTime noteDate,
+      Value<String?> title,
+      required String body,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyNotesTableUpdateCompanionBuilder =
+    DailyNotesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<DateTime> noteDate,
+      Value<String?> title,
+      Value<String> body,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DailyNotesTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyNotesTable> {
+  $$DailyNotesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get noteDate => $composableBuilder(
+    column: $table.noteDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyNotesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyNotesTable> {
+  $$DailyNotesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get noteDate => $composableBuilder(
+    column: $table.noteDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get body => $composableBuilder(
+    column: $table.body,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyNotesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyNotesTable> {
+  $$DailyNotesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get noteDate =>
+      $composableBuilder(column: $table.noteDate, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get body =>
+      $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DailyNotesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyNotesTable,
+          DailyNote,
+          $$DailyNotesTableFilterComposer,
+          $$DailyNotesTableOrderingComposer,
+          $$DailyNotesTableAnnotationComposer,
+          $$DailyNotesTableCreateCompanionBuilder,
+          $$DailyNotesTableUpdateCompanionBuilder,
+          (
+            DailyNote,
+            BaseReferences<_$AppDatabase, $DailyNotesTable, DailyNote>,
+          ),
+          DailyNote,
+          PrefetchHooks Function()
+        > {
+  $$DailyNotesTableTableManager(_$AppDatabase db, $DailyNotesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyNotesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyNotesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyNotesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<DateTime> noteDate = const Value.absent(),
+                Value<String?> title = const Value.absent(),
+                Value<String> body = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyNotesCompanion(
+                id: id,
+                householdId: householdId,
+                noteDate: noteDate,
+                title: title,
+                body: body,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required DateTime noteDate,
+                Value<String?> title = const Value.absent(),
+                required String body,
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyNotesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                noteDate: noteDate,
+                title: title,
+                body: body,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyNotesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyNotesTable,
+      DailyNote,
+      $$DailyNotesTableFilterComposer,
+      $$DailyNotesTableOrderingComposer,
+      $$DailyNotesTableAnnotationComposer,
+      $$DailyNotesTableCreateCompanionBuilder,
+      $$DailyNotesTableUpdateCompanionBuilder,
+      (DailyNote, BaseReferences<_$AppDatabase, $DailyNotesTable, DailyNote>),
+      DailyNote,
+      PrefetchHooks Function()
+    >;
 typedef $$AccountReconciliationLogsTableCreateCompanionBuilder =
     AccountReconciliationLogsCompanion Function({
       required String id,
@@ -31872,6 +32650,8 @@ class $AppDatabaseManager {
       $$ActivityCheckpointsTableTableManager(_db, _db.activityCheckpoints);
   $$ActivityEntriesTableTableManager get activityEntries =>
       $$ActivityEntriesTableTableManager(_db, _db.activityEntries);
+  $$DailyNotesTableTableManager get dailyNotes =>
+      $$DailyNotesTableTableManager(_db, _db.dailyNotes);
   $$AccountReconciliationLogsTableTableManager get accountReconciliationLogs =>
       $$AccountReconciliationLogsTableTableManager(
         _db,

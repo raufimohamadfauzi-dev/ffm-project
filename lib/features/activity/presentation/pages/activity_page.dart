@@ -11,6 +11,7 @@ import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
+import '../../../daily_notes/presentation/widgets/daily_notes_section.dart';
 
 class ActivityPage extends StatelessWidget {
   const ActivityPage({
@@ -587,7 +588,7 @@ class _ActivityViewState extends State<_ActivityView>
             ),
           ],
           child: const FloatingActionButton.extended(
-          heroTag: 'activity_add_fab',
+            heroTag: 'activity_add_fab',
             onPressed: null,
             icon: Icon(Icons.add),
             label: Text('Tambah'),
@@ -630,6 +631,8 @@ class _ActivityViewState extends State<_ActivityView>
                     onConfirm: _confirmVoice,
                     onCancel: _cancelVoice,
                   ),
+                  const SizedBox(height: 16),
+                  const DailyNotesSection(),
                   const SizedBox(height: 16),
                   AppCard(
                     child: Wrap(

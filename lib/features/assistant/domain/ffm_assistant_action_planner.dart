@@ -45,6 +45,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.masterData => 'draft.master_data',
         FfmAssistantDraftKind.reminder => 'draft.reminder',
         FfmAssistantDraftKind.activity => 'draft.activity',
+        FfmAssistantDraftKind.dailyNote => 'draft.daily_note',
+        FfmAssistantDraftKind.dailyNoteArchive => 'draft.daily_note_archive',
         FfmAssistantDraftKind.profile => 'draft.profile',
         FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
         FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
@@ -72,6 +74,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
         FfmAssistantDraftKind.activityArchive => 'mutate.archive',
         FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -92,6 +95,9 @@ class FfmAssistantActionPlanner {
               'verify.transaction_mutation',
             FfmAssistantDraftKind.activityArchive ||
             FfmAssistantDraftKind.activityDelete => 'verify.activity_mutation',
+            FfmAssistantDraftKind.dailyNote ||
+            FfmAssistantDraftKind.dailyNoteArchive =>
+              'verify.daily_note_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',

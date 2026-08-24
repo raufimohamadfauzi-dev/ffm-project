@@ -217,6 +217,11 @@ class FfmDatabaseStructureService {
       'Aktivitas',
       'Riwayat aktivitas harian yang sudah dicatat.',
     ),
+    'daily_notes': _TableDefinition(
+      'Catatan Harian',
+      'Aktivitas & Jurnal',
+      'Refleksi atau ringkasan harian yang terpisah dari sesi aktivitas bertimer.',
+    ),
     'account_reconciliation_logs': _TableDefinition(
       'Riwayat rekonsiliasi',
       'Pemeriksaan saldo',
