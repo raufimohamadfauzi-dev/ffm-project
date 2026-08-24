@@ -111,12 +111,8 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     on<ReminderNotificationActionReceived>(_handleNotificationAction);
     _notificationService.onAction = (action, payload) async {
       if (!isClosed) {
-        add(
-          ReminderNotificationActionReceived(
-            actionId: action,
-            payload: payload,
-          ),
-        );
+        await _applyNotificationAction(action, payload);
+        if (!isClosed) add(const ReminderLoadRequested());
       }
     };
   }

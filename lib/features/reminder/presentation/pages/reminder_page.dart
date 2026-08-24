@@ -10,29 +10,46 @@ import '../../domain/entities/reminder_entity.dart';
 import '../bloc/reminder_bloc.dart';
 
 class ReminderPage extends StatelessWidget {
-  const ReminderPage({super.key, this.initialTitle, this.initialNote});
+  const ReminderPage({
+    super.key,
+    this.initialTitle,
+    this.initialNote,
+    this.focusReminderId,
+    this.focusHistoryId,
+  });
 
   final String? initialTitle;
   final String? initialNote;
+  final String? focusReminderId;
+  final String? focusHistoryId;
 
   @override
   Widget build(BuildContext context) => FfmAssistantPageContext(
     destination: FfmAssistantDestination.reminders,
-    child: BlocProvider(
-      create: (_) => getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
+    child: BlocProvider.value(
+      value: getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
       child: _ReminderView(
         initialTitle: initialTitle,
         initialNote: initialNote,
+        focusReminderId: focusReminderId,
+        focusHistoryId: focusHistoryId,
       ),
     ),
   );
 }
 
 class _ReminderView extends StatefulWidget {
-  const _ReminderView({this.initialTitle, this.initialNote});
+  const _ReminderView({
+    this.initialTitle,
+    this.initialNote,
+    this.focusReminderId,
+    this.focusHistoryId,
+  });
 
   final String? initialTitle;
   final String? initialNote;
+  final String? focusReminderId;
+  final String? focusHistoryId;
 
   @override
   State<_ReminderView> createState() => _ReminderViewState();
@@ -41,6 +58,8 @@ class _ReminderView extends StatefulWidget {
 class _ReminderViewState extends State<_ReminderView> {
   ReminderHistoryStatus? _historyFilter;
   String? _lastNotifiedPendingHistoryId;
+  final _focusedHistoryKey = GlobalKey();
+  var _focusAttempted = false;
 
   @override
   void initState() {
@@ -103,6 +122,30 @@ class _ReminderViewState extends State<_ReminderView> {
     });
   }
 
+  void _revealNotificationTarget(ReminderState state) {
+    final historyId = widget.focusHistoryId;
+    if (historyId == null || _focusAttempted) return;
+    final exists = state.history.any(
+      (item) =>
+          item.history.id == historyId &&
+          item.history.reminderId == widget.focusReminderId,
+    );
+    if (!exists) return;
+    _focusAttempted = true;
+    _lastNotifiedPendingHistoryId = historyId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final targetContext = _focusedHistoryKey.currentContext;
+      if (mounted && targetContext != null) {
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: .32,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Pengingat')),
@@ -114,6 +157,7 @@ class _ReminderViewState extends State<_ReminderView> {
     body: BlocConsumer<ReminderBloc, ReminderState>(
       listener: (context, state) {
         _notifyPendingHistory(state);
+        _revealNotificationTarget(state);
         final message = state.errorMessage;
         if (message != null) {
           ScaffoldMessenger.of(context)
@@ -242,12 +286,17 @@ class _ReminderViewState extends State<_ReminderView> {
                       historyItem.status != ReminderHistoryStatus.completed &&
                       historyItem.status != ReminderHistoryStatus.cancelled;
                   final isHighlighted =
-                      historyItem.id == _lastNotifiedPendingHistoryId;
+                      historyItem.id == _lastNotifiedPendingHistoryId ||
+                      (historyItem.id == widget.focusHistoryId &&
+                          historyItem.reminderId == widget.focusReminderId);
                   final colorScheme = Theme.of(context).colorScheme;
                   final subtitle = historyItem.snoozedUntil == null
                       ? '${_formatDateTime(historyItem.scheduledAt)} · ${historyItem.status.label}'
                       : '${_formatDateTime(historyItem.scheduledAt)} · ${historyItem.status.label} sampai ${_formatDateTime(historyItem.snoozedUntil!)}';
                   return AppCard(
+                    key: historyItem.id == widget.focusHistoryId
+                        ? _focusedHistoryKey
+                        : null,
                     color: isHighlighted ? colorScheme.tertiaryContainer : null,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),

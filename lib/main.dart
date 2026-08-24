@@ -391,6 +391,8 @@ class _AppShellState extends State<AppShell> {
   var _assistantRequestId = 0;
   var _assistantSheetOpen = false;
   final _agentStatus = getIt<FfmAgentStatusController>();
+  late final ReminderNotificationService _reminderNotifications =
+      getIt<ReminderNotificationService>();
   FfmAssistantDraft? _assistantTransactionDraft;
   final _assistantSession = FfmAssistantChatSession();
 
@@ -398,9 +400,27 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     _widgetChannel.setMethodCallHandler(_handleWidgetCall);
+    _reminderNotifications.openTarget.addListener(
+      _openReminderFromNotification,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumePendingWidgetAction();
+      _openReminderFromNotification();
     });
+  }
+
+  void _openReminderFromNotification() {
+    if (!mounted) return;
+    final target = _reminderNotifications.takeOpenTarget();
+    if (target == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReminderPage(
+          focusReminderId: target.reminderId,
+          focusHistoryId: target.historyId,
+        ),
+      ),
+    );
   }
 
   Future<void> _consumePendingWidgetAction() async {
@@ -458,6 +478,9 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _reminderNotifications.openTarget.removeListener(
+      _openReminderFromNotification,
+    );
     _widgetChannel.setMethodCallHandler(null);
     super.dispose();
   }

@@ -127,7 +127,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<ReminderSoundPicker>(
     AndroidReminderSoundPicker.new,
   );
-  getIt.registerFactory<ReminderBloc>(
+  getIt.registerLazySingleton<ReminderBloc>(
     () => ReminderBloc(
       repository: getIt<ReminderRepository>(),
       notificationService: getIt<ReminderNotificationService>(),

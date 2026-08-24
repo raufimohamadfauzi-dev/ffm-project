@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -39,6 +40,16 @@ class ReminderNotificationAction {
 
   final String actionId;
   final Map<String, dynamic> payload;
+}
+
+class ReminderNotificationOpenTarget {
+  const ReminderNotificationOpenTarget({
+    required this.reminderId,
+    required this.historyId,
+  });
+
+  final String reminderId;
+  final String historyId;
 }
 
 class ReminderPermissionState {
@@ -91,7 +102,18 @@ class ReminderNotificationService implements ReminderNotificationGateway {
 
   final FlutterLocalNotificationsPlugin _plugin;
   Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
+  final ValueNotifier<ReminderNotificationOpenTarget?> _openTarget =
+      ValueNotifier(null);
   bool _initialized = false;
+
+  ValueListenable<ReminderNotificationOpenTarget?> get openTarget =>
+      _openTarget;
+
+  ReminderNotificationOpenTarget? takeOpenTarget() {
+    final target = _openTarget.value;
+    _openTarget.value = null;
+    return target;
+  }
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -221,12 +243,12 @@ class ReminderNotificationService implements ReminderNotificationGateway {
         if (decoded is! Map) continue;
         final payload = jsonDecode('${decoded['payload']}');
         if (payload is Map<String, dynamic>) {
-          actions.add(
-            ReminderNotificationAction(
-              actionId: '${decoded['actionId'] ?? 'open'}',
-              payload: payload,
-            ),
+          final action = ReminderNotificationAction(
+            actionId: '${decoded['actionId'] ?? 'open'}',
+            payload: payload,
           );
+          actions.add(action);
+          _publishOpenTarget(action.actionId, action.payload);
         }
       } on Object {
         // Aksi yang rusak diabaikan agar startup tetap aman.
@@ -323,10 +345,23 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     try {
       final decoded = jsonDecode(rawPayload);
       if (decoded is Map<String, dynamic> && onAction != null) {
-        await onAction!(actionId ?? 'open', decoded);
+        final action = actionId ?? 'open';
+        await onAction!(action, decoded);
+        _publishOpenTarget(action, decoded);
       }
     } on Object {
       // Payload invalid tidak boleh membuat callback notifikasi crash.
     }
+  }
+
+  void _publishOpenTarget(String actionId, Map<String, dynamic> payload) {
+    if (actionId != 'open') return;
+    final reminderId = '${payload['reminderId'] ?? ''}'.trim();
+    final historyId = '${payload['historyId'] ?? ''}'.trim();
+    if (reminderId.isEmpty || historyId.isEmpty) return;
+    _openTarget.value = ReminderNotificationOpenTarget(
+      reminderId: reminderId,
+      historyId: historyId,
+    );
   }
 }
