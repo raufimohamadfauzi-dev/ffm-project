@@ -42,6 +42,7 @@ part 'app_database.g.dart';
     AssistantMemories,
     AssistantLearningExamples,
     AssistantUnansweredQuestions,
+    AssistantResponseFeedbacks,
     UserCorrections,
     UserPreferences,
     InteractionPatterns,
@@ -53,7 +54,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 34;
+  int get schemaVersion => 35;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +64,7 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
+      await _createAssistantResponseFeedbackIndexes();
       await _createPersonalizationIndexes();
       await _seedInitialData();
     },
@@ -144,6 +146,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(interactionPatterns);
         await _createPersonalizationIndexes();
       }
+      if (from < 35) {
+        await m.createTable(assistantResponseFeedbacks);
+        await _createAssistantResponseFeedbackIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -196,6 +202,14 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_assistant_unanswered_questions_open '
       'ON assistant_unanswered_questions '
       '(household_id, is_resolved, updated_at)',
+    );
+  }
+
+  Future<void> _createAssistantResponseFeedbackIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_response_feedbacks_review '
+      'ON assistant_response_feedbacks '
+      '(household_id, review_status, is_archived, updated_at)',
     );
   }
 

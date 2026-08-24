@@ -561,3 +561,23 @@ class AssistantUnansweredQuestions extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Umpan balik yang pengguna kirim atas jawaban Asisten, bukan koreksi data
+/// transaksi dan bukan knowledge yang langsung aktif.
+class AssistantResponseFeedbacks extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get questionText => text()();
+  TextColumn get responseText => text()();
+  TextColumn get feedbackKind => text()();
+  TextColumn get note => text().nullable()();
+  TextColumn get pageContext => text().nullable()();
+  TextColumn get reviewStatus =>
+      text().withDefault(const Constant('pending'))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}

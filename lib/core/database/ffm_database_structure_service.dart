@@ -252,6 +252,11 @@ class FfmDatabaseStructureService {
       'Asisten',
       'Antrian pertanyaan yang belum dipahami atau sedang ditinjau.',
     ),
+    'assistant_response_feedbacks': _TableDefinition(
+      'Feedback jawaban Asisten',
+      'Asisten',
+      'Antrean review feedback tersanitasi atas jawaban Asisten; tidak langsung menjadi knowledge.',
+    ),
     'user_corrections': _TableDefinition(
       'Koreksi pengguna',
       'Personalisasi',
