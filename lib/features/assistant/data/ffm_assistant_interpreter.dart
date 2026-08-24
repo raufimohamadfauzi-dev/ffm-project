@@ -833,6 +833,9 @@ class FfmAssistantInterpreter {
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
+    final goalMutation = await _parseGoalMutation(rawText, normalized);
+    if (goalMutation != null) return goalMutation;
+
     final transactionMutation = await _parseTransactionMutation(
       rawText,
       normalized,
@@ -1911,8 +1914,8 @@ class FfmAssistantInterpreter {
       'menu yang ini',
     ]);
     final asksAboutPage = page != null || asksAboutCurrentPage;
-    final destination = page?.destination ??
-        (asksAboutCurrentPage ? currentDestination : null);
+    final destination =
+        page?.destination ?? (asksAboutCurrentPage ? currentDestination : null);
     if (destination != null && asksAboutPage) {
       final targetPage =
           page ?? FfmAssistantCatalog.findByDestination(destination);
@@ -2354,6 +2357,16 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.assistantProfile,
         action: 'profil',
       ),
+      FfmAssistantDraftKind.goalUpdate => (
+        type: FfmAssistantIntentType.updateGoal,
+        destination: FfmAssistantDestination.goals,
+        action: 'perubahan target keuangan',
+      ),
+      FfmAssistantDraftKind.goalArchive => (
+        type: FfmAssistantIntentType.archiveGoal,
+        destination: FfmAssistantDestination.goals,
+        action: 'arsip target keuangan',
+      ),
       FfmAssistantDraftKind.transactionUpdate => (
         type: FfmAssistantIntentType.updateTransaction,
         destination: FfmAssistantDestination.transactions,
@@ -2405,6 +2418,7 @@ class FfmAssistantInterpreter {
       FfmAssistantDraftKind.goalDeposit,
       FfmAssistantDraftKind.goalUsage,
       FfmAssistantDraftKind.goal,
+      FfmAssistantDraftKind.goalUpdate,
       FfmAssistantDraftKind.liability,
       FfmAssistantDraftKind.receivable,
       FfmAssistantDraftKind.asset,
@@ -2598,6 +2612,122 @@ class FfmAssistantInterpreter {
     final date = row.startedAt.toIso8601String().substring(0, 10);
     return '${row.title} • ${row.category} • $date';
   }
+
+  Future<FfmAssistantIntent?> _parseGoalMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:target|goal)(?:\s+keuangan)?\s+(.+?)\s+(?:jadi|menjadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan)\s+(?:target|goal)(?:\s+keuangan)?\s+(.+)$',
+    ).firstMatch(normalized);
+    if (update == null && archive == null) return null;
+
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final amount = update == null
+        ? null
+        : FfmAssistantAmountParser.parse(update.group(2)!);
+    if (operation == 'update' && (amount == null || amount <= 0)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.updateGoal,
+        confidence: .7,
+        clarification: 'Sebut nominal target baru setelah kata “jadi”, misalnya: “ubah target dana darurat jadi 5000000”. Belum ada data yang diubah.',
+      );
+    }
+    final candidates = await _findGoalCandidates(targetText);
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: operation == 'update'
+            ? FfmAssistantIntentType.updateGoal
+            : FfmAssistantIntentType.archiveGoal,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu target keuangan aktif yang cocok dengan “$targetText”. Sebut nama target yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      final options = candidates.take(3).map(_goalCandidateLabel).join('; ');
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: operation == 'update'
+            ? FfmAssistantIntentType.updateGoal
+            : FfmAssistantIntentType.archiveGoal,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} target yang cocok: $options. Sebut nama target yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.goalUpdate
+          : FfmAssistantDraftKind.goalArchive,
+      createdAt: _clock(),
+      amount: amount,
+      title: _goalCandidateLabel(target),
+      date: target.targetDate,
+      formValues: {
+        'entity': 'goal',
+        'targetId': target.id,
+        'operation': operation,
+        'oldTargetAmount': target.targetAmount.toString(),
+        'currentAmount': target.currentAmount.toString(),
+        'targetSummary': _goalCandidateLabel(target),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menemukan satu target dan menyiapkan perubahan dari ${_money(target.targetAmount)} menjadi ${_money(amount!)}. Cek preview dulu; belum ada data yang diubah.'
+          : 'Aku menemukan satu target untuk diarsipkan. Progresnya tetap tersimpan; cek preview dulu sebelum mengonfirmasi.',
+    );
+  }
+
+  Future<List<Goal>> _findGoalCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {
+                'target',
+                'goal',
+                'keuangan',
+                'pada',
+                'tanggal',
+                'ribu',
+                'rupiah',
+              }.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.goals)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isActive.equals(true),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.targetDate)]))
+            .get();
+    return rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _goalCandidateLabel(Goal row) =>
+      '${row.name} • ${_money(row.currentAmount)} dari ${_money(row.targetAmount)}';
 
   Future<FfmAssistantIntent?> _parseTransactionMutation(
     String rawText,

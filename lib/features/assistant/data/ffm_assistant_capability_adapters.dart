@@ -4,6 +4,8 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
+import '../../goal/domain/entities/goal_entity.dart';
+import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
@@ -55,6 +57,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.budget': _prepareDraft,
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
+    'draft.goal_update': _prepareGoalMutation,
+    'draft.goal_archive': _prepareGoalMutation,
     'mutate.save_draft': _saveDraft,
     'mutate.update': _updateTransaction,
     'mutate.archive': _archiveMutation,
@@ -62,6 +66,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.saved_draft': _verifySavedDraft,
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
+    'verify.goal_mutation': _verifyGoalMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -228,6 +233,7 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _updateTransaction(
     FfmAssistantActionStep step,
   ) async {
+    if (step.parameters['entity'] == 'goal') return _updateGoal(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -305,6 +311,7 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _archiveMutation(
     FfmAssistantActionStep step,
   ) {
+    if (step.parameters['entity'] == 'goal') return _archiveGoal(step);
     if (step.parameters['entity'] == 'activity_session') {
       return _archiveActivity(step);
     }
@@ -474,6 +481,151 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     return const FfmAssistantCapabilityExecutionResult.failure(
       'Jenis perubahan aktivitas tidak dikenal saat verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareGoalMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || (operation != 'update' && operation != 'archive')) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload perubahan target tidak lengkap.',
+      );
+    }
+    final goal = await GetGoal(_database)(_householdId, targetId);
+    if (goal == null || !goal.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target keuangan tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (operation == 'update') {
+      final amount = _positiveInt(step.parameters['amount']);
+      if (amount == null || amount <= 0) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Nominal target baru belum valid.',
+        );
+      }
+      if (amount < goal.currentAmount) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Nominal target baru tidak boleh lebih kecil dari progres saat ini ${_money(goal.currentAmount)}.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview perubahan target “${goal.name}” dari ${_money(goal.targetAmount)} menjadi ${_money(amount)}. Belum ada data yang diubah.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview arsip target “${goal.name}”. Progres ${_money(goal.currentAmount)} tetap tersimpan dalam data lokal, tetapi target tidak lagi aktif. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateGoal(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final amount = _positiveInt(step.parameters['amount']);
+    if (targetId == null || amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nominal perubahan belum valid.',
+      );
+    }
+    final goal = await GetGoal(_database)(_householdId, targetId);
+    if (goal == null || !goal.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target keuangan tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (amount < goal.currentAmount) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Nominal target baru tidak boleh lebih kecil dari progres saat ini ${_money(goal.currentAmount)}.',
+      );
+    }
+    if (amount == goal.targetAmount) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: nominal target sudah sesuai dengan draft perubahan.',
+      );
+    }
+    await SaveGoal(_database)(
+      GoalEntity(
+        id: goal.id,
+        householdId: goal.householdId,
+        name: goal.name,
+        targetAmount: amount,
+        currentAmount: goal.currentAmount,
+        targetDate: goal.targetDate,
+        categoryId: goal.categoryId,
+        isActive: goal.isActive,
+        createdAt: goal.createdAt,
+      ),
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Target “${goal.name}” diperbarui menjadi ${_money(amount)}. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveGoal(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target keuangan yang akan diarsipkan belum valid.',
+      );
+    }
+    final goal = await GetGoal(_database)(_householdId, targetId);
+    if (goal == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target keuangan tidak ditemukan.',
+      );
+    }
+    if (!goal.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: target keuangan sudah diarsipkan.',
+      );
+    }
+    await DeleteGoal(_database)(_householdId, targetId);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Target “${goal.name}” diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyGoalMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || operation == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload verifikasi perubahan target tidak lengkap.',
+      );
+    }
+    final goal = await GetGoal(_database)(_householdId, targetId);
+    if (operation == 'update') {
+      final amount = _positiveInt(step.parameters['amount']);
+      return goal != null &&
+              goal.isActive &&
+              amount != null &&
+              goal.targetAmount == amount
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: target “${goal.name}” terbaca kembali dengan nominal ${_money(amount)}.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: nominal target belum sesuai dengan draft perubahan.',
+            );
+    }
+    if (operation == 'archive') {
+      return goal != null && !goal.isActive
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: target “${goal.name}” sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: target masih aktif atau tidak ditemukan setelah arsip.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis perubahan target tidak dikenal saat verifikasi.',
     );
   }
 

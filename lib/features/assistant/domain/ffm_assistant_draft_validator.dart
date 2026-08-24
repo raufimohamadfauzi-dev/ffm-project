@@ -75,6 +75,18 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.goalUpdate:
+      case FfmAssistantDraftKind.goalArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'target keuangan',
+              message: 'Target keuangan belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.liability:
       case FfmAssistantDraftKind.receivable:
         if (_isBlank(draft.partyName)) {
@@ -138,6 +150,7 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.reminder ||
     FfmAssistantDraftKind.activity ||
     FfmAssistantDraftKind.profile ||
+    FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||

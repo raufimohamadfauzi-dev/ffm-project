@@ -4,11 +4,7 @@ import '../../../domain/ffm_assistant_models.dart';
 
 /// Kartu pratinjau draf interaktif yang dapat dibuka-tutup untuk memeriksa detail lengkap.
 class FfmAssistantDraftPreview extends StatefulWidget {
-  const FfmAssistantDraftPreview({
-    super.key,
-    required this.draft,
-    this.review,
-  });
+  const FfmAssistantDraftPreview({super.key, required this.draft, this.review});
 
   final FfmAssistantDraft draft;
   final FfmAssistantDraftReview? review;
@@ -28,6 +24,8 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.reminder => 'Draft Pengingat',
     FfmAssistantDraftKind.activity => 'Draft Aktivitas',
     FfmAssistantDraftKind.profile => 'Draft Perkenalan Diri',
+    FfmAssistantDraftKind.goalUpdate => 'Preview Perubahan Target',
+    FfmAssistantDraftKind.goalArchive => 'Preview Arsip Target',
     FfmAssistantDraftKind.transactionUpdate => 'Preview Perubahan Transaksi',
     FfmAssistantDraftKind.transactionArchive => 'Preview Arsip Transaksi',
     FfmAssistantDraftKind.transactionDelete => 'Preview Hapus Transaksi',
@@ -77,9 +75,8 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
     final fields = <MapEntry<String, String>>[
       MapEntry(
         'Jenis',
-        FfmAssistantDraftPreview.draftLabel(
-          draft.kind,
-        ).replaceFirst('Draft ', ''),
+        FfmAssistantDraftPreview.draftLabel(draft.kind)
+            .replaceFirst('Draft ', ''),
       ),
       MapEntry('Nama/Judul', draft.title ?? 'Belum diisi'),
       if (draft.amount != null)
@@ -133,7 +130,9 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                 Icon(
                   Icons.receipt_long_rounded,
                   size: 18,
-                  color: isDark ? const Color(0xFFC9B8A8) : const Color(0xFF8B6F47),
+                  color: isDark
+                      ? const Color(0xFFC9B8A8)
+                      : const Color(0xFF8B6F47),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -141,7 +140,9 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     FfmAssistantDraftPreview.draftLabel(draft.kind),
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      color: isDark ? const Color(0xFFEDE8E0) : const Color(0xFF5C4A32),
+                      color: isDark
+                          ? const Color(0xFFEDE8E0)
+                          : const Color(0xFF5C4A32),
                       fontSize: 13,
                     ),
                   ),
