@@ -352,8 +352,8 @@ class SaveMixedTransactionBatch {
   }
 }
 
-class DeleteTransaction {
-  const DeleteTransaction(this.database);
+class ArchiveTransaction {
+  const ArchiveTransaction(this.database);
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
@@ -361,5 +361,24 @@ class DeleteTransaction {
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(const TransactionsCompanion(isArchived: Value(true)));
+  }
+}
+
+class DeleteTransaction {
+  const DeleteTransaction(this.database);
+  final AppDatabase database;
+
+  /// Menghapus dari daftar aktif secara terkontrol, tanpa physical delete yang
+  /// akan memutus jejak audit dan relasi data lokal.
+  Future<void> call(String householdId, String id) async {
+    await (database.update(database.transactions)..where(
+          (row) => row.householdId.equals(householdId) & row.id.equals(id),
+        ))
+        .write(
+          const TransactionsCompanion(
+            isArchived: Value(true),
+            isDeleted: Value(true),
+          ),
+        );
   }
 }

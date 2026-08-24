@@ -510,6 +510,12 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final transactionMutation = await _parseTransactionMutation(
+      rawText,
+      normalized,
+    );
+    if (transactionMutation != null) return transactionMutation;
+
     final correction = _parseCorrection(rawText, normalized);
     if (correction != null) return correction;
 
@@ -1544,6 +1550,21 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.assistantProfile,
         action: 'profil',
       ),
+      FfmAssistantDraftKind.transactionUpdate => (
+        type: FfmAssistantIntentType.updateTransaction,
+        destination: FfmAssistantDestination.transactions,
+        action: 'perubahan transaksi',
+      ),
+      FfmAssistantDraftKind.transactionArchive => (
+        type: FfmAssistantIntentType.archiveTransaction,
+        destination: FfmAssistantDestination.transactions,
+        action: 'arsip transaksi',
+      ),
+      FfmAssistantDraftKind.transactionDelete => (
+        type: FfmAssistantIntentType.deleteTransaction,
+        destination: FfmAssistantDestination.transactions,
+        action: 'hapus transaksi',
+      ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
       final target = _masterDataTargetName(draft.categoryName);
@@ -1625,6 +1646,149 @@ class FfmAssistantInterpreter {
           : null,
     );
   }
+
+  Future<FfmAssistantIntent?> _parseTransactionMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+transaksi\s+(.+?)\s+(?:jadi|menjadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+transaksi\s+(.+)$')
+        .firstMatch(normalized);
+    final delete = RegExp(r'^hapus\s+transaksi\s+(.+)$').firstMatch(normalized);
+    if (update == null && archive == null && delete == null) return null;
+
+    final operation = update != null
+        ? 'update'
+        : archive != null
+        ? 'archive'
+        : 'delete';
+    final targetText =
+        (update?.group(1) ?? archive?.group(1) ?? delete!.group(1)!).trim();
+    final amount = update == null
+        ? null
+        : FfmAssistantAmountParser.parse(update.group(2)!);
+    if (operation == 'update' && (amount == null || amount <= 0)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.updateTransaction,
+        confidence: .7,
+        clarification: 'Sebut nominal baru setelah kata “jadi”, misalnya: “ubah transaksi kopi jadi 25000”. Belum ada data yang diubah.',
+      );
+    }
+    final candidates = await _findTransactionCandidates(targetText);
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: _mutationIntentType(operation),
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu transaksi aktif yang cocok dengan “$targetText”. Sebut kata pada catatan atau pihak transaksi. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      final options = candidates
+          .take(3)
+          .map(_transactionCandidateLabel)
+          .join('; ');
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: _mutationIntentType(operation),
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} transaksi yang cocok: $options. Sebut kata catatan yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final kind = switch (operation) {
+      'update' => FfmAssistantDraftKind.transactionUpdate,
+      'archive' => FfmAssistantDraftKind.transactionArchive,
+      _ => FfmAssistantDraftKind.transactionDelete,
+    };
+    final draft = FfmAssistantDraft(
+      kind: kind,
+      createdAt: _clock(),
+      amount: amount,
+      title: _transactionCandidateLabel(target),
+      note: target.note,
+      date: target.date,
+      formValues: {
+        'targetId': target.id,
+        'operation': operation,
+        'oldAmount': target.amount.abs().toString(),
+        'targetSummary': _transactionCandidateLabel(target),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menemukan satu transaksi dan menyiapkan perubahan dari ${_money(target.amount.abs())} menjadi ${_money(amount!)}. Cek preview dulu; belum ada data yang diubah.'
+          : operation == 'archive'
+          ? 'Aku menemukan satu transaksi untuk diarsipkan. Cek preview dulu; transaksi belum dipindahkan dari daftar aktif.'
+          : 'Aku menemukan satu transaksi untuk dihapus dari daftar aktif. Cek preview dulu; jejak audit lokal tetap dipertahankan.',
+    );
+  }
+
+  FfmAssistantIntentType _mutationIntentType(String operation) =>
+      switch (operation) {
+        'update' => FfmAssistantIntentType.updateTransaction,
+        'archive' => FfmAssistantIntentType.archiveTransaction,
+        _ => FfmAssistantIntentType.deleteTransaction,
+      };
+
+  Future<List<Transaction>> _findTransactionCandidates(
+    String targetText,
+  ) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {
+                'transaksi',
+                'pada',
+                'tanggal',
+                'ribu',
+                'rupiah',
+              }.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.transactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+            .get();
+    return rows
+        .where((row) {
+          final haystack = '${row.note ?? ''} ${row.partyName ?? ''}'
+              .toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _transactionCandidateLabel(Transaction row) {
+    final kind = row.type == 'income' ? 'pemasukan' : 'pengeluaran';
+    final detail = (row.note ?? row.partyName ?? 'tanpa catatan').trim();
+    final date = row.date.toIso8601String().substring(0, 10);
+    return '$kind ${_money(row.amount.abs())} • $detail • $date';
+  }
+
+  String _money(int amount) =>
+      'Rp${amount.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (_) => '.')}';
 
   FfmAssistantDraft? _parseFinancialDraft(
     String rawText,

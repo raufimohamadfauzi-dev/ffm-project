@@ -103,6 +103,19 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.transactionUpdate:
+      case FfmAssistantDraftKind.transactionArchive:
+      case FfmAssistantDraftKind.transactionDelete:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'transaction_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'transaksi',
+              message: 'Transaksi target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.budget:
         if (!draft.hasAmount) {
           issues.add(
@@ -122,7 +135,9 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.masterData ||
     FfmAssistantDraftKind.reminder ||
     FfmAssistantDraftKind.activity ||
-    FfmAssistantDraftKind.profile => false,
+    FfmAssistantDraftKind.profile ||
+    FfmAssistantDraftKind.transactionArchive ||
+    FfmAssistantDraftKind.transactionDelete => false,
     _ => true,
   };
 

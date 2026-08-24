@@ -246,3 +246,10 @@
 - [x] Hubungkan callback progres byte nyata dari verifikasi model dan projector ke proses rakit SLM.
 - [x] Tampilkan progress bar, tahap 1/2 dan 2/2, peringatan navigasi, serta aksi sukses/gagal yang relevan.
 - [x] Tambahkan regresi progres, recovery lifecycle, validasi penuh, dan build APK patch.
+
+# Audit dan Upgrade Capability Agen FFM
+
+- [x] Inventarisasi intent, registry, adapter, planner, executor, draft, repository, ekspor, knowledge, dan audit yang benar-benar tersambung.
+- [x] Catat mismatch aktual dan prioritaskan capability P0 yang aman untuk diselesaikan pada arsitektur sekarang.
+- [x] Implementasikan capability P0 terpilih melalui jalur chat sampai hasil terverifikasi dan konfirmasi eksplisit.
+- [ ] Tambahkan regresi lintas jalur, validasi penuh, build APK patch, dan matriks capability aktual.

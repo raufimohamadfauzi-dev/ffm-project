@@ -236,9 +236,42 @@ class FfmAssistantCapabilityRegistry {
       requiresConfirmation: true,
     ),
     const FfmAssistantCapability(
+      id: 'draft.transaction_update',
+      label: 'Siapkan perubahan transaksi',
+      description:
+          'Menampilkan perubahan transaksi yang diusulkan tanpa menyimpan.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.transactions,
+      parameterNames: ['targetId', 'amount', 'note', 'date'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.transaction_archive',
+      label: 'Siapkan arsip transaksi',
+      description:
+          'Menampilkan transaksi yang akan diarsipkan tanpa mengubah data.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.transactions,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.transaction_delete',
+      label: 'Siapkan hapus transaksi',
+      description: 'Menampilkan transaksi yang akan dihapus sebelum konfirmasi eksplisit.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.transactions,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'verify.saved_draft',
       label: 'Verifikasi hasil simpan',
       description: 'Membaca kembali hasil mutation untuk memastikan perubahan benar-benar tersimpan.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.transaction_mutation',
+      label: 'Verifikasi perubahan transaksi',
+      description: 'Membaca kembali status transaksi setelah perubahan, arsip, atau hapus.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

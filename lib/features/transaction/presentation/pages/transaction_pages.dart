@@ -168,6 +168,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.reminder:
       case FfmAssistantDraftKind.activity:
       case FfmAssistantDraftKind.profile:
+      case FfmAssistantDraftKind.transactionUpdate:
+      case FfmAssistantDraftKind.transactionArchive:
+      case FfmAssistantDraftKind.transactionDelete:
         return;
     }
   }

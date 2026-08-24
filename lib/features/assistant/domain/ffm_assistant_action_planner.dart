@@ -46,6 +46,9 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.reminder => 'draft.reminder',
         FfmAssistantDraftKind.activity => 'draft.activity',
         FfmAssistantDraftKind.profile => 'draft.profile',
+        FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
+        FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
+        FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
       };
       steps.add(
         FfmAssistantActionStep(
@@ -55,18 +58,31 @@ class FfmAssistantActionPlanner {
         ),
       );
       final parameters = _draftParameters(draft);
+      final mutationCapability = switch (draft.kind) {
+        FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
+        FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
+        FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
+        _ => 'mutate.save_draft',
+      };
+      final idempotencyKey = '$planId:save';
       steps.add(
         FfmAssistantActionStep(
           id: 'save',
-          capabilityId: 'mutate.save_draft',
-          parameters: {...parameters, '_idempotencyKey': '$planId:save'},
+          capabilityId: mutationCapability,
+          parameters: {...parameters, '_idempotencyKey': idempotencyKey},
         ),
       );
       steps.add(
         FfmAssistantActionStep(
           id: 'verify',
-          capabilityId: 'verify.saved_draft',
-          parameters: {...parameters, '_idempotencyKey': '$planId:save'},
+          capabilityId: switch (draft.kind) {
+            FfmAssistantDraftKind.transactionUpdate ||
+            FfmAssistantDraftKind.transactionArchive ||
+            FfmAssistantDraftKind.transactionDelete =>
+              'verify.transaction_mutation',
+            _ => 'verify.saved_draft',
+          },
+          parameters: {...parameters, '_idempotencyKey': idempotencyKey},
         ),
       );
     }

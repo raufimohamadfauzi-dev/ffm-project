@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/database/audit_logger.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
@@ -24,6 +25,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.accounts': _readAccounts,
     'read.categories': _readCategories,
     'read.analysis': _readAnalysis,
+    'draft.transaction_update': _prepareTransactionMutation,
+    'draft.transaction_archive': _prepareTransactionMutation,
+    'draft.transaction_delete': _prepareTransactionMutation,
     'draft.income': _prepareDraft,
     'draft.expense': _prepareDraft,
     'draft.transfer': _prepareDraft,
@@ -39,7 +43,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
     'mutate.save_draft': _saveDraft,
+    'mutate.update': _updateTransaction,
+    'mutate.archive': _archiveTransaction,
+    'sensitive.delete': _deleteTransaction,
     'verify.saved_draft': _verifySavedDraft,
+    'verify.transaction_mutation': _verifyTransactionMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -187,6 +195,246 @@ class FfmAssistantCapabilityAdapterRegistry {
       'Preview siap untuk $kind sebesar ${_money(amount)}. Belum ada data yang disimpan.',
     );
   }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareTransactionMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _activeTransactionTarget(step);
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi target tidak ditemukan, sudah diarsipkan, atau tidak lagi aktif.',
+      );
+    }
+    final operation = step.parameters['operation']?.toString() ?? 'perubahan';
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview $operation siap untuk transaksi ${_money(target.transaction.amount.abs())} pada ${target.transaction.date.toIso8601String().substring(0, 10)}. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateTransaction(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _activeTransactionTarget(step);
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi target tidak ditemukan atau sudah tidak aktif.',
+      );
+    }
+    if (target.transaction.goalId != null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi yang terkait target keuangan harus diubah lewat form transaksi agar kontribusi target ikut disinkronkan.',
+      );
+    }
+    final amount = _positiveInt(step.parameters['amount']);
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nominal perubahan transaksi belum valid.',
+      );
+    }
+    final signedAmount = target.transaction.type == 'income' ? amount : -amount;
+    if (target.transaction.amount == signedAmount) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: nominal transaksi sudah sesuai dengan draft perubahan.',
+      );
+    }
+    final now = _clock();
+    await SaveTransaction(_database)(
+      TransactionEntity(
+        id: target.transaction.id,
+        householdId: target.transaction.householdId,
+        date: target.transaction.date,
+        amount: signedAmount,
+        owner: target.transaction.owner,
+        categoryId: target.transaction.categoryId,
+        note: target.transaction.note,
+        source: target.transaction.source,
+        sourceId: target.transaction.sourceId,
+        recurringTransactionId: target.transaction.recurringTransactionId,
+        accountId: target.transaction.accountId,
+        merchantId: target.transaction.merchantId,
+        location: target.transaction.location,
+        goalId: target.transaction.goalId,
+        partyName: target.transaction.partyName,
+        receiptRawText: target.transaction.receiptRawText,
+        receiptNumber: target.transaction.receiptNumber,
+        receiptPaidAmount: target.transaction.receiptPaidAmount,
+        receiptChangeAmount: target.transaction.receiptChangeAmount,
+        recordedAt: target.transaction.recordedAt,
+        updatedAt: now,
+      ),
+      items: [
+        for (final item in target.items)
+          TransactionItemEntity(
+            id: item.id,
+            transactionId: item.transactionId,
+            itemName: item.itemName,
+            price: item.price,
+            qty: item.qty,
+          ),
+      ],
+    );
+    await AuditLogger(_database).record(
+      action: 'ubah',
+      entity: 'transaksi',
+      householdId: _householdId,
+      oldValue: _transactionAuditValue(target.transaction),
+      newValue: {
+        ..._transactionAuditValue(target.transaction),
+        'amount': signedAmount,
+      },
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Transaksi diperbarui ke ${_money(amount)}. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveTransaction(
+    FfmAssistantActionStep step,
+  ) => _setTransactionVisibility(step, archive: true);
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteTransaction(
+    FfmAssistantActionStep step,
+  ) => _setTransactionVisibility(step, archive: false);
+
+  Future<FfmAssistantCapabilityExecutionResult> _setTransactionVisibility(
+    FfmAssistantActionStep step, {
+    required bool archive,
+  }) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload belum memiliki transaksi target yang valid.',
+      );
+    }
+    final current = await GetTransaction(_database)(_householdId, targetId);
+    if (current == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi target tidak ditemukan.',
+      );
+    }
+    if (archive &&
+        current.transaction.isArchived &&
+        !current.transaction.isDeleted) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: transaksi sudah diarsipkan.',
+      );
+    }
+    if (!archive && current.transaction.isDeleted) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: transaksi sudah dihapus dari daftar aktif.',
+      );
+    }
+    if (current.transaction.goalId != null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi yang terkait target keuangan harus dikelola dari form transaksi agar kontribusi target ikut disinkronkan.',
+      );
+    }
+    if (archive) {
+      await ArchiveTransaction(_database)(_householdId, targetId);
+    } else {
+      await DeleteTransaction(_database)(_householdId, targetId);
+    }
+    await AuditLogger(_database).record(
+      action: archive ? 'arsip' : 'hapus',
+      entity: 'transaksi',
+      householdId: _householdId,
+      oldValue: _transactionAuditValue(current.transaction),
+      newValue: {
+        ..._transactionAuditValue(current.transaction),
+        'isArchived': true,
+        if (!archive) 'isDeleted': true,
+      },
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      archive
+          ? 'Transaksi diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.'
+          : 'Transaksi dihapus dari daftar aktif. Jejak audit tetap tersimpan secara lokal.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyTransactionMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || operation == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload verifikasi perubahan transaksi tidak lengkap.',
+      );
+    }
+    final transaction = await GetTransaction(_database)(_householdId, targetId);
+    if (transaction == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Transaksi tidak ditemukan saat verifikasi.',
+      );
+    }
+    if (operation == 'update') {
+      final amount = _positiveInt(step.parameters['amount']);
+      final expected = transaction.transaction.type == 'income'
+          ? amount
+          : amount == null
+          ? null
+          : -amount;
+      if (expected == null || transaction.transaction.amount != expected) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Verifikasi gagal: nominal transaksi tidak sesuai dengan draft.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'verified: perubahan transaksi ${_money(expected.abs())} sudah terbaca kembali dari database lokal.',
+      );
+    }
+    if (operation == 'archive') {
+      return transaction.transaction.isArchived &&
+              !transaction.transaction.isDeleted
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: transaksi sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: transaksi belum berstatus arsip.',
+            );
+    }
+    if (operation == 'delete') {
+      return transaction.transaction.isArchived &&
+              transaction.transaction.isDeleted
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: transaksi sudah dihapus dari daftar aktif dan jejak audit tetap lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: transaksi belum berstatus dihapus.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis perubahan transaksi tidak dikenal saat verifikasi.',
+    );
+  }
+
+  Future<dynamic> _activeTransactionTarget(FfmAssistantActionStep step) async {
+    final targetId = _targetId(step);
+    if (targetId == null) return null;
+    final target = await GetTransaction(_database)(_householdId, targetId);
+    if (target == null ||
+        target.transaction.isArchived ||
+        target.transaction.isDeleted) {
+      return null;
+    }
+    return target;
+  }
+
+  String? _targetId(FfmAssistantActionStep step) {
+    final targetId = step.parameters['targetId']?.toString().trim();
+    return targetId == null || targetId.isEmpty ? null : targetId;
+  }
+
+  Map<String, Object?> _transactionAuditValue(dynamic transaction) => {
+    'id': transaction.id,
+    'amount': transaction.amount,
+    'date': transaction.date.toIso8601String(),
+    'type': transaction.type,
+    'note': transaction.note,
+    'isArchived': transaction.isArchived,
+    'isDeleted': transaction.isDeleted,
+  };
 
   Future<FfmAssistantCapabilityExecutionResult> _saveDraft(
     FfmAssistantActionStep step,

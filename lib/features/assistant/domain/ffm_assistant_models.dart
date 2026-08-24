@@ -29,6 +29,9 @@ enum FfmAssistantIntentType {
   createMasterData,
   createReminder,
   createActivity,
+  updateTransaction,
+  archiveTransaction,
+  deleteTransaction,
   explainJson,
   createJsonTemplate,
   exportReport,
@@ -87,6 +90,9 @@ enum FfmAssistantDraftKind {
   reminder,
   activity,
   profile,
+  transactionUpdate,
+  transactionArchive,
+  transactionDelete,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan
