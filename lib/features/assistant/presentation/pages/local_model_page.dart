@@ -13,6 +13,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../widgets/ffm_assistant_page_context.dart';
 import '../../data/ffm_background_download_service.dart';
+import '../../data/ffm_local_model_assembly_status.dart';
 import '../../data/ffm_local_model_service.dart';
 import '../../data/ffm_local_model_readiness.dart';
 import '../../data/ffm_local_model_status_load_gate.dart';
@@ -41,6 +42,7 @@ class _LocalModelPageState extends State<LocalModelPage>
   late final FfmLocalModelStatusLoadGate _loadGate;
   FfmLocalModelInfo? _model;
   FfmStagingStatus? _stagingStatus;
+  FfmLocalModelAssemblyStatus? _assemblyStatus;
   FfmModelProgress? _progress;
   List<FfmBackgroundDownloadStatus> _backgroundStatuses =
       const <FfmBackgroundDownloadStatus>[];
@@ -96,6 +98,10 @@ class _LocalModelPageState extends State<LocalModelPage>
     try {
       mark('mulai');
       final snapshot = await _loadGate.run(() async {
+        mark('getAssemblyStatus mulai');
+        final assembly = await _service.getAssemblyStatus();
+        mark('getAssemblyStatus selesai');
+        if (loadEpoch != _loadEpoch) return null;
         mark('getInstalled mulai');
         final model = await _service.getInstalled();
         mark('getInstalled selesai');
@@ -116,6 +122,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           model: model,
           background: background,
           staging: staging,
+          assembly: assembly,
         );
       });
       if (snapshot == null || loadEpoch != _loadEpoch) return;
@@ -123,6 +130,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       setState(() {
         _model = snapshot.model;
         _stagingStatus = snapshot.staging;
+        _assemblyStatus = snapshot.assembly;
         _backgroundStatuses = snapshot.background;
         _error = null;
         _loading = false;
@@ -367,22 +375,31 @@ class _LocalModelPageState extends State<LocalModelPage>
       _error = null;
     });
     try {
-      final model = await _service.commitStaging();
+      final model = await _service.commitStaging(
+        onStatus: (status) {
+          if (mounted) setState(() => _assemblyStatus = status);
+        },
+      );
       if (!mounted) return;
       setState(() {
         _model = model;
         _stagingStatus = null;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('SLM berhasil dirakit dan siap dipakai.')),
-      );
     } on FfmLocalModelManifestException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (_) {
+      final status = await _service.getAssemblyStatus();
       if (mounted) {
-        setState(
-          () => _error = 'Gagal merakit SLM. Pastikan file GGUF tidak rusak.',
-        );
+        setState(() {
+          _error = error.message;
+          _assemblyStatus = status;
+        });
+      }
+    } catch (_) {
+      final status = await _service.getAssemblyStatus();
+      if (mounted) {
+        setState(() {
+          _error = 'Gagal merakit SLM. Pastikan file GGUF tidak rusak.';
+          _assemblyStatus = status;
+        });
       }
     } finally {
       if (mounted) setState(() => _working = false);
@@ -501,6 +518,164 @@ class _LocalModelPageState extends State<LocalModelPage>
 
   String _size(int bytes) =>
       '${NumberFormat.decimalPattern('id_ID').format(bytes / (1024 * 1024))} MB';
+
+  String? _remainingEstimate(FfmLocalModelAssemblyStatus status) {
+    final startedAt = status.startedAt;
+    if (startedAt == null ||
+        status.processedBytes <= 0 ||
+        status.totalBytes <= 0) {
+      return null;
+    }
+    final elapsed = DateTime.now().difference(startedAt);
+    if (elapsed.inSeconds < 1) return null;
+    final remainingSeconds =
+        elapsed.inSeconds *
+        (status.totalBytes - status.processedBytes) ~/
+        status.processedBytes;
+    if (remainingSeconds <= 0) return null;
+    return remainingSeconds >= 60
+        ? '~${(remainingSeconds / 60).ceil()} menit'
+        : '~$remainingSeconds detik';
+  }
+
+  Widget _buildAssemblyStatusCard(BuildContext context) {
+    final status = _assemblyStatus!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final isModel = status.stage == FfmLocalModelAssemblyStage.verifyingModel;
+    final isProjector =
+        status.stage == FfmLocalModelAssemblyStage.verifyingProjector;
+    final isFailed = status.stage == FfmLocalModelAssemblyStage.failed;
+    final isReady = status.stage == FfmLocalModelAssemblyStage.ready;
+    final title = switch (status.stage) {
+      FfmLocalModelAssemblyStage.verifyingModel =>
+        'Memverifikasi Model GGUF...',
+      FfmLocalModelAssemblyStage.verifyingProjector =>
+        'Memverifikasi Projector GGUF...',
+      FfmLocalModelAssemblyStage.committing =>
+        'Memasang bundle terverifikasi...',
+      FfmLocalModelAssemblyStage.ready =>
+        'SLM berhasil dirakit dan siap dipakai!',
+      FfmLocalModelAssemblyStage.failed => 'Gagal merakit SLM',
+      FfmLocalModelAssemblyStage.idle => 'Status rakit SLM',
+    };
+    final detail = isModel
+        ? '${_size(FfmQwen2VlBundle.modelBytes)} — Tahap 1 dari 2'
+        : isProjector
+        ? '${_size(FfmQwen2VlBundle.projectorBytes)} — Tahap 2 dari 2'
+        : status.stage == FfmLocalModelAssemblyStage.committing
+        ? 'Menyimpan manifest dan memindahkan bundle secara atomik.'
+        : null;
+    final estimate = status.isWorking ? _remainingEstimate(status) : null;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                isReady
+                    ? Icons.verified_outlined
+                    : isFailed
+                    ? Icons.error_outline
+                    : Icons.build_circle_outlined,
+                color: isReady
+                    ? Colors.green.shade700
+                    : isFailed
+                    ? colorScheme.error
+                    : colorScheme.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
+          ),
+          if (status.isWorking) ...[
+            const SizedBox(height: 14),
+            LinearProgressIndicator(value: status.fraction),
+            const SizedBox(height: 8),
+            if (detail != null) Text(detail),
+            if (status.totalBytes > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${_size(status.processedBytes)} / ${_size(status.totalBytes)} diverifikasi',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (estimate != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Perkiraan sisa waktu: $estimate',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(
+              'Jangan tutup atau tinggalkan halaman ini sampai proses selesai.',
+              style: TextStyle(
+                color: colorScheme.error,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          if (isReady) ...[
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _returnToFfm,
+              icon: const Icon(Icons.smart_toy_outlined),
+              label: const Text('Buka Asisten'),
+            ),
+          ],
+          if (isFailed) ...[
+            const SizedBox(height: 10),
+            Text(
+              status.errorDetail ?? 'Status kegagalan tidak tersedia.',
+              style: TextStyle(color: colorScheme.error),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _working
+                      ? null
+                      : _stagingStatus?.isReadyToCommit == true
+                      ? _commitStaging
+                      : _load,
+                  icon: const Icon(Icons.refresh_outlined),
+                  label: const Text('Coba Lagi'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Detail teknis rakit SLM'),
+                      content: SelectableText(
+                        status.errorDetail ?? 'Tidak ada detail tersimpan.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Tutup'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  icon: const Icon(Icons.bug_report_outlined),
+                  label: const Text('Lihat Detail Teknis'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -694,6 +869,15 @@ class _LocalModelPageState extends State<LocalModelPage>
                             ],
                           ),
                         ],
+                        if (_assemblyStatus != null &&
+                            (_assemblyStatus!.isWorking ||
+                                _assemblyStatus!.stage ==
+                                    FfmLocalModelAssemblyStage.ready ||
+                                _assemblyStatus!.stage ==
+                                    FfmLocalModelAssemblyStage.failed)) ...[
+                          const SizedBox(height: 16),
+                          _buildAssemblyStatusCard(context),
+                        ],
                         if (_error case final error?) ...[
                           const SizedBox(height: 12),
                           Text(
@@ -800,9 +984,11 @@ class _LocalModelStatusSnapshot {
     required this.model,
     required this.background,
     required this.staging,
+    required this.assembly,
   });
 
   final FfmLocalModelInfo? model;
   final List<FfmBackgroundDownloadStatus> background;
   final FfmStagingStatus staging;
+  final FfmLocalModelAssemblyStatus? assembly;
 }

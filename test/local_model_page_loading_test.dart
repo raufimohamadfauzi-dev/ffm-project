@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_background_download_service.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_local_model_assembly_status.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_local_model_service.dart';
 import 'package:ffm_manager/features/assistant/presentation/pages/local_model_page.dart';
 
@@ -10,6 +11,9 @@ class _HangingModelService implements FfmLocalModelService {
   @override
   Future<FfmLocalModelInfo?> getInstalled() =>
       Completer<FfmLocalModelInfo?>().future;
+
+  @override
+  Future<FfmLocalModelAssemblyStatus?> getAssemblyStatus() async => null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -30,6 +34,9 @@ class _ErrorModelService implements FfmLocalModelService {
   Future<FfmLocalModelInfo?> getInstalled() async {
     throw StateError('platform status tidak tersedia');
   }
+
+  @override
+  Future<FfmLocalModelAssemblyStatus?> getAssemblyStatus() async => null;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

@@ -123,6 +123,27 @@ void main() {
       );
     });
 
+    test(
+      'checksum melaporkan byte yang benar-benar dibaca secara streaming',
+      () async {
+        final file = File('${root.path}/checksum-progress.gguf');
+        await file.writeAsBytes(
+          List<int>.generate(700000, (index) => index % 251),
+        );
+        final progress = <(int, int)>[];
+
+        await service.checksum(
+          file,
+          onProgress: (processed, total) => progress.add((processed, total)),
+        );
+
+        expect(progress, isNotEmpty);
+        expect(progress.last.$1, 700000);
+        expect(progress.last.$2, 700000);
+        expect(progress.length, greaterThan(1));
+      },
+    );
+
     test('model belum siap tanpa manifest verified', () async {
       expect(await service.getInstalled(), isNull);
       expect(

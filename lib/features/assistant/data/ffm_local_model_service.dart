@@ -9,6 +9,7 @@ import 'package:crypto/crypto.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as path;
 
+import 'ffm_local_model_assembly_status.dart';
 import 'ffm_staging_status.dart';
 
 import 'package:path_provider/path_provider.dart';
@@ -170,6 +171,7 @@ class FfmLocalModelService {
   static const _downloadFolderName = '.downloads';
   static const _manifestFormat = 'ffm-verified-model-manifest-v1';
   static const _hashChunkSize = 256 * 1024;
+  static const _assemblyStatusKey = 'ffm_local_model_assembly_status_v1';
 
   final Future<Directory> Function() _applicationSupportDirectory;
   final HttpClient Function() _httpClientFactory;
@@ -221,6 +223,33 @@ class FfmLocalModelService {
     if (await staging.exists()) {
       await staging.delete(recursive: true);
     }
+    await _saveAssemblyStatus(
+      FfmLocalModelAssemblyStatus(
+        stage: FfmLocalModelAssemblyStage.idle,
+        updatedAt: _clock(),
+      ),
+    );
+  }
+
+  Future<FfmLocalModelAssemblyStatus?> getAssemblyStatus() async {
+    final preferences = await SharedPreferences.getInstance();
+    final raw = preferences.getString(_assemblyStatusKey);
+    if (raw == null || raw.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+      return FfmLocalModelAssemblyStatus.fromJson(decoded);
+    } on Object {
+      return null;
+    }
+  }
+
+  Future<void> _saveAssemblyStatus(FfmLocalModelAssemblyStatus status) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      _assemblyStatusKey,
+      jsonEncode(status.toJson()),
+    );
   }
 
   Future<void> importSingleGguf(PlatformFile selected) async {
@@ -351,9 +380,11 @@ class FfmLocalModelService {
     );
   }
 
-  Future<FfmLocalModelInfo> commitStaging() async {
-    final status = await getStagingStatus();
-    if (!status.isReadyToCommit) {
+  Future<FfmLocalModelInfo> commitStaging({
+    void Function(FfmLocalModelAssemblyStatus status)? onStatus,
+  }) async {
+    final stagingStatus = await getStagingStatus();
+    if (!stagingStatus.isReadyToCommit) {
       throw const FfmLocalModelManifestException(
         'File di staging belum lengkap.',
       );
@@ -366,58 +397,141 @@ class FfmLocalModelService {
     final projectorFile = File(
       path.join(staging.path, FfmQwen2VlBundle.projectorFileName),
     );
+    final startedAt = _clock();
 
-    await _verifyFile(FfmQwen2VlBundle.files[0], modelFile);
-    await _verifyFile(FfmQwen2VlBundle.files[1], projectorFile);
+    Future<void> publish(FfmLocalModelAssemblyStatus next) async {
+      onStatus?.call(next);
+      await _saveAssemblyStatus(next);
+    }
 
-    final manifestBytes = utf8.encode(
-      const JsonEncoder.withIndent('  ').convert({
-        'formatVersion': _manifestFormat,
-        'bundleId': FfmQwen2VlBundle.bundleId,
-        'bundleVersion': FfmQwen2VlBundle.bundleVersion,
-        'modelFamily': FfmQwen2VlBundle.modelFamily,
-        'verificationStatus': 'verified',
-        'verifiedAtUtc': _clock().toUtc().toIso8601String(),
-        'files': [
-          {
-            'role': FfmQwen2VlBundle.files[0].role,
-            'fileName': FfmQwen2VlBundle.files[0].fileName,
-            'expectedSha256': FfmQwen2VlBundle.files[0].expectedSha256,
-            'actualSha256': FfmQwen2VlBundle.files[0].expectedSha256,
-            'actualSizeBytes': '${FfmQwen2VlBundle.files[0].expectedSizeBytes}',
-            'ggufHeaderVerified': true,
-          },
-          {
-            'role': FfmQwen2VlBundle.files[1].role,
-            'fileName': FfmQwen2VlBundle.files[1].fileName,
-            'expectedSha256': FfmQwen2VlBundle.files[1].expectedSha256,
-            'actualSha256': FfmQwen2VlBundle.files[1].expectedSha256,
-            'actualSizeBytes': '${FfmQwen2VlBundle.files[1].expectedSizeBytes}',
-            'ggufHeaderVerified': true,
-          },
-        ],
-      }),
-    );
-
-    await File(path.join(staging.path, FfmQwen2VlBundle.manifestFileName))
-        .writeAsBytes(manifestBytes, flush: true);
-
-    final finalDirectory = await _finalDirectory();
-    final backup = Directory('${finalDirectory.path}.previous');
-    if (await backup.exists()) await backup.delete(recursive: true);
-    if (await finalDirectory.exists()) await finalDirectory.rename(backup.path);
-
-    await staging.rename(finalDirectory.path);
-
-    if (await backup.exists()) await backup.delete(recursive: true);
-
-    final installed = await getInstalled();
-    if (installed == null) {
-      throw const FfmLocalModelManifestException(
-        'Commit gagal, manifest tidak terbaca setelah dipindahkan.',
+    Future<void> verifyWithProgress({
+      required FfmModelFileSpec spec,
+      required File file,
+      required FfmLocalModelAssemblyStage stage,
+    }) async {
+      var lastPercent = -1;
+      await publish(
+        FfmLocalModelAssemblyStatus(
+          stage: stage,
+          updatedAt: _clock(),
+          startedAt: startedAt,
+          fileName: spec.fileName,
+          totalBytes: spec.expectedSizeBytes,
+        ),
+      );
+      await _verifyFile(
+        spec,
+        file,
+        onProgress: (processedBytes, totalBytes) {
+          final percent = totalBytes <= 0
+              ? 0
+              : (processedBytes * 100 ~/ totalBytes).clamp(0, 100);
+          if (percent == lastPercent && processedBytes != totalBytes) return;
+          lastPercent = percent;
+          final next = FfmLocalModelAssemblyStatus(
+            stage: stage,
+            updatedAt: _clock(),
+            startedAt: startedAt,
+            fileName: spec.fileName,
+            processedBytes: processedBytes,
+            totalBytes: totalBytes,
+          );
+          onStatus?.call(next);
+          unawaited(_saveAssemblyStatus(next));
+        },
       );
     }
-    return installed;
+
+    try {
+      await verifyWithProgress(
+        spec: FfmQwen2VlBundle.files[0],
+        file: modelFile,
+        stage: FfmLocalModelAssemblyStage.verifyingModel,
+      );
+      await verifyWithProgress(
+        spec: FfmQwen2VlBundle.files[1],
+        file: projectorFile,
+        stage: FfmLocalModelAssemblyStage.verifyingProjector,
+      );
+      await publish(
+        FfmLocalModelAssemblyStatus(
+          stage: FfmLocalModelAssemblyStage.committing,
+          updatedAt: _clock(),
+          startedAt: startedAt,
+          processedBytes: FfmQwen2VlBundle.projectorBytes,
+          totalBytes: FfmQwen2VlBundle.projectorBytes,
+        ),
+      );
+
+      final manifestBytes = utf8.encode(
+        const JsonEncoder.withIndent('  ').convert({
+          'formatVersion': _manifestFormat,
+          'bundleId': FfmQwen2VlBundle.bundleId,
+          'bundleVersion': FfmQwen2VlBundle.bundleVersion,
+          'modelFamily': FfmQwen2VlBundle.modelFamily,
+          'verificationStatus': 'verified',
+          'verifiedAtUtc': _clock().toUtc().toIso8601String(),
+          'files': [
+            {
+              'role': FfmQwen2VlBundle.files[0].role,
+              'fileName': FfmQwen2VlBundle.files[0].fileName,
+              'expectedSha256': FfmQwen2VlBundle.files[0].expectedSha256,
+              'actualSha256': FfmQwen2VlBundle.files[0].expectedSha256,
+              'actualSizeBytes':
+                  '${FfmQwen2VlBundle.files[0].expectedSizeBytes}',
+              'ggufHeaderVerified': true,
+            },
+            {
+              'role': FfmQwen2VlBundle.files[1].role,
+              'fileName': FfmQwen2VlBundle.files[1].fileName,
+              'expectedSha256': FfmQwen2VlBundle.files[1].expectedSha256,
+              'actualSha256': FfmQwen2VlBundle.files[1].expectedSha256,
+              'actualSizeBytes':
+                  '${FfmQwen2VlBundle.files[1].expectedSizeBytes}',
+              'ggufHeaderVerified': true,
+            },
+          ],
+        }),
+      );
+
+      await File(path.join(staging.path, FfmQwen2VlBundle.manifestFileName))
+          .writeAsBytes(manifestBytes, flush: true);
+      final finalDirectory = await _finalDirectory();
+      final backup = Directory('${finalDirectory.path}.previous');
+      if (await backup.exists()) await backup.delete(recursive: true);
+      if (await finalDirectory.exists()) {
+        await finalDirectory.rename(backup.path);
+      }
+      await staging.rename(finalDirectory.path);
+      if (await backup.exists()) await backup.delete(recursive: true);
+
+      final installed = await getInstalled();
+      if (installed == null) {
+        throw const FfmLocalModelManifestException(
+          'Commit gagal, manifest tidak terbaca setelah dipindahkan.',
+        );
+      }
+      await publish(
+        FfmLocalModelAssemblyStatus(
+          stage: FfmLocalModelAssemblyStage.ready,
+          updatedAt: _clock(),
+          startedAt: startedAt,
+          processedBytes: FfmQwen2VlBundle.projectorBytes,
+          totalBytes: FfmQwen2VlBundle.projectorBytes,
+        ),
+      );
+      return installed;
+    } catch (error) {
+      await publish(
+        FfmLocalModelAssemblyStatus(
+          stage: FfmLocalModelAssemblyStage.failed,
+          updatedAt: _clock(),
+          startedAt: startedAt,
+          errorDetail: _shortAssemblyError(error),
+        ),
+      );
+      rethrow;
+    }
   }
 
   Future<FfmLocalModelInfo?> getInstalled() async {
@@ -1208,14 +1322,23 @@ class FfmLocalModelService {
     }
   }
 
-  Future<void> _verifyFile(FfmModelFileSpec spec, File file) async {
+  String _shortAssemblyError(Object error) {
+    final value = '$error'.replaceFirst('FfmLocalModelManifestException: ', '');
+    return value.length <= 220 ? value : '${value.substring(0, 219)}…';
+  }
+
+  Future<void> _verifyFile(
+    FfmModelFileSpec spec,
+    File file, {
+    void Function(int processedBytes, int totalBytes)? onProgress,
+  }) async {
     final actualBytes = await file.length();
     if (actualBytes != spec.expectedSizeBytes) {
       throw FfmLocalModelManifestException(
         '${spec.fileName}: ukuran $actualBytes tidak sama dengan ${spec.expectedSizeBytes}.',
       );
     }
-    final actualHash = await checksum(file);
+    final actualHash = await checksum(file, onProgress: onProgress);
     if (actualHash != spec.expectedSha256) {
       throw FfmLocalModelManifestException(
         '${spec.fileName}: SHA-256 tidak cocok.',
@@ -1228,15 +1351,22 @@ class FfmLocalModelService {
     }
   }
 
-  Future<String> checksum(File file) async {
+  Future<String> checksum(
+    File file, {
+    void Function(int processedBytes, int totalBytes)? onProgress,
+  }) async {
     final output = AccumulatorSink<Digest>();
     final input = sha256.startChunkedConversion(output);
     final handle = await file.open();
+    final totalBytes = await file.length();
+    var processedBytes = 0;
     try {
       while (true) {
         final chunk = await handle.read(_hashChunkSize);
         if (chunk.isEmpty) break;
         input.add(chunk);
+        processedBytes += chunk.length;
+        onProgress?.call(processedBytes, totalBytes);
       }
       input.close();
       return output.events.single.toString();

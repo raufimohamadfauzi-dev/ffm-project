@@ -1,7 +1,7 @@
 name: ffm_manager
 description: "Family Finance Manager — offline-first family finance for Android."
 publish_to: 'none'
-version: 0.1.74+74
+version: 0.1.75+75
 
 environment:
   sdk: ^3.13.0
