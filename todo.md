@@ -286,5 +286,5 @@
 # Publikasi Source FFM v79 ke GitHub
 
 - [x] Audit akhir file tracked dan aturan ignore sebelum source lokal dipush ke GitHub.
-- [ ] Push commit source FFM v79 ke branch baru tanpa mengubah branch `main` legacy.
-- [ ] Verifikasi commit, branch, dan file remote setelah push; catat baseline sinkronisasi lintas perangkat.
+- [x] Push commit source FFM v79 ke branch baru tanpa mengubah branch `main` legacy.
+- [x] Verifikasi commit, branch, dan file remote setelah push; catat baseline sinkronisasi lintas perangkat.
