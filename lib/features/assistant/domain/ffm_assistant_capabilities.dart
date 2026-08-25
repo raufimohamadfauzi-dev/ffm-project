@@ -285,6 +285,23 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['name', 'amount', 'date', 'note'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.receivable_update',
+      label: 'Siapkan perubahan Piutang',
+      description: 'Menampilkan perubahan metadata satu Piutang tanpa penagihan atau perubahan sisa Piutang.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: ['targetId', 'title', 'note', 'dueDate'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.receivable_archive',
+      label: 'Siapkan arsip Piutang',
+      description:
+          'Menampilkan satu Piutang yang akan diarsipkan tanpa hapus permanen.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.asset',
       label: 'Siapkan aset',
       description: 'Membuat draft aset tanpa menyimpan.',
@@ -630,6 +647,13 @@ class FfmAssistantCapabilityRegistry {
       id: 'verify.reminder_mutation',
       label: 'Verifikasi arsip pengingat',
       description: 'Membaca kembali status pengingat setelah dinonaktifkan.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.receivable_mutation',
+      label: 'Verifikasi perubahan Piutang',
+      description: 'Membaca kembali Piutang setelah perubahan metadata atau arsip lunak.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

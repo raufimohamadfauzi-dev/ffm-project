@@ -863,6 +863,12 @@ class FfmAssistantInterpreter {
     );
     if (liabilityMutation != null) return liabilityMutation;
 
+    final receivableMutation = await _parseReceivableMutation(
+      rawText,
+      normalized,
+    );
+    if (receivableMutation != null) return receivableMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2371,6 +2377,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createReceivable,
         destination: FfmAssistantDestination.liabilities,
         action: 'piutang',
+      ),
+      FfmAssistantDraftKind.receivableUpdate => (
+        type: FfmAssistantIntentType.updateReceivable,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'ubah piutang',
+      ),
+      FfmAssistantDraftKind.receivableArchive => (
+        type: FfmAssistantIntentType.archiveReceivable,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'arsip piutang',
       ),
       FfmAssistantDraftKind.goal => (
         type: FfmAssistantIntentType.createGoal,
@@ -3901,6 +3917,70 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan metadata satu Hutang. Nilai pokok dan sisa Hutang tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Hutang tanpa hapus permanen, pembayaran, atau transaksi. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseReceivableMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+piutang\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+piutang\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final rows =
+        await (_database.select(_database.receivables)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateReceivable
+        : FfmAssistantIntentType.archiveReceivable;
+    if (candidates.length != 1)
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification: candidates.isEmpty
+            ? 'Aku tidak menemukan satu Piutang aktif yang cocok dengan “$targetText”. Belum ada data yang diubah.'
+            : 'Aku menemukan ${candidates.length} Piutang yang cocok. Sebut nama yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.receivableUpdate
+          : FfmAssistantDraftKind.receivableArchive,
+      createdAt: _clock(),
+      title: operation == 'update' ? update!.group(2)!.trim() : target.name,
+      note: target.note,
+      date: target.dueDate ?? target.startDate,
+      formValues: {
+        'entity': 'receivable',
+        'targetId': target.id,
+        'operation': operation,
+        'originalAmount': target.originalAmount.toString(),
+        'remainingBalance': target.remainingBalance.toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan metadata Piutang. Nilai pokok dan sisa Piutang tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak Piutang tanpa hapus permanen, penagihan, atau transaksi. Cek preview dulu.',
     );
   }
 

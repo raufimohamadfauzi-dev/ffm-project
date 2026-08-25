@@ -14,6 +14,8 @@ import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../liability/domain/entities/liability_entity.dart';
 import '../../liability/domain/usecases/liability_crud_usecases.dart';
+import '../../receivable/domain/entities/receivable_entity.dart';
+import '../../receivable/domain/usecases/receivable_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
@@ -89,6 +91,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.liability_update': _prepareLiabilityMutation,
     'draft.liability_archive': _prepareLiabilityMutation,
     'draft.receivable': _prepareDraft,
+    'draft.receivable_update': _prepareReceivableMutation,
+    'draft.receivable_archive': _prepareReceivableMutation,
     'draft.budget': _prepareDraft,
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
@@ -111,6 +115,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
     'verify.liability_mutation': _verifyLiabilityMutation,
+    'verify.receivable_mutation': _verifyReceivableMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -297,6 +302,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['entity'] == 'asset') return _updateAsset(step);
     if (step.parameters['entity'] == 'liability') return _updateLiability(step);
+    if (step.parameters['entity'] == 'receivable') {
+      return _updateReceivable(step);
+    }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -392,6 +400,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'asset') return _archiveAsset(step);
     if (step.parameters['entity'] == 'liability')
       return _archiveLiability(step);
+    if (step.parameters['entity'] == 'receivable') {
+      return _archiveReceivable(step);
+    }
     return _archiveTransaction(step);
   }
 
@@ -511,6 +522,123 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<LiabilityEntity?> _liabilityById(String? id) async {
     if (id == null) return null;
     final all = await GetLiabilities(_database)(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareReceivableMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _receivableById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Piutang target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Piutang “${target.name}” tanpa hapus permanen, penagihan, pembayaran, atau transaksi.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama Piutang baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan metadata Piutang “${target.name}” menjadi “$title”. Nilai pokok dan sisa Piutang dipertahankan.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateReceivable(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _receivableById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    if (before == null || title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nama Piutang belum valid.',
+      );
+    }
+    if (before.name == title) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: metadata Piutang sudah sesuai draft.',
+      );
+    }
+    await SaveReceivable(_database)(
+      ReceivableEntity(
+        id: before.id,
+        householdId: before.householdId,
+        name: title,
+        originalAmount: before.originalAmount,
+        remainingBalance: before.remainingBalance,
+        monthlyInstallment: before.monthlyInstallment,
+        interestRate: before.interestRate,
+        startDate: before.startDate,
+        dueDate: before.dueDate,
+        updatedAt: _clock(),
+        note: before.note,
+      ),
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Metadata Piutang diperbarui tanpa penagihan, pembayaran, atau transaksi. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveReceivable(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _receivableById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Piutang target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    await DeleteReceivable(_database)(_householdId, target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Piutang “${target.name}” diarsipkan tanpa hapus permanen.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyReceivableMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Piutang belum valid.',
+      );
+    }
+    final row =
+        await (_database.select(_database.receivables)..where(
+              (r) => r.householdId.equals(_householdId) & r.id.equals(id),
+            ))
+            .getSingleOrNull();
+    if (step.parameters['operation'] == 'archive') {
+      return row?.isActive == false
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Piutang sudah diarsipkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Piutang masih aktif.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    return row != null && row.isActive && row.name == title
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: metadata Piutang sudah dibaca kembali tanpa mengubah nilai pokok atau sisa Piutang.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: metadata Piutang belum sesuai draft.',
+          );
+  }
+
+  Future<ReceivableEntity?> _receivableById(String? id) async {
+    if (id == null) return null;
+    final all = await GetReceivables(_database)(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }
