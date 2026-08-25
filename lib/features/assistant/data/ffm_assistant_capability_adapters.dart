@@ -4,6 +4,8 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
+import '../../asset/domain/entities/asset_entity.dart';
+import '../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../daily_notes/data/daily_note_repository.dart';
 import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
@@ -79,6 +81,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.master_data': _prepareDraft,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
+    'draft.asset_update': _prepareAssetMutation,
+    'draft.asset_archive': _prepareAssetMutation,
     'draft.liability': _prepareDraft,
     'draft.receivable': _prepareDraft,
     'draft.budget': _prepareDraft,
@@ -99,6 +103,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.task_mutation': _verifyTaskMutation,
     'verify.routine_mutation': _verifyRoutineMutation,
     'verify.schedule_mutation': _verifyScheduleMutation,
+    'verify.asset_mutation': _verifyAssetMutation,
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
   };
@@ -285,6 +290,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'reminder') {
       return _updateReminder(step);
     }
+    if (step.parameters['entity'] == 'asset') return _updateAsset(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -377,6 +383,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'schedule_entry') {
       return _archiveSchedule(step);
     }
+    if (step.parameters['entity'] == 'asset') return _archiveAsset(step);
     return _archiveTransaction(step);
   }
 
@@ -1264,6 +1271,167 @@ class FfmAssistantCapabilityAdapterRegistry {
           );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _prepareAssetMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || !const {'update', 'archive'}.contains(operation)) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload perubahan Aset tidak lengkap.',
+      );
+    }
+    final asset = await _assetById(targetId);
+    if (asset == null || asset.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aset target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (operation == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip aset “${asset.name}”. Aset hanya akan disembunyikan dari daftar aktif; tidak ada transaksi atau saldo yang diubah.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final value = _nonNegativeInt(step.parameters['amount']);
+    if (title == null || title.isEmpty || value == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama atau nilai baru Aset belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan aset “${asset.name}” menjadi “$title” bernilai ${_money(value)}. Tidak ada transaksi atau saldo yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateAsset(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final title = step.parameters['title']?.toString();
+    final value = _nonNegativeInt(step.parameters['amount']);
+    if (targetId == null ||
+        title == null ||
+        title.trim().isEmpty ||
+        value == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target, nama, atau nilai Aset belum valid.',
+      );
+    }
+    final before = await _assetById(targetId);
+    if (before == null || before.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aset target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    final assetType = step.parameters['assetType']?.toString().trim();
+    final placement = step.parameters['placement']?.toString().trim();
+    final next = AssetEntity(
+      id: before.id,
+      householdId: before.householdId,
+      name: title,
+      assetType: assetType == null || assetType.isEmpty
+          ? before.assetType
+          : assetType,
+      value: value,
+      placement: placement == null || placement.isEmpty
+          ? before.placement
+          : placement,
+      note: step.parameters['note']?.toString() ?? before.note,
+      createdAt: before.createdAt,
+      updatedAt: _clock(),
+      isArchived: false,
+    );
+    if (next.name == before.name &&
+        next.value == before.value &&
+        next.assetType == before.assetType &&
+        next.placement == before.placement &&
+        next.note == before.note) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: Aset sudah sesuai dengan draft perubahan.',
+      );
+    }
+    await SaveAsset(_database)(next);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Aset “${next.name}” diperbarui tanpa membuat transaksi atau saldo. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveAsset(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Aset belum valid.',
+      );
+    }
+    final asset = await _assetById(targetId);
+    if (asset == null || asset.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aset tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    await ArchiveAsset(_database)(_householdId, targetId);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Aset “${asset.name}” diarsipkan tanpa hapus permanen. Tidak ada transaksi atau saldo yang diubah. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyAssetMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    final asset = targetId == null ? null : await _assetById(targetId);
+    if (operation == 'archive') {
+      return asset?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Aset sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Aset belum berstatus arsip.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final value = _nonNegativeInt(step.parameters['amount']);
+    return asset != null &&
+            !asset.isArchived &&
+            title != null &&
+            asset.name == title &&
+            value != null &&
+            asset.value == value
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: Aset “${asset.name}” sudah dibaca kembali sesuai draft.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: perubahan Aset belum sesuai draft.',
+          );
+  }
+
+  Future<AssetEntity?> _assetById(String id) async {
+    final row =
+        await (_database.select(_database.assets)..where(
+              (item) =>
+                  item.householdId.equals(_householdId) & item.id.equals(id),
+            ))
+            .getSingleOrNull();
+    return row == null
+        ? null
+        : AssetEntity(
+            id: row.id,
+            householdId: row.householdId,
+            name: row.name,
+            assetType: row.assetType,
+            value: row.value,
+            placement: row.placement,
+            note: row.note,
+            createdAt: row.createdAt,
+            updatedAt: row.updatedAt,
+            isArchived: row.isArchived,
+          );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _prepareReminderMutation(
     FfmAssistantActionStep step,
   ) async {
@@ -2119,6 +2287,11 @@ class FfmAssistantCapabilityAdapterRegistry {
       return int.tryParse(value.replaceAll(RegExp(r'[^0-9-]'), ''));
     }
     return null;
+  }
+
+  int? _nonNegativeInt(Object? value) {
+    final parsed = _positiveInt(value);
+    return parsed == null || parsed < 0 ? null : parsed;
   }
 
   String _stableId(String key) {

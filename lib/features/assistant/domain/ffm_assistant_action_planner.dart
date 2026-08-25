@@ -41,6 +41,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.liability => 'draft.liability',
         FfmAssistantDraftKind.receivable => 'draft.receivable',
         FfmAssistantDraftKind.asset => 'draft.asset',
+        FfmAssistantDraftKind.assetUpdate => 'draft.asset_update',
+        FfmAssistantDraftKind.assetArchive => 'draft.asset_archive',
         FfmAssistantDraftKind.budget => 'draft.budget',
         FfmAssistantDraftKind.masterData => 'draft.master_data',
         FfmAssistantDraftKind.reminder => 'draft.reminder',
@@ -86,6 +88,8 @@ class FfmAssistantActionPlanner {
       final mutationCapability = switch (draft.kind) {
         FfmAssistantDraftKind.goalUpdate => 'mutate.update',
         FfmAssistantDraftKind.goalArchive => 'mutate.archive',
+        FfmAssistantDraftKind.assetUpdate => 'mutate.update',
+        FfmAssistantDraftKind.assetArchive => 'mutate.archive',
         FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
         FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
@@ -146,6 +150,8 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.scheduleArchive => 'verify.schedule_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
+            FfmAssistantDraftKind.assetUpdate ||
+            FfmAssistantDraftKind.assetArchive => 'verify.asset_mutation',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
             FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
             _ => 'verify.saved_draft',

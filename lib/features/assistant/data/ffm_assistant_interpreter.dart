@@ -854,6 +854,9 @@ class FfmAssistantInterpreter {
     final reminderMutation = await _parseReminderMutation(rawText, normalized);
     if (reminderMutation != null) return reminderMutation;
 
+    final assetMutation = await _parseAssetMutation(rawText, normalized);
+    if (assetMutation != null) return assetMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2363,6 +2366,16 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.assets,
         action: 'aset',
       ),
+      FfmAssistantDraftKind.assetUpdate => (
+        type: FfmAssistantIntentType.updateAsset,
+        destination: FfmAssistantDestination.assets,
+        action: 'ubah aset',
+      ),
+      FfmAssistantDraftKind.assetArchive => (
+        type: FfmAssistantIntentType.archiveAsset,
+        destination: FfmAssistantDestination.assets,
+        action: 'arsip aset',
+      ),
       FfmAssistantDraftKind.budget => (
         type: FfmAssistantIntentType.createBudget,
         destination: FfmAssistantDestination.budget,
@@ -3684,6 +3697,126 @@ class FfmAssistantInterpreter {
 
   String _reminderCandidateLabel(Reminder row) =>
       '${row.title} • ${row.scheduledAt.toIso8601String().substring(0, 16)}';
+
+  Future<FfmAssistantIntent?> _parseAssetMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+aset\s+(.+?)\s+(?:jadi|menjadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+aset\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final candidates = await _findAssetCandidates(targetText);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateAsset
+        : FfmAssistantIntentType.archiveAsset;
+    if (candidates.isEmpty || candidates.length > 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu aset aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} aset yang cocok: ${candidates.take(3).map(_assetCandidateLabel).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama aset yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    if (operation == 'archive') {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.assetArchive,
+        createdAt: _clock(),
+        title: target.name,
+        amount: target.value,
+        formValues: {
+          'entity': 'asset',
+          'targetId': target.id,
+          'operation': 'archive',
+          'targetSummary': _assetCandidateLabel(target),
+        },
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: 'Aku menemukan satu aset untuk diarsipkan tanpa hapus permanen. Tidak ada transaksi atau saldo yang diubah. Cek preview dulu.',
+      );
+    }
+    final replacement = update!.group(2)!.trim();
+    final parsedValue = FfmAssistantAmountParser.parse(replacement);
+    final title = _assetTitleFromReplacement(
+      replacement,
+      fallback: target.name,
+    );
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.assetUpdate,
+      createdAt: _clock(),
+      title: title,
+      amount: parsedValue ?? target.value,
+      note: target.note,
+      formValues: {
+        'entity': 'asset',
+        'targetId': target.id,
+        'operation': 'update',
+        'targetSummary': _assetCandidateLabel(target),
+        'assetType': target.assetType,
+        'placement': target.placement,
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: 'Aku menyiapkan perubahan satu aset. Tidak ada transaksi atau saldo yang akan dibuat. Cek preview lalu konfirmasi.',
+    );
+  }
+
+  Future<List<Asset>> _findAssetCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              term != 'aset' &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.assets)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.name)]))
+            .get();
+    return rows
+        .where((row) {
+          final haystack = '${row.name} ${row.assetType} ${row.placement}'
+              .toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _assetCandidateLabel(Asset row) =>
+      '${row.name} • ${row.assetType} • ${row.value}';
+
+  String _assetTitleFromReplacement(String value, {required String fallback}) {
+    final withoutAmount = value
+        .replaceAll(
+          RegExp(r'\b(?:rp|rupiah|nilai)\b', caseSensitive: false),
+          '',
+        )
+        .replaceAll(RegExp(r'\d+(?:[.,]\d+)*(?:\s*(?:rb|ribu|jt|juta|m))?'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return withoutAmount.isEmpty ? fallback : withoutAmount;
+  }
 
   Future<FfmAssistantIntent?> _parseGoalMutation(
     String rawText,

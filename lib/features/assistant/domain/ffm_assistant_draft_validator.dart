@@ -126,6 +126,38 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.assetUpdate:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'asset_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Aset',
+              message: 'Aset target belum ditemukan secara unik.',
+            ),
+          );
+        }
+        if (_isBlank(draft.title) || !draft.hasAmount) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'asset_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'nama atau nilai Aset',
+              message: 'Nama atau nilai baru Aset belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.assetArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'asset_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Aset',
+              message: 'Aset target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.dailyNote:
         if (_isBlank(draft.note)) {
           issues.add(

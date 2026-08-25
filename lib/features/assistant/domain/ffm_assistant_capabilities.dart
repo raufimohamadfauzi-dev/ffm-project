@@ -266,7 +266,31 @@ class FfmAssistantCapabilityRegistry {
       description: 'Membuat draft aset tanpa menyimpan.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.assets,
-      parameterNames: ['name', 'amount', 'type', 'placement', 'note'],
+      parameterNames: ['title', 'amount', 'type', 'placement', 'note'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.asset_update',
+      label: 'Siapkan perubahan aset',
+      description: 'Menampilkan perubahan satu aset tanpa membuat transaksi atau mutasi saldo.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.assets,
+      parameterNames: [
+        'targetId',
+        'title',
+        'amount',
+        'type',
+        'placement',
+        'note',
+      ],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.asset_archive',
+      label: 'Siapkan arsip aset',
+      description:
+          'Menampilkan satu aset yang akan diarsipkan tanpa hapus permanen.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.assets,
+      parameterNames: ['targetId'],
     ),
     const FfmAssistantCapability(
       id: 'draft.budget',
