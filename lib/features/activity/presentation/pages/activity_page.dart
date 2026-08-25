@@ -14,6 +14,7 @@ import '../bloc/activity_bloc.dart';
 import '../../../daily_notes/presentation/widgets/daily_notes_section.dart';
 import '../../../tasks/presentation/widgets/tasks_section.dart';
 import '../../../routines/presentation/widgets/routines_section.dart';
+import '../../../schedule/presentation/widgets/schedule_section.dart';
 
 class ActivityPage extends StatelessWidget {
   const ActivityPage({
@@ -639,6 +640,8 @@ class _ActivityViewState extends State<_ActivityView>
                   const TasksSection(),
                   const SizedBox(height: 16),
                   const RoutinesSection(),
+                  const SizedBox(height: 16),
+                  const ScheduleSection(),
                   const SizedBox(height: 16),
                   AppCard(
                     child: Wrap(

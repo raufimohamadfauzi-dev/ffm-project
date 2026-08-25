@@ -39,6 +39,7 @@ part 'app_database.g.dart';
     Tasks,
     DailyRoutines,
     DailyRoutineCompletions,
+    ScheduleEntries,
     AccountReconciliationLogs,
     HijriSettings,
     HijriMonthOverrides,
@@ -58,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +69,7 @@ class AppDatabase extends _$AppDatabase {
       await _createDailyNoteIndexes();
       await _createTaskIndexes();
       await _createDailyRoutineIndexes();
+      await _createScheduleIndexes();
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
@@ -170,6 +172,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(dailyRoutineCompletions);
         await _createDailyRoutineIndexes();
       }
+      if (from < 39) {
+        await m.createTable(scheduleEntries);
+        await _createScheduleIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -228,6 +234,14 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_daily_routine_completions_household_day '
       'ON daily_routine_completions (household_id, routine_date)',
+    );
+  }
+
+  Future<void> _createScheduleIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_schedule_entries_household_date '
+      'ON schedule_entries '
+      '(household_id, is_archived, scheduled_date, is_all_day, start_minutes)',
     );
   }
 

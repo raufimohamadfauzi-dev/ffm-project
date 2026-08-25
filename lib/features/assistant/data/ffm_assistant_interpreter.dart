@@ -842,6 +842,12 @@ class FfmAssistantInterpreter {
     final routineMutation = await _parseRoutineMutation(rawText, normalized);
     if (routineMutation != null) return routineMutation;
 
+    final scheduleMutation = await _parseScheduleMutationSafe(
+      rawText,
+      normalized,
+    );
+    if (scheduleMutation != null) return scheduleMutation;
+
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
@@ -2447,6 +2453,21 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.activity,
         action: 'arsip Rutinitas',
       ),
+      FfmAssistantDraftKind.schedule => (
+        type: FfmAssistantIntentType.createSchedule,
+        destination: FfmAssistantDestination.activity,
+        action: 'Jadwal',
+      ),
+      FfmAssistantDraftKind.scheduleUpdate => (
+        type: FfmAssistantIntentType.updateSchedule,
+        destination: FfmAssistantDestination.activity,
+        action: 'ubah Jadwal',
+      ),
+      FfmAssistantDraftKind.scheduleArchive => (
+        type: FfmAssistantIntentType.archiveSchedule,
+        destination: FfmAssistantDestination.activity,
+        action: 'arsip Jadwal',
+      ),
       FfmAssistantDraftKind.profile => (
         type: FfmAssistantIntentType.createProfile,
         destination: FfmAssistantDestination.assistantProfile,
@@ -3133,6 +3154,381 @@ class FfmAssistantInterpreter {
     final state = row.isActive ? 'aktif' : 'nonaktif';
     return '${row.title} • $state';
   }
+
+  Future<FfmAssistantIntent?> _parseScheduleMutationSafe(
+    String rawText,
+    String normalized,
+  ) async {
+    final direct = await _parseScheduleMutationDirect(rawText, normalized);
+    return direct ?? _parseScheduleMutation(rawText, normalized);
+  }
+
+  Future<FfmAssistantIntent?> _parseScheduleMutationDirect(
+    String rawText,
+    String normalized,
+  ) async {
+    final create = RegExp(r'^(?:buat|tambah|jadwalkan)[ ]+jadwal[ ]+(.+)$')
+        .firstMatch(normalized);
+    if (create != null) {
+      return _draftScheduleCreate(rawText, normalized, create.group(1)!);
+    }
+    final move = RegExp(
+      r'^(?:pindah|pindahkan|jadwalkan ulang)[ ]+jadwal[ ]+(.+?)[ ]+ke[ ]+(.+)$',
+    ).firstMatch(normalized);
+    final rename = RegExp(
+      r'^(?:ubah|ganti|koreksi)[ ]+jadwal[ ]+(.+?)[ ]+(?:jadi|menjadi)[ ]+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)[ ]+jadwal[ ]+(.+)$')
+        .firstMatch(normalized);
+    if (move == null && rename == null && archive == null) return null;
+    return _draftScheduleMutation(
+      rawText,
+      normalized,
+      move: move,
+      rename: rename,
+      archive: archive,
+    );
+  }
+
+  Future<FfmAssistantIntent> _draftScheduleCreate(
+    String rawText,
+    String normalized,
+    String source,
+  ) async {
+    final date = _scheduleDateFromText(source);
+    if (date == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createSchedule,
+        confidence: .75,
+        clarification: 'Sebutkan tanggal Jadwal, misalnya “buat jadwal kontrol dokter besok” atau “buat jadwal kontrol dokter tanggal 28/08/2026”. Belum ada data yang diubah.',
+      );
+    }
+    final title = _scheduleTitleFromText(source);
+    if (title.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createSchedule,
+        confidence: .75,
+        clarification:
+            'Sebutkan judul agenda Jadwal. Belum ada data yang diubah.',
+      );
+    }
+    final startMinutes = _scheduleMinutesFromText(source);
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.schedule,
+      createdAt: _clock(),
+      title: title,
+      date: date,
+      formValues: {
+        'entity': 'schedule_entry',
+        'date': date.toIso8601String(),
+        'isAllDay': (startMinutes == null).toString(),
+        if (startMinutes != null) 'startMinutes': startMinutes.toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: 'Aku menyiapkan Jadwal lokal tanpa alarm atau notifikasi. Cek preview dan konfirmasi bila sudah benar.',
+    );
+  }
+
+  Future<FfmAssistantIntent> _draftScheduleMutation(
+    String rawText,
+    String normalized, {
+    RegExpMatch? move,
+    RegExpMatch? rename,
+    RegExpMatch? archive,
+  }) async {
+    final operation = move != null || rename != null ? 'update' : 'archive';
+    final targetSource =
+        move?.group(1) ?? rename?.group(1) ?? archive?.group(1);
+    final type = operation == 'archive'
+        ? FfmAssistantIntentType.archiveSchedule
+        : FfmAssistantIntentType.updateSchedule;
+    if (targetSource == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .5,
+        clarification: 'Sebutkan Judul Jadwal yang ingin diubah. Belum ada data yang diubah.',
+      );
+    }
+    final targetText = targetSource.trim();
+    final candidates = await _findScheduleCandidates(targetText);
+    if (candidates.isEmpty || candidates.length > 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Jadwal aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Jadwal yang cocok: ${candidates.take(3).map(_scheduleCandidateLabel).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final replacement = move?.group(2)?.trim();
+    final date = move == null
+        ? target.scheduledDate
+        : _scheduleDateFromText(replacement ?? '');
+    if (move != null && date == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.updateSchedule,
+        confidence: .75,
+        clarification: 'Tanggal tujuan Jadwal belum dipahami. Gunakan “besok” atau format “tanggal 28/08/2026”. Belum ada data yang diubah.',
+      );
+    }
+    final draft = FfmAssistantDraft(
+      kind: operation == 'archive'
+          ? FfmAssistantDraftKind.scheduleArchive
+          : FfmAssistantDraftKind.scheduleUpdate,
+      createdAt: _clock(),
+      title: rename?.group(2)?.trim() ?? target.title,
+      note: target.note,
+      date: date,
+      formValues: {
+        'entity': 'schedule_entry',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': _scheduleCandidateLabel(target),
+        if (operation == 'update') 'date': date!.toIso8601String(),
+        if (operation == 'update') 'isAllDay': target.isAllDay.toString(),
+        if (operation == 'update' && target.startMinutes != null)
+          'startMinutes': target.startMinutes.toString(),
+        if (operation == 'update' && target.endMinutes != null)
+          'endMinutes': target.endMinutes.toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'archive'
+          ? 'Aku menemukan satu Jadwal untuk diarsipkan tanpa hapus permanen. Cek preview dulu; belum ada data yang diubah.'
+          : 'Aku menyiapkan perubahan satu Jadwal tanpa alarm atau notifikasi. Cek preview dulu; belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseScheduleMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final create = RegExp(r'^(?:buat|tambah|jadwalkan)s+jadwals+(.+)$')
+        .firstMatch(normalized);
+    if (create != null) {
+      final source = create.group(1)!.trim();
+      final date = _scheduleDateFromText(source);
+      if (date == null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.createSchedule,
+          confidence: .75,
+          clarification: 'Sebutkan tanggal Jadwal, misalnya “buat jadwal kontrol dokter besok” atau “buat jadwal kontrol dokter tanggal 28/08/2026”. Belum ada data yang diubah.',
+        );
+      }
+      final title = _scheduleTitleFromText(source);
+      if (title.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.createSchedule,
+          confidence: .75,
+          clarification:
+              'Sebutkan judul agenda Jadwal. Belum ada data yang diubah.',
+        );
+      }
+      final startMinutes = _scheduleMinutesFromText(source);
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.schedule,
+        createdAt: _clock(),
+        title: title,
+        date: date,
+        formValues: {
+          'entity': 'schedule_entry',
+          'date': date.toIso8601String(),
+          'isAllDay': (startMinutes == null).toString(),
+          if (startMinutes != null) 'startMinutes': startMinutes.toString(),
+        },
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: 'Aku menyiapkan Jadwal lokal tanpa alarm atau notifikasi. Cek preview dan konfirmasi bila sudah benar.',
+      );
+    }
+
+    final move = RegExp(
+      r'^(?:pindah|pindahkan|jadwalkan ulang)s+jadwals+(.+?)s+kes+(.+)$',
+    ).firstMatch(normalized);
+    final rename = RegExp(
+      r'^(?:ubah|ganti|koreksi)s+jadwals+(.+?)s+(?:jadi|menjadi)s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)s+jadwals+(.+)$')
+        .firstMatch(normalized);
+    if (move == null && rename == null && archive == null) return null;
+
+    final operation = move != null
+        ? 'update'
+        : rename != null
+        ? 'update'
+        : 'archive';
+    final targetSource =
+        move?.group(1) ?? rename?.group(1) ?? archive?.group(1);
+    if (targetSource == null) return null;
+    final targetText = targetSource.trim();
+    final candidates = await _findScheduleCandidates(targetText);
+    final type = operation == 'archive'
+        ? FfmAssistantIntentType.archiveSchedule
+        : FfmAssistantIntentType.updateSchedule;
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu Jadwal aktif yang cocok dengan “$targetText”. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} Jadwal yang cocok: ${candidates.take(3).map(_scheduleCandidateLabel).join('; ')}. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final replacement = move?.group(2)?.trim();
+    final date = move == null
+        ? target.scheduledDate
+        : _scheduleDateFromText(replacement ?? '');
+    if (move != null && date == null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.updateSchedule,
+        confidence: .75,
+        clarification: 'Tanggal tujuan Jadwal belum dipahami. Gunakan “besok” atau format “tanggal 28/08/2026”. Belum ada data yang diubah.',
+      );
+    }
+    final newTitle = rename?.group(2)?.trim() ?? target.title;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'archive'
+          ? FfmAssistantDraftKind.scheduleArchive
+          : FfmAssistantDraftKind.scheduleUpdate,
+      createdAt: _clock(),
+      title: newTitle,
+      note: target.note,
+      date: date,
+      formValues: {
+        'entity': 'schedule_entry',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': _scheduleCandidateLabel(target),
+        if (operation == 'update') 'date': date!.toIso8601String(),
+        if (operation == 'update') 'isAllDay': target.isAllDay.toString(),
+        if (operation == 'update' && target.startMinutes != null)
+          'startMinutes': target.startMinutes.toString(),
+        if (operation == 'update' && target.endMinutes != null)
+          'endMinutes': target.endMinutes.toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'archive'
+          ? 'Aku menemukan satu Jadwal untuk diarsipkan tanpa hapus permanen. Cek preview dulu; belum ada data yang diubah.'
+          : 'Aku menyiapkan perubahan satu Jadwal tanpa alarm atau notifikasi. Cek preview dulu; belum ada data yang diubah.',
+    );
+  }
+
+  Future<List<ScheduleEntry>> _findScheduleCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {
+                'jadwal',
+                'pada',
+                'tanggal',
+                'hari',
+                'besok',
+              }.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.scheduleEntries)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.asc(row.scheduledDate)]))
+            .get();
+    return rows
+        .where((row) {
+          final haystack = '${row.title} ${row.note ?? ''}'.toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _scheduleCandidateLabel(ScheduleEntry row) {
+    final date = row.scheduledDate.toIso8601String().substring(0, 10);
+    final time = row.isAllDay || row.startMinutes == null
+        ? 'sepanjang hari'
+        : '${(row.startMinutes! ~/ 60).toString().padLeft(2, '0')}:${(row.startMinutes! % 60).toString().padLeft(2, '0')}';
+    return '${row.title} • $date • $time';
+  }
+
+  DateTime? _scheduleDateFromText(String value) {
+    final now = _clock();
+    if (RegExp(r'\b(?:besok|esok)\b').hasMatch(value)) {
+      return DateTime(now.year, now.month, now.day + 1);
+    }
+    if (RegExp(r'\b(?:hari ini|sekarang)\b').hasMatch(value)) {
+      return DateTime(now.year, now.month, now.day);
+    }
+    final numeric = RegExp(
+      r'\btanggal\s+(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?\b',
+    ).firstMatch(value);
+    if (numeric == null) return null;
+    final day = int.tryParse(numeric.group(1)!);
+    final month = int.tryParse(numeric.group(2)!);
+    final year = int.tryParse(numeric.group(3) ?? '') ?? now.year;
+    if (day == null || month == null || day < 1 || month < 1 || month > 12) {
+      return null;
+    }
+    final date = DateTime(year, month, day);
+    return date.day == day && date.month == month ? date : null;
+  }
+
+  int? _scheduleMinutesFromText(String value) {
+    final match = RegExp(r'\b(?:jam|pukul)\s*(\d{1,2})(?:[.:](\d{2}))?\b')
+        .firstMatch(value);
+    if (match == null) return null;
+    final hour = int.tryParse(match.group(1)!);
+    final minute = int.tryParse(match.group(2) ?? '0');
+    if (hour == null || minute == null || hour > 23 || minute > 59) return null;
+    return hour * 60 + minute;
+  }
+
+  String _scheduleTitleFromText(String value) => value
+      .replaceAll(RegExp(r'\b(?:hari ini|besok|esok)\b'), '')
+      .replaceAll(RegExp(r'\btanggal\s+\d{1,2}[/-]\d{1,2}(?:[/-]\d{4})?\b'), '')
+      .replaceAll(RegExp(r'\b(?:jam|pukul)\s*\d{1,2}(?:[.:]\d{2})?\b'), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   String _taskCandidateLabel(Task row) {
     final due = row.dueDate == null

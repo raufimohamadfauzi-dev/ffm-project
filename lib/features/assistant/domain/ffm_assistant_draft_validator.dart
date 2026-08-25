@@ -200,6 +200,39 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.schedule:
+        if (_isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'schedule_title_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'judul Jadwal',
+              message: 'Judul Jadwal belum ada.',
+            ),
+          );
+        }
+        if (draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'schedule_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tanggal Jadwal',
+              message: 'Tanggal Jadwal belum ada.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.scheduleUpdate:
+      case FfmAssistantDraftKind.scheduleArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'schedule_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Jadwal',
+              message: 'Jadwal target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
@@ -248,6 +281,9 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.routineActivate ||
     FfmAssistantDraftKind.routineDeactivate ||
     FfmAssistantDraftKind.routineArchive ||
+    FfmAssistantDraftKind.schedule ||
+    FfmAssistantDraftKind.scheduleUpdate ||
+    FfmAssistantDraftKind.scheduleArchive ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||

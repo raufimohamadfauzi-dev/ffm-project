@@ -237,6 +237,11 @@ class FfmDatabaseStructureService {
       'Aktivitas & Jurnal',
       'Penandaan pelaksanaan satu Rutinitas per tanggal lokal, terpisah dari definisinya.',
     ),
+    'schedule_entries': _TableDefinition(
+      'Jadwal',
+      'Aktivitas & Jurnal',
+      'Agenda lokal bertanggal dengan waktu opsional, tanpa alarm atau otomatisasi.',
+    ),
     'account_reconciliation_logs': _TableDefinition(
       'Riwayat rekonsiliasi',
       'Pemeriksaan saldo',

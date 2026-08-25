@@ -458,6 +458,25 @@ class DailyRoutineCompletions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Agenda lokal satu kali pada tanggal tertentu. Jadwal tidak mengaktifkan
+/// notifikasi, tidak membuat Aktivitas, dan tidak menjalankan transaksi.
+class ScheduleEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get scheduledDate => dateTime()();
+  BoolColumn get isAllDay => boolean().withDefault(const Constant(true))();
+  IntColumn get startMinutes => integer().nullable()();
+  IntColumn get endMinutes => integer().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

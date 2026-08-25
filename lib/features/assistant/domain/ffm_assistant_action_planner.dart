@@ -61,6 +61,9 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.routineActivate => 'draft.routine_activate',
         FfmAssistantDraftKind.routineDeactivate => 'draft.routine_deactivate',
         FfmAssistantDraftKind.routineArchive => 'draft.routine_archive',
+        FfmAssistantDraftKind.schedule => 'draft.schedule',
+        FfmAssistantDraftKind.scheduleUpdate => 'draft.schedule_update',
+        FfmAssistantDraftKind.scheduleArchive => 'draft.schedule_archive',
         FfmAssistantDraftKind.profile => 'draft.profile',
         FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
         FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
@@ -99,6 +102,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.routineActivate ||
         FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
         FfmAssistantDraftKind.routineArchive => 'mutate.archive',
+        FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
+        FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -134,6 +139,9 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.routineActivate ||
             FfmAssistantDraftKind.routineDeactivate ||
             FfmAssistantDraftKind.routineArchive => 'verify.routine_mutation',
+            FfmAssistantDraftKind.schedule ||
+            FfmAssistantDraftKind.scheduleUpdate ||
+            FfmAssistantDraftKind.scheduleArchive => 'verify.schedule_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',

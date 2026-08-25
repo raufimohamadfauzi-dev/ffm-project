@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 
 void main() {
-  group('Migrasi database v38', () {
-    test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, Catatan Harian, Tugas, serta Rutinitas', () async {
+  group('Migrasi database v39', () {
+    test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, Catatan Harian, Tugas, Rutinitas, serta Jadwal', () async {
       final executor = NativeDatabase.memory(
         setup: (database) {
           database.execute(
@@ -73,6 +73,12 @@ void main() {
             "('daily_routines', 'daily_routine_completions')",
           )
           .get();
+      final scheduleTable = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'schedule_entries'",
+          )
+          .getSingleOrNull();
       final personalizationTables = await database
           .customSelect(
             "SELECT name FROM sqlite_master "
@@ -81,7 +87,7 @@ void main() {
           )
           .get();
 
-      expect(version.data['user_version'], 38);
+      expect(version.data['user_version'], 39);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -89,6 +95,7 @@ void main() {
       expect(dailyNotesTable, isNotNull);
       expect(tasksTable, isNotNull);
       expect(routinesTables, hasLength(2));
+      expect(scheduleTable, isNotNull);
       expect(personalizationTables, hasLength(3));
     });
   });

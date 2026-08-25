@@ -184,6 +184,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.routineActivate:
       case FfmAssistantDraftKind.routineDeactivate:
       case FfmAssistantDraftKind.routineArchive:
+      case FfmAssistantDraftKind.schedule:
+      case FfmAssistantDraftKind.scheduleUpdate:
+      case FfmAssistantDraftKind.scheduleArchive:
       case FfmAssistantDraftKind.profile:
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:

@@ -17392,6 +17392,682 @@ class DailyRoutineCompletionsCompanion
   }
 }
 
+class $ScheduleEntriesTable extends ScheduleEntries
+    with TableInfo<$ScheduleEntriesTable, ScheduleEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ScheduleEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scheduledDateMeta = const VerificationMeta(
+    'scheduledDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> scheduledDate =
+      GeneratedColumn<DateTime>(
+        'scheduled_date',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _isAllDayMeta = const VerificationMeta(
+    'isAllDay',
+  );
+  @override
+  late final GeneratedColumn<bool> isAllDay = GeneratedColumn<bool>(
+    'is_all_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_all_day" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _startMinutesMeta = const VerificationMeta(
+    'startMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> startMinutes = GeneratedColumn<int>(
+    'start_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endMinutesMeta = const VerificationMeta(
+    'endMinutes',
+  );
+  @override
+  late final GeneratedColumn<int> endMinutes = GeneratedColumn<int>(
+    'end_minutes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    title,
+    note,
+    scheduledDate,
+    isAllDay,
+    startMinutes,
+    endMinutes,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'schedule_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ScheduleEntry> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('scheduled_date')) {
+      context.handle(
+        _scheduledDateMeta,
+        scheduledDate.isAcceptableOrUnknown(
+          data['scheduled_date']!,
+          _scheduledDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_scheduledDateMeta);
+    }
+    if (data.containsKey('is_all_day')) {
+      context.handle(
+        _isAllDayMeta,
+        isAllDay.isAcceptableOrUnknown(data['is_all_day']!, _isAllDayMeta),
+      );
+    }
+    if (data.containsKey('start_minutes')) {
+      context.handle(
+        _startMinutesMeta,
+        startMinutes.isAcceptableOrUnknown(
+          data['start_minutes']!,
+          _startMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('end_minutes')) {
+      context.handle(
+        _endMinutesMeta,
+        endMinutes.isAcceptableOrUnknown(data['end_minutes']!, _endMinutesMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ScheduleEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ScheduleEntry(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      scheduledDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}scheduled_date'],
+      )!,
+      isAllDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_all_day'],
+      )!,
+      startMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_minutes'],
+      ),
+      endMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}end_minutes'],
+      ),
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $ScheduleEntriesTable createAlias(String alias) {
+    return $ScheduleEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class ScheduleEntry extends DataClass implements Insertable<ScheduleEntry> {
+  final String id;
+  final String householdId;
+  final String title;
+  final String? note;
+  final DateTime scheduledDate;
+  final bool isAllDay;
+  final int? startMinutes;
+  final int? endMinutes;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const ScheduleEntry({
+    required this.id,
+    required this.householdId,
+    required this.title,
+    this.note,
+    required this.scheduledDate,
+    required this.isAllDay,
+    this.startMinutes,
+    this.endMinutes,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['scheduled_date'] = Variable<DateTime>(scheduledDate);
+    map['is_all_day'] = Variable<bool>(isAllDay);
+    if (!nullToAbsent || startMinutes != null) {
+      map['start_minutes'] = Variable<int>(startMinutes);
+    }
+    if (!nullToAbsent || endMinutes != null) {
+      map['end_minutes'] = Variable<int>(endMinutes);
+    }
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  ScheduleEntriesCompanion toCompanion(bool nullToAbsent) {
+    return ScheduleEntriesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      title: Value(title),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      scheduledDate: Value(scheduledDate),
+      isAllDay: Value(isAllDay),
+      startMinutes: startMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startMinutes),
+      endMinutes: endMinutes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endMinutes),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory ScheduleEntry.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ScheduleEntry(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      title: serializer.fromJson<String>(json['title']),
+      note: serializer.fromJson<String?>(json['note']),
+      scheduledDate: serializer.fromJson<DateTime>(json['scheduledDate']),
+      isAllDay: serializer.fromJson<bool>(json['isAllDay']),
+      startMinutes: serializer.fromJson<int?>(json['startMinutes']),
+      endMinutes: serializer.fromJson<int?>(json['endMinutes']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'title': serializer.toJson<String>(title),
+      'note': serializer.toJson<String?>(note),
+      'scheduledDate': serializer.toJson<DateTime>(scheduledDate),
+      'isAllDay': serializer.toJson<bool>(isAllDay),
+      'startMinutes': serializer.toJson<int?>(startMinutes),
+      'endMinutes': serializer.toJson<int?>(endMinutes),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  ScheduleEntry copyWith({
+    String? id,
+    String? householdId,
+    String? title,
+    Value<String?> note = const Value.absent(),
+    DateTime? scheduledDate,
+    bool? isAllDay,
+    Value<int?> startMinutes = const Value.absent(),
+    Value<int?> endMinutes = const Value.absent(),
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => ScheduleEntry(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    title: title ?? this.title,
+    note: note.present ? note.value : this.note,
+    scheduledDate: scheduledDate ?? this.scheduledDate,
+    isAllDay: isAllDay ?? this.isAllDay,
+    startMinutes: startMinutes.present ? startMinutes.value : this.startMinutes,
+    endMinutes: endMinutes.present ? endMinutes.value : this.endMinutes,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  ScheduleEntry copyWithCompanion(ScheduleEntriesCompanion data) {
+    return ScheduleEntry(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      title: data.title.present ? data.title.value : this.title,
+      note: data.note.present ? data.note.value : this.note,
+      scheduledDate: data.scheduledDate.present
+          ? data.scheduledDate.value
+          : this.scheduledDate,
+      isAllDay: data.isAllDay.present ? data.isAllDay.value : this.isAllDay,
+      startMinutes: data.startMinutes.present
+          ? data.startMinutes.value
+          : this.startMinutes,
+      endMinutes: data.endMinutes.present
+          ? data.endMinutes.value
+          : this.endMinutes,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleEntry(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('scheduledDate: $scheduledDate, ')
+          ..write('isAllDay: $isAllDay, ')
+          ..write('startMinutes: $startMinutes, ')
+          ..write('endMinutes: $endMinutes, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    title,
+    note,
+    scheduledDate,
+    isAllDay,
+    startMinutes,
+    endMinutes,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ScheduleEntry &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.title == this.title &&
+          other.note == this.note &&
+          other.scheduledDate == this.scheduledDate &&
+          other.isAllDay == this.isAllDay &&
+          other.startMinutes == this.startMinutes &&
+          other.endMinutes == this.endMinutes &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ScheduleEntriesCompanion extends UpdateCompanion<ScheduleEntry> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> title;
+  final Value<String?> note;
+  final Value<DateTime> scheduledDate;
+  final Value<bool> isAllDay;
+  final Value<int?> startMinutes;
+  final Value<int?> endMinutes;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const ScheduleEntriesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.note = const Value.absent(),
+    this.scheduledDate = const Value.absent(),
+    this.isAllDay = const Value.absent(),
+    this.startMinutes = const Value.absent(),
+    this.endMinutes = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ScheduleEntriesCompanion.insert({
+    required String id,
+    required String householdId,
+    required String title,
+    this.note = const Value.absent(),
+    required DateTime scheduledDate,
+    this.isAllDay = const Value.absent(),
+    this.startMinutes = const Value.absent(),
+    this.endMinutes = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       title = Value(title),
+       scheduledDate = Value(scheduledDate),
+       createdAt = Value(createdAt);
+  static Insertable<ScheduleEntry> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? title,
+    Expression<String>? note,
+    Expression<DateTime>? scheduledDate,
+    Expression<bool>? isAllDay,
+    Expression<int>? startMinutes,
+    Expression<int>? endMinutes,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (title != null) 'title': title,
+      if (note != null) 'note': note,
+      if (scheduledDate != null) 'scheduled_date': scheduledDate,
+      if (isAllDay != null) 'is_all_day': isAllDay,
+      if (startMinutes != null) 'start_minutes': startMinutes,
+      if (endMinutes != null) 'end_minutes': endMinutes,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ScheduleEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? title,
+    Value<String?>? note,
+    Value<DateTime>? scheduledDate,
+    Value<bool>? isAllDay,
+    Value<int?>? startMinutes,
+    Value<int?>? endMinutes,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return ScheduleEntriesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      title: title ?? this.title,
+      note: note ?? this.note,
+      scheduledDate: scheduledDate ?? this.scheduledDate,
+      isAllDay: isAllDay ?? this.isAllDay,
+      startMinutes: startMinutes ?? this.startMinutes,
+      endMinutes: endMinutes ?? this.endMinutes,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (scheduledDate.present) {
+      map['scheduled_date'] = Variable<DateTime>(scheduledDate.value);
+    }
+    if (isAllDay.present) {
+      map['is_all_day'] = Variable<bool>(isAllDay.value);
+    }
+    if (startMinutes.present) {
+      map['start_minutes'] = Variable<int>(startMinutes.value);
+    }
+    if (endMinutes.present) {
+      map['end_minutes'] = Variable<int>(endMinutes.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ScheduleEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('scheduledDate: $scheduledDate, ')
+          ..write('isAllDay: $isAllDay, ')
+          ..write('startMinutes: $startMinutes, ')
+          ..write('endMinutes: $endMinutes, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AccountReconciliationLogsTable extends AccountReconciliationLogs
     with TableInfo<$AccountReconciliationLogsTable, AccountReconciliationLog> {
   @override
@@ -23396,6 +24072,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DailyRoutinesTable dailyRoutines = $DailyRoutinesTable(this);
   late final $DailyRoutineCompletionsTable dailyRoutineCompletions =
       $DailyRoutineCompletionsTable(this);
+  late final $ScheduleEntriesTable scheduleEntries = $ScheduleEntriesTable(
+    this,
+  );
   late final $AccountReconciliationLogsTable accountReconciliationLogs =
       $AccountReconciliationLogsTable(this);
   late final $HijriSettingsTable hijriSettings = $HijriSettingsTable(this);
@@ -23452,6 +24131,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     tasks,
     dailyRoutines,
     dailyRoutineCompletions,
+    scheduleEntries,
     accountReconciliationLogs,
     hijriSettings,
     hijriMonthOverrides,
@@ -32006,6 +32686,332 @@ typedef $$DailyRoutineCompletionsTableProcessedTableManager =
       DailyRoutineCompletion,
       PrefetchHooks Function()
     >;
+typedef $$ScheduleEntriesTableCreateCompanionBuilder =
+    ScheduleEntriesCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      required DateTime scheduledDate,
+      Value<bool> isAllDay,
+      Value<int?> startMinutes,
+      Value<int?> endMinutes,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$ScheduleEntriesTableUpdateCompanionBuilder =
+    ScheduleEntriesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<DateTime> scheduledDate,
+      Value<bool> isAllDay,
+      Value<int?> startMinutes,
+      Value<int?> endMinutes,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$ScheduleEntriesTableFilterComposer
+    extends Composer<_$AppDatabase, $ScheduleEntriesTable> {
+  $$ScheduleEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get scheduledDate => $composableBuilder(
+    column: $table.scheduledDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ScheduleEntriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ScheduleEntriesTable> {
+  $$ScheduleEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get scheduledDate => $composableBuilder(
+    column: $table.scheduledDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ScheduleEntriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ScheduleEntriesTable> {
+  $$ScheduleEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get scheduledDate => $composableBuilder(
+    column: $table.scheduledDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isAllDay =>
+      $composableBuilder(column: $table.isAllDay, builder: (column) => column);
+
+  GeneratedColumn<int> get startMinutes => $composableBuilder(
+    column: $table.startMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get endMinutes => $composableBuilder(
+    column: $table.endMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ScheduleEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ScheduleEntriesTable,
+          ScheduleEntry,
+          $$ScheduleEntriesTableFilterComposer,
+          $$ScheduleEntriesTableOrderingComposer,
+          $$ScheduleEntriesTableAnnotationComposer,
+          $$ScheduleEntriesTableCreateCompanionBuilder,
+          $$ScheduleEntriesTableUpdateCompanionBuilder,
+          (
+            ScheduleEntry,
+            BaseReferences<_$AppDatabase, $ScheduleEntriesTable, ScheduleEntry>,
+          ),
+          ScheduleEntry,
+          PrefetchHooks Function()
+        > {
+  $$ScheduleEntriesTableTableManager(
+    _$AppDatabase db,
+    $ScheduleEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ScheduleEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ScheduleEntriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ScheduleEntriesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> scheduledDate = const Value.absent(),
+                Value<bool> isAllDay = const Value.absent(),
+                Value<int?> startMinutes = const Value.absent(),
+                Value<int?> endMinutes = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleEntriesCompanion(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                scheduledDate: scheduledDate,
+                isAllDay: isAllDay,
+                startMinutes: startMinutes,
+                endMinutes: endMinutes,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String title,
+                Value<String?> note = const Value.absent(),
+                required DateTime scheduledDate,
+                Value<bool> isAllDay = const Value.absent(),
+                Value<int?> startMinutes = const Value.absent(),
+                Value<int?> endMinutes = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ScheduleEntriesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                scheduledDate: scheduledDate,
+                isAllDay: isAllDay,
+                startMinutes: startMinutes,
+                endMinutes: endMinutes,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ScheduleEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ScheduleEntriesTable,
+      ScheduleEntry,
+      $$ScheduleEntriesTableFilterComposer,
+      $$ScheduleEntriesTableOrderingComposer,
+      $$ScheduleEntriesTableAnnotationComposer,
+      $$ScheduleEntriesTableCreateCompanionBuilder,
+      $$ScheduleEntriesTableUpdateCompanionBuilder,
+      (
+        ScheduleEntry,
+        BaseReferences<_$AppDatabase, $ScheduleEntriesTable, ScheduleEntry>,
+      ),
+      ScheduleEntry,
+      PrefetchHooks Function()
+    >;
 typedef $$AccountReconciliationLogsTableCreateCompanionBuilder =
     AccountReconciliationLogsCompanion Function({
       required String id,
@@ -35169,6 +36175,8 @@ class $AppDatabaseManager {
         _db,
         _db.dailyRoutineCompletions,
       );
+  $$ScheduleEntriesTableTableManager get scheduleEntries =>
+      $$ScheduleEntriesTableTableManager(_db, _db.scheduleEntries);
   $$AccountReconciliationLogsTableTableManager get accountReconciliationLogs =>
       $$AccountReconciliationLogsTableTableManager(
         _db,

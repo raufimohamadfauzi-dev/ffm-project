@@ -9,6 +9,7 @@ import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/daily_notes/data/daily_note_repository.dart';
 import '../../features/tasks/data/task_repository.dart';
 import '../../features/routines/data/routine_repository.dart';
+import '../../features/schedule/data/schedule_repository.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
@@ -128,6 +129,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<RoutineRepository>(
     () => RoutineRepository(db, getIt<AuditLogger>()),
+  );
+  getIt.registerLazySingleton<ScheduleRepository>(
+    () => ScheduleRepository(db, getIt<AuditLogger>()),
   );
   getIt.registerFactory<ActivityBloc>(
     () => ActivityBloc(getIt<ActivityRepository>()),

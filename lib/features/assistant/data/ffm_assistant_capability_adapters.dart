@@ -7,6 +7,7 @@ import '../../activity/domain/entities/activity_entity.dart';
 import '../../daily_notes/data/daily_note_repository.dart';
 import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
+import '../../schedule/data/schedule_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
@@ -66,6 +67,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.routine_activate': _prepareRoutineMutation,
     'draft.routine_deactivate': _prepareRoutineMutation,
     'draft.routine_archive': _prepareRoutineMutation,
+    'draft.schedule': _prepareDraft,
+    'draft.schedule_update': _prepareScheduleMutation,
+    'draft.schedule_archive': _prepareScheduleMutation,
     'draft.income': _prepareDraft,
     'draft.expense': _prepareDraft,
     'draft.transfer': _prepareDraft,
@@ -93,6 +97,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.daily_note_mutation': _verifyDailyNoteMutation,
     'verify.task_mutation': _verifyTaskMutation,
     'verify.routine_mutation': _verifyRoutineMutation,
+    'verify.schedule_mutation': _verifyScheduleMutation,
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
   };
@@ -227,6 +232,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       'dailyNote' ||
       'task' ||
       'routine' ||
+      'schedule' ||
       'reminder' ||
       'master_data' => false,
       _ => true,
@@ -271,6 +277,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'task') return _updateTask(step);
     if (step.parameters['entity'] == 'daily_routine') {
       return _updateRoutine(step);
+    }
+    if (step.parameters['entity'] == 'schedule_entry') {
+      return _updateSchedule(step);
     }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
@@ -360,6 +369,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'task') return _archiveTask(step);
     if (step.parameters['entity'] == 'daily_routine') {
       return _archiveRoutine(step);
+    }
+    if (step.parameters['entity'] == 'schedule_entry') {
+      return _archiveSchedule(step);
     }
     return _archiveTransaction(step);
   }
@@ -626,6 +638,9 @@ class FfmAssistantCapabilityAdapterRegistry {
 
   RoutineRepository get _routines =>
       RoutineRepository(_database, AuditLogger(_database), clock: _clock);
+
+  ScheduleRepository get _schedules =>
+      ScheduleRepository(_database, AuditLogger(_database), clock: _clock);
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareTaskMutation(
     FfmAssistantActionStep step,
@@ -1078,6 +1093,173 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _prepareScheduleMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || !const {'update', 'archive'}.contains(operation)) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload perubahan Jadwal tidak lengkap.',
+      );
+    }
+    final entry = await _schedules.get(_householdId, targetId);
+    if (entry == null || entry.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Jadwal target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    final action = operation == 'archive'
+        ? 'akan diarsipkan tanpa dihapus permanen'
+        : 'akan diperbarui tanpa membuat alarm atau notifikasi';
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview Jadwal “${entry.title}” $action. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateSchedule(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Jadwal belum valid.',
+      );
+    }
+    final before = await _schedules.get(_householdId, targetId);
+    if (before == null || before.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Jadwal target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    final title = step.parameters['title']?.toString();
+    final date = _dateParameter(step.parameters['date']);
+    final isAllDay = _boolParameter(step.parameters['isAllDay']) ?? true;
+    final startMinutes = _minuteParameter(step.parameters['startMinutes']);
+    final endMinutes = _minuteParameter(step.parameters['endMinutes']);
+    if (title == null || title.trim().isEmpty || date == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Judul atau tanggal perubahan Jadwal belum valid.',
+      );
+    }
+    if (before.title == title.trim() &&
+        before.scheduledDate == DateTime(date.year, date.month, date.day) &&
+        before.isAllDay == isAllDay &&
+        before.startMinutes == startMinutes &&
+        before.endMinutes == endMinutes) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: Jadwal sudah sesuai dengan draft perubahan.',
+      );
+    }
+    try {
+      final updated = await _schedules.update(
+        householdId: _householdId,
+        id: targetId,
+        title: title,
+        note: step.parameters['note']?.toString(),
+        scheduledDate: date,
+        isAllDay: isAllDay,
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+      );
+      return updated == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Jadwal belum dapat diperbarui.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'Jadwal “${updated.title}” diperbarui tanpa membuat alarm atau notifikasi. Hasilnya akan dibaca kembali untuk verifikasi.',
+            );
+    } on ArgumentError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        error.message?.toString() ?? 'Jadwal belum valid.',
+      );
+    }
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveSchedule(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Jadwal belum valid.',
+      );
+    }
+    final entry = await _schedules.archive(
+      householdId: _householdId,
+      id: targetId,
+    );
+    return entry == null
+        ? const FfmAssistantCapabilityExecutionResult.failure(
+            'Jadwal tidak ditemukan atau sudah diarsipkan.',
+          )
+        : FfmAssistantCapabilityExecutionResult.success(
+            'Jadwal “${entry.title}” diarsipkan tanpa dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyScheduleMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final kind = step.parameters['kind']?.toString();
+    if (kind == 'schedule') {
+      final key = step.parameters['_idempotencyKey']?.toString();
+      if (key == null || key.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Kunci verifikasi Jadwal belum ada.',
+        );
+      }
+      final entry = await _schedules.get(_householdId, _stableId(key));
+      return entry != null && !entry.isArchived
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: Jadwal “${entry.title}” berhasil dibaca kembali dari data lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Jadwal belum ditemukan setelah simpan.',
+            );
+    }
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    final entry = targetId == null
+        ? null
+        : await _schedules.get(_householdId, targetId);
+    if (operation == 'archive') {
+      return entry?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Jadwal sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Jadwal belum berstatus arsip.',
+            );
+    }
+    if (entry == null || entry.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: Jadwal target tidak dapat dibaca kembali.',
+      );
+    }
+    final expectedDate = _dateParameter(step.parameters['date']);
+    final expectedTitle = step.parameters['title']?.toString().trim();
+    final expectedAllDay = _boolParameter(step.parameters['isAllDay']) ?? true;
+    final expectedStart = _minuteParameter(step.parameters['startMinutes']);
+    final expectedEnd = _minuteParameter(step.parameters['endMinutes']);
+    final sameDate =
+        expectedDate != null &&
+        entry.scheduledDate ==
+            DateTime(expectedDate.year, expectedDate.month, expectedDate.day);
+    return expectedTitle != null &&
+            entry.title == expectedTitle &&
+            sameDate &&
+            entry.isAllDay == expectedAllDay &&
+            entry.startMinutes == expectedStart &&
+            entry.endMinutes == expectedEnd
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: Jadwal “${entry.title}” sudah dibaca kembali sesuai draft.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: perubahan Jadwal belum sesuai draft.',
+          );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _prepareReminderMutation(
     FfmAssistantActionStep step,
   ) async {
@@ -1437,6 +1619,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'dailyNote') return _saveDailyNote(step, idempotencyKey);
     if (kind == 'task') return _saveTask(step, idempotencyKey);
     if (kind == 'routine') return _saveRoutine(step, idempotencyKey);
+    if (kind == 'schedule') return _saveSchedule(step, idempotencyKey);
     if (kind == 'reminder') return _saveReminder(step, idempotencyKey);
     if (kind == 'master_data') return _saveMasterData(step, idempotencyKey);
     if (kind == 'goal') return _saveGoal(step, idempotencyKey);
@@ -2107,6 +2290,27 @@ class FfmAssistantCapabilityAdapterRegistry {
     return null;
   }
 
+  bool? _boolParameter(Object? value) {
+    if (value is bool) return value;
+    final normalized = value?.toString().trim().toLowerCase();
+    return switch (normalized) {
+      'true' => true,
+      'false' => false,
+      _ => null,
+    };
+  }
+
+  int? _minuteParameter(Object? value) {
+    if (value == null || value.toString().trim().isEmpty) return null;
+    final minutes = int.tryParse(value.toString());
+    if (minutes == null ||
+        minutes < 0 ||
+        minutes >= ScheduleRepository.minutesPerDay) {
+      return null;
+    }
+    return minutes;
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _saveProfile(
     FfmAssistantActionStep step,
     String idempotencyKey,
@@ -2284,6 +2488,41 @@ class FfmAssistantCapabilityAdapterRegistry {
     return FfmAssistantCapabilityExecutionResult.success(
       'Rutinitas “${routine.title}” disimpan tanpa membuat notifikasi. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveSchedule(
+    FfmAssistantActionStep step,
+    String idempotencyKey,
+  ) async {
+    final title = step.parameters['title']?.toString();
+    final date = _dateParameter(step.parameters['date']);
+    final isAllDay = _boolParameter(step.parameters['isAllDay']) ?? true;
+    final startMinutes = _minuteParameter(step.parameters['startMinutes']);
+    final endMinutes = _minuteParameter(step.parameters['endMinutes']);
+    if (title == null || title.trim().isEmpty || date == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Judul atau tanggal Jadwal belum valid.',
+      );
+    }
+    try {
+      final entry = await _schedules.create(
+        id: _stableId(idempotencyKey),
+        householdId: _householdId,
+        title: title,
+        note: step.parameters['note']?.toString(),
+        scheduledDate: date,
+        isAllDay: isAllDay,
+        startMinutes: startMinutes,
+        endMinutes: endMinutes,
+      );
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Jadwal “${entry.title}” disimpan tanpa membuat alarm atau notifikasi. Hasilnya akan dibaca kembali untuk verifikasi.',
+      );
+    } on ArgumentError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        error.message?.toString() ?? 'Jadwal belum valid.',
+      );
+    }
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _saveReminder(
