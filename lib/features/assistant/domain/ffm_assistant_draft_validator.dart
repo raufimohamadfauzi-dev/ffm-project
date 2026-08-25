@@ -155,6 +155,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.recurringTransactionUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'recurring_transaction_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Transaksi Berkala',
+              message: 'Target atau nama jadwal Transaksi Berkala belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.recurringTransactionArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'recurring_transaction_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Transaksi Berkala',
+              message: 'Jadwal Transaksi Berkala target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.asset:
       case FfmAssistantDraftKind.masterData:
       case FfmAssistantDraftKind.reminder:
@@ -381,6 +403,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.schedule ||
     FfmAssistantDraftKind.scheduleUpdate ||
     FfmAssistantDraftKind.scheduleArchive ||
+    FfmAssistantDraftKind.recurringTransactionUpdate ||
+    FfmAssistantDraftKind.recurringTransactionArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

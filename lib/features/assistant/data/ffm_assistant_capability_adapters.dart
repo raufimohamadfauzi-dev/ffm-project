@@ -16,6 +16,7 @@ import '../../liability/domain/entities/liability_entity.dart';
 import '../../liability/domain/usecases/liability_crud_usecases.dart';
 import '../../receivable/domain/entities/receivable_entity.dart';
 import '../../receivable/domain/usecases/receivable_crud_usecases.dart';
+import '../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
@@ -93,6 +94,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.receivable': _prepareDraft,
     'draft.receivable_update': _prepareReceivableMutation,
     'draft.receivable_archive': _prepareReceivableMutation,
+    'draft.recurring_transaction_update': _prepareRecurringTransactionMutation,
+    'draft.recurring_transaction_archive': _prepareRecurringTransactionMutation,
     'draft.budget': _prepareDraft,
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
@@ -116,6 +119,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.reminder_mutation': _verifyReminderMutation,
     'verify.liability_mutation': _verifyLiabilityMutation,
     'verify.receivable_mutation': _verifyReceivableMutation,
+    'verify.recurring_transaction_mutation':
+        _verifyRecurringTransactionMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -305,6 +310,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'receivable') {
       return _updateReceivable(step);
     }
+    if (step.parameters['entity'] == 'recurring_transaction') {
+      return _updateRecurringTransaction(step);
+    }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -402,6 +410,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _archiveLiability(step);
     if (step.parameters['entity'] == 'receivable') {
       return _archiveReceivable(step);
+    }
+    if (step.parameters['entity'] == 'recurring_transaction') {
+      return _archiveRecurringTransaction(step);
     }
     return _archiveTransaction(step);
   }
@@ -639,6 +650,139 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<ReceivableEntity?> _receivableById(String? id) async {
     if (id == null) return null;
     final all = await GetReceivables(_database)(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult>
+  _prepareRecurringTransactionMutation(FfmAssistantActionStep step) async {
+    final target = await _recurringTransactionById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Jadwal Transaksi Berkala target tidak ditemukan atau sudah dinonaktifkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview penonaktifan jadwal “${target.name}” tanpa menjalankan jadwal, mengubah riwayat, atau membuat transaksi.',
+      );
+    }
+    final metadataField = step.parameters['metadataField']?.toString();
+    final value = metadataField == 'note'
+        ? step.parameters['note']?.toString().trim()
+        : step.parameters['title']?.toString().trim();
+    if (value == null || value.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nilai metadata Transaksi Berkala baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan ${metadataField == 'note' ? 'catatan' : 'nama'} jadwal “${target.name}”. Nominal, rekening, kategori, jadwal, dan mode kalkulasi dipertahankan; jadwal tidak akan dijalankan.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateRecurringTransaction(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _recurringTransactionById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final nextNote = metadataField == 'note'
+        ? step.parameters['note']?.toString().trim()
+        : before?.note;
+    if (before == null ||
+        title == null ||
+        title.isEmpty ||
+        (metadataField == 'note' && (nextNote == null || nextNote.isEmpty))) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau metadata Transaksi Berkala belum valid.',
+      );
+    }
+    if (before.name == title && before.note == nextNote) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: metadata Transaksi Berkala sudah sesuai draft.',
+      );
+    }
+    await UpdateRecurringTransaction(_database)(
+      id: before.id,
+      householdId: before.householdId,
+      name: title,
+      type: before.type,
+      amount: before.amount,
+      startDate: before.startDate,
+      periodType: before.periodType,
+      categoryId: before.categoryId,
+      accountId: before.accountId,
+      sourceId: before.sourceId,
+      note: nextNote,
+      endDate: before.endDate,
+      calcMode: before.calcMode,
+      ratePercent: before.ratePercent,
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Metadata Transaksi Berkala diperbarui tanpa menjalankan jadwal atau membuat transaksi. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveRecurringTransaction(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _recurringTransactionById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Jadwal Transaksi Berkala target tidak ditemukan atau sudah dinonaktifkan.',
+      );
+    }
+    await ArchiveRecurringTransaction(_database)(_householdId, target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Jadwal Transaksi Berkala “${target.name}” dinonaktifkan tanpa mengubah riwayat atau transaksi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult>
+  _verifyRecurringTransactionMutation(FfmAssistantActionStep step) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Transaksi Berkala belum valid.',
+      );
+    }
+    final row =
+        await (_database.select(_database.recurringTransactions)..where(
+              (r) => r.householdId.equals(_householdId) & r.id.equals(id),
+            ))
+            .getSingleOrNull();
+    if (step.parameters['operation'] == 'archive') {
+      return row?.isActive == false
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: jadwal Transaksi Berkala sudah dinonaktifkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: jadwal Transaksi Berkala masih aktif.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final expectedNote = metadataField == 'note'
+        ? step.parameters['note']?.toString().trim()
+        : row?.note;
+    return row != null &&
+            row.isActive &&
+            row.name == title &&
+            row.note == expectedNote
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: metadata Transaksi Berkala sudah dibaca kembali tanpa menjalankan jadwal atau mengubah transaksi.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: metadata Transaksi Berkala belum sesuai draft.',
+          );
+  }
+
+  Future<RecurringTransaction?> _recurringTransactionById(String? id) async {
+    if (id == null) return null;
+    final all = await GetRecurringTransactions(_database)(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }

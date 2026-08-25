@@ -71,6 +71,10 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.schedule => 'draft.schedule',
         FfmAssistantDraftKind.scheduleUpdate => 'draft.schedule_update',
         FfmAssistantDraftKind.scheduleArchive => 'draft.schedule_archive',
+        FfmAssistantDraftKind.recurringTransactionUpdate =>
+          'draft.recurring_transaction_update',
+        FfmAssistantDraftKind.recurringTransactionArchive =>
+          'draft.recurring_transaction_archive',
         FfmAssistantDraftKind.profile => 'draft.profile',
         FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
         FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
@@ -118,6 +122,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.routineArchive => 'mutate.archive',
         FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
         FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
+        FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
+        FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -156,6 +162,9 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.schedule ||
             FfmAssistantDraftKind.scheduleUpdate ||
             FfmAssistantDraftKind.scheduleArchive => 'verify.schedule_mutation',
+            FfmAssistantDraftKind.recurringTransactionUpdate ||
+            FfmAssistantDraftKind.recurringTransactionArchive =>
+              'verify.recurring_transaction_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.assetUpdate ||

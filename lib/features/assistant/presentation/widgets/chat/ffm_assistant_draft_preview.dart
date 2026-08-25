@@ -50,6 +50,10 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.schedule => 'Draft Jadwal',
     FfmAssistantDraftKind.scheduleUpdate => 'Preview Perubahan Jadwal',
     FfmAssistantDraftKind.scheduleArchive => 'Preview Arsip Jadwal',
+    FfmAssistantDraftKind.recurringTransactionUpdate =>
+      'Preview Perubahan Transaksi Berkala',
+    FfmAssistantDraftKind.recurringTransactionArchive =>
+      'Preview Nonaktifkan Transaksi Berkala',
     FfmAssistantDraftKind.profile => 'Draft Perkenalan Diri',
     FfmAssistantDraftKind.goalUpdate => 'Preview Perubahan Target',
     FfmAssistantDraftKind.goalArchive => 'Preview Arsip Target',

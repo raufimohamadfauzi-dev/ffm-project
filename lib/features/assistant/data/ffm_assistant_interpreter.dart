@@ -869,6 +869,12 @@ class FfmAssistantInterpreter {
     );
     if (receivableMutation != null) return receivableMutation;
 
+    final recurringMutation = await _parseRecurringTransactionMutation(
+      rawText,
+      normalized,
+    );
+    if (recurringMutation != null) return recurringMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2387,6 +2393,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveReceivable,
         destination: FfmAssistantDestination.liabilities,
         action: 'arsip piutang',
+      ),
+      FfmAssistantDraftKind.recurringTransactionUpdate => (
+        type: FfmAssistantIntentType.updateRecurringTransaction,
+        destination: FfmAssistantDestination.recurringTransaction,
+        action: 'ubah Transaksi Berkala',
+      ),
+      FfmAssistantDraftKind.recurringTransactionArchive => (
+        type: FfmAssistantIntentType.archiveRecurringTransaction,
+        destination: FfmAssistantDestination.recurringTransaction,
+        action: 'nonaktifkan Transaksi Berkala',
       ),
       FfmAssistantDraftKind.goal => (
         type: FfmAssistantIntentType.createGoal,
@@ -3981,6 +3997,100 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan metadata Piutang. Nilai pokok dan sisa Piutang tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak Piutang tanpa hapus permanen, penagihan, atau transaksi. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseRecurringTransactionMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final updateName = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:jadwal\s+)?(?:transaksi\s+)?berkala\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final updateNote = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+catatan\s+(?:jadwal\s+)?(?:transaksi\s+)?berkala\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan|nonaktifkan)\s+(?:jadwal\s+)?(?:transaksi\s+)?berkala\s+(.+)$',
+    ).firstMatch(normalized);
+    if (updateName == null && updateNote == null && archive == null) {
+      return null;
+    }
+
+    final operation = updateName == null && updateNote == null
+        ? 'archive'
+        : 'update';
+    final metadataField = updateNote == null ? 'name' : 'note';
+    final targetText =
+        (updateName?.group(1) ?? updateNote?.group(1) ?? archive!.group(1)!)
+            .trim();
+    final rows =
+        await (_database.select(_database.recurringTransactions)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateRecurringTransaction
+        : FfmAssistantIntentType.archiveRecurringTransaction;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu jadwal Transaksi Berkala aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} jadwal Transaksi Berkala yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama jadwal yang lebih spesifik. Belum ada aturan, transaksi, atau run yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.recurringTransactionUpdate
+          : FfmAssistantDraftKind.recurringTransactionArchive,
+      createdAt: _clock(),
+      title: metadataField == 'name' && operation == 'update'
+          ? updateName!.group(2)!.trim()
+          : target.name,
+      note: metadataField == 'note' && operation == 'update'
+          ? updateNote!.group(2)!.trim()
+          : target.note,
+      date: target.startDate,
+      formValues: {
+        'entity': 'recurring_transaction',
+        'targetId': target.id,
+        'operation': operation,
+        'metadataField': metadataField,
+        'targetSummary': '${target.name} • ${target.periodType}',
+        'amount': target.amount.toString(),
+        'type': target.type,
+        'periodType': target.periodType,
+        'calcMode': target.calcMode,
+        'ratePercent': target.ratePercent?.toString() ?? '',
+        'accountId': target.accountId ?? '',
+        'categoryId': target.categoryId ?? '',
+        'sourceId': target.sourceId ?? '',
+        'startDate': target.startDate.toIso8601String(),
+        'endDate': target.endDate?.toIso8601String() ?? '',
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan ${metadataField == 'note' ? 'catatan' : 'nama'} satu Transaksi Berkala. Jadwal tidak akan dijalankan dan tidak ada transaksi baru dibuat. Cek preview dulu.'
+          : 'Aku menyiapkan penonaktifan satu Transaksi Berkala tanpa mengubah riwayat, transaksi, atau run. Cek preview dulu.',
     );
   }
 
