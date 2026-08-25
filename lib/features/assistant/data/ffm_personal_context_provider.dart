@@ -169,12 +169,12 @@ class FfmPersonalContextProvider {
   }
 
   /// Convenience method untuk update working context setelah turn
-  void updateAfterTurn({
+  Future<void> updateAfterTurn({
     required String userQuery,
     required String? assistantResponse,
     Map<String, String>? extractedEntities,
-  }) {
-    _workingContextManager.updateAfterTurn(
+  }) async {
+    await _workingContextManager.updateAfterTurn(
       userQuery: userQuery,
       assistantResponse: assistantResponse,
       extractedEntities: extractedEntities ?? {},
@@ -182,8 +182,8 @@ class FfmPersonalContextProvider {
   }
 
   /// Clear working context
-  void clearWorkingContext() {
-    _workingContextManager.clear();
+  Future<void> clearWorkingContext() async {
+    await _workingContextManager.clear();
   }
 
   /// Check apakah ada pending clarification

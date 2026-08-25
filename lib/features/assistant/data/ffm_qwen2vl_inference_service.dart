@@ -3,11 +3,16 @@ import 'dart:convert';
 import 'package:ffm_manager/features/assistant/data/ffm_local_inference_queue.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_local_model_bridge_plugin.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_local_proposal.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_slm_health_monitor.dart';
 
 class FfmQwen2VlInferenceService {
-  const FfmQwen2VlInferenceService(this._queue);
+  FfmQwen2VlInferenceService(
+    this._queue, {
+    FfmSlmHealthMonitor? healthMonitor,
+  }) : _healthMonitor = healthMonitor;
 
   final FfmSingleInferenceQueue _queue;
+  final FfmSlmHealthMonitor? _healthMonitor;
 
   bool get isBusy => _queue.isBusy;
 
@@ -15,14 +20,38 @@ class FfmQwen2VlInferenceService {
     required String systemPrompt,
     required String userPrompt,
     String? imagePath,
-  }) => _queue.enqueue((token) async {
-    token.throwIfCancelled();
-    return FfmLocalModelBridgePlugin.generateSingleShotNative(
-      systemPrompt: systemPrompt,
-      userPrompt: userPrompt,
-      imagePath: imagePath,
-    );
-  });
+  }) async {
+    if (_healthMonitor?.shouldSkipInference == true) {
+      throw Exception('SLM circuit breaker aktif. Coba lagi beberapa menit.');
+    }
+
+    final stopwatch = Stopwatch()..start();
+    try {
+      final result = await _queue.enqueue((token) async {
+        token.throwIfCancelled();
+        return FfmLocalModelBridgePlugin.generateSingleShotNative(
+          systemPrompt: systemPrompt,
+          userPrompt: userPrompt,
+          imagePath: imagePath,
+        );
+      });
+      stopwatch.stop();
+      await _healthMonitor?.recordSuccess(
+        latencyMs: stopwatch.elapsedMilliseconds,
+        responseLength: result.length,
+      );
+      return result;
+    } catch (e) {
+      stopwatch.stop();
+      if (e is! FfmInferenceCancelledException) {
+        await _healthMonitor?.recordFailure(
+          latencyMs: stopwatch.elapsedMilliseconds,
+          errorType: e.runtimeType.toString(),
+        );
+      }
+      rethrow;
+    }
+  }
 
   Future<String?> tryGenerateJsonWhenIdle({
     required String systemPrompt,
@@ -30,13 +59,34 @@ class FfmQwen2VlInferenceService {
     String? imagePath,
   }) {
     if (_queue.isBusy) return Future<String?>.value();
+    if (_healthMonitor?.shouldSkipInference == true) {
+      return Future<String?>.value();
+    }
     return _queue.enqueue((token) async {
       token.throwIfCancelled();
-      return FfmLocalModelBridgePlugin.generateSingleShotNative(
-        systemPrompt: systemPrompt,
-        userPrompt: userPrompt,
-        imagePath: imagePath,
-      );
+      final stopwatch = Stopwatch()..start();
+      try {
+        final result = await FfmLocalModelBridgePlugin.generateSingleShotNative(
+          systemPrompt: systemPrompt,
+          userPrompt: userPrompt,
+          imagePath: imagePath,
+        );
+        stopwatch.stop();
+        await _healthMonitor?.recordSuccess(
+          latencyMs: stopwatch.elapsedMilliseconds,
+          responseLength: result.length,
+        );
+        return result;
+      } catch (e) {
+        stopwatch.stop();
+        if (e is! FfmInferenceCancelledException) {
+          await _healthMonitor?.recordFailure(
+            latencyMs: stopwatch.elapsedMilliseconds,
+            errorType: e.runtimeType.toString(),
+          );
+        }
+        rethrow;
+      }
     });
   }
 

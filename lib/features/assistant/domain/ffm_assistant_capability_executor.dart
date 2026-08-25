@@ -1,6 +1,7 @@
 import 'ffm_assistant_action_plan.dart';
 import 'ffm_assistant_capabilities.dart';
 import 'ffm_assistant_execution_limits.dart';
+import '../data/ffm_error_logging_service.dart';
 
 /// Menjalankan rangkaian read-only pada transaction/snapshot yang sama.
 typedef FfmAssistantReadTransaction = Future<T> Function<T>(
@@ -39,13 +40,15 @@ class FfmAssistantCapabilityExecutor {
     FfmAssistantPlanProgressListener? onPlanProgress,
     Duration stepTimeout = const Duration(seconds: 10),
     int maxRetries = 2,
+    FfmErrorLoggingService? errorLogger,
   }) : _controller = controller,
        _handlers = Map.unmodifiable(handlers),
        _readTransaction = readTransaction,
        _pageReadySignal = pageReadySignal,
        _onPlanProgress = onPlanProgress,
        _stepTimeout = stepTimeout,
-       _maxRetries = maxRetries;
+       _maxRetries = maxRetries,
+       _errorLogger = errorLogger;
 
   final FfmAssistantActionPlanController _controller;
   final Map<String, FfmAssistantCapabilityHandler> _handlers;
@@ -55,6 +58,7 @@ class FfmAssistantCapabilityExecutor {
   final FfmAssistantPlanProgressListener? _onPlanProgress;
   final Duration _stepTimeout;
   final int _maxRetries;
+  final FfmErrorLoggingService? _errorLogger;
 
   FfmAssistantActionPlan? _report(FfmAssistantActionPlan? plan) {
     if (plan != null) _onPlanProgress?.call(plan);
@@ -163,6 +167,17 @@ class FfmAssistantCapabilityExecutor {
         } catch (error) {
           result = FfmAssistantCapabilityExecutionResult.failure(
             'Capability ${step.capabilityId} gagal. Periksa data dan coba lagi.',
+          );
+          await _errorLogger?.logError(
+            feature: 'capability-executor',
+            errorType: error.runtimeType.toString(),
+            message: 'Capability ${step.capabilityId} gagal: $error',
+            context: {
+              'planId': planId,
+              'stepId': step.id,
+              'capabilityId': step.capabilityId,
+              'attempt': attempts,
+            },
           );
         }
         if (result.isSuccess) {

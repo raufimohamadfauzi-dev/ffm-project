@@ -1,15 +1,20 @@
+import 'dart:math' as math;
+
 import '../domain/ffm_memory_candidate.dart';
 import '../domain/ffm_memory_type.dart';
+import 'ffm_assistant_memory_repository.dart';
 
 /// Service untuk learning dan candidate extraction dari percakapan.
 ///
 /// Phase 6 dari Personal Memory & Context Engine implementation.
 class FfmMemoryLearningService {
-  FfmMemoryLearningService();
+  FfmMemoryLearningService({
+    FfmAssistantMemoryRepository? memoryRepository,
+  }) : _memoryRepository = memoryRepository;
+
+  final FfmAssistantMemoryRepository? _memoryRepository;
 
   /// Extract memory candidates dari percakapan turn.
-  ///
-  /// Menggabungkan pattern-based extraction (existing) dengan SLM-based extraction (future).
   Future<List<FfmMemoryPromotionCandidate>> extractCandidates({
     required String userQuery,
     required String? assistantResponse,
@@ -17,7 +22,7 @@ class FfmMemoryLearningService {
   }) async {
     final candidates = <FfmMemoryPromotionCandidate>[];
 
-    // 1. Pattern-based extraction (simple placeholder)
+    // 1. Pattern-based extraction
     final patternCandidates = _extractPatternBased(userQuery);
     candidates.addAll(patternCandidates);
 
@@ -26,14 +31,12 @@ class FfmMemoryLearningService {
     candidates.addAll(usageCandidates);
 
     // 3. Correction-based learning
-    if (assistantResponse != null) {
-      final correctionCandidates = _extractCorrectionBased(userQuery, assistantResponse);
-      candidates.addAll(correctionCandidates);
-    }
+    final correctionCandidates = _extractCorrectionBased(userQuery, assistantResponse);
+    candidates.addAll(correctionCandidates);
 
-    // 4. TODO: SLM-based extraction (future phase)
-    // final slmCandidates = await _extractSLMBased(userQuery, assistantResponse);
-    // candidates.addAll(slmCandidates);
+    // 4. Frequency-based extraction
+    final frequencyCandidates = _extractFrequencyPatterns(userQuery);
+    candidates.addAll(frequencyCandidates);
 
     return candidates;
   }
@@ -41,20 +44,13 @@ class FfmMemoryLearningService {
   /// Validate candidates berdasarkan aturan spesifikasi
   List<FfmMemoryPromotionCandidate> validateCandidates(
     List<FfmMemoryPromotionCandidate> candidates,
+    List<FfmMemoryCandidate> existingMemories,
   ) {
     return candidates.where((candidate) {
-      // Basic validation
       if (!candidate.isValid) return false;
-
-      // Sensitive data check
       if (candidate.isSensitive) return false;
-
-      // Duplicate check
-      if (_isDuplicate(candidate)) return false;
-
-      // Contradiction check
-      if (_hasContradiction(candidate)) return false;
-
+      if (_isDuplicate(candidate, existingMemories)) return false;
+      if (_hasContradiction(candidate, existingMemories)) return false;
       return true;
     }).toList();
   }
@@ -72,8 +68,7 @@ class FfmMemoryLearningService {
         if (memoryCandidate != null) {
           promoted.add(memoryCandidate);
         }
-      } catch (e) {
-        // Log error tapi continue dengan candidate lain
+      } catch (_) {
         continue;
       }
     }
@@ -81,32 +76,79 @@ class FfmMemoryLearningService {
     return promoted;
   }
 
-  /// Apply decay ke memory yang tidak sering digunakan
-  Future<void> applyMemoryDecay() async {
-    // TODO: Implement decay logic
-    // - Update status untuk memory yang lama tidak digunakan
-    // - Archive memory yang sudah stale
-    // - Keep active goals dan important preferences
+  /// Apply decay ke memory yang tidak sering digunakan.
+  ///
+  /// Memory dengan `useCount` rendah dan usia tua akan di-decay.
+  /// Goal yang sudah completed tidak di-decay.
+  Future<void> applyMemoryDecay({
+    required FfmAssistantMemoryRepository repository,
+    Duration maxAge = const Duration(days: 180),
+    int minUseCount = 2,
+  }) async {
+    final repo = _memoryRepository ?? repository;
+    final allMemories = await repo.readAll();
+    final now = DateTime.now();
+
+    for (final memory in allMemories) {
+      final age = now.difference(memory.createdAt);
+      if (age < maxAge) continue;
+
+      final useCount = (memory.metadata['useCount'] as num?)?.toInt() ?? 0;
+      if (useCount >= minUseCount) continue;
+
+      final importance = (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
+      if (importance >= 0.8) continue;
+
+      final decayFactor = 1.0 - (age.inDays / (maxAge.inDays * 2)).clamp(0.0, 0.5);
+      final newImportance = (importance * decayFactor).clamp(0.1, 1.0);
+
+      if (newImportance < 0.2) {
+        await repo.archive(memory.id);
+      }
+    }
   }
 
-  /// Track memory usage dan update importance
-  Future<void> trackMemoryUsage(List<String> memoryIds) async {
-    // TODO: Implement usage tracking
-    // - Update lastUsedAt
-    // - Increment useCount
-    // - Recalculate importance berdasarkan usage pattern
+  /// Track memory usage dan update importance.
+  Future<void> trackMemoryUsage(
+    List<String> memoryIds, {
+    required FfmAssistantMemoryRepository repository,
+  }) async {
+    if (memoryIds.isEmpty) return;
+    final allMemories = await repository.readAll();
+
+    for (final memoryId in memoryIds) {
+      final match = allMemories.where((m) => m.id == memoryId);
+      if (match.isEmpty) continue;
+      final memory = match.first;
+
+      final currentCount = (memory.metadata['useCount'] as num?)?.toInt() ?? 0;
+      final newCount = currentCount + 1;
+      final currentImportance = (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
+      final usageBoost = (newCount / 10).clamp(0.0, 0.3);
+      final newImportance = (currentImportance + usageBoost).clamp(0.0, 1.0);
+
+      await repository.save(
+        id: memory.id,
+        kind: memory.kind,
+        triggerText: memory.triggerText,
+        valueText: memory.valueText,
+        metadata: {
+          ...memory.metadata,
+          'useCount': newCount,
+          'importance': newImportance,
+          'lastUsedAt': DateTime.now().toIso8601String(),
+        },
+        source: memory.source,
+      );
+    }
   }
 
-  // Private helper methods
+  // --- Private helpers ---
 
   List<FfmMemoryPromotionCandidate> _extractPatternBased(String userQuery) {
     final candidates = <FfmMemoryPromotionCandidate>[];
-
-    // Simple pattern extraction sebagai placeholder
-    // TODO: Integrate dengan actual personal memory service
     final lowerQuery = userQuery.toLowerCase();
-    
-    // Extract simple patterns
+
     if (lowerQuery.contains('panggil saya') || lowerQuery.contains('nama saya')) {
       candidates.add(FfmMemoryPromotionCandidate(
         type: FfmMemoryType.identity,
@@ -119,14 +161,56 @@ class FfmMemoryLearningService {
       ));
     }
 
+    if (RegExp(r'gaji(?:an)?\s+(?:tiap|setiap|per)?\s*tanggal\s+\d+').hasMatch(lowerQuery)) {
+      candidates.add(FfmMemoryPromotionCandidate(
+        type: FfmMemoryType.explicitFact,
+        key: 'payday',
+        value: userQuery,
+        confidence: 0.8,
+        reason: 'User menyebutkan jadwal gaji',
+        sourceId: userQuery,
+        requiresApproval: true,
+      ));
+    }
+
+    if (RegExp(r'(?:budget|anggaran|jatah)\s+(?:makan|makanan)').hasMatch(lowerQuery)) {
+      candidates.add(FfmMemoryPromotionCandidate(
+        type: FfmMemoryType.explicitFact,
+        key: 'budget_food',
+        value: userQuery,
+        confidence: 0.75,
+        reason: 'User menyebutkan anggaran makan',
+        sourceId: userQuery,
+        requiresApproval: true,
+      ));
+    }
+
+    if (lowerQuery.contains('target nabung') || lowerQuery.contains('target menabung')) {
+      candidates.add(FfmMemoryPromotionCandidate(
+        type: FfmMemoryType.goal,
+        key: 'savings_target',
+        value: userQuery,
+        confidence: 0.8,
+        reason: 'User menyebutkan target tabungan',
+        sourceId: userQuery,
+        requiresApproval: true,
+      ));
+    }
+
     return candidates;
   }
 
   String _extractName(String query) {
-    // Simple name extraction as placeholder
     final words = query.split(' ');
     for (var i = 0; i < words.length; i++) {
       if (words[i].toLowerCase() == 'adalah' && i + 1 < words.length) {
+        return words[i + 1];
+      }
+      if ((words[i].toLowerCase() == 'panggil' ||
+              words[i].toLowerCase() == 'nama') &&
+          i + 1 < words.length &&
+          words[i + 1].toLowerCase() != 'saya' &&
+          words[i + 1].toLowerCase() != 'ku') {
         return words[i + 1];
       }
     }
@@ -137,60 +221,155 @@ class FfmMemoryLearningService {
     List<FfmMemoryCandidate> usedMemories,
   ) {
     final candidates = <FfmMemoryPromotionCandidate>[];
+    if (usedMemories.length < 2) return candidates;
 
-    // Jika memory sering digunakan bersama-sama, mungkin ada pattern
-    // Contoh: user selalu bertanya tentang makan setelah bertanya tentang gaji
-    // Ini bisa menjadi episodic memory atau habit
+    final topicCounts = <String, int>{};
+    for (final memory in usedMemories) {
+      final topic = memory.type.name;
+      topicCounts[topic] = (topicCounts[topic] ?? 0) + 1;
+    }
 
-    // TODO: Implement co-occurrence analysis
-    // - Detect patterns dalam memory usage
-    // - Create episodic memory untuk frequent co-occurrences
-    // - Update importance berdasarkan usage frequency
+    for (final entry in topicCounts.entries) {
+      if (entry.value >= 3) {
+        candidates.add(FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.behavioralPattern,
+          key: 'frequent_topic_${entry.key}',
+          value: entry.key,
+          confidence: 0.6,
+          reason: 'Topik ${entry.key} sering muncul dalam percakapan',
+          sourceId: 'usage-analysis',
+          requiresApproval: false,
+        ));
+      }
+    }
 
     return candidates;
   }
 
   List<FfmMemoryPromotionCandidate> _extractCorrectionBased(
     String userQuery,
-    String assistantResponse,
+    String? assistantResponse,
   ) {
     final candidates = <FfmMemoryPromotionCandidate>[];
+    if (assistantResponse == null) return candidates;
 
-    // Detect jika user mengoreksi assistant
+    final lowerQuery = userQuery.toLowerCase();
     final correctionPatterns = [
-      RegExp(r'salah|bukan|tidak|jangan', caseSensitive: false),
-      RegExp(r'korrek|perbaiki|ubah', caseSensitive: false),
+      RegExp(r'^(bukan|salah|tidak benar|keliru)', caseSensitive: false),
+      RegExp(r'(?:harusnya|seharusnya|mestinya)\s+', caseSensitive: false),
+      RegExp(r'(?:ubah|ganti|gantikan)\s+(?:jadi|ke|menjadi)\s+', caseSensitive: false),
     ];
 
-    final isCorrection = correctionPatterns.any((pattern) => pattern.hasMatch(userQuery));
-    
+    final isCorrection = correctionPatterns.any((p) => p.hasMatch(lowerQuery));
+
     if (isCorrection) {
-      // Extract correction context
-      // Ini bisa menjadi correction memory dengan confidence tinggi
-      // TODO: Implement correction extraction logic
+      final key = _extractCorrectionKey(lowerQuery);
+      final value = _extractCorrectionValue(lowerQuery);
+
+      if (key.isNotEmpty && value.isNotEmpty) {
+        candidates.add(FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.correction,
+          key: key,
+          value: value,
+          confidence: 0.85,
+          reason: 'User mengoreksi informasi',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ));
+      }
     }
 
     return candidates;
+  }
+
+  String _extractCorrectionKey(String query) {
+    final lower = query.toLowerCase();
+    if (lower.contains('kategori')) return 'category';
+    if (lower.contains('toko') || lower.contains('merchant')) return 'merchant';
+    if (lower.contains('rekening') || lower.contains('akun')) return 'account';
+    if (lower.contains('tag')) return 'tag';
+    if (lower.contains('nominal') || lower.contains('jumlah')) return 'amount';
+    return 'general';
+  }
+
+  String _extractCorrectionValue(String query) {
+    final match = RegExp(r'(?:jadi|ke|menjadi)\s+(.+)', caseSensitive: false)
+        .firstMatch(query);
+    if (match != null) return match.group(1)?.trim() ?? '';
+    return query;
+  }
+
+  List<FfmMemoryPromotionCandidate> _extractFrequencyPatterns(String userQuery) {
+    final candidates = <FfmMemoryPromotionCandidate>[];
+    final lower = userQuery.toLowerCase();
+
+    final timePatterns = {
+      RegExp(r'(?:setiap|tiap|per)\s+pagi'): 'morning_routine',
+      RegExp(r'(?:setiap|tiap|per)\s+malam'): 'evening_routine',
+      RegExp(r'(?:setiap|tiap|per)\s+bulan'): 'monthly_routine',
+      RegExp(r'(?:setiap|tiap|per)\s+minggu'): 'weekly_routine',
+      RegExp(r'(?:selalu|biasa(nya)?)\s+'): 'habitual_behavior',
+    };
+
+    for (final entry in timePatterns.entries) {
+      if (entry.key.hasMatch(lower)) {
+        candidates.add(FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.habit,
+          key: entry.value,
+          value: userQuery,
+          confidence: 0.65,
+          reason: 'Pola kebiasaan terdeteksi: ${entry.value}',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ));
+        break;
+      }
+    }
+
+    return candidates;
+  }
+
+  bool _isDuplicate(
+    FfmMemoryPromotionCandidate candidate,
+    List<FfmMemoryCandidate> existingMemories,
+  ) {
+    for (final existing in existingMemories) {
+      if (existing.type == candidate.type &&
+          existing.key.toLowerCase() == candidate.key.toLowerCase() &&
+          existing.value.toLowerCase() == candidate.value.toLowerCase()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _hasContradiction(
+    FfmMemoryPromotionCandidate candidate,
+    List<FfmMemoryCandidate> existingMemories,
+  ) {
+    for (final existing in existingMemories) {
+      if (existing.type == candidate.type &&
+          existing.key.toLowerCase() == candidate.key.toLowerCase() &&
+          existing.value.toLowerCase() != candidate.value.toLowerCase() &&
+          existing.evidence.confidence >= candidate.confidence) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Future<FfmMemoryCandidate?> _promoteSingleCandidate(
     FfmMemoryPromotionCandidate candidate,
     bool requireApproval,
   ) async {
-    // Jika memerlukan approval dan belum di-approve, skip
-    if (requireApproval && !candidate.requiresApproval) {
-      return null;
-    }
-
-    // Convert ke memory candidate
     final memoryCandidate = FfmMemoryCandidate(
-      id: 'memory-${DateTime.now().microsecondsSinceEpoch}',
+      id: 'memory-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(10000)}',
       type: candidate.type,
       key: candidate.key,
       value: candidate.value,
       evidence: FfmMemoryEvidence(
-        source: candidate.requiresApproval 
-            ? FfmMemorySource.userExplicit 
+        source: candidate.requiresApproval
+            ? FfmMemorySource.userExplicit
             : FfmMemorySource.inferredPattern,
         sourceId: candidate.sourceId,
         createdAt: DateTime.now(),
@@ -201,9 +380,7 @@ class FfmMemoryLearningService {
       importance: _calculateInitialImportance(candidate),
     );
 
-    // Simpan ke repository yang sesuai
     await _saveToRepository(memoryCandidate, candidate);
-
     return memoryCandidate;
   }
 
@@ -211,39 +388,41 @@ class FfmMemoryLearningService {
     FfmMemoryCandidate memoryCandidate,
     FfmMemoryPromotionCandidate promotionCandidate,
   ) async {
-    // Save logic sudah diimplementasikan di context engine
-    // Reuse logic tersebut
-    // TODO: Extract common save logic ke shared service
-    // Placeholder: currently no-op
+    final repo = _memoryRepository;
+    if (repo == null) return;
+
+    await repo.save(
+      kind: memoryCandidate.type.name,
+      triggerText: memoryCandidate.key,
+      valueText: memoryCandidate.value,
+      source: promotionCandidate.sourceId ?? 'memory-learning-service',
+      metadata: {
+        'confidence': memoryCandidate.evidence.confidence,
+        'approved': memoryCandidate.evidence.approved,
+        'importance': memoryCandidate.importance,
+        'useCount': 0,
+        if (promotionCandidate.reason != null) 'reason': promotionCandidate.reason,
+      },
+    );
   }
 
   double _calculateInitialImportance(FfmMemoryPromotionCandidate candidate) {
-    // Calculate importance berdasarkan tipe dan confidence
     switch (candidate.type) {
       case FfmMemoryType.goal:
-        return 1.0; // Goals are very important
+        return 1.0;
       case FfmMemoryType.identity:
-        return 0.8; // Identity facts are important
-      case FfmMemoryType.preference:
-        return 0.6; // Preferences are moderately important
+        return 0.8;
       case FfmMemoryType.correction:
-        return 0.9; // Corrections are very important
+        return 0.9;
       case FfmMemoryType.explicitFact:
-        return 0.7; // Explicit facts are important
+        return 0.7;
+      case FfmMemoryType.preference:
+        return 0.6;
+      case FfmMemoryType.habit:
+      case FfmMemoryType.behavioralPattern:
+        return 0.5;
       default:
-        return 0.5; // Default importance
+        return 0.4;
     }
-  }
-
-  bool _isDuplicate(FfmMemoryPromotionCandidate candidate) {
-    // Check apakah candidate sudah ada sebagai memory
-    // TODO: Implement duplicate check dengan repository
-    return false;
-  }
-
-  bool _hasContradiction(FfmMemoryPromotionCandidate candidate) {
-    // Check apakah candidate contradict dengan existing memory
-    // TODO: Implement contradiction check
-    return false;
   }
 }

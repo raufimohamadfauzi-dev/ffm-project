@@ -7,16 +7,22 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart'
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_knowledge.dart';
 
 import 'ffm_assistant_slm_follow_up_contract.dart';
+import 'ffm_error_logging_service.dart';
 
 class FfmQwen2VlGateway
     implements
         FfmAssistantLocalModelGateway,
         FfmAssistantSlmFollowUpGenerator,
         FfmAssistantVisionDiagnostics {
-  FfmQwen2VlGateway(this._modelService, this._inferenceService);
+  FfmQwen2VlGateway(
+    this._modelService,
+    this._inferenceService, {
+    FfmErrorLoggingService? errorLogger,
+  }) : _errorLogger = errorLogger;
 
   final FfmLocalModelService _modelService;
   final FfmQwen2VlInferenceService _inferenceService;
+  final FfmErrorLoggingService? _errorLogger;
   bool _isNativeInitialized = false;
   FfmAssistantVisionFailure? _lastVisionFailure;
 
@@ -236,12 +242,18 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
             ? proposal.actionTarget
             : null,
       );
-    } on FormatException {
+    } on FormatException catch (e) {
       if (imagePath != null) {
         _lastVisionFailure = const FfmAssistantVisionFailure(
           FfmAssistantVisionFailureCode.responseInvalid,
         );
       }
+      await _errorLogger?.logError(
+        feature: 'slm-gateway',
+        errorType: 'FormatException',
+        message: 'SLM response tidak valid: ${e.toString()}',
+        context: {'hasImage': imagePath != null},
+      );
       return null;
     } catch (e) {
       if (e is FfmInferenceCancelledException) rethrow;
@@ -252,7 +264,15 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
               : FfmAssistantVisionFailureCode.nativeInitializationFailed,
         );
       }
-      // Kegagalan native/model biasa tetap kembali ke interpreter lokal.
+      await _errorLogger?.logError(
+        feature: 'slm-gateway',
+        errorType: e.runtimeType.toString(),
+        message: e.toString(),
+        context: {
+          'hasImage': imagePath != null,
+          'nativeInitialized': _isNativeInitialized,
+        },
+      );
       return null;
     }
   }

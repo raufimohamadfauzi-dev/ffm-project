@@ -30,6 +30,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onShowTechnical,
     required this.activityConfirmed,
     this.actionPlan,
+    this.visibleText,
+    this.isStreaming = false,
   });
 
   final FfmAssistantChatEntry entry;
@@ -50,6 +52,13 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onShowTechnical;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
+
+  /// Teks yang ditampilkan (progressive reveal saat streaming).
+  /// Null berarti gunakan entry.text biasa.
+  final String? visibleText;
+
+  /// Apakah teks sedang dalam proses streaming.
+  final bool isStreaming;
 
   @override
   Widget build(BuildContext context) {
@@ -114,8 +123,26 @@ class FfmAssistantMessageCard extends StatelessWidget {
           ),
           if (entry.text.isNotEmpty) const SizedBox(height: 5),
         ],
-        if (entry.text.isNotEmpty)
-          FfmAssistantMarkdownText(text: entry.text, color: textColor),
+        if (entry.text.isNotEmpty) ...[
+          FfmAssistantMarkdownText(
+            text: visibleText ?? entry.text,
+            color: textColor,
+          ),
+          if (isStreaming && visibleText != null && visibleText!.length < entry.text.length)
+            const Padding(
+              padding: EdgeInsets.only(left: 2),
+              child: SizedBox(
+                width: 8,
+                height: 16,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0xFFC27B5F),
+                    borderRadius: BorderRadius.all(Radius.circular(1)),
+                  ),
+                ),
+              ),
+            ),
+        ],
         if (intent?.draft != null) ...[
           const SizedBox(height: 7),
           FfmAssistantDraftPreview(draft: intent!.draft!, review: review),

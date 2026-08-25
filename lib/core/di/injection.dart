@@ -25,6 +25,9 @@ import '../../features/assistant/data/ffm_local_inference_queue.dart';
 import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
 import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
+import '../../features/assistant/data/ffm_memory_learning_service.dart';
+import '../../features/assistant/data/ffm_error_logging_service.dart';
+import '../../features/assistant/data/ffm_slm_health_monitor.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_memory_service.dart';
@@ -170,12 +173,16 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     FfmSingleInferenceQueue.new,
   );
   getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
-    () => FfmQwen2VlInferenceService(getIt<FfmSingleInferenceQueue>()),
+    () => FfmQwen2VlInferenceService(
+      getIt<FfmSingleInferenceQueue>(),
+      healthMonitor: getIt<FfmSlmHealthMonitor>(),
+    ),
   );
   getIt.registerLazySingleton<FfmQwen2VlGateway>(
     () => FfmQwen2VlGateway(
       getIt<FfmLocalModelService>(),
       getIt<FfmQwen2VlInferenceService>(),
+      errorLogger: getIt<FfmErrorLoggingService>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
@@ -186,6 +193,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),
+  );
+  getIt.registerLazySingleton<FfmSlmHealthMonitor>(
+    FfmSlmHealthMonitor.new,
+  );
+  getIt.registerLazySingleton<FfmErrorLoggingService>(
+    FfmErrorLoggingService.new,
+  );
+  getIt.registerLazySingleton<FfmMemoryLearningService>(
+    () => FfmMemoryLearningService(
+      memoryRepository: getIt<FfmAssistantMemoryRepository>(),
+    ),
   );
   getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
     FfmAssistantChatHistoryRepository.new,

@@ -162,7 +162,9 @@ enum FfmClarificationStyle {
   detailed,
 }
 
-/// Working context untuk tracking percakapan aktif
+/// Working context untuk tracking percakapan aktif.
+///
+/// Bisa di-serialize ke/dari JSON untuk persistensi lintas sesi.
 class FfmWorkingContext {
   const FfmWorkingContext({
     this.lastUserIntent,
@@ -172,6 +174,7 @@ class FfmWorkingContext {
     this.currentGoal,
     this.pendingClarification,
     this.lastActionResult,
+    this.lastUpdatedAt,
   });
 
   final String? lastUserIntent;
@@ -181,6 +184,7 @@ class FfmWorkingContext {
   final String? currentGoal;
   final String? pendingClarification;
   final String? lastActionResult;
+  final DateTime? lastUpdatedAt;
 
   FfmWorkingContext copyWith({
     String? lastUserIntent,
@@ -190,6 +194,7 @@ class FfmWorkingContext {
     String? currentGoal,
     String? pendingClarification,
     String? lastActionResult,
+    DateTime? lastUpdatedAt,
   }) => FfmWorkingContext(
     lastUserIntent: lastUserIntent ?? this.lastUserIntent,
     lastReferencedEntity: lastReferencedEntity ?? this.lastReferencedEntity,
@@ -198,7 +203,40 @@ class FfmWorkingContext {
     currentGoal: currentGoal ?? this.currentGoal,
     pendingClarification: pendingClarification ?? this.pendingClarification,
     lastActionResult: lastActionResult ?? this.lastActionResult,
+    lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
   );
 
   FfmWorkingContext clear() => const FfmWorkingContext();
+
+  Map<String, dynamic> toJson() => {
+    if (lastUserIntent != null) 'lastUserIntent': lastUserIntent,
+    if (lastReferencedEntity != null) 'lastReferencedEntity': lastReferencedEntity,
+    if (currentTopic != null) 'currentTopic': currentTopic,
+    if (currentPeriod != null) 'currentPeriod': currentPeriod,
+    if (currentGoal != null) 'currentGoal': currentGoal,
+    if (pendingClarification != null) 'pendingClarification': pendingClarification,
+    if (lastActionResult != null) 'lastActionResult': lastActionResult,
+    if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt!.toIso8601String(),
+  };
+
+  factory FfmWorkingContext.fromJson(Map<String, dynamic> json) {
+    return FfmWorkingContext(
+      lastUserIntent: json['lastUserIntent'] as String?,
+      lastReferencedEntity: json['lastReferencedEntity'] as String?,
+      currentTopic: json['currentTopic'] as String?,
+      currentPeriod: json['currentPeriod'] as String?,
+      currentGoal: json['currentGoal'] as String?,
+      pendingClarification: json['pendingClarification'] as String?,
+      lastActionResult: json['lastActionResult'] as String?,
+      lastUpdatedAt: json['lastUpdatedAt'] is String
+          ? DateTime.tryParse(json['lastUpdatedAt'] as String)
+          : null,
+    );
+  }
+
+  /// Apakah context ini masih relevan (tidak lebih dari 24 jam)?
+  bool get isExpired {
+    if (lastUpdatedAt == null) return true;
+    return DateTime.now().difference(lastUpdatedAt!).inHours > 24;
+  }
 }
