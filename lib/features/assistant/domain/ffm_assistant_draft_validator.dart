@@ -148,6 +148,31 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.task:
+        if (_isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'task_title_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'judul tugas',
+              message: 'Judul Tugas belum ada.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.taskUpdate:
+      case FfmAssistantDraftKind.taskComplete:
+      case FfmAssistantDraftKind.taskReopen:
+      case FfmAssistantDraftKind.taskArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'task_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Tugas',
+              message: 'Tugas target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
@@ -184,6 +209,11 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.activity ||
     FfmAssistantDraftKind.dailyNote ||
     FfmAssistantDraftKind.dailyNoteArchive ||
+    FfmAssistantDraftKind.task ||
+    FfmAssistantDraftKind.taskUpdate ||
+    FfmAssistantDraftKind.taskComplete ||
+    FfmAssistantDraftKind.taskReopen ||
+    FfmAssistantDraftKind.taskArchive ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||

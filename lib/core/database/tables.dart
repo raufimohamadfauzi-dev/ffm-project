@@ -406,6 +406,24 @@ class DailyNotes extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Tugas adalah tindakan keluarga yang dikelola terpisah dari sesi aktivitas
+/// bertimer, Catatan Harian, Rutinitas, dan Jadwal.
+class Tasks extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get dueDate => dateTime().nullable()();
+  TextColumn get status => text().withDefault(const Constant('open'))();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

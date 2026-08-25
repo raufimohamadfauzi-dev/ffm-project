@@ -222,6 +222,11 @@ class FfmDatabaseStructureService {
       'Aktivitas & Jurnal',
       'Refleksi atau ringkasan harian yang terpisah dari sesi aktivitas bertimer.',
     ),
+    'tasks': _TableDefinition(
+      'Tugas',
+      'Aktivitas & Jurnal',
+      'Tindakan keluarga dengan status terbuka atau selesai, tanggal target opsional, serta arsip lunak.',
+    ),
     'account_reconciliation_logs': _TableDefinition(
       'Riwayat rekonsiliasi',
       'Pemeriksaan saldo',

@@ -836,6 +836,9 @@ class FfmAssistantInterpreter {
     );
     if (dailyNoteMutation != null) return dailyNoteMutation;
 
+    final taskMutation = await _parseTaskMutation(rawText, normalized);
+    if (taskMutation != null) return taskMutation;
+
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
@@ -2381,6 +2384,31 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.activity,
         action: 'arsip Catatan Harian',
       ),
+      FfmAssistantDraftKind.task => (
+        type: FfmAssistantIntentType.createTask,
+        destination: FfmAssistantDestination.activity,
+        action: 'Tugas',
+      ),
+      FfmAssistantDraftKind.taskUpdate => (
+        type: FfmAssistantIntentType.updateTask,
+        destination: FfmAssistantDestination.activity,
+        action: 'ubah Tugas',
+      ),
+      FfmAssistantDraftKind.taskComplete => (
+        type: FfmAssistantIntentType.completeTask,
+        destination: FfmAssistantDestination.activity,
+        action: 'selesaikan Tugas',
+      ),
+      FfmAssistantDraftKind.taskReopen => (
+        type: FfmAssistantIntentType.reopenTask,
+        destination: FfmAssistantDestination.activity,
+        action: 'buka kembali Tugas',
+      ),
+      FfmAssistantDraftKind.taskArchive => (
+        type: FfmAssistantIntentType.archiveTask,
+        destination: FfmAssistantDestination.activity,
+        action: 'arsip Tugas',
+      ),
       FfmAssistantDraftKind.profile => (
         type: FfmAssistantIntentType.createProfile,
         destination: FfmAssistantDestination.assistantProfile,
@@ -2729,6 +2757,166 @@ class FfmAssistantInterpreter {
     return row.title?.trim().isNotEmpty == true
         ? '${row.title} ($date)'
         : 'Catatan $date';
+  }
+
+  Future<FfmAssistantIntent?> _parseTaskMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final create = RegExp(
+      r'^(?:tambah|buat|catat)(?:kan)?\s+tugas\s*[:\-]?\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (create != null) {
+      final title = create.group(1)?.trim() ?? '';
+      if (title.isEmpty) return null;
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.task,
+        createdAt: _clock(),
+        title: title,
+        formValues: const {'entity': 'task'},
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: 'Aku siapkan draft Tugas. Cek preview dulu; belum ada data yang disimpan.',
+      );
+    }
+
+    final update = RegExp(
+      r'^(?:ubah|ganti)\s+tugas\s+(.+?)\s+(?:menjadi|jadi)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final complete = RegExp(
+      r'^(?:selesai|selesaikan|tandai selesai)\s+tugas\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final reopen = RegExp(
+      r'^(?:buka kembali|aktifkan kembali)\s+tugas\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan)\s+tugas\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (update == null &&
+        complete == null &&
+        reopen == null &&
+        archive == null) {
+      return null;
+    }
+    final operation = update != null
+        ? 'update'
+        : complete != null
+        ? 'complete'
+        : reopen != null
+        ? 'reopen'
+        : 'archive';
+    final targetText =
+        (update?.group(1) ??
+                complete?.group(1) ??
+                reopen?.group(1) ??
+                archive?.group(1) ??
+                '')
+            .trim();
+    final candidates = await _findTaskCandidates(
+      targetText,
+      operation: operation,
+    );
+    final type = switch (operation) {
+      'update' => FfmAssistantIntentType.updateTask,
+      'complete' => FfmAssistantIntentType.completeTask,
+      'reopen' => FfmAssistantIntentType.reopenTask,
+      _ => FfmAssistantIntentType.archiveTask,
+    };
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu Tugas aktif yang cocok dengan “$targetText”. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} Tugas yang cocok: ${candidates.take(3).map(_taskCandidateLabel).join('; ')}. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final newTitle = update?.group(2)?.trim();
+    final kind = switch (operation) {
+      'update' => FfmAssistantDraftKind.taskUpdate,
+      'complete' => FfmAssistantDraftKind.taskComplete,
+      'reopen' => FfmAssistantDraftKind.taskReopen,
+      _ => FfmAssistantDraftKind.taskArchive,
+    };
+    final draft = FfmAssistantDraft(
+      kind: kind,
+      createdAt: _clock(),
+      title: newTitle ?? _taskCandidateLabel(target),
+      note: target.note,
+      date: target.dueDate,
+      formValues: {
+        'entity': 'task',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': _taskCandidateLabel(target),
+        if (newTitle != null) 'title': newTitle,
+      },
+    );
+    final action = switch (operation) {
+      'update' => 'diubah',
+      'complete' => 'ditandai selesai',
+      'reopen' => 'dibuka kembali',
+      _ => 'diarsipkan tanpa dihapus permanen',
+    };
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response:
+          'Aku menemukan satu Tugas untuk $action. Cek preview dulu; belum ada data yang diubah.',
+    );
+  }
+
+  Future<List<Task>> _findTaskCandidates(
+    String targetText, {
+    required String operation,
+  }) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where((term) => term.length >= 3 && !RegExp(r'^\d+$').hasMatch(term))
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.tasks)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]))
+            .get();
+    return rows
+        .where((row) {
+          if (operation == 'complete' && row.status != 'open') return false;
+          if (operation == 'reopen' && row.status != 'completed') return false;
+          final haystack = '${row.title} ${row.note ?? ''}'.toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _taskCandidateLabel(Task row) {
+    final due = row.dueDate == null
+        ? ''
+        : ' • target ${row.dueDate!.toIso8601String().substring(0, 10)}';
+    return '${row.title}$due';
   }
 
   Future<FfmAssistantIntent?> _parseReminderMutation(

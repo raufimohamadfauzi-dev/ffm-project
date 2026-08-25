@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 
 void main() {
-  group('Migrasi database v36', () {
-    test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, serta Catatan Harian', () async {
+  group('Migrasi database v37', () {
+    test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, Catatan Harian, serta Tugas', () async {
       final executor = NativeDatabase.memory(
         setup: (database) {
           database.execute(
@@ -60,6 +60,12 @@ void main() {
             "WHERE type = 'table' AND name = 'daily_notes'",
           )
           .getSingleOrNull();
+      final tasksTable = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'tasks'",
+          )
+          .getSingleOrNull();
       final personalizationTables = await database
           .customSelect(
             "SELECT name FROM sqlite_master "
@@ -68,12 +74,13 @@ void main() {
           )
           .get();
 
-      expect(version.data['user_version'], 36);
+      expect(version.data['user_version'], 37);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
       expect(feedbackTable, isNotNull);
       expect(dailyNotesTable, isNotNull);
+      expect(tasksTable, isNotNull);
       expect(personalizationTables, hasLength(3));
     });
   });

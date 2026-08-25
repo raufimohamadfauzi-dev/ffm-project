@@ -12,6 +12,7 @@ import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
 import '../../../daily_notes/presentation/widgets/daily_notes_section.dart';
+import '../../../tasks/presentation/widgets/tasks_section.dart';
 
 class ActivityPage extends StatelessWidget {
   const ActivityPage({
@@ -633,6 +634,8 @@ class _ActivityViewState extends State<_ActivityView>
                   ),
                   const SizedBox(height: 16),
                   const DailyNotesSection(),
+                  const SizedBox(height: 16),
+                  const TasksSection(),
                   const SizedBox(height: 16),
                   AppCard(
                     child: Wrap(

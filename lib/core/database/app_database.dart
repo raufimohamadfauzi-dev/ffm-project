@@ -36,6 +36,7 @@ part 'app_database.g.dart';
     ActivityCheckpoints,
     ActivityEntries,
     DailyNotes,
+    Tasks,
     AccountReconciliationLogs,
     HijriSettings,
     HijriMonthOverrides,
@@ -55,7 +56,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 36;
+  int get schemaVersion => 37;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +64,7 @@ class AppDatabase extends _$AppDatabase {
       await m.createAll();
       await _createActivityIndexes();
       await _createDailyNoteIndexes();
+      await _createTaskIndexes();
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
@@ -156,6 +158,10 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(dailyNotes);
         await _createDailyNoteIndexes();
       }
+      if (from < 37) {
+        await m.createTable(tasks);
+        await _createTaskIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -192,6 +198,13 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_daily_notes_household_date '
       'ON daily_notes (household_id, note_date, is_archived)',
+    );
+  }
+
+  Future<void> _createTaskIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_tasks_household_status_due '
+      'ON tasks (household_id, is_archived, status, due_date)',
     );
   }
 

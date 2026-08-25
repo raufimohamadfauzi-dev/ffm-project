@@ -5,6 +5,7 @@ import '../../../core/database/audit_logger.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../daily_notes/data/daily_note_repository.dart';
+import '../../tasks/data/task_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
@@ -52,6 +53,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.activity_delete': _prepareActivityMutation,
     'draft.daily_note': _prepareDraft,
     'draft.daily_note_archive': _prepareDailyNoteMutation,
+    'draft.task': _prepareDraft,
+    'draft.task_update': _prepareTaskMutation,
+    'draft.task_complete': _prepareTaskMutation,
+    'draft.task_reopen': _prepareTaskMutation,
+    'draft.task_archive': _prepareTaskMutation,
     'draft.income': _prepareDraft,
     'draft.expense': _prepareDraft,
     'draft.transfer': _prepareDraft,
@@ -77,6 +83,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
     'verify.daily_note_mutation': _verifyDailyNoteMutation,
+    'verify.task_mutation': _verifyTaskMutation,
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
   };
@@ -209,6 +216,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       'profile' ||
       'activity' ||
       'dailyNote' ||
+      'task' ||
       'reminder' ||
       'master_data' => false,
       _ => true,
@@ -250,6 +258,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
   ) async {
     if (step.parameters['entity'] == 'goal') return _updateGoal(step);
+    if (step.parameters['entity'] == 'task') return _updateTask(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -335,6 +344,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'daily_note') {
       return _archiveDailyNote(step);
     }
+    if (step.parameters['entity'] == 'task') return _archiveTask(step);
     return _archiveTransaction(step);
   }
 
@@ -592,6 +602,201 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     return const FfmAssistantCapabilityExecutionResult.failure(
       'Jenis mutasi Catatan Harian tidak dikenal saat verifikasi.',
+    );
+  }
+
+  TaskRepository get _tasks =>
+      TaskRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareTaskMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null ||
+        !const {
+          'update',
+          'complete',
+          'reopen',
+          'archive',
+        }.contains(operation)) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload perubahan Tugas tidak lengkap.',
+      );
+    }
+    final task = await _tasks.get(_householdId, targetId);
+    if (task == null || task.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tugas target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    final suffix = switch (operation) {
+      'complete' => ' akan ditandai selesai',
+      'reopen' => ' akan dibuka kembali',
+      'archive' => ' akan diarsipkan tanpa dihapus permanen',
+      _ => ' akan diperbarui',
+    };
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview Tugas “${task.title}”$suffix. Belum ada data yang diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateTask(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || operation == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau operasi Tugas belum valid.',
+      );
+    }
+    final before = await _tasks.get(_householdId, targetId);
+    if (before == null || before.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tugas target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (operation == 'complete') {
+      final completed = await _tasks.complete(
+        householdId: _householdId,
+        id: targetId,
+      );
+      return completed == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Tugas belum dapat ditandai selesai.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              completed.isCompleted
+                  ? 'Tugas “${completed.title}” ditandai selesai. Hasilnya akan dibaca kembali untuk verifikasi.'
+                  : 'alreadyApplied: Tugas sudah berstatus terbuka.',
+            );
+    }
+    if (operation == 'reopen') {
+      final reopened = await _tasks.reopen(
+        householdId: _householdId,
+        id: targetId,
+      );
+      return reopened == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Tugas belum dapat dibuka kembali.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              !reopened.isCompleted
+                  ? 'Tugas “${reopened.title}” dibuka kembali. Hasilnya akan dibaca kembali untuk verifikasi.'
+                  : 'alreadyApplied: Tugas sudah selesai.',
+            );
+    }
+    if (operation == 'update') {
+      final title = step.parameters['title']?.toString();
+      if (title == null || title.trim().isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Judul Tugas baru belum ada.',
+        );
+      }
+      final updated = await _tasks.update(
+        householdId: _householdId,
+        id: targetId,
+        title: title,
+        note: step.parameters['note']?.toString(),
+        dueDate: _dateParameter(step.parameters['date']),
+      );
+      return updated == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Tugas belum dapat diperbarui.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'Tugas “${updated.title}” diperbarui. Hasilnya akan dibaca kembali untuk verifikasi.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Operasi Tugas tidak dikenal.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveTask(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Tugas belum valid.',
+      );
+    }
+    final task = await _tasks.archive(householdId: _householdId, id: targetId);
+    return task == null
+        ? const FfmAssistantCapabilityExecutionResult.failure(
+            'Tugas tidak ditemukan atau sudah diarsipkan.',
+          )
+        : FfmAssistantCapabilityExecutionResult.success(
+            'Tugas “${task.title}” diarsipkan tanpa dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyTaskMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final kind = step.parameters['kind']?.toString();
+    if (kind == 'task') {
+      final key = step.parameters['_idempotencyKey']?.toString();
+      if (key == null || key.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Kunci verifikasi Tugas belum ada.',
+        );
+      }
+      final task = await _tasks.get(_householdId, _stableId(key));
+      return task != null && !task.isArchived
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tugas “${task.title}” berhasil dibaca kembali dari data lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tugas belum ditemukan setelah simpan.',
+            );
+    }
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    final task = targetId == null
+        ? null
+        : await _tasks.get(_householdId, targetId);
+    if (operation == 'archive') {
+      return task?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tugas sudah diarsipkan dan tidak tampil pada daftar aktif.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tugas belum berstatus arsip.',
+            );
+    }
+    if (operation == 'complete') {
+      return task?.isCompleted == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tugas sudah berstatus selesai.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tugas belum berstatus selesai.',
+            );
+    }
+    if (operation == 'reopen') {
+      return task != null && !task.isArchived && !task.isCompleted
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tugas sudah kembali berstatus terbuka.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tugas belum kembali terbuka.',
+            );
+    }
+    if (operation == 'update') {
+      final title = step.parameters['title']?.toString().trim();
+      return task != null && !task.isArchived && task.title == title
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tugas “${task.title}” sudah terbaca kembali dengan judul yang diperbarui.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: perubahan Tugas belum sesuai draft.',
+            );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis mutasi Tugas tidak dikenal saat verifikasi.',
     );
   }
 
@@ -935,6 +1140,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'profile') return _saveProfile(step, idempotencyKey);
     if (kind == 'activity') return _saveActivity(step, idempotencyKey);
     if (kind == 'dailyNote') return _saveDailyNote(step, idempotencyKey);
+    if (kind == 'task') return _saveTask(step, idempotencyKey);
     if (kind == 'reminder') return _saveReminder(step, idempotencyKey);
     if (kind == 'master_data') return _saveMasterData(step, idempotencyKey);
     if (kind == 'goal') return _saveGoal(step, idempotencyKey);
@@ -1736,6 +1942,28 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
     return FfmAssistantCapabilityExecutionResult.success(
       'Catatan Harian “${note.title ?? note.noteDate.toIso8601String().substring(0, 10)}” disimpan. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveTask(
+    FfmAssistantActionStep step,
+    String idempotencyKey,
+  ) async {
+    final title = step.parameters['title']?.toString();
+    if (title == null || title.trim().isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Judul Tugas belum diisi.',
+      );
+    }
+    final task = await _tasks.create(
+      id: _stableId(idempotencyKey),
+      householdId: _householdId,
+      title: title,
+      note: step.parameters['note']?.toString(),
+      dueDate: _dateParameter(step.parameters['date']),
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tugas “${task.title}” disimpan. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
   }
 

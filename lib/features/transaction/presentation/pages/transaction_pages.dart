@@ -172,6 +172,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.activity:
       case FfmAssistantDraftKind.dailyNote:
       case FfmAssistantDraftKind.dailyNoteArchive:
+      case FfmAssistantDraftKind.task:
+      case FfmAssistantDraftKind.taskUpdate:
+      case FfmAssistantDraftKind.taskComplete:
+      case FfmAssistantDraftKind.taskReopen:
+      case FfmAssistantDraftKind.taskArchive:
       case FfmAssistantDraftKind.profile:
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
