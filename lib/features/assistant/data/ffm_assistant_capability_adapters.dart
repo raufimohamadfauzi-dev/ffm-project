@@ -10,6 +10,7 @@ import '../../daily_notes/data/daily_note_repository.dart';
 import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
+import '../../settings/data/category_repository.dart';
 import '../../settings/data/income_source_repository.dart';
 import '../../settings/data/merchant_repository.dart';
 import '../../settings/data/tag_repository.dart';
@@ -93,6 +94,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.tag_archive': _prepareTagMutation,
     'draft.income_source_update': _prepareIncomeSourceMutation,
     'draft.income_source_archive': _prepareIncomeSourceMutation,
+    'draft.category_update': _prepareCategoryMutation,
+    'draft.category_archive': _prepareCategoryMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -133,6 +136,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.merchant_mutation': _verifyMerchantMutation,
     'verify.tag_mutation': _verifyTagMutation,
     'verify.income_source_mutation': _verifyIncomeSourceMutation,
+    'verify.category_mutation': _verifyCategoryMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -332,6 +336,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'income_source') {
       return _updateIncomeSource(step);
     }
+    if (step.parameters['entity'] == 'category') return _updateCategory(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -440,6 +445,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'income_source') {
       return _archiveIncomeSource(step);
     }
+    if (step.parameters['entity'] == 'category') return _archiveCategory(step);
     return _archiveTransaction(step);
   }
 
@@ -1163,6 +1169,139 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<TransactionParty?> _incomeSourceById(String? id) async {
     if (id == null) return null;
     final all = await _incomeSources.readActive(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  CategoryRepository get _categories =>
+      CategoryRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareCategoryMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _categoryById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      final block = await _categories.archiveBlockReason(
+        householdId: _householdId,
+        id: target.id,
+      );
+      if (block != null) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Arsip Kategori tidak dapat disiapkan: $block',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Kategori “${target.name}”. Guard subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sudah lolos.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama Kategori baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan nama Kategori “${target.name}” menjadi “$title”. Tipe, hierarki, periode Anggaran, dan relasi data tidak akan diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateCategory(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _categoryById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    if (before == null || title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nama Kategori belum valid.',
+      );
+    }
+    if (before.name == title) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: nama Kategori sudah sesuai draft.',
+      );
+    }
+    await _categories.updateName(
+      householdId: _householdId,
+      id: before.id,
+      name: title,
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Nama Kategori diperbarui tanpa mengubah tipe, hierarki, periode Anggaran, atau relasi kategori. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveCategory(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _categoryById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    final block = await _categories.archiveBlockReason(
+      householdId: _householdId,
+      id: target.id,
+    );
+    if (block != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Arsip Kategori ditolak: $block',
+      );
+    }
+    await _categories.archive(householdId: _householdId, id: target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Kategori “${target.name}” diarsipkan lunak setelah seluruh guard dependensi lolos.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyCategoryMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Kategori belum valid.',
+      );
+    }
+    final row = await _categories.get(_householdId, id);
+    final preservesProtectedFields =
+        row != null &&
+        row.type == step.parameters['protectedType'] &&
+        (row.parentId ?? '') == step.parameters['protectedParentId'] &&
+        row.defaultBudgetPeriod ==
+            step.parameters['protectedDefaultBudgetPeriod'];
+    if (step.parameters['operation'] == 'archive') {
+      return row != null && !row.isActive && preservesProtectedFields
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Kategori sudah diarsipkan lunak dan field terlindungi tetap sama.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: arsip atau field terlindungi Kategori tidak sesuai.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    return row != null &&
+            row.isActive &&
+            row.name == title &&
+            preservesProtectedFields
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: nama Kategori dibaca kembali dan field terlindungi tetap sama.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: nama atau field terlindungi Kategori tidak sesuai draft.',
+          );
+  }
+
+  Future<Category?> _categoryById(String? id) async {
+    if (id == null) return null;
+    final all = await _categories.readActive(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }

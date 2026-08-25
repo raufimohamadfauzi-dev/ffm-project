@@ -221,6 +221,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.categoryUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'category_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Kategori',
+              message: 'Target atau nama Kategori belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.categoryArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'category_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Kategori',
+              message: 'Kategori target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.recurringTransactionUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -477,6 +499,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.tagArchive ||
     FfmAssistantDraftKind.incomeSourceUpdate ||
     FfmAssistantDraftKind.incomeSourceArchive ||
+    FfmAssistantDraftKind.categoryUpdate ||
+    FfmAssistantDraftKind.categoryArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

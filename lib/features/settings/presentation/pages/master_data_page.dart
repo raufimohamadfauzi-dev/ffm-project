@@ -12,6 +12,7 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../data/merchant_repository.dart';
 import '../../data/tag_repository.dart';
 import '../../data/income_source_repository.dart';
+import '../../data/category_repository.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -39,6 +40,10 @@ class _MasterDataPageState extends State<MasterDataPage>
   late final _merchants = MerchantRepository(_database, AuditLogger(_database));
   late final _tags = TagRepository(_database, AuditLogger(_database));
   late final _incomeSources = IncomeSourceRepository(
+    _database,
+    AuditLogger(_database),
+  );
+  late final _categories = CategoryRepository(
     _database,
     AuditLogger(_database),
   );
@@ -505,27 +510,23 @@ class _MasterDataPageState extends State<MasterDataPage>
     final now = DateTime.now();
     switch (tab) {
       case 0:
-        final companion = CategoriesCompanion(
-          id: Value(id),
-          householdId: const Value(AppContext.householdId),
-          name: Value(values.name.trim()),
-          type: Value(values.type),
-          parentId: Value(values.parentId),
-          defaultBudgetPeriod: Value(values.defaultBudgetPeriod),
-          createdAt: Value(now),
-        );
         if (existingId == null) {
-          await _database.into(_database.categories).insert(companion);
+          await _categories.create(
+            id: id,
+            householdId: AppContext.householdId,
+            name: values.name,
+            type: values.type,
+            parentId: values.parentId,
+            defaultBudgetPeriod: values.defaultBudgetPeriod,
+          );
         } else {
-          await (_database.update(
-            _database.categories,
-          )..where((row) => row.id.equals(existingId))).write(
-            CategoriesCompanion(
-              name: Value(values.name.trim()),
-              type: Value(values.type),
-              parentId: Value(values.parentId),
-              defaultBudgetPeriod: Value(values.defaultBudgetPeriod),
-            ),
+          await _categories.updateFromUser(
+            householdId: AppContext.householdId,
+            id: existingId,
+            name: values.name,
+            type: values.type,
+            parentId: values.parentId,
+            defaultBudgetPeriod: values.defaultBudgetPeriod,
           );
         }
       case 1:
@@ -625,9 +626,10 @@ class _MasterDataPageState extends State<MasterDataPage>
     if (confirmed != true) return;
     switch (tab) {
       case 0:
-        await (_database.update(_database.categories)
-              ..where((row) => row.id.equals(item.id)))
-            .write(const CategoriesCompanion(isActive: Value(false)));
+        await _categories.archive(
+          householdId: AppContext.householdId,
+          id: item.id,
+        );
       case 1:
         await _merchants.archive(
           householdId: AppContext.householdId,

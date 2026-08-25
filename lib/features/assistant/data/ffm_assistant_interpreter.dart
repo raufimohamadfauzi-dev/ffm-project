@@ -887,6 +887,9 @@ class FfmAssistantInterpreter {
     );
     if (incomeSourceMutation != null) return incomeSourceMutation;
 
+    final categoryMutation = await _parseCategoryMutation(rawText, normalized);
+    if (categoryMutation != null) return categoryMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2475,6 +2478,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveIncomeSource,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Sumber Pemasukan',
+      ),
+      FfmAssistantDraftKind.categoryUpdate => (
+        type: FfmAssistantIntentType.updateCategory,
+        destination: FfmAssistantDestination.masterData,
+        action: 'ubah nama Kategori',
+      ),
+      FfmAssistantDraftKind.categoryArchive => (
+        type: FfmAssistantIntentType.archiveCategory,
+        destination: FfmAssistantDestination.masterData,
+        action: 'arsip Kategori',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -4376,6 +4389,75 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Sumber Pemasukan. Tidak ada sourceId transaksi yang diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Sumber Pemasukan. Sumber tidak muncul di input baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseCategoryMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:nama\s+)?kategori\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+kategori\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final rows =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateCategory
+        : FfmAssistantIntentType.archiveCategory;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Kategori aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Kategori yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama Kategori yang lebih spesifik. Belum ada kategori, transaksi, atau Anggaran yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.categoryUpdate
+          : FfmAssistantDraftKind.categoryArchive,
+      createdAt: _clock(),
+      title: operation == 'update' ? update!.group(2)!.trim() : target.name,
+      formValues: {
+        'entity': 'category',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': target.name,
+        'protectedType': target.type,
+        'protectedParentId': target.parentId ?? '',
+        'protectedDefaultBudgetPeriod': target.defaultBudgetPeriod,
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan nama satu Kategori. Tipe, hierarki, periode Anggaran, transaksi, dan Anggaran tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Kategori. Guard akan memeriksa subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sebelum ada perubahan. Cek preview dulu.',
     );
   }
 
