@@ -80,6 +80,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!isUser && entry.processTrace != null) ...[
+          _OriginBadge(trace: entry.processTrace!),
+          const SizedBox(height: 2),
           FfmAssistantProcessDisclosure(
             trace: entry.processTrace!,
             actionPlan: actionPlan,
@@ -337,6 +339,48 @@ class FfmChatFileCard extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _OriginBadge extends StatelessWidget {
+  const _OriginBadge({required this.trace});
+  final FfmAssistantProcessTrace trace;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final (icon, label, color) = switch (trace.origin) {
+      FfmAssistantResponseOrigin.localSlm => (
+        Icons.auto_awesome_outlined,
+        'SLM',
+        isDark ? const Color(0xFF6B9DE8) : const Color(0xFF3B6EC4),
+      ),
+      FfmAssistantResponseOrigin.localFallback => (
+        Icons.info_outline,
+        'Fallback',
+        isDark ? const Color(0xFFD4A843) : const Color(0xFF9A5B00),
+      ),
+      FfmAssistantResponseOrigin.agentOrchestrator => (
+        Icons.account_tree_outlined,
+        'Agent',
+        isDark ? const Color(0xFF5BBFB5) : const Color(0xFF00727A),
+      ),
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 3),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }
