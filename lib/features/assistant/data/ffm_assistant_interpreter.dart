@@ -1669,6 +1669,7 @@ class FfmAssistantInterpreter {
       );
       final enrichedContext = await _withPersonalContext(reasoningContext);
       final modelContext = enrichedContext.toBoundedPrompt();
+      var timedOut = false;
       proposal = await gateway
           .proposeWithContext(
             input: rawText,
@@ -1677,7 +1678,25 @@ class FfmAssistantInterpreter {
             conversationHistory: conversationHistory,
             capabilityIds: capabilityIds,
           )
-          .timeout(const Duration(seconds: 15), onTimeout: () => null);
+          .timeout(
+            Duration(seconds: imagePath != null ? 60 : 15),
+            onTimeout: () {
+              timedOut = true;
+              return null;
+            },
+          );
+      if (timedOut && imagePath != null) {
+        final timeoutFailure = const FfmAssistantVisionFailure(
+          FfmAssistantVisionFailureCode.timedOut,
+        );
+        return _unknown(
+          rawText,
+          normalized,
+          timeoutFailure.userMessage,
+          responseOrigin: FfmAssistantResponseOrigin.localFallback,
+          visionFailure: timeoutFailure,
+        );
+      }
     } catch (error) {
       if (error is FfmInferenceCancelledException) rethrow;
       // Native/model failure is not an assistant failure; continue with the
@@ -1804,7 +1823,7 @@ class FfmAssistantInterpreter {
   }) {
     if (imagePath == null || message == null) return null;
     final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (compact.length < 4 || compact.length > 720) return null;
+    if (compact.length < 4 || compact.length > 2000) return null;
     return 'Dari gambar ini, aku membaca: $compact';
   }
 
