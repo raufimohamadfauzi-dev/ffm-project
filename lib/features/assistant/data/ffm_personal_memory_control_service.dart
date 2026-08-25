@@ -26,6 +26,23 @@ class FfmPersonalMemoryControlItem {
   final DateTime savedAt;
 }
 
+/// Satu memori hasil belajar otomatis yang menunggu keputusan pengguna.
+class FfmPendingMemoryItem {
+  const FfmPendingMemoryItem({
+    required this.id,
+    required this.kindLabel,
+    required this.value,
+    required this.sourceLabel,
+    required this.savedAt,
+  });
+
+  final String id;
+  final String kindLabel;
+  final String value;
+  final String sourceLabel;
+  final DateTime savedAt;
+}
+
 /// Satu policy untuk UI kontrol memori. Policy ini tidak mengubah data lama;
 /// ia hanya mencegah data sensitif atau non-personal tampil sebagai memori.
 abstract final class FfmPersonalMemorySafetyPolicy {
@@ -92,6 +109,53 @@ class FfmPersonalMemoryControlService {
   }
 
   Future<void> forget(String id) => _repository.archive(id);
+
+  /// Memori hasil pembelajaran otomatis yang masih menunggu keputusan user.
+  ///
+  /// Hanya baris aktif dengan penanda `approved == false` dari pipeline
+  /// belajar (bukan workflow candidate maupun alias/answer eksplisit).
+  Future<List<FfmPendingMemoryItem>> readPendingLearning() async {
+    final records = await _repository.readActive();
+    final pending = <FfmPendingMemoryItem>[];
+    for (final record in records) {
+      if (record.metadata['approved'] != false) continue;
+      const excludedKinds = {'alias', 'answer', 'workflow_candidate'};
+      if (excludedKinds.contains(record.kind)) continue;
+      pending.add(
+        FfmPendingMemoryItem(
+          id: record.id,
+          kindLabel: _pendingKindLabel(record.kind),
+          value: record.valueText,
+          sourceLabel: record.source,
+          savedAt: record.updatedAt ?? record.createdAt,
+        ),
+      );
+    }
+    pending.sort((left, right) => right.savedAt.compareTo(left.savedAt));
+    return List.unmodifiable(pending);
+  }
+
+  /// Menyetujui memori pending agar dipakai konteks SLM dan tampil di daftar.
+  Future<bool> approvePending(String id) =>
+      _repository.setApproval(id, approved: true);
+
+  /// Menolak memori pending dengan mengarsipkannya secara lunak.
+  Future<void> rejectPending(String id) => _repository.archive(id);
+
+  String _pendingKindLabel(String kind) {
+    final normalized = kind.trim().toLowerCase();
+    return switch (normalized) {
+      'identity' => 'Nama panggilan',
+      'explicitfact' => 'Fakta pribadi',
+      'goal' => 'Target tabungan',
+      'habit' => 'Kebiasaan',
+      'behavioralpattern' => 'Pola perilaku',
+      'preference' => 'Preferensi',
+      'correction' => 'Koreksi',
+      'episodic' => 'Catatan kejadian',
+      _ => normalized.isEmpty ? 'Memori' : normalized,
+    };
+  }
 
   FfmPersonalMemoryControlItem? _toItem(FfmAssistantMemoryRecord record) {
     final scope = _scopeFor(record);

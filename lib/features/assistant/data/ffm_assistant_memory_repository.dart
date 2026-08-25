@@ -156,6 +156,45 @@ class FfmAssistantMemoryRepository {
     );
   }
 
+  /// Mengubah status persetujuan memori hasil pembelajaran otomatis.
+  ///
+  /// Menyetujui juga menandai scope `user-model` bila belum ada agar item
+  /// tampil di Pusat Kontrol Memori. Mengembalikan false bila baris tidak
+  /// ditemukan atau sudah diarsipkan.
+  Future<bool> setApproval(String id, {required bool approved}) async {
+    final row =
+        await (_db.select(_db.assistantMemories)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) & row.id.equals(id),
+              ))
+            .getSingleOrNull();
+    if (row == null || row.isArchived) return false;
+    Map<String, dynamic> metadata = const {};
+    try {
+      final decoded = jsonDecode(row.metadataJson);
+      if (decoded is Map<String, dynamic>) metadata = decoded;
+      if (decoded is Map) {
+        metadata = decoded.map((key, value) => MapEntry('$key', value));
+      }
+    } catch (_) {
+      metadata = <String, dynamic>{};
+    }
+    metadata['approved'] = approved;
+    if (approved && !metadata.containsKey('scope')) {
+      metadata['scope'] = 'user-model';
+    }
+    await (_db.update(
+      _db.assistantMemories,
+    )..where((row) => row.id.equals(id))).write(
+      AssistantMemoriesCompanion(
+        metadataJson: Value(jsonEncode(metadata)),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+    return true;
+  }
+
   Future<void> update({
     required FfmAssistantMemoryRecord memory,
     required String kind,

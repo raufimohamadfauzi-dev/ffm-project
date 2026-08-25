@@ -17,6 +17,7 @@ class FfmMemoryViewerPage extends StatefulWidget {
 class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   late final FfmPersonalMemoryControlService _service;
   List<FfmPersonalMemoryControlItem> _items = const [];
+  List<FfmPendingMemoryItem> _pendingItems = const [];
   FfmPersonalMemoryControlScope? _filter;
   String? _error;
   var _loading = true;
@@ -36,14 +37,51 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
       _error = null;
     });
     try {
-      final items = await _service.readVisible();
+      final results = await Future.wait([
+        _service.readVisible(),
+        _service.readPendingLearning(),
+      ]);
       if (!mounted) return;
-      setState(() => _items = items);
+      setState(() {
+        _items = results[0] as List<FfmPersonalMemoryControlItem>;
+        _pendingItems = results[1] as List<FfmPendingMemoryItem>;
+      });
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Memori belum dapat dimuat. Coba muat ulang.');
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _approvePending(FfmPendingMemoryItem item) async {
+    final ok = await _service.approvePending(item.id);
+    if (!mounted) return;
+    if (ok) {
+      await _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('“${item.kindLabel}” disetujui dan mulai dipakai Asisten.')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Memori belum dapat disetujui. Coba lagi.')),
+      );
+    }
+  }
+
+  Future<void> _rejectPending(FfmPendingMemoryItem item) async {
+    try {
+      await _service.rejectPending(item.id);
+      if (!mounted) return;
+      await _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usulan memori dibuang tanpa dipakai.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Memori belum dapat dibuang. Coba lagi.')),
+      );
     }
   }
 
@@ -149,6 +187,14 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
           ),
         ),
         const SizedBox(height: 12),
+        if (_pendingItems.isNotEmpty) ...[
+          _PendingSection(
+            items: _pendingItems,
+            onApprove: _approvePending,
+            onReject: _rejectPending,
+          ),
+          const SizedBox(height: 16),
+        ],
         _buildFilters(),
         const SizedBox(height: 12),
         if (items.isEmpty)
@@ -198,8 +244,116 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   }
 }
 
-class _MemoryItemCard extends StatelessWidget {
-  const _MemoryItemCard({required this.item, required this.onForget});
+class _PendingSection extends StatelessWidget {
+  const _PendingSection({
+    required this.items,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final List<FfmPendingMemoryItem> items;
+  final Future<void> Function(FfmPendingMemoryItem) onApprove;
+  final Future<void> Function(FfmPendingMemoryItem) onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.tertiaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.pending_actions_outlined),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Menunggu Persetujuan (${items.length})',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Tersimpulan otomatis dari percakapanmu. Setujui agar Asisten boleh memakainya, atau buang bila kurang tepat.',
+            ),
+            const SizedBox(height: 10),
+            ...items.map(
+              (item) => _PendingItemCard(
+                item: item,
+                onApprove: () => onApprove(item),
+                onReject: () => onReject(item),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PendingItemCard extends StatelessWidget {
+  const _PendingItemCard({
+    required this.item,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  final FfmPendingMemoryItem item;
+  final Future<void> Function() onApprove;
+  final Future<void> Function() onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            item.kindLabel.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              letterSpacing: .3,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(item.value, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: onReject,
+                child: const Text('Buang'),
+              ),
+              const SizedBox(width: 4),
+              FilledButton.tonalIcon(
+                onPressed: onApprove,
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('Setujui'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MemoryItemCard extends StatelessWidget {  const _MemoryItemCard({required this.item, required this.onForget});
 
   final FfmPersonalMemoryControlItem item;
   final VoidCallback onForget;
