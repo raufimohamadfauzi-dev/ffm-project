@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_local_model_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_qwen2vl_inference_service.dart';
@@ -7,6 +9,7 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart'
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_knowledge.dart';
 
 import 'package:ffm_manager/features/assistant/data/ffm_local_proposal.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_answer_composer.dart';
 
 import 'ffm_assistant_slm_follow_up_contract.dart';
 import 'ffm_error_logging_service.dart';
@@ -15,7 +18,8 @@ class FfmQwen2VlGateway
     implements
         FfmAssistantLocalModelGateway,
         FfmAssistantSlmFollowUpGenerator,
-        FfmAssistantVisionDiagnostics {
+        FfmAssistantVisionDiagnostics,
+        FfmAssistantAnswerComposer {
   FfmQwen2VlGateway(
     this._modelService,
     this._inferenceService, {
@@ -49,7 +53,7 @@ class FfmQwen2VlGateway
   Future<void> _ensureInitialized() async {
     if (_isNativeInitialized) return;
 
-    final installed = await _modelService.getInstalled();
+    final installed = await _modelService.verifyInstalled();
     if (installed == null || installed.projectorPath == null) {
       _lastVisionFailure = const FfmAssistantVisionFailure(
         FfmAssistantVisionFailureCode.modelUnavailable,
@@ -102,6 +106,36 @@ ATURAN MUTLAK:
   }
 
   @override
+  Future<String?> composeGroundedAnswer({
+    required String question,
+    required String facts,
+  }) async {
+    if (_inferenceService.isBusy) return null;
+    try {
+      await _ensureInitialized();
+      final response = await _inferenceService.tryGenerateJsonWhenIdle(
+        systemPrompt: '''
+Anda adalah Asisten Family Finance Manager (FFM), pendamping keuangan keluarga offline.
+Tugas Anda HANYA menyusun ulang FAKTA RESMI yang diberikan menjadi jawaban singkat, hangat, dan natural dalam Bahasa Indonesia untuk pertanyaan pengguna.
+
+ATURAN MUTLAK:
+1. Gunakan hanya fakta resmi yang diberikan. Dilarang menambah angka, nama, tautan, atau klaim baru di luar fakta.
+2. Jawaban 2-6 kalimat, langsung menjawab pertanyaan pengguna, tanpa pembukaan berlebihan.
+3. Pertahankan tautan YouTube/TikTok apa adanya jika relevan dengan pertanyaan.
+4. Keluarkan teks biasa saja: tanpa JSON, tanpa blok kode, tanpa catatan tambahan.
+5. Jika pertanyaan tidak bisa dijawab dari fakta resmi, katakan bahwa informasinya tidak tersedia dan sarankan bertanya tentang fitur FFM.
+''',
+        userPrompt:
+            'PERTANYAAN PENGGUNA:\n$question\n\nFAKTA RESMI APLIKASI:\n$facts',
+      ).timeout(const Duration(seconds: 20), onTimeout: () => null);
+      if (response == null) return null;
+      return FfmAssistantComposedAnswerContract.sanitize(response);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
   Future<FfmAssistantModelProposal?> propose({
     required String input,
     String? imagePath,
@@ -119,14 +153,35 @@ ATURAN MUTLAK:
     try {
       await _ensureInitialized();
 
-      final knowledge = FfmAssistantRuntimeKnowledgeRegistry()
-          .buildPromptContext(query: input, capabilityIds: capabilityIds);
+      if (imagePath != null) {
+        final imageFile = File(imagePath);
+        if (!await imageFile.exists() || await imageFile.length() == 0) {
+          _lastVisionFailure = const FfmAssistantVisionFailure(
+            FfmAssistantVisionFailureCode.inferenceFailed,
+          );
+          throw Exception('File gambar tidak tersedia atau kosong.');
+        }
+      }
+
+      final isVisionRequest = imagePath != null;
+      final knowledge = isVisionRequest
+          ? ''
+          : FfmAssistantRuntimeKnowledgeRegistry()
+              .buildPromptContext(query: input, capabilityIds: capabilityIds);
       final historySection =
           conversationHistory != null && conversationHistory.trim().isNotEmpty
           ? '\nRiwayat dialog sebelumnya:\n$conversationHistory\n'
           : '';
-      final systemPrompt =
-          '''
+        final systemPrompt = isVisionRequest
+          ? '''
+    Anda adalah modul vision lokal FFM.
+    Analisis gambar yang dilampirkan dan pertanyaan pengguna.
+    Keluarkan JSON valid saja dengan format:
+    {"proposalType":"help","assistantMessage":"observasi faktual maksimal 3 kalimat"}.
+    Jangan mengarang teks, angka, transaksi, atau diagnosis yang tidak terlihat.
+    Jika gambar tidak terbaca, jelaskan singkat pada assistantMessage.
+    '''
+          : '''
 Anda adalah Asisten Family Finance Manager (FFM).
 Tugas Anda mengekstrak informasi keuangan atau maksud pengguna menjadi JSON yang valid.
 Gunakan timezone Asia/Jakarta.
@@ -152,21 +207,22 @@ PANDUAN JAWABAN:
 - Topik yang masih terkait keuangan meskipun bukan fitur langsung FFM (asuransi, pajak, investasi) boleh dijawab dengan edukasi dasar dan disclaimer.
 
 Jangan menambahkan teks lain selain JSON.
-$historySection
+${isVisionRequest ? '' : historySection}
 Halaman aktif: ${pageContext ?? 'tidak diketahui'}.
 Halaman FFM yang dikenal:
-${FfmAssistantCatalog.listForChat()}
-Capability yang tersedia pada halaman aktif: ${capabilityIds.isEmpty ? 'gunakan katalog FFM yang relevan' : capabilityIds.join(', ')}.
+${isVisionRequest ? '' : FfmAssistantCatalog.listForChat()}
+${isVisionRequest ? '' : 'Capability yang tersedia pada halaman aktif: ${capabilityIds.isEmpty ? 'gunakan katalog FFM yang relevan' : capabilityIds.join(', ')}.'}
 Runtime knowledge registry:
 $knowledge
 Jika diminta melakukan perubahan, hanya usulkan langkah dan data terstruktur; jangan mengklaim sudah menyimpan.
 Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, literasi keuangan keluarga, cara menabung, manajemen keuangan, saran budgeting, cashflow, target, keputusan finansial, asuransi keluarga, perencanaan pajak, investasi dasar, dana darurat, penghasilan sampingan.
 	''';
 
-      final userPromptWithContext =
-          conversationHistory != null && conversationHistory.trim().isNotEmpty
-          ? '[Konteks percakapan: perhatikan respons sebelumnya]\n$input'
-          : input;
+        final userPromptWithContext = isVisionRequest
+          ? (input.trim().isEmpty ? 'Apa yang terlihat pada gambar ini?' : input)
+          : conversationHistory != null && conversationHistory.trim().isNotEmpty
+            ? '[Konteks percakapan: perhatikan respons sebelumnya]\n$input'
+            : input;
 
       final result = await _inferenceService.generateProposal(
         systemPrompt: systemPrompt,

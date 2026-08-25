@@ -31,6 +31,7 @@ import 'ffm_agent_plugins.dart';
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
 import 'ffm_assistant_local_model_gateway.dart';
+import 'ffm_assistant_answer_composer.dart';
 import 'ffm_local_inference_queue.dart';
 
 class FfmAssistantInterpreter {
@@ -45,6 +46,7 @@ class FfmAssistantInterpreter {
     FfmAssistantMemoryRepository? taughtMemory,
     FfmPersonalContextProvider? Function()? personalContextProvider,
     Future<bool> Function()? slmReadyCheck,
+    FfmAssistantAnswerComposer? answerComposer,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _modelGateway = modelGateway,
        _personalization =
@@ -55,7 +57,8 @@ class FfmAssistantInterpreter {
        _clock = clock ?? DateTime.now,
        _diagnostics = diagnostics ?? AppDiagnosticsService(),
        _selfDescription =
-           selfDescription ?? const FfmAssistantSelfDescriptionService() {
+           selfDescription ?? const FfmAssistantSelfDescriptionService(),
+       _answerComposer = answerComposer {
     _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
@@ -65,6 +68,7 @@ class FfmAssistantInterpreter {
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
   final FfmAssistantLocalModelGateway? _modelGateway;
+  final FfmAssistantAnswerComposer? _answerComposer;
   final FfmAssistantPersonalizationRepository _personalization;
   final Future<bool> Function()? _slmReadyCheck;
   final FfmAssistantMemoryRepository _taughtMemory;
@@ -679,15 +683,41 @@ class FfmAssistantInterpreter {
       'tugas kamu',
     ])) {
       final slmConfigured = await _isSlmReady();
+      final cannedResponse = _selfDescription.build(
+        slmConfigured: slmConfigured,
+        currentDestination: currentDestination,
+      );
+      // Opsi B: SLM merangkai jawaban dari fakta resmi agar nyambung dengan
+      // pertanyaan; gagal/tidak siap → fallback teks kaleng lokal.
+      final composer = _answerComposer;
+      String? composed;
+      if (slmConfigured && composer != null) {
+        try {
+          composed = await composer.composeGroundedAnswer(
+            question: rawText,
+            facts: cannedResponse,
+          );
+        } on Object {
+          composed = null;
+        }
+      }
+      if (composed != null && composed.trim().isNotEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.assistantIdentity,
+          confidence: 0.92,
+          response: composed,
+          responseMode: FfmAssistantResponseMode.localModel,
+          responseOrigin: FfmAssistantResponseOrigin.localSlm,
+        );
+      }
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.assistantIdentity,
         confidence: 1,
-        response: _selfDescription.build(
-          slmConfigured: slmConfigured,
-          currentDestination: currentDestination,
-        ),
+        response: cannedResponse,
       );
     }
 

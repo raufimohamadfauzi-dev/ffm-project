@@ -20,6 +20,7 @@ import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
 import '../../features/assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import '../../features/assistant/data/ffm_assistant_answer_composer.dart';
 import '../../features/assistant/data/ffm_assistant_slm_follow_up_service.dart';
 import '../../features/assistant/data/ffm_local_inference_queue.dart';
 import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
@@ -188,6 +189,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
     () => getIt<FfmQwen2VlGateway>(),
   );
+  getIt.registerLazySingleton<FfmAssistantAnswerComposer>(
+    () => getIt<FfmQwen2VlGateway>(),
+  );
   getIt.registerLazySingleton<FfmAssistantSlmFollowUpService>(
     () => FfmAssistantSlmFollowUpService(getIt<FfmQwen2VlGateway>()),
   );
@@ -255,6 +259,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
       slmReadyCheck: () async =>
           await getIt<FfmLocalModelService>().getInstalled() != null,
+      answerComposer: getIt<FfmAssistantAnswerComposer>(),
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(
