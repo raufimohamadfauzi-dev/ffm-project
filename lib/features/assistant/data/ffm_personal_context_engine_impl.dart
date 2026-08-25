@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:math' show Random;
-import '../../../core/database/app_database.dart' show AppDatabase, InteractionPattern;
+
+import '../../../core/database/app_database.dart'
+    show AppDatabase, InteractionPattern;
 import '../domain/ffm_personal_context_engine.dart';
 import '../domain/ffm_personal_context.dart';
 import '../domain/ffm_memory_candidate.dart';
@@ -33,11 +35,18 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     FfmPersonalMemoryService? personalMemoryService,
     FfmAssistantPersonalizationRepository? personalizationRepository,
     FfmWorkingContextManager? workingContextManager,
-  })  : _memoryRepository = memoryRepository ?? FfmAssistantMemoryRepository(database),
-        _userModelService = userModelService ?? FfmAssistantUserModelService(FfmAssistantMemoryRepository(database)),
-        _personalMemoryService = personalMemoryService ?? FfmPersonalMemoryService(FfmAssistantMemoryRepository(database)),
-        _personalizationRepository = personalizationRepository ?? FfmAssistantPersonalizationRepository(database),
-        _workingContextManager = workingContextManager;
+  }) : _memoryRepository =
+           memoryRepository ?? FfmAssistantMemoryRepository(database),
+       _userModelService =
+           userModelService ??
+           FfmAssistantUserModelService(FfmAssistantMemoryRepository(database)),
+       _personalMemoryService =
+           personalMemoryService ??
+           FfmPersonalMemoryService(FfmAssistantMemoryRepository(database)),
+       _personalizationRepository =
+           personalizationRepository ??
+           FfmAssistantPersonalizationRepository(database),
+       _workingContextManager = workingContextManager;
 
   final FfmAssistantMemoryRepository _memoryRepository;
   final FfmAssistantUserModelService _userModelService;
@@ -59,8 +68,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     final now = DateTime.now();
 
     // Use working context manager if available, otherwise use provided context
-    final workingContext = previousWorkingContext ?? 
-        _workingContextManager?.currentContext ?? 
+    final workingContext =
+        previousWorkingContext ??
+        _workingContextManager?.currentContext ??
         const FfmWorkingContext();
 
     try {
@@ -70,11 +80,15 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
       // Stage 2: Entity & Topic Extraction
       final extracted = extractEntitiesAndTopic(normalizedQuery);
       final detectedTopic = extracted['topic'] as String?;
-      final detectedEntities = extracted['entities'] as Map<String, String>? ?? {};
+      final detectedEntities =
+          extracted['entities'] as Map<String, String>? ?? {};
       final detectedIntent = extracted['intent'] as String?;
 
       // Merge dengan working context untuk follow-up detection
-      final mergedEntities = _mergeWithWorkingContext(detectedEntities, workingContext);
+      final mergedEntities = _mergeWithWorkingContext(
+        detectedEntities,
+        workingContext,
+      );
 
       // Stage 3: Cheap Retrieval - ambil kandidat dari berbagai sumber
       final candidates = await _retrieveCandidates(
@@ -86,10 +100,20 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
       );
 
       // Stage 4: Structured Filtering
-      final filtered = _filterCandidates(candidates, detectedTopic, mergedEntities);
+      final filtered = _filterCandidates(
+        candidates,
+        detectedTopic,
+        mergedEntities,
+      );
 
       // Stage 5: Relevance Scoring
-      final scored = _scoreCandidates(filtered, normalizedQuery, detectedTopic, mergedEntities, now);
+      final scored = _scoreCandidates(
+        filtered,
+        normalizedQuery,
+        detectedTopic,
+        mergedEntities,
+        now,
+      );
 
       // Stage 6: Deduplication
       final deduplicated = deduplicateMemories(memories: scored);
@@ -113,13 +137,6 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
         now,
       );
 
-      // Update working context manager setelah context berhasil dibuild
-      _workingContextManager?.updateAfterTurn(
-        userQuery: query,
-        assistantResponse: null, // Will be updated setelah response
-        extractedEntities: mergedEntities,
-      );
-
       return contextPack;
     } catch (e) {
       // Fallback behavior sesuai spesifikasi
@@ -140,8 +157,12 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     Map<String, String>? extractedEntities,
   }) {
     // Update working context berdasarkan percakapan terakhir
-    final entities = extractedEntities ?? extractEntitiesAndTopic(userQuery)['entities'] as Map<String, String>? ?? {};
-    
+    final entities =
+        extractedEntities ??
+        extractEntitiesAndTopic(userQuery)['entities']
+            as Map<String, String>? ??
+        {};
+
     final updatedContext = FfmWorkingContext(
       lastUserIntent: entities['intent'] ?? current.lastUserIntent,
       lastReferencedEntity: entities['entity'] ?? current.lastReferencedEntity,
@@ -172,21 +193,23 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   }) async {
     // Extract candidates dari personal memory service
     final insight = _personalMemoryService.extractFromMessage(userQuery);
-    
+
     final candidates = <FfmMemoryPromotionCandidate>[];
-    
+
     if (insight != null) {
       // Convert insight ke promotion candidate
       final memoryType = _convertInsightKindToMemoryType(insight.kind);
-      candidates.add(FfmMemoryPromotionCandidate(
-        type: memoryType,
-        key: insight.key,
-        value: insight.value,
-        confidence: 0.8, // Default confidence untuk pattern-detected
-        reason: insight.humanLabel,
-        sourceId: insight.sourceMessage,
-        requiresApproval: true,
-      ));
+      candidates.add(
+        FfmMemoryPromotionCandidate(
+          type: memoryType,
+          key: insight.key,
+          value: insight.value,
+          confidence: 0.8, // Default confidence untuk pattern-detected
+          reason: insight.humanLabel,
+          sourceId: insight.sourceMessage,
+          requiresApproval: true,
+        ),
+      );
     }
 
     // TODO: Di fase berikutnya, tambahkan SLM-based extraction
@@ -203,7 +226,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     for (final candidate in candidates) {
       // Validasi candidate
       if (!candidate.isValid) continue;
-      
+
       // Cek sensitive data
       if (candidate.isSensitive) {
         if (requireApproval) {
@@ -221,7 +244,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
         key: candidate.key,
         value: candidate.value,
         evidence: FfmMemoryEvidence(
-          source: candidate.requiresApproval ? FfmMemorySource.userExplicit : FfmMemorySource.inferredPattern,
+          source: candidate.requiresApproval
+              ? FfmMemorySource.userExplicit
+              : FfmMemorySource.inferredPattern,
           sourceId: candidate.sourceId,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -233,7 +258,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
       // Simpan ke repository yang sesuai
       await _saveCandidateToRepository(memoryCandidate, candidate);
-      
+
       promoted.add(memoryCandidate);
     }
 
@@ -241,9 +266,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   }
 
   @override
-  Future<void> updateMemoryUsage({
-    required List<String> memoryIds,
-  }) async {
+  Future<void> updateMemoryUsage({required List<String> memoryIds}) async {
     // Batch/debounced write untuk performance
     if (memoryIds.isEmpty) return;
 
@@ -263,7 +286,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     if (conflictingMemories.length < 2) {
       return FfmConflictResolution(
         resolved: true,
-        selectedCandidate: conflictingMemories.isNotEmpty ? conflictingMemories.first : null,
+        selectedCandidate: conflictingMemories.isNotEmpty
+            ? conflictingMemories.first
+            : null,
         rejectedCandidates: const [],
       );
     }
@@ -276,8 +301,11 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     final secondStrongest = sorted.length > 1 ? sorted[1] : null;
 
     // Cek apakah conflict dapat diselesaikan dengan confidence yang cukup tinggi
-    if (strongest.evidence.confidence >= 0.9 && 
-        (secondStrongest == null || strongest.evidence.confidence - secondStrongest.evidence.confidence >= 0.2)) {
+    if (strongest.evidence.confidence >= 0.9 &&
+        (secondStrongest == null ||
+            strongest.evidence.confidence -
+                    secondStrongest.evidence.confidence >=
+                0.2)) {
       return FfmConflictResolution(
         resolved: true,
         selectedCandidate: strongest,
@@ -304,7 +332,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
     for (final memory in memories) {
       final canonicalKey = '${memory.type.name}:${memory.key}:${memory.value}';
-      
+
       if (!seen.contains(canonicalKey)) {
         seen.add(canonicalKey);
         unique.add(memory);
@@ -321,12 +349,13 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     required DateTime now,
   }) {
     final ageDays = now.difference(memoryDate).inDays;
-    
+
     // Half-life berbeda per tipe memory sesuai spesifikasi
     final halfLifeDays = switch (type) {
       FfmMemoryType.identity => 365 * 2, // Sangat lambat
       FfmMemoryType.preference => 365, // Lambat
-      FfmMemoryType.goal => memoryDate.month == now.month ? 30 : 90, // Based on status
+      FfmMemoryType.goal =>
+        memoryDate.month == now.month ? 30 : 90, // Based on status
       FfmMemoryType.habit => 90, // Sedang
       FfmMemoryType.episodic => 60, // Sedang/cepat
       FfmMemoryType.working => 7, // Sangat cepat
@@ -344,7 +373,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   String normalizeQuery(String query) {
     // Gunakan typo normalizer yang sudah ada
     final normalized = FfmAssistantTypoNormalizer.correct(query);
-    
+
     // Apply aliases dari memory repository (synchronous untuk sekarang)
     // TODO: Make this async if needed
     return normalized;
@@ -353,19 +382,26 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   @override
   Map<String, dynamic> extractEntitiesAndTopic(String normalizedQuery) {
     final lowerQuery = normalizedQuery.toLowerCase();
-    
+
     // Simple entity extraction - bisa ditingkatkan di fase berikutnya
     final entities = <String, String>{};
-    
+
     // Topic detection
     String? topic;
-    if (lowerQuery.contains('pengeluaran') || lowerQuery.contains('belanja') || lowerQuery.contains('makan')) {
+    if (lowerQuery.contains('pengeluaran') ||
+        lowerQuery.contains('belanja') ||
+        lowerQuery.contains('makan')) {
       topic = 'spending';
-    } else if (lowerQuery.contains('pemasukan') || lowerQuery.contains('gaji') || lowerQuery.contains('income')) {
+    } else if (lowerQuery.contains('pemasukan') ||
+        lowerQuery.contains('gaji') ||
+        lowerQuery.contains('income')) {
       topic = 'income';
-    } else if (lowerQuery.contains('tabungan') || lowerQuery.contains('nabung') || lowerQuery.contains('target')) {
+    } else if (lowerQuery.contains('tabungan') ||
+        lowerQuery.contains('nabung') ||
+        lowerQuery.contains('target')) {
       topic = 'savings';
-    } else if (lowerQuery.contains('budget') || lowerQuery.contains('anggaran')) {
+    } else if (lowerQuery.contains('budget') ||
+        lowerQuery.contains('anggaran')) {
       topic = 'budget';
     }
 
@@ -382,17 +418,17 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     String? intent;
     if (lowerQuery.contains('berapa') || lowerQuery.contains('jumlah')) {
       intent = 'query_amount';
-    } else if (lowerQuery.contains('aman') || lowerQuery.contains('boros') || lowerQuery.contains('kebanyakan')) {
+    } else if (lowerQuery.contains('aman') ||
+        lowerQuery.contains('boros') ||
+        lowerQuery.contains('kebanyakan')) {
       intent = 'financial_analysis';
-    } else if (lowerQuery.contains('ingat') || lowerQuery.contains('apa') || lowerQuery.contains('siapa')) {
+    } else if (lowerQuery.contains('ingat') ||
+        lowerQuery.contains('apa') ||
+        lowerQuery.contains('siapa')) {
       intent = 'query_fact';
     }
 
-    return {
-      'topic': topic,
-      'entities': entities,
-      'intent': intent,
-    };
+    return {'topic': topic, 'entities': entities, 'intent': intent};
   }
 
   // Private helper methods
@@ -402,12 +438,13 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     FfmWorkingContext workingContext,
   ) {
     final merged = Map<String, String>.from(detectedEntities);
-    
+
     // Jika detected entities tidak mengandung entity tertentu, gunakan dari working context
     if (!merged.containsKey('topic') && workingContext.currentTopic != null) {
       merged['topic'] = workingContext.currentTopic!;
     }
-    if (!merged.containsKey('entity') && workingContext.lastReferencedEntity != null) {
+    if (!merged.containsKey('entity') &&
+        workingContext.lastReferencedEntity != null) {
       merged['entity'] = workingContext.lastReferencedEntity!;
     }
     if (!merged.containsKey('period') && workingContext.currentPeriod != null) {
@@ -416,7 +453,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     if (!merged.containsKey('goal') && workingContext.currentGoal != null) {
       merged['goal'] = workingContext.currentGoal!;
     }
-    
+
     return merged;
   }
 
@@ -444,7 +481,8 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     // 3. Dari memory repository (untuk answer, alias, dll)
     final allMemories = await _memoryRepository.readActive();
     for (final memory in allMemories) {
-      if (memory.kind != 'user' && !memory.kind.startsWith('user_') && 
+      if (memory.kind != 'user' &&
+          !memory.kind.startsWith('user_') &&
           !memory.kind.startsWith('personal_memory_')) {
         candidates.add(_convertMemoryRecordToCandidate(memory));
       }
@@ -452,7 +490,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
     // 4. Dari personalization patterns
     try {
-      final patterns = await _personalizationRepository.getAllPatterns(householdId);
+      final patterns = await _personalizationRepository.getAllPatterns(
+        householdId,
+      );
       for (final pattern in patterns) {
         final patternObj = _convertInteractionPatternToPattern(pattern);
         if (patternObj.isStrong) {
@@ -479,13 +519,17 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
       // Filter berdasarkan topic relevance (simple implementation)
       if (detectedTopic != null) {
         final keyLower = candidate.key.toLowerCase();
-        
-        if (detectedTopic == 'spending' && 
-            (keyLower.contains('makan') || keyLower.contains('budget') || keyLower.contains('pengeluaran'))) {
+
+        if (detectedTopic == 'spending' &&
+            (keyLower.contains('makan') ||
+                keyLower.contains('budget') ||
+                keyLower.contains('pengeluaran'))) {
           return true;
         }
-        if (detectedTopic == 'savings' && 
-            (keyLower.contains('tabungan') || keyLower.contains('target') || keyLower.contains('nabung'))) {
+        if (detectedTopic == 'savings' &&
+            (keyLower.contains('tabungan') ||
+                keyLower.contains('target') ||
+                keyLower.contains('nabung'))) {
           return true;
         }
       }
@@ -504,15 +548,21 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   ) {
     return candidates.map((candidate) {
       // Calculate individual scores
-      final relevanceScore = _calculateLexicalRelevance(candidate, normalizedQuery);
+      final relevanceScore = _calculateLexicalRelevance(
+        candidate,
+        normalizedQuery,
+      );
       final topicScore = _calculateTopicRelevance(candidate, detectedTopic);
-      final entityScore = _calculateEntityRelevance(candidate, detectedEntities);
+      final entityScore = _calculateEntityRelevance(
+        candidate,
+        detectedEntities,
+      );
       final recencyScore = calculateRecencyScore(
         memoryDate: candidate.evidence.createdAt,
         type: candidate.type,
         now: now,
       );
-      
+
       // Build relevance score object
       final relevance = FfmContextRelevanceScore(
         semanticOrLexicalMatch: relevanceScore,
@@ -536,17 +586,19 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     }).toList();
   }
 
-  List<FfmMemoryCandidate> _resolveConflicts(List<FfmMemoryCandidate> candidates) {
+  List<FfmMemoryCandidate> _resolveConflicts(
+    List<FfmMemoryCandidate> candidates,
+  ) {
     // Group by type and key untuk detect conflicts
     final groups = <String, List<FfmMemoryCandidate>>{};
-    
+
     for (final candidate in candidates) {
       final key = '${candidate.type.name}:${candidate.key}';
       groups.putIfAbsent(key, () => []).add(candidate);
     }
 
     final resolved = <FfmMemoryCandidate>[];
-    
+
     for (final group in groups.values) {
       if (group.length == 1) {
         resolved.add(group.first);
@@ -569,21 +621,21 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   ) {
     // Group by type dan apply budget per type
     final grouped = <FfmMemoryType, List<FfmMemoryCandidate>>{};
-    
+
     for (final candidate in candidates) {
       grouped.putIfAbsent(candidate.type, () => []).add(candidate);
     }
 
     final result = <FfmMemoryCandidate>[];
-    
+
     // Apply budget per type
     for (final entry in grouped.entries) {
       final type = entry.key;
       final typeCandidates = entry.value;
-      
+
       // Sort by final score
       typeCandidates.sort((a, b) => b.finalScore.compareTo(a.finalScore));
-      
+
       // Take based on budget
       final maxItems = switch (type) {
         FfmMemoryType.working => budget.workingMemoryMax,
@@ -718,14 +770,18 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
   // Helper conversion methods
 
-  FfmMemoryCandidate _convertUserModelEntryToCandidate(FfmAssistantUserModelEntry entry) {
+  FfmMemoryCandidate _convertUserModelEntryToCandidate(
+    FfmAssistantUserModelEntry entry,
+  ) {
     return FfmMemoryCandidate(
       id: entry.id,
       type: _convertUserModelKindToMemoryType(entry.kind),
       key: entry.key,
       value: entry.value,
       evidence: FfmMemoryEvidence(
-        source: entry.approved ? FfmMemorySource.userExplicit : FfmMemorySource.inferredPattern,
+        source: entry.approved
+            ? FfmMemorySource.userExplicit
+            : FfmMemorySource.inferredPattern,
         createdAt: entry.updatedAt ?? DateTime.now(),
         updatedAt: entry.updatedAt ?? DateTime.now(),
         confidence: entry.confidence,
@@ -735,7 +791,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     );
   }
 
-  FfmMemoryCandidate _convertPersonalMemoryToCandidate(FfmPersonalMemoryInsight memory) {
+  FfmMemoryCandidate _convertPersonalMemoryToCandidate(
+    FfmPersonalMemoryInsight memory,
+  ) {
     return FfmMemoryCandidate(
       id: memory.id ?? 'personal-${DateTime.now().microsecondsSinceEpoch}',
       type: _convertInsightKindToMemoryType(memory.kind),
@@ -753,7 +811,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     );
   }
 
-  FfmMemoryCandidate _convertMemoryRecordToCandidate(FfmAssistantMemoryRecord record) {
+  FfmMemoryCandidate _convertMemoryRecordToCandidate(
+    FfmAssistantMemoryRecord record,
+  ) {
     return FfmMemoryCandidate(
       id: record.id,
       type: _convertRecordKindToMemoryType(record.kind),
@@ -772,7 +832,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     );
   }
 
-  FfmMemoryCandidate _convertPatternToCandidate(FfmPersonalizationPattern pattern) {
+  FfmMemoryCandidate _convertPatternToCandidate(
+    FfmPersonalizationPattern pattern,
+  ) {
     return FfmMemoryCandidate(
       id: 'pattern-${pattern.merchantName}-${pattern.fieldName}',
       type: FfmMemoryType.behavioralPattern,
@@ -794,7 +856,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     );
   }
 
-  FfmPersonalizationPattern _convertInteractionPatternToPattern(InteractionPattern row) {
+  FfmPersonalizationPattern _convertInteractionPatternToPattern(
+    InteractionPattern row,
+  ) {
     return FfmPersonalizationPattern(
       merchantName: row.merchantName,
       fieldName: row.fieldName,
@@ -886,7 +950,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
           kind: FfmPersonalMemoryKind.habitChat,
           key: candidate.key,
           value: candidate.value,
-          humanLabel: promotionCandidate.reason ?? '${candidate.key}: ${candidate.value}',
+          humanLabel:
+              promotionCandidate.reason ??
+              '${candidate.key}: ${candidate.value}',
           sourceMessage: promotionCandidate.sourceId,
         );
         await _personalMemoryService.saveApproved(insight);
@@ -909,22 +975,28 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
   // Scoring helper methods
 
-  double _calculateLexicalRelevance(FfmMemoryCandidate candidate, String query) {
+  double _calculateLexicalRelevance(
+    FfmMemoryCandidate candidate,
+    String query,
+  ) {
     final keyLower = candidate.key.toLowerCase();
     final queryLower = query.toLowerCase();
 
     // Exact match
     if (keyLower == queryLower) return 1.0;
-    
+
     // Contains match
     if (keyLower.contains(queryLower)) return 0.8;
-    
+
     // Token overlap
-    final queryTokens = queryLower.split(' ').where((t) => t.isNotEmpty).toSet();
+    final queryTokens = queryLower
+        .split(' ')
+        .where((t) => t.isNotEmpty)
+        .toSet();
     final keyTokens = keyLower.split(' ').where((t) => t.isNotEmpty).toSet();
-    
+
     final keyOverlap = queryTokens.intersection(keyTokens);
-    
+
     if (keyOverlap.isNotEmpty) {
       final overlap = keyOverlap.length;
       return (overlap / queryTokens.length).clamp(0.0, 0.6);
@@ -939,7 +1011,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
   double _calculateTopicRelevance(FfmMemoryCandidate candidate, String? topic) {
     if (topic == null) return 0.0;
-    
+
     final keyLower = candidate.key.toLowerCase();
     final valueLower = candidate.value.toLowerCase();
     final topicLower = topic.toLowerCase();
@@ -951,15 +1023,19 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     return 0.0;
   }
 
-  double _calculateEntityRelevance(FfmMemoryCandidate candidate, Map<String, String> entities) {
+  double _calculateEntityRelevance(
+    FfmMemoryCandidate candidate,
+    Map<String, String> entities,
+  ) {
     if (entities.isEmpty) return 0.0;
-    
+
     double score = 0.0;
     final keyLower = candidate.key.toLowerCase();
     final valueLower = candidate.value.toLowerCase();
 
     for (final entity in entities.values) {
-      if (keyLower.contains(entity.toLowerCase()) || valueLower.contains(entity.toLowerCase())) {
+      if (keyLower.contains(entity.toLowerCase()) ||
+          valueLower.contains(entity.toLowerCase())) {
         score += 0.3;
       }
     }
@@ -967,11 +1043,16 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     return score.clamp(0.0, 1.0);
   }
 
-  double _calculateGoalRelevance(FfmMemoryCandidate candidate, Map<String, String> entities) {
+  double _calculateGoalRelevance(
+    FfmMemoryCandidate candidate,
+    Map<String, String> entities,
+  ) {
     // Boost jika candidate adalah goal dan entities mengandung goal-related terms
     if (candidate.type == FfmMemoryType.goal) {
       final entityValues = entities.values.join(' ').toLowerCase();
-      if (entityValues.contains('target') || entityValues.contains('tabungan') || entityValues.contains('nabung')) {
+      if (entityValues.contains('target') ||
+          entityValues.contains('tabungan') ||
+          entityValues.contains('nabung')) {
         return 0.8;
       }
     }
@@ -1016,21 +1097,23 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
   String _buildConflictClarification(List<FfmMemoryCandidate> conflicting) {
     if (conflicting.isEmpty) return '';
-    
+
     final buffer = StringBuffer('Ditemukan konflik memory untuk ');
     buffer.write(conflicting.first.key);
     buffer.write(': ');
-    
+
     for (var i = 0; i < conflicting.length; i++) {
       if (i > 0) buffer.write(' vs ');
       buffer.write('"${conflicting[i].value}"');
     }
-    
+
     buffer.write('. Mana yang harus saya gunakan?');
     return buffer.toString();
   }
 
-  FfmResponsePreferences _buildResponsePreferences(List<FfmMemoryCandidate> preferences) {
+  FfmResponsePreferences _buildResponsePreferences(
+    List<FfmMemoryCandidate> preferences,
+  ) {
     var concise = false;
     var useIndonesian = true;
     var showRupiah = true;
@@ -1039,8 +1122,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     for (final pref in preferences) {
       switch (pref.key.toLowerCase()) {
         case 'response_style':
-          concise = pref.value.toLowerCase() == 'concise' || 
-                     pref.value.toLowerCase().contains('singkat');
+          concise =
+              pref.value.toLowerCase() == 'concise' ||
+              pref.value.toLowerCase().contains('singkat');
           break;
         case 'language':
           useIndonesian = pref.value.toLowerCase().contains('indonesia');
@@ -1067,7 +1151,9 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
   ) {
     // Extract data requirements dari reasoning context
     final evidenceScope = reasoningContext != null
-        ? FfmAssistantReasoningEvidencePolicy.forRequest(reasoningContext.request)
+        ? FfmAssistantReasoningEvidencePolicy.forRequest(
+            reasoningContext.request,
+          )
         : const FfmAssistantReasoningEvidenceScope(
             includeFinancialSummary: false,
             includeMasterData: false,
@@ -1080,48 +1166,39 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
     return FfmDataContext(
       period: detectedEntities['period'] ?? pageBasedRequirements['period'],
-      requiresFinancialSummary: evidenceScope.includeFinancialSummary || 
-                                pageBasedRequirements['financial'] == true,
-      requiresMasterData: evidenceScope.includeMasterData || 
-                         pageBasedRequirements['masterData'] == true,
-      requiresRecentTransactions: evidenceScope.includeRecentTransactions || 
-                                   detectedEntities['period'] != null ||
-                                   pageBasedRequirements['recentTransactions'] == true,
+      requiresFinancialSummary:
+          evidenceScope.includeFinancialSummary ||
+          pageBasedRequirements['financial'] == true,
+      requiresMasterData:
+          evidenceScope.includeMasterData ||
+          pageBasedRequirements['masterData'] == true,
+      requiresRecentTransactions:
+          evidenceScope.includeRecentTransactions ||
+          detectedEntities['period'] != null ||
+          pageBasedRequirements['recentTransactions'] == true,
       customRequests: _buildCustomDataRequests(detectedEntities, currentPage),
     );
   }
 
-  Map<String, dynamic> _detectPageRequirements(FfmAssistantDestination? currentPage) {
+  Map<String, dynamic> _detectPageRequirements(
+    FfmAssistantDestination? currentPage,
+  ) {
     if (currentPage == null) return {};
 
     // Simplified page detection - can be expanded later
     final pageName = currentPage.name.toLowerCase();
-    
+
     if (pageName.contains('budget') || pageName.contains('anggaran')) {
-      return {
-        'financial': true,
-        'masterData': true,
-        'period': 'current_month',
-      };
-    } else if (pageName.contains('transaksi') || pageName.contains('transactions')) {
-      return {
-        'financial': true,
-        'recentTransactions': true,
-      };
+      return {'financial': true, 'masterData': true, 'period': 'current_month'};
+    } else if (pageName.contains('transaksi') ||
+        pageName.contains('transactions')) {
+      return {'financial': true, 'recentTransactions': true};
     } else if (pageName.contains('target') || pageName.contains('goals')) {
-      return {
-        'financial': true,
-      };
+      return {'financial': true};
     } else if (pageName.contains('analisa') || pageName.contains('analysis')) {
-      return {
-        'financial': true,
-        'recentTransactions': true,
-      };
+      return {'financial': true, 'recentTransactions': true};
     } else if (pageName.contains('ringkasan') || pageName.contains('summary')) {
-      return {
-        'financial': true,
-        'period': 'current_month',
-      };
+      return {'financial': true, 'period': 'current_month'};
     }
 
     return {};

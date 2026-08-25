@@ -22,14 +22,23 @@ class FfmWorkingContextManager {
     required String? assistantResponse,
     required Map<String, String> extractedEntities,
   }) {
+    final entities = extractedEntities.isEmpty
+        ? _extractSimpleEntities(userQuery)
+        : extractedEntities;
     _currentContext = FfmWorkingContext(
-      lastUserIntent: extractedEntities['intent'] ?? _currentContext.lastUserIntent,
-      lastReferencedEntity: extractedEntities['entity'] ?? _currentContext.lastReferencedEntity,
-      currentTopic: extractedEntities['topic'] ?? _currentContext.currentTopic,
-      currentPeriod: extractedEntities['period'] ?? _currentContext.currentPeriod,
-      currentGoal: extractedEntities['goal'] ?? _currentContext.currentGoal,
+      lastUserIntent: entities['intent'] ?? _currentContext.lastUserIntent,
+      lastReferencedEntity:
+          entities['entity'] ?? _currentContext.lastReferencedEntity,
+      currentTopic: entities['topic'] ?? _currentContext.currentTopic,
+      currentPeriod: entities['period'] ?? _currentContext.currentPeriod,
+      currentGoal: entities['goal'] ?? _currentContext.currentGoal,
       pendingClarification: null, // Reset clarification setelah response
-      lastActionResult: assistantResponse,
+      // Jangan menyimpan isi respons yang dapat memuat rincian finansial.
+      // Marker ini cukup untuk menjaga state percakapan tanpa menjadikannya
+      // memori tahan lama atau prompt mentah pada turn berikutnya.
+      lastActionResult: assistantResponse == null || assistantResponse.isEmpty
+          ? _currentContext.lastActionResult
+          : 'assistant_response_ready',
     );
 
     return _currentContext;
@@ -38,15 +47,15 @@ class FfmWorkingContextManager {
   /// Extract working context dari chat history terakhir
   Future<FfmWorkingContext> rebuildFromHistory() async {
     final entries = await _chatHistoryRepository.load();
-    
+
     if (entries.isEmpty) {
       _currentContext = const FfmWorkingContext();
       return _currentContext;
     }
 
     // Ambil beberapa entry terakhir untuk rebuild context
-    final recentEntries = entries.length > 10 
-        ? entries.sublist(entries.length - 10) 
+    final recentEntries = entries.length > 10
+        ? entries.sublist(entries.length - 10)
         : entries;
 
     // Extract context dari entry terakhir
@@ -54,17 +63,18 @@ class FfmWorkingContextManager {
       if (entry.isUser) {
         // Simple entity extraction dari user query
         final entities = _extractSimpleEntities(entry.text);
-        
+
         _currentContext = FfmWorkingContext(
           lastUserIntent: entities['intent'] ?? _currentContext.lastUserIntent,
-          lastReferencedEntity: entities['entity'] ?? _currentContext.lastReferencedEntity,
+          lastReferencedEntity:
+              entities['entity'] ?? _currentContext.lastReferencedEntity,
           currentTopic: entities['topic'] ?? _currentContext.currentTopic,
           currentPeriod: entities['period'] ?? _currentContext.currentPeriod,
           currentGoal: entities['goal'] ?? _currentContext.currentGoal,
           pendingClarification: null,
           lastActionResult: _currentContext.lastActionResult,
         );
-        
+
         break; // Hanya ambil user query terakhir
       }
     }
@@ -83,11 +93,13 @@ class FfmWorkingContextManager {
   }) {
     _currentContext = FfmWorkingContext(
       lastUserIntent: lastUserIntent ?? _currentContext.lastUserIntent,
-      lastReferencedEntity: lastReferencedEntity ?? _currentContext.lastReferencedEntity,
+      lastReferencedEntity:
+          lastReferencedEntity ?? _currentContext.lastReferencedEntity,
       currentTopic: currentTopic ?? _currentContext.currentTopic,
       currentPeriod: currentPeriod ?? _currentContext.currentPeriod,
       currentGoal: currentGoal ?? _currentContext.currentGoal,
-      pendingClarification: pendingClarification ?? _currentContext.pendingClarification,
+      pendingClarification:
+          pendingClarification ?? _currentContext.pendingClarification,
       lastActionResult: _currentContext.lastActionResult,
     );
 
@@ -116,7 +128,8 @@ class FfmWorkingContextManager {
   }
 
   /// Check apakah ada pending clarification
-  bool get hasPendingClarification => _currentContext.pendingClarification != null;
+  bool get hasPendingClarification =>
+      _currentContext.pendingClarification != null;
 
   /// Get working context summary untuk debugging
   Map<String, dynamic> get summary => {
@@ -138,9 +151,11 @@ class FfmWorkingContextManager {
     // Topic detection
     if (lowerQuery.contains('pengeluaran') || lowerQuery.contains('belanja')) {
       entities['topic'] = 'spending';
-    } else if (lowerQuery.contains('pemasukan') || lowerQuery.contains('gaji')) {
+    } else if (lowerQuery.contains('pemasukan') ||
+        lowerQuery.contains('gaji')) {
       entities['topic'] = 'income';
-    } else if (lowerQuery.contains('tabungan') || lowerQuery.contains('nabung')) {
+    } else if (lowerQuery.contains('tabungan') ||
+        lowerQuery.contains('nabung')) {
       entities['topic'] = 'savings';
     }
 

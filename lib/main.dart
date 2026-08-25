@@ -13,6 +13,12 @@ import 'core/security/app_pin_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_preference.dart';
 import 'features/assistant/domain/ffm_assistant_models.dart';
+import 'features/assistant/data/ffm_assistant_chat_history_repository.dart';
+import 'features/assistant/data/ffm_assistant_memory_repository.dart';
+import 'features/assistant/data/ffm_assistant_personalization_repository.dart';
+import 'features/assistant/data/ffm_assistant_user_model_service.dart';
+import 'features/assistant/data/ffm_personal_context_provider.dart';
+import 'features/assistant/data/ffm_personal_memory_service.dart';
 import 'features/assistant/domain/ffm_assistant_widget_protocol.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
 import 'features/assistant/presentation/widgets/ffm_agent_status_indicator.dart';
@@ -61,6 +67,7 @@ Future<void> main() async {
   await configureDependencies();
   final diagnostics = getIt<AppDiagnosticsService>();
   await diagnostics.markStartupPhase('dependencies_ready');
+  unawaited(_initializePersonalContext(diagnostics));
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     unawaited(
@@ -91,6 +98,30 @@ Future<void> main() async {
   await getIt<ProcessRecurringTransactions>()('local-household');
   final isDark = await ThemePreference.isDark();
   runApp(FfmApp(initialDarkMode: isDark));
+}
+
+Future<void> _initializePersonalContext(
+  AppDiagnosticsService diagnostics,
+) async {
+  try {
+    await FfmPersonalContextProvider.initialize(
+      database: getIt<AppDatabase>(),
+      memoryRepository: getIt<FfmAssistantMemoryRepository>(),
+      userModelService: getIt<FfmAssistantUserModelService>(),
+      personalMemoryService: getIt<FfmPersonalMemoryService>(),
+      personalizationRepository: getIt<FfmAssistantPersonalizationRepository>(),
+      chatHistoryRepository: getIt<FfmAssistantChatHistoryRepository>(),
+    );
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'PERSONAL_CONTEXT_INIT_FAILED',
+      feature: 'Konteks personal Asisten',
+      error: error,
+      stackTrace: stackTrace,
+      impact:
+          'Asisten memakai konteks dasar sampai konteks personal siap lagi.',
+    );
+  }
 }
 
 class FfmApp extends StatefulWidget {

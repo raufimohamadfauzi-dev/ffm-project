@@ -8,6 +8,9 @@ import '../domain/ffm_assistant_reasoning_context.dart';
 class FfmContextAdapter {
   const FfmContextAdapter();
 
+  static const _maxApprovedContextCharacters = 700;
+  static const _maxPersonalizationCharacters = 700;
+
   /// Update reasoning context dengan personal context
   FfmAssistantReasoningContext updateReasoningContext({
     required FfmAssistantReasoningContext originalContext,
@@ -26,8 +29,16 @@ class FfmContextAdapter {
       pageSummary: originalContext.pageSummary,
       activeFilters: originalContext.activeFilters,
       capabilityIds: originalContext.capabilityIds,
-      approvedUserContext: approvedUserText,
-      personalizationContext: personalizationText,
+      approvedUserContext: _mergeBounded(
+        originalContext.approvedUserContext,
+        approvedUserText,
+        _maxApprovedContextCharacters,
+      ),
+      personalizationContext: _mergeBounded(
+        originalContext.personalizationContext,
+        personalizationText,
+        _maxPersonalizationCharacters,
+      ),
       modelReady: originalContext.modelReady,
       previousStepResults: originalContext.previousStepResults,
       recentTransactions: _shouldIncludeTransactions(personalContext)
@@ -42,35 +53,25 @@ class FfmContextAdapter {
 
     // Add preferences
     if (context.preferences.isNotEmpty) {
-      final prefText = context.preferences
-          .map((p) => '${p.key}=${p.value}')
-          .join(', ');
+      final prefText = _candidateList(context.preferences, maxItems: 3);
       parts.add('Preferensi: $prefText');
     }
 
     // Add goals
     if (context.goals.isNotEmpty) {
-      final goalText = context.goals
-          .map((g) => '${g.key}: ${g.value}')
-          .join(', ');
+      final goalText = _candidateList(context.goals, maxItems: 2);
       parts.add('Tujuan aktif: $goalText');
     }
 
     // Add behavioral patterns
     if (context.behaviorPatterns.isNotEmpty) {
-      final patternText = context.behaviorPatterns
-          .take(3)
-          .map((p) => '${p.key}=${p.value}')
-          .join(', ');
+      final patternText = _candidateList(context.behaviorPatterns, maxItems: 2);
       parts.add('Pola behavior: $patternText');
     }
 
     // Add corrections
     if (context.corrections.isNotEmpty) {
-      final correctionText = context.corrections
-          .take(2)
-          .map((c) => '${c.key}=${c.value}')
-          .join(', ');
+      final correctionText = _candidateList(context.corrections, maxItems: 2);
       parts.add('Koreksi user: $correctionText');
     }
 
@@ -84,17 +85,13 @@ class FfmContextAdapter {
 
     // Add personal facts
     if (context.personalFacts.isNotEmpty) {
-      final factText = context.personalFacts
-          .map((f) => '${f.key}=${f.value}')
-          .join(', ');
+      final factText = _candidateList(context.personalFacts, maxItems: 3);
       parts.add('Fakta personal: $factText');
     }
 
     // Add working context if relevant
     if (context.workingContext.isNotEmpty) {
-      final workingText = context.workingContext
-          .map((w) => '${w.key}=${w.value}')
-          .join(', ');
+      final workingText = _candidateList(context.workingContext, maxItems: 2);
       parts.add('Konteks percakapan: $workingText');
     }
 
@@ -105,13 +102,15 @@ class FfmContextAdapter {
   /// Determine apakah perlu include transactions berdasarkan context
   bool _shouldIncludeTransactions(FfmPersonalContext context) {
     return context.dataContext.requiresRecentTransactions ||
-           context.detectedEntities.containsKey('period') ||
-           context.detectedTopic == 'spending' ||
-           context.detectedTopic == 'income';
+        context.detectedEntities.containsKey('period') ||
+        context.detectedTopic == 'spending' ||
+        context.detectedTopic == 'income';
   }
 
   /// Extract response preferences dari personal context
-  FfmResponsePreferences extractResponsePreferences(FfmPersonalContext context) {
+  FfmResponsePreferences extractResponsePreferences(
+    FfmPersonalContext context,
+  ) {
     return context.responsePreferences;
   }
 
@@ -136,14 +135,20 @@ class FfmContextAdapter {
 
     // Topic-specific guidance
     if (context.detectedTopic == 'spending') {
-      if (context.goals.any((g) => g.key.contains('tabungan') || g.key.contains('target'))) {
-        enhancements.add('Pertimbangkan target tabungan user dalam analisis pengeluaran.');
+      if (context.goals.any(
+        (g) => g.key.contains('tabungan') || g.key.contains('target'),
+      )) {
+        enhancements.add(
+          'Pertimbangkan target tabungan user dalam analisis pengeluaran.',
+        );
       }
     }
 
     // Data context guidance
     if (context.dataContext.requiresFinancialSummary) {
-      enhancements.add('Gunakan data finansial aktual sebagai sumber kebenaran.');
+      enhancements.add(
+        'Gunakan data finansial aktual sebagai sumber kebenaran.',
+      );
     }
 
     return enhancements;
@@ -173,5 +178,30 @@ class FfmContextAdapter {
       return 'Data sensitif terdeteksi dan tidak dapat digunakan.';
     }
     return 'Context tidak valid untuk alasan yang tidak diketahui.';
+  }
+
+  String _candidateList(
+    Iterable<dynamic> candidates, {
+    required int maxItems,
+  }) => candidates
+      .take(maxItems)
+      .map(
+        (candidate) =>
+            '${_clip(candidate.key, 48)}=${_clip(candidate.value, 96)}',
+      )
+      .join(', ');
+
+  String _mergeBounded(String existing, String addition, int maxCharacters) {
+    final combined = [
+      if (existing.trim().isNotEmpty) existing.trim(),
+      if (addition.trim().isNotEmpty) addition.trim(),
+    ].join(' | ');
+    return _clip(combined, maxCharacters);
+  }
+
+  String _clip(String value, int maxCharacters) {
+    final normalized = value.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+    if (normalized.length <= maxCharacters) return normalized;
+    return '${normalized.substring(0, maxCharacters - 1)}…';
   }
 }

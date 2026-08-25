@@ -32,6 +32,7 @@ import '../../domain/ffm_assistant_feedback_context.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../../domain/ffm_assistant_proactive_service.dart';
 import '../../data/ffm_assistant_user_model_service.dart';
+import '../../data/ffm_personal_context_provider.dart';
 import '../../data/ffm_personal_memory_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import 'chat/ffm_json_expandable.dart';
@@ -238,6 +239,24 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _entries.add(entry);
     unawaited(_historyRepository.save(_entries));
     unawaited(_refreshProactiveSuggestion());
+  }
+
+  void _updateWorkingContextAfterTurn({
+    required String userQuery,
+    required List<FfmAssistantIntent> intents,
+  }) {
+    final provider = FfmPersonalContextProvider.maybeInstance;
+    if (provider == null || intents.isEmpty) return;
+    final primary = intents.last;
+    provider.updateAfterTurn(
+      userQuery: userQuery,
+      // Manager menyimpan marker aman, bukan isi respons maupun draft.
+      assistantResponse: primary.type.name,
+      extractedEntities: {
+        'intent': primary.type.name,
+        if (primary.destination != null) 'topic': primary.destination!.name,
+      },
+    );
   }
 
   Future<void> _refreshProactiveSuggestion() async {
@@ -673,6 +692,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             pageContext: widget.currentDestination?.name,
           );
         }
+        _updateWorkingContextAfterTurn(userQuery: text, intents: [intent]);
       } catch (_) {
         _agentStatus.failed('Gambar belum berhasil dipahami.');
         if (!mounted) return;
@@ -807,6 +827,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           pageContext: widget.currentDestination?.name,
         );
       }
+      _updateWorkingContextAfterTurn(userQuery: text, intents: intents);
     } catch (_) {
       _agentStatus.failed('Permintaan belum berhasil diproses.');
       if (!mounted) return;
@@ -1797,6 +1818,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       setState(widget.session.reset);
       await _historyRepository.clear();
       await _historyRepository.save(_entries);
+      FfmPersonalContextProvider.maybeInstance?.clearWorkingContext();
       _scrollToEnd();
     }
   }

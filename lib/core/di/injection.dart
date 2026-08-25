@@ -25,6 +25,10 @@ import '../../features/assistant/data/ffm_local_inference_queue.dart';
 import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
 import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
+import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
+import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
+import '../../features/assistant/data/ffm_personal_memory_service.dart';
+import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
@@ -183,6 +187,15 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),
   );
+  getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
+    FfmAssistantChatHistoryRepository.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantUserModelService>(
+    () => FfmAssistantUserModelService(getIt<FfmAssistantMemoryRepository>()),
+  );
+  getIt.registerLazySingleton<FfmPersonalMemoryService>(
+    () => FfmPersonalMemoryService(getIt<FfmAssistantMemoryRepository>()),
+  );
   getIt.registerLazySingleton<FfmAssistantLearningRepository>(
     () => FfmAssistantLearningRepository(db),
   );
@@ -219,6 +232,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       memory: getIt<FfmAssistantLocalMemory>(),
       modelGateway: getIt<FfmAssistantLocalModelGateway>(),
       diagnostics: getIt<AppDiagnosticsService>(),
+      taughtMemory: getIt<FfmAssistantMemoryRepository>(),
+      personalization: getIt<FfmAssistantPersonalizationRepository>(),
+      personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
       slmReadyCheck: () async =>
           await getIt<FfmLocalModelService>().getInstalled() != null,
     ),

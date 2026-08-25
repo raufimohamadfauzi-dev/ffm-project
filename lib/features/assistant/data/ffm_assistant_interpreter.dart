@@ -15,6 +15,7 @@ import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_query_tools.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
+import 'ffm_personal_context_provider.dart';
 import 'ffm_assistant_typo_normalizer.dart';
 import '../domain/ffm_assistant_action_tool.dart';
 import '../domain/ffm_assistant_execution_limits.dart';
@@ -22,6 +23,7 @@ import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_self_description.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
 import '../domain/ffm_assistant_financial_education.dart';
+import '../domain/ffm_context_relevance.dart';
 import 'ffm_assistant_knowledge_base.dart';
 import '../domain/ffm_agent_harness.dart';
 import 'ffm_agent_plugins.dart';
@@ -40,13 +42,16 @@ class FfmAssistantInterpreter {
     AppDiagnosticsService? diagnostics,
     FfmAssistantSelfDescriptionService? selfDescription,
     FfmAssistantPersonalizationRepository? personalization,
+    FfmAssistantMemoryRepository? taughtMemory,
+    FfmPersonalContextProvider? Function()? personalContextProvider,
     Future<bool> Function()? slmReadyCheck,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _modelGateway = modelGateway,
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
        _slmReadyCheck = slmReadyCheck,
-       _taughtMemory = FfmAssistantMemoryRepository(_database),
+       _taughtMemory = taughtMemory ?? FfmAssistantMemoryRepository(_database),
+       _personalContextProvider = personalContextProvider,
        _clock = clock ?? DateTime.now,
        _diagnostics = diagnostics ?? AppDiagnosticsService(),
        _selfDescription =
@@ -63,11 +68,37 @@ class FfmAssistantInterpreter {
   final FfmAssistantPersonalizationRepository _personalization;
   final Future<bool> Function()? _slmReadyCheck;
   final FfmAssistantMemoryRepository _taughtMemory;
+  final FfmPersonalContextProvider? Function()? _personalContextProvider;
   final DateTime Function() _clock;
   final AppDiagnosticsService _diagnostics;
   final FfmAssistantSelfDescriptionService _selfDescription;
   final _financialEducation = const FfmAssistantFinancialEducationService();
   final _knowledgeBase = const FfmAssistantKnowledgeBase();
+
+  static const _personalContextBudget = FfmContextBudget(
+    workingMemoryMax: 2,
+    personalFactsMax: 3,
+    preferencesMax: 3,
+    goalsMax: 2,
+    behaviorPatternsMax: 2,
+    episodesMax: 1,
+    correctionsMax: 2,
+    maxTotalItems: 10,
+  );
+
+  static const _personalContextBlockedDestinations = <FfmAssistantDestination>{
+    FfmAssistantDestination.appSecurity,
+    FfmAssistantDestination.privacyCenter,
+    FfmAssistantDestination.backup,
+    FfmAssistantDestination.diagnostics,
+    FfmAssistantDestination.databaseStructure,
+    FfmAssistantDestination.assistantTraining,
+    FfmAssistantDestination.assistantProfile,
+    FfmAssistantDestination.masterData,
+    FfmAssistantDestination.activityLog,
+    FfmAssistantDestination.reconciliation,
+    FfmAssistantDestination.recurringTransaction,
+  };
 
   /// Memori entitas sesi — dipakai untuk coreference resolution dalam satu
   /// sesi percakapan. Tidak dipersistensikan ke database.
@@ -1525,6 +1556,35 @@ class FfmAssistantInterpreter {
     );
   }
 
+  Future<FfmAssistantReasoningContext> _withPersonalContext(
+    FfmAssistantReasoningContext base,
+  ) async {
+    if (_personalContextBlockedDestinations.contains(base.currentPage)) {
+      return base;
+    }
+    try {
+      final provider = _personalContextProvider?.call();
+      if (provider == null) return base;
+      final personalContext = await provider
+          .buildContext(
+            query: base.request,
+            reasoningContext: base,
+            budget: _personalContextBudget,
+          )
+          .timeout(const Duration(milliseconds: 350));
+      if (!provider.contextAdapter.validateContext(personalContext))
+        return base;
+      return provider.updateReasoningContext(
+        originalContext: base,
+        personalContext: personalContext,
+      );
+    } on Object {
+      // Context personal hanya enhancement. Jika belum siap atau gagal,
+      // jalur model tetap memakai konteks bounded yang sudah ada.
+      return base;
+    }
+  }
+
   Future<FfmAssistantIntent?> _tryModelFirst(
     String rawText,
     String normalized, {
@@ -1580,7 +1640,8 @@ class FfmAssistantInterpreter {
               )
             : const <String>[],
       );
-      final modelContext = reasoningContext.toBoundedPrompt();
+      final enrichedContext = await _withPersonalContext(reasoningContext);
+      final modelContext = enrichedContext.toBoundedPrompt();
       proposal = await gateway
           .proposeWithContext(
             input: rawText,
