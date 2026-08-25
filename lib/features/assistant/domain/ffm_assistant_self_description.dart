@@ -13,6 +13,28 @@ class FfmAssistantSelfDescriptionService {
   static const creatorTikTok =
       'https://www.tiktok.com/@clip.smarts?_r=1&_t=ZS-997Uzi7kXma';
 
+  static final RegExp _creatorQuestionPattern = RegExp(
+    r'pembuat|developer|pengembang|creator|pencipta|rafi',
+    caseSensitive: false,
+  );
+
+  /// Menjamin jawaban untuk pertanyaan seputar pembuat selalu menyertakan
+  /// kedua tautan sosial resmi — apa pun hasil rangkuman SLM.
+  String ensureSocialLinks({
+    required String question,
+    required String response,
+  }) {
+    if (!_creatorQuestionPattern.hasMatch(question)) return response;
+    var value = response;
+    if (!value.contains(creatorYouTube)) {
+      value = '$value\n\nYouTube: [$creatorYouTube]($creatorYouTube)';
+    }
+    if (!value.contains(creatorTikTok)) {
+      value = '$value\nTikTok: [$creatorTikTok]($creatorTikTok)';
+    }
+    return value;
+  }
+
   static const defaultImplementedCapabilityIds = <String>{
     'read.summary',
     'read.transactions',

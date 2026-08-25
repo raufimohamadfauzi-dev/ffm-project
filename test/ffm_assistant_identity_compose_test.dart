@@ -117,6 +117,56 @@ void main() {
     expect(intent.confidence, 1);
   });
 
+  test(
+    'rangkuman tanpa link dilengkapi otomatis untuk pertanyaan pembuat',
+    () async {
+      final db = freshDb();
+      addTearDown(db.close);
+      final composer = _FakeComposer(
+        result: 'Pembuat aplikasi ini adalah Rafi Sinkkat.',
+      );
+      final interpreter = FfmAssistantInterpreter(
+        db,
+        slmReadyCheck: () async => true,
+        answerComposer: composer,
+      );
+
+      final intent = await interpreter.interpret('siapa pembuat aplikasi');
+
+      expect(
+        intent.response,
+        contains(FfmAssistantSelfDescriptionService.creatorYouTube),
+      );
+      expect(
+        intent.response,
+        contains(FfmAssistantSelfDescriptionService.creatorTikTok),
+      );
+      expect(
+        intent.response,
+        contains('](${FfmAssistantSelfDescriptionService.creatorYouTube})'),
+      );
+    },
+  );
+
+  test('pertanyaan kemampuan tidak disisipi link pembuat', () async {
+    final db = freshDb();
+    addTearDown(db.close);
+    final composer = _FakeComposer(result: 'Aku bisa bantu catat transaksi.');
+    final interpreter = FfmAssistantInterpreter(
+      db,
+      slmReadyCheck: () async => true,
+      answerComposer: composer,
+    );
+
+    final intent = await interpreter.interpret('asisten bisa apa saja');
+
+    expect(
+      intent.response,
+      isNot(contains(FfmAssistantSelfDescriptionService.creatorYouTube)),
+    );
+    expect(intent.response, contains('catat transaksi'));
+  });
+
   group('FfmAssistantComposedAnswerContract.sanitize', () {
     test('menerima teks normal dan memangkas newline berlebih', () {
       final out = FfmAssistantComposedAnswerContract.sanitize(

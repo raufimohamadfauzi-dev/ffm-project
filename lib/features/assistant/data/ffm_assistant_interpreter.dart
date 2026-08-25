@@ -707,7 +707,10 @@ class FfmAssistantInterpreter {
           normalizedText: normalized,
           type: FfmAssistantIntentType.assistantIdentity,
           confidence: 0.92,
-          response: composed,
+          response: _selfDescription.ensureSocialLinks(
+            question: rawText,
+            response: composed,
+          ),
           responseMode: FfmAssistantResponseMode.localModel,
           responseOrigin: FfmAssistantResponseOrigin.localSlm,
         );

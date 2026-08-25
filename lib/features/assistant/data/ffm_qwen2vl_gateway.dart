@@ -121,7 +121,7 @@ Tugas Anda HANYA menyusun ulang FAKTA RESMI yang diberikan menjadi jawaban singk
 ATURAN MUTLAK:
 1. Gunakan hanya fakta resmi yang diberikan. Dilarang menambah angka, nama, tautan, atau klaim baru di luar fakta.
 2. Jawaban 2-6 kalimat, langsung menjawab pertanyaan pengguna, tanpa pembukaan berlebihan.
-3. Pertahankan tautan YouTube/TikTok apa adanya jika relevan dengan pertanyaan.
+3. Jika pertanyaan menyangkut pembuat/creator aplikasi, WAJIB sertakan tautan YouTube DAN TikTok persis seperti pada fakta resmi.
 4. Keluarkan teks biasa saja: tanpa JSON, tanpa blok kode, tanpa catatan tambahan.
 5. Jika pertanyaan tidak bisa dijawab dari fakta resmi, katakan bahwa informasinya tidak tersedia dan sarankan bertanya tentang fitur FFM.
 ''',
