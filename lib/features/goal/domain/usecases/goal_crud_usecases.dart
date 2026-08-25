@@ -2,14 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
-import '../../../../core/di/injection.dart';
-import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../entities/goal_entity.dart';
-
-FfmAgentStatusController? _statusController() =>
-    getIt.isRegistered<FfmAgentStatusController>()
-    ? getIt<FfmAgentStatusController>()
-    : null;
 
 class GetGoals {
   const GetGoals(this.database);
@@ -72,9 +65,6 @@ class SaveGoal {
   final AppDatabase database;
 
   Future<void> call(GoalEntity entity) async {
-    _statusController()?.working(
-      'Menyimpan target keuangan dan memperbarui konteks asisten...',
-    );
     await database
         .into(database.goals)
         .insertOnConflictUpdate(
@@ -102,9 +92,6 @@ class SaveGoal {
         'targetDate': entity.targetDate.toIso8601String(),
       },
     );
-    _statusController()?.done(
-      'Target keuangan tersimpan; konteks asisten diperbarui.',
-    );
   }
 }
 
@@ -113,9 +100,6 @@ class DeleteGoal {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
-    _statusController()?.working(
-      'Mengarsipkan target keuangan dan memperbarui konteks asisten...',
-    );
     await (database.update(database.goals)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -126,6 +110,5 @@ class DeleteGoal {
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
     );
-    _statusController()?.done('Target keuangan diarsipkan.');
   }
 }

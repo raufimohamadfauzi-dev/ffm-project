@@ -734,3 +734,362 @@ class FfmHolisticAwarenessPlugin extends FfmAgentPlugin {
     );
   }
 }
+
+/// Plugin Logika: Menghitung kebutuhan dan kecukupan dana darurat keluarga.
+class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
+  FfmEmergencyFundLogicPlugin(this._db);
+  final AppDatabase _db;
+
+  @override
+  String get name => 'emergency_fund_logic';
+  @override
+  FfmPluginCategory get category => FfmPluginCategory.logic;
+  @override
+  int get priority => 8;
+  @override
+  List<String> get triggers => [
+    'dana darurat',
+    'hitung dana darurat',
+    'kebutuhan darurat',
+    'emergency fund',
+    'dana cadangan',
+    'tabungan darurat',
+    'berapa dana darurat',
+    'cukup dana darurat',
+    'simpanan darurat',
+  ];
+
+  @override
+  Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    final householdId = _householdId();
+    final now = context.now;
+
+    // Hitung rata-rata pengeluaran 3 bulan terakhir
+    final threeMonthsAgo = DateTime(now.year, now.month - 3, 1);
+    final expenseRows = await (_db.select(_db.transactions)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.type.equals('expense') &
+                row.isArchived.equals(false) &
+                row.isDeleted.equals(false) &
+                row.date.isBiggerOrEqualValue(threeMonthsAgo),
+          ))
+        .get();
+
+    var totalExpense3Mo = 0;
+    for (final t in expenseRows) {
+      totalExpense3Mo += t.amount.abs();
+    }
+    final avgMonthlyExpense =
+        expenseRows.isEmpty ? 0 : (totalExpense3Mo / 3).round();
+
+    // Hitung saldo kas saat ini
+    final accounts = await (_db.select(_db.accounts)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.isActive.equals(true) &
+                row.isArchived.equals(false),
+          ))
+        .get();
+
+    var currentCash = 0;
+    for (final acc in accounts) {
+      final txs = await (_db.select(_db.transactions)
+            ..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.accountId.equals(acc.id) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            ))
+          .get();
+      final tfs = await (_db.select(_db.transfers)
+            ..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  (row.fromAccountId.equals(acc.id) |
+                      row.toAccountId.equals(acc.id)) &
+                  row.isDeleted.equals(false),
+            ))
+          .get();
+      var b = acc.openingBalance;
+      for (final t in txs) {
+        if (t.type == 'income') b += t.amount.abs();
+        if (t.type == 'expense') b -= t.amount.abs();
+      }
+      for (final tf in tfs) {
+        if (tf.fromAccountId == acc.id) b -= tf.amount;
+        if (tf.toAccountId == acc.id) b += tf.amount;
+      }
+      currentCash += b;
+    }
+
+    if (avgMonthlyExpense == 0) {
+      return const FfmHarnessResult(
+        pluginName: 'emergency_fund_logic',
+        category: FfmPluginCategory.logic,
+        text: '🛡️ **Kalkulator Dana Darurat**\n\n'
+            'Belum ada data pengeluaran yang cukup untuk menghitung kebutuhan dana darurat. '
+            'Catat minimal 1 bulan pengeluaran agar asisten bisa memberikan perhitungan akurat.',
+      );
+    }
+
+    final needed3Mo = avgMonthlyExpense * 3;
+    final needed6Mo = avgMonthlyExpense * 6;
+    final needed12Mo = avgMonthlyExpense * 12;
+
+    final coverageMonths =
+        avgMonthlyExpense > 0 ? (currentCash / avgMonthlyExpense) : 0;
+    final coverageLabel = coverageMonths >= 12
+        ? '✅ Sangat Ideal (≥12 bulan)'
+        : coverageMonths >= 6
+        ? '🟢 Ideal (6–12 bulan)'
+        : coverageMonths >= 3
+        ? '🟡 Cukup (3–6 bulan) — tingkatkan ke 6 bulan'
+        : coverageMonths >= 1
+        ? '🔴 Kurang (< 3 bulan) — prioritaskan segera'
+        : '⚠️ Sangat Kritis (< 1 bulan)';
+
+    final gap3Mo = needed3Mo - currentCash;
+    final gapText = gap3Mo > 0
+        ? 'Masih butuh **${_rupiah(gap3Mo)}** lagi untuk mencapai target minimum 3 bulan.'
+        : '**Dana darurat sudah melewati target minimum 3 bulan.** 🎉';
+
+    return FfmHarnessResult(
+      pluginName: name,
+      category: category,
+      text: '🛡️ **Kalkulator Dana Darurat Keluarga**\n\n'
+          '📊 **Data Dasar (rata-rata 3 bulan terakhir):**\n'
+          '- Pengeluaran bulanan rata-rata: **${_rupiah(avgMonthlyExpense)}**\n'
+          '- Kas & saldo saat ini: **${_rupiah(currentCash)}**\n'
+          '- Kemampuan bertahan: **${coverageMonths.toStringAsFixed(1)} bulan**\n\n'
+          '🎯 **Kebutuhan Dana Darurat:**\n'
+          '- Minimum (3 bulan): ${_rupiah(needed3Mo)}\n'
+          '- Ideal (6 bulan): ${_rupiah(needed6Mo)}\n'
+          '- Sangat Aman (12 bulan): ${_rupiah(needed12Mo)}\n\n'
+          '📈 **Status Kecukupan: $coverageLabel**\n\n'
+          '$gapText\n\n'
+          '💡 *Tip: Pisahkan dana darurat ke rekening tabungan terpisah agar '
+          'tidak terpakai untuk kebutuhan sehari-hari.*',
+      metadata: {
+        'avgMonthlyExpense': avgMonthlyExpense,
+        'currentCash': currentCash,
+        'needed3Mo': needed3Mo,
+        'needed6Mo': needed6Mo,
+        'coverageMonths': coverageMonths,
+      },
+    );
+  }
+}
+
+/// Plugin Logika: Menghitung strategi pelunasan hutang (Debt Snowball vs Debt Avalanche).
+class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
+  FfmDebtSnowballLogicPlugin(this._db);
+  final AppDatabase _db;
+
+  @override
+  String get name => 'debt_snowball_logic';
+  @override
+  FfmPluginCategory get category => FfmPluginCategory.logic;
+  @override
+  int get priority => 8;
+  @override
+  List<String> get triggers => [
+    'strategi lunas hutang',
+    'debt snowball',
+    'debt avalanche',
+    'cara cepat lunas hutang',
+    'urutan bayar hutang',
+    'strategi hutang',
+    'bebas hutang',
+    'lunasi hutang',
+    'cara melunasi hutang',
+  ];
+
+  @override
+  Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    final householdId = _householdId();
+    final debts = await (_db.select(_db.liabilities)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.isActive.equals(true),
+          ))
+        .get();
+
+    if (debts.isEmpty) {
+      return const FfmHarnessResult(
+        pluginName: 'debt_snowball_logic',
+        category: FfmPluginCategory.logic,
+        text: '🎉 **Alhamdulillah!** Tidak ada catatan hutang/kewajiban aktif di FFM. '
+            'Pertahankan kondisi bebas hutang ini dan fokus alokasikan dana ke tabungan & investasi.',
+      );
+    }
+
+    var totalDebt = 0;
+    var totalMonthlyInstallment = 0;
+    for (final d in debts) {
+      totalDebt += d.remainingBalance;
+      totalMonthlyInstallment += d.monthlyInstallment;
+    }
+
+    // Urutan 1: Snowball (Saldo terkecil ke terbesar)
+    final snowballList = List.of(debts)
+      ..sort((a, b) => a.remainingBalance.compareTo(b.remainingBalance));
+
+    // Urutan 2: Avalanche (Bunga tertinggi ke terendah)
+    final avalancheList = List.of(debts)
+      ..sort((a, b) => b.interestRate.compareTo(a.interestRate));
+
+    final snowballLines = <String>[];
+    for (var i = 0; i < snowballList.length; i++) {
+      final d = snowballList[i];
+      snowballLines.add(
+        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)} (Cicilan: ${_rupiah(d.monthlyInstallment)}/bln)',
+      );
+    }
+
+    final avalancheLines = <String>[];
+    for (var i = 0; i < avalancheList.length; i++) {
+      final d = avalancheList[i];
+      final rateStr = d.interestRate > 0 ? ' (Bunga: ${d.interestRate}%)' : '';
+      avalancheLines.add(
+        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)}$rateStr',
+      );
+    }
+
+    return FfmHarnessResult(
+      pluginName: name,
+      category: category,
+      text: '🎯 **Strategi Percepatan Pelunasan Hutang Keluarga**\n\n'
+          '📊 **Total Sisa Pokok Hutang:** **${_rupiah(totalDebt)}** (${debts.length} kewajiban)\n'
+          '💳 **Total Cicilan Wajib:** ${_rupiah(totalMonthlyInstallment)}/bulan\n\n'
+          '━━━━━━━━━━━━━━━━━━━━\n'
+          '🏔️ **Metode 1: Debt Snowball (Sangat Direkomendasikan)**\n'
+          '*Fokus lunasi dari nominal saldo TERKECIL dulu untuk kemenangan cepat & motivasi psikologis:*\n\n'
+          '${snowballLines.join('\n')}\n\n'
+          '━━━━━━━━━━━━━━━━━━━━\n'
+          '⚡ **Metode 2: Debt Avalanche**\n'
+          '*Fokus lunasi dari bunga TERTINGGI dulu untuk menghemat total biaya bunga:*\n\n'
+          '${avalancheLines.join('\n')}\n\n'
+          '💡 **Langkah Aksi:** Bayar cicilan minimum untuk semua hutang, lalu arahkan semua kelebihan dana bulanan ke **Prioritas #1** sampai lunas, lalu beralih ke #2!',
+      metadata: {
+        'totalDebt': totalDebt,
+        'totalMonthlyInstallment': totalMonthlyInstallment,
+        'count': debts.length,
+      },
+    );
+  }
+}
+
+/// Plugin Logika: Menghitung rasio menabung bulanan (Saving Rate).
+class FfmSavingRateLogicPlugin extends FfmAgentPlugin {
+  FfmSavingRateLogicPlugin(this._db);
+  final AppDatabase _db;
+
+  @override
+  String get name => 'saving_rate_logic';
+  @override
+  FfmPluginCategory get category => FfmPluginCategory.logic;
+  @override
+  int get priority => 8;
+  @override
+  List<String> get triggers => [
+    'saving rate',
+    'rasio menabung',
+    'persentase tabungan',
+    'berapa persen yang kutabung',
+    'kemampuan menabung',
+    'apakah tabungan cukup',
+    'rasio tabungan',
+  ];
+
+  @override
+  Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    final householdId = _householdId();
+    final now = context.now;
+    final startOfMonth = DateTime(now.year, now.month, 1);
+
+    final transactions = await (_db.select(_db.transactions)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.isArchived.equals(false) &
+                row.isDeleted.equals(false) &
+                row.date.isBiggerOrEqualValue(startOfMonth),
+          ))
+        .get();
+
+    var income = 0;
+    var expense = 0;
+    for (final t in transactions) {
+      if (t.type == 'income') income += t.amount.abs();
+      if (t.type == 'expense') expense += t.amount.abs();
+    }
+
+    if (income == 0) {
+      return const FfmHarnessResult(
+        pluginName: 'saving_rate_logic',
+        category: FfmPluginCategory.logic,
+        text: '📈 **Kalkulator Saving Rate Bulan Ini**\n\n'
+            'Belum ada pemasukan yang tercatat di bulan ini. '
+            'Catat pemasukan bulananmu agar asisten bisa menghitung rasio menabung dengan akurat.',
+      );
+    }
+
+    final netSaved = income - expense;
+    final savingRatePercent = (netSaved / income) * 100;
+
+    final (label, icon, advice) = savingRatePercent >= 30
+        ? (
+            'Sangat Sehat (≥30%)',
+            '⭐',
+            'Luar biasa! Kapasitas menabungmu sangat kuat. Alokasikan sebagian ke instrumen investasi jangka panjang.',
+          )
+        : savingRatePercent >= 20
+        ? (
+            'Ideal (20–30%)',
+            '🟢',
+            'Bagus sekali! Kamu sudah memenuhi standar ideal perencanaan keuangan keluarga (minimal 20%).',
+          )
+        : savingRatePercent >= 10
+        ? (
+            'Cukup (10–20%)',
+            '🟡',
+            'Cukup baik, tetapi coba telusuri pos pengeluaran sekunder untuk meningkatkan tabungan ke minimal 20%.',
+          )
+        : savingRatePercent > 0
+        ? (
+            'Rendah (<10%)',
+            '🔴',
+            'Peringatan: Selisih tabungan sangat tipis. Prioritaskan menabung di awal bulan (pay yourself first).',
+          )
+        : (
+            'Defisit (Pengeluaran > Pemasukan)',
+            '⚠️',
+            'Kritis: Pengeluaran bulan ini melebihi pemasukan. Segera rem belanja non-esensial!',
+          );
+
+    return FfmHarnessResult(
+      pluginName: name,
+      category: category,
+      text: '📈 **Potret Rasio Menabung Bulan Ini (Saving Rate)**\n\n'
+          '💰 **Arus Kas Bulan Ini:**\n'
+          '- Total Pemasukan: **${_rupiah(income)}**\n'
+          '- Total Pengeluaran: ${_rupiah(expense)}\n'
+          '- Dana Tersimpan Bersih: **${netSaved >= 0 ? "+" : "-"}${_rupiah(netSaved.abs())}**\n\n'
+          '📊 **Saving Rate:** $icon **${savingRatePercent.toStringAsFixed(1)}%** — *$label*\n\n'
+          '💡 **Evaluasi Finansial:**\n$advice',
+      metadata: {
+        'income': income,
+        'expense': expense,
+        'netSaved': netSaved,
+        'savingRatePercent': savingRatePercent,
+      },
+    );
+  }
+}
+
+

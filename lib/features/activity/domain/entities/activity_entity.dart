@@ -111,6 +111,91 @@ class ActivityJournalEntryEntity {
   }
 }
 
+enum ActivityEntrySource {
+  manual,
+  voice,
+  assistant,
+  system;
+
+  String get value => name;
+
+  static ActivityEntrySource fromValue(String? value) => values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => ActivityEntrySource.manual,
+  );
+}
+
+class ActivityNoteEntity {
+  const ActivityNoteEntity({
+    required this.id,
+    required this.householdId,
+    required this.text,
+    required this.category,
+    this.numericValue,
+    this.unit,
+    this.latitude,
+    this.longitude,
+    required this.createdAt,
+    this.linkedSessionId,
+    this.source = ActivityEntrySource.manual,
+    this.isArchived = false,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String householdId;
+  final String text;
+  final String category;
+  final double? numericValue;
+  final String? unit;
+  final double? latitude;
+  final double? longitude;
+  final DateTime createdAt;
+  final String? linkedSessionId;
+  final ActivityEntrySource source;
+  final bool isArchived;
+  final DateTime? updatedAt;
+}
+
+class ActivityLiveSnapshot {
+  ActivityLiveSnapshot({
+    required this.activeSessions,
+    this.checkpoints = const {},
+    this.notes = const [],
+    this.revision = 0,
+    DateTime? lastUpdatedAt,
+  }) : lastUpdatedAt = lastUpdatedAt ?? DateTime.now();
+
+  final List<ActivitySessionEntity> activeSessions;
+  final Map<String, List<ActivityCheckpointEntity>> checkpoints;
+  final List<ActivityNoteEntity> notes;
+  final int revision;
+  final DateTime lastUpdatedAt;
+
+  bool get hasActiveSessions => activeSessions.isNotEmpty;
+
+  ActivitySessionEntity? get rootSession {
+    for (final session in activeSessions) {
+      if (session.parentSessionId == null) return session;
+    }
+    return activeSessions.firstOrNull;
+  }
+
+  List<ActivitySessionEntity> get childSessions => activeSessions
+      .where((s) => s.parentSessionId != null)
+      .toList(growable: false);
+
+  List<ActivitySessionEntity> childrenOf(String parentId) => activeSessions
+      .where((s) => s.parentSessionId == parentId)
+      .toList(growable: false);
+
+  ActivityCheckpointEntity? lastCheckpointFor(String sessionId) {
+    final list = checkpoints[sessionId];
+    if (list == null || list.isEmpty) return null;
+    return list.last;
+  }
+}
+
 class ActivityDurationCalculator {
   const ActivityDurationCalculator();
 

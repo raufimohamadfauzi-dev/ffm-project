@@ -14,6 +14,7 @@ import '../../domain/ffm_assistant_models.dart';
 import '../widgets/ffm_assistant_page_context.dart';
 import '../../data/ffm_background_download_service.dart';
 import '../../data/ffm_local_model_assembly_status.dart';
+import '../../data/ffm_local_model_bridge_plugin.dart';
 import '../../data/ffm_local_model_service.dart';
 import '../../data/ffm_local_model_readiness.dart';
 import '../../data/ffm_local_model_status_load_gate.dart';
@@ -683,6 +684,127 @@ class _LocalModelPageState extends State<LocalModelPage>
     });
   }
 
+  Future<void> _runBenchmark() async {
+    final model = _model;
+    if (model == null || model.projectorPath == null) return;
+
+    setState(() {
+      _working = true;
+      _workingMessage = 'Menjalankan uji inferensi SLM lokal (Benchmark)...';
+      _error = null;
+    });
+
+    final stopwatch = Stopwatch()..start();
+    try {
+      await FfmLocalModelBridgePlugin.initNative(
+        modelPath: model.filePath,
+        mmprojPath: model.projectorPath!,
+      );
+
+      const testPrompt = 'Beli beras 50 ribu di warung Madura';
+      final response = await FfmLocalModelBridgePlugin.generateSingleShotNative(
+        systemPrompt:
+            'Ekstrak informasi transaksi belanja ke format JSON: {"title": string, "amount": number, "type": "expense"}. HANYA cetak JSON.',
+        userPrompt: testPrompt,
+      );
+      stopwatch.stop();
+
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.speed, color: Colors.teal),
+              SizedBox(width: 8),
+              Text('Hasil Uji Inferensi SLM'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.teal.shade300),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.teal,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Inferensi Berhasil\nLatensi: ${stopwatch.elapsedMilliseconds} ms (${(stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2)} detik)',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Prompt Uji:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const Text(testPrompt, style: TextStyle(fontSize: 12)),
+                const SizedBox(height: 12),
+                const Text(
+                  'Keluaran Model (JSON):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: SelectableText(
+                    response.trim(),
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Catatan: Pemrosesan AI berjalan 100% di CPU lokal HP Anda tanpa koneksi internet.',
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Tutup'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      stopwatch.stop();
+      if (!mounted) return;
+      setState(() {
+        _error = 'Uji inferensi SLM gagal: $e';
+      });
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
+  }
+
+
+
   String _size(int bytes) {
     final mb = bytes / (1024 * 1024);
     if (mb >= 1024) {
@@ -1113,6 +1235,11 @@ class _LocalModelPageState extends State<LocalModelPage>
           spacing: 8,
           runSpacing: 8,
           children: [
+            FilledButton.tonalIcon(
+              onPressed: _working ? null : _runBenchmark,
+              icon: const Icon(Icons.speed),
+              label: const Text('Uji Inferensi SLM (Benchmark)'),
+            ),
             OutlinedButton.icon(
               onPressed: _working ? null : _exportBundle,
               icon: const Icon(Icons.share_outlined),
@@ -1128,6 +1255,7 @@ class _LocalModelPageState extends State<LocalModelPage>
             ),
           ],
         ),
+
       ],
     );
   }

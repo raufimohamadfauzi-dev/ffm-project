@@ -29,6 +29,7 @@ import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
 import 'ffm_assistant_reminder_mutation_service.dart';
+import 'ffm_activity_habit_learner.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
@@ -36,15 +37,18 @@ class FfmAssistantCapabilityAdapterRegistry {
     required String householdId,
     DateTime Function()? clock,
     FfmAssistantReminderMutationService? reminderMutations,
+    FfmActivityHabitLearner? habitLearner,
   }) : _database = database,
        _householdId = householdId,
        _clock = clock ?? DateTime.now,
-       _reminderMutations = reminderMutations;
+       _reminderMutations = reminderMutations,
+       _habitLearner = habitLearner;
 
   final AppDatabase _database;
   final String _householdId;
   final DateTime Function() _clock;
   final FfmAssistantReminderMutationService? _reminderMutations;
+  final FfmActivityHabitLearner? _habitLearner;
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -3934,9 +3938,21 @@ class FfmAssistantCapabilityAdapterRegistry {
             updatedAt: Value(now),
           ),
         );
+    await _observeActivityHabit(title, now);
     return const FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas berhasil dimulai.',
     );
+  }
+
+  Future<void> _observeActivityHabit(String title, DateTime occurredAt) async {
+    try {
+      await _habitLearner?.recordActivityObservation(
+        title: title,
+        occurredAt: occurredAt,
+      );
+    } on Object {
+      // Observasi kebiasaan bersifat best-effort.
+    }
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _saveDailyNote(

@@ -2,14 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
-import '../../../../core/di/injection.dart';
-import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../entities/receivable_entity.dart';
-
-FfmAgentStatusController? _statusController() =>
-    getIt.isRegistered<FfmAgentStatusController>()
-    ? getIt<FfmAgentStatusController>()
-    : null;
 
 class GetReceivables {
   const GetReceivables(this.database);
@@ -50,9 +43,6 @@ class SaveReceivable {
   final AppDatabase database;
 
   Future<void> call(ReceivableEntity entity) async {
-    _statusController()?.working(
-      'Menyimpan piutang dan memperbarui konteks asisten...',
-    );
     await database
         .into(database.receivables)
         .insertOnConflictUpdate(
@@ -81,7 +71,6 @@ class SaveReceivable {
         'remainingBalance': entity.remainingBalance,
       },
     );
-    _statusController()?.done('Piutang tersimpan; konteks asisten diperbarui.');
   }
 }
 
@@ -90,7 +79,6 @@ class DeleteReceivable {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
-    _statusController()?.working('Mengarsipkan piutang...');
     await (database.update(database.receivables)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -101,6 +89,5 @@ class DeleteReceivable {
       householdId: householdId,
       newValue: {'id': id, 'isActive': false},
     );
-    _statusController()?.done('Piutang diarsipkan.');
   }
 }

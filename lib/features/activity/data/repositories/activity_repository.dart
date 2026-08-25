@@ -1,19 +1,25 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
-import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
+import '../../../assistant/data/ffm_activity_habit_learner.dart';
 import '../../domain/entities/activity_entity.dart';
 
 class ActivityRepository {
-  const ActivityRepository(this.database, this.auditLogger, {this.status});
+  const ActivityRepository(
+    this.database,
+    this.auditLogger, {
+    this.habitLearner,
+  });
 
   final AppDatabase database;
   final AuditLogger auditLogger;
-  final FfmAgentStatusController? status;
 
-  void _working(String message) => status?.working(message);
-  void _done(String message) => status?.done(message);
+  /// Pengamat kebiasaan opsional: merekam pola aktivitas sebagai memori
+  /// `habit` agar asisten memahami rutinitas pengguna.
+  final FfmActivityHabitLearner? habitLearner;
 
   Future<List<ActivitySessionEntity>> getSessions(String householdId) async {
     final rows =
@@ -120,7 +126,6 @@ class ActivityRepository {
   }
 
   Future<void> saveSession(ActivitySessionEntity entity) async {
-    _working('Menyimpan aktivitas dan memperbarui konteks asisten...');
     await database
         .into(database.activitySessions)
         .insertOnConflictUpdate(
@@ -149,11 +154,14 @@ class ActivityRepository {
         'status': entity.status.value,
       },
     );
-    _done('Aktivitas tersimpan; konteks asisten diperbarui.');
+    habitLearner?.recordActivityObservation(
+      title: entity.title,
+      occurredAt: entity.startedAt,
+    ).ignore();
   }
 
+
   Future<void> saveCheckpoint(ActivityCheckpointEntity entity) async {
-    _working('Menyimpan checkpoint aktivitas...');
     await database
         .into(database.activityCheckpoints)
         .insertOnConflictUpdate(
@@ -178,11 +186,9 @@ class ActivityRepository {
         'occurredAt': entity.occurredAt.toIso8601String(),
       },
     );
-    _done('Checkpoint aktivitas tersimpan.');
   }
 
   Future<void> saveEntry(ActivityJournalEntryEntity entity) async {
-    _working('Menyimpan jurnal aktivitas...');
     await database
         .into(database.activityEntries)
         .insertOnConflictUpdate(
@@ -214,8 +220,12 @@ class ActivityRepository {
         'activityType': entity.activityType,
       },
     );
-    _done('Jurnal aktivitas tersimpan.');
+    habitLearner?.recordActivityObservation(
+      title: entity.title,
+      occurredAt: entity.startedAt,
+    ).ignore();
   }
+
 
   Future<void> recordVoiceCommand({
     required String householdId,
@@ -242,7 +252,6 @@ class ActivityRepository {
   );
 
   Future<void> deleteSessionPermanently(String householdId, String id) async {
-    _working('Menghapus aktivitas dan memperbarui konteks asisten...');
     final session = await getSession(householdId, id);
     if (session == null) return;
 
@@ -313,7 +322,6 @@ class ActivityRepository {
     if (remainingSessions.isNotEmpty ||
         remainingCheckpoints.isNotEmpty ||
         remainingEntries.isNotEmpty) {
-      status?.failed('Aktivitas belum terhapus bersih.');
       throw StateError('Aktivitas belum terhapus bersih dari perangkat.');
     }
 
@@ -330,11 +338,9 @@ class ActivityRepository {
         'linkedEntryCount': linkedEntryCount,
       },
     );
-    _done('Aktivitas dihapus; konteks asisten diperbarui.');
   }
 
   Future<void> archiveSession(String householdId, String id) async {
-    _working('Mengarsipkan aktivitas...');
     await (database.update(database.activitySessions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -350,11 +356,121 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
-    _done('Aktivitas diarsipkan.');
+  }
+
+  Future<void> _ensureNotesTable() async {
+    await database.customStatement(
+      'CREATE TABLE IF NOT EXISTS activity_notes ('
+      'id TEXT PRIMARY KEY, '
+      'household_id TEXT NOT NULL, '
+      'text TEXT NOT NULL, '
+      'category TEXT NOT NULL, '
+      'numeric_value REAL, '
+      'unit TEXT, '
+      'latitude REAL, '
+      'longitude REAL, '
+      'created_at INTEGER NOT NULL, '
+      'linked_session_id TEXT, '
+      'source TEXT NOT NULL, '
+      'is_archived INTEGER NOT NULL DEFAULT 0, '
+      'updated_at INTEGER)',
+    );
+  }
+
+  Future<List<ActivityNoteEntity>> getNotes(
+    String householdId, {
+    String? linkedSessionId,
+    String? category,
+  }) async {
+    await _ensureNotesTable();
+    var sql = 'SELECT * FROM activity_notes WHERE household_id = ? AND is_archived = 0';
+    final params = <Object?>[householdId];
+    if (linkedSessionId != null) {
+      sql += ' AND linked_session_id = ?';
+      params.add(linkedSessionId);
+    }
+    if (category != null) {
+      sql += ' AND category = ?';
+      params.add(category);
+    }
+    sql += ' ORDER BY created_at DESC';
+
+    final rows = await database.customSelect(sql, variables: params.map((p) => Variable(p)).toList()).get();
+    return rows.map((row) {
+      final data = row.data;
+      final createdAtMillis = data['created_at'] as int;
+      final updatedAtMillis = data['updated_at'] as int?;
+      return ActivityNoteEntity(
+        id: data['id'] as String,
+        householdId: data['household_id'] as String,
+        text: data['text'] as String,
+        category: data['category'] as String,
+        numericValue: (data['numeric_value'] as num?)?.toDouble(),
+        unit: data['unit'] as String?,
+        latitude: (data['latitude'] as num?)?.toDouble(),
+        longitude: (data['longitude'] as num?)?.toDouble(),
+        createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMillis),
+        linkedSessionId: data['linked_session_id'] as String?,
+        source: ActivityEntrySource.fromValue(data['source'] as String?),
+        isArchived: (data['is_archived'] as int? ?? 0) == 1,
+        updatedAt: updatedAtMillis != null
+            ? DateTime.fromMillisecondsSinceEpoch(updatedAtMillis)
+            : null,
+      );
+    }).toList(growable: false);
+  }
+
+  Future<void> saveNote(ActivityNoteEntity entity) async {
+    await _ensureNotesTable();
+    await database.customStatement(
+      'INSERT OR REPLACE INTO activity_notes '
+      '(id, household_id, text, category, numeric_value, unit, latitude, longitude, created_at, linked_session_id, source, is_archived, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        entity.id,
+        entity.householdId,
+        entity.text,
+        entity.category,
+        entity.numericValue,
+        entity.unit,
+        entity.latitude,
+        entity.longitude,
+        entity.createdAt.millisecondsSinceEpoch,
+        entity.linkedSessionId,
+        entity.source.value,
+        entity.isArchived ? 1 : 0,
+        entity.updatedAt?.millisecondsSinceEpoch,
+      ],
+    );
+    await auditLogger.record(
+      action: 'save',
+      entity: 'activity_note',
+      householdId: entity.householdId,
+      newValue: {
+        'id': entity.id,
+        'category': entity.category,
+        'numericValue': entity.numericValue,
+        'unit': entity.unit,
+        'linkedSessionId': entity.linkedSessionId,
+      },
+    );
+  }
+
+  Future<void> archiveNote(String householdId, String id) async {
+    await _ensureNotesTable();
+    await database.customStatement(
+      'UPDATE activity_notes SET is_archived = 1, updated_at = ? WHERE household_id = ? AND id = ?',
+      [DateTime.now().millisecondsSinceEpoch, householdId, id],
+    );
+    await auditLogger.record(
+      action: 'archive',
+      entity: 'activity_note',
+      householdId: householdId,
+      newValue: {'id': id},
+    );
   }
 
   Future<void> archiveEntry(String householdId, String id) async {
-    _working('Mengarsipkan jurnal aktivitas...');
     await (database.update(database.activityEntries)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -370,7 +486,6 @@ class ActivityRepository {
       householdId: householdId,
       newValue: {'id': id},
     );
-    _done('Jurnal aktivitas diarsipkan.');
   }
 
   ActivitySessionEntity _sessionFromRow(ActivitySession row) =>

@@ -321,36 +321,106 @@ class ActivityVoiceParser {
         return intent.copyWith(
           targetSessionId: session.id,
           targetTitle: session.title,
-          confidence: .9,
+          confidence: .95,
         );
       }
       if (sessions.length > 1) {
         return intent.copyWith(
+          confidence: .65,
           ambiguityReason:
-              'Ada ${sessions.length} aktivitas yang masih jalan: ${sessions.map((session) => session.title).join(', ')}. Sebutkan nama aktivitas yang mau diubah ya.',
+              'Ada ${sessions.length} aktivitas yang masih jalan: ${sessions.map((s) => s.title).join(', ')}. Sebutkan nama aktivitas yang dimaksud ya.',
         );
       }
-      return intent.copyWith(ambiguityReason: 'Sebutkan nama aktivitasnya ya.');
-    }
-    final matches = sessions
-        .where((session) => _sameTitle(session.title, title))
-        .toList(growable: false);
-    if (matches.length == 1) {
       return intent.copyWith(
-        targetSessionId: matches.single.id,
-        targetTitle: matches.single.title,
+        confidence: .40,
+        ambiguityReason: 'Sebutkan nama aktivitasnya ya.',
+      );
+    }
+
+    final normalizedQuery = _normalize(title);
+
+    // 1. Exact ID matching (if title is an ID)
+    final exactIdMatches = sessions.where((s) => s.id == title).toList();
+    if (exactIdMatches.isNotEmpty) {
+      final match = exactIdMatches.first;
+      return intent.copyWith(
+        targetSessionId: match.id,
+        targetTitle: match.title,
+        confidence: 1.0,
+      );
+    }
+
+    // 2. Exact Title Matches (distinguish child vs root parent)
+    final exactMatches = sessions
+        .where((s) => _sameTitle(s.title, title))
+        .toList(growable: false);
+
+    if (exactMatches.length == 1) {
+      final match = exactMatches.single;
+      return intent.copyWith(
+        targetSessionId: match.id,
+        targetTitle: match.title,
         confidence: .98,
       );
     }
-    if (matches.isEmpty) {
+
+    if (exactMatches.length > 1) {
+      // If one is child and another is parent, prioritize child for finish
+      final childMatches = exactMatches.where((s) => s.parentSessionId != null).toList();
+      if (childMatches.length == 1) {
+        final match = childMatches.single;
+        return intent.copyWith(
+          targetSessionId: match.id,
+          targetTitle: match.title,
+          confidence: .95,
+        );
+      }
       return intent.copyWith(
+        confidence: .70,
         ambiguityReason:
-            'Aktivitas $title belum ditemukan yang sedang berjalan.',
+            'Ada ${exactMatches.length} aktivitas bernama "$title". Pilih aktivitas yang dimaksud ya.',
       );
     }
+
+    // 3. Substring / Semantic Matches
+    // Prioritize active child sessions first (e.g. "makan" matching "Makan Siang" sub-session)
+    final childSemantic = sessions
+        .where((s) => s.parentSessionId != null && (_normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title))))
+        .toList(growable: false);
+
+    if (childSemantic.length == 1) {
+      final match = childSemantic.single;
+      return intent.copyWith(
+        targetSessionId: match.id,
+        targetTitle: match.title,
+        confidence: .90,
+      );
+    }
+
+    final allSemantic = sessions
+        .where((s) => _normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title)))
+        .toList(growable: false);
+
+    if (allSemantic.length == 1) {
+      final match = allSemantic.single;
+      return intent.copyWith(
+        targetSessionId: match.id,
+        targetTitle: match.title,
+        confidence: .88,
+      );
+    }
+
+    if (allSemantic.length > 1) {
+      return intent.copyWith(
+        confidence: .68,
+        ambiguityReason:
+            'Ada ${allSemantic.length} aktivitas yang mirip: ${allSemantic.map((s) => s.title).join(', ')}. Pilih yang mana?',
+      );
+    }
+
     return intent.copyWith(
-      ambiguityReason:
-          'Ada ${matches.length} aktivitas $title. Pilih kartu yang benar dulu ya.',
+      confidence: .40,
+      ambiguityReason: 'Aktivitas "$title" belum ditemukan yang sedang berjalan.',
     );
   }
 
@@ -360,20 +430,37 @@ class ActivityVoiceParser {
   ) {
     final title = intent.parentTitle;
     if (title == null) return intent;
-    final matches = sessions
-        .where((session) => _sameTitle(session.title, title))
+    final normalizedQuery = _normalize(title);
+
+    // Exact matches
+    final exactMatches = sessions
+        .where((s) => _sameTitle(s.title, title))
         .toList(growable: false);
-    if (matches.length == 1) {
+    if (exactMatches.length == 1) {
       return intent.copyWith(
-        parentSessionId: matches.single.id,
-        parentTitle: matches.single.title,
+        parentSessionId: exactMatches.single.id,
+        parentTitle: exactMatches.single.title,
         confidence: .98,
       );
     }
+
+    // Semantic matches
+    final semanticMatches = sessions
+        .where((s) => _normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title)))
+        .toList(growable: false);
+    if (semanticMatches.length == 1) {
+      return intent.copyWith(
+        parentSessionId: semanticMatches.single.id,
+        parentTitle: semanticMatches.single.title,
+        confidence: .90,
+      );
+    }
+
     return intent.copyWith(
-      ambiguityReason: matches.isEmpty
-          ? 'Aktivitas induk $title belum ditemukan yang sedang berjalan.'
-          : 'Ada beberapa aktivitas induk $title: ${matches.map((session) => session.title).join(', ')}. Pilih yang benar dulu ya.',
+      confidence: .40,
+      ambiguityReason: semanticMatches.isEmpty
+          ? 'Aktivitas induk "$title" belum ditemukan yang sedang berjalan.'
+          : 'Ada beberapa aktivitas induk yang mirip: ${semanticMatches.map((session) => session.title).join(', ')}. Pilih yang benar dulu ya.',
     );
   }
 
@@ -384,6 +471,7 @@ class ActivityVoiceParser {
         type: ActivityVoiceIntentType.unknown,
         status: ActivityVoiceStatus.preview,
         ambiguityReason: reason,
+        confidence: .30,
       );
 
   bool _sameTitle(String left, String right) =>

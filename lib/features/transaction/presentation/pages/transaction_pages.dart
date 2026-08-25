@@ -39,7 +39,6 @@ import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
-import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 
 List<Category> _transactionCategoryOptions(
   List<Category> categories,
@@ -958,9 +957,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    getIt<FfmAgentStatusController>().working(
-      'Menghapus transaksi dan memperbarui konteks asisten...',
-    );
     await getIt<DeleteTransaction>()(
       AppContext.householdId,
       entry.transaction.id,
@@ -978,9 +974,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     await _loadTransactions();
     if (!mounted) return;
-    getIt<FfmAgentStatusController>().done(
-      'Transaksi dihapus; konteks asisten diperbarui.',
-    );
     ScaffoldMessenger.of(context)
         .showSnackBar(const SnackBar(content: Text('Transaksi dihapus.')));
   }
@@ -1213,26 +1206,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _saveDrafts(List<TransactionDraft> drafts) async {
-    getIt<FfmAgentStatusController>().working(
-      'Menyimpan transaksi dan memperbarui konteks asisten...',
-    );
     for (final draft in drafts) {
       await _saveDraft(draft, refresh: false, showMessage: false);
     }
     await _loadTransactions();
     if (!mounted) return;
-    getIt<FfmAgentStatusController>().done(
-      '${drafts.length} transaksi tersimpan; konteks asisten diperbarui.',
-    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${drafts.length} transaksi berhasil dicatat.')),
     );
   }
 
   Future<void> _saveBatchDrafts(List<TransactionDraft> drafts) async {
-    getIt<FfmAgentStatusController>().working(
-      'Menyimpan beberapa transaksi dan memperbarui konteks asisten...',
-    );
     final now = DateTime.now();
     final entities = <TransactionEntity>[];
     final itemsByTransactionId = <String, List<TransactionItemEntity>>{};
@@ -1298,9 +1282,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
     }
     await _loadTransactions();
     if (!mounted) return;
-    getIt<FfmAgentStatusController>().done(
-      '${drafts.length} transaksi tersimpan; konteks asisten diperbarui.',
-    );
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('${drafts.length} transaksi berhasil dicatat sekaligus.'),
@@ -1314,11 +1295,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
     bool refresh = true,
     bool showMessage = true,
   }) async {
-    getIt<FfmAgentStatusController>().working(
-      transactionId == null
-          ? 'Menyimpan transaksi dan memperbarui konteks asisten...'
-          : 'Memperbarui transaksi dan konteks asisten...',
-    );
     final id = transactionId ?? const Uuid().v4();
     final categoryId = draft.categoryId;
     final previous = transactionId == null
@@ -1390,11 +1366,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     if (refresh) await _loadTransactions();
     if (!mounted || !showMessage) return;
-    getIt<FfmAgentStatusController>().done(
-      transactionId == null
-          ? 'Transaksi tersimpan; konteks asisten diperbarui.'
-          : 'Transaksi diperbarui; konteks asisten diperbarui.',
-    );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Transaksi berhasil dicatat.')),
     );
@@ -1424,6 +1395,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
         slmValue: slmValue,
         correctedValue: finalValue,
       );
+    }
+    // Agregasi pola agar lapisan Agent (kategori otomatis) bisa membaca
+    // InteractionPatterns; sebelumnya hanya dipanggil dari test sehingga
+    // tabel pola selalu kosong di production.
+    try {
+      await repository.recalculatePatterns(AppContext.householdId);
+    } on Object {
+      // Agregasi bersifat best-effort; penyimpanan transaksi tetap sukses.
     }
   }
 

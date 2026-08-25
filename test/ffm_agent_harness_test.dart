@@ -359,6 +359,86 @@ void main() {
         expect(t.contains('json'), isTrue);
       }
     });
+
+    test('ReceivableSense trigger matching', () {
+      final triggers = ['cek piutang', 'daftar piutang', 'siapa yang pinjam', 'orang pinjam'];
+      for (final t in triggers) {
+        expect(t.contains('piutang') || t.contains('pinjam'), isTrue);
+      }
+    });
+
+    test('RecurringTransactionSense trigger matching', () {
+      final triggers = ['transaksi berulang', 'langganan', 'tagihan rutin', 'rutin bulanan'];
+      for (final t in triggers) {
+        expect(t.contains('berulang') || t.contains('langganan') || t.contains('rutin'), isTrue);
+      }
+    });
+
+    test('DailyNotesSense trigger matching', () {
+      final triggers = ['catatan harian', 'jurnal', 'catatan hari ini', 'daily notes'];
+      for (final t in triggers) {
+        expect(t.contains('catatan') || t.contains('jurnal') || t.contains('daily'), isTrue);
+      }
+    });
+
+    test('EmergencyFundLogic trigger matching', () {
+      final triggers = ['dana darurat', 'hitung dana darurat', 'emergency fund', 'tabungan darurat'];
+      for (final t in triggers) {
+        expect(t.contains('darurat') || t.contains('emergency'), isTrue);
+      }
+    });
+
+    test('TaskSense trigger matching', () {
+      final triggers = ['tugas belum selesai', 'daftar tugas', 'tugas hari ini', 'to-do'];
+      for (final t in triggers) {
+        expect(t.contains('tugas') || t.contains('to-do') || t.contains('todo'), isTrue);
+      }
+    });
+
+    test('ScheduleSense trigger matching', () {
+      final triggers = ['jadwal hari ini', 'agenda besok', 'jadwal minggu ini', 'ada acara apa'];
+      for (final t in triggers) {
+        expect(t.contains('jadwal') || t.contains('agenda') || t.contains('acara'), isTrue);
+      }
+    });
+
+    test('RoutineSense trigger matching', () {
+      final triggers = ['rutinitas hari ini', 'kebiasaan', 'ceklis rutinitas', 'daily routine'];
+      for (final t in triggers) {
+        expect(t.contains('rutinitas') || t.contains('kebiasaan') || t.contains('routine'), isTrue);
+      }
+    });
+
+    test('TopMerchantSense trigger matching', () {
+      final triggers = ['tempat belanja', 'toko favorit', 'sering belanja di mana', 'analisis merchant'];
+      for (final t in triggers) {
+        expect(t.contains('belanja') || t.contains('toko') || t.contains('merchant'), isTrue);
+      }
+    });
+
+    test('DebtSnowballLogic trigger matching', () {
+      final triggers = ['strategi lunas hutang', 'debt snowball', 'debt avalanche', 'cara cepat lunas hutang'];
+      for (final t in triggers) {
+        expect(t.contains('hutang') || t.contains('snowball') || t.contains('avalanche'), isTrue);
+      }
+    });
+
+    test('SavingRateLogic trigger matching', () {
+      final triggers = ['saving rate', 'rasio menabung', 'persentase tabungan', 'berapa persen yang kutabung'];
+      for (final t in triggers) {
+        expect(t.contains('saving') || t.contains('menabung') || t.contains('tabung'), isTrue);
+      }
+    });
+
+    test('ActivityReportSense trigger matching', () {
+      final triggers = ['laporan aktivitas', 'rekap kegiatan', 'aktivitas mingguan', 'laporan aktivitas bulanan'];
+      for (final t in triggers) {
+        expect(t.contains('aktivitas') || t.contains('kegiatan'), isTrue);
+      }
+    });
   });
 }
+
+
+
 

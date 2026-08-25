@@ -21,7 +21,6 @@ import 'features/assistant/data/ffm_personal_context_provider.dart';
 import 'features/assistant/data/ffm_personal_memory_service.dart';
 import 'features/assistant/domain/ffm_assistant_widget_protocol.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
-import 'features/assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 import 'features/assistant/presentation/pages/assistant_training_page.dart';
@@ -403,7 +402,6 @@ class _AppShellState extends State<AppShell> {
   var _index = 0;
   var _assistantRequestId = 0;
   var _assistantSheetOpen = false;
-  final _agentStatus = getIt<FfmAgentStatusController>();
   late final ReminderNotificationService _reminderNotifications =
       getIt<ReminderNotificationService>();
   FfmAssistantDraft? _assistantTransactionDraft;
@@ -774,14 +772,7 @@ class _AppShellState extends State<AppShell> {
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
       bottom: false,
-      child: Column(
-        children: [
-          FfmAgentStatusIndicator(controller: _agentStatus),
-          Expanded(
-            child: IndexedStack(index: _index, children: _pages),
-          ),
-        ],
-      ),
+      child: IndexedStack(index: _index, children: _pages),
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,

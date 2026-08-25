@@ -11,7 +11,6 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../data/ffm_assistant_personalization_repository.dart';
 import '../../data/ffm_assistant_profile_export_service.dart';
 import '../../domain/ffm_assistant_models.dart';
-import '../widgets/ffm_agent_status_indicator.dart';
 import '../widgets/ffm_assistant_page_context.dart';
 
 class AssistantProfilePage extends StatefulWidget {
@@ -30,7 +29,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
   final _confirmPassphraseController = TextEditingController();
   late final FfmAssistantProfileExportService _profileService;
   late final FfmAssistantPersonalizationRepository _repository;
-  late final FfmAgentStatusController _agentStatus;
 
   int _preferenceCount = 0;
   int _patternCount = 0;
@@ -42,7 +40,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
     super.initState();
     _repository = getIt<FfmAssistantPersonalizationRepository>();
     _profileService = FfmAssistantProfileExportService(_repository);
-    _agentStatus = getIt<FfmAgentStatusController>();
     _loadProfile();
   }
 
@@ -92,7 +89,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
   }
 
   Future<void> _saveIdentity() async {
-    _agentStatus.working('Menyimpan perkenalan diri secara lokal...');
     setState(() => _working = true);
     try {
       final values = <String, String>{
@@ -116,10 +112,8 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
         }
       }
       await _loadSummary();
-      _agentStatus.done('Perkenalan diri tersimpan secara lokal.');
       _showMessage('Perkenalan diri tersimpan secara lokal.');
     } catch (_) {
-      _agentStatus.failed('Perkenalan diri belum berhasil disimpan.');
       _showMessage('Perkenalan diri belum berhasil disimpan.');
     } finally {
       if (mounted) setState(() => _working = false);
@@ -148,17 +142,14 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
     );
     if (confirmed != true || !mounted) return;
 
-    _agentStatus.working('Menghapus pola belajar asisten secara lokal...');
     setState(() => _working = true);
     try {
       await _repository.resetLearning(AppContext.householdId);
       await _loadSummary();
-      _agentStatus.done('Pola belajar direset; perkenalan diri tetap aman.');
       _showMessage(
         'Pembelajaran direset. Perkenalan diri dan transaksi tetap ada.',
       );
     } catch (_) {
-      _agentStatus.failed('Reset pembelajaran belum berhasil.');
       _showMessage('Reset pembelajaran belum berhasil.');
     } finally {
       if (mounted) setState(() => _working = false);
@@ -168,7 +159,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
   Future<void> _exportProfile() async {
     final passphrase = _passphraseController.text;
     if (!_validatePassphrase(passphrase)) return;
-    _agentStatus.working('Menyusun dan mengenkripsi profil...');
     setState(() => _working = true);
     try {
       final encrypted = await _profileService.exportProfile(
@@ -186,10 +176,8 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
           text: 'Profil personalisasi FFM terenkripsi. Simpan file ini untuk dipindahkan ke perangkat lain.',
         ),
       );
-      _agentStatus.done('Profil terenkripsi siap dibagikan.');
       _showMessage('Profil berhasil dibuat dan siap dibagikan.');
     } catch (_) {
-      _agentStatus.failed('Profil belum berhasil diekspor.');
       _showMessage('Profil belum berhasil diekspor. Coba lagi.');
     } finally {
       if (mounted) setState(() => _working = false);
@@ -209,7 +197,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
     );
     if (result.isEmpty || result.single.path == null) return;
 
-    _agentStatus.working('Membaca dan menggabungkan profil lokal...');
     setState(() => _working = true);
     try {
       final encrypted = await File(result.single.path!).readAsString();
@@ -219,15 +206,12 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
         passphrase: passphrase,
       );
       await _loadSummary();
-      _agentStatus.done('Profil digabungkan; data lama tetap dipertahankan.');
       _showMessage(
         'Profil berhasil digabungkan. Data lama tetap dipertahankan; nilai yang sama diperbarui.',
       );
     } on Exception catch (error) {
-      _agentStatus.failed('Profil belum berhasil digabungkan.');
       _showMessage(error.toString().replaceFirst('Exception: ', ''));
     } catch (_) {
-      _agentStatus.failed('File profil belum berhasil dibaca.');
       _showMessage('File profil belum berhasil dibaca.');
     } finally {
       if (mounted) setState(() => _working = false);

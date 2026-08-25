@@ -66,13 +66,24 @@ class FfmAssistantProcessTrace {
     required this.elapsed,
     required this.events,
     this.fallbackReason,
+    this.pluginName,
+    this.pluginCategory,
   });
 
   final FfmAssistantResponseOrigin origin;
   final Duration elapsed;
   final List<FfmAssistantProcessEvent> events;
   final String? fallbackReason;
+
+  /// Nama plugin harness yang menghasilkan jawaban ini, jika ada.
+  /// Contoh: 'receivable_sense', 'emergency_fund_logic'.
+  final String? pluginName;
+
+  /// Label tampilan ramah pengguna untuk kategori plugin.
+  /// Contoh: '👁️ Sense', '🧮 Logic', '✋ Actuator'.
+  final String? pluginCategory;
 }
+
 
 enum FfmAssistantIntentType {
   openPage,
@@ -318,6 +329,9 @@ class FfmAssistantIntent {
     this.responseMode = FfmAssistantResponseMode.localRules,
     this.responseOrigin = FfmAssistantResponseOrigin.agentOrchestrator,
     this.visionFailure,
+    this.pluginName,
+    this.pluginCategory,
+    this.pluginMetadata,
   });
 
   final String rawText;
@@ -333,6 +347,15 @@ class FfmAssistantIntent {
   final FfmAssistantResponseOrigin responseOrigin;
   final FfmAssistantVisionFailure? visionFailure;
 
+  /// Nama plugin harness yang menangani intent ini, misal 'receivable_sense'.
+  final String? pluginName;
+
+  /// Label kategori plugin yang ditampilkan di UI, misal '👁️ Sense' atau '🧮 Logic'.
+  final String? pluginCategory;
+
+  /// Metadata terstruktur tambahan dari plugin harness (contoh: payload rekap/aktivitas live).
+  final Map<String, dynamic>? pluginMetadata;
+
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
   bool get needsTeachingApproval => teachingProposal != null;
@@ -344,6 +367,9 @@ class FfmAssistantIntent {
     FfmAssistantResponseMode? responseMode,
     FfmAssistantResponseOrigin? responseOrigin,
     FfmAssistantVisionFailure? visionFailure,
+    String? pluginName,
+    String? pluginCategory,
+    Map<String, dynamic>? pluginMetadata,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -357,6 +383,9 @@ class FfmAssistantIntent {
     responseMode: responseMode ?? this.responseMode,
     responseOrigin: responseOrigin ?? this.responseOrigin,
     visionFailure: visionFailure ?? this.visionFailure,
+    pluginName: pluginName ?? this.pluginName,
+    pluginCategory: pluginCategory ?? this.pluginCategory,
+    pluginMetadata: pluginMetadata ?? this.pluginMetadata,
   );
 }
 

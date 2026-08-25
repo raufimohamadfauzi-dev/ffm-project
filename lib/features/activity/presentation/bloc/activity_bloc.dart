@@ -12,43 +12,67 @@ class ActivityState {
     this.activeSessions = const [],
     this.entries = const [],
     this.checkpoints = const {},
+    this.notes = const [],
     this.activeSession,
     this.loading = false,
     this.saving = false,
     this.error,
+    this.revision = 0,
+    this.lastUpdatedAt,
   });
 
   final List<ActivitySessionEntity> sessions;
   final List<ActivitySessionEntity> activeSessions;
   final List<ActivityJournalEntryEntity> entries;
   final Map<String, List<ActivityCheckpointEntity>> checkpoints;
+  final List<ActivityNoteEntity> notes;
   final ActivitySessionEntity? activeSession;
   final bool loading;
   final bool saving;
   final String? error;
+  final int revision;
+  final DateTime? lastUpdatedAt;
+
+  ActivityLiveSnapshot toSnapshot() => ActivityLiveSnapshot(
+    activeSessions: List<ActivitySessionEntity>.unmodifiable(activeSessions),
+    checkpoints: Map<String, List<ActivityCheckpointEntity>>.unmodifiable(
+      checkpoints.map(
+        (k, v) => MapEntry(k, List<ActivityCheckpointEntity>.unmodifiable(v)),
+      ),
+    ),
+    notes: List<ActivityNoteEntity>.unmodifiable(notes),
+    revision: revision,
+    lastUpdatedAt: lastUpdatedAt ?? DateTime.now(),
+  );
 
   ActivityState copyWith({
     List<ActivitySessionEntity>? sessions,
     List<ActivitySessionEntity>? activeSessions,
     List<ActivityJournalEntryEntity>? entries,
     Map<String, List<ActivityCheckpointEntity>>? checkpoints,
+    List<ActivityNoteEntity>? notes,
     ActivitySessionEntity? activeSession,
     bool clearActiveSession = false,
     bool? loading,
     bool? saving,
     String? error,
     bool clearError = false,
+    int? revision,
+    DateTime? lastUpdatedAt,
   }) => ActivityState(
     sessions: sessions ?? this.sessions,
     activeSessions: activeSessions ?? this.activeSessions,
     entries: entries ?? this.entries,
     checkpoints: checkpoints ?? this.checkpoints,
+    notes: notes ?? this.notes,
     activeSession: clearActiveSession
         ? null
         : activeSession ?? this.activeSession,
     loading: loading ?? this.loading,
     saving: saving ?? this.saving,
     error: clearError ? null : error ?? this.error,
+    revision: revision ?? this.revision,
+    lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
   );
 }
 
@@ -66,6 +90,7 @@ class ActivityBloc extends Cubit<ActivityState> {
       final activeSessions = await repository.recoverActiveSessions(
         AppContext.householdId,
       );
+      final notes = await repository.getNotes(AppContext.householdId);
       final active = activeSessions.firstOrNull;
       final checkpointMap = <String, List<ActivityCheckpointEntity>>{};
       for (final session in sessions) {
@@ -77,10 +102,13 @@ class ActivityBloc extends Cubit<ActivityState> {
           activeSessions: activeSessions,
           entries: entries,
           checkpoints: checkpointMap,
+          notes: notes,
           activeSession: active,
           clearActiveSession: active == null,
           loading: false,
           saving: false,
+          revision: state.revision + 1,
+          lastUpdatedAt: DateTime.now(),
         ),
       );
     } catch (error) {
@@ -183,6 +211,39 @@ class ActivityBloc extends Cubit<ActivityState> {
         ),
       ),
     );
+  }
+
+  Future<void> addNote({
+    required String text,
+    required String category,
+    double? numericValue,
+    String? unit,
+    double? latitude,
+    double? longitude,
+    String? linkedSessionId,
+    ActivityEntrySource source = ActivityEntrySource.manual,
+  }) async {
+    await _save(
+      () => repository.saveNote(
+        ActivityNoteEntity(
+          id: _uuid.v4(),
+          householdId: AppContext.householdId,
+          text: text,
+          category: category,
+          numericValue: numericValue,
+          unit: unit,
+          latitude: latitude,
+          longitude: longitude,
+          createdAt: DateTime.now(),
+          linkedSessionId: linkedSessionId,
+          source: source,
+        ),
+      ),
+    );
+  }
+
+  Future<void> archiveNote(String id) async {
+    await _save(() => repository.archiveNote(AppContext.householdId, id));
   }
 
   Future<void> executeVoiceIntent(ActivityVoiceIntent intent) async {

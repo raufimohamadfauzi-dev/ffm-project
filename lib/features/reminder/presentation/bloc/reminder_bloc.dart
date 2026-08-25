@@ -1,7 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../data/repositories/reminder_repository.dart';
-import '../../../assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../../data/services/reminder_notification_service.dart';
 import '../../domain/entities/reminder_entity.dart';
 import '../../domain/usecases/reminder_usecases.dart'
@@ -95,12 +94,10 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     required ReminderNotificationGateway notificationService,
     required ReminderOccurrenceCalculator occurrenceCalculator,
     required String householdId,
-    FfmAgentStatusController? status,
   }) : _repository = repository,
        _notificationService = notificationService,
        _occurrenceCalculator = occurrenceCalculator,
        _householdId = householdId,
-       _status = status,
        super(const ReminderState()) {
     on<ReminderLoadRequested>(_load);
     on<ReminderSaved>(_save);
@@ -121,7 +118,6 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
   final ReminderNotificationGateway _notificationService;
   final ReminderOccurrenceCalculator _occurrenceCalculator;
   final String _householdId;
-  final FfmAgentStatusController? _status;
 
   Future<void> recover() async {
     final pendingActions = await _notificationService.consumePendingActions();
@@ -165,7 +161,6 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
   }
 
   Future<void> _save(ReminderSaved event, Emitter<ReminderState> emit) async {
-    _status?.working('Menyimpan pengingat dan memperbarui konteks asisten...');
     try {
       final permission = await _notificationService.requestPermissions();
       if (!permission.canSchedule) {
@@ -189,10 +184,8 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
       }
       await _repository.saveReminder(event.reminder);
       await _reschedule([event.reminder]);
-      _status?.done('Pengingat tersimpan; konteks asisten diperbarui.');
       add(const ReminderLoadRequested());
     } catch (error) {
-      _status?.failed('Pengingat belum berhasil disimpan.');
       emit(state.copyWith(errorMessage: 'Pengingat belum tersimpan: $error'));
     }
   }
@@ -238,7 +231,6 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     ReminderDeleted event,
     Emitter<ReminderState> emit,
   ) async {
-    _status?.working('Menghapus pengingat dan memperbarui konteks asisten...');
     try {
       final occurrence = _occurrenceCalculator.nextOccurrence(
         event.reminder,
@@ -252,10 +244,8 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
         householdId: _householdId,
         reminderId: event.reminder.id,
       );
-      _status?.done('Pengingat dihapus; konteks asisten diperbarui.');
       add(const ReminderLoadRequested());
     } catch (error) {
-      _status?.failed('Pengingat belum berhasil dihapus.');
       emit(state.copyWith(errorMessage: 'Pengingat belum terhapus: $error'));
     }
   }

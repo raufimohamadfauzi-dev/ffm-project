@@ -1,3 +1,5 @@
+import '../../activity/domain/entities/activity_entity.dart';
+
 /// FFM Offline Agent Harness — terinspirasi arsitektur modular DeepSeek Harness (dsh).
 ///
 /// Setiap kemampuan asisten (baca data, aksi, kalkulasi) dimodelkan sebagai
@@ -85,6 +87,7 @@ class FfmHarnessContext {
     required this.householdId,
     required this.now,
     this.parameters = const <String, Object?>{},
+    this.activitySnapshot,
   });
 
   final String rawText;
@@ -94,6 +97,9 @@ class FfmHarnessContext {
 
   /// Parameter tambahan yang bisa diisi oleh harness sebelum dispatch ke plugin.
   final Map<String, Object?> parameters;
+
+  /// Snapshot live aktivitas yang sedang berjalan di layar (in-memory state).
+  final ActivityLiveSnapshot? activitySnapshot;
 }
 
 /// FFM Offline Agent Harness — Registry & Dispatcher utama.

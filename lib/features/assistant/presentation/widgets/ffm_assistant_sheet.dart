@@ -6,13 +6,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+
 import '../../../../core/di/injection.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../activity/domain/activity_voice.dart';
+import '../../../activity/domain/services/activity_application_service.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
+import '../../../activity/presentation/widgets/activity_live_bar.dart';
 import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
 import '../../data/ffm_assistant_chat_history_repository.dart';
@@ -23,6 +27,10 @@ import '../../data/ffm_assistant_chat_export_service.dart';
 import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_slm_follow_up_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_memory_learning_service.dart';
+import '../../domain/ffm_memory_candidate.dart';
+import '../../domain/ffm_memory_type.dart';
+
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
 import '../../data/ffm_local_model_service.dart';
 import '../../domain/ffm_assistant_action_plan.dart';
@@ -42,7 +50,6 @@ import 'ffm_memory_nudge_card.dart';
 import 'gemini_header.dart';
 import 'gemini_typing_indicator.dart';
 import 'ffm_assistant_page_context.dart';
-import 'ffm_agent_status_indicator.dart';
 import '../../data/ffm_image_helper.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
 import 'ffm_assistant_message_correction_dialog.dart';
@@ -133,12 +140,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _slmFollowUpService = getIt<FfmAssistantSlmFollowUpService>();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
-  final _agentStatus = getIt.isRegistered<FfmAgentStatusController>()
-      ? getIt<FfmAgentStatusController>()
-      : FfmAgentStatusController();
   final _modelService = getIt<FfmLocalModelService>();
   final _chatExportService = FfmAssistantChatExportService();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
+  final _memoryLearning = getIt<FfmMemoryLearningService>();
   final _responseFeedbackRepository =
       getIt<FfmAssistantResponseFeedbackRepository>();
   final _unansweredRepository =
@@ -201,7 +206,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       ),
     );
     if (mounted) setState(() {});
-    _agentStatus.working(message);
   }
 
   FfmAssistantProcessTrace _traceFor(
@@ -211,11 +215,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }) {
     final origin = intent.responseOrigin;
     final visionFailure = intent.visionFailure;
+    final pluginName = intent.pluginName;
+    final pluginCategory = intent.pluginCategory;
+
     final sourceEvent = switch (origin) {
-      FfmAssistantResponseOrigin.agentOrchestrator => const (
-        label: 'Agent Orkestrator menyelesaikan rute lokal',
-        detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
-      ),
+      FfmAssistantResponseOrigin.agentOrchestrator => pluginName != null
+          ? (
+              label: '$pluginCategory Plugin: ${_pluginDisplayName(pluginName)} selesai',
+              detail: 'Data dibaca langsung dari database lokal. Tidak ada koneksi internet.',
+            )
+          : const (
+              label: 'Agent Orkestrator menyelesaikan rute lokal',
+              detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
+            ),
       FfmAssistantResponseOrigin.localSlm => const (
         label: 'SLM lokal mengembalikan proposal valid',
         detail: 'Proposal tetap divalidasi FFM sebelum ditampilkan.',
@@ -232,6 +244,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       fallbackReason: origin == FfmAssistantResponseOrigin.localFallback
           ? visionFailure?.traceLabel ?? 'Proposal visi ditolak validator'
           : null,
+      pluginName: pluginName,
+      pluginCategory: pluginCategory,
       events: [
         ..._activeProcessEvents,
         if (_activeProcessEvents.isEmpty)
@@ -249,6 +263,41 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       ],
     );
   }
+
+  static String _pluginDisplayName(String pluginName) => switch (pluginName) {
+    'balance_sense' => 'Saldo & Rekening',
+    'transaction_sense' => 'Ringkasan Transaksi',
+    'budget_sense' => 'Anggaran',
+    'debt_sense' => 'Hutang',
+    'asset_sense' => 'Aset',
+    'goal_sense' => 'Target Tabungan',
+    'user_habits_profile' => 'Profil & Kebiasaan',
+    'receivable_sense' => 'Piutang',
+    'recurring_transaction_sense' => 'Transaksi Berulang',
+    'daily_notes_sense' => 'Catatan Harian',
+    'task_sense' => 'Daftar Tugas',
+    'schedule_sense' => 'Agenda & Jadwal',
+    'routine_sense' => 'Rutinitas Harian',
+    'top_merchant_sense' => 'Analisis Merchant',
+    'activity_report_sense' => 'Laporan Aktivitas',
+    'live_activity_sense' => 'Live Activity (Layar)',
+    'quick_note_actuator' => 'Quick Note Cepat',
+    'activity_context_logic' => 'Konteks & Durasi Sesi',
+    'activity_guard' => 'Pengaman Aktivitas',
+    'zakat_logic' => 'Kalkulator Zakat',
+    'financial_health_logic' => 'Kesehatan Keuangan',
+    'budget_guard_logic' => 'Budget Guard',
+    'loan_affordability_logic' => 'Kemampuan Pinjaman',
+    'spending_pace_logic' => 'Laju Pengeluaran',
+    'holistic_awareness' => 'Potret 360°',
+    'emergency_fund_logic' => 'Dana Darurat',
+    'debt_snowball_logic' => 'Strategi Bebas Hutang',
+    'saving_rate_logic' => 'Rasio Menabung',
+    _ => pluginName,
+  };
+
+
+
 
   Future<void> _showActiveProcessDetails() async {
     await showModalBottomSheet<void>(
@@ -311,15 +360,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     trace.events.insertAll(trace.events.length - 1, newEvents);
   }
 
-  String _completedProcessLabel(FfmAssistantIntent intent) =>
-      switch (intent.responseOrigin) {
-        FfmAssistantResponseOrigin.localSlm =>
-          'Jawaban dibantu SLM lokal dan siap diperiksa.',
-        FfmAssistantResponseOrigin.localFallback =>
-          'SLM lokal belum memberi hasil valid; fallback siap diperiksa.',
-        FfmAssistantResponseOrigin.agentOrchestrator =>
-          'Agent Orkestrator menyelesaikan jawaban lokal.',
-      };
+
 
   void _showTechnicalDetails(FfmAssistantIntent intent) {
     showModalBottomSheet<void>(
@@ -365,6 +406,56 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
         }
       },
+    );
+  }
+
+  /// Tahap 1 pendekatan hybrid: aktifkan pipeline pembelajaran memori dari
+  /// tiap giliran chat. Kandidat disimpan ke database lokal; yang butuh
+  /// persetujuan menunggu review, pola otomatis langsung aktif.
+  Future<void> _learnFromTurn({
+    required String userQuery,
+    String? assistantResponse,
+  }) async {
+    try {
+      final existingRecords = await _memoryRepository.readActive();
+      final existing = existingRecords.map(_recordToCandidate).toList();
+      final candidates = await _memoryLearning.extractCandidates(
+        userQuery: userQuery,
+        assistantResponse: assistantResponse,
+        usedMemories: const [],
+      );
+      final validated = _memoryLearning.validateCandidates(candidates, existing);
+      if (validated.isEmpty) return;
+      await _memoryLearning.promoteCandidates(
+        candidates: validated,
+        requireApproval: true,
+      );
+    } on Object {
+      // Pembelajaran bersifat best-effort; jangan ganggu alur chat.
+    }
+  }
+
+  FfmMemoryCandidate _recordToCandidate(FfmAssistantMemoryRecord record) {
+    final type = FfmMemoryType.values.firstWhere(
+      (type) => type.name.toLowerCase() == record.kind.toLowerCase(),
+      orElse: () => FfmMemoryType.working,
+    );
+    final rawConfidence = record.metadata['confidence'];
+    return FfmMemoryCandidate(
+      id: record.id,
+      type: type,
+      key: record.triggerText,
+      value: record.valueText,
+      evidence: FfmMemoryEvidence(
+        source: FfmMemorySource.userExplicit,
+        sourceId: record.source,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt ?? record.createdAt,
+        confidence: rawConfidence is num
+            ? rawConfidence.toDouble().clamp(0, 1).toDouble()
+            : 0.5,
+        approved: record.metadata['approved'] == true,
+      ),
     );
   }
 
@@ -593,7 +684,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final detail = failedStep?.error;
       final message =
           'Proses berhenti pada $failureLabel. $partial${detail == null || detail.isEmpty ? '' : ' Detail: $detail'} Tidak ada perubahan data yang dijalankan.';
-      _agentStatus.failed('Pembacaan data belum selesai.');
       setState(() {
         widget.session.lastAssistantText = message;
         _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -601,7 +691,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _scrollToEnd();
       return;
     }
-    _agentStatus.done('Data dibaca; jawaban siap diperiksa.');
     setState(() {});
   }
 
@@ -628,7 +717,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   ) async {
     final isActivity = intent.draft?.formValues['entity'] == 'activity_session';
     final subject = isActivity ? 'Aktivitas' : 'Transaksi';
-    _agentStatus.working('Menyimpan perubahan yang sudah kamu konfirmasi...');
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
     final failed = plan.steps.where(
@@ -636,32 +724,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
     if (plan.status != FfmAssistantActionPlanStatus.completed ||
         failed.isNotEmpty) {
-      final detail = failed.isEmpty
-          ? 'Perubahan tidak dijalankan.'
-          : failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
+      final failureLabel = failed.isEmpty
+          ? (plan.blockedReason == null
+                ? 'batas proses'
+                : 'batas proses (${plan.blockedReason})')
+          : _capabilityLabel(failed.first.capabilityId);
+      final detail = failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
       final message =
-          'Perubahan ${subject.toLowerCase()} tidak selesai. $detail';
-      _agentStatus.failed('Perubahan ${subject.toLowerCase()} belum selesai.');
+          'Perubahan ${subject.toLowerCase()} tidak selesai ($failureLabel). $detail';
       setState(() {
         widget.session.lastAssistantText = message;
         _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
-        _queuedIntents.remove(intent);
       });
       _scrollToEnd();
       return;
     }
     final verify = plan.steps.where(
-      (step) =>
-          step.capabilityId == 'verify.transaction_mutation' ||
-          step.capabilityId == 'verify.activity_mutation',
+      (step) => step.status == FfmAssistantActionStepStatus.completed,
     );
     final message = verify.isEmpty
         ? 'Perubahan ${subject.toLowerCase()} selesai dan sudah dicatat secara lokal.'
         : verify.first.result ??
               'Perubahan ${subject.toLowerCase()} selesai dan telah diverifikasi.';
-    _agentStatus.done(
-      'Perubahan ${subject.toLowerCase()} selesai dan terverifikasi.',
-    );
     setState(() {
       widget.session.lastAssistantText = message;
       _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
@@ -758,8 +842,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _checkForMemoryNudge(text);
     if (hasImage) {
       final stopwatch = Stopwatch()..start();
-      _setActiveProcess('Menganalisis lampiran secara lokal...');
+      _setActiveProcess('Tahap 1/3: Menyiapkan lampiran foto...');
       try {
+        _setActiveProcess('Tahap 2/3: Menganalisis gambar dengan SLM lokal / OCR...');
         final intent = await _interpreter.interpret(
           text,
           imagePath: stagedImage.path,
@@ -771,7 +856,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
         );
         stopwatch.stop();
-        _setActiveProcess('Memvalidasi hasil pembacaan lampiran...');
+        _setActiveProcess('Tahap 3/3: Memvalidasi hasil & menyusun draft...');
         if (!mounted) return;
         final traceEventCount = _activeProcessEvents.length;
         final processTrace = _traceFor(
@@ -838,9 +923,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           await _executeReadPlan(planId);
         }
         _appendProcessEventsToTrace(processTrace, traceEventCount);
-        if (readPlanIds.isEmpty) {
-          _agentStatus.done(_completedProcessLabel(intent));
-        }
         if (intent.type == FfmAssistantIntentType.unknown) {
           await _unansweredRepository.record(
             rawQuestion: text,
@@ -848,9 +930,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           );
         }
         _updateWorkingContextAfterTurn(userQuery: text, intents: [intent]);
+        unawaited(
+          _learnFromTurn(userQuery: text, assistantResponse: intent.response),
+        );
         if (mounted) setState(() { _retryImagePath = null; _retryText = null; });
       } catch (_) {
-        _agentStatus.failed('Gambar belum berhasil dipahami.');
         if (!mounted) return;
         setState(() {
           _retryImagePath = stagedImage.path;
@@ -872,18 +956,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     final stopwatch = Stopwatch()..start();
-    _setActiveProcess('Menganalisis permintaan secara lokal...');
+    _setActiveProcess('Tahap 1/2: Merutekan permintaan ke plugin & SLM lokal...');
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
-      _setActiveProcess(
-        pending == null
-            ? 'Menyiapkan konteks halaman dan percakapan...'
-            : 'Menyiapkan jawaban untuk dialog yang tertunda...',
-      );
+      if (pending != null) {
+        _setActiveProcess('Tahap 1/2: Menyiapkan jawaban dialog tertunda...');
+      }
       final conversationHistory = _buildRecentConversationHistory();
       final lastAssistant = widget.session.lastAssistantText;
+      final activitySnapshot = getIt.isRegistered<ActivityBloc>()
+          ? getIt<ActivityBloc>().state.toSnapshot()
+          : null;
       final intents = pending == null
           ? await _interpreter.interpretMany(
               text,
@@ -896,6 +981,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               conversationHistory: conversationHistory,
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
+              activitySnapshot: activitySnapshot,
             )
           : await _interpreter.resolvePendingDialog(
               text,
@@ -909,7 +995,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   widget.currentPageContext?.capabilityIds ?? const [],
             );
       stopwatch.stop();
-      _setActiveProcess('Memvalidasi hasil pemahaman dan rencana lokal...');
+      _setActiveProcess('Tahap 2/2: Memvalidasi hasil & menyusun respons...');
+
       if (!mounted) return;
       final readPlanIds = <String>[];
       final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
@@ -983,13 +1070,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       for (final snapshot in traceSnapshots) {
         _appendProcessEventsToTrace(snapshot.$1, snapshot.$2);
       }
-      if (readPlanIds.isEmpty) {
-        _agentStatus.done(
-          intents.length == 1
-              ? _completedProcessLabel(intents.single)
-              : 'Agent Orkestrator menyelesaikan ${intents.length} respons.',
-        );
-      }
       if (intents.any(
         (intent) => intent.type == FfmAssistantIntentType.unknown,
       )) {
@@ -999,8 +1079,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
       }
       _updateWorkingContextAfterTurn(userQuery: text, intents: intents);
+      unawaited(
+        _learnFromTurn(
+          userQuery: text,
+          assistantResponse: intents.last.response,
+        ),
+      );
     } catch (_) {
-      _agentStatus.failed('Permintaan belum berhasil diproses.');
       if (!mounted) return;
       setState(
         () => _appendEntry(
@@ -1995,6 +2080,81 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
+  Future<void> _openUpdateCheckpointFromLiveBar(ActivitySessionEntity session) async {
+    final controller = TextEditingController();
+    final label = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text('Update Checkpoint untuk ${session.title}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Contoh: Rest Area KM 120, Masuk Tol, dsb.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    if (label == null || label.isEmpty || !mounted) return;
+
+    if (getIt.isRegistered<ActivityApplicationService>()) {
+      final res = await getIt<ActivityApplicationService>().addCheckpoint(
+        operationId: '${DateTime.now().millisecondsSinceEpoch}-cp',
+        sessionId: session.id,
+        label: label,
+        source: ActivityEntrySource.assistant,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res.message)),
+      );
+    }
+  }
+
+  Future<void> _finishSessionFromLiveBar(ActivitySessionEntity session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: Text('Selesaikan ${session.title}?'),
+        content: const Text('Sesi aktivitas ini akan ditutup dan durasinya direkam.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(true),
+            child: const Text('Selesaikan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    if (getIt.isRegistered<ActivityApplicationService>()) {
+      final res = await getIt<ActivityApplicationService>().finishSession(
+        operationId: '${DateTime.now().millisecondsSinceEpoch}-finish',
+        sessionId: session.id,
+        source: ActivityEntrySource.assistant,
+        forceCloseChildren: true,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res.message)),
+      );
+    }
+  }
+
   void _updateLatestMessagePreference() {
     if (!_scrollController.hasClients) return;
     final distanceToEnd =
@@ -2430,6 +2590,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       ),
                     ),
                   ),
+                ),
+              if (getIt.isRegistered<ActivityBloc>())
+                BlocBuilder<ActivityBloc, ActivityState>(
+                  bloc: getIt<ActivityBloc>(),
+                  builder: (context, actState) {
+                    final snapshot = actState.toSnapshot();
+                    if (!snapshot.hasActiveSessions) return const SizedBox.shrink();
+                    return ActivityLiveBar(
+                      snapshot: snapshot,
+                      onUpdateCheckpoint: (session) => _openUpdateCheckpointFromLiveBar(session),
+                      onFinishSession: (session) => _finishSessionFromLiveBar(session),
+                    );
+                  },
                 ),
               SafeArea(
                 top: false,

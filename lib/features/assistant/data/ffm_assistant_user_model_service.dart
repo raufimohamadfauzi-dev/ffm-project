@@ -50,12 +50,17 @@ class FfmAssistantUserModelService {
   }
 
   Future<List<FfmAssistantUserModelEntry>> readApproved({String? kind}) async {
-    final records = await _memories.readActive(
-      kind: kind == null ? null : 'user_$kind',
-    );
+    final records = kind == null
+        ? await _memories.readActive()
+        : await _memories.readActive(kind: 'user_$kind');
     return records
-        .where((record) => record.metadata['scope'] == 'user-model')
-        .where((record) => record.metadata['approved'] != false)
+        .where(
+          (record) =>
+              // Ajaran eksplisit user (scope user-model) ATAU memori hasil
+              // pembelajaran otomatis yang sudah disetujui (habit/pola).
+              record.metadata['scope'] == 'user-model' ||
+              record.metadata['approved'] == true,
+        )
         .map(_entry)
         .toList(growable: false);
   }

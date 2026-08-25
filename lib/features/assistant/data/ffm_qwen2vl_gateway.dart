@@ -10,6 +10,7 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_know
 
 import 'package:ffm_manager/features/assistant/data/ffm_local_proposal.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_answer_composer.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_category_suggestion_service.dart';
 
 import 'ffm_assistant_slm_follow_up_contract.dart';
 import 'ffm_error_logging_service.dart';
@@ -19,7 +20,8 @@ class FfmQwen2VlGateway
         FfmAssistantLocalModelGateway,
         FfmAssistantSlmFollowUpGenerator,
         FfmAssistantVisionDiagnostics,
-        FfmAssistantAnswerComposer {
+        FfmAssistantAnswerComposer,
+        FfmAssistantCategoryAdvisor {
   FfmQwen2VlGateway(
     this._modelService,
     this._inferenceService, {
@@ -130,6 +132,36 @@ ATURAN MUTLAK:
       ).timeout(const Duration(seconds: 20), onTimeout: () => null);
       if (response == null) return null;
       return FfmAssistantComposedAnswerContract.sanitize(response);
+    } on Object {
+      return null;
+    }
+  }
+
+  @override
+  Future<String?> suggestCategory({
+    required String description,
+    required List<String> allowedCategories,
+  }) async {
+    if (_inferenceService.isBusy || allowedCategories.isEmpty) return null;
+    try {
+      await _ensureInitialized();
+      final response = await _inferenceService.tryGenerateJsonWhenIdle(
+        systemPrompt: '''
+Anda adalah pengklasifikasi kategori transaksi untuk aplikasi keuangan keluarga FFM.
+Pilih SATU kategori yang paling tepat dari daftar yang diberikan.
+
+ATURAN MUTLAK:
+1. Jawaban harus persis salah satu nama dari daftar (tanpa diubah, tanpa ditambah).
+2. Keluarkan JSON valid saja: {"category":"nama kategori"}.
+3. Jangan mengarang kategori baru. Jika tidak ada yang cocok, pilih yang paling umum/mirip.
+4. Jangan menambah teks lain selain JSON.
+''',
+        userPrompt:
+            'DESKRIPSI TRANSAKSI:\n$description\n\nDAFTAR KATEGORI:\n'
+            '${allowedCategories.join('\n')}',
+      ).timeout(const Duration(seconds: 15), onTimeout: () => null);
+      if (response == null) return null;
+      return FfmAssistantCategoryAdviceContract.parse(response, allowedCategories);
     } on Object {
       return null;
     }

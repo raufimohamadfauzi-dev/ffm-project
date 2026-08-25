@@ -1,7 +1,22 @@
 /// Plugin kategori Actuator (Tangan) — Menyiapkan draf aksi dan format ekspor.
 /// Tidak melakukan penulisan ke database secara langsung (wajib konfirmasi pengguna).
 
+import 'dart:convert';
+
+import 'package:drift/drift.dart';
+
+import '../../../../core/database/app_database.dart';
 import '../../domain/ffm_agent_harness.dart';
+
+String _householdId() => 'local-household';
+
+
+bool _hasSpecificDetails(String text) {
+  return RegExp(
+    r'(\d+|ribu|juta|miliar|rb|jt|k\b|rp|senilai|bayar|listrik|beli|sekolah|kantor|bca|mandiri|bri|seabank|tunai|gopay|ovo|dana\b)',
+    caseSensitive: false,
+  ).hasMatch(text);
+}
 
 /// Plugin Tangan: Membantu menyiapkan draf transaksi pemasukan/pengeluaran/transfer.
 class FfmTransactionActuatorPlugin extends FfmAgentPlugin {
@@ -23,6 +38,13 @@ class FfmTransactionActuatorPlugin extends FfmAgentPlugin {
     'pindahkan uang',
     'isi form transaksi',
   ];
+
+  @override
+  bool canHandle(String normalizedText) {
+    if (_hasSpecificDetails(normalizedText)) return false;
+    final lower = normalizedText.toLowerCase();
+    return triggers.any((t) => lower.contains(t));
+  }
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
@@ -58,6 +80,13 @@ class FfmGoalActuatorPlugin extends FfmAgentPlugin {
   ];
 
   @override
+  bool canHandle(String normalizedText) {
+    if (_hasSpecificDetails(normalizedText)) return false;
+    final lower = normalizedText.toLowerCase();
+    return triggers.any((t) => lower.contains(t));
+  }
+
+  @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     return const FfmHarnessResult(
       pluginName: 'goal_actuator',
@@ -88,6 +117,13 @@ class FfmReminderActuatorPlugin extends FfmAgentPlugin {
     'jadwalkan pengingat',
     'tambah pengingat',
   ];
+
+  @override
+  bool canHandle(String normalizedText) {
+    if (_hasSpecificDetails(normalizedText)) return false;
+    final lower = normalizedText.toLowerCase();
+    return triggers.any((t) => lower.contains(t));
+  }
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
@@ -138,9 +174,10 @@ class FfmReportActuatorPlugin extends FfmAgentPlugin {
 }
 
 /// Plugin Tangan & Logika: Pembuat data dan template JSON untuk transaksi,
-/// anggaran, dan backup saat diminta user di chat.
+/// anggaran, dan backup saat diminta user di chat secara natural dari data riil.
 class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
-  FfmJsonGeneratorPlugin();
+  FfmJsonGeneratorPlugin([this._db]);
+  final AppDatabase? _db;
 
   @override
   String get name => 'json_generator';
@@ -156,15 +193,60 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
     'template json belanja',
     'generate json',
     'buat format json',
+    'ekspor json',
+    'json transaksi',
   ];
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    final db = _db;
+    if (db != null) {
+      final householdId = _householdId();
+      final latestTxs = await (db.select(db.transactions)
+            ..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false),
+            )
+            ..orderBy([(row) => OrderingTerm.desc(row.date)])
+            ..limit(5))
+          .get();
+
+      if (latestTxs.isNotEmpty) {
+        final txList = latestTxs.map((t) {
+          return {
+            'id': t.id,
+            'date': '${t.date.year}-${t.date.month.toString().padLeft(2, '0')}-${t.date.day.toString().padLeft(2, '0')}',
+            'type': t.type,
+            'amount': t.amount.abs(),
+            'note': t.note ?? '',
+          };
+        }).toList();
+
+        final naturalJson = const JsonEncoder.withIndent('  ').convert({
+          'householdId': householdId,
+          'generatedAt': context.now.toIso8601String(),
+          'recentTransactions': txList,
+        });
+
+        return FfmHarnessResult(
+          pluginName: name,
+          category: category,
+          isDraft: true,
+          text: '📦 **Ekspor Data JSON Transaksi Terkini**\n\n'
+              'Berikut data transaksi riil dari database lokal kamu dalam format JSON:\n\n'
+              '```json\n$naturalJson\n```\n\n'
+              '💡 Format ini valid dan siap dipakai untuk integrasi atau arsip data.',
+        );
+      }
+    }
+
     const jsonExample = '''```json
 {
   "transactions": [
     {
-      "date": "2026-08-24",
+      "date": "2026-08-25",
       "type": "expense",
       "amount": 50000,
       "account": "BCA",
@@ -172,7 +254,7 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
       "note": "Makan Siang Soto Ayam"
     },
     {
-      "date": "2026-08-24",
+      "date": "2026-08-25",
       "type": "income",
       "amount": 5000000,
       "account": "BCA",
@@ -194,3 +276,4 @@ class FfmJsonGeneratorPlugin extends FfmAgentPlugin {
     );
   }
 }
+

@@ -24,6 +24,7 @@ import '../domain/ffm_assistant_self_description.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
 import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
+import '../../activity/domain/entities/activity_entity.dart';
 import 'ffm_assistant_knowledge_base.dart';
 import '../domain/ffm_agent_harness.dart';
 import 'ffm_agent_plugins.dart';
@@ -32,6 +33,7 @@ import 'ffm_agent_plugins.dart';
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
 import 'ffm_assistant_local_model_gateway.dart';
 import 'ffm_assistant_answer_composer.dart';
+import 'ffm_category_suggestion_service.dart';
 import 'ffm_local_inference_queue.dart';
 
 class FfmAssistantInterpreter {
@@ -47,6 +49,7 @@ class FfmAssistantInterpreter {
     FfmPersonalContextProvider? Function()? personalContextProvider,
     Future<bool> Function()? slmReadyCheck,
     FfmAssistantAnswerComposer? answerComposer,
+    FfmCategorySuggestionService? categorySuggestion,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _modelGateway = modelGateway,
        _personalization =
@@ -58,7 +61,8 @@ class FfmAssistantInterpreter {
        _diagnostics = diagnostics ?? AppDiagnosticsService(),
        _selfDescription =
            selfDescription ?? const FfmAssistantSelfDescriptionService(),
-       _answerComposer = answerComposer {
+       _answerComposer = answerComposer,
+       _categorySuggestion = categorySuggestion {
     _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
@@ -69,6 +73,7 @@ class FfmAssistantInterpreter {
   final FfmAssistantLocalMemory _memory;
   final FfmAssistantLocalModelGateway? _modelGateway;
   final FfmAssistantAnswerComposer? _answerComposer;
+  final FfmCategorySuggestionService? _categorySuggestion;
   final FfmAssistantPersonalizationRepository _personalization;
   final Future<bool> Function()? _slmReadyCheck;
   final FfmAssistantMemoryRepository _taughtMemory;
@@ -131,6 +136,7 @@ class FfmAssistantInterpreter {
     String? lastAssistantMessage,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
+    ActivityLiveSnapshot? activitySnapshot,
   }) async {
     final commands = _splitCompositeCommands(rawText);
     if (commands.length >
@@ -154,6 +160,7 @@ class FfmAssistantInterpreter {
           lastAssistantMessage: lastAssistantMessage,
           conversationHistory: conversationHistory,
           capabilityIds: capabilityIds,
+          activitySnapshot: activitySnapshot,
         ),
       ];
     }
@@ -167,6 +174,7 @@ class FfmAssistantInterpreter {
           lastAssistantMessage: lastAssistantMessage,
           conversationHistory: conversationHistory,
           capabilityIds: capabilityIds,
+          activitySnapshot: activitySnapshot,
         ),
       );
     }
@@ -372,6 +380,7 @@ class FfmAssistantInterpreter {
     String? lastAssistantMessage,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
+    ActivityLiveSnapshot? activitySnapshot,
   }) async {
     var normalized = _normalize(rawText);
 
@@ -1160,32 +1169,31 @@ class FfmAssistantInterpreter {
     // 100% offline dan deterministik, hasilnya lebih cepat dan lebih hemat
     // memori dibandingkan memanggil model bahasa untuk query yang sudah ada
     // jawaban lokalnya.
-    //
-    // GUARD: Jika kalimat berisi kata kerja aksi (catat, buat, atur, tambah…),
-    // lewati harness agar parser draft rule-based tetap menanganinya.
-    final _isActionCommand = RegExp(
-      r'\b(catat|buat|tambah|atur|mulai|selesai|simpan|transfer|pindah|bayar|hapus|ubah|update|ingatkan|input)\b',
-      caseSensitive: false,
-    ).hasMatch(normalized);
-
-    if (!_isActionCommand) {
-      final harnessResult = await _harness.dispatch(
-        FfmHarnessContext(
-          rawText: rawText,
-          normalizedText: normalized,
-          householdId: AppContext.householdId,
-          now: _clock(),
-        ),
+    final harnessResult = await _harness.dispatch(
+      FfmHarnessContext(
+        rawText: rawText,
+        normalizedText: normalized,
+        householdId: AppContext.householdId,
+        now: _clock(),
+        activitySnapshot: activitySnapshot,
+      ),
+    );
+    if (harnessResult != null) {
+      final catLabel = switch (harnessResult.category) {
+        FfmPluginCategory.sense => '👁️ Sense',
+        FfmPluginCategory.actuator => '✋ Actuator',
+        FfmPluginCategory.logic => '🧮 Logic',
+      };
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: harnessResult.isDraft ? FfmAssistantIntentType.confirm : FfmAssistantIntentType.queryData,
+        confidence: .97,
+        response: harnessResult.text,
+        pluginName: harnessResult.pluginName,
+        pluginCategory: catLabel,
+        pluginMetadata: harnessResult.metadata,
       );
-      if (harnessResult != null) {
-        return FfmAssistantIntent(
-          rawText: rawText,
-          normalizedText: normalized,
-          type: FfmAssistantIntentType.queryData,
-          confidence: .97,
-          response: harnessResult.text,
-        );
-      }
     }
 
     final modelIntent = await _tryModelFirst(
@@ -1274,12 +1282,13 @@ class FfmAssistantInterpreter {
       categories,
     );
     if (draft != null) {
+      final enriched = await _enrichWithCategorySuggestion(rawText, draft);
       _sessionMemory.updateFromDraft(
-        accountName: draft.fromAccountName ?? draft.toAccountName,
-        categoryName: draft.categoryName,
-        amount: draft.amount,
+        accountName: enriched.fromAccountName ?? enriched.toAccountName,
+        categoryName: enriched.categoryName,
+        amount: enriched.amount,
       );
-      return _intentForDraft(rawText, normalized, draft);
+      return _intentForDraft(rawText, normalized, enriched);
     }
 
     final mentionsAccount = _containsAny(normalized, const [
@@ -1861,7 +1870,8 @@ class FfmAssistantInterpreter {
       if (draft == null) return null;
       // Reuse deterministic validation and clarification rules. The model never
       // gets to choose account/category IDs or write to the database.
-      final validated = _intentForDraft(rawText, normalized, draft);
+      final enriched = await _enrichWithCategorySuggestion(rawText, draft);
+      final validated = _intentForDraft(rawText, normalized, enriched);
       return validated.copyWith(
         responseMode: FfmAssistantResponseMode.localModel,
         responseOrigin: FfmAssistantResponseOrigin.localSlm,
@@ -2602,6 +2612,37 @@ class FfmAssistantInterpreter {
         (text.contains('aplikasi') || text.contains('ffm'));
     return namesDatabase || asksAppData;
   }
+
+  /// Melengkapi draft transaksi yang belum punya kategori dengan saran
+  /// berlapis: pola historis pengguna (Agent) → tebakan SLM dari daftar
+  /// kategori resmi. Draft tanpa saran dikembalikan apa adanya.
+  Future<FfmAssistantDraft> _enrichWithCategorySuggestion(
+    String rawText,
+    FfmAssistantDraft draft,
+  ) async {
+    final suggestionService = _categorySuggestion;
+    if (suggestionService == null) return draft;
+    if (draft.categoryName != null) return draft;
+    try {
+      final suggestion = await suggestionService.suggestForDraft(
+        kind: draft.kind,
+        queryText: draft.note ?? rawText,
+        merchantName: draft.merchantName,
+      );
+      if (suggestion == null) return draft;
+      return draft.copyWith(
+        categoryName: suggestion.categoryName,
+        slmFieldValues: {
+          ...draft.slmFieldValues,
+          'category': suggestion.categoryName,
+          'categorySource': suggestion.sourceLabel,
+        },
+      );
+    } on Object {
+      return draft;
+    }
+  }
+
 
   FfmAssistantIntent _intentForDraft(
     String rawText,

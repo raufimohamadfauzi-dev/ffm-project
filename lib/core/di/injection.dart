@@ -5,6 +5,7 @@ import '../database/audit_logger.dart';
 import '../diagnostics/app_diagnostics_service.dart';
 import '../security/app_pin_service.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
+import '../../features/activity/domain/services/activity_application_service.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
 import '../../features/daily_notes/data/daily_note_repository.dart';
 import '../../features/tasks/data/task_repository.dart';
@@ -21,6 +22,8 @@ import '../../features/assistant/data/ffm_assistant_personalization_repository.d
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_answer_composer.dart';
+import '../../features/assistant/data/ffm_category_suggestion_service.dart';
+import '../../features/assistant/data/ffm_activity_habit_learner.dart';
 import '../../features/assistant/data/ffm_assistant_slm_follow_up_service.dart';
 import '../../features/assistant/data/ffm_local_inference_queue.dart';
 import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
@@ -34,10 +37,8 @@ import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_memory_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
-import '../../features/assistant/data/ffm_assistant_upgrade_pack_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
 import '../../features/assistant/data/ffm_local_model_service.dart';
-import '../../features/assistant/presentation/widgets/ffm_agent_status_indicator.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -62,7 +63,6 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   if (getIt.isRegistered<AppDatabase>()) return;
   final db = database ?? AppDatabase.openDefault();
   getIt.registerSingleton<AppDatabase>(db);
-  getIt.registerSingleton<FfmAgentStatusController>(FfmAgentStatusController());
   getIt.registerLazySingleton<AppDiagnosticsService>(AppDiagnosticsService.new);
   getIt.registerLazySingleton<AppPinService>(AppPinService.new);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
@@ -126,7 +126,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => ActivityRepository(
       db,
       getIt<AuditLogger>(),
-      status: getIt<FfmAgentStatusController>(),
+      habitLearner: getIt<FfmActivityHabitLearner>(),
     ),
   );
   getIt.registerLazySingleton<DailyNoteRepository>(
@@ -141,8 +141,15 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<ScheduleRepository>(
     () => ScheduleRepository(db, getIt<AuditLogger>()),
   );
-  getIt.registerFactory<ActivityBloc>(
+  // ActivityBloc as LazySingleton so it can be shared with ActivityApplicationService
+  getIt.registerLazySingleton<ActivityBloc>(
     () => ActivityBloc(getIt<ActivityRepository>()),
+  );
+  getIt.registerLazySingleton<ActivityApplicationService>(
+    () => ActivityApplicationService(
+      repository: getIt<ActivityRepository>(),
+      activityBloc: getIt<ActivityBloc>(),
+    ),
   );
   getIt.registerLazySingleton<ReminderRepository>(() => ReminderRepository(db));
   getIt.registerLazySingleton<ReminderOccurrenceCalculator>(
@@ -160,7 +167,6 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       notificationService: getIt<ReminderNotificationService>(),
       occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
       householdId: 'local-household',
-      status: getIt<FfmAgentStatusController>(),
     ),
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
@@ -234,9 +240,6 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () =>
         FfmAssistantKnowledgePackService(getIt<FfmAssistantMemoryRepository>()),
   );
-  getIt.registerLazySingleton<FfmAssistantUpgradePackService>(
-    () => FfmAssistantUpgradePackService(getIt<FfmAssistantMemoryRepository>()),
-  );
   getIt.registerLazySingleton<FfmAssistantCapabilityAdapterRegistry>(
     () => FfmAssistantCapabilityAdapterRegistry(
       database: db,
@@ -246,6 +249,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
         notificationGateway: getIt<ReminderNotificationService>(),
         occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
       ),
+      habitLearner: getIt<FfmActivityHabitLearner>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmActivityHabitLearner>(
+    () => FfmActivityHabitLearner(db, getIt<FfmAssistantMemoryRepository>()),
+  );
+  getIt.registerLazySingleton<FfmCategorySuggestionService>(
+    () => FfmCategorySuggestionService(
+      database: db,
+      personalization: getIt<FfmAssistantPersonalizationRepository>(),
+      advisor: getIt<FfmQwen2VlGateway>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
@@ -260,6 +274,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       slmReadyCheck: () async =>
           await getIt<FfmLocalModelService>().getInstalled() != null,
       answerComposer: getIt<FfmAssistantAnswerComposer>(),
+      categorySuggestion: getIt<FfmCategorySuggestionService>(),
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(

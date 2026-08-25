@@ -11,7 +11,6 @@ import '../../data/ffm_assistant_learning_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
-import '../../data/ffm_assistant_upgrade_pack_service.dart';
 import 'assistant_training_import_dialog.dart';
 
 class _AssistantTrainingData {
@@ -43,7 +42,6 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
   final _repository = getIt<FfmAssistantMemoryRepository>();
   final _learningRepository = getIt<FfmAssistantLearningRepository>();
   final _knowledgePack = getIt<FfmAssistantKnowledgePackService>();
-  final _upgradePack = getIt<FfmAssistantUpgradePackService>();
   final _unansweredRepository =
       getIt<FfmAssistantUnansweredQuestionRepository>();
   final _feedbackRepository = getIt<FfmAssistantResponseFeedbackRepository>();
@@ -205,46 +203,6 @@ class _AssistantTrainingPageState extends State<AssistantTrainingPage> {
       const SnackBar(
         content: Text(
           'Dataset contoh belajar disalin tanpa nominal atau nama pribadi.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _copyUpgradePack() async {
-    final content = await _upgradePack.buildPrompt();
-    await Clipboard.setData(ClipboardData(text: content));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Paket perbaikan Asisten disalin. Tidak ada transaksi, saldo, atau alias pribadi yang ikut.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _copyQuestionBankPrompt() async {
-    final content = await _upgradePack.buildQuestionBankPrompt();
-    await Clipboard.setData(ClipboardData(text: content));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Prompt bank pertanyaan disalin. Balasan JSON bisa ditinjau lalu diimpor.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _copyMasterDataProposalPrompt() async {
-    await Clipboard.setData(
-      ClipboardData(text: _upgradePack.buildMasterDataProposalPrompt()),
-    );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Prompt proposal Data Utama disalin. Tempel JSON hasilnya ke chat Asisten untuk ditinjau.',
         ),
       ),
     );
@@ -547,21 +505,6 @@ Tugas:
                             onPressed: _copyLearningDataset,
                             icon: const Icon(Icons.dataset_outlined),
                             label: const Text('Ekspor contoh terkontrol'),
-                          ),
-                          FilledButton.tonalIcon(
-                            onPressed: _copyUpgradePack,
-                            icon: const Icon(Icons.auto_awesome_outlined),
-                            label: const Text('Paket perbaikan Asisten'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _copyQuestionBankPrompt,
-                            icon: const Icon(Icons.quiz_outlined),
-                            label: const Text('Bank pertanyaan'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _copyMasterDataProposalPrompt,
-                            icon: const Icon(Icons.account_tree_outlined),
-                            label: const Text('Proposal Data Utama'),
                           ),
                           OutlinedButton.icon(
                             onPressed: _copyApprovedFeedback,
