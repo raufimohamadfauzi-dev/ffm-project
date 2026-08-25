@@ -175,6 +175,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   // Streaming state
   final _streamingController = FfmStreamingTextController();
+
+  // Retry state for failed image processing
+  String? _retryImagePath;
+  String? _retryText;
   String? _streamingEntryKey;
   String _streamingVisibleText = '';
   StreamSubscription<String>? _streamingSubscription;
@@ -553,7 +557,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (file == null || !mounted) return;
     final chatFile = await _imageHelper.copyToPrivateChatStorage(file);
     if (!mounted) return;
-    setState(() => _pendingImage = chatFile);
+    setState(() {
+      _pendingImage = chatFile;
+      _retryImagePath = null;
+      _retryText = null;
+    });
     _inputFocusNode.requestFocus();
   }
 
@@ -705,6 +713,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         false;
   }
 
+  Future<void> _retryFailedImage() async {
+    final path = _retryImagePath;
+    final text = _retryText ?? '';
+    if (path == null || !mounted) return;
+    setState(() {
+      _retryImagePath = null;
+      _retryText = null;
+      _pendingImage = File(path);
+      _controller.text = text;
+    });
+    await _submit(text);
+  }
+
   Future<void> _submit([String? overrideText]) async {
     await _historyRestoreFuture;
     final text = (overrideText ?? _controller.text).trim();
@@ -714,6 +735,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final displayText = text.isEmpty && hasImage ? 'Gambar dilampirkan' : text;
     setState(() {
       _submitting = true;
+      _retryImagePath = null;
+      _retryText = null;
       _processStopwatch
         ..reset()
         ..start();
@@ -825,17 +848,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           );
         }
         _updateWorkingContextAfterTurn(userQuery: text, intents: [intent]);
+        if (mounted) setState(() { _retryImagePath = null; _retryText = null; });
       } catch (_) {
         _agentStatus.failed('Gambar belum berhasil dipahami.');
         if (!mounted) return;
-        setState(
-          () => _appendEntry(
+        setState(() {
+          _retryImagePath = stagedImage.path;
+          _retryText = text;
+          _appendEntry(
             const FfmAssistantChatEntry(
               isUser: false,
-              text: 'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau pastikan fitur AI lokal sudah terpasang.',
+              text: 'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau ketuk "Coba Lagi" di bawah.',
             ),
-          ),
-        );
+          );
+        });
         _scrollToEnd();
       } finally {
         _processStopwatch.stop();
@@ -2382,6 +2408,26 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              if (_retryImagePath != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _submitting ? null : _retryFailedImage,
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Coba Lagi'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFC27B5F),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
                     ),
                   ),
                 ),
