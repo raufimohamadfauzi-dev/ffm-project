@@ -366,6 +366,22 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['targetId'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.tag_update',
+      label: 'Siapkan perubahan Tag',
+      description: 'Menampilkan perubahan nama satu Tag tanpa mengubah relasi transaksi.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.masterData,
+      parameterNames: ['targetId', 'title'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.tag_archive',
+      label: 'Siapkan arsip Tag',
+      description: 'Menampilkan satu Tag yang akan diarsipkan tanpa mengubah relasi transaksi.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.masterData,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.reminder',
       label: 'Siapkan pengingat',
       description: 'Membuat draft pengingat tanpa menyimpan.',
@@ -700,6 +716,14 @@ class FfmAssistantCapabilityRegistry {
       id: 'verify.merchant_mutation',
       label: 'Verifikasi Toko/Tempat',
       description: 'Membaca kembali Toko/Tempat setelah perubahan metadata atau arsip lunak.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.tag_mutation',
+      label: 'Verifikasi Tag',
+      description:
+          'Membaca kembali Tag setelah perubahan nama atau arsip lunak.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

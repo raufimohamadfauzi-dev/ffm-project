@@ -177,6 +177,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.tagUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'tag_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Tag',
+              message: 'Target atau nama Tag belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.tagArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'tag_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Tag',
+              message: 'Tag target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.recurringTransactionUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -429,6 +451,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.recurringTransactionArchive ||
     FfmAssistantDraftKind.merchantUpdate ||
     FfmAssistantDraftKind.merchantArchive ||
+    FfmAssistantDraftKind.tagUpdate ||
+    FfmAssistantDraftKind.tagArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

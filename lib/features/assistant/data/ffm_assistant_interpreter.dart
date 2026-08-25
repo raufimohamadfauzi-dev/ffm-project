@@ -878,6 +878,9 @@ class FfmAssistantInterpreter {
     final merchantMutation = await _parseMerchantMutation(rawText, normalized);
     if (merchantMutation != null) return merchantMutation;
 
+    final tagMutation = await _parseTagMutation(rawText, normalized);
+    if (tagMutation != null) return tagMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2446,6 +2449,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveMerchant,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Toko/Tempat',
+      ),
+      FfmAssistantDraftKind.tagUpdate => (
+        type: FfmAssistantIntentType.updateTag,
+        destination: FfmAssistantDestination.masterData,
+        action: 'ubah Tag',
+      ),
+      FfmAssistantDraftKind.tagArchive => (
+        type: FfmAssistantIntentType.archiveTag,
+        destination: FfmAssistantDestination.masterData,
+        action: 'arsip Tag',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -4193,6 +4206,72 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Toko/Tempat. Transaksi historis tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Toko/Tempat. Data tidak akan muncul di transaksi baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseTagMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+tag\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+tag\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final rows =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateTag
+        : FfmAssistantIntentType.archiveTag;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Tag aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Tag yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama Tag yang lebih spesifik. Belum ada Tag atau relasi transaksi yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.tagUpdate
+          : FfmAssistantDraftKind.tagArchive,
+      createdAt: _clock(),
+      title: operation == 'update' ? update!.group(2)!.trim() : target.name,
+      formValues: {
+        'entity': 'tag',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': target.name,
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan nama satu Tag. Relasi Tag pada transaksi tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Tag. Tag tidak akan muncul pada pilihan baru, tetapi relasi pada transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 

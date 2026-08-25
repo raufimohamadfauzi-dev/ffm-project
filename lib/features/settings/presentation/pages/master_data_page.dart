@@ -10,6 +10,7 @@ import '../../../../core/di/injection.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/merchant_repository.dart';
+import '../../data/tag_repository.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -35,6 +36,7 @@ class _MasterDataPageState extends State<MasterDataPage>
   late final TabController _tabs;
   final _database = getIt<AppDatabase>();
   late final _merchants = MerchantRepository(_database, AuditLogger(_database));
+  late final _tags = TagRepository(_database, AuditLogger(_database));
   var _loading = true;
   var _refreshTick = 0;
   var _activeTab = 0;
@@ -539,20 +541,17 @@ class _MasterDataPageState extends State<MasterDataPage>
         }
       case 2:
         if (existingId == null) {
-          await _database
-              .into(_database.tags)
-              .insert(
-                TagsCompanion.insert(
-                  id: id,
-                  householdId: AppContext.householdId,
-                  name: values.name.trim(),
-                  createdAt: now,
-                ),
-              );
+          await _tags.create(
+            id: id,
+            householdId: AppContext.householdId,
+            name: values.name,
+          );
         } else {
-          await (_database.update(_database.tags)
-                ..where((row) => row.id.equals(existingId)))
-              .write(TagsCompanion(name: Value(values.name.trim())));
+          await _tags.update(
+            householdId: AppContext.householdId,
+            id: existingId,
+            name: values.name,
+          );
         }
       case 3:
         if (existingId == null) {
@@ -639,9 +638,7 @@ class _MasterDataPageState extends State<MasterDataPage>
           id: item.id,
         );
       case 2:
-        await (_database.update(_database.tags)
-              ..where((row) => row.id.equals(item.id)))
-            .write(const TagsCompanion(isArchived: Value(true)));
+        await _tags.archive(householdId: AppContext.householdId, id: item.id);
       case 3:
         await (_database.update(_database.accounts)
               ..where((row) => row.id.equals(item.id)))

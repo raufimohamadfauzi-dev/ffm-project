@@ -11,6 +11,7 @@ import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
 import '../../settings/data/merchant_repository.dart';
+import '../../settings/data/tag_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../liability/domain/entities/liability_entity.dart';
@@ -87,6 +88,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.master_data': _prepareDraft,
     'draft.merchant_update': _prepareMerchantMutation,
     'draft.merchant_archive': _prepareMerchantMutation,
+    'draft.tag_update': _prepareTagMutation,
+    'draft.tag_archive': _prepareTagMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -125,6 +128,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.recurring_transaction_mutation':
         _verifyRecurringTransactionMutation,
     'verify.merchant_mutation': _verifyMerchantMutation,
+    'verify.tag_mutation': _verifyTagMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -320,6 +324,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'merchant') {
       return _updateMerchant(step);
     }
+    if (step.parameters['entity'] == 'tag') return _updateTag(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -424,6 +429,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'merchant') {
       return _archiveMerchant(step);
     }
+    if (step.parameters['entity'] == 'tag') return _archiveTag(step);
     return _archiveTransaction(step);
   }
 
@@ -918,6 +924,108 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<Merchant?> _merchantById(String? id) async {
     if (id == null) return null;
     final all = await _merchants.readActive(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  TagRepository get _tags =>
+      TagRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareTagMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _tagById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Tag “${target.name}”. Relasi Tag pada transaksi historis tidak akan diubah.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama Tag baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan nama Tag “${target.name}” menjadi “$title”. Relasi Tag pada transaksi tidak akan diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateTag(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _tagById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    if (before == null || title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nama Tag belum valid.',
+      );
+    }
+    if (before.name == title) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: nama Tag sudah sesuai draft.',
+      );
+    }
+    await _tags.update(householdId: _householdId, id: before.id, name: title);
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Nama Tag diperbarui tanpa mengubah relasi Tag pada transaksi. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveTag(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _tagById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    await _tags.archive(householdId: _householdId, id: target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tag “${target.name}” diarsipkan lunak tanpa mengubah relasi Tag pada transaksi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyTagMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Tag belum valid.',
+      );
+    }
+    final row = await _tags.get(_householdId, id);
+    if (step.parameters['operation'] == 'archive') {
+      return row?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tag sudah diarsipkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tag masih aktif.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    return row != null && !row.isArchived && row.name == title
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: nama Tag sudah dibaca kembali tanpa mengubah relasi transaksi.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: nama Tag belum sesuai draft.',
+          );
+  }
+
+  Future<Tag?> _tagById(String? id) async {
+    if (id == null) return null;
+    final all = await _tags.readActive(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }
