@@ -30,6 +30,13 @@ void main() {
     expect(intent.response, contains('draft tidak sama dengan data tersimpan'));
   });
 
+  test('frasa developer aplikasi FFM memakai deskripsi resmi', () async {
+    final intent = await interpreter.interpret('siapa developer aplikasi FFM');
+
+    expect(intent.type, FfmAssistantIntentType.assistantIdentity);
+    expect(intent.response, contains('Rafi Sinkkat'));
+  });
+
   test('pertanyaan fitur dan halaman memakai katalog aplikasi', () async {
     final intent = await interpreter.interpret(
       'fitur apa saja yang ada di aplikasi ini',
