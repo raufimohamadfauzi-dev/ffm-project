@@ -9,7 +9,11 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../data/services/receipt_import_models.dart';
 import '../../data/services/receipt_import_service.dart';
 
-/// Halaman khusus impor hasil JSON dari LLM. Tidak menyediakan OCR atau foto nota.
+/// Halaman khusus untuk meninjau hasil JSON yang sudah disiapkan Asisten.
+///
+/// Foto nota diproses melalui lampiran pada Asisten dengan Qwen2-VL lokal.
+/// Halaman ini tetap hanya membaca JSON dan mengembalikannya ke form untuk
+/// diedit; halaman ini tidak pernah menyimpan transaksi otomatis.
 class ReceiptJsonImportPage extends StatefulWidget {
   const ReceiptJsonImportPage({super.key});
 
@@ -73,13 +77,13 @@ class _ReceiptJsonImportPageState extends State<ReceiptJsonImportPage> {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.transactions,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Impor JSON transaksi')),
+        appBar: AppBar(title: const Text('Tinjau JSON transaksi')),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
             const AppHelpBanner(
               title: 'Masukkan hasil JSON transaksi',
-              message: 'Jika SLM lokal Qwen2-VL sudah siap, foto nota atau teks mutasi dapat dipahami dari Asisten. AI eksternal juga opsional. Di sini kamu menempel atau memilih file JSON untuk ditinjau; FFM tidak menyimpan transaksi otomatis.',
+              message: 'Untuk foto nota, lampirkan gambar melalui Asisten setelah Qwen2-VL lokal siap. Halaman ini hanya untuk menempel atau memilih hasil JSON agar kamu dapat memeriksa dan mengedit draft sebelum ada transaksi disimpan.',
               icon: Icons.data_object_rounded,
             ),
             const SizedBox(height: 16),

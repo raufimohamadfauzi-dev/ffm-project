@@ -1,6 +1,7 @@
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -107,6 +108,48 @@ void main() {
         contains('mesin visi lokal belum berhasil disiapkan'),
       );
       expect(intent.response, isNot(contains('Lainnya berisi jalan')));
+    },
+  );
+
+  test(
+    'nota gambar hanya menjadi draft transaksi yang wajib dikonfirmasi',
+    () async {
+      final database = createInMemoryDatabaseForTests();
+      addTearDown(database.close);
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        modelGateway: _ImageObservationGateway(
+          FfmAssistantModelProposal(
+            intent: FfmAssistantIntentType.createExpense,
+            confidence: .9,
+            draft: FfmAssistantDraft(
+              kind: FfmAssistantDraftKind.expense,
+              createdAt: DateTime(2026, 8, 25),
+              title: 'Toko Uji',
+              amount: 25000,
+              categoryName: 'Makan',
+            ),
+          ),
+        ),
+      );
+
+      final intent = await interpreter.interpret(
+        'catat dari nota ini',
+        imagePath: '/private/assistant_chat_media/receipt.jpg',
+        currentDestination: FfmAssistantDestination.transactions,
+      );
+      final plan = FfmAssistantActionPlanner().planFor(intent);
+
+      expect(intent.type, FfmAssistantIntentType.createExpense);
+      expect(intent.draft?.kind, FfmAssistantDraftKind.expense);
+      expect(intent.draft?.amount, 25000);
+      expect(intent.needsConfirmation, isTrue);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.localSlm);
+      expect(
+        plan?.steps.map((step) => step.capabilityId),
+        containsAll(<String>['draft.expense', 'mutate.save_draft']),
+      );
+      expect(await database.select(database.transactions).get(), isEmpty);
     },
   );
 }

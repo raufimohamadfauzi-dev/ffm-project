@@ -17,6 +17,7 @@ import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
 import '../../data/ffm_assistant_chat_history_repository.dart';
 import '../../data/ffm_assistant_interpreter.dart';
+import '../../data/ffm_assistant_proactive_cooldown.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
 import '../../data/ffm_assistant_response_feedback_repository.dart';
@@ -111,6 +112,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     },
   );
   final _proactiveService = const FfmAssistantProactiveSuggestionService();
+  final _proactiveCooldown = FfmAssistantProactiveCooldown();
   final _slmFollowUpService = getIt<FfmAssistantSlmFollowUpService>();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
@@ -140,6 +142,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
   List<String> _slmFollowUpSuggestions = const <String>[];
+  FfmAssistantProactiveSuggestion? _proactiveSuggestion;
+  var _proactiveSuggestionGeneration = 0;
   var _followUpGeneration = 0;
   String? _speakingEntryKey;
   String? _pausedEntryKey;
@@ -233,6 +237,37 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   void _appendEntry(FfmAssistantChatEntry entry) {
     _entries.add(entry);
     unawaited(_historyRepository.save(_entries));
+    unawaited(_refreshProactiveSuggestion());
+  }
+
+  Future<void> _refreshProactiveSuggestion() async {
+    final generation = ++_proactiveSuggestionGeneration;
+    final candidate = _proactiveService.suggest(
+      destination: widget.currentDestination,
+      modelReady: _modelReady,
+      hasConversation: _entries.any((entry) => entry.isUser),
+    );
+    if (candidate == null || !_modelReady) {
+      if (mounted && _proactiveSuggestion != null) {
+        setState(() => _proactiveSuggestion = null);
+      }
+      return;
+    }
+    final mayShow = await _proactiveCooldown.mayShow(candidate);
+    if (!mounted ||
+        generation != _proactiveSuggestionGeneration ||
+        _entries.any((entry) => entry.isUser)) {
+      return;
+    }
+    if (!mayShow) {
+      if (_proactiveSuggestion != null) {
+        setState(() => _proactiveSuggestion = null);
+      }
+      return;
+    }
+    await _proactiveCooldown.markShown(candidate);
+    if (!mounted || generation != _proactiveSuggestionGeneration) return;
+    setState(() => _proactiveSuggestion = candidate);
   }
 
   Future<void> _restoreChatHistory() async {
@@ -268,6 +303,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _historyRestoreFuture = _restoreChatHistory();
     _refreshModelStatus();
     _refreshMemoryCount();
+    unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _scrollToEnd(force: true, animated: false),
     );
@@ -283,6 +319,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _modelChecking = false;
         _modelStatusError = null;
       });
+      unawaited(_refreshProactiveSuggestion());
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -290,6 +327,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _modelChecking = false;
         _modelStatusError = 'Status model tidak dapat dibaca';
       });
+      unawaited(_refreshProactiveSuggestion());
     }
   }
 
@@ -1824,11 +1862,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final currentPage = widget.currentDestination == null
         ? null
         : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
-    final proactiveSuggestion = _proactiveService.suggest(
-      destination: widget.currentDestination,
-      modelReady: _modelReady,
-      hasConversation: _entries.any((entry) => entry.isUser),
-    );
+    final proactiveSuggestion = _proactiveSuggestion;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
