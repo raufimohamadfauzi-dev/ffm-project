@@ -1,10 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/assistant/data/ffm_local_model_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_staging_status.dart';
+
+class _ExportFixtureService extends FfmLocalModelService {
+  _ExportFixtureService(this.info) : super(applicationSupportDirectory: () async => Directory.systemTemp);
+
+  final FfmLocalModelInfo info;
+
+  @override
+  Future<FfmLocalModelInfo?> verifyInstalled() async => info;
+}
 
 void main() {
   group('FfmQwen2VlBundle', () {
@@ -150,6 +160,44 @@ void main() {
         await service.matchesSha256(FfmQwen2VlBundle.modelSha256),
         isFalse,
       );
+    });
+
+    test('ekspor bundle membuat arsip manifest model dan projector', () async {
+      final model = File('${root.path}/model.gguf')..writeAsStringSync('model');
+      final projector = File('${root.path}/mmproj.gguf')
+        ..writeAsStringSync('projector');
+      final manifest = File('${root.path}/verified_manifest.json')
+        ..writeAsStringSync(jsonEncode({'verificationStatus': 'verified'}));
+      service = _ExportFixtureService(
+        FfmLocalModelInfo(
+          fileName: model.uri.pathSegments.last,
+          filePath: model.path,
+          bytes: model.lengthSync(),
+          sha256: FfmQwen2VlBundle.modelSha256,
+          installedAt: DateTime.utc(2026, 8, 22),
+          projectorFileName: projector.uri.pathSegments.last,
+          projectorPath: projector.path,
+          projectorBytes: projector.lengthSync(),
+          projectorSha256: FfmQwen2VlBundle.projectorSha256,
+          manifestPath: manifest.path,
+        ),
+      );
+
+      final output = await service.exportVerifiedBundle(
+        outputDirectory: Directory('${root.path}/exports'),
+      );
+      final archive = ZipDecoder().decodeBytes(await output.readAsBytes());
+
+      expect(output.path, endsWith('.ffmbundle'));
+      expect(
+        archive.files.map((file) => file.name),
+        containsAll(<String>[
+          FfmQwen2VlBundle.manifestFileName,
+          FfmQwen2VlBundle.modelFileName,
+          FfmQwen2VlBundle.projectorFileName,
+        ]),
+      );
+      expect(await File('${output.path}.tmp').exists(), isFalse);
     });
 
     test(

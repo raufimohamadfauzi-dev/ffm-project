@@ -607,12 +607,31 @@ class _LocalModelPageState extends State<LocalModelPage>
     try {
       final bundle = await _service.exportVerifiedBundle();
       if (!mounted) return;
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(bundle.path)],
-          text: 'Bundle SLM lokal FFM terverifikasi. Impor file ini di halaman Model Asisten Lokal.',
-        ),
-      );
+      late final ShareResult result;
+      try {
+        result = await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(bundle.path)],
+            text: 'Bundle SLM lokal FFM terverifikasi. Impor file ini di halaman Model Asisten Lokal.',
+          ),
+        );
+      } on Object {
+        if (mounted) {
+          setState(
+            () => _error =
+                'Berbagi bundle gagal. Pastikan ada aplikasi yang dapat menerima file di perangkat ini.',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      final message = switch (result.status) {
+        ShareResultStatus.success => 'Bundle berhasil dibagikan.',
+        ShareResultStatus.dismissed => 'Berbagi bundle dibatalkan.',
+        ShareResultStatus.unavailable =>
+          'Fitur berbagi tidak tersedia di perangkat ini.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } on FfmLocalModelManifestException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
@@ -663,8 +682,6 @@ class _LocalModelPageState extends State<LocalModelPage>
       _error = null;
     });
   }
-
-  void _returnToFfm() => Navigator.of(context).pop();
 
   String _size(int bytes) {
     final mb = bytes / (1024 * 1024);
@@ -775,14 +792,6 @@ class _LocalModelPageState extends State<LocalModelPage>
                 color: colorScheme.error,
                 fontWeight: FontWeight.w700,
               ),
-            ),
-          ],
-          if (isReady) ...[
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _returnToFfm,
-              icon: const Icon(Icons.smart_toy_outlined),
-              label: const Text('Buka Asisten'),
             ),
           ],
           if (isFailed) ...[
@@ -1104,11 +1113,6 @@ class _LocalModelPageState extends State<LocalModelPage>
           spacing: 8,
           runSpacing: 8,
           children: [
-            FilledButton.icon(
-              onPressed: _working ? null : _returnToFfm,
-              icon: const Icon(Icons.chat_outlined),
-              label: const Text('Buka Chat & Coba Asisten'),
-            ),
             OutlinedButton.icon(
               onPressed: _working ? null : _exportBundle,
               icon: const Icon(Icons.share_outlined),
@@ -1570,11 +1574,6 @@ class _LocalModelPageState extends State<LocalModelPage>
                                 label: const Text('Batal & Hapus Staging'),
                               ),
                             ] else ...[
-                              FilledButton.icon(
-                                onPressed: _working ? null : _returnToFfm,
-                                icon: const Icon(Icons.auto_awesome_outlined),
-                                label: const Text('Kembali & coba Asisten'),
-                              ),
                               OutlinedButton.icon(
                                 onPressed: _working ? null : _remove,
                                 icon: const Icon(Icons.delete_outline),

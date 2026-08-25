@@ -37,6 +37,7 @@ import '../../data/ffm_personal_memory_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import 'chat/ffm_json_expandable.dart';
 import 'chat/ffm_assistant_message_card.dart';
+import 'chat/ffm_streaming_text_controller.dart';
 import 'ffm_memory_nudge_card.dart';
 import 'gemini_header.dart';
 import 'gemini_typing_indicator.dart';
@@ -108,7 +109,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     controller: _actionPlanController,
     handlers: getIt<FfmAssistantCapabilityAdapterRegistry>().handlers,
     readTransaction: <T>(action) => getIt<AppDatabase>().transaction(action),
-    onPlanProgress: (_) {
+    onPlanProgress: (plan) {
+      final running = plan.steps.where(
+        (step) => step.status == FfmAssistantActionStepStatus.running,
+      );
+      final completed = plan.steps.where(
+        (step) => step.status == FfmAssistantActionStepStatus.completed,
+      );
+      if (running.isNotEmpty) {
+        _setActiveProcess(
+          'Menjalankan ${_capabilityLabel(running.first.capabilityId)}...',
+        );
+      } else if (completed.isNotEmpty) {
+        _setActiveProcess(
+          '${_capabilityLabel(completed.last.capabilityId)} selesai.',
+        );
+      }
       if (mounted) setState(() {});
     },
   );
@@ -131,6 +147,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _activityVoiceParser = const ActivityVoiceParser();
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
+  final Stopwatch _processStopwatch = Stopwatch();
+  final List<FfmAssistantProcessEvent> _activeProcessEvents =
+      <FfmAssistantProcessEvent>[];
   var _submitting = false;
   var _activeProcessLabel = 'Menyiapkan permintaan...';
   File? _pendingImage;
@@ -154,6 +173,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
   Future<void>? _historyRestoreFuture;
 
+  // Streaming state
+  final _streamingController = FfmStreamingTextController();
+  String? _streamingEntryKey;
+  String _streamingVisibleText = '';
+  StreamSubscription<String>? _streamingSubscription;
+
   // Personal Memory Mode
   late final _personalMemoryService = FfmPersonalMemoryService(
     getIt<FfmAssistantMemoryRepository>(),
@@ -164,7 +189,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
 
   void _setActiveProcess(String message) {
-    if (mounted) setState(() => _activeProcessLabel = message);
+    _activeProcessLabel = message;
+    _activeProcessEvents.add(
+      FfmAssistantProcessEvent(
+        label: message,
+        elapsed: _processStopwatch.elapsed,
+      ),
+    );
+    if (mounted) setState(() {});
     _agentStatus.working(message);
   }
 
@@ -197,12 +229,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? visionFailure?.traceLabel ?? 'Proposal visi ditolak validator'
           : null,
       events: [
-        FfmAssistantProcessEvent(
-          label: hasImage
-              ? 'Lampiran diterima untuk dianalisis'
-              : 'Permintaan diterima untuk dirutekan',
-          elapsed: Duration.zero,
-        ),
+        ..._activeProcessEvents,
+        if (_activeProcessEvents.isEmpty)
+          FfmAssistantProcessEvent(
+            label: hasImage
+                ? 'Lampiran diterima untuk dianalisis'
+                : 'Permintaan diterima untuk dirutekan',
+            elapsed: Duration.zero,
+          ),
         FfmAssistantProcessEvent(
           label: visionFailure?.traceLabel ?? sourceEvent.label,
           detail: visionFailure == null ? sourceEvent.detail : 'FFM menampilkan fallback lokal tanpa membuat atau mengubah data.',
@@ -210,6 +244,67 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ),
       ],
     );
+  }
+
+  Future<void> _showActiveProcessDetails() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Detail proses Asisten',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _activeProcessEvents.length,
+                  itemBuilder: (context, index) {
+                    final event = _activeProcessEvents[index];
+                    final isActive = index == _activeProcessEvents.length - 1;
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        isActive
+                            ? Icons.hourglass_top_rounded
+                            : Icons.check_circle_outline,
+                        color: isActive
+                            ? theme.colorScheme.primary
+                            : Colors.green.shade700,
+                      ),
+                      title: Text(event.label),
+                      subtitle: Text('T+${event.elapsed.inMilliseconds} ms'),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _appendProcessEventsToTrace(
+    FfmAssistantProcessTrace trace,
+    int initialEventCount,
+  ) {
+    final newEvents = _activeProcessEvents
+        .skip(initialEventCount)
+        .toList(growable: false);
+    if (newEvents.isEmpty) return;
+    trace.events.insertAll(trace.events.length - 1, newEvents);
   }
 
   String _completedProcessLabel(FfmAssistantIntent intent) =>
@@ -239,6 +334,34 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _entries.add(entry);
     unawaited(_historyRepository.save(_entries));
     unawaited(_refreshProactiveSuggestion());
+
+    // Start streaming for assistant text responses
+    if (!entry.isUser && entry.text.isNotEmpty) {
+      _startStreaming(entry);
+    }
+  }
+
+  void _startStreaming(FfmAssistantChatEntry entry) {
+    _streamingSubscription?.cancel();
+    _streamingEntryKey = '${_entries.length - 1}';
+    _streamingVisibleText = '';
+    _streamingController.startStreaming(entry.text);
+    _streamingSubscription = _streamingController.textStream.listen(
+      (text) {
+        if (mounted) {
+          setState(() {
+            _streamingVisibleText = text;
+          });
+          // Clean up when streaming completes
+          if (_streamingController.isComplete) {
+            setState(() {
+              _streamingEntryKey = null;
+              _streamingVisibleText = '';
+            });
+          }
+        }
+      },
+    );
   }
 
   void _updateWorkingContextAfterTurn({
@@ -416,6 +539,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _speechStateSubscription?.cancel();
     _speech.cancel();
     _speech.cancelSpeaking();
+    _streamingSubscription?.cancel();
+    _streamingController.dispose();
     super.dispose();
   }
 
@@ -433,7 +558,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _executeReadPlan(String planId) async {
-    _agentStatus.working('Membaca data yang diperlukan secara lokal...');
+    _setActiveProcess('Membaca data yang diperlukan secara lokal...');
     final plan = await _capabilityExecutor.execute(planId);
     if (!mounted || plan == null) return;
     if (plan.status == FfmAssistantActionPlanStatus.failed ||
@@ -589,6 +714,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final displayText = text.isEmpty && hasImage ? 'Gambar dilampirkan' : text;
     setState(() {
       _submitting = true;
+      _processStopwatch
+        ..reset()
+        ..start();
+      _activeProcessEvents.clear();
       _followUpGeneration++;
       _slmFollowUpSuggestions = const <String>[];
       _appendEntry(
@@ -606,7 +735,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _checkForMemoryNudge(text);
     if (hasImage) {
       final stopwatch = Stopwatch()..start();
-      _setActiveProcess('Meneruskan lampiran ke visi SLM lokal...');
+      _setActiveProcess('Menganalisis lampiran secara lokal...');
       try {
         final intent = await _interpreter.interpret(
           text,
@@ -619,7 +748,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
         );
         stopwatch.stop();
+        _setActiveProcess('Memvalidasi hasil pembacaan lampiran...');
         if (!mounted) return;
+        final traceEventCount = _activeProcessEvents.length;
         final processTrace = _traceFor(
           intent,
           stopwatch.elapsed,
@@ -683,6 +814,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         for (final planId in readPlanIds) {
           await _executeReadPlan(planId);
         }
+        _appendProcessEventsToTrace(processTrace, traceEventCount);
         if (readPlanIds.isEmpty) {
           _agentStatus.done(_completedProcessLabel(intent));
         }
@@ -706,6 +838,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
         _scrollToEnd();
       } finally {
+        _processStopwatch.stop();
         if (mounted) setState(() => _submitting = false);
         unawaited(_refreshSlmFollowUpSuggestions());
         _scrollToEnd(force: true);
@@ -713,11 +846,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return;
     }
     final stopwatch = Stopwatch()..start();
-    _setActiveProcess('Merutekan permintaan melalui Agent Orkestrator...');
+    _setActiveProcess('Menganalisis permintaan secara lokal...');
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
+      _setActiveProcess(
+        pending == null
+            ? 'Menyiapkan konteks halaman dan percakapan...'
+            : 'Menyiapkan jawaban untuk dialog yang tertunda...',
+      );
       final conversationHistory = _buildRecentConversationHistory();
       final lastAssistant = widget.session.lastAssistantText;
       final intents = pending == null
@@ -745,8 +883,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   widget.currentPageContext?.capabilityIds ?? const [],
             );
       stopwatch.stop();
+      _setActiveProcess('Memvalidasi hasil pemahaman dan rencana lokal...');
       if (!mounted) return;
       final readPlanIds = <String>[];
+      final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
       setState(() {
         for (final intent in intents) {
           String response = intent.response ?? intent.clarification ?? '';
@@ -779,6 +919,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ..activeDraftIntent = intent;
           }
           widget.session.lastAssistantText = response;
+          final traceEventCount = _activeProcessEvents.length;
           final processTrace = _traceFor(
             intent,
             stopwatch.elapsed,
@@ -793,6 +934,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               processTrace: processTrace,
             ),
           );
+          traceSnapshots.add((processTrace, traceEventCount));
           if (intent.needsClarification) {
             widget.session.pendingDialog = FfmAssistantPendingDialog(
               originalRequest: pending?.originalRequest ?? text,
@@ -811,6 +953,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       });
       for (final planId in readPlanIds) {
         await _executeReadPlan(planId);
+      }
+      for (final snapshot in traceSnapshots) {
+        _appendProcessEventsToTrace(snapshot.$1, snapshot.$2);
       }
       if (readPlanIds.isEmpty) {
         _agentStatus.done(
@@ -840,6 +985,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ),
       );
     } finally {
+      _processStopwatch.stop();
       if (mounted) setState(() => _submitting = false);
       unawaited(_refreshSlmFollowUpSuggestions());
       _scrollToEnd(force: true);
@@ -1993,6 +2139,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         if (_submitting && index == _entries.length) {
                           return GeminiTypingIndicator(
                             message: _activeProcessLabel,
+                            onTap: _showActiveProcessDetails,
                           );
                         }
                         final entry = _entries[index];
@@ -2001,8 +2148,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                             entry.intent!.destination ==
                                 widget.currentDestination &&
                             entry.intent!.draft == null;
+                        final isStreamingThis =
+                            _streamingEntryKey == '$index' &&
+                            _streamingController.isStreaming;
                         return FfmAssistantMessageCard(
                           entry: entry,
+                          visibleText: isStreamingThis
+                              ? _streamingVisibleText
+                              : null,
+                          isStreaming: isStreamingThis,
                           onSpeak: entry.isUser
                               ? null
                               : () => _toggleSpeakFor(index, entry),
