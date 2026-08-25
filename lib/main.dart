@@ -52,6 +52,7 @@ import 'features/settings/presentation/pages/pin_security_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
+import 'features/assistant/data/ffm_memory_maintenance_service.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -67,6 +68,10 @@ Future<void> main() async {
   final diagnostics = getIt<AppDiagnosticsService>();
   await diagnostics.markStartupPhase('dependencies_ready');
   unawaited(_initializePersonalContext(diagnostics));
+  // Pemeliharaan memori: decay berkala tanpa memblok startup.
+  if (getIt.isRegistered<FfmMemoryMaintenanceService>()) {
+    getIt<FfmMemoryMaintenanceService>().start();
+  }
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     unawaited(
