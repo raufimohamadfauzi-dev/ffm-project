@@ -253,6 +253,30 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['name', 'amount', 'date', 'note'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.liability_update',
+      label: 'Siapkan perubahan Hutang',
+      description: 'Menampilkan perubahan metadata satu Hutang tanpa pembayaran atau perubahan sisa hutang.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: [
+        'targetId',
+        'title',
+        'note',
+        'dueDate',
+        'monthlyInstallment',
+        'interestRate',
+      ],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.liability_archive',
+      label: 'Siapkan arsip Hutang',
+      description:
+          'Menampilkan satu Hutang yang akan diarsipkan tanpa hapus permanen.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.receivable',
       label: 'Siapkan piutang',
       description: 'Membuat draft piutang tanpa menyimpan.',

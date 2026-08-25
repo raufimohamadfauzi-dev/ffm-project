@@ -12,6 +12,8 @@ import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
+import '../../liability/domain/entities/liability_entity.dart';
+import '../../liability/domain/usecases/liability_crud_usecases.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
@@ -84,6 +86,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.asset_update': _prepareAssetMutation,
     'draft.asset_archive': _prepareAssetMutation,
     'draft.liability': _prepareDraft,
+    'draft.liability_update': _prepareLiabilityMutation,
+    'draft.liability_archive': _prepareLiabilityMutation,
     'draft.receivable': _prepareDraft,
     'draft.budget': _prepareDraft,
     'draft.goal_deposit': _prepareDraft,
@@ -106,6 +110,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.asset_mutation': _verifyAssetMutation,
     'verify.goal_mutation': _verifyGoalMutation,
     'verify.reminder_mutation': _verifyReminderMutation,
+    'verify.liability_mutation': _verifyLiabilityMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -291,6 +296,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _updateReminder(step);
     }
     if (step.parameters['entity'] == 'asset') return _updateAsset(step);
+    if (step.parameters['entity'] == 'liability') return _updateLiability(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -384,6 +390,8 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _archiveSchedule(step);
     }
     if (step.parameters['entity'] == 'asset') return _archiveAsset(step);
+    if (step.parameters['entity'] == 'liability')
+      return _archiveLiability(step);
     return _archiveTransaction(step);
   }
 
@@ -399,6 +407,115 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _archiveTransaction(
     FfmAssistantActionStep step,
   ) => _setTransactionVisibility(step, archive: true);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareLiabilityMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _liabilityById(_targetId(step));
+    if (target == null)
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Hutang target tidak ditemukan atau sudah diarsipkan.',
+      );
+    if (step.parameters['operation'] == 'archive')
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Hutang “${target.name}” tanpa hapus permanen, pembayaran, atau transaksi.',
+      );
+    final title = step.parameters['title']?.toString().trim();
+    return title == null || title.isEmpty
+        ? const FfmAssistantCapabilityExecutionResult.failure(
+            'Nama Hutang baru belum valid.',
+          )
+        : FfmAssistantCapabilityExecutionResult.success(
+            'Preview perubahan metadata Hutang “${target.name}” menjadi “$title”. Nilai pokok dan sisa Hutang dipertahankan.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateLiability(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _liabilityById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    if (before == null || title == null || title.isEmpty)
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nama Hutang belum valid.',
+      );
+    if (before.name == title)
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: metadata Hutang sudah sesuai draft.',
+      );
+    await SaveLiability(_database)(
+      LiabilityEntity(
+        id: before.id,
+        householdId: before.householdId,
+        name: title,
+        originalAmount: before.originalAmount,
+        remainingBalance: before.remainingBalance,
+        monthlyInstallment: before.monthlyInstallment,
+        interestRate: before.interestRate,
+        startDate: before.startDate,
+        dueDate: before.dueDate,
+        updatedAt: _clock(),
+        note: before.note,
+      ),
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Metadata Hutang diperbarui tanpa pembayaran atau transaksi. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveLiability(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _liabilityById(_targetId(step));
+    if (target == null)
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Hutang target tidak ditemukan atau sudah diarsipkan.',
+      );
+    await DeleteLiability(_database)(_householdId, target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Hutang “${target.name}” diarsipkan tanpa hapus permanen.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyLiabilityMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null)
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Hutang belum valid.',
+      );
+    final row =
+        await (_database.select(_database.liabilities)..where(
+              (r) => r.householdId.equals(_householdId) & r.id.equals(id),
+            ))
+            .getSingleOrNull();
+    if (step.parameters['operation'] == 'archive')
+      return row?.isActive == false
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Hutang sudah diarsipkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Hutang masih aktif.',
+            );
+    final title = step.parameters['title']?.toString().trim();
+    return row != null && row.isActive && row.name == title
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: metadata Hutang sudah dibaca kembali tanpa mengubah nilai pokok atau sisa Hutang.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: metadata Hutang belum sesuai draft.',
+          );
+  }
+
+  Future<LiabilityEntity?> _liabilityById(String? id) async {
+    if (id == null) return null;
+    final all = await GetLiabilities(_database)(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
 
   Future<FfmAssistantCapabilityExecutionResult> _deleteTransaction(
     FfmAssistantActionStep step,

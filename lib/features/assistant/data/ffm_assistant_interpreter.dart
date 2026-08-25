@@ -857,6 +857,12 @@ class FfmAssistantInterpreter {
     final assetMutation = await _parseAssetMutation(rawText, normalized);
     if (assetMutation != null) return assetMutation;
 
+    final liabilityMutation = await _parseLiabilityMutation(
+      rawText,
+      normalized,
+    );
+    if (liabilityMutation != null) return liabilityMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2351,6 +2357,16 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.liabilities,
         action: 'hutang',
       ),
+      FfmAssistantDraftKind.liabilityUpdate => (
+        type: FfmAssistantIntentType.updateLiability,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'ubah hutang',
+      ),
+      FfmAssistantDraftKind.liabilityArchive => (
+        type: FfmAssistantIntentType.archiveLiability,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'arsip hutang',
+      ),
       FfmAssistantDraftKind.receivable => (
         type: FfmAssistantIntentType.createReceivable,
         destination: FfmAssistantDestination.liabilities,
@@ -3816,6 +3832,76 @@ class FfmAssistantInterpreter {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
     return withoutAmount.isEmpty ? fallback : withoutAmount;
+  }
+
+  Future<FfmAssistantIntent?> _parseLiabilityMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:hutang|utang)\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+(?:hutang|utang)\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final rows =
+        await (_database.select(_database.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateLiability
+        : FfmAssistantIntentType.archiveLiability;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Hutang aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Hutang yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama Hutang yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.liabilityUpdate
+          : FfmAssistantDraftKind.liabilityArchive,
+      createdAt: _clock(),
+      title: operation == 'update' ? update!.group(2)!.trim() : target.name,
+      note: target.note,
+      date: target.dueDate ?? target.startDate,
+      formValues: {
+        'entity': 'liability',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': '${target.name} • sisa ${target.remainingBalance}',
+        'originalAmount': target.originalAmount.toString(),
+        'remainingBalance': target.remainingBalance.toString(),
+        'monthlyInstallment': target.monthlyInstallment.toString(),
+        'interestRate': target.interestRate.toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan metadata satu Hutang. Nilai pokok dan sisa Hutang tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Hutang tanpa hapus permanen, pembayaran, atau transaksi. Cek preview dulu.',
+    );
   }
 
   Future<FfmAssistantIntent?> _parseGoalMutation(

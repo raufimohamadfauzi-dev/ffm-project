@@ -160,6 +160,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         );
         await _openTransfer();
       case FfmAssistantDraftKind.liability:
+      case FfmAssistantDraftKind.liabilityUpdate:
+      case FfmAssistantDraftKind.liabilityArchive:
       case FfmAssistantDraftKind.receivable:
       case FfmAssistantDraftKind.goal:
       case FfmAssistantDraftKind.goalUpdate:

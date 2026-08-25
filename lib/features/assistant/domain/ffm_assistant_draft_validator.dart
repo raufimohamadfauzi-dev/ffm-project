@@ -111,6 +111,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.liabilityUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'liability_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Hutang',
+              message: 'Target atau nama Hutang belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.liabilityArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'liability_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Hutang',
+              message: 'Hutang target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.asset:
       case FfmAssistantDraftKind.masterData:
       case FfmAssistantDraftKind.reminder:

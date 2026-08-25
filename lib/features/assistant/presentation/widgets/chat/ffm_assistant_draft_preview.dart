@@ -17,6 +17,8 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.goalUsage => 'Draft Pakai Target',
     FfmAssistantDraftKind.goal => 'Draft Target Keuangan',
     FfmAssistantDraftKind.liability => 'Draft Hutang',
+    FfmAssistantDraftKind.liabilityUpdate => 'Preview Perubahan Hutang',
+    FfmAssistantDraftKind.liabilityArchive => 'Preview Arsip Hutang',
     FfmAssistantDraftKind.receivable => 'Draft Piutang',
     FfmAssistantDraftKind.asset => 'Draft Aset',
     FfmAssistantDraftKind.assetUpdate => 'Preview Perubahan Aset',
