@@ -81,31 +81,34 @@ void main() {
     expect(await database.select(database.transactions).get(), isEmpty);
   });
 
-  test('proposal klarifikasi model menjadi pertanyaan tanpa auto-save', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.unknown,
-        confidence: .96,
-        missingFields: ['jenis transaksi'],
-        clarification: 'Ini pemasukan atau pengeluaran?',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
+  test(
+    'proposal klarifikasi model menjadi pertanyaan tanpa auto-save',
+    () async {
+      final gateway = _FakeGateway(
+        const FfmAssistantModelProposal(
+          intent: FfmAssistantIntentType.unknown,
+          confidence: .96,
+          missingFields: ['jenis transaksi'],
+          clarification: 'Ini pemasukan atau pengeluaran?',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        modelGateway: gateway,
+      );
 
-    final intent = await interpreter.interpret(
-      'catat 1000000 ke rekening BRI baru',
-    );
+      final intent = await interpreter.interpret(
+        'catat 1000000 ke rekening BRI baru',
+      );
 
-    expect(gateway.calls, 1);
-    expect(intent.type, FfmAssistantIntentType.unknown);
-    expect(intent.needsClarification, isTrue);
-    expect(intent.clarification, 'Ini pemasukan atau pengeluaran?');
-    expect(intent.needsConfirmation, isFalse);
-    expect(await database.select(database.transactions).get(), isEmpty);
-  });
+      expect(gateway.calls, 1);
+      expect(intent.type, FfmAssistantIntentType.unknown);
+      expect(intent.needsClarification, isTrue);
+      expect(intent.clarification, 'Ini pemasukan atau pengeluaran?');
+      expect(intent.needsConfirmation, isFalse);
+      expect(await database.select(database.transactions).get(), isEmpty);
+    },
+  );
 
   test(
     'perintah nama panggilan menjadi proposal user profile tanpa auto-save',
@@ -149,6 +152,76 @@ void main() {
       ),
     );
     expect(gateway.lastCapabilityIds, ['read.transactions', 'draft.expense']);
+  });
+
+  test('pertanyaan terbuka tentang halaman aktif memakai bantuan SLM bila proposal aman tersedia', () async {
+    final gateway = _FakeGateway(
+      const FfmAssistantModelProposal(
+        intent: FfmAssistantIntentType.help,
+        confidence: .99,
+        notes: 'Di halaman Lainnya kamu bisa membuka pengaturan, model lokal, pusat pengetahuan, dan bantuan aplikasi.',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      modelGateway: gateway,
+    );
+
+    final intent = await interpreter.interpret(
+      'apa yang bisa dilakukan di halaman ini?',
+      currentDestination: FfmAssistantDestination.otherMenu,
+      pageContext: 'Menu Lainnya untuk pengaturan dan bantuan aplikasi.',
+    );
+
+    expect(gateway.calls, 1);
+    expect(intent.type, FfmAssistantIntentType.help);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.localSlm);
+    expect(intent.response, contains('halaman Lainnya'));
+  });
+
+  test(
+    'pertanyaan halaman kembali ke katalog lokal bila proposal SLM tidak ada',
+    () async {
+      final gateway = _FakeGateway(null);
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        modelGateway: gateway,
+      );
+
+      final intent = await interpreter.interpret(
+        'apa yang bisa dilakukan di halaman ini?',
+        currentDestination: FfmAssistantDestination.otherMenu,
+      );
+
+      expect(gateway.calls, 1);
+      expect(
+        intent.responseOrigin,
+        FfmAssistantResponseOrigin.agentOrchestrator,
+      );
+      expect(intent.response, contains('Lainnya'));
+    },
+  );
+
+  test('pertanyaan halaman sensitif tidak diserahkan ke SLM lokal', () async {
+    final gateway = _FakeGateway(
+      const FfmAssistantModelProposal(
+        intent: FfmAssistantIntentType.help,
+        confidence: .99,
+        notes: 'Respons yang tidak boleh dipakai.',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      modelGateway: gateway,
+    );
+
+    final intent = await interpreter.interpret(
+      'apa yang bisa dilakukan di halaman ini?',
+      currentDestination: FfmAssistantDestination.appSecurity,
+    );
+
+    expect(gateway.calls, 0);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.agentOrchestrator);
   });
 
   test('guard PIN tidak pernah diserahkan ke model lokal', () async {

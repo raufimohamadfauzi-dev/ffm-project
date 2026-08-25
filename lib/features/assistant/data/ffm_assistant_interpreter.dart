@@ -995,7 +995,18 @@ class FfmAssistantInterpreter {
             normalized,
             currentDestination: currentDestination,
           );
-    if (featureHelp != null) return featureHelp;
+    if (featureHelp != null) {
+      final slmPageHelp = await _trySlmCurrentPageHelp(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+      );
+      if (slmPageHelp != null) return slmPageHelp;
+      return featureHelp;
+    }
 
     if (_isWeeklyAnalysisRequest(normalized)) {
       return _weeklyAnalysis(rawText, normalized);
@@ -1010,6 +1021,15 @@ class FfmAssistantInterpreter {
     }
 
     if (_isCurrentPageRequest(normalized) && currentDestination != null) {
+      final slmPageHelp = await _trySlmCurrentPageHelp(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+      );
+      if (slmPageHelp != null) return slmPageHelp;
       return _currentPageContext(rawText, normalized, currentDestination);
     }
 
@@ -1680,18 +1700,17 @@ class FfmAssistantInterpreter {
     }
 
     if (proposal.intent == FfmAssistantIntentType.help) {
-      final imageObservation = _safeImageObservation(
-        imagePath: imagePath,
-        message: proposal.notes,
-      );
-      if (imagePath != null && imageObservation == null) return null;
+      final response = imagePath != null
+          ? _safeImageObservation(imagePath: imagePath, message: proposal.notes)
+          : _safeModelHelpResponse(proposal.notes);
+      if (imagePath != null && response == null) return null;
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.help,
         confidence: proposal.confidence,
         responseMode: FfmAssistantResponseMode.localModel,
-        response: imageObservation,
+        response: response,
         responseOrigin: FfmAssistantResponseOrigin.localSlm,
       );
     }
@@ -1787,6 +1806,88 @@ class FfmAssistantInterpreter {
     final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (compact.length < 4 || compact.length > 720) return null;
     return 'Dari gambar ini, aku membaca: $compact';
+  }
+
+  Future<FfmAssistantIntent?> _trySlmCurrentPageHelp(
+    String rawText,
+    String normalized, {
+    required FfmAssistantDestination? currentDestination,
+    required String? pageContext,
+    required String? conversationHistory,
+    required List<String> capabilityIds,
+  }) async {
+    if (_modelGateway == null || currentDestination == null) return null;
+    if (!_isOpenCurrentPageHelp(normalized) ||
+        _isSlmNameOnlyDestination(currentDestination)) {
+      return null;
+    }
+    final intent = await _tryModelFirst(
+      rawText,
+      normalized,
+      pageContext: pageContext,
+      conversationHistory: conversationHistory,
+      capabilityIds: capabilityIds,
+      currentDestination: currentDestination,
+    );
+    if (intent?.type != FfmAssistantIntentType.help ||
+        intent?.response == null ||
+        intent!.response!.trim().isEmpty) {
+      return null;
+    }
+    return intent;
+  }
+
+  bool _isOpenCurrentPageHelp(String normalized) =>
+      _containsAny(normalized, const [
+        'halaman ini',
+        'menu ini',
+        'fitur di sini',
+        'fitur halaman ini',
+        'yang ada di sini',
+        'isi halaman ini',
+        'menu yang ini',
+      ]);
+
+  bool _isSlmNameOnlyDestination(FfmAssistantDestination destination) =>
+      const <FfmAssistantDestination>{
+        FfmAssistantDestination.appSecurity,
+        FfmAssistantDestination.privacyCenter,
+        FfmAssistantDestination.backup,
+        FfmAssistantDestination.diagnostics,
+        FfmAssistantDestination.databaseStructure,
+        FfmAssistantDestination.assistantTraining,
+        FfmAssistantDestination.assistantProfile,
+        FfmAssistantDestination.masterData,
+        FfmAssistantDestination.activityLog,
+        FfmAssistantDestination.reconciliation,
+        FfmAssistantDestination.recurringTransaction,
+      }.contains(destination);
+
+  String? _safeModelHelpResponse(String? message) {
+    if (message == null) return null;
+    final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (compact.length < 8 || compact.length > 720) return null;
+    final lower = compact.toLowerCase();
+    if (_containsAny(lower, const [
+      'pin',
+      'password',
+      'otp',
+      'token',
+      'sandi',
+      'saldo kamu',
+      'transaksi kamu',
+      'sudah disimpan',
+      'otomatis disimpan',
+    ])) {
+      return null;
+    }
+    if (RegExp(
+      r'\b(?:rp\.?\s*)?\d{4,}\b',
+      caseSensitive: false,
+    ).hasMatch(lower)) {
+      return null;
+    }
+    return compact;
   }
 
   Future<List<Account>> _activeAccounts() =>
