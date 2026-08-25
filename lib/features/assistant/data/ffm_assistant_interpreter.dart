@@ -1656,7 +1656,7 @@ class FfmAssistantInterpreter {
           if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
           financialContext,
           masterDataContext,
-        ].join('\\n'),
+        ].join('\n'),
         capabilityIds: capabilityIds,
         approvedUserContext: userContext,
         personalizationContext: personalizationContext,

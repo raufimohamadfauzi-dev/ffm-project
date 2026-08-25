@@ -6,6 +6,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_local_inference_queue.da
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_runtime_knowledge.dart';
 
+import 'package:ffm_manager/features/assistant/data/ffm_local_proposal.dart';
+
 import 'ffm_assistant_slm_follow_up_contract.dart';
 import 'ffm_error_logging_service.dart';
 
@@ -25,6 +27,21 @@ class FfmQwen2VlGateway
   final FfmErrorLoggingService? _errorLogger;
   bool _isNativeInitialized = false;
   FfmAssistantVisionFailure? _lastVisionFailure;
+
+  static const double _kConfidenceHigh = 0.92;
+  static const double _kConfidenceMedium = 0.78;
+  static const double _kConfidenceLow = 0.55;
+
+  double _confidenceFromProposal(FfmLocalProposal proposal) {
+    if (proposal.needsClarification) return _kConfidenceLow;
+    if (proposal.issues.isNotEmpty) return _kConfidenceLow;
+    final isTransaction = proposal.proposalType == 'expense' ||
+        proposal.proposalType == 'income' ||
+        proposal.proposalType == 'transfer';
+    if (isTransaction && proposal.totalAmount == null) return _kConfidenceLow;
+    if (proposal.needsReview) return _kConfidenceMedium;
+    return _kConfidenceHigh;
+  }
 
   @override
   FfmAssistantVisionFailure? get lastVisionFailure => _lastVisionFailure;
@@ -174,7 +191,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
       if (proposal.needsClarification) {
         return FfmAssistantModelProposal(
           intent: FfmAssistantIntentType.unknown,
-          confidence: 0.9,
+          confidence: _confidenceFromProposal(proposal),
           missingFields: proposal.missingFields,
           extractedFields: proposal.extractedFields,
           suggestedCapabilities: proposal.suggestedCapabilities,
@@ -207,7 +224,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
 
         return FfmAssistantModelProposal(
           intent: intentType,
-          confidence: 0.9,
+          confidence: _confidenceFromProposal(proposal),
           draft: draft,
           missingFields: proposal.missingFields,
           extractedFields: proposal.extractedFields,
@@ -229,7 +246,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
 
       return FfmAssistantModelProposal(
         intent: intentType,
-        confidence: 0.9,
+        confidence: _confidenceFromProposal(proposal),
         missingFields: proposal.missingFields,
         extractedFields: proposal.extractedFields,
         suggestedCapabilities: proposal.suggestedCapabilities,
