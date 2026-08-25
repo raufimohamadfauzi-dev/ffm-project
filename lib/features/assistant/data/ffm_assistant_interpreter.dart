@@ -1622,7 +1622,9 @@ class FfmAssistantInterpreter {
     FfmAssistantDestination? currentDestination,
   }) async {
     final gateway = _modelGateway;
-    if (gateway == null) return null;
+    if (gateway == null) {
+      return null;
+    }
     FfmAssistantModelProposal? proposal;
     try {
       final userContext = await FfmAssistantUserModelService(_taughtMemory)
@@ -1699,11 +1701,35 @@ class FfmAssistantInterpreter {
       }
     } catch (error) {
       if (error is FfmInferenceCancelledException) rethrow;
-      // Native/model failure is not an assistant failure; continue with the
-      // deterministic local interpreter below.
+      final msg = error.toString();
+      if (msg.contains('belum terinstal') || msg.contains('belum terverifikasi')) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: 0.5,
+          response: 'Model AI lokal belum terpasang. Unduh SLM dari menu Model Asisten Lokal untuk menggunakan fitur ini.',
+          responseMode: FfmAssistantResponseMode.localRules,
+          responseOrigin: FfmAssistantResponseOrigin.localFallback,
+        );
+      }
+      if (msg.contains('circuit breaker')) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: 0.5,
+          response: 'Model AI lokal sedang istirahat setelah beberapa kegagalan. Coba lagi dalam beberapa menit.',
+          responseMode: FfmAssistantResponseMode.localRules,
+          responseOrigin: FfmAssistantResponseOrigin.localFallback,
+        );
+      }
+      // Other native/model failure — continue with local interpreter.
       return null;
     }
-    if (proposal == null || !proposal.isUsable) return null;
+    if (proposal == null || !proposal.isUsable) {
+      return null;
+    }
 
     if (proposal.clarification != null &&
         proposal.clarification!.trim().isNotEmpty) {
