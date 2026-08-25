@@ -52,6 +52,14 @@ class _AssetListPageState extends State<AssetListPage> {
     if (saved == true) await _load();
   }
 
+  Future<void> _openDetail(AssetEntity item) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => AssetDetailPage(asset: item)),
+    );
+    if (changed == true) await _load();
+  }
+
   Future<void> _archive(AssetEntity item) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -196,7 +204,7 @@ class _AssetListPageState extends State<AssetListPage> {
                                 ),
                               ],
                             ),
-                            onTap: () => _edit(item),
+                            onTap: () => _openDetail(item),
                           ),
                         ),
                       ),
@@ -206,6 +214,153 @@ class _AssetListPageState extends State<AssetListPage> {
       ),
     );
   }
+}
+
+class AssetDetailPage extends StatelessWidget {
+  const AssetDetailPage({super.key, required this.asset});
+
+  final AssetEntity asset;
+
+  Future<void> _edit(BuildContext context) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => AssetFormPage(initial: asset)),
+    );
+    if (!context.mounted || saved != true) return;
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _archive(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Arsipkan aset?'),
+        content: Text(
+          'Aset “${asset.name}” akan disembunyikan dari daftar aktif, tetapi datanya tetap tersimpan. Tindakan ini tidak mengubah saldo rekening atau transaksi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Arsipkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await getIt<ArchiveAsset>()(AppContext.householdId, asset.id);
+    if (!context.mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) => FfmAssistantPageContext(
+    destination: FfmAssistantDestination.assets,
+    child: Scaffold(
+      appBar: AppBar(
+        title: const Text('Detail aset'),
+        actions: [
+          IconButton(
+            tooltip: 'Ubah aset',
+            onPressed: () => _edit(context),
+            icon: const Icon(Icons.edit_outlined),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        children: [
+          const AppHelpBanner(
+            title: 'Aset bukan rekening',
+            message: 'Nilai aset membantu memantau gambaran kekayaan keluarga. Nilai ini tidak otomatis menambah, mengurangi, atau memindahkan saldo rekening.',
+            icon: Icons.inventory_2_outlined,
+          ),
+          const SizedBox(height: 20),
+          Center(
+            child: CircleAvatar(
+              radius: 30,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              child: const Icon(Icons.inventory_2_outlined, size: 32),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            asset.name,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Center(child: AppMoneyText(asset.value, compact: false)),
+          const SizedBox(height: 24),
+          const AppSectionHeader(title: 'Informasi aset'),
+          const SizedBox(height: 8),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.category_outlined),
+                  title: const Text('Jenis aset'),
+                  subtitle: Text(asset.assetType),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.place_outlined),
+                  title: const Text('Lokasi atau penempatan'),
+                  subtitle: Text(asset.placement),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.event_note_outlined),
+                  title: const Text('Tanggal dicatat'),
+                  subtitle: HijriDateText(
+                    date: asset.createdAt,
+                    includeSeconds: true,
+                    compact: true,
+                  ),
+                ),
+                if (asset.updatedAt != null) ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: const Icon(Icons.update_outlined),
+                    title: const Text('Terakhir diperbarui'),
+                    subtitle: HijriDateText(
+                      date: asset.updatedAt!,
+                      includeSeconds: true,
+                      compact: true,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (asset.note?.trim().isNotEmpty == true) ...[
+            const SizedBox(height: 20),
+            const AppSectionHeader(title: 'Catatan'),
+            const SizedBox(height: 8),
+            AppCard(child: Text(asset.note!.trim())),
+          ],
+          const SizedBox(height: 28),
+          FilledButton.icon(
+            onPressed: () => _edit(context),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Ubah aset'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _archive(context),
+            icon: const Icon(Icons.archive_outlined),
+            label: const Text('Arsipkan aset'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class AssetFormPage extends StatefulWidget {
