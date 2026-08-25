@@ -890,6 +890,9 @@ class FfmAssistantInterpreter {
     final categoryMutation = await _parseCategoryMutation(rawText, normalized);
     if (categoryMutation != null) return categoryMutation;
 
+    final accountMutation = await _parseAccountMutation(rawText, normalized);
+    if (accountMutation != null) return accountMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2488,6 +2491,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveCategory,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Kategori',
+      ),
+      FfmAssistantDraftKind.accountUpdate => (
+        type: FfmAssistantIntentType.updateAccount,
+        destination: FfmAssistantDestination.masterData,
+        action: 'ubah nama Rekening',
+      ),
+      FfmAssistantDraftKind.accountArchive => (
+        type: FfmAssistantIntentType.archiveAccount,
+        destination: FfmAssistantDestination.masterData,
+        action: 'arsip Rekening',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -4458,6 +4471,83 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan nama satu Kategori. Tipe, hierarki, periode Anggaran, transaksi, dan Anggaran tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Kategori. Guard akan memeriksa subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sebelum ada perubahan. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseAccountMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:nama\s+)?rekening\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+rekening\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null) return null;
+
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final rows =
+        await (_database.select(_database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where(
+          (row) =>
+              terms.isNotEmpty && terms.every(row.name.toLowerCase().contains),
+        )
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateAccount
+        : FfmAssistantIntentType.archiveAccount;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Rekening aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Rekening yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama Rekening yang lebih spesifik. Belum ada saldo, transaksi, transfer, atau data Rekening yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.accountUpdate
+          : FfmAssistantDraftKind.accountArchive,
+      createdAt: _clock(),
+      title: operation == 'update' ? update!.group(2)!.trim() : target.name,
+      formValues: {
+        'entity': 'account',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': target.name,
+        'protectedId': target.id,
+        'protectedHouseholdId': target.householdId,
+        'protectedType': target.type,
+        'protectedOpeningBalance': target.openingBalance.toString(),
+        'protectedIsActive': target.isActive.toString(),
+        'protectedCreatedAt': target.createdAt.toIso8601String(),
+        'protectedArchiveResult': (operation == 'archive').toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan nama satu Rekening. Saldo awal, tipe, status aktif, dan seluruh referensi transaksi/transfer tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Rekening. Arsip hanya boleh jika Rekening belum pernah dipakai transaksi, transfer, transaksi berkala, atau rekonsiliasi. Cek preview dulu.',
     );
   }
 

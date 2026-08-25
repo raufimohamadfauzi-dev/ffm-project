@@ -11,6 +11,7 @@ import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
 import '../../settings/data/category_repository.dart';
+import '../../settings/data/account_repository.dart';
 import '../../settings/data/income_source_repository.dart';
 import '../../settings/data/merchant_repository.dart';
 import '../../settings/data/tag_repository.dart';
@@ -96,6 +97,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.income_source_archive': _prepareIncomeSourceMutation,
     'draft.category_update': _prepareCategoryMutation,
     'draft.category_archive': _prepareCategoryMutation,
+    'draft.account_update': _prepareAccountMutation,
+    'draft.account_archive': _prepareAccountMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -137,6 +140,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.tag_mutation': _verifyTagMutation,
     'verify.income_source_mutation': _verifyIncomeSourceMutation,
     'verify.category_mutation': _verifyCategoryMutation,
+    'verify.account_mutation': _verifyAccountMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -337,6 +341,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _updateIncomeSource(step);
     }
     if (step.parameters['entity'] == 'category') return _updateCategory(step);
+    if (step.parameters['entity'] == 'account') return _updateAccount(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -446,6 +451,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _archiveIncomeSource(step);
     }
     if (step.parameters['entity'] == 'category') return _archiveCategory(step);
+    if (step.parameters['entity'] == 'account') return _archiveAccount(step);
     return _archiveTransaction(step);
   }
 
@@ -1302,6 +1308,157 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<Category?> _categoryById(String? id) async {
     if (id == null) return null;
     final all = await _categories.readActive(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  AccountRepository get _accounts =>
+      AccountRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareAccountMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _accountById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Rekening target tidak ditemukan, sudah diarsipkan, atau tidak aktif.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      final block = await _accounts.archiveBlockReason(
+        householdId: _householdId,
+        id: target.id,
+      );
+      if (block != null) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Arsip Rekening tidak dapat disiapkan: $block',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Rekening “${target.name}”. Guard transaksi, transfer, transaksi berkala, dan rekonsiliasi sudah lolos. Saldo awal, tipe, status aktif, dan seluruh referensi keuangan tidak akan diubah.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama Rekening baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan nama Rekening “${target.name}” menjadi “$title”. Saldo awal, tipe, status aktif, dan seluruh referensi keuangan tidak akan diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateAccount(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _accountById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    if (before == null || title == null || title.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau nama Rekening belum valid.',
+      );
+    }
+    if (before.name == title) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: nama Rekening sudah sesuai draft.',
+      );
+    }
+    await _accounts.updateName(
+      householdId: _householdId,
+      id: before.id,
+      name: title,
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Nama Rekening diperbarui tanpa mengubah saldo awal, tipe, status, atau referensi keuangan. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveAccount(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _accountById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Rekening target tidak ditemukan, sudah diarsipkan, atau tidak aktif.',
+      );
+    }
+    final block = await _accounts.archiveBlockReason(
+      householdId: _householdId,
+      id: target.id,
+    );
+    if (block != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Arsip Rekening ditolak: $block',
+      );
+    }
+    try {
+      await _accounts.archive(householdId: _householdId, id: target.id);
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Arsip Rekening ditolak: ${error.message}',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Rekening “${target.name}” diarsipkan lunak setelah seluruh guard referensi lolos.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyAccountMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Rekening belum valid.',
+      );
+    }
+    final row = await _accounts.get(_householdId, id);
+    final preservesProtectedFields =
+        row != null &&
+        row.id == step.parameters['protectedId'] &&
+        row.householdId == step.parameters['protectedHouseholdId'] &&
+        row.type == step.parameters['protectedType'] &&
+        row.openingBalance ==
+            int.tryParse(
+              step.parameters['protectedOpeningBalance']?.toString() ?? '',
+            ) &&
+        row.isActive ==
+            (step.parameters['protectedIsActive']?.toString() == 'true') &&
+        row.createdAt.toIso8601String() ==
+            step.parameters['protectedCreatedAt'];
+    if (step.parameters['operation'] == 'archive') {
+      return row != null &&
+              row.isArchived &&
+              preservesProtectedFields &&
+              row.isArchived ==
+                  (step.parameters['protectedArchiveResult']?.toString() ==
+                      'true')
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Rekening sudah diarsipkan lunak dan field terlindungi tetap sama.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: arsip atau field terlindungi Rekening tidak sesuai.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    return row != null &&
+            !row.isArchived &&
+            row.name == title &&
+            preservesProtectedFields
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: nama Rekening dibaca kembali dan field terlindungi tetap sama.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: nama atau field terlindungi Rekening tidak sesuai draft.',
+          );
+  }
+
+  Future<Account?> _accountById(String? id) async {
+    if (id == null) return null;
+    final all = await _accounts.readActive(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }

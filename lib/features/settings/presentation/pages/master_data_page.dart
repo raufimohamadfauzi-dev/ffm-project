@@ -13,6 +13,7 @@ import '../../data/merchant_repository.dart';
 import '../../data/tag_repository.dart';
 import '../../data/income_source_repository.dart';
 import '../../data/category_repository.dart';
+import '../../data/account_repository.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -47,6 +48,7 @@ class _MasterDataPageState extends State<MasterDataPage>
     _database,
     AuditLogger(_database),
   );
+  late final _accounts = AccountRepository(_database, AuditLogger(_database));
   var _loading = true;
   var _refreshTick = 0;
   var _activeTab = 0;
@@ -260,15 +262,7 @@ class _MasterDataPageState extends State<MasterDataPage>
             )
             .toList();
       case 3:
-        final rows =
-            await (_database.select(_database.accounts)
-                  ..where(
-                    (row) =>
-                        row.householdId.equals(AppContext.householdId) &
-                        row.isArchived.equals(false),
-                  )
-                  ..orderBy([(row) => OrderingTerm.asc(row.name)]))
-                .get();
+        final rows = await _accounts.readAvailable(AppContext.householdId);
         return rows
             .map(
               (row) => _MasterItem(
@@ -407,9 +401,7 @@ class _MasterDataPageState extends State<MasterDataPage>
         )..where((item) => item.id.equals(id))).getSingle();
         return _MasterFormValues(name: row.name);
       case 3:
-        final row = await (_database.select(
-          _database.accounts,
-        )..where((item) => item.id.equals(id))).getSingle();
+        final row = (await _accounts.get(AppContext.householdId, id))!;
         return _MasterFormValues(
           name: row.name,
           accountType: row.type,
@@ -472,13 +464,7 @@ class _MasterDataPageState extends State<MasterDataPage>
               row.name.trim().toLowerCase() == normalized,
         );
       case 3:
-        final rows =
-            await (_database.select(_database.accounts)..where(
-                  (row) =>
-                      row.householdId.equals(AppContext.householdId) &
-                      row.isArchived.equals(false),
-                ))
-                .get();
+        final rows = await _accounts.readAvailable(AppContext.householdId);
         return rows.any(
           (row) =>
               row.id != currentId &&
@@ -507,7 +493,6 @@ class _MasterDataPageState extends State<MasterDataPage>
     String? existingId,
   ) async {
     final id = existingId ?? const Uuid().v4();
-    final now = DateTime.now();
     switch (tab) {
       case 0:
         if (existingId == null) {
@@ -561,27 +546,20 @@ class _MasterDataPageState extends State<MasterDataPage>
         }
       case 3:
         if (existingId == null) {
-          await _database
-              .into(_database.accounts)
-              .insert(
-                AccountsCompanion.insert(
-                  id: id,
-                  householdId: AppContext.householdId,
-                  name: values.name.trim(),
-                  type: values.accountType,
-                  openingBalance: Value(values.openingBalance),
-                  createdAt: now,
-                ),
-              );
+          await _accounts.create(
+            id: id,
+            householdId: AppContext.householdId,
+            name: values.name,
+            type: values.accountType,
+            openingBalance: values.openingBalance,
+          );
         } else {
-          await (_database.update(
-            _database.accounts,
-          )..where((row) => row.id.equals(existingId))).write(
-            AccountsCompanion(
-              name: Value(values.name.trim()),
-              type: Value(values.accountType),
-              openingBalance: Value(values.openingBalance),
-            ),
+          await _accounts.updateFromUser(
+            householdId: AppContext.householdId,
+            id: existingId,
+            name: values.name,
+            type: values.accountType,
+            openingBalance: values.openingBalance,
           );
         }
       default:
@@ -638,9 +616,16 @@ class _MasterDataPageState extends State<MasterDataPage>
       case 2:
         await _tags.archive(householdId: AppContext.householdId, id: item.id);
       case 3:
-        await (_database.update(_database.accounts)
-              ..where((row) => row.id.equals(item.id)))
-            .write(const AccountsCompanion(isArchived: Value(true)));
+        try {
+          await _accounts.archive(
+            householdId: AppContext.householdId,
+            id: item.id,
+          );
+        } on StateError catch (error) {
+          if (mounted)
+            _showMessage('Rekening tidak dapat diarsipkan: ${error.message}');
+          return;
+        }
       default:
         await _incomeSources.archive(
           householdId: AppContext.householdId,
