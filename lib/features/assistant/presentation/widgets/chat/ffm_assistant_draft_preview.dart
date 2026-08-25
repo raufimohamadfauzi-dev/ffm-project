@@ -31,6 +31,15 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.taskComplete => 'Preview Selesaikan Tugas',
     FfmAssistantDraftKind.taskReopen => 'Preview Buka Kembali Tugas',
     FfmAssistantDraftKind.taskArchive => 'Preview Arsip Tugas',
+    FfmAssistantDraftKind.routine => 'Draft Rutinitas',
+    FfmAssistantDraftKind.routineUpdate => 'Preview Perubahan Rutinitas',
+    FfmAssistantDraftKind.routineMarkComplete =>
+      'Preview Tandai Rutinitas Hari Ini',
+    FfmAssistantDraftKind.routineUnmarkComplete =>
+      'Preview Batalkan Tanda Rutinitas Hari Ini',
+    FfmAssistantDraftKind.routineActivate => 'Preview Aktifkan Rutinitas',
+    FfmAssistantDraftKind.routineDeactivate => 'Preview Nonaktifkan Rutinitas',
+    FfmAssistantDraftKind.routineArchive => 'Preview Arsip Rutinitas',
     FfmAssistantDraftKind.profile => 'Draft Perkenalan Diri',
     FfmAssistantDraftKind.goalUpdate => 'Preview Perubahan Target',
     FfmAssistantDraftKind.goalArchive => 'Preview Arsip Target',

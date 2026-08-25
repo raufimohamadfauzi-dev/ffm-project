@@ -16344,6 +16344,1054 @@ class TasksCompanion extends UpdateCompanion<Task> {
   }
 }
 
+class $DailyRoutinesTable extends DailyRoutines
+    with TableInfo<$DailyRoutinesTable, DailyRoutine> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyRoutinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _weekdaysJsonMeta = const VerificationMeta(
+    'weekdaysJson',
+  );
+  @override
+  late final GeneratedColumn<String> weekdaysJson = GeneratedColumn<String>(
+    'weekdays_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    title,
+    note,
+    weekdaysJson,
+    isActive,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_routines';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyRoutine> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('weekdays_json')) {
+      context.handle(
+        _weekdaysJsonMeta,
+        weekdaysJson.isAcceptableOrUnknown(
+          data['weekdays_json']!,
+          _weekdaysJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DailyRoutine map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyRoutine(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      weekdaysJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}weekdays_json'],
+      )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $DailyRoutinesTable createAlias(String alias) {
+    return $DailyRoutinesTable(attachedDatabase, alias);
+  }
+}
+
+class DailyRoutine extends DataClass implements Insertable<DailyRoutine> {
+  final String id;
+  final String householdId;
+  final String title;
+  final String? note;
+  final String weekdaysJson;
+  final bool isActive;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const DailyRoutine({
+    required this.id,
+    required this.householdId,
+    required this.title,
+    this.note,
+    required this.weekdaysJson,
+    required this.isActive,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['weekdays_json'] = Variable<String>(weekdaysJson);
+    map['is_active'] = Variable<bool>(isActive);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  DailyRoutinesCompanion toCompanion(bool nullToAbsent) {
+    return DailyRoutinesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      title: Value(title),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      weekdaysJson: Value(weekdaysJson),
+      isActive: Value(isActive),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory DailyRoutine.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyRoutine(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      title: serializer.fromJson<String>(json['title']),
+      note: serializer.fromJson<String?>(json['note']),
+      weekdaysJson: serializer.fromJson<String>(json['weekdaysJson']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'title': serializer.toJson<String>(title),
+      'note': serializer.toJson<String?>(note),
+      'weekdaysJson': serializer.toJson<String>(weekdaysJson),
+      'isActive': serializer.toJson<bool>(isActive),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  DailyRoutine copyWith({
+    String? id,
+    String? householdId,
+    String? title,
+    Value<String?> note = const Value.absent(),
+    String? weekdaysJson,
+    bool? isActive,
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => DailyRoutine(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    title: title ?? this.title,
+    note: note.present ? note.value : this.note,
+    weekdaysJson: weekdaysJson ?? this.weekdaysJson,
+    isActive: isActive ?? this.isActive,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  DailyRoutine copyWithCompanion(DailyRoutinesCompanion data) {
+    return DailyRoutine(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      title: data.title.present ? data.title.value : this.title,
+      note: data.note.present ? data.note.value : this.note,
+      weekdaysJson: data.weekdaysJson.present
+          ? data.weekdaysJson.value
+          : this.weekdaysJson,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyRoutine(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('weekdaysJson: $weekdaysJson, ')
+          ..write('isActive: $isActive, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    title,
+    note,
+    weekdaysJson,
+    isActive,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyRoutine &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.title == this.title &&
+          other.note == this.note &&
+          other.weekdaysJson == this.weekdaysJson &&
+          other.isActive == this.isActive &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class DailyRoutinesCompanion extends UpdateCompanion<DailyRoutine> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> title;
+  final Value<String?> note;
+  final Value<String> weekdaysJson;
+  final Value<bool> isActive;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const DailyRoutinesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.note = const Value.absent(),
+    this.weekdaysJson = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyRoutinesCompanion.insert({
+    required String id,
+    required String householdId,
+    required String title,
+    this.note = const Value.absent(),
+    this.weekdaysJson = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       title = Value(title),
+       createdAt = Value(createdAt);
+  static Insertable<DailyRoutine> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? title,
+    Expression<String>? note,
+    Expression<String>? weekdaysJson,
+    Expression<bool>? isActive,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (title != null) 'title': title,
+      if (note != null) 'note': note,
+      if (weekdaysJson != null) 'weekdays_json': weekdaysJson,
+      if (isActive != null) 'is_active': isActive,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyRoutinesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? title,
+    Value<String?>? note,
+    Value<String>? weekdaysJson,
+    Value<bool>? isActive,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return DailyRoutinesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      title: title ?? this.title,
+      note: note ?? this.note,
+      weekdaysJson: weekdaysJson ?? this.weekdaysJson,
+      isActive: isActive ?? this.isActive,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (weekdaysJson.present) {
+      map['weekdays_json'] = Variable<String>(weekdaysJson.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyRoutinesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('weekdaysJson: $weekdaysJson, ')
+          ..write('isActive: $isActive, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DailyRoutineCompletionsTable extends DailyRoutineCompletions
+    with TableInfo<$DailyRoutineCompletionsTable, DailyRoutineCompletion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyRoutineCompletionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _routineIdMeta = const VerificationMeta(
+    'routineId',
+  );
+  @override
+  late final GeneratedColumn<String> routineId = GeneratedColumn<String>(
+    'routine_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _routineDateMeta = const VerificationMeta(
+    'routineDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> routineDate = GeneratedColumn<DateTime>(
+    'routine_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    routineId,
+    householdId,
+    routineDate,
+    completedAt,
+    note,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_routine_completions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyRoutineCompletion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('routine_id')) {
+      context.handle(
+        _routineIdMeta,
+        routineId.isAcceptableOrUnknown(data['routine_id']!, _routineIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_routineIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('routine_date')) {
+      context.handle(
+        _routineDateMeta,
+        routineDate.isAcceptableOrUnknown(
+          data['routine_date']!,
+          _routineDateMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_routineDateMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_completedAtMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DailyRoutineCompletion map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyRoutineCompletion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      routineId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}routine_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      routineDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}routine_date'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DailyRoutineCompletionsTable createAlias(String alias) {
+    return $DailyRoutineCompletionsTable(attachedDatabase, alias);
+  }
+}
+
+class DailyRoutineCompletion extends DataClass
+    implements Insertable<DailyRoutineCompletion> {
+  final String id;
+  final String routineId;
+  final String householdId;
+  final DateTime routineDate;
+  final DateTime completedAt;
+  final String? note;
+  final DateTime createdAt;
+  const DailyRoutineCompletion({
+    required this.id,
+    required this.routineId,
+    required this.householdId,
+    required this.routineDate,
+    required this.completedAt,
+    this.note,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['routine_id'] = Variable<String>(routineId);
+    map['household_id'] = Variable<String>(householdId);
+    map['routine_date'] = Variable<DateTime>(routineDate);
+    map['completed_at'] = Variable<DateTime>(completedAt);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  DailyRoutineCompletionsCompanion toCompanion(bool nullToAbsent) {
+    return DailyRoutineCompletionsCompanion(
+      id: Value(id),
+      routineId: Value(routineId),
+      householdId: Value(householdId),
+      routineDate: Value(routineDate),
+      completedAt: Value(completedAt),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory DailyRoutineCompletion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyRoutineCompletion(
+      id: serializer.fromJson<String>(json['id']),
+      routineId: serializer.fromJson<String>(json['routineId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      routineDate: serializer.fromJson<DateTime>(json['routineDate']),
+      completedAt: serializer.fromJson<DateTime>(json['completedAt']),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'routineId': serializer.toJson<String>(routineId),
+      'householdId': serializer.toJson<String>(householdId),
+      'routineDate': serializer.toJson<DateTime>(routineDate),
+      'completedAt': serializer.toJson<DateTime>(completedAt),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  DailyRoutineCompletion copyWith({
+    String? id,
+    String? routineId,
+    String? householdId,
+    DateTime? routineDate,
+    DateTime? completedAt,
+    Value<String?> note = const Value.absent(),
+    DateTime? createdAt,
+  }) => DailyRoutineCompletion(
+    id: id ?? this.id,
+    routineId: routineId ?? this.routineId,
+    householdId: householdId ?? this.householdId,
+    routineDate: routineDate ?? this.routineDate,
+    completedAt: completedAt ?? this.completedAt,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  DailyRoutineCompletion copyWithCompanion(
+    DailyRoutineCompletionsCompanion data,
+  ) {
+    return DailyRoutineCompletion(
+      id: data.id.present ? data.id.value : this.id,
+      routineId: data.routineId.present ? data.routineId.value : this.routineId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      routineDate: data.routineDate.present
+          ? data.routineDate.value
+          : this.routineDate,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyRoutineCompletion(')
+          ..write('id: $id, ')
+          ..write('routineId: $routineId, ')
+          ..write('householdId: $householdId, ')
+          ..write('routineDate: $routineDate, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    routineId,
+    householdId,
+    routineDate,
+    completedAt,
+    note,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyRoutineCompletion &&
+          other.id == this.id &&
+          other.routineId == this.routineId &&
+          other.householdId == this.householdId &&
+          other.routineDate == this.routineDate &&
+          other.completedAt == this.completedAt &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt);
+}
+
+class DailyRoutineCompletionsCompanion
+    extends UpdateCompanion<DailyRoutineCompletion> {
+  final Value<String> id;
+  final Value<String> routineId;
+  final Value<String> householdId;
+  final Value<DateTime> routineDate;
+  final Value<DateTime> completedAt;
+  final Value<String?> note;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const DailyRoutineCompletionsCompanion({
+    this.id = const Value.absent(),
+    this.routineId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.routineDate = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyRoutineCompletionsCompanion.insert({
+    required String id,
+    required String routineId,
+    required String householdId,
+    required DateTime routineDate,
+    required DateTime completedAt,
+    this.note = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       routineId = Value(routineId),
+       householdId = Value(householdId),
+       routineDate = Value(routineDate),
+       completedAt = Value(completedAt),
+       createdAt = Value(createdAt);
+  static Insertable<DailyRoutineCompletion> custom({
+    Expression<String>? id,
+    Expression<String>? routineId,
+    Expression<String>? householdId,
+    Expression<DateTime>? routineDate,
+    Expression<DateTime>? completedAt,
+    Expression<String>? note,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (routineId != null) 'routine_id': routineId,
+      if (householdId != null) 'household_id': householdId,
+      if (routineDate != null) 'routine_date': routineDate,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyRoutineCompletionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? routineId,
+    Value<String>? householdId,
+    Value<DateTime>? routineDate,
+    Value<DateTime>? completedAt,
+    Value<String?>? note,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return DailyRoutineCompletionsCompanion(
+      id: id ?? this.id,
+      routineId: routineId ?? this.routineId,
+      householdId: householdId ?? this.householdId,
+      routineDate: routineDate ?? this.routineDate,
+      completedAt: completedAt ?? this.completedAt,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (routineId.present) {
+      map['routine_id'] = Variable<String>(routineId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (routineDate.present) {
+      map['routine_date'] = Variable<DateTime>(routineDate.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyRoutineCompletionsCompanion(')
+          ..write('id: $id, ')
+          ..write('routineId: $routineId, ')
+          ..write('householdId: $householdId, ')
+          ..write('routineDate: $routineDate, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $AccountReconciliationLogsTable extends AccountReconciliationLogs
     with TableInfo<$AccountReconciliationLogsTable, AccountReconciliationLog> {
   @override
@@ -22345,6 +23393,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $DailyNotesTable dailyNotes = $DailyNotesTable(this);
   late final $TasksTable tasks = $TasksTable(this);
+  late final $DailyRoutinesTable dailyRoutines = $DailyRoutinesTable(this);
+  late final $DailyRoutineCompletionsTable dailyRoutineCompletions =
+      $DailyRoutineCompletionsTable(this);
   late final $AccountReconciliationLogsTable accountReconciliationLogs =
       $AccountReconciliationLogsTable(this);
   late final $HijriSettingsTable hijriSettings = $HijriSettingsTable(this);
@@ -22399,6 +23450,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     activityEntries,
     dailyNotes,
     tasks,
+    dailyRoutines,
+    dailyRoutineCompletions,
     accountReconciliationLogs,
     hijriSettings,
     hijriMonthOverrides,
@@ -30408,6 +31461,551 @@ typedef $$TasksTableProcessedTableManager =
       Task,
       PrefetchHooks Function()
     >;
+typedef $$DailyRoutinesTableCreateCompanionBuilder =
+    DailyRoutinesCompanion Function({
+      required String id,
+      required String householdId,
+      required String title,
+      Value<String?> note,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyRoutinesTableUpdateCompanionBuilder =
+    DailyRoutinesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> note,
+      Value<String> weekdaysJson,
+      Value<bool> isActive,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$DailyRoutinesTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyRoutinesTable> {
+  $$DailyRoutinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyRoutinesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyRoutinesTable> {
+  $$DailyRoutinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyRoutinesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyRoutinesTable> {
+  $$DailyRoutinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get weekdaysJson => $composableBuilder(
+    column: $table.weekdaysJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$DailyRoutinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyRoutinesTable,
+          DailyRoutine,
+          $$DailyRoutinesTableFilterComposer,
+          $$DailyRoutinesTableOrderingComposer,
+          $$DailyRoutinesTableAnnotationComposer,
+          $$DailyRoutinesTableCreateCompanionBuilder,
+          $$DailyRoutinesTableUpdateCompanionBuilder,
+          (
+            DailyRoutine,
+            BaseReferences<_$AppDatabase, $DailyRoutinesTable, DailyRoutine>,
+          ),
+          DailyRoutine,
+          PrefetchHooks Function()
+        > {
+  $$DailyRoutinesTableTableManager(_$AppDatabase db, $DailyRoutinesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyRoutinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyRoutinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyRoutinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<String> weekdaysJson = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyRoutinesCompanion(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                weekdaysJson: weekdaysJson,
+                isActive: isActive,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String title,
+                Value<String?> note = const Value.absent(),
+                Value<String> weekdaysJson = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyRoutinesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                title: title,
+                note: note,
+                weekdaysJson: weekdaysJson,
+                isActive: isActive,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyRoutinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyRoutinesTable,
+      DailyRoutine,
+      $$DailyRoutinesTableFilterComposer,
+      $$DailyRoutinesTableOrderingComposer,
+      $$DailyRoutinesTableAnnotationComposer,
+      $$DailyRoutinesTableCreateCompanionBuilder,
+      $$DailyRoutinesTableUpdateCompanionBuilder,
+      (
+        DailyRoutine,
+        BaseReferences<_$AppDatabase, $DailyRoutinesTable, DailyRoutine>,
+      ),
+      DailyRoutine,
+      PrefetchHooks Function()
+    >;
+typedef $$DailyRoutineCompletionsTableCreateCompanionBuilder =
+    DailyRoutineCompletionsCompanion Function({
+      required String id,
+      required String routineId,
+      required String householdId,
+      required DateTime routineDate,
+      required DateTime completedAt,
+      Value<String?> note,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$DailyRoutineCompletionsTableUpdateCompanionBuilder =
+    DailyRoutineCompletionsCompanion Function({
+      Value<String> id,
+      Value<String> routineId,
+      Value<String> householdId,
+      Value<DateTime> routineDate,
+      Value<DateTime> completedAt,
+      Value<String?> note,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$DailyRoutineCompletionsTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyRoutineCompletionsTable> {
+  $$DailyRoutineCompletionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get routineId => $composableBuilder(
+    column: $table.routineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get routineDate => $composableBuilder(
+    column: $table.routineDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyRoutineCompletionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyRoutineCompletionsTable> {
+  $$DailyRoutineCompletionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get routineId => $composableBuilder(
+    column: $table.routineId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get routineDate => $composableBuilder(
+    column: $table.routineDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyRoutineCompletionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyRoutineCompletionsTable> {
+  $$DailyRoutineCompletionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get routineId =>
+      $composableBuilder(column: $table.routineId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get routineDate => $composableBuilder(
+    column: $table.routineDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$DailyRoutineCompletionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyRoutineCompletionsTable,
+          DailyRoutineCompletion,
+          $$DailyRoutineCompletionsTableFilterComposer,
+          $$DailyRoutineCompletionsTableOrderingComposer,
+          $$DailyRoutineCompletionsTableAnnotationComposer,
+          $$DailyRoutineCompletionsTableCreateCompanionBuilder,
+          $$DailyRoutineCompletionsTableUpdateCompanionBuilder,
+          (
+            DailyRoutineCompletion,
+            BaseReferences<
+              _$AppDatabase,
+              $DailyRoutineCompletionsTable,
+              DailyRoutineCompletion
+            >,
+          ),
+          DailyRoutineCompletion,
+          PrefetchHooks Function()
+        > {
+  $$DailyRoutineCompletionsTableTableManager(
+    _$AppDatabase db,
+    $DailyRoutineCompletionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyRoutineCompletionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$DailyRoutineCompletionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$DailyRoutineCompletionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> routineId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<DateTime> routineDate = const Value.absent(),
+                Value<DateTime> completedAt = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyRoutineCompletionsCompanion(
+                id: id,
+                routineId: routineId,
+                householdId: householdId,
+                routineDate: routineDate,
+                completedAt: completedAt,
+                note: note,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String routineId,
+                required String householdId,
+                required DateTime routineDate,
+                required DateTime completedAt,
+                Value<String?> note = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DailyRoutineCompletionsCompanion.insert(
+                id: id,
+                routineId: routineId,
+                householdId: householdId,
+                routineDate: routineDate,
+                completedAt: completedAt,
+                note: note,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyRoutineCompletionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyRoutineCompletionsTable,
+      DailyRoutineCompletion,
+      $$DailyRoutineCompletionsTableFilterComposer,
+      $$DailyRoutineCompletionsTableOrderingComposer,
+      $$DailyRoutineCompletionsTableAnnotationComposer,
+      $$DailyRoutineCompletionsTableCreateCompanionBuilder,
+      $$DailyRoutineCompletionsTableUpdateCompanionBuilder,
+      (
+        DailyRoutineCompletion,
+        BaseReferences<
+          _$AppDatabase,
+          $DailyRoutineCompletionsTable,
+          DailyRoutineCompletion
+        >,
+      ),
+      DailyRoutineCompletion,
+      PrefetchHooks Function()
+    >;
 typedef $$AccountReconciliationLogsTableCreateCompanionBuilder =
     AccountReconciliationLogsCompanion Function({
       required String id,
@@ -33564,6 +35162,13 @@ class $AppDatabaseManager {
       $$DailyNotesTableTableManager(_db, _db.dailyNotes);
   $$TasksTableTableManager get tasks =>
       $$TasksTableTableManager(_db, _db.tasks);
+  $$DailyRoutinesTableTableManager get dailyRoutines =>
+      $$DailyRoutinesTableTableManager(_db, _db.dailyRoutines);
+  $$DailyRoutineCompletionsTableTableManager get dailyRoutineCompletions =>
+      $$DailyRoutineCompletionsTableTableManager(
+        _db,
+        _db.dailyRoutineCompletions,
+      );
   $$AccountReconciliationLogsTableTableManager get accountReconciliationLogs =>
       $$AccountReconciliationLogsTableTableManager(
         _db,

@@ -173,6 +173,33 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.routine:
+        if (_isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'routine_title_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'judul Rutinitas',
+              message: 'Judul Rutinitas belum ada.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.routineUpdate:
+      case FfmAssistantDraftKind.routineMarkComplete:
+      case FfmAssistantDraftKind.routineUnmarkComplete:
+      case FfmAssistantDraftKind.routineActivate:
+      case FfmAssistantDraftKind.routineDeactivate:
+      case FfmAssistantDraftKind.routineArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'routine_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Rutinitas',
+              message: 'Rutinitas target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
@@ -214,6 +241,13 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.taskComplete ||
     FfmAssistantDraftKind.taskReopen ||
     FfmAssistantDraftKind.taskArchive ||
+    FfmAssistantDraftKind.routine ||
+    FfmAssistantDraftKind.routineUpdate ||
+    FfmAssistantDraftKind.routineMarkComplete ||
+    FfmAssistantDraftKind.routineUnmarkComplete ||
+    FfmAssistantDraftKind.routineActivate ||
+    FfmAssistantDraftKind.routineDeactivate ||
+    FfmAssistantDraftKind.routineArchive ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||

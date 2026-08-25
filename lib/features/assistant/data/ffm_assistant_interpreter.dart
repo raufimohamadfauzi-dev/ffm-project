@@ -839,6 +839,9 @@ class FfmAssistantInterpreter {
     final taskMutation = await _parseTaskMutation(rawText, normalized);
     if (taskMutation != null) return taskMutation;
 
+    final routineMutation = await _parseRoutineMutation(rawText, normalized);
+    if (routineMutation != null) return routineMutation;
+
     final activityMutation = await _parseActivityMutation(rawText, normalized);
     if (activityMutation != null) return activityMutation;
 
@@ -2409,6 +2412,41 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.activity,
         action: 'arsip Tugas',
       ),
+      FfmAssistantDraftKind.routine => (
+        type: FfmAssistantIntentType.createRoutine,
+        destination: FfmAssistantDestination.activity,
+        action: 'Rutinitas',
+      ),
+      FfmAssistantDraftKind.routineUpdate => (
+        type: FfmAssistantIntentType.updateRoutine,
+        destination: FfmAssistantDestination.activity,
+        action: 'ubah Rutinitas',
+      ),
+      FfmAssistantDraftKind.routineMarkComplete => (
+        type: FfmAssistantIntentType.markRoutineComplete,
+        destination: FfmAssistantDestination.activity,
+        action: 'tandai Rutinitas hari ini',
+      ),
+      FfmAssistantDraftKind.routineUnmarkComplete => (
+        type: FfmAssistantIntentType.unmarkRoutineComplete,
+        destination: FfmAssistantDestination.activity,
+        action: 'batalkan tanda Rutinitas hari ini',
+      ),
+      FfmAssistantDraftKind.routineActivate => (
+        type: FfmAssistantIntentType.activateRoutine,
+        destination: FfmAssistantDestination.activity,
+        action: 'aktifkan Rutinitas',
+      ),
+      FfmAssistantDraftKind.routineDeactivate => (
+        type: FfmAssistantIntentType.deactivateRoutine,
+        destination: FfmAssistantDestination.activity,
+        action: 'nonaktifkan Rutinitas',
+      ),
+      FfmAssistantDraftKind.routineArchive => (
+        type: FfmAssistantIntentType.archiveRoutine,
+        destination: FfmAssistantDestination.activity,
+        action: 'arsip Rutinitas',
+      ),
       FfmAssistantDraftKind.profile => (
         type: FfmAssistantIntentType.createProfile,
         destination: FfmAssistantDestination.assistantProfile,
@@ -2910,6 +2948,190 @@ class FfmAssistantInterpreter {
         })
         .take(4)
         .toList(growable: false);
+  }
+
+  Future<FfmAssistantIntent?> _parseRoutineMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final create = RegExp(
+      r'^(?:tambah|buat|catat)(?:kan)?\s+rutinitas\s*[:\-]?\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (create != null) {
+      final title = create.group(1)?.trim() ?? '';
+      if (title.isEmpty) return null;
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.routine,
+        createdAt: _clock(),
+        title: title,
+        formValues: const {'entity': 'daily_routine'},
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: 'Aku siapkan draft Rutinitas. Cek preview dulu; belum ada data yang disimpan atau notifikasi yang dibuat.',
+      );
+    }
+
+    final update = RegExp(
+      r'^(?:ubah|ganti)\s+rutinitas\s+(.+?)\s+(?:menjadi|jadi)\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final mark = RegExp(
+      r'^(?:selesai|selesaikan|tandai selesai)\s+rutinitas\s+(.+?)(?:\s+hari ini)?$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final unmark = RegExp(
+      r'^(?:batalkan|batal|hapus)\s+(?:tanda\s+)?(?:selesai\s+)?rutinitas\s+(.+?)(?:\s+hari ini)?$',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final activate = RegExp(
+      r'^aktifkan\s+rutinitas\s+(.+$)',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final deactivate = RegExp(
+      r'^(?:nonaktifkan|matikan)\s+rutinitas\s+(.+$)',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    final archive = RegExp(
+      r'^(?:arsip|arsipkan)\s+rutinitas\s+(.+$)',
+      caseSensitive: false,
+    ).firstMatch(rawText.trim());
+    if (update == null &&
+        mark == null &&
+        unmark == null &&
+        activate == null &&
+        deactivate == null &&
+        archive == null) {
+      return null;
+    }
+    final operation = update != null
+        ? 'update'
+        : mark != null
+        ? 'mark'
+        : unmark != null
+        ? 'unmark'
+        : activate != null
+        ? 'activate'
+        : deactivate != null
+        ? 'deactivate'
+        : 'archive';
+    final targetText =
+        (update?.group(1) ??
+                mark?.group(1) ??
+                unmark?.group(1) ??
+                activate?.group(1) ??
+                deactivate?.group(1) ??
+                archive?.group(1) ??
+                '')
+            .trim();
+    final candidates = await _findRoutineCandidates(
+      targetText,
+      operation: operation,
+    );
+    final type = switch (operation) {
+      'update' => FfmAssistantIntentType.updateRoutine,
+      'mark' => FfmAssistantIntentType.markRoutineComplete,
+      'unmark' => FfmAssistantIntentType.unmarkRoutineComplete,
+      'activate' => FfmAssistantIntentType.activateRoutine,
+      'deactivate' => FfmAssistantIntentType.deactivateRoutine,
+      _ => FfmAssistantIntentType.archiveRoutine,
+    };
+    if (candidates.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .8,
+        clarification:
+            'Aku tidak menemukan satu Rutinitas aktif yang cocok dengan “$targetText”. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    if (candidates.length > 1) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .72,
+        clarification:
+            'Aku menemukan ${candidates.length} Rutinitas yang cocok: ${candidates.take(3).map(_routineCandidateLabel).join('; ')}. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+      );
+    }
+    final target = candidates.single;
+    final newTitle = update?.group(2)?.trim();
+    final kind = switch (operation) {
+      'update' => FfmAssistantDraftKind.routineUpdate,
+      'mark' => FfmAssistantDraftKind.routineMarkComplete,
+      'unmark' => FfmAssistantDraftKind.routineUnmarkComplete,
+      'activate' => FfmAssistantDraftKind.routineActivate,
+      'deactivate' => FfmAssistantDraftKind.routineDeactivate,
+      _ => FfmAssistantDraftKind.routineArchive,
+    };
+    final now = _clock();
+    final day = DateTime(now.year, now.month, now.day);
+    final draft = FfmAssistantDraft(
+      kind: kind,
+      createdAt: _clock(),
+      title: newTitle ?? target.title,
+      note: target.note,
+      date: operation == 'mark' || operation == 'unmark' ? day : null,
+      formValues: {
+        'entity': 'daily_routine',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': _routineCandidateLabel(target),
+        'weekdays': target.weekdaysJson,
+        if (newTitle != null) 'title': newTitle,
+      },
+    );
+    final action = switch (operation) {
+      'update' => 'diubah',
+      'mark' => 'ditandai selesai hari ini',
+      'unmark' => 'dibatalkan tandanya untuk hari ini',
+      'activate' => 'diaktifkan',
+      'deactivate' => 'dinonaktifkan',
+      _ => 'diarsipkan tanpa dihapus permanen',
+    };
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response:
+          'Aku menemukan satu Rutinitas untuk $action. Cek preview dulu; belum ada data yang diubah.',
+    );
+  }
+
+  Future<List<DailyRoutine>> _findRoutineCandidates(
+    String targetText, {
+    required String operation,
+  }) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where((term) => term.length >= 3 && !RegExp(r'^\d+$').hasMatch(term))
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.dailyRoutines)
+              ..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.createdAt)]))
+            .get();
+    return rows
+        .where((row) {
+          if (operation == 'mark' && !row.isActive) return false;
+          if (operation == 'activate' && row.isActive) return false;
+          if (operation == 'deactivate' && !row.isActive) return false;
+          final haystack = '${row.title} ${row.note ?? ''}'.toLowerCase();
+          return terms.every(haystack.contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _routineCandidateLabel(DailyRoutine row) {
+    final state = row.isActive ? 'aktif' : 'nonaktif';
+    return '${row.title} • $state';
   }
 
   String _taskCandidateLabel(Task row) {

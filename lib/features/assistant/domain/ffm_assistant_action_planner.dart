@@ -52,6 +52,15 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.taskComplete => 'draft.task_complete',
         FfmAssistantDraftKind.taskReopen => 'draft.task_reopen',
         FfmAssistantDraftKind.taskArchive => 'draft.task_archive',
+        FfmAssistantDraftKind.routine => 'draft.routine',
+        FfmAssistantDraftKind.routineUpdate => 'draft.routine_update',
+        FfmAssistantDraftKind.routineMarkComplete =>
+          'draft.routine_mark_complete',
+        FfmAssistantDraftKind.routineUnmarkComplete =>
+          'draft.routine_unmark_complete',
+        FfmAssistantDraftKind.routineActivate => 'draft.routine_activate',
+        FfmAssistantDraftKind.routineDeactivate => 'draft.routine_deactivate',
+        FfmAssistantDraftKind.routineArchive => 'draft.routine_archive',
         FfmAssistantDraftKind.profile => 'draft.profile',
         FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
         FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
@@ -84,6 +93,12 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.taskComplete => 'mutate.update',
         FfmAssistantDraftKind.taskReopen => 'mutate.update',
         FfmAssistantDraftKind.taskArchive => 'mutate.archive',
+        FfmAssistantDraftKind.routineUpdate ||
+        FfmAssistantDraftKind.routineMarkComplete ||
+        FfmAssistantDraftKind.routineUnmarkComplete ||
+        FfmAssistantDraftKind.routineActivate ||
+        FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
+        FfmAssistantDraftKind.routineArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -112,6 +127,13 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.taskComplete ||
             FfmAssistantDraftKind.taskReopen ||
             FfmAssistantDraftKind.taskArchive => 'verify.task_mutation',
+            FfmAssistantDraftKind.routine ||
+            FfmAssistantDraftKind.routineUpdate ||
+            FfmAssistantDraftKind.routineMarkComplete ||
+            FfmAssistantDraftKind.routineUnmarkComplete ||
+            FfmAssistantDraftKind.routineActivate ||
+            FfmAssistantDraftKind.routineDeactivate ||
+            FfmAssistantDraftKind.routineArchive => 'verify.routine_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',

@@ -227,6 +227,16 @@ class FfmDatabaseStructureService {
       'Aktivitas & Jurnal',
       'Tindakan keluarga dengan status terbuka atau selesai, tanggal target opsional, serta arsip lunak.',
     ),
+    'daily_routines': _TableDefinition(
+      'Rutinitas',
+      'Aktivitas & Jurnal',
+      'Kebiasaan berulang dengan pola hari opsional, status aktif, dan arsip lunak.',
+    ),
+    'daily_routine_completions': _TableDefinition(
+      'Riwayat Rutinitas',
+      'Aktivitas & Jurnal',
+      'Penandaan pelaksanaan satu Rutinitas per tanggal lokal, terpisah dari definisinya.',
+    ),
     'account_reconciliation_logs': _TableDefinition(
       'Riwayat rekonsiliasi',
       'Pemeriksaan saldo',

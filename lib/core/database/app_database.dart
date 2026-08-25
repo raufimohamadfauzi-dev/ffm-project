@@ -37,6 +37,8 @@ part 'app_database.g.dart';
     ActivityEntries,
     DailyNotes,
     Tasks,
+    DailyRoutines,
+    DailyRoutineCompletions,
     AccountReconciliationLogs,
     HijriSettings,
     HijriMonthOverrides,
@@ -56,7 +58,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -65,6 +67,7 @@ class AppDatabase extends _$AppDatabase {
       await _createActivityIndexes();
       await _createDailyNoteIndexes();
       await _createTaskIndexes();
+      await _createDailyRoutineIndexes();
       await _createAssistantMemoryIndexes();
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
@@ -162,6 +165,11 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(tasks);
         await _createTaskIndexes();
       }
+      if (from < 38) {
+        await m.createTable(dailyRoutines);
+        await m.createTable(dailyRoutineCompletions);
+        await _createDailyRoutineIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -205,6 +213,21 @@ class AppDatabase extends _$AppDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_tasks_household_status_due '
       'ON tasks (household_id, is_archived, status, due_date)',
+    );
+  }
+
+  Future<void> _createDailyRoutineIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_daily_routines_household_active '
+      'ON daily_routines (household_id, is_archived, is_active, title)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_routine_completions_day '
+      'ON daily_routine_completions (routine_id, routine_date)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_daily_routine_completions_household_day '
+      'ON daily_routine_completions (household_id, routine_date)',
     );
   }
 

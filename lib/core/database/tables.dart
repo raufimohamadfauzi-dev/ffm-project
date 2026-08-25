@@ -424,6 +424,40 @@ class Tasks extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Rutinitas adalah kebiasaan berulang yang definisinya terpisah dari Tugas
+/// satu kali, Catatan Harian, sesi Aktivitas, dan Jadwal kalender.
+class DailyRoutines extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+  TextColumn get weekdaysJson => text().withDefault(const Constant('[]'))();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Satu pelaksanaan Rutinitas pada satu tanggal lokal.
+///
+/// ID disusun deterministik oleh repository dari rutinitas dan tanggal agar
+/// pengulangan penandaan tidak membuat riwayat ganda.
+class DailyRoutineCompletions extends Table {
+  TextColumn get id => text()();
+  TextColumn get routineId => text()();
+  TextColumn get householdId => text()();
+  DateTimeColumn get routineDate => dateTime()();
+  DateTimeColumn get completedAt => dateTime()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class AccountReconciliationLogs extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
