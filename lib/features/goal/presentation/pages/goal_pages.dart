@@ -43,13 +43,21 @@ class _GoalListPageState extends State<GoalListPage> {
     if (saved == true) _load();
   }
 
+  Future<void> _openDetail(GoalEntity item) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => GoalDetailPage(goal: item)),
+    );
+    if (changed == true) _load();
+  }
+
   @override
   Widget build(BuildContext context) => FfmAssistantPageContext(
     destination: FfmAssistantDestination.goals,
     child: Scaffold(
       appBar: AppBar(title: const Text('Target keuangan')),
       floatingActionButton: FloatingActionButton.extended(
-          heroTag: 'goal_add_fab',
+        heroTag: 'goal_add_fab',
         onPressed: _add,
         icon: const Icon(Icons.add),
         label: const Text('Tambah target'),
@@ -69,34 +77,349 @@ class _GoalListPageState extends State<GoalListPage> {
                     ? 0.0
                     : (item.currentAmount / item.targetAmount).clamp(0.0, 1.0);
                 return AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => _openDetail(item),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text(
-                              item.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  item.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
-                            ),
+                              AppMoneyText(item.currentAmount, compact: true),
+                            ],
                           ),
-                          AppMoneyText(item.currentAmount, compact: true),
+                          const SizedBox(height: 10),
+                          LinearProgressIndicator(value: progress),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${(progress * 100).round()}% dari ${formatRupiahInput(item.targetAmount.toString())} • target ${item.targetDate.day}/${item.targetDate.month}/${item.targetDate.year}',
+                          ),
+                          HijriDateLabel(date: item.targetDate),
                         ],
                       ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(value: progress),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${(progress * 100).round()}% dari ${formatRupiahInput(item.targetAmount.toString())} • target ${item.targetDate.day}/${item.targetDate.month}/${item.targetDate.year}',
-                      ),
-                      HijriDateLabel(date: item.targetDate),
-                    ],
+                    ),
                   ),
                 );
               }).toList(),
             ),
+    ),
+  );
+}
+
+class GoalDetailPage extends StatelessWidget {
+  const GoalDetailPage({super.key, required this.goal});
+
+  final GoalEntity goal;
+
+  Future<void> _edit(BuildContext context) async {
+    final saved = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => GoalEditPage(goal: goal)),
+    );
+    if (!context.mounted || saved != true) return;
+    Navigator.of(context).pop(true);
+  }
+
+  Future<void> _archive(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Arsipkan target?'),
+        content: Text(
+          'Target “${goal.name}” akan disembunyikan dari daftar aktif. Progres dan transaksi yang terkait tetap tersimpan; tidak ada saldo rekening atau transaksi yang diubah.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Arsipkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await getIt<DeleteGoal>()(AppContext.householdId, goal.id);
+    if (!context.mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = goal.targetAmount <= 0
+        ? 0.0
+        : (goal.currentAmount / goal.targetAmount).clamp(0.0, 1.0);
+    final remaining = (goal.targetAmount - goal.currentAmount).clamp(
+      0,
+      goal.targetAmount,
+    );
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.goals,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Detail target'),
+          actions: [
+            IconButton(
+              tooltip: 'Ubah target',
+              onPressed: () => _edit(context),
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          ],
+        ),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          children: [
+            const AppHelpBanner(
+              title: 'Progres berasal dari transaksi',
+              message: 'Setoran dan pemakaian dana target harus dicatat sebagai transaksi resmi. Halaman ini tidak mengubah saldo terkumpul secara langsung.',
+              icon: Icons.flag_outlined,
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: CircleAvatar(
+                radius: 30,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                child: const Icon(Icons.flag_outlined, size: 32),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              goal.name,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 20),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Progres dana',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: AppMoneyText(goal.currentAmount, compact: false),
+                      ),
+                      Text('${(progress * 100).round()}% tercapai'),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  LinearProgressIndicator(value: progress),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Target ${formatRupiahInput(goal.targetAmount.toString())}',
+                  ),
+                  Text('Sisa ${formatRupiahInput(remaining.toString())}'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const AppSectionHeader(title: 'Informasi target'),
+            const SizedBox(height: 8),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.event_outlined),
+                    title: const Text('Batas waktu'),
+                    subtitle: HijriDateText(
+                      date: goal.targetDate,
+                      compact: true,
+                    ),
+                  ),
+                  if (goal.createdAt != null) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.event_note_outlined),
+                      title: const Text('Tanggal dibuat'),
+                      subtitle: HijriDateText(
+                        date: goal.createdAt!,
+                        compact: true,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              onPressed: () => _edit(context),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Ubah target'),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _archive(context),
+              icon: const Icon(Icons.archive_outlined),
+              label: const Text('Arsipkan target'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class GoalEditPage extends StatefulWidget {
+  const GoalEditPage({super.key, required this.goal});
+
+  final GoalEntity goal;
+
+  @override
+  State<GoalEditPage> createState() => _GoalEditPageState();
+}
+
+class _GoalEditPageState extends State<GoalEditPage> {
+  late final TextEditingController _name;
+  late final TextEditingController _target;
+  late DateTime _targetDate;
+  final _formKey = GlobalKey<FormState>();
+  var _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.goal.name);
+    _target = TextEditingController(
+      text: formatRupiahInput(widget.goal.targetAmount.toString()),
+    );
+    _targetDate = widget.goal.targetDate;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _target.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickTargetDate() async {
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      initialDate: _targetDate,
+      helpText: 'Pilih batas waktu target',
+      cancelText: 'Batal',
+      confirmText: 'Pilih',
+    );
+    if (date != null && mounted) setState(() => _targetDate = date);
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate() || _saving) return;
+    final targetAmount = parseRupiah(_target.text);
+    if (targetAmount < widget.goal.currentAmount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Nominal target tidak boleh lebih kecil dari dana yang sudah terkumpul (${formatRupiahInput(widget.goal.currentAmount.toString())}).',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _saving = true);
+    await getIt<SaveGoal>()(
+      GoalEntity(
+        id: widget.goal.id,
+        householdId: widget.goal.householdId,
+        name: _name.text.trim(),
+        targetAmount: targetAmount,
+        currentAmount: widget.goal.currentAmount,
+        targetDate: _targetDate,
+        categoryId: widget.goal.categoryId,
+        isActive: widget.goal.isActive,
+        createdAt: widget.goal.createdAt,
+      ),
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop(true);
+  }
+
+  @override
+  Widget build(BuildContext context) => FfmAssistantPageContext(
+    destination: FfmAssistantDestination.goals,
+    child: Scaffold(
+      appBar: AppBar(title: const Text('Ubah target')),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          children: [
+            AppHelpBanner(
+              title: 'Saldo target tetap terlindungi',
+              message:
+                  'Perubahan ini hanya memperbarui nama, batas nominal, atau batas waktu. Dana terkumpul ${formatRupiahInput(widget.goal.currentAmount.toString())} tidak dapat diubah dari halaman ini.',
+              icon: Icons.lock_outline,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _name,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Nama target'),
+              validator: (value) => value == null || value.trim().isEmpty
+                  ? 'Nama target wajib diisi.'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _target,
+              keyboardType: TextInputType.number,
+              inputFormatters: [RupiahInputFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'Nominal target',
+                prefixText: 'Rp ',
+              ),
+              validator: (value) {
+                final amount = parseRupiah(value ?? '');
+                if (amount <= 0) return 'Nominal target harus lebih dari nol.';
+                if (amount < widget.goal.currentAmount) {
+                  return 'Tidak boleh kurang dari dana terkumpul.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Batas waktu'),
+              subtitle: HijriDateText(date: _targetDate, compact: true),
+              trailing: const Icon(Icons.calendar_month_outlined),
+              onTap: _pickTargetDate,
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: _saving ? null : _save,
+              icon: _saving
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(_saving ? 'Menyimpan…' : 'Simpan perubahan'),
+            ),
+          ],
+        ),
+      ),
     ),
   );
 }
