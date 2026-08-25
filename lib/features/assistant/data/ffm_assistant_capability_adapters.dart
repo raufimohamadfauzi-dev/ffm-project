@@ -86,6 +86,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.goal_usage': _prepareDraft,
     'draft.goal_update': _prepareGoalMutation,
     'draft.goal_archive': _prepareGoalMutation,
+    'draft.reminder_update': _prepareReminderMutation,
     'draft.reminder_archive': _prepareReminderMutation,
     'mutate.save_draft': _saveDraft,
     'mutate.update': _updateTransaction,
@@ -280,6 +281,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['entity'] == 'schedule_entry') {
       return _updateSchedule(step);
+    }
+    if (step.parameters['entity'] == 'reminder') {
+      return _updateReminder(step);
     }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
@@ -1264,9 +1268,10 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
   ) async {
     final targetId = _targetId(step);
-    if (targetId == null || step.parameters['operation'] != 'archive') {
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || !const {'update', 'archive'}.contains(operation)) {
       return const FfmAssistantCapabilityExecutionResult.failure(
-        'Payload arsip pengingat tidak lengkap.',
+        'Payload perubahan pengingat tidak lengkap.',
       );
     }
     if (_reminderMutations == null) {
@@ -1281,9 +1286,67 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Pengingat tidak ditemukan atau sudah nonaktif.',
       );
     }
+    if (operation == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip pengingat “${reminder.title}”. Alarm berikutnya akan dibatalkan dan riwayat tetap disimpan. Belum ada data yang diubah.',
+      );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
+    if (title == null || title.isEmpty || scheduledAt == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Judul atau waktu baru pengingat belum valid.',
+      );
+    }
     return FfmAssistantCapabilityExecutionResult.success(
-      'Preview arsip pengingat “${reminder.title}”. Alarm berikutnya akan dibatalkan dan riwayat tetap disimpan. Belum ada data yang diubah.',
+      'Preview perubahan pengingat “${reminder.title}” menjadi “$title” pada ${scheduledAt.toIso8601String().substring(0, 16)}. Pola berulang, suara, snooze, dan identitas notifikasi tetap dipertahankan. Belum ada data yang diubah.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateReminder(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final reminderMutations = _reminderMutations;
+    final title = step.parameters['title']?.toString();
+    final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
+    if (targetId == null ||
+        reminderMutations == null ||
+        title == null ||
+        scheduledAt == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Layanan, target, judul, atau waktu pengingat belum siap.',
+      );
+    }
+    final previous = await ReminderRepository(_database)
+        .getReminder(_householdId, targetId);
+    if (previous == null || !previous.isActive) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat tidak ditemukan atau sudah nonaktif.',
+      );
+    }
+    try {
+      final updated = await reminderMutations.updateTitleAndScheduledAt(
+        previous: previous,
+        title: title,
+        note: step.parameters['note']?.toString(),
+        scheduledAt: scheduledAt,
+      );
+      if (updated.title == previous.title &&
+          updated.note == previous.note &&
+          updated.scheduledAt == previous.scheduledAt) {
+        return const FfmAssistantCapabilityExecutionResult.success(
+          'alreadyApplied: pengingat sudah sesuai dengan draft perubahan.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Pengingat “${updated.title}” diperbarui dan dijadwalkan ulang. Pola berulang, suara, snooze, dan identitas notifikasi tetap dipertahankan. Hasilnya akan dibaca kembali untuk verifikasi.',
+      );
+    } on Object {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pengingat belum dapat diperbarui karena izin atau jadwal notifikasi belum siap.',
+      );
+    }
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _archiveReminder(
@@ -1324,19 +1387,36 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
   ) async {
     final targetId = _targetId(step);
-    if (targetId == null || step.parameters['operation'] != 'archive') {
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || !const {'update', 'archive'}.contains(operation)) {
       return const FfmAssistantCapabilityExecutionResult.failure(
-        'Payload verifikasi arsip pengingat tidak lengkap.',
+        'Payload verifikasi perubahan pengingat tidak lengkap.',
       );
     }
     final reminder = await ReminderRepository(_database)
         .getReminder(_householdId, targetId);
-    return reminder != null && !reminder.isActive
+    if (operation == 'archive') {
+      return reminder != null && !reminder.isActive
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: pengingat “${reminder.title}” sudah nonaktif dan tidak akan dijadwalkan lagi.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: pengingat masih aktif atau tidak ditemukan.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
+    return reminder != null &&
+            reminder.isActive &&
+            title != null &&
+            reminder.title == title &&
+            scheduledAt != null &&
+            reminder.scheduledAt == scheduledAt
         ? FfmAssistantCapabilityExecutionResult.success(
-            'verified: pengingat “${reminder.title}” sudah nonaktif dan tidak akan dijadwalkan lagi.',
+            'verified: pengingat “${reminder.title}” sudah dibaca kembali sesuai draft tanpa mengubah pola, suara, atau identitas notifikasi.',
           )
         : const FfmAssistantCapabilityExecutionResult.failure(
-            'Verifikasi gagal: pengingat masih aktif atau tidak ditemukan.',
+            'Verifikasi gagal: perubahan pengingat belum sesuai draft.',
           );
   }
 

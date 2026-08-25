@@ -141,6 +141,54 @@ void main() {
       expect(gateway.cancelledNotificationIds, contains(91));
     },
   );
+
+  test('ubah pengingat menyiapkan draft lalu memperbarui judul dan waktu tanpa mengubah recurrence atau identity', () async {
+    final original = await repository.getReminder(
+      AppContext.householdId,
+      'electricity',
+    );
+    final intent = await interpreter.interpret(
+      'ubah pengingat bayar listrik jadi bayar listrik rumah besok jam 09.30',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.updateReminder);
+    expect(intent.draft?.kind, FfmAssistantDraftKind.reminderUpdate);
+    expect(intent.draft?.formValues['targetId'], 'electricity');
+    expect(intent.draft?.title, 'bayar listrik rumah');
+    expect(intent.needsConfirmation, isTrue);
+    expect(
+      (await repository.getReminder(
+        AppContext.householdId,
+        'electricity',
+      ))?.title,
+      original?.title,
+    );
+
+    final plan = FfmAssistantActionPlanner(now: () => now).planFor(intent)!;
+    final completed = await executeConfirmed(plan);
+
+    expect(completed?.status, FfmAssistantActionPlanStatus.completed);
+    expect(
+      completed?.steps.map((step) => step.capabilityId),
+      equals([
+        'navigate.reminders',
+        'draft.reminder_update',
+        'mutate.update',
+        'verify.reminder_mutation',
+      ]),
+    );
+    final updated = await repository.getReminder(
+      AppContext.householdId,
+      'electricity',
+    );
+    expect(updated?.title, 'bayar listrik rumah');
+    expect(updated?.scheduledAt, DateTime(2026, 8, 25, 9, 30));
+    expect(updated?.recurrenceType, original?.recurrenceType);
+    expect(updated?.weekdays, original?.weekdays);
+    expect(updated?.soundUri, original?.soundUri);
+    expect(updated?.notificationId, original?.notificationId);
+    expect(gateway.cancelledNotificationIds, contains(91));
+  });
 }
 
 class _FakeReminderGateway implements ReminderNotificationGateway {

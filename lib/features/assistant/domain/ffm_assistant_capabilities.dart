@@ -366,6 +366,14 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['targetId'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.reminder_update',
+      label: 'Siapkan perubahan pengingat',
+      description: 'Menampilkan perubahan judul atau waktu satu pengingat tanpa menjadwalkan ulang sebelum konfirmasi.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.reminders,
+      parameterNames: ['targetId', 'title', 'date', 'note'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.routine',
       label: 'Siapkan Rutinitas',
       description:

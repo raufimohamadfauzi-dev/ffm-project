@@ -2378,6 +2378,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.reminders,
         action: 'pengingat',
       ),
+      FfmAssistantDraftKind.reminderUpdate => (
+        type: FfmAssistantIntentType.updateReminder,
+        destination: FfmAssistantDestination.reminders,
+        action: 'ubah pengingat',
+      ),
       FfmAssistantDraftKind.activity => (
         type: FfmAssistantIntentType.createActivity,
         destination: FfmAssistantDestination.activity,
@@ -3541,6 +3546,60 @@ class FfmAssistantInterpreter {
     String rawText,
     String normalized,
   ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi|jadwalkan ulang)\s+pengingat\s+(.+?)\s+(?:jadi|menjadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    if (update != null) {
+      final targetText = update.group(1)!.trim();
+      final changeText = update.group(2)!.trim();
+      final candidates = await _findReminderCandidates(targetText);
+      if (candidates.isEmpty || candidates.length > 1) {
+        final detail = candidates.isEmpty
+            ? 'Aku tidak menemukan satu pengingat aktif yang cocok dengan “$targetText”.'
+            : 'Aku menemukan ${candidates.length} pengingat yang cocok: ${candidates.take(3).map(_reminderCandidateLabel).join('; ')}.';
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.updateReminder,
+          confidence: candidates.isEmpty ? .8 : .72,
+          clarification:
+              '$detail Sebut judul pengingat yang lebih spesifik. Belum ada data yang diubah.',
+        );
+      }
+      final target = candidates.single;
+      final parsedDate = _scheduleDateFromText(changeText);
+      final parsedMinutes = _scheduleMinutesFromText(changeText);
+      final day = parsedDate ?? target.scheduledAt;
+      final scheduledAt = DateTime(
+        day.year,
+        day.month,
+        day.day,
+        parsedMinutes == null ? target.scheduledAt.hour : parsedMinutes ~/ 60,
+        parsedMinutes == null ? target.scheduledAt.minute : parsedMinutes % 60,
+      );
+      final titleCandidate = _scheduleTitleFromText(changeText);
+      final title = titleCandidate.isEmpty ? target.title : titleCandidate;
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminderUpdate,
+        createdAt: _clock(),
+        title: title,
+        note: target.note,
+        date: scheduledAt,
+        formValues: {
+          'entity': 'reminder',
+          'targetId': target.id,
+          'operation': 'update',
+          'targetSummary': _reminderCandidateLabel(target),
+          'scheduledAt': scheduledAt.toIso8601String(),
+          'preserveRecurrence': 'true',
+          'preserveSound': 'true',
+          'preserveNotificationId': 'true',
+        },
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: 'Aku menyiapkan perubahan satu pengingat. Pola berulang, suara, snooze, dan identitas notifikasi akan dipertahankan. Cek preview lalu konfirmasi; belum ada data yang diubah.',
+      );
+    }
     final archive = RegExp(
       r'^(?:arsip|arsipkan|nonaktifkan|matikan)\s+pengingat\s+(.+)$',
     ).firstMatch(normalized);

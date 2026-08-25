@@ -44,6 +44,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.budget => 'draft.budget',
         FfmAssistantDraftKind.masterData => 'draft.master_data',
         FfmAssistantDraftKind.reminder => 'draft.reminder',
+        FfmAssistantDraftKind.reminderUpdate => 'draft.reminder_update',
         FfmAssistantDraftKind.activity => 'draft.activity',
         FfmAssistantDraftKind.dailyNote => 'draft.daily_note',
         FfmAssistantDraftKind.dailyNoteArchive => 'draft.daily_note_archive',
@@ -86,6 +87,7 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.goalUpdate => 'mutate.update',
         FfmAssistantDraftKind.goalArchive => 'mutate.archive',
         FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
+        FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
         FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
@@ -145,6 +147,7 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
+            FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
             _ => 'verify.saved_draft',
           },
           parameters: {...parameters, '_idempotencyKey': idempotencyKey},

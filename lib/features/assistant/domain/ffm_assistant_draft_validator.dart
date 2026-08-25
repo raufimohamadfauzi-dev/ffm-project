@@ -233,6 +233,27 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.reminderUpdate:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'reminder_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Pengingat',
+              message: 'Pengingat target belum ditemukan secara unik.',
+            ),
+          );
+        }
+        if (_isBlank(draft.title) || draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'reminder_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'judul atau waktu Pengingat',
+              message: 'Judul atau waktu baru Pengingat belum valid.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.transactionUpdate:
       case FfmAssistantDraftKind.transactionArchive:
       case FfmAssistantDraftKind.transactionDelete:
@@ -284,6 +305,7 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.schedule ||
     FfmAssistantDraftKind.scheduleUpdate ||
     FfmAssistantDraftKind.scheduleArchive ||
+    FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||
     FfmAssistantDraftKind.reminderArchive ||

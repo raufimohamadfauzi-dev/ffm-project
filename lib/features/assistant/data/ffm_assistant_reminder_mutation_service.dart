@@ -34,6 +34,57 @@ class FfmAssistantReminderMutationService {
     if (next.isActive) await _scheduleNext(next);
   }
 
+  /// Memperbarui hanya teks dan waktu Pengingat yang sudah ada. Seluruh
+  /// konfigurasi recurrence, suara, snooze, dan identitas notifikasi diwariskan
+  /// dari data resmi, sehingga Agent tidak dapat mengubahnya secara implisit.
+  Future<ReminderEntity> updateTitleAndScheduledAt({
+    required ReminderEntity previous,
+    required String title,
+    required DateTime scheduledAt,
+    String? note,
+  }) async {
+    final normalizedTitle = title.trim();
+    if (normalizedTitle.isEmpty) {
+      throw ArgumentError.value(title, 'title', 'Judul pengingat wajib diisi.');
+    }
+    final next = ReminderEntity(
+      id: previous.id,
+      householdId: previous.householdId,
+      title: normalizedTitle,
+      note: note?.trim().isEmpty == true ? null : note?.trim(),
+      scheduledAt: scheduledAt,
+      recurrenceType: previous.recurrenceType,
+      weekdays: previous.weekdays,
+      isActive: previous.isActive,
+      soundUri: previous.soundUri,
+      soundName: previous.soundName,
+      defaultSnoozeMinutes: previous.defaultSnoozeMinutes,
+      notificationId: previous.notificationId,
+      createdAt: previous.createdAt,
+      updatedAt: _clock(),
+    );
+    if (_sameEditableFields(previous, next)) return previous;
+
+    final permission = await _notificationGateway.requestPermissions();
+    if (!permission.canSchedule) {
+      throw StateError(
+        'Izin notifikasi dan alarm presisi wajib diaktifkan agar pengingat bisa diperbarui.',
+      );
+    }
+    await _cancelScheduled(previous);
+    try {
+      await _repository.saveReminder(next);
+      if (next.isActive) await _scheduleNext(next);
+      return next;
+    } on Object {
+      // Mengembalikan data serta alarm lama sebagai pemulihan terbaik bila
+      // penjadwalan ulang gagal setelah pembatalan alarm sebelumnya.
+      await _repository.saveReminder(previous);
+      if (previous.isActive) await _scheduleNext(previous);
+      rethrow;
+    }
+  }
+
   Future<void> archive(ReminderEntity reminder) async {
     await _cancelScheduled(reminder);
     await _repository.setActive(
@@ -70,4 +121,9 @@ class FfmAssistantReminderMutationService {
       historyId: history.id,
     );
   }
+
+  bool _sameEditableFields(ReminderEntity left, ReminderEntity right) =>
+      left.title == right.title &&
+      left.note == right.note &&
+      left.scheduledAt == right.scheduledAt;
 }
