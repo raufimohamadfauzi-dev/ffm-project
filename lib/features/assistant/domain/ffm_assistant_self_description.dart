@@ -4,6 +4,9 @@ import 'ffm_assistant_models.dart';
 class FfmAssistantSelfDescriptionService {
   const FfmAssistantSelfDescriptionService();
 
+  static const appName = 'Family Finance Manager (FFM)';
+  static const appPurpose =
+      'aplikasi pengelolaan keuangan keluarga offline-first dengan pendamping lokal';
   static const creatorName = 'Rafi Sinkkat';
   static const creatorYouTube =
       'https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe';
@@ -28,8 +31,24 @@ class FfmAssistantSelfDescriptionService {
     'draft.income',
     'draft.expense',
     'draft.transfer',
+    'draft.activity',
+    'draft.daily_note',
+    'draft.reminder',
+    'draft.goal',
+    'draft.asset',
+    'draft.liability',
+    'draft.receivable',
+    'draft.budget',
+    'draft.master_data',
     'mutate.save_draft',
     'verify.saved_draft',
+    'mutate.update',
+    'mutate.archive',
+    'verify.transaction_mutation',
+    'verify.activity_mutation',
+    'verify.goal_mutation',
+    'verify.reminder_mutation',
+    'verify.daily_note_mutation',
   };
 
   String build({
@@ -56,6 +75,9 @@ class FfmAssistantSelfDescriptionService {
       if (implemented.contains('draft.income') && canSaveDraft) 'pemasukan',
       if (implemented.contains('draft.expense') && canSaveDraft) 'pengeluaran',
       if (implemented.contains('draft.transfer') && canSaveDraft) 'transfer',
+      if (implemented.contains('draft.activity') && canSaveDraft) 'aktivitas',
+      if (implemented.contains('draft.daily_note') && canSaveDraft)
+        'Catatan Harian',
     ];
     final mutationLabels = available
         .where(
@@ -80,18 +102,20 @@ class FfmAssistantSelfDescriptionService {
         : ' Halaman aktif saat ini: ${_pageName(currentDestination)}.';
 
     final currentActions = <String>[
-      'menjelaskan halaman dan fitur FFM serta berpindah halaman',
+      'menjelaskan identitas, pembuat, halaman, fungsi menu, dan batas fitur FFM dari katalog aplikasi',
+      'berpindah ke halaman yang tersedia melalui arahan yang kamu setujui',
       'memberikan edukasi literasi keuangan keluarga (budgeting, menabung, cashflow, manajemen finansial, dana darurat, asuransi, pajak keluarga, investasi dasar, penghasilan sampingan)',
       if (availableLabels.isNotEmpty) availableLabels,
       if (draftLabels.isNotEmpty) 'menyiapkan draft ${draftLabels.join(', ')}',
       if (canSaveDraft) 'menampilkan preview, menunggu konfirmasi, menyimpan mutation yang disetujui, lalu memverifikasi hasilnya',
       'menyiapkan preview laporan berbasis data lokal dan membantu menyusun narasi',
       'memberi penjelasan berdasarkan ringkasan database lokal tanpa mengirim raw database ke model',
-      'menjawab via 18 plugin Offline Agent Harness: 7 Mata (saldo, transaksi, budget, hutang, aset, target, profil kebiasaan), 5 Tangan (transaksi, goal, pengingat, laporan, json), 6 Logika (zakat mal/fitrah, kesehatan keuangan, budget guard, simulasi cicilan, laju pengeluaran, kesadaran holistik)',
       'menjawab pertanyaan finansial umum (asuransi, pajak, investasi dasar, dana darurat) dengan edukasi dan disclaimer yang tepat',
       'memberikan saran tindak lanjut yang relevan berdasarkan konteks percakapan dan data keuangan',
     ];
-    return '''Aku adalah Asisten FFM, pendamping lokal di Family Finance Manager.$pageText
+    return '''Aku adalah Asisten FFM, pendamping lokal di $appName.
+
+$appName adalah $appPurpose. Aplikasi ini membantu mencatat transaksi, mengatur anggaran, memantau rekening, aset, hutang/piutang, target, pengingat, aktivitas, Catatan Harian, laporan, cadangan data, privasi, dan model asisten lokal.$pageText
 
 Pembuat aplikasi ini adalah **$creatorName**.
 YouTube: [$creatorYouTube]($creatorYouTube)

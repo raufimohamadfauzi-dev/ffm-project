@@ -15,6 +15,12 @@ void main() {
     expect(response, contains('model SLM lokal'));
     expect(response, contains('Masih dalam pengembangan'));
     expect(response, contains('Rafi Sinkkat'));
+    expect(response, contains('Family Finance Manager (FFM)'));
+    expect(
+      response,
+      contains('aplikasi pengelolaan keuangan keluarga offline-first'),
+    );
+    expect(response, contains('Catatan Harian'));
     expect(
       response,
       contains('https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe'),

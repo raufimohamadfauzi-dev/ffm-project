@@ -582,7 +582,7 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.activity,
       name: 'Aktivitas',
-      description: 'Melacak aktivitas harian serta durasinya.',
+      description: 'Melacak aktivitas harian berdurasi dan mengelola Catatan Harian teks.',
       aliases: ['aktivitas', 'jurnal', 'kegiatan'],
       dataSection: FfmAssistantDataSection.activities,
     ),
@@ -933,7 +933,7 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.assets => 'Aset keluarga dipakai untuk mencatat barang atau kepemilikan bernilai yang ingin dipantau, misalnya kebun, kendaraan, alat kerja, atau tabungan khusus. Aset bukan transaksi harian dan tidak otomatis mengubah saldo rekening.',
         FfmAssistantDestination.goals => 'Target keuangan dipakai untuk uang yang sedang dikumpulkan dengan tujuan tertentu. Kamu bisa setor ke target atau memakai uang target; keduanya dicatat terpisah agar progres target tetap jelas.',
         FfmAssistantDestination.liabilities => 'Hutang & piutang mencatat uang yang kamu pinjam atau uang yang harus diterima dari orang lain. Kamu bisa melihat sisa, membuat strategi pelunasan, dan mengarsipkan catatan yang selesai tanpa menghapus riwayat finansial.',
-        FfmAssistantDestination.activity => 'Aktivitas melacak kegiatan harian dan lama waktunya. Beberapa aktivitas dapat aktif bersamaan; pembaruan atau selesai pada satu aktivitas tidak otomatis menutup aktivitas lain.',
+        FfmAssistantDestination.activity => 'Aktivitas & Jurnal memiliki dua bagian yang terpisah: aktivitas bertimer untuk melacak kegiatan dan lama waktunya, serta Catatan Harian untuk teks bebas. Beberapa aktivitas dapat aktif bersamaan; pembaruan atau selesai pada satu aktivitas tidak otomatis menutup aktivitas lain. Catatan Harian tidak mengubah sesi aktivitas, dapat ditambah, diubah, dan diarsipkan tanpa hapus permanen dari Agent.',
         FfmAssistantDestination.reminders => 'Pengingat membuat alarm lokal untuk hal yang perlu dilakukan. Kamu dapat menunda, menyelesaikan, atau melihat riwayat tanpa mengubah transaksi keuangan.',
         FfmAssistantDestination.backup => 'Ekspor & cadangan dipakai untuk membuat atau memulihkan data FFM, termasuk data utama, transaksi, aset, target, hutang/piutang, aktivitas, pengingat, memori ajar, dan contoh belajar. Periksa preview sebelum impor.',
         FfmAssistantDestination.monthlyReport => 'Ringkasan bulanan membandingkan pemasukan, pengeluaran, dan arus kas berdasarkan periode yang kamu pilih. Laporan hanya menampilkan catatan nyata yang ada di perangkat.',
