@@ -299,14 +299,30 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
           _ => FfmAssistantDraftKind.expense,
         };
 
+        final suggestedCategory = proposal.suggestedCategory?.trim();
+        final suggestedAccount = proposal.suggestedAccount?.trim();
         final draft = FfmAssistantDraft(
           kind: draftKind,
           createdAt: DateTime.now(),
           date: proposal.transactionDate ?? DateTime.now(),
           title: proposal.merchantName,
           amount: proposal.totalAmount,
-          categoryName: proposal.suggestedCategory,
-          toAccountName: proposal.suggestedAccount,
+          categoryName:
+              suggestedCategory == null || suggestedCategory.isEmpty
+              ? null
+              : suggestedCategory,
+          toAccountName:
+              suggestedAccount == null || suggestedAccount.isEmpty
+              ? null
+              : suggestedAccount,
+          merchantName: proposal.merchantName,
+          slmFieldValues: {
+            if (suggestedCategory != null && suggestedCategory.isNotEmpty)
+              'category': suggestedCategory,
+            if (suggestedAccount != null && suggestedAccount.isNotEmpty)
+              'account': suggestedAccount,
+            if (proposal.totalAmount != null) 'amount': '${proposal.totalAmount}',
+          },
           formValues: itemsMap,
         );
 

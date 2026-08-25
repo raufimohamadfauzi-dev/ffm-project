@@ -30,6 +30,7 @@ import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
 import 'ffm_assistant_reminder_mutation_service.dart';
 import 'ffm_activity_habit_learner.dart';
+import 'ffm_assistant_personalization_repository.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
@@ -38,17 +39,20 @@ class FfmAssistantCapabilityAdapterRegistry {
     DateTime Function()? clock,
     FfmAssistantReminderMutationService? reminderMutations,
     FfmActivityHabitLearner? habitLearner,
+    FfmAssistantPersonalizationRepository? personalization,
   }) : _database = database,
        _householdId = householdId,
        _clock = clock ?? DateTime.now,
        _reminderMutations = reminderMutations,
-       _habitLearner = habitLearner;
+       _habitLearner = habitLearner,
+       _personalization = personalization;
 
   final AppDatabase _database;
   final String _householdId;
   final DateTime Function() _clock;
   final FfmAssistantReminderMutationService? _reminderMutations;
   final FfmActivityHabitLearner? _habitLearner;
+  final FfmAssistantPersonalizationRepository? _personalization;
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -3218,9 +3222,65 @@ class FfmAssistantCapabilityAdapterRegistry {
       updatedAt: _clock(),
     );
     await SaveTransaction(_database)(entity);
+    await _recordDraftCorrections(
+      parameters: step.parameters,
+      finalCategory: categoryName,
+      finalAccount: accountName,
+      finalAmount: amount,
+    );
     return FfmAssistantCapabilityExecutionResult.success(
       'Tersimpan satu kali: ${kind == 'income' ? 'pemasukan' : 'pengeluaran'} ${_money(amount)} pada ${date.toIso8601String().substring(0, 10)}.',
     );
+  }
+
+  /// Merekam koreksi user terhadap tebakan awal (SLM/rule) pada draft
+  /// transaksi ber-merchant, lalu mengagregasi pola agar lapisan Agent
+  /// kategori otomatis semakin akurat. Best-effort: gagal tidak membatalkan
+  /// penyimpanan transaksi.
+  Future<void> _recordDraftCorrections({
+    required Map<String, Object?> parameters,
+    required String? finalCategory,
+    required String? finalAccount,
+    required int finalAmount,
+  }) async {
+    final personalization = _personalization;
+    if (personalization == null) return;
+    try {
+      final merchant = parameters['assistantMerchantName']?.toString().trim();
+      if (merchant == null || merchant.isEmpty) return;
+      final guessesRaw = parameters['assistantSlmFieldValues'];
+      final guesses = guessesRaw is Map
+          ? guessesRaw.map((k, v) => MapEntry('$k', '$v'))
+          : const <String, String>{};
+
+      Future<void> record(String field, String? guess, String? corrected) async {
+        final safeGuess = guess?.trim() ?? '';
+        final safeCorrected = corrected?.trim() ?? '';
+        if (safeGuess.isEmpty || safeCorrected.isEmpty) return;
+        if (safeGuess.toLowerCase() == safeCorrected.toLowerCase()) return;
+        await personalization.recordCorrection(
+          householdId: _householdId,
+          merchantName: merchant,
+          fieldName: field,
+          slmValue: safeGuess,
+          correctedValue: safeCorrected,
+        );
+      }
+
+      await record('category', guesses['category'], finalCategory);
+      await record('account', guesses['account'], finalAccount);
+      final guessAmount = guesses['amount']?.trim();
+      if (guessAmount != null && guessAmount.isNotEmpty && finalAmount > 0) {
+        final parsedGuess =
+            int.tryParse(guessAmount.replaceAll(RegExp(r'[^0-9]'), ''));
+        if (parsedGuess != null && parsedGuess != finalAmount) {
+          await record('amount', guessAmount, '$finalAmount');
+        }
+      }
+      await personalization.recalculatePatterns(_householdId);
+    } on Object {
+      // Pembelajaran tidak boleh menggagalkan penyimpanan.
+    }
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _saveTransfer(

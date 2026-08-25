@@ -274,6 +274,12 @@ class FfmAssistantActionPlanner {
     if (draft.goalName != null) 'goal': draft.goalName,
     if (draft.note != null) 'note': draft.note,
     if (draft.date != null) 'date': draft.date!.toIso8601String(),
+    // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
+    // dapat merekam koreksi user terhadap nilai SLM/rule.
+    if (draft.merchantName != null)
+      'assistantMerchantName': draft.merchantName,
+    if (draft.slmFieldValues.isNotEmpty)
+      'assistantSlmFieldValues': draft.slmFieldValues,
     ...draft.formValues,
   };
 }

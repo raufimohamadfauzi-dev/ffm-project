@@ -250,6 +250,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
         occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
       ),
       habitLearner: getIt<FfmActivityHabitLearner>(),
+      personalization: getIt<FfmAssistantPersonalizationRepository>(),
     ),
   );
   getIt.registerLazySingleton<FfmActivityHabitLearner>(
