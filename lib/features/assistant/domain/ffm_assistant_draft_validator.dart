@@ -199,6 +199,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.incomeSourceUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'income_source_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Sumber Pemasukan',
+              message: 'Target atau nama Sumber Pemasukan belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.incomeSourceArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'income_source_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Sumber Pemasukan',
+              message: 'Sumber Pemasukan target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.recurringTransactionUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -453,6 +475,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.merchantArchive ||
     FfmAssistantDraftKind.tagUpdate ||
     FfmAssistantDraftKind.tagArchive ||
+    FfmAssistantDraftKind.incomeSourceUpdate ||
+    FfmAssistantDraftKind.incomeSourceArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

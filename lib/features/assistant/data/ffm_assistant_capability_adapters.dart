@@ -10,6 +10,7 @@ import '../../daily_notes/data/daily_note_repository.dart';
 import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
+import '../../settings/data/income_source_repository.dart';
 import '../../settings/data/merchant_repository.dart';
 import '../../settings/data/tag_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
@@ -90,6 +91,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.merchant_archive': _prepareMerchantMutation,
     'draft.tag_update': _prepareTagMutation,
     'draft.tag_archive': _prepareTagMutation,
+    'draft.income_source_update': _prepareIncomeSourceMutation,
+    'draft.income_source_archive': _prepareIncomeSourceMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -129,6 +132,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         _verifyRecurringTransactionMutation,
     'verify.merchant_mutation': _verifyMerchantMutation,
     'verify.tag_mutation': _verifyTagMutation,
+    'verify.income_source_mutation': _verifyIncomeSourceMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -325,6 +329,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _updateMerchant(step);
     }
     if (step.parameters['entity'] == 'tag') return _updateTag(step);
+    if (step.parameters['entity'] == 'income_source') {
+      return _updateIncomeSource(step);
+    }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -430,6 +437,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _archiveMerchant(step);
     }
     if (step.parameters['entity'] == 'tag') return _archiveTag(step);
+    if (step.parameters['entity'] == 'income_source') {
+      return _archiveIncomeSource(step);
+    }
     return _archiveTransaction(step);
   }
 
@@ -1026,6 +1036,133 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<Tag?> _tagById(String? id) async {
     if (id == null) return null;
     final all = await _tags.readActive(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  IncomeSourceRepository get _incomeSources =>
+      IncomeSourceRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareIncomeSourceMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _incomeSourceById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Sumber Pemasukan target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Sumber Pemasukan “${target.name}”. sourceId transaksi historis tidak akan diubah.',
+      );
+    }
+    final metadataField = step.parameters['metadataField']?.toString();
+    final value = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : step.parameters['title']?.toString().trim();
+    if (value == null || value.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nilai metadata Sumber Pemasukan baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} Sumber Pemasukan “${target.name}”. sourceId transaksi tidak akan diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateIncomeSource(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _incomeSourceById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final nextDetails = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : before?.details;
+    if (before == null ||
+        title == null ||
+        title.isEmpty ||
+        (metadataField == 'details' &&
+            (nextDetails == null || nextDetails.isEmpty))) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau metadata Sumber Pemasukan belum valid.',
+      );
+    }
+    if (before.name == title && before.details == nextDetails) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: metadata Sumber Pemasukan sudah sesuai draft.',
+      );
+    }
+    await _incomeSources.update(
+      householdId: _householdId,
+      id: before.id,
+      name: title,
+      details: nextDetails,
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Metadata Sumber Pemasukan diperbarui tanpa mengubah sourceId transaksi. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveIncomeSource(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _incomeSourceById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Sumber Pemasukan target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    await _incomeSources.archive(householdId: _householdId, id: target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Sumber Pemasukan “${target.name}” diarsipkan lunak tanpa mengubah sourceId transaksi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyIncomeSourceMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Sumber Pemasukan belum valid.',
+      );
+    }
+    final row = await _incomeSources.get(_householdId, id);
+    if (step.parameters['operation'] == 'archive') {
+      return row?.isArchived == true
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Sumber Pemasukan sudah diarsipkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Sumber Pemasukan masih aktif.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final expectedDetails = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : row?.details;
+    return row != null &&
+            !row.isArchived &&
+            row.name == title &&
+            row.details == expectedDetails &&
+            row.kind == IncomeSourceRepository.kind &&
+            row.role == IncomeSourceRepository.role
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: metadata Sumber Pemasukan sudah dibaca kembali tanpa mengubah sourceId transaksi.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: metadata Sumber Pemasukan belum sesuai draft.',
+          );
+  }
+
+  Future<TransactionParty?> _incomeSourceById(String? id) async {
+    if (id == null) return null;
+    final all = await _incomeSources.readActive(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }

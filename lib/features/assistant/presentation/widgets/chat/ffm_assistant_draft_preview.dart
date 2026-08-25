@@ -31,6 +31,10 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.merchantArchive => 'Preview Arsip Toko/Tempat',
     FfmAssistantDraftKind.tagUpdate => 'Preview Perubahan Tag',
     FfmAssistantDraftKind.tagArchive => 'Preview Arsip Tag',
+    FfmAssistantDraftKind.incomeSourceUpdate =>
+      'Preview Perubahan Sumber Pemasukan',
+    FfmAssistantDraftKind.incomeSourceArchive =>
+      'Preview Arsip Sumber Pemasukan',
     FfmAssistantDraftKind.reminder => 'Draft Pengingat',
     FfmAssistantDraftKind.reminderUpdate => 'Preview Perubahan Pengingat',
     FfmAssistantDraftKind.reminderArchive => 'Preview Arsip Pengingat',

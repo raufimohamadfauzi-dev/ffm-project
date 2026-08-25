@@ -11,6 +11,7 @@ import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/merchant_repository.dart';
 import '../../data/tag_repository.dart';
+import '../../data/income_source_repository.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -37,6 +38,10 @@ class _MasterDataPageState extends State<MasterDataPage>
   final _database = getIt<AppDatabase>();
   late final _merchants = MerchantRepository(_database, AuditLogger(_database));
   late final _tags = TagRepository(_database, AuditLogger(_database));
+  late final _incomeSources = IncomeSourceRepository(
+    _database,
+    AuditLogger(_database),
+  );
   var _loading = true;
   var _refreshTick = 0;
   var _activeTab = 0;
@@ -580,27 +585,18 @@ class _MasterDataPageState extends State<MasterDataPage>
         }
       default:
         if (existingId == null) {
-          await _database
-              .into(_database.transactionParties)
-              .insert(
-                TransactionPartiesCompanion.insert(
-                  id: id,
-                  householdId: AppContext.householdId,
-                  name: values.name.trim(),
-                  role: const Value('Sumber pemasukan'),
-                  kind: const Value('income_source'),
-                  details: Value(_nullableText(values.details)),
-                  createdAt: now,
-                ),
-              );
+          await _incomeSources.create(
+            id: id,
+            householdId: AppContext.householdId,
+            name: values.name,
+            details: values.details,
+          );
         } else {
-          await (_database.update(
-            _database.transactionParties,
-          )..where((row) => row.id.equals(existingId))).write(
-            TransactionPartiesCompanion(
-              name: Value(values.name.trim()),
-              details: Value(_nullableText(values.details)),
-            ),
+          await _incomeSources.update(
+            householdId: AppContext.householdId,
+            id: existingId,
+            name: values.name,
+            details: values.details,
           );
         }
     }
@@ -644,9 +640,10 @@ class _MasterDataPageState extends State<MasterDataPage>
               ..where((row) => row.id.equals(item.id)))
             .write(const AccountsCompanion(isArchived: Value(true)));
       default:
-        await (_database.update(_database.transactionParties)
-              ..where((row) => row.id.equals(item.id)))
-            .write(const TransactionPartiesCompanion(isArchived: Value(true)));
+        await _incomeSources.archive(
+          householdId: AppContext.householdId,
+          id: item.id,
+        );
     }
     if (!mounted) return;
     setState(() => _refreshTick++);
@@ -783,11 +780,6 @@ class _MasterDataPageState extends State<MasterDataPage>
       groups.insert(0, digits.substring(start, end));
     }
     return '${value < 0 ? '-' : ''}Rp${groups.join('.')}';
-  }
-
-  static String? _nullableText(String value) {
-    final trimmed = value.trim();
-    return trimmed.isEmpty ? null : trimmed;
   }
 }
 

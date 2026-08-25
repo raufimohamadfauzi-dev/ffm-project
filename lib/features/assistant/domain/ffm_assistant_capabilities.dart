@@ -382,6 +382,22 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['targetId'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.income_source_update',
+      label: 'Siapkan perubahan Sumber Pemasukan',
+      description: 'Menampilkan perubahan nama atau keterangan satu Sumber Pemasukan tanpa mengubah transaksi.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.masterData,
+      parameterNames: ['targetId', 'title', 'note'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.income_source_archive',
+      label: 'Siapkan arsip Sumber Pemasukan',
+      description: 'Menampilkan satu Sumber Pemasukan yang akan diarsipkan tanpa mengubah transaksi.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.masterData,
+      parameterNames: ['targetId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.reminder',
       label: 'Siapkan pengingat',
       description: 'Membuat draft pengingat tanpa menyimpan.',
@@ -724,6 +740,13 @@ class FfmAssistantCapabilityRegistry {
       label: 'Verifikasi Tag',
       description:
           'Membaca kembali Tag setelah perubahan nama atau arsip lunak.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.income_source_mutation',
+      label: 'Verifikasi Sumber Pemasukan',
+      description: 'Membaca kembali Sumber Pemasukan setelah perubahan metadata atau arsip lunak.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

@@ -881,6 +881,12 @@ class FfmAssistantInterpreter {
     final tagMutation = await _parseTagMutation(rawText, normalized);
     if (tagMutation != null) return tagMutation;
 
+    final incomeSourceMutation = await _parseIncomeSourceMutation(
+      rawText,
+      normalized,
+    );
+    if (incomeSourceMutation != null) return incomeSourceMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2459,6 +2465,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveTag,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Tag',
+      ),
+      FfmAssistantDraftKind.incomeSourceUpdate => (
+        type: FfmAssistantIntentType.updateIncomeSource,
+        destination: FfmAssistantDestination.masterData,
+        action: 'ubah Sumber Pemasukan',
+      ),
+      FfmAssistantDraftKind.incomeSourceArchive => (
+        type: FfmAssistantIntentType.archiveIncomeSource,
+        destination: FfmAssistantDestination.masterData,
+        action: 'arsip Sumber Pemasukan',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -4272,6 +4288,94 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan nama satu Tag. Relasi Tag pada transaksi tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Tag. Tag tidak akan muncul pada pilihan baru, tetapi relasi pada transaksi historis tetap utuh. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseIncomeSourceMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    const noun = r'sumber\s+(?:pemasukan|pendapatan)';
+    final updateName = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+' +
+          noun +
+          r'\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final updateNote = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:keterangan|catatan)\s+' +
+          noun +
+          r'\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+' + noun + r'\s+(.+)$')
+        .firstMatch(normalized);
+    if (updateName == null && updateNote == null && archive == null) {
+      return null;
+    }
+
+    final operation = updateName == null && updateNote == null
+        ? 'archive'
+        : 'update';
+    final metadataField = updateNote == null ? 'name' : 'details';
+    final targetText =
+        (updateName?.group(1) ?? updateNote?.group(1) ?? archive!.group(1)!)
+            .trim();
+    final rows =
+        await (_database.select(_database.transactionParties)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.kind.equals('income_source') &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateIncomeSource
+        : FfmAssistantIntentType.archiveIncomeSource;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Sumber Pemasukan aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Sumber Pemasukan yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama sumber yang lebih spesifik. Belum ada sumber atau transaksi yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.incomeSourceUpdate
+          : FfmAssistantDraftKind.incomeSourceArchive,
+      createdAt: _clock(),
+      title: metadataField == 'name' && operation == 'update'
+          ? updateName!.group(2)!.trim()
+          : target.name,
+      note: metadataField == 'details' && operation == 'update'
+          ? updateNote!.group(2)!.trim()
+          : target.details,
+      formValues: {
+        'entity': 'income_source',
+        'targetId': target.id,
+        'operation': operation,
+        'metadataField': metadataField,
+        'targetSummary': target.name,
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Sumber Pemasukan. Tidak ada sourceId transaksi yang diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Sumber Pemasukan. Sumber tidak muncul di input baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 
