@@ -488,6 +488,29 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.budgetUpdate:
+      case FfmAssistantDraftKind.budgetArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'budget_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'pos Anggaran',
+              message: 'Pos Anggaran belum ditemukan secara unik.',
+            ),
+          );
+        }
+        if (draft.kind == FfmAssistantDraftKind.budgetUpdate &&
+            !draft.hasAmount) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'budget_amount_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'batas Anggaran',
+              message: 'Batas Anggaran baru belum ada.',
+            ),
+          );
+        }
     }
     return issues;
   }
@@ -525,6 +548,7 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.categoryArchive ||
     FfmAssistantDraftKind.accountUpdate ||
     FfmAssistantDraftKind.accountArchive ||
+    FfmAssistantDraftKind.budgetArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

@@ -26,6 +26,8 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.assetUpdate => 'Preview Perubahan Aset',
     FfmAssistantDraftKind.assetArchive => 'Preview Arsip Aset',
     FfmAssistantDraftKind.budget => 'Draft Anggaran',
+    FfmAssistantDraftKind.budgetUpdate => 'Preview Perubahan Batas Anggaran',
+    FfmAssistantDraftKind.budgetArchive => 'Preview Arsip Anggaran',
     FfmAssistantDraftKind.masterData => 'Draft Data Utama',
     FfmAssistantDraftKind.merchantUpdate => 'Preview Perubahan Toko/Tempat',
     FfmAssistantDraftKind.merchantArchive => 'Preview Arsip Toko/Tempat',

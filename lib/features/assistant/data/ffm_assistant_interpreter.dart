@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart' hide Column;
 
+import 'dart:convert';
+
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/diagnostics/app_diagnostics_service.dart';
@@ -892,6 +894,9 @@ class FfmAssistantInterpreter {
 
     final accountMutation = await _parseAccountMutation(rawText, normalized);
     if (accountMutation != null) return accountMutation;
+
+    final budgetMutation = await _parseBudgetMutation(rawText, normalized);
+    if (budgetMutation != null) return budgetMutation;
 
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
@@ -2446,6 +2451,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createBudget,
         destination: FfmAssistantDestination.budget,
         action: 'anggaran',
+      ),
+      FfmAssistantDraftKind.budgetUpdate => (
+        type: FfmAssistantIntentType.updateBudget,
+        destination: FfmAssistantDestination.budget,
+        action: 'ubah batas Anggaran',
+      ),
+      FfmAssistantDraftKind.budgetArchive => (
+        type: FfmAssistantIntentType.archiveBudget,
+        destination: FfmAssistantDestination.budget,
+        action: 'arsip Anggaran',
       ),
       FfmAssistantDraftKind.masterData => (
         type: FfmAssistantIntentType.createMasterData,
@@ -4549,6 +4564,184 @@ class FfmAssistantInterpreter {
           ? 'Aku menyiapkan perubahan nama satu Rekening. Saldo awal, tipe, status aktif, dan seluruh referensi transaksi/transfer tidak akan diubah. Cek preview dulu.'
           : 'Aku menyiapkan arsip lunak satu Rekening. Arsip hanya boleh jika Rekening belum pernah dipakai transaksi, transfer, transaksi berkala, atau rekonsiliasi. Cek preview dulu.',
     );
+  }
+
+  Future<FfmAssistantIntent?> _parseBudgetMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    final update = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:batas\s+)?anggaran\s+(.+?)\s+(?:jadi|menjadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
+    final archive = RegExp(r'^(?:arsip|arsipkan)\s+(?:pos\s+)?anggaran\s+(.+)$')
+        .firstMatch(normalized);
+    final create = RegExp(r'^(?:atur|buat|tambah|set)\s+anggaran\b')
+        .hasMatch(normalized);
+    if (update == null && archive == null) {
+      if (!create) return null;
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createBudget,
+        confidence: .9,
+        destination: FfmAssistantDestination.budget,
+        response: 'Pembuatan pos Anggaran oleh Agent belum diizinkan. Aku bisa membuka halaman Anggaran untuk kamu isi manual, atau menyiapkan draft aman untuk mengubah batas satu pos yang sudah ada.',
+      );
+    }
+
+    final operation = update == null ? 'archive' : 'update';
+    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final amount = update == null
+        ? null
+        : FfmAssistantAmountParser.parse(update.group(2)!);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateBudget
+        : FfmAssistantIntentType.archiveBudget;
+    if (operation == 'update' && (amount == null || amount <= 0)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: .7,
+        clarification: 'Sebut batas Anggaran baru setelah kata “jadi”, misalnya: “ubah batas anggaran makan jadi 750 ribu”. Belum ada data yang diubah.',
+      );
+    }
+    final candidates = await _findBudgetCandidates(targetText);
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu pos Anggaran aktif yang memenuhi syarat dengan nama “$targetText”.'
+          : 'Aku menemukan ${candidates.length} pos Anggaran yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama pos yang lebih spesifik. Pos total, gabungan, nonrutin, atau di luar periode berjalan tidak dapat ditargetkan. Belum ada data yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final category =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.id.equals(target.categoryId!),
+            ))
+            .getSingleOrNull();
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.budgetUpdate
+          : FfmAssistantDraftKind.budgetArchive,
+      createdAt: _clock(),
+      amount: amount,
+      title: target.name,
+      categoryName: category?.name,
+      date: target.endDate,
+      formValues: {
+        'entity': 'budget',
+        'targetId': target.id,
+        'operation': operation,
+        'targetSummary': target.name,
+        'protectedId': target.id,
+        'protectedHouseholdId': target.householdId,
+        'protectedName': target.name,
+        'protectedCategoryId': target.categoryId ?? '',
+        'protectedCategoryIdsJson': target.categoryIdsJson,
+        'protectedMonth': target.month ?? '',
+        'protectedPeriodType': target.periodType,
+        'protectedStartDate': target.startDate.toIso8601String(),
+        'protectedEndDate': target.endDate.toIso8601String(),
+        'protectedRollover': target.rollover.toString(),
+        'protectedAlertPercent': target.alertPercent.toString(),
+        'protectedIsActive': target.isActive.toString(),
+        'protectedCreatedAt': target.createdAt.toIso8601String(),
+        'protectedArchiveResult': (operation == 'archive').toString(),
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan batas satu pos Anggaran. Preview akan menghitung sisa sebelum dan sesudah; rollover, kategori, periode, transaksi, dan transfer alokasi tidak akan diubah.'
+          : 'Aku menyiapkan arsip lunak satu pos Anggaran. Guard akan menolak bila ada transaksi pemakaian atau transfer alokasi. Cek preview dulu.',
+    );
+  }
+
+  Future<List<EnvelopeBudget>> _findBudgetCandidates(String targetText) async {
+    final terms = targetText
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .map((term) => term.replaceAll(RegExp(r'[^a-z0-9]'), ''))
+        .where(
+          (term) =>
+              term.length >= 3 &&
+              !const {
+                'anggaran',
+                'batas',
+                'pos',
+                'rupiah',
+                'ribu',
+              }.contains(term) &&
+              !RegExp(r'^\d+$').hasMatch(term),
+        )
+        .toSet();
+    if (terms.isEmpty) return const [];
+    final now = DateTime(_clock().year, _clock().month, _clock().day);
+    final categories =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true) &
+                  row.type.equals('expense'),
+            ))
+            .get();
+    final activeCategoryIds = categories.map((row) => row.id).toSet();
+    final rows =
+        await (_database.select(_database.envelopeBudgets)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    return rows
+        .where((row) {
+          final categoryIds = _budgetCategoryIds(row);
+          final start = DateTime(
+            row.startDate.year,
+            row.startDate.month,
+            row.startDate.day,
+          );
+          final end = DateTime(
+            row.endDate.year,
+            row.endDate.month,
+            row.endDate.day,
+          );
+          return !row.id.startsWith('overall-') &&
+              categoryIds.length == 1 &&
+              activeCategoryIds.contains(categoryIds.single) &&
+              const {
+                'weekly',
+                'biweekly',
+                'monthly',
+                'bimonthly',
+                'fourmonthly',
+                'fivemonthly',
+              }.contains(row.periodType) &&
+              !now.isBefore(start) &&
+              !now.isAfter(end) &&
+              terms.every(row.name.toLowerCase().contains);
+        })
+        .take(4)
+        .toList(growable: false);
+  }
+
+  Set<String> _budgetCategoryIds(EnvelopeBudget budget) {
+    try {
+      final value = jsonDecode(budget.categoryIdsJson);
+      if (value is! List) return const <String>{};
+      return value.whereType<String>().toSet();
+    } on FormatException {
+      return const <String>{};
+    }
   }
 
   Future<FfmAssistantIntent?> _parseGoalMutation(

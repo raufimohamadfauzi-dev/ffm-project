@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
+import '../../budget/data/budget_repository.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../asset/domain/entities/asset_entity.dart';
@@ -112,6 +113,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.recurring_transaction_update': _prepareRecurringTransactionMutation,
     'draft.recurring_transaction_archive': _prepareRecurringTransactionMutation,
     'draft.budget': _prepareDraft,
+    'draft.budget_update': _prepareBudgetMutation,
+    'draft.budget_archive': _prepareBudgetMutation,
     'draft.goal_deposit': _prepareDraft,
     'draft.goal_usage': _prepareDraft,
     'draft.goal_update': _prepareGoalMutation,
@@ -141,6 +144,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.income_source_mutation': _verifyIncomeSourceMutation,
     'verify.category_mutation': _verifyCategoryMutation,
     'verify.account_mutation': _verifyAccountMutation,
+    'verify.budget_mutation': _verifyBudgetMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -342,6 +346,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['entity'] == 'category') return _updateCategory(step);
     if (step.parameters['entity'] == 'account') return _updateAccount(step);
+    if (step.parameters['entity'] == 'budget') return _updateBudget(step);
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -452,6 +457,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['entity'] == 'category') return _archiveCategory(step);
     if (step.parameters['entity'] == 'account') return _archiveAccount(step);
+    if (step.parameters['entity'] == 'budget') return _archiveBudget(step);
     return _archiveTransaction(step);
   }
 
@@ -2653,6 +2659,202 @@ class FfmAssistantCapabilityAdapterRegistry {
           );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _prepareBudgetMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || (operation != 'update' && operation != 'archive')) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload perubahan Anggaran tidak lengkap.',
+      );
+    }
+    final repository = BudgetRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    );
+    final eligibility = await repository.mutationEligibilityReason(
+      householdId: _householdId,
+      id: targetId,
+    );
+    if (eligibility != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(eligibility);
+    }
+    final snapshot = await repository.snapshot(
+      householdId: _householdId,
+      id: targetId,
+    );
+    if (snapshot == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pos Anggaran tidak ditemukan.',
+      );
+    }
+    if (operation == 'archive') {
+      final block = await repository.archiveBlockReason(
+        householdId: _householdId,
+        id: targetId,
+      );
+      return block == null
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'Preview arsip “${snapshot.budget.name}”: belum ada transaksi pemakaian atau transfer alokasi. Tidak ada data yang diubah.',
+            )
+          : FfmAssistantCapabilityExecutionResult.failure(block);
+    }
+    final amount = _positiveInt(step.parameters['amount']);
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Batas Anggaran baru belum valid.',
+      );
+    }
+    final remainingAfter = snapshot.remainingFor(amount);
+    if (remainingAfter < 0) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Batas baru membuat sisa Anggaran negatif (${_money(remainingAfter.abs())} di bawah nol). Pengeluaran dan transfer tidak diubah.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview “${snapshot.budget.name}”: batas ${_money(snapshot.budget.allocated)} menjadi ${_money(amount)}; rollover ${_money(snapshot.budget.rollover)}, transfer masuk ${_money(snapshot.transferredIn)}, transfer keluar ${_money(snapshot.transferredOut)}, pengeluaran ${_money(snapshot.spent)}, sisa ${_money(snapshot.remaining)} menjadi ${_money(remainingAfter)}. Tidak ada transaksi atau transfer yang dibuat.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateBudget(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final allocated = _positiveInt(step.parameters['amount']);
+    if (targetId == null || allocated == null || allocated <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau batas Anggaran baru belum valid.',
+      );
+    }
+    final repository = BudgetRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    );
+    try {
+      final updated = await repository.updateAllocated(
+        householdId: _householdId,
+        id: targetId,
+        allocated: allocated,
+      );
+      if (updated == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Pos Anggaran tidak ditemukan atau sudah tidak aktif.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Batas Anggaran “${updated.budget.name}” diperbarui menjadi ${_money(allocated)}. Hasilnya akan dibaca kembali; transaksi dan transfer tidak diubah.',
+      );
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveBudget(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Anggaran untuk diarsipkan belum valid.',
+      );
+    }
+    final repository = BudgetRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    );
+    try {
+      final archived = await repository.archive(
+        householdId: _householdId,
+        id: targetId,
+      );
+      if (archived == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Pos Anggaran tidak ditemukan atau sudah tidak aktif.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Pos Anggaran “${archived.budget.name}” diarsipkan lunak. Tidak ada transaksi atau transfer yang diubah.',
+      );
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyBudgetMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final operation = step.parameters['operation']?.toString();
+    if (targetId == null || (operation != 'update' && operation != 'archive')) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload verifikasi Anggaran tidak lengkap.',
+      );
+    }
+    final snapshot = await BudgetRepository(
+      _database,
+      AuditLogger(_database),
+      clock: _clock,
+    ).snapshot(householdId: _householdId, id: targetId);
+    if (snapshot == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Readback gagal: pos Anggaran tidak ditemukan.',
+      );
+    }
+    final budget = snapshot.budget;
+    final protected =
+        budget.id == step.parameters['protectedId']?.toString() &&
+        budget.householdId ==
+            step.parameters['protectedHouseholdId']?.toString() &&
+        budget.name == step.parameters['protectedName']?.toString() &&
+        (budget.categoryId ?? '') ==
+            step.parameters['protectedCategoryId']?.toString() &&
+        budget.categoryIdsJson ==
+            step.parameters['protectedCategoryIdsJson']?.toString() &&
+        (budget.month ?? '') == step.parameters['protectedMonth']?.toString() &&
+        budget.periodType ==
+            step.parameters['protectedPeriodType']?.toString() &&
+        budget.startDate.toIso8601String() ==
+            step.parameters['protectedStartDate']?.toString() &&
+        budget.endDate.toIso8601String() ==
+            step.parameters['protectedEndDate']?.toString() &&
+        budget.rollover.toString() ==
+            step.parameters['protectedRollover']?.toString() &&
+        budget.alertPercent.toString() ==
+            step.parameters['protectedAlertPercent']?.toString() &&
+        budget.createdAt.toIso8601String() ==
+            step.parameters['protectedCreatedAt']?.toString();
+    if (!protected) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Readback gagal: ada field Anggaran terlindungi yang berubah.',
+      );
+    }
+    if (operation == 'update') {
+      final amount = _positiveInt(step.parameters['amount']);
+      return amount != null &&
+              budget.isActive &&
+              budget.allocated == amount &&
+              snapshot.remaining >= 0
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: batas “${budget.name}” terbaca kembali ${_money(amount)} dengan sisa ${_money(snapshot.remaining)}; field terlindungi, transaksi, dan transfer tetap utuh.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: batas atau sisa Anggaran belum sesuai kontrak.',
+            );
+    }
+    return !budget.isActive &&
+            step.parameters['protectedIsActive']?.toString() == 'true'
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: pos “${budget.name}” diarsipkan lunak dan field lain terbaca kembali utuh.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: arsip Anggaran belum sesuai kontrak.',
+          );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _prepareGoalMutation(
     FfmAssistantActionStep step,
   ) async {
@@ -2939,7 +3141,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'asset') return _saveAsset(step, idempotencyKey);
     if (kind == 'liability') return _saveLiability(step, idempotencyKey);
     if (kind == 'receivable') return _saveReceivable(step, idempotencyKey);
-    if (kind == 'budget') return _saveBudget(step, idempotencyKey);
+    if (kind == 'budget') {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Pembuatan Anggaran oleh Agent tidak diizinkan. Buat pos Anggaran secara manual, atau ubah batas satu pos yang sudah ada melalui draft khusus.',
+      );
+    }
     if (kind == 'goal_deposit')
       return _saveGoalTransaction(step, idempotencyKey, isDeposit: true);
     if (kind == 'goal_usage')
@@ -4187,6 +4393,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  // ignore: unused_element
   Future<FfmAssistantCapabilityExecutionResult> _saveBudget(
     FfmAssistantActionStep step,
     String idempotencyKey,

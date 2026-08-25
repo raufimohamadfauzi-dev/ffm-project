@@ -632,36 +632,34 @@ void main() {
     expect(await database.select(database.goals).get(), isEmpty);
   });
 
-  test(
-    'membuat draft form Data Utama, anggaran, pengingat, dan aktivitas',
-    () async {
-      final category = await interpreter.interpret(
-        'Tambah kategori Belanja Kebun',
-      );
-      final budget = await interpreter.interpret('Atur anggaran 350 ribu');
-      final reminder = await interpreter.interpret(
-        'Buat pengingat bayar listrik',
-      );
-      final activity = await interpreter.interpret(
-        'Mulai aktivitas pergi ke pasar',
-      );
+  test('membuat draft Data Utama, mengarahkan Anggaran manual, pengingat, dan aktivitas', () async {
+    final category = await interpreter.interpret(
+      'Tambah kategori Belanja Kebun',
+    );
+    final budget = await interpreter.interpret('Atur anggaran 350 ribu');
+    final reminder = await interpreter.interpret(
+      'Buat pengingat bayar listrik',
+    );
+    final activity = await interpreter.interpret(
+      'Mulai aktivitas pergi ke pasar',
+    );
 
-      expect(category.type, FfmAssistantIntentType.createMasterData);
-      expect(category.destination, FfmAssistantDestination.masterData);
-      expect(category.draft?.categoryName, 'kategori');
-      expect(budget.type, FfmAssistantIntentType.createBudget);
-      expect(budget.destination, FfmAssistantDestination.budget);
-      expect(budget.draft?.amount, 350000);
-      expect(reminder.type, FfmAssistantIntentType.createReminder);
-      expect(reminder.destination, FfmAssistantDestination.reminders);
-      expect(activity.type, FfmAssistantIntentType.createActivity);
-      expect(activity.destination, FfmAssistantDestination.activity);
-      expect(activity.needsConfirmation, isTrue);
+    expect(category.type, FfmAssistantIntentType.createMasterData);
+    expect(category.destination, FfmAssistantDestination.masterData);
+    expect(category.draft?.categoryName, 'kategori');
+    expect(budget.type, FfmAssistantIntentType.createBudget);
+    expect(budget.destination, FfmAssistantDestination.budget);
+    expect(budget.draft, isNull);
+    expect(budget.response, contains('belum diizinkan'));
+    expect(reminder.type, FfmAssistantIntentType.createReminder);
+    expect(reminder.destination, FfmAssistantDestination.reminders);
+    expect(activity.type, FfmAssistantIntentType.createActivity);
+    expect(activity.destination, FfmAssistantDestination.activity);
+    expect(activity.needsConfirmation, isTrue);
 
-      expect(await database.select(database.envelopeBudgets).get(), isEmpty);
-      expect(await database.select(database.activitySessions).get(), isEmpty);
-    },
-  );
+    expect(await database.select(database.envelopeBudgets).get(), isEmpty);
+    expect(await database.select(database.activitySessions).get(), isEmpty);
+  });
 
   test(
     'analisa minggu ini hanya memakai nominal transaksi yang tersimpan',

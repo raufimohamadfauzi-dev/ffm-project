@@ -228,7 +228,6 @@ void main() {
             'amount': 250000,
           },
         ),
-        (kind: 'budget', parameters: const {'amount': 400000}),
       ];
 
       for (final item in cases) {
