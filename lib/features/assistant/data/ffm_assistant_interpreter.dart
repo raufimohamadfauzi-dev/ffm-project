@@ -875,6 +875,9 @@ class FfmAssistantInterpreter {
     );
     if (recurringMutation != null) return recurringMutation;
 
+    final merchantMutation = await _parseMerchantMutation(rawText, normalized);
+    if (merchantMutation != null) return merchantMutation;
+
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
 
@@ -2433,6 +2436,16 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createMasterData,
         destination: FfmAssistantDestination.masterData,
         action: 'Data Utama',
+      ),
+      FfmAssistantDraftKind.merchantUpdate => (
+        type: FfmAssistantIntentType.updateMerchant,
+        destination: FfmAssistantDestination.masterData,
+        action: 'ubah Toko/Tempat',
+      ),
+      FfmAssistantDraftKind.merchantArchive => (
+        type: FfmAssistantIntentType.archiveMerchant,
+        destination: FfmAssistantDestination.masterData,
+        action: 'arsip Toko/Tempat',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -4091,6 +4104,95 @@ class FfmAssistantInterpreter {
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan ${metadataField == 'note' ? 'catatan' : 'nama'} satu Transaksi Berkala. Jadwal tidak akan dijalankan dan tidak ada transaksi baru dibuat. Cek preview dulu.'
           : 'Aku menyiapkan penonaktifan satu Transaksi Berkala tanpa mengubah riwayat, transaksi, atau run. Cek preview dulu.',
+    );
+  }
+
+  Future<FfmAssistantIntent?> _parseMerchantMutation(
+    String rawText,
+    String normalized,
+  ) async {
+    const noun = r'(?:toko|tempat|merchant)';
+    final updateName = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+' +
+          noun +
+          r'\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    );
+    final nameMatch = updateName.firstMatch(normalized);
+    final updateNote = RegExp(
+      r'^(?:ubah|ganti|koreksi)\s+(?:keterangan|catatan)\s+' +
+          noun +
+          r'\s+(.+?)\s+(?:jadi|menjadi)\s+(.+)$',
+    );
+    final noteMatch = updateNote.firstMatch(normalized);
+    final archiveMatch = RegExp(r'^(?:arsip|arsipkan)\s+' + noun + r'\s+(.+)$')
+        .firstMatch(normalized);
+    if (nameMatch == null && noteMatch == null && archiveMatch == null) {
+      return null;
+    }
+
+    final operation = nameMatch == null && noteMatch == null
+        ? 'archive'
+        : 'update';
+    final metadataField = noteMatch == null ? 'name' : 'details';
+    final targetText =
+        (nameMatch?.group(1) ?? noteMatch?.group(1) ?? archiveMatch!.group(1)!)
+            .trim();
+    final rows =
+        await (_database.select(_database.merchants)..where(
+              (row) =>
+                  row.householdId.equals(AppContext.householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final terms = targetText
+        .split(RegExp(r'\s+'))
+        .where((term) => term.length >= 3)
+        .toList();
+    final candidates = rows
+        .where((row) => terms.every(row.name.toLowerCase().contains))
+        .take(4)
+        .toList(growable: false);
+    final type = operation == 'update'
+        ? FfmAssistantIntentType.updateMerchant
+        : FfmAssistantIntentType.archiveMerchant;
+    if (candidates.length != 1) {
+      final detail = candidates.isEmpty
+          ? 'Aku tidak menemukan satu Toko/Tempat aktif yang cocok dengan “$targetText”.'
+          : 'Aku menemukan ${candidates.length} Toko/Tempat yang cocok: ${candidates.map((row) => row.name).join('; ')}.';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: type,
+        confidence: candidates.isEmpty ? .8 : .72,
+        clarification:
+            '$detail Sebut nama Toko/Tempat yang lebih spesifik. Belum ada data atau transaksi yang diubah.',
+      );
+    }
+
+    final target = candidates.single;
+    final draft = FfmAssistantDraft(
+      kind: operation == 'update'
+          ? FfmAssistantDraftKind.merchantUpdate
+          : FfmAssistantDraftKind.merchantArchive,
+      createdAt: _clock(),
+      title: metadataField == 'name' && operation == 'update'
+          ? nameMatch!.group(2)!.trim()
+          : target.name,
+      note: metadataField == 'details' && operation == 'update'
+          ? noteMatch!.group(2)!.trim()
+          : target.details,
+      formValues: {
+        'entity': 'merchant',
+        'targetId': target.id,
+        'operation': operation,
+        'metadataField': metadataField,
+        'targetSummary': target.name,
+      },
+    );
+    return _intentForDraft(rawText, normalized, draft).copyWith(
+      response: operation == 'update'
+          ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Toko/Tempat. Transaksi historis tidak akan diubah. Cek preview dulu.'
+          : 'Aku menyiapkan arsip lunak satu Toko/Tempat. Data tidak akan muncul di transaksi baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 

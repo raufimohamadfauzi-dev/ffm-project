@@ -10,6 +10,7 @@ import '../../daily_notes/data/daily_note_repository.dart';
 import '../../tasks/data/task_repository.dart';
 import '../../routines/data/routine_repository.dart';
 import '../../schedule/data/schedule_repository.dart';
+import '../../settings/data/merchant_repository.dart';
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../liability/domain/entities/liability_entity.dart';
@@ -84,6 +85,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.activity': _prepareDraft,
     'draft.reminder': _prepareDraft,
     'draft.master_data': _prepareDraft,
+    'draft.merchant_update': _prepareMerchantMutation,
+    'draft.merchant_archive': _prepareMerchantMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -121,6 +124,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.receivable_mutation': _verifyReceivableMutation,
     'verify.recurring_transaction_mutation':
         _verifyRecurringTransactionMutation,
+    'verify.merchant_mutation': _verifyMerchantMutation,
   };
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
@@ -313,6 +317,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (step.parameters['entity'] == 'recurring_transaction') {
       return _updateRecurringTransaction(step);
     }
+    if (step.parameters['entity'] == 'merchant') {
+      return _updateMerchant(step);
+    }
     final target = await _activeTransactionTarget(step);
     if (target == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -413,6 +420,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['entity'] == 'recurring_transaction') {
       return _archiveRecurringTransaction(step);
+    }
+    if (step.parameters['entity'] == 'merchant') {
+      return _archiveMerchant(step);
     }
     return _archiveTransaction(step);
   }
@@ -783,6 +793,131 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<RecurringTransaction?> _recurringTransactionById(String? id) async {
     if (id == null) return null;
     final all = await GetRecurringTransactions(_database)(_householdId);
+    for (final item in all) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  MerchantRepository get _merchants =>
+      MerchantRepository(_database, AuditLogger(_database), clock: _clock);
+
+  Future<FfmAssistantCapabilityExecutionResult> _prepareMerchantMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _merchantById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Toko/Tempat target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (step.parameters['operation'] == 'archive') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview arsip Toko/Tempat “${target.name}”. Data tidak akan muncul di transaksi baru dan transaksi historis tetap utuh.',
+      );
+    }
+    final metadataField = step.parameters['metadataField']?.toString();
+    final value = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : step.parameters['title']?.toString().trim();
+    if (value == null || value.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nilai metadata Toko/Tempat baru belum valid.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Preview perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} Toko/Tempat “${target.name}”. Transaksi historis tidak akan diubah.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _updateMerchant(
+    FfmAssistantActionStep step,
+  ) async {
+    final before = await _merchantById(_targetId(step));
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final nextDetails = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : before?.details;
+    if (before == null ||
+        title == null ||
+        title.isEmpty ||
+        (metadataField == 'details' &&
+            (nextDetails == null || nextDetails.isEmpty))) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target atau metadata Toko/Tempat belum valid.',
+      );
+    }
+    if (before.name == title && before.details == nextDetails) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: metadata Toko/Tempat sudah sesuai draft.',
+      );
+    }
+    await _merchants.update(
+      householdId: _householdId,
+      id: before.id,
+      name: title,
+      details: nextDetails,
+    );
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Metadata Toko/Tempat diperbarui tanpa mengubah transaksi historis. Hasilnya akan dibaca kembali.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _archiveMerchant(
+    FfmAssistantActionStep step,
+  ) async {
+    final target = await _merchantById(_targetId(step));
+    if (target == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Toko/Tempat target tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    await _merchants.archive(householdId: _householdId, id: target.id);
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Toko/Tempat “${target.name}” diarsipkan lunak tanpa mengubah transaksi historis.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyMerchantMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final id = _targetId(step);
+    if (id == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Toko/Tempat belum valid.',
+      );
+    }
+    final row = await _merchants.get(_householdId, id);
+    if (step.parameters['operation'] == 'archive') {
+      return row?.isActive == false
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Toko/Tempat sudah diarsipkan secara lunak.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Toko/Tempat masih aktif.',
+            );
+    }
+    final title = step.parameters['title']?.toString().trim();
+    final metadataField = step.parameters['metadataField']?.toString();
+    final expectedDetails = metadataField == 'details'
+        ? step.parameters['note']?.toString().trim()
+        : row?.details;
+    return row != null &&
+            row.isActive &&
+            row.name == title &&
+            row.details == expectedDetails
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'verified: metadata Toko/Tempat sudah dibaca kembali tanpa mengubah transaksi historis.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: metadata Toko/Tempat belum sesuai draft.',
+          );
+  }
+
+  Future<Merchant?> _merchantById(String? id) async {
+    if (id == null) return null;
+    final all = await _merchants.readActive(_householdId);
     for (final item in all) {
       if (item.id == id) return item;
     }

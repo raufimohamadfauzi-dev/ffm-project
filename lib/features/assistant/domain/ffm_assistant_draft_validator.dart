@@ -155,6 +155,28 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.merchantUpdate:
+        if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'merchant_update_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Toko/Tempat',
+              message: 'Target atau nama Toko/Tempat belum valid.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.merchantArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'merchant_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Toko/Tempat',
+              message: 'Toko/Tempat target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.recurringTransactionUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -405,6 +427,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.scheduleArchive ||
     FfmAssistantDraftKind.recurringTransactionUpdate ||
     FfmAssistantDraftKind.recurringTransactionArchive ||
+    FfmAssistantDraftKind.merchantUpdate ||
+    FfmAssistantDraftKind.merchantArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||
     FfmAssistantDraftKind.goalArchive ||

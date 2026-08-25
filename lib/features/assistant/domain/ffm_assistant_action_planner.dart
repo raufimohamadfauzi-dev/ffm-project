@@ -49,6 +49,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.assetArchive => 'draft.asset_archive',
         FfmAssistantDraftKind.budget => 'draft.budget',
         FfmAssistantDraftKind.masterData => 'draft.master_data',
+        FfmAssistantDraftKind.merchantUpdate => 'draft.merchant_update',
+        FfmAssistantDraftKind.merchantArchive => 'draft.merchant_archive',
         FfmAssistantDraftKind.reminder => 'draft.reminder',
         FfmAssistantDraftKind.reminderUpdate => 'draft.reminder_update',
         FfmAssistantDraftKind.activity => 'draft.activity',
@@ -124,6 +126,8 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
         FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
         FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
+        FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
+        FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
       };
       final idempotencyKey = '$planId:save';
@@ -165,6 +169,8 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.recurringTransactionUpdate ||
             FfmAssistantDraftKind.recurringTransactionArchive =>
               'verify.recurring_transaction_mutation',
+            FfmAssistantDraftKind.merchantUpdate ||
+            FfmAssistantDraftKind.merchantArchive => 'verify.merchant_mutation',
             FfmAssistantDraftKind.goalUpdate ||
             FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
             FfmAssistantDraftKind.assetUpdate ||

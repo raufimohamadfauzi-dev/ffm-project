@@ -5,9 +5,11 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../../../../core/di/injection.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../data/merchant_repository.dart';
 import '../../../../shared/widgets/app_components.dart';
 
 class MasterDataPage extends StatefulWidget {
@@ -32,6 +34,7 @@ class _MasterDataPageState extends State<MasterDataPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   final _database = getIt<AppDatabase>();
+  late final _merchants = MerchantRepository(_database, AuditLogger(_database));
   var _loading = true;
   var _refreshTick = 0;
   var _activeTab = 0;
@@ -520,25 +523,18 @@ class _MasterDataPageState extends State<MasterDataPage>
         }
       case 1:
         if (existingId == null) {
-          await _database
-              .into(_database.merchants)
-              .insert(
-                MerchantsCompanion.insert(
-                  id: id,
-                  householdId: AppContext.householdId,
-                  name: values.name.trim(),
-                  details: Value(_nullableText(values.details)),
-                  createdAt: now,
-                ),
-              );
+          await _merchants.create(
+            id: id,
+            householdId: AppContext.householdId,
+            name: values.name,
+            details: values.details,
+          );
         } else {
-          await (_database.update(
-            _database.merchants,
-          )..where((row) => row.id.equals(existingId))).write(
-            MerchantsCompanion(
-              name: Value(values.name.trim()),
-              details: Value(_nullableText(values.details)),
-            ),
+          await _merchants.update(
+            householdId: AppContext.householdId,
+            id: existingId,
+            name: values.name,
+            details: values.details,
           );
         }
       case 2:
@@ -638,9 +634,10 @@ class _MasterDataPageState extends State<MasterDataPage>
               ..where((row) => row.id.equals(item.id)))
             .write(const CategoriesCompanion(isActive: Value(false)));
       case 1:
-        await (_database.update(_database.merchants)
-              ..where((row) => row.id.equals(item.id)))
-            .write(const MerchantsCompanion(isActive: Value(false)));
+        await _merchants.archive(
+          householdId: AppContext.householdId,
+          id: item.id,
+        );
       case 2:
         await (_database.update(_database.tags)
               ..where((row) => row.id.equals(item.id)))

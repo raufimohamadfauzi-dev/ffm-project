@@ -175,6 +175,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.assetArchive:
       case FfmAssistantDraftKind.budget:
       case FfmAssistantDraftKind.masterData:
+      case FfmAssistantDraftKind.merchantUpdate:
+      case FfmAssistantDraftKind.merchantArchive:
       case FfmAssistantDraftKind.reminder:
       case FfmAssistantDraftKind.reminderUpdate:
       case FfmAssistantDraftKind.reminderArchive:
