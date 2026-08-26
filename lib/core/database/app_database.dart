@@ -176,7 +176,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(scheduleEntries);
         await _createScheduleIndexes();
       }
-      if (from < 40) {
+      if (from < 40 &&
+          await _hasColumns('categories', const [
+            'type',
+            'default_budget_period',
+            'is_active',
+            'created_at',
+          ])) {
         await _seedActivityCategories();
       }
       if (from < 20) {
@@ -187,6 +193,12 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<bool> _hasColumns(String table, List<String> columns) async {
+    final rows = await customSelect('PRAGMA table_info("$table")').get();
+    final available = rows.map((row) => row.read<String>('name')).toSet();
+    return columns.every(available.contains);
+  }
 
   Future<void> _createActivityIndexes() async {
     await customStatement(
@@ -362,11 +374,13 @@ class AppDatabase extends _$AppDatabase {
       ('Keluarga', 'activity'),
       ('Lainnya', 'activity'),
     ];
-    final existing = await (select(
-      categories,
-    )..where((row) =>
-            row.householdId.equals('local-household') &
-            row.type.equals('activity'))).get();
+    final existing =
+        await (select(categories)..where(
+              (row) =>
+                  row.householdId.equals('local-household') &
+                  row.type.equals('activity'),
+            ))
+            .get();
     for (final (name, type) in activityCategories) {
       Category? match;
       for (final row in existing) {

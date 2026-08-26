@@ -9,15 +9,16 @@ void main() {
     ).readAsStringSync();
 
     expect(source, contains('Memverifikasi Model GGUF...'));
-    expect(source, contains('Memverifikasi Projector GGUF...'));
-    expect(source, contains('Tahap 1 dari 2'));
-    expect(source, contains('Tahap 2 dari 2'));
+    expect(source, contains('Tahap 1 dari 1'));
     expect(source, contains('Jangan tutup atau tinggalkan halaman ini'));
     expect(source, isNot(contains('Buka Chat & Coba Asisten')));
     expect(source, isNot(contains('Kembali & coba Asisten')));
     expect(source, contains('Lihat Detail Teknis'));
     expect(source, contains('Unduh komponen yang kurang'));
     expect(source, contains('Unduh kurang di background'));
-    expect(source, contains('Hanya komponen yang belum ada sedang diunduh'));
+    expect(
+      source,
+      contains('Komponen model yang belum ada sedang diunduh di background.'),
+    );
   });
 }

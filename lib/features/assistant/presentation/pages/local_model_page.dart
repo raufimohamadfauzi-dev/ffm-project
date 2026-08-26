@@ -114,7 +114,6 @@ class _LocalModelPageState extends State<LocalModelPage>
     void mark(String stage) {
       final entry = '${DateTime.now().toIso8601String()} $stage';
       trace.add(entry);
-      debugPrint('[SLM_STATUS_LOAD] $entry');
       if (mounted && showLoading) {
         setState(() => _loadingMessage = _messageForLoadStage(stage));
       }
@@ -206,7 +205,6 @@ class _LocalModelPageState extends State<LocalModelPage>
       _loadEpoch++;
       final timeout = TimeoutException('Status model tidak selesai dimuat');
       trace.add('${DateTime.now().toIso8601String()} watchdog timeout');
-      debugPrint('[SLM_STATUS_LOAD] watchdog timeout');
       setState(() {
         _loading = false;
         _error = 'Gagal memuat status dalam 10 detik. Tekan tombol Perbarui status download.';
@@ -238,10 +236,8 @@ class _LocalModelPageState extends State<LocalModelPage>
         stackTrace: stackTrace,
         impact: 'Halaman model menampilkan tindakan pemulihan; model dan data keuangan tidak diubah.',
       );
-    } catch (diagnosticError) {
-      debugPrint(
-        '[SLM_STATUS_LOAD] gagal mencatat diagnostik: $diagnosticError',
-      );
+    } catch (_) {
+      // Pencatatan diagnostik bersifat opsional dan tidak boleh mengganggu UI.
     }
   }
 
@@ -350,7 +346,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _download({bool restart = false}) async {
     setState(() {
       _working = true;
-      _workingMessage = 'Sedang mengunduh paket model dan memeriksa integritasnya...';
+      _workingMessage =
+          'Sedang mengunduh paket model dan memeriksa integritasnya...';
       _error = null;
       _progress = null;
     });
@@ -425,8 +422,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       if (selectedFiles.isEmpty) return;
       setState(() {
         _workingMessage = 'Sedang membaca file GGUF dan memeriksa isinya...';
-        _importStageDescription =
-            'Sedang membaca dan memverifikasi file GGUF berukuran besar. Ini bisa memerlukan beberapa saat.';
+        _importStageDescription = 'Sedang membaca dan memverifikasi file GGUF berukuran besar. Ini bisa memerlukan beberapa saat.';
       });
       for (final selected in selectedFiles) {
         await _service.importSingleGguf(
@@ -478,7 +474,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _commitStaging() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Sedang menyiapkan pemasangan bundle yang sudah diverifikasi...';
+      _workingMessage =
+          'Sedang menyiapkan pemasangan bundle yang sudah diverifikasi...';
       _error = null;
     });
     try {
@@ -550,7 +547,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _importBundle() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Menunggu Anda memilih bundle offline dari perangkat...';
+      _workingMessage =
+          'Menunggu Anda memilih bundle offline dari perangkat...';
       _error = null;
       _importProgress = null;
       _importStageDescription = null;
@@ -598,7 +596,8 @@ class _LocalModelPageState extends State<LocalModelPage>
   Future<void> _exportBundle() async {
     setState(() {
       _working = true;
-      _workingMessage = 'Sedang menyiapkan bundle terverifikasi untuk dibagikan...';
+      _workingMessage =
+          'Sedang menyiapkan bundle terverifikasi untuk dibagikan...';
       _error = null;
     });
     try {
@@ -615,8 +614,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       } on Object {
         if (mounted) {
           setState(
-            () => _error =
-                'Berbagi bundle gagal. Pastikan ada aplikasi yang dapat menerima file di perangkat ini.',
+            () => _error = 'Berbagi bundle gagal. Pastikan ada aplikasi yang dapat menerima file di perangkat ini.',
           );
         }
         return;
@@ -628,7 +626,8 @@ class _LocalModelPageState extends State<LocalModelPage>
         ShareResultStatus.unavailable =>
           'Fitur berbagi tidak tersedia di perangkat ini.',
       };
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } on FfmLocalModelManifestException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (_) {
@@ -667,7 +666,8 @@ class _LocalModelPageState extends State<LocalModelPage>
     if (confirmed != true) return;
     setState(() {
       _working = true;
-      _workingMessage = 'Sedang menghapus model lokal dan metadata verifikasi...';
+      _workingMessage =
+          'Sedang menghapus model lokal dan metadata verifikasi...';
     });
     await _service.clear();
     await _service.clearStaging();
@@ -692,14 +692,11 @@ class _LocalModelPageState extends State<LocalModelPage>
 
     final stopwatch = Stopwatch()..start();
     try {
-      await FfmLocalModelBridgePlugin.initNative(
-        modelPath: model.filePath,
-      );
+      await FfmLocalModelBridgePlugin.initNative(modelPath: model.filePath);
 
       const testPrompt = 'Beli beras 50 ribu di warung Madura';
       final response = await FfmLocalModelBridgePlugin.generateSingleShotNative(
-        systemPrompt:
-            'Ekstrak informasi transaksi belanja ke format JSON: {"title": string, "amount": number, "type": "expense"}. HANYA cetak JSON.',
+        systemPrompt: 'Ekstrak informasi transaksi belanja ke format JSON: {"title": string, "amount": number, "type": "expense"}. HANYA cetak JSON.',
         userPrompt: testPrompt,
       );
       stopwatch.stop();
@@ -760,20 +757,23 @@ class _LocalModelPageState extends State<LocalModelPage>
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: SelectableText(
                     response.trim(),
-                    style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 11,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 Text(
                   'Catatan: Pemrosesan AI berjalan 100% di CPU lokal HP Anda tanpa koneksi internet.',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
+                  style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: Colors.grey),
                 ),
               ],
@@ -797,8 +797,6 @@ class _LocalModelPageState extends State<LocalModelPage>
       if (mounted) setState(() => _working = false);
     }
   }
-
-
 
   String _size(int bytes) {
     final mb = bytes / (1024 * 1024);
@@ -975,10 +973,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           children: [
             Text(
               label,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.teal.shade200,
-              ),
+              style: TextStyle(fontSize: 10, color: Colors.teal.shade200),
             ),
             Text(
               value,
@@ -1051,10 +1046,7 @@ class _LocalModelPageState extends State<LocalModelPage>
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [
-                Colors.teal.shade800,
-                Colors.teal.shade900,
-              ],
+              colors: [Colors.teal.shade800, Colors.teal.shade900],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
@@ -1190,16 +1182,14 @@ class _LocalModelPageState extends State<LocalModelPage>
                 icon: Icons.chat_bubble_outline,
                 color: Colors.purpleAccent,
                 title: 'Pemahaman Bahasa Alami',
-                description:
-                    'Memahami instruksi teks bebas dan menyusun proposal draf transaksi otomatis.',
+                description: 'Memahami instruksi teks bebas dan menyusun proposal draf transaksi otomatis.',
               ),
               const SizedBox(height: 12),
               _buildCapabilityRow(
                 icon: Icons.security_outlined,
                 color: Colors.green.shade700,
                 title: 'Privasi & Keamanan Penuh',
-                description:
-                    'Semua pemrosesan AI berjalan lokal di RAM HP Anda. Tidak ada data yang dikirim ke cloud.',
+                description: 'Semua pemrosesan AI berjalan lokal di RAM HP Anda. Tidak ada data yang dikirim ke cloud.',
               ),
             ],
           ),
@@ -1229,7 +1219,6 @@ class _LocalModelPageState extends State<LocalModelPage>
             ),
           ],
         ),
-
       ],
     );
   }
@@ -1325,8 +1314,7 @@ class _LocalModelPageState extends State<LocalModelPage>
                 children: [
                   const AppHelpBanner(
                     title: 'AI lokal bersifat opsional, draft tetap aman',
-                    message:
-                        'Model berjalan di perangkat setelah dipasang. Model hanya membuat proposal; model tidak membaca database, menyimpan transaksi, mengubah saldo, atau melewati konfirmasi.',
+                    message: 'Model berjalan di perangkat setelah dipasang. Model hanya membuat proposal; model tidak membaca database, menyimpan transaksi, mengubah saldo, atau melewati konfirmasi.',
                     icon: Icons.memory_outlined,
                   ),
                   const SizedBox(height: 16),
@@ -1365,323 +1353,332 @@ class _LocalModelPageState extends State<LocalModelPage>
                       ),
                     ),
                     const SizedBox(height: 12),
-                  AppCard(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Paket SLM teks Qwen2 2B',
-                          style: TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Ukuran unduhan sekitar ${_size(FfmQwen2VlBundle.modelBytes)}. File disimpan di storage privat aplikasi, diverifikasi dengan SHA-256 streaming, lalu dipindah secara atomik.',
-                        ),
-                        if (_backgroundStatuses.isNotEmpty) ...[
-                          const SizedBox(height: 16),
+                    AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           const Text(
-                            'Download latar belakang',
-                            style: TextStyle(fontWeight: FontWeight.bold),
+                            'Paket SLM teks Qwen2 2B',
+                            style: TextStyle(fontWeight: FontWeight.w800),
                           ),
-                          for (final status in _backgroundStatuses)
-                            Builder(
-                              builder: (context) {
-                                final isAlreadyInStaging =
-                                    _stagingStatus != null &&
-                                    status.isAlreadyInStaging(_stagingStatus!);
-                                return ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  dense: true,
-                                  leading: Icon(
-                                    status.isComplete
-                                        ? Icons.check_circle_outline
-                                        : status.isFailed
-                                        ? Icons.error_outline
-                                        : Icons.downloading_outlined,
-                                  ),
-                                  title: Text(status.fileName),
-                                  subtitle: Text(
-                                    isAlreadyInStaging
-                                        ? 'Sudah diverifikasi dan masuk staging.'
-                                        : status.isComplete
-                                        ? 'Selesai. Tekan Perbarui status agar file diverifikasi dan masuk staging.'
-                                        : status.isFailed
-                                        ? (status.reason ?? 'Download gagal.')
-                                        : 'Sedang berjalan. Progres lengkap terlihat di notifikasi HP.',
-                                  ),
-                                  trailing:
-                                      status.fraction == null ||
-                                          status.isComplete
-                                      ? null
-                                      : SizedBox(
-                                          width: 56,
-                                          child: Text(
-                                            '${(status.fraction! * 100).toStringAsFixed(0)}%',
-                                            textAlign: TextAlign.end,
-                                          ),
-                                        ),
-                                );
-                              },
-                            ),
-                          if (_backgroundStatuses.any(
-                            (status) => !status.isComplete && !status.isFailed,
-                          ))
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: TextButton.icon(
-                                onPressed: _working
-                                    ? null
-                                    : _cancelBackgroundDownload,
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: const Text(
-                                  'Batalkan download background',
-                                ),
-                              ),
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: _working || _loadGate.isRunning
-                                ? null
-                                : _load,
-                            icon: const Icon(Icons.refresh_outlined),
-                            label: const Text('Perbarui status download'),
-                          ),
-                        ],
-                        if (_progress case final progress?) ...[
-                          const SizedBox(height: 16),
-                          LinearProgressIndicator(value: progress.fraction),
                           const SizedBox(height: 6),
                           Text(
-                            '${progress.fileName}: ${_size(progress.receivedBytes)} / ${_size(progress.totalBytes)}',
-                            style: Theme.of(context).textTheme.bodySmall,
+                            'Ukuran unduhan sekitar ${_size(FfmQwen2VlBundle.modelBytes)}. File disimpan di storage privat aplikasi, diverifikasi dengan SHA-256 streaming, lalu dipindah secara atomik.',
                           ),
-                        ],
-                        if (_importProgress case final importProgress?) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
-                                  .withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
+                          if (_backgroundStatuses.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Download latar belakang',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            for (final status in _backgroundStatuses)
+                              Builder(
+                                builder: (context) {
+                                  final isAlreadyInStaging =
+                                      _stagingStatus != null &&
+                                      status.isAlreadyInStaging(
+                                        _stagingStatus!,
+                                      );
+                                  return ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    dense: true,
+                                    leading: Icon(
+                                      status.isComplete
+                                          ? Icons.check_circle_outline
+                                          : status.isFailed
+                                          ? Icons.error_outline
+                                          : Icons.downloading_outlined,
+                                    ),
+                                    title: Text(status.fileName),
+                                    subtitle: Text(
+                                      isAlreadyInStaging
+                                          ? 'Sudah diverifikasi dan masuk staging.'
+                                          : status.isComplete
+                                          ? 'Selesai. Tekan Perbarui status agar file diverifikasi dan masuk staging.'
+                                          : status.isFailed
+                                          ? (status.reason ?? 'Download gagal.')
+                                          : 'Sedang berjalan. Progres lengkap terlihat di notifikasi HP.',
+                                    ),
+                                    trailing:
+                                        status.fraction == null ||
+                                            status.isComplete
+                                        ? null
+                                        : SizedBox(
+                                            width: 56,
+                                            child: Text(
+                                              '${(status.fraction! * 100).toStringAsFixed(0)}%',
+                                              textAlign: TextAlign.end,
+                                            ),
+                                          ),
+                                  );
+                                },
+                              ),
+                            if (_backgroundStatuses.any(
+                              (status) =>
+                                  !status.isComplete && !status.isFailed,
+                            ))
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: _working
+                                      ? null
+                                      : _cancelBackgroundDownload,
+                                  icon: const Icon(Icons.cancel_outlined),
+                                  label: const Text(
+                                    'Batalkan download background',
+                                  ),
+                                ),
+                              ),
+                            OutlinedButton.icon(
+                              onPressed: _working || _loadGate.isRunning
+                                  ? null
+                                  : _load,
+                              icon: const Icon(Icons.refresh_outlined),
+                              label: const Text('Perbarui status download'),
+                            ),
+                          ],
+                          if (_progress case final progress?) ...[
+                            const SizedBox(height: 16),
+                            LinearProgressIndicator(value: progress.fraction),
+                            const SizedBox(height: 6),
+                            Text(
+                              '${progress.fileName}: ${_size(progress.receivedBytes)} / ${_size(progress.totalBytes)}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                          if (_importProgress case final importProgress?) ...[
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
                                 color: Theme.of(context)
                                     .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.3),
+                                    .surfaceContainerHighest
+                                    .withValues(alpha: 0.5),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Theme.of(context).colorScheme.primary
+                                      .withValues(alpha: 0.3),
+                                ),
                               ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _importStageDescription ??
-                                            'Sedang memproses file GGUF...',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
                                         ),
                                       ),
-                                    ),
-                                    if (importProgress.fraction != null)
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _importStageDescription ??
+                                              'Sedang memproses file GGUF...',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                      if (importProgress.fraction != null)
+                                        Text(
+                                          '${((importProgress.fraction!) * 100).toStringAsFixed(1)}%',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  LinearProgressIndicator(
+                                    value: importProgress.fraction,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          importProgress.fileName,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
                                       Text(
-                                        '${((importProgress.fraction!) * 100).toStringAsFixed(1)}%',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                LinearProgressIndicator(
-                                  value: importProgress.fraction,
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        importProgress.fileName,
+                                        '${_size(importProgress.receivedBytes)} / ${_size(importProgress.totalBytes)}',
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall,
-                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    ),
-                                    Text(
-                                      '${_size(importProgress.receivedBytes)} / ${_size(importProgress.totalBytes)}',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Proses menyalin & memverifikasi file GGUF (~1-2 GB). Mohon jangan menutup halaman ini.',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color:
-                                        Theme.of(context).colorScheme.outline,
+                                    ],
                                   ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'Proses menyalin & memverifikasi file GGUF (~1-2 GB). Mohon jangan menutup halaman ini.',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outline,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                          if (_stagingStatus != null &&
+                              !_stagingStatus!.isEmpty &&
+                              _model == null) ...[
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Status Impor GGUF Sementara:',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  _stagingStatus!.hasModel
+                                      ? Icons.check_circle
+                                      : Icons.radio_button_unchecked,
+                                  color: _stagingStatus!.hasModel
+                                      ? Colors.green
+                                      : Colors.grey,
+                                  size: 16,
                                 ),
+                                const SizedBox(width: 8),
+                                const Text('Model GGUF (936 MB)'),
                               ],
                             ),
-                          ),
-                        ],
-                        if (_stagingStatus != null &&
-                            !_stagingStatus!.isEmpty &&
-                            _model == null) ...[
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Status Impor GGUF Sementara:',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                _stagingStatus!.hasModel
-                                    ? Icons.check_circle
-                                    : Icons.radio_button_unchecked,
-                                color: _stagingStatus!.hasModel
-                                    ? Colors.green
-                                    : Colors.grey,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Model GGUF (936 MB)'),
-                            ],
-                          ),
-                        ],
-                        if (_assemblyStatus != null &&
-                            (_assemblyStatus!.isWorking ||
-                                _assemblyStatus!.stage ==
-                                    FfmLocalModelAssemblyStage.ready ||
-                                _assemblyStatus!.stage ==
-                                    FfmLocalModelAssemblyStage.failed)) ...[
-                          const SizedBox(height: 16),
-                          _buildAssemblyStatusCard(context),
-                        ],
-                        if (_error case final error?) ...[
-                          const SizedBox(height: 12),
-                          Text(
-                            error,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            if (_model == null &&
-                                (_stagingStatus == null ||
-                                    _stagingStatus!.isEmpty)) ...[
-                              FilledButton.icon(
-                                onPressed: _working ? null : () => _download(),
-                                icon: const Icon(Icons.download_outlined),
-                                label: const Text('Unduh di halaman ini'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working
-                                    ? null
-                                    : _startBackgroundDownload,
-                                icon: const Icon(
-                                  Icons.notifications_active_outlined,
-                                ),
-                                label: const Text('Unduh di background'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _importGguf,
-                                icon: const Icon(Icons.file_open_outlined),
-                                label: const Text('Pilih GGUF dari Download'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _importBundle,
-                                icon: const Icon(Icons.archive_outlined),
-                                label: const Text('Impor .ffmbundle'),
-                              ),
-                            ] else if (_model == null &&
-                                _stagingStatus != null &&
-                                !_stagingStatus!.isReadyToCommit) ...[
-                              FilledButton.icon(
-                                onPressed: _working ? null : _download,
-                                icon: const Icon(Icons.download_outlined),
-                                label: const Text('Unduh komponen yang kurang'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working
-                                    ? null
-                                    : _startBackgroundDownload,
-                                icon: const Icon(
-                                  Icons.notifications_active_outlined,
-                                ),
-                                label: const Text('Unduh kurang di background'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _importGguf,
-                                icon: const Icon(Icons.file_open_outlined),
-                                label: const Text('Pilih GGUF Berikutnya'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _clearStaging,
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: const Text('Batal & Hapus Staging'),
-                              ),
-                            ] else if (_model == null &&
-                                _stagingStatus != null &&
-                                _stagingStatus!.isReadyToCommit) ...[
-                              FilledButton.icon(
-                                onPressed: _working ? null : _commitStaging,
-                                icon: const Icon(Icons.build_circle_outlined),
-                                label: const Text('Rakit dan Pasang SLM'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _clearStaging,
-                                icon: const Icon(Icons.cancel_outlined),
-                                label: const Text('Batal & Hapus Staging'),
-                              ),
-                            ] else ...[
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _remove,
-                                icon: const Icon(Icons.delete_outline),
-                                label: const Text('Hapus model'),
-                              ),
-                              OutlinedButton.icon(
-                                onPressed: _working ? null : _exportBundle,
-                                icon: const Icon(Icons.share_outlined),
-                                label: const Text('Bagikan bundle'),
-                              ),
-                            ],
                           ],
-                        ),
-                      ],
+                          if (_assemblyStatus != null &&
+                              (_assemblyStatus!.isWorking ||
+                                  _assemblyStatus!.stage ==
+                                      FfmLocalModelAssemblyStage.ready ||
+                                  _assemblyStatus!.stage ==
+                                      FfmLocalModelAssemblyStage.failed)) ...[
+                            const SizedBox(height: 16),
+                            _buildAssemblyStatusCard(context),
+                          ],
+                          if (_error case final error?) ...[
+                            const SizedBox(height: 12),
+                            Text(
+                              error,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              if (_model == null &&
+                                  (_stagingStatus == null ||
+                                      _stagingStatus!.isEmpty)) ...[
+                                FilledButton.icon(
+                                  onPressed: _working
+                                      ? null
+                                      : () => _download(),
+                                  icon: const Icon(Icons.download_outlined),
+                                  label: const Text('Unduh di halaman ini'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working
+                                      ? null
+                                      : _startBackgroundDownload,
+                                  icon: const Icon(
+                                    Icons.notifications_active_outlined,
+                                  ),
+                                  label: const Text('Unduh di background'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _importGguf,
+                                  icon: const Icon(Icons.file_open_outlined),
+                                  label: const Text('Pilih GGUF dari Download'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _importBundle,
+                                  icon: const Icon(Icons.archive_outlined),
+                                  label: const Text('Impor .ffmbundle'),
+                                ),
+                              ] else if (_model == null &&
+                                  _stagingStatus != null &&
+                                  !_stagingStatus!.isReadyToCommit) ...[
+                                FilledButton.icon(
+                                  onPressed: _working ? null : _download,
+                                  icon: const Icon(Icons.download_outlined),
+                                  label: const Text(
+                                    'Unduh komponen yang kurang',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working
+                                      ? null
+                                      : _startBackgroundDownload,
+                                  icon: const Icon(
+                                    Icons.notifications_active_outlined,
+                                  ),
+                                  label: const Text(
+                                    'Unduh kurang di background',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _importGguf,
+                                  icon: const Icon(Icons.file_open_outlined),
+                                  label: const Text('Pilih GGUF Berikutnya'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _clearStaging,
+                                  icon: const Icon(Icons.cancel_outlined),
+                                  label: const Text('Batal & Hapus Staging'),
+                                ),
+                              ] else if (_model == null &&
+                                  _stagingStatus != null &&
+                                  _stagingStatus!.isReadyToCommit) ...[
+                                FilledButton.icon(
+                                  onPressed: _working ? null : _commitStaging,
+                                  icon: const Icon(Icons.build_circle_outlined),
+                                  label: const Text('Rakit dan Pasang SLM'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _clearStaging,
+                                  icon: const Icon(Icons.cancel_outlined),
+                                  label: const Text('Batal & Hapus Staging'),
+                                ),
+                              ] else ...[
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _remove,
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: const Text('Hapus model'),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: _working ? null : _exportBundle,
+                                  icon: const Icon(Icons.share_outlined),
+                                  label: const Text('Bagikan bundle'),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Unduh di background tetap berjalan saat aplikasi diminimalkan dan menampilkan progres di notifikasi HP. Setelah notifikasi selesai, buka halaman ini atau tekan Perbarui status. Jika dua file sudah masuk staging, tekan Rakit dan Pasang SLM. Setelah status AI lokal siap dipakai muncul, kembali lalu buka ✨ Asisten. Mode teks tetap kembali ke aturan lokal bila model belum siap atau inference gagal.',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Unduh di background tetap berjalan saat aplikasi diminimalkan dan menampilkan progres di notifikasi HP. Setelah notifikasi selesai, buka halaman ini atau tekan Perbarui status. Jika dua file sudah masuk staging, tekan Rakit dan Pasang SLM. Setelah status AI lokal siap dipakai muncul, kembali lalu buka ✨ Asisten. Mode teks tetap kembali ke aturan lokal bila model belum siap atau inference gagal.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ],
                 ],
               ),
       ),

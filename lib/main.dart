@@ -49,6 +49,7 @@ import 'features/settings/presentation/pages/offline_features_page.dart';
 import 'features/settings/presentation/pages/privacy_center_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
 import 'features/settings/presentation/pages/pin_security_page.dart';
+import 'features/settings/presentation/pages/supabase_setup_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
@@ -747,7 +748,8 @@ class _AppShellState extends State<AppShell> {
           context,
         ).push(MaterialPageRoute(builder: (_) => const AssistantProfilePage()));
       case FfmAssistantDestination.intelligenceDashboard:
-        setState(() => _index = 4);
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
     }
   }
 

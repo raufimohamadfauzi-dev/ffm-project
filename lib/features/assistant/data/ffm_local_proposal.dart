@@ -209,7 +209,9 @@ class FfmLocalProposalParser {
 
     final issues = <String>[];
     final version = map['formatVersion'];
-    if (version != formatVersion) issues.add('unsupported_format_version');
+    if (version != formatVersion) {
+      issues.add('unsupported_format_version');
+    }
     final proposalType = map['proposalType'];
     if (proposalType is! String ||
         !const {

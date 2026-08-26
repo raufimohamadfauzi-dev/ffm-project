@@ -11,7 +11,7 @@ void main() {
       () {
         final result = FfmLocalProposalParser.parse(
           jsonEncode({
-            'formatVersion': 'ffm-local-vision-proposal-v2',
+            'formatVersion': 'ffm-local-proposal-v2',
             'proposalType': 'expense',
             'merchantName': 'Warung Amanah',
             'transactionDate': '2026-08-22',
@@ -67,7 +67,7 @@ void main() {
     test('nominal desimal tidak diterima sebagai integer rupiah', () {
       final result = FfmLocalProposalParser.parse(
         jsonEncode({
-          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'formatVersion': 'ffm-local-proposal-v2',
           'proposalType': 'expense',
           'transactionDate': '2026-08-22',
           'totalAmount': 10000.5,
@@ -86,7 +86,7 @@ void main() {
     test('validator menghitung ulang item dan menambah warning mismatch', () {
       final result = FfmLocalProposalParser.parse(
         jsonEncode({
-          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'formatVersion': 'ffm-local-proposal-v2',
           'proposalType': 'expense',
           'transactionDate': '2026-08-22',
           'totalAmount': 30000,
@@ -116,7 +116,7 @@ void main() {
     test('confidence rendah membuat proposal perlu dicek', () {
       final result = FfmLocalProposalParser.parse(
         jsonEncode({
-          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'formatVersion': 'ffm-local-proposal-v2',
           'proposalType': 'expense',
           'transactionDate': '2026-08-22',
           'totalAmount': 10000,
@@ -134,7 +134,7 @@ void main() {
     test('response navigation mempertahankan target terstruktur tanpa field transaksi', () {
       final result = FfmLocalProposalParser.parse(
         jsonEncode({
-          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'formatVersion': 'ffm-local-proposal-v2',
           'proposalType': 'navigation',
           'actionTarget': 'budget',
           'needsClarification': false,
@@ -150,7 +150,7 @@ void main() {
       for (final type in const ['read_query', 'help']) {
         final result = FfmLocalProposalParser.parse(
           jsonEncode({
-            'formatVersion': 'ffm-local-vision-proposal-v2',
+            'formatVersion': 'ffm-local-proposal-v2',
             'proposalType': type,
             'actionTarget': type == 'read_query' ? 'monthly_summary' : null,
             'needsClarification': false,
@@ -168,7 +168,7 @@ void main() {
       () {
         final result = FfmLocalProposalParser.parse(
           jsonEncode({
-            'formatVersion': 'ffm-local-vision-proposal-v2',
+            'formatVersion': 'ffm-local-proposal-v2',
             'proposalType': 'help',
             'assistantMessage': 'Gambar menampilkan layar error Flutter dengan teks Invalid argument(s): 380.0.',
             'needsClarification': false,
@@ -183,7 +183,7 @@ void main() {
     test('out_of_domain valid agar respons gambar tidak dibuang parser', () {
       final result = FfmLocalProposalParser.parse(
         jsonEncode({
-          'formatVersion': 'ffm-local-vision-proposal-v2',
+          'formatVersion': 'ffm-local-proposal-v2',
           'proposalType': 'out_of_domain',
           'assistantMessage': 'Gambar menampilkan pesan error aplikasi.',
           'needsClarification': false,
@@ -199,7 +199,7 @@ void main() {
       () {
         final result = FfmLocalProposalParser.parse(
           jsonEncode({
-            'formatVersion': 'ffm-local-vision-proposal-v2',
+            'formatVersion': 'ffm-local-proposal-v2',
             'proposalType': 'delete_everything',
             'actionTarget': 'arbitrary_route',
           }),

@@ -55,6 +55,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/fonts/DejaVuSans.ttf
+    - assets/fonts/DejaVuSans-Bold.ttf
 hooks:
   user_defines:
     sqlite3:

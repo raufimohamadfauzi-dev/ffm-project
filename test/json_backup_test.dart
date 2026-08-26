@@ -10,7 +10,14 @@ import 'package:ffm_manager/features/backup/data/json_backup_service.dart';
 void main() {
   test('cadangan penuh mencakup modul data dan jejak audit', () async {
     final source = createInMemoryDatabaseForTests();
-    addTearDown(source.close);
+    var sourceClosed = false;
+    Future<void> closeSource() async {
+      if (sourceClosed) return;
+      sourceClosed = true;
+      await source.close();
+    }
+
+    addTearDown(closeSource);
     final now = DateTime(2026, 8, 20, 10, 0);
 
     await AuditLogger(source).record(
@@ -97,6 +104,7 @@ void main() {
     final file = File('${directory.path}/backup.json');
     await file.writeAsString(content);
 
+    await closeSource();
     final restored = createInMemoryDatabaseForTests();
     addTearDown(restored.close);
     List<Map<String, Object?>>? restoredHistory;

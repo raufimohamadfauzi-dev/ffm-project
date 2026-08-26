@@ -73,25 +73,26 @@ class _InstalledModelService implements FfmLocalModelService {
 }
 
 void main() {
-  testWidgets('menampilkan dashboard model terpasang tanpa crash atau locale error', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: LocalModelPage(
-          modelService: _InstalledModelService(),
-          backgroundService: _IdleBackgroundService(),
+  testWidgets(
+    'menampilkan dashboard model terpasang tanpa crash atau locale error',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LocalModelPage(
+            modelService: _InstalledModelService(),
+            backgroundService: _IdleBackgroundService(),
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Model AI Qwen2-VL 2B Aktif'), findsOneWidget);
-    expect(find.text('SIAP'), findsOneWidget);
-    expect(find.text('Terpasang'), findsOneWidget);
-    expect(find.text('Vision OCR (Baca Foto Struk)'), findsOneWidget);
-  });
+      expect(find.text('Model AI Qwen2 2B Aktif'), findsOneWidget);
+      expect(find.text('SIAP'), findsOneWidget);
+      expect(find.text('Terpasang'), findsOneWidget);
+      expect(find.text('Pemahaman Bahasa Alami'), findsOneWidget);
+    },
+  );
 
   testWidgets('timeout pemuatan mengganti spinner dengan tindakan pemulihan', (
     tester,

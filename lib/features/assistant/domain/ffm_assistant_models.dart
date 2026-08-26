@@ -44,7 +44,6 @@ class FfmAssistantProcessTrace {
   final String? pluginCategory;
 }
 
-
 enum FfmAssistantIntentType {
   openPage,
   listPages,
@@ -493,8 +492,8 @@ class FfmAssistantPendingDraft {
     this.note,
     DateTime? createdAt,
     Duration expiry = const Duration(minutes: 5),
-  })  : createdAt = createdAt ?? DateTime.now(),
-        _expiresAt = (createdAt ?? DateTime.now()).add(expiry);
+  }) : createdAt = createdAt ?? DateTime.now(),
+       _expiresAt = (createdAt ?? DateTime.now()).add(expiry);
 
   final String type; // 'income', 'expense', 'transfer'
   int? amount;
@@ -522,11 +521,14 @@ class FfmAssistantPendingDraft {
     if (amount == null) missing.add('nominal');
     if (type == 'expense' && categoryName == null) missing.add('kategori');
     if (accountName == null) missing.add('sumber dana/akun');
-    if (type == 'transfer' && toAccountName == null) missing.add('rekening tujuan');
+    if (type == 'transfer' && toAccountName == null) {
+      missing.add('rekening tujuan');
+    }
     return missing;
   }
 
-  void fillFromAnswer(String answer, {
+  void fillFromAnswer(
+    String answer, {
     List<String> accountNames = const [],
     List<String> categoryNames = const [],
   }) {
@@ -534,7 +536,8 @@ class FfmAssistantPendingDraft {
     for (final name in accountNames) {
       if (lower.contains(name.toLowerCase())) {
         accountName ??= name;
-        if (type == 'transfer' && toAccountName == null &&
+        if (type == 'transfer' &&
+            toAccountName == null &&
             accountName != name) {
           toAccountName = name;
         }
@@ -880,6 +883,19 @@ abstract final class FfmAssistantCatalog {
         'slm lokal',
         'qwen lokal',
         'qwen2-vl',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.intelligenceDashboard,
+      name: 'Intelligence Dashboard',
+      description:
+          'Mengatur koneksi memori cloud Supabase dan Natural Brain Gemini.',
+      aliases: [
+        'intelligence dashboard',
+        'dashboard kecerdasan',
+        'cloud brain',
+        'supabase',
+        'gemini',
       ],
     ),
   ];

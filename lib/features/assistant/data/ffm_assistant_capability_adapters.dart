@@ -850,7 +850,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     return null;
   }
 
-    MerchantRepository get _merchants =>
+  MerchantRepository get _merchants =>
       MerchantRepository(_database, AuditLogger(_database), clock: _clock);
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareMerchantMutation(
@@ -1666,10 +1666,19 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target aktivitas belum valid.',
       );
     }
-    await ActivityRepository(
-      _database,
-      AuditLogger(_database),
-    ).archiveSession(_householdId, targetId);
+    final repository = ActivityRepository(_database, AuditLogger(_database));
+    final current = await repository.getSession(_householdId, targetId);
+    if (current == null || current.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (current.status == ActivitySessionStatus.active) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas yang masih berjalan harus diselesaikan sebelum diarsipkan.',
+      );
+    }
+    await repository.archiveSession(_householdId, targetId);
     return const FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas diarsipkan. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
@@ -1684,10 +1693,19 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target aktivitas belum valid.',
       );
     }
-    await ActivityRepository(
-      _database,
-      AuditLogger(_database),
-    ).deleteSessionPermanently(_householdId, targetId);
+    final repository = ActivityRepository(_database, AuditLogger(_database));
+    final current = await repository.getSession(_householdId, targetId);
+    if (current == null || current.isArchived) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas tidak ditemukan atau sudah diarsipkan.',
+      );
+    }
+    if (current.status == ActivitySessionStatus.active) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Aktivitas yang masih berjalan harus diselesaikan sebelum dihapus permanen.',
+      );
+    }
+    await repository.deleteSessionPermanently(_householdId, targetId);
     return const FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas dan data turunannya dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
     );
@@ -2651,7 +2669,11 @@ class FfmAssistantCapabilityAdapterRegistry {
           ? guessesRaw.map((k, v) => MapEntry('$k', '$v'))
           : const <String, String>{};
 
-      Future<void> record(String field, String? guess, String? corrected) async {
+      Future<void> record(
+        String field,
+        String? guess,
+        String? corrected,
+      ) async {
         final safeGuess = guess?.trim() ?? '';
         final safeCorrected = corrected?.trim() ?? '';
         if (safeGuess.isEmpty || safeCorrected.isEmpty) return;
@@ -2669,8 +2691,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       await record('account', guesses['account'], finalAccount);
       final guessAmount = guesses['amount']?.trim();
       if (guessAmount != null && guessAmount.isNotEmpty && finalAmount > 0) {
-        final parsedGuess =
-            int.tryParse(guessAmount.replaceAll(RegExp(r'[^0-9]'), ''));
+        final parsedGuess = int.tryParse(
+          guessAmount.replaceAll(RegExp(r'[^0-9]'), ''),
+        );
         if (parsedGuess != null && parsedGuess != finalAmount) {
           await record('amount', guessAmount, '$finalAmount');
         }
@@ -3071,8 +3094,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (active.isNotEmpty) {
       buffer.writeln('Aktivitas Aktif (${active.length}):');
       for (final row in active) {
-        final parentText =
-            row.parentSessionId != null ? ' (di dalam ${row.parentSessionId})' : '';
+        final parentText = row.parentSessionId != null
+            ? ' (di dalam ${row.parentSessionId})'
+            : '';
         buffer.writeln(
           '  - ${row.title} [${row.kind}] dimulai ${_dateTime(row.startedAt)}$parentText',
         );
@@ -3082,15 +3106,16 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (recent.isNotEmpty) {
       buffer.writeln('Riwayat Terbaru:');
       for (final row in recent) {
-        final timeText =
-            row.kind == 'task' && row.isCompleted
-                ? 'Selesai ${_dateTime(row.endedAt ?? row.startedAt)}'
-                : 'Tercatat ${_dateTime(row.startedAt)}';
+        final timeText = row.kind == 'task' && row.isCompleted
+            ? 'Selesai ${_dateTime(row.endedAt ?? row.startedAt)}'
+            : 'Tercatat ${_dateTime(row.startedAt)}';
         buffer.writeln('  - ${row.title} [${row.kind}]: $timeText');
       }
     }
 
-    return FfmAssistantCapabilityExecutionResult.success(buffer.toString().trim());
+    return FfmAssistantCapabilityExecutionResult.success(
+      buffer.toString().trim(),
+    );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _readBudget(
@@ -3381,14 +3406,15 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
-    final kindParam = step.parameters['kind']?.toString() ??
+    final kindParam =
+        step.parameters['kind']?.toString() ??
         (step.capabilityId.contains('task')
             ? 'task'
             : step.capabilityId.contains('daily_note')
-                ? 'note'
-                : step.capabilityId.contains('schedule')
-                    ? 'event'
-                    : 'timer');
+            ? 'note'
+            : step.capabilityId.contains('schedule')
+            ? 'event'
+            : 'timer');
     final activityKind = ActivityKind.fromValue(kindParam);
 
     final now = _clock();
@@ -3415,7 +3441,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
     final isAllDay = _boolParameter(step.parameters['isAllDay']) ?? false;
 
-    await _database.into(_database.activitySessions).insert(
+    await _database
+        .into(_database.activitySessions)
+        .insert(
           ActivitySessionsCompanion.insert(
             id: id,
             householdId: _householdId,
@@ -3428,9 +3456,9 @@ class FfmAssistantCapabilityAdapterRegistry {
             isAllDay: Value(isAllDay),
             status:
                 (activityKind == ActivityKind.timer ||
-                        activityKind == ActivityKind.task)
-                    ? const Value('active')
-                    : const Value('completed'),
+                    activityKind == ActivityKind.task)
+                ? const Value('active')
+                : const Value('completed'),
             isCompleted: Value(
               activityKind != ActivityKind.timer &&
                   activityKind != ActivityKind.task,

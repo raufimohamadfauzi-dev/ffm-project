@@ -26,16 +26,6 @@ class _FakeComposer implements FfmAssistantAnswerComposer {
 }
 
 void main() {
-  late AppDatabase database;
-
-  setUp(() {
-    database = createInMemoryDatabaseForTests();
-  });
-
-  tearDown(() async {
-    await database.close();
-  });
-
   AppDatabase freshDb() => createInMemoryDatabaseForTests();
 
   test(
@@ -79,7 +69,10 @@ void main() {
 
       expect(composer.callCount, 1);
       expect(intent.responseMode, FfmAssistantResponseMode.localRules);
-      expect(intent.response, contains(FfmAssistantSelfDescriptionService.creatorName));
+      expect(
+        intent.response,
+        contains(FfmAssistantSelfDescriptionService.creatorName),
+      );
     },
   );
 
@@ -97,7 +90,10 @@ void main() {
 
     expect(composer.callCount, 1);
     expect(intent.responseMode, FfmAssistantResponseMode.localRules);
-    expect(intent.response, contains(FfmAssistantSelfDescriptionService.creatorName));
+    expect(
+      intent.response,
+      contains(FfmAssistantSelfDescriptionService.creatorName),
+    );
   });
 
   test('SLM tidak siap: composer tidak dipanggil sama sekali', () async {

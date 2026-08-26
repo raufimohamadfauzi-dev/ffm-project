@@ -50,8 +50,9 @@ void main() {
           'lib/features/settings/presentation/pages/offline_features_page.dart',
       FfmAssistantDestination.localModel:
           'lib/features/assistant/presentation/pages/local_model_page.dart',
-      FfmAssistantDestination.assistantProfile:
-          'lib/features/assistant/presentation/pages/assistant_profile_page.dart',
+      FfmAssistantDestination.assistantProfile: 'lib/features/assistant/presentation/pages/assistant_profile_page.dart',
+      FfmAssistantDestination.intelligenceDashboard:
+          'lib/features/settings/presentation/pages/supabase_setup_page.dart',
     };
 
     expect(roots.keys.toSet(), FfmAssistantDestination.values.toSet());

@@ -6,6 +6,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_chat_export_se
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_report_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory directory;
   late FfmAssistantReportDraft report;
 

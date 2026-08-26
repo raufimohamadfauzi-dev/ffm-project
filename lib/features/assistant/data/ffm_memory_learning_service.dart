@@ -34,7 +34,10 @@ class FfmMemoryLearningService {
     candidates.addAll(usageCandidates);
 
     // 3. Correction-based learning
-    final correctionCandidates = _extractCorrectionBased(userQuery, assistantResponse);
+    final correctionCandidates = _extractCorrectionBased(
+      userQuery,
+      assistantResponse,
+    );
     candidates.addAll(correctionCandidates);
 
     // 4. Frequency-based extraction
@@ -67,7 +70,10 @@ class FfmMemoryLearningService {
 
     for (final candidate in candidates) {
       try {
-        final memoryCandidate = await _promoteSingleCandidate(candidate, requireApproval);
+        final memoryCandidate = await _promoteSingleCandidate(
+          candidate,
+          requireApproval,
+        );
         if (memoryCandidate != null) {
           promoted.add(memoryCandidate);
         }
@@ -99,10 +105,12 @@ class FfmMemoryLearningService {
       final useCount = (memory.metadata['useCount'] as num?)?.toInt() ?? 0;
       if (useCount >= minUseCount) continue;
 
-      final importance = (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
+      final importance =
+          (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
       if (importance >= 0.8) continue;
 
-      final decayFactor = 1.0 - (age.inDays / (maxAge.inDays * 2)).clamp(0.0, 0.5);
+      final decayFactor =
+          1.0 - (age.inDays / (maxAge.inDays * 2)).clamp(0.0, 0.5);
       final newImportance = (importance * decayFactor).clamp(0.1, 1.0);
 
       if (newImportance < 0.2) {
@@ -126,7 +134,8 @@ class FfmMemoryLearningService {
 
       final currentCount = (memory.metadata['useCount'] as num?)?.toInt() ?? 0;
       final newCount = currentCount + 1;
-      final currentImportance = (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
+      final currentImportance =
+          (memory.metadata['importance'] as num?)?.toDouble() ?? 0.5;
       final usageBoost = (newCount / 10).clamp(0.0, 0.3);
       final newImportance = (currentImportance + usageBoost).clamp(0.0, 1.0);
 
@@ -152,52 +161,64 @@ class FfmMemoryLearningService {
     final candidates = <FfmMemoryPromotionCandidate>[];
     final lowerQuery = userQuery.toLowerCase();
 
-    if (lowerQuery.contains('panggil saya') || lowerQuery.contains('nama saya')) {
-      candidates.add(FfmMemoryPromotionCandidate(
-        type: FfmMemoryType.identity,
-        key: 'preferred_name',
-        value: _extractName(userQuery),
-        confidence: 0.7,
-        reason: 'User menyebutkan nama panggilan',
-        sourceId: userQuery,
-        requiresApproval: true,
-      ));
+    if (lowerQuery.contains('panggil saya') ||
+        lowerQuery.contains('nama saya')) {
+      candidates.add(
+        FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.identity,
+          key: 'preferred_name',
+          value: _extractName(userQuery),
+          confidence: 0.7,
+          reason: 'User menyebutkan nama panggilan',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ),
+      );
     }
 
-    if (RegExp(r'gaji(?:an)?\s+(?:tiap|setiap|per)?\s*tanggal\s+\d+').hasMatch(lowerQuery)) {
-      candidates.add(FfmMemoryPromotionCandidate(
-        type: FfmMemoryType.explicitFact,
-        key: 'payday',
-        value: userQuery,
-        confidence: 0.8,
-        reason: 'User menyebutkan jadwal gaji',
-        sourceId: userQuery,
-        requiresApproval: true,
-      ));
+    if (RegExp(r'gaji(?:an)?\s+(?:tiap|setiap|per)?\s*tanggal\s+\d+')
+        .hasMatch(lowerQuery)) {
+      candidates.add(
+        FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.explicitFact,
+          key: 'payday',
+          value: userQuery,
+          confidence: 0.8,
+          reason: 'User menyebutkan jadwal gaji',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ),
+      );
     }
 
-    if (RegExp(r'(?:budget|anggaran|jatah)\s+(?:makan|makanan)').hasMatch(lowerQuery)) {
-      candidates.add(FfmMemoryPromotionCandidate(
-        type: FfmMemoryType.explicitFact,
-        key: 'budget_food',
-        value: userQuery,
-        confidence: 0.75,
-        reason: 'User menyebutkan anggaran makan',
-        sourceId: userQuery,
-        requiresApproval: true,
-      ));
+    if (RegExp(r'(?:budget|anggaran|jatah)\s+(?:makan|makanan)')
+        .hasMatch(lowerQuery)) {
+      candidates.add(
+        FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.explicitFact,
+          key: 'budget_food',
+          value: userQuery,
+          confidence: 0.75,
+          reason: 'User menyebutkan anggaran makan',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ),
+      );
     }
 
-    if (lowerQuery.contains('target nabung') || lowerQuery.contains('target menabung')) {
-      candidates.add(FfmMemoryPromotionCandidate(
-        type: FfmMemoryType.goal,
-        key: 'savings_target',
-        value: userQuery,
-        confidence: 0.8,
-        reason: 'User menyebutkan target tabungan',
-        sourceId: userQuery,
-        requiresApproval: true,
-      ));
+    if (lowerQuery.contains('target nabung') ||
+        lowerQuery.contains('target menabung')) {
+      candidates.add(
+        FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.goal,
+          key: 'savings_target',
+          value: userQuery,
+          confidence: 0.8,
+          reason: 'User menyebutkan target tabungan',
+          sourceId: userQuery,
+          requiresApproval: true,
+        ),
+      );
     }
 
     return candidates;
@@ -234,15 +255,17 @@ class FfmMemoryLearningService {
 
     for (final entry in topicCounts.entries) {
       if (entry.value >= 3) {
-        candidates.add(FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.behavioralPattern,
-          key: 'frequent_topic_${entry.key}',
-          value: entry.key,
-          confidence: 0.6,
-          reason: 'Topik ${entry.key} sering muncul dalam percakapan',
-          sourceId: 'usage-analysis',
-          requiresApproval: false,
-        ));
+        candidates.add(
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.behavioralPattern,
+            key: 'frequent_topic_${entry.key}',
+            value: entry.key,
+            confidence: 0.6,
+            reason: 'Topik ${entry.key} sering muncul dalam percakapan',
+            sourceId: 'usage-analysis',
+            requiresApproval: false,
+          ),
+        );
       }
     }
 
@@ -260,7 +283,10 @@ class FfmMemoryLearningService {
     final correctionPatterns = [
       RegExp(r'^(bukan|salah|tidak benar|keliru)', caseSensitive: false),
       RegExp(r'(?:harusnya|seharusnya|mestinya)\s+', caseSensitive: false),
-      RegExp(r'(?:ubah|ganti|gantikan)\s+(?:jadi|ke|menjadi)\s+', caseSensitive: false),
+      RegExp(
+        r'(?:ubah|ganti|gantikan)\s+(?:jadi|ke|menjadi)\s+',
+        caseSensitive: false,
+      ),
     ];
 
     final isCorrection = correctionPatterns.any((p) => p.hasMatch(lowerQuery));
@@ -270,15 +296,17 @@ class FfmMemoryLearningService {
       final value = _extractCorrectionValue(lowerQuery);
 
       if (key.isNotEmpty && value.isNotEmpty) {
-        candidates.add(FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.correction,
-          key: key,
-          value: value,
-          confidence: 0.85,
-          reason: 'User mengoreksi informasi',
-          sourceId: userQuery,
-          requiresApproval: true,
-        ));
+        candidates.add(
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.correction,
+            key: key,
+            value: value,
+            confidence: 0.85,
+            reason: 'User mengoreksi informasi',
+            sourceId: userQuery,
+            requiresApproval: true,
+          ),
+        );
       }
     }
 
@@ -296,13 +324,17 @@ class FfmMemoryLearningService {
   }
 
   String _extractCorrectionValue(String query) {
-    final match = RegExp(r'(?:jadi|ke|menjadi)\s+(.+)', caseSensitive: false)
-        .firstMatch(query);
+    final match = RegExp(
+      r'(?:jadi|ke|menjadi)\s+(.+)',
+      caseSensitive: false,
+    ).firstMatch(query);
     if (match != null) return match.group(1)?.trim() ?? '';
     return query;
   }
 
-  List<FfmMemoryPromotionCandidate> _extractFrequencyPatterns(String userQuery) {
+  List<FfmMemoryPromotionCandidate> _extractFrequencyPatterns(
+    String userQuery,
+  ) {
     final candidates = <FfmMemoryPromotionCandidate>[];
     final lower = userQuery.toLowerCase();
 
@@ -316,15 +348,17 @@ class FfmMemoryLearningService {
 
     for (final entry in timePatterns.entries) {
       if (entry.key.hasMatch(lower)) {
-        candidates.add(FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.habit,
-          key: entry.value,
-          value: userQuery,
-          confidence: 0.65,
-          reason: 'Pola kebiasaan terdeteksi: ${entry.value}',
-          sourceId: userQuery,
-          requiresApproval: true,
-        ));
+        candidates.add(
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.habit,
+            key: entry.value,
+            value: userQuery,
+            confidence: 0.65,
+            reason: 'Pola kebiasaan terdeteksi: ${entry.value}',
+            sourceId: userQuery,
+            requiresApproval: true,
+          ),
+        );
         break;
       }
     }
@@ -395,6 +429,7 @@ class FfmMemoryLearningService {
     if (repo == null) return;
 
     await repo.save(
+      id: memoryCandidate.id,
       kind: memoryCandidate.type.name,
       triggerText: memoryCandidate.key,
       valueText: memoryCandidate.value,
@@ -404,20 +439,28 @@ class FfmMemoryLearningService {
         'approved': memoryCandidate.evidence.approved,
         'importance': memoryCandidate.importance,
         'useCount': 0,
-        if (promotionCandidate.reason != null) 'reason': promotionCandidate.reason,
+        if (promotionCandidate.reason != null)
+          'reason': promotionCandidate.reason,
       },
     );
 
-    // Sync to Cloud if approved
+    // Sync to Cloud if approved. This is best-effort: local memory promotion
+    // must remain successful when secure storage or the optional cloud service
+    // is unavailable (for example, during offline startup or local tests).
     if (memoryCandidate.evidence.approved) {
-      unawaited(_supabase.saveMemory(
-        content: '${memoryCandidate.key}: ${memoryCandidate.value}',
-        category: memoryCandidate.type.name,
-        metadata: {
-          'importance': memoryCandidate.importance,
-          'source': 'auto-sync',
-        },
-      ));
+      unawaited(_syncApprovedMemory(memoryCandidate));
+    }
+  }
+
+  Future<void> _syncApprovedMemory(FfmMemoryCandidate memory) async {
+    try {
+      await _supabase.saveMemory(
+        content: '${memory.key}: ${memory.value}',
+        category: memory.type.name,
+        metadata: {'importance': memory.importance, 'source': 'auto-sync'},
+      );
+    } on Object {
+      // Cloud sync must never make the local learning pipeline fail.
     }
   }
 

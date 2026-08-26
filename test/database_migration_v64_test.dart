@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 
 void main() {
-  group('Migrasi database v39', () {
+  group('Migrasi database v40', () {
     test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, Catatan Harian, Tugas, Rutinitas, serta Jadwal', () async {
       final executor = NativeDatabase.memory(
         setup: (database) {
@@ -87,7 +87,7 @@ void main() {
           )
           .get();
 
-      expect(version.data['user_version'], 39);
+      expect(version.data['user_version'], 40);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -68,9 +69,16 @@ class FfmAssistantChatExportService {
         return utf8.encode(request.report.previewMarkdown);
       case FfmAssistantExportFormat.pdf:
         final document = pw.Document();
+        final font = pw.Font.ttf(
+          await rootBundle.load('assets/fonts/DejaVuSans.ttf'),
+        );
+        final boldFont = pw.Font.ttf(
+          await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'),
+        );
         final lines = request.report.previewMarkdown.split('\n');
         document.addPage(
           pw.MultiPage(
+            theme: pw.ThemeData.withFont(base: font, bold: boldFont),
             build: (_) => [
               pw.Text(
                 'Laporan FFM',
