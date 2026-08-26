@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 40;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -175,6 +175,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 39) {
         await m.createTable(scheduleEntries);
         await _createScheduleIndexes();
+      }
+      if (from < 40) {
+        await _seedActivityCategories();
       }
       if (from < 20) {
         await _seedInitialData();
@@ -351,6 +354,44 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
+  Future<void> _seedActivityCategories() async {
+    const activityCategories = <(String, String)>[
+      ('Perjalanan', 'activity'),
+      ('Belanja', 'activity'),
+      ('Pekerjaan', 'activity'),
+      ('Keluarga', 'activity'),
+      ('Lainnya', 'activity'),
+    ];
+    final existing = await (select(
+      categories,
+    )..where((row) =>
+            row.householdId.equals('local-household') &
+            row.type.equals('activity'))).get();
+    for (final (name, type) in activityCategories) {
+      Category? match;
+      for (final row in existing) {
+        if (row.type == type &&
+            row.name.trim().toLowerCase() == name.toLowerCase()) {
+          match = row;
+          break;
+        }
+      }
+      if (match == null) {
+        final slug = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+        await into(categories).insert(
+          CategoriesCompanion.insert(
+            id: 'seed-$type-$slug',
+            householdId: 'local-household',
+            name: name,
+            type: type,
+            defaultBudgetPeriod: const Value('none'),
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _seedInitialData() async {
     final now = DateTime.now();
     await into(households).insertOnConflictUpdate(
@@ -394,7 +435,7 @@ class AppDatabase extends _$AppDatabase {
     for (final (name, type, period) in categories) {
       await into(this.categories).insertOnConflictUpdate(
         CategoriesCompanion.insert(
-          id: 'seed-${type}-${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
+          id: 'seed-$type-${name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}',
           householdId: 'local-household',
           name: name,
           type: type,

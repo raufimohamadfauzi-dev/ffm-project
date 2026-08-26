@@ -40,11 +40,14 @@ class AnalysisExportService {
       final transaction = entry.transaction;
       final date = transaction.date;
       if (from != null && date.isBefore(from)) return false;
-      if (to != null && date.isAfter(to.add(const Duration(days: 1))))
+      if (to != null && date.isAfter(to.add(const Duration(days: 1)))) {
         return false;
+      }
       if (typeFilter != 'all' && transaction.type != typeFilter) return false;
-      if (categoryFilter != 'all' && transaction.categoryId != categoryFilter)
+      if (categoryFilter != 'all' &&
+          transaction.categoryId != categoryFilter) {
         return false;
+      }
       return true;
     }).toList();
     final rows = filtered

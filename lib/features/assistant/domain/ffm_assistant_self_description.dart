@@ -152,7 +152,7 @@ Aturan keamanan:
 - tidak ada autosave, penghapusan diam-diam, atau pengiriman data ke cloud;
 - angka utama berasal dari database/aggregator lokal, bukan karangan SLM.
 
-${slmConfigured ? 'Jika model SLM lokal siap, aku juga dapat memahami bahasa alami/gambar, membantu narasi atau insight, serta menjawab pertanyaan finansial umum dengan konteks data keuanganmu. Jika belum siap, aku memakai aturan lokal dan tetap memberi tahu statusnya.' : 'Model SLM lokal belum dikonfirmasi siap; saat ini aku mengandalkan aturan lokal dan tidak akan mengklaim kemampuan vision/reasoning model.'}
+${slmConfigured ? 'Jika model SLM lokal siap, aku dapat memahami bahasa alami, membantu narasi atau insight, serta menjawab pertanyaan finansial umum dengan konteks data keuanganmu. Jika belum siap, aku memakai aturan lokal dan tetap memberi tahu statusnya.' : 'Model SLM lokal belum dikonfirmasi siap; saat ini aku mengandalkan aturan lokal dan menjelaskan status sebenarnya.'}
 
 Masih dalam pengembangan: $missing.
 ${mutationLabels.isEmpty ? '' : 'Mutation terkonfirmasi yang tersedia: $mutationLabels.'}

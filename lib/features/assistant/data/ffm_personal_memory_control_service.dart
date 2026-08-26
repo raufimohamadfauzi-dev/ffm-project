@@ -70,7 +70,6 @@ abstract final class FfmPersonalMemorySafetyPolicy {
     'budget',
     'draft',
     'path',
-    'gambar',
   };
 
   static bool isSafeForPersonalContext({

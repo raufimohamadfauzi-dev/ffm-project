@@ -49,8 +49,7 @@ class FfmErrorLogEntry {
 ///
 /// Error dicatat ke SharedPreferences untuk debugging. Tidak ada network call.
 class FfmErrorLoggingService {
-  FfmErrorLoggingService({SharedPreferences? preferences})
-      : _preferences = preferences;
+  FfmErrorLoggingService({this._preferences});
 
   static const _key = 'ffm_error_logs_v1';
   static const maxEntries = 200;

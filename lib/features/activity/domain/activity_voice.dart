@@ -26,6 +26,7 @@ class ActivityVoiceIntent {
     required this.normalizedText,
     required this.type,
     required this.status,
+    this.kind = ActivityKind.timer,
     this.targetTitle,
     this.targetSessionId,
     this.parentTitle,
@@ -40,6 +41,7 @@ class ActivityVoiceIntent {
   final String normalizedText;
   final ActivityVoiceIntentType type;
   final ActivityVoiceStatus status;
+  final ActivityKind kind;
   final String? targetTitle;
   final String? targetSessionId;
   final String? parentTitle;
@@ -52,6 +54,7 @@ class ActivityVoiceIntent {
   ActivityVoiceIntent copyWith({
     ActivityVoiceIntentType? type,
     ActivityVoiceStatus? status,
+    ActivityKind? kind,
     String? targetTitle,
     String? targetSessionId,
     String? parentTitle,
@@ -66,6 +69,7 @@ class ActivityVoiceIntent {
     normalizedText: normalizedText,
     type: type ?? this.type,
     status: status ?? this.status,
+    kind: kind ?? this.kind,
     targetTitle: targetTitle ?? this.targetTitle,
     targetSessionId: targetSessionId ?? this.targetSessionId,
     parentTitle: parentTitle ?? this.parentTitle,
@@ -146,6 +150,19 @@ class ActivityVoiceParser {
       'sudah sampai ',
       'sudah di ',
     ]);
+    final isTask = _containsAny(text, const [
+      'ingatkan',
+      'tugas',
+      'perlu ',
+      'harus ',
+      'nanti ',
+    ]);
+    final isNote = _containsAny(text, const [
+      'catat ',
+      'jurnal ',
+      'refleksi ',
+      'keterangan ',
+    ]);
 
     if (isFinish) {
       final title = _extractFinishTitle(text);
@@ -162,12 +179,17 @@ class ActivityVoiceParser {
         useSingleActiveFallback: true,
       );
     }
-    if (isStart) {
+    if (isStart || isTask || isNote) {
       final childMarker = _findChildMarker(text);
       final title = _extractStartTitle(text, childMarker);
       final parentTitle = childMarker == null
           ? null
           : _cleanTitle(text.substring(childMarker.end));
+      final kind = isTask
+          ? ActivityKind.task
+          : isNote
+              ? ActivityKind.note
+              : ActivityKind.timer;
       final intent = ActivityVoiceIntent(
         rawTranscript: raw,
         normalizedText: text,
@@ -175,6 +197,7 @@ class ActivityVoiceParser {
             ? ActivityVoiceIntentType.start
             : ActivityVoiceIntentType.startChild,
         status: ActivityVoiceStatus.preview,
+        kind: kind,
         targetTitle: title,
         parentTitle: parentTitle,
         confidence: title == null ? .45 : .9,

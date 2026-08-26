@@ -55,7 +55,7 @@ class _FfmJsonExpandableState extends State<FfmJsonExpandable> {
       'responseMode': intent.responseMode.name,
       if (intent.clarification != null) 'clarification': intent.clarification,
       if (intent.response != null) 'response': intent.response,
-      if (draftMap != null) 'draft': draftMap,
+      'draft': ?draftMap,
       if (intent.teachingProposal != null)
         'teachingProposal': <String, dynamic>{
           'kind': intent.teachingProposal!.kind,

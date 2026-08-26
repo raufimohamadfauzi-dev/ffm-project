@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import '../../../core/network/supabase_service.dart';
 import '../domain/ffm_memory_candidate.dart';
 import '../domain/ffm_memory_type.dart';
 import 'ffm_assistant_memory_repository.dart';
@@ -8,11 +10,12 @@ import 'ffm_assistant_memory_repository.dart';
 ///
 /// Phase 6 dari Personal Memory & Context Engine implementation.
 class FfmMemoryLearningService {
-  FfmMemoryLearningService({
-    FfmAssistantMemoryRepository? memoryRepository,
-  }) : _memoryRepository = memoryRepository;
+  FfmMemoryLearningService({FfmAssistantMemoryRepository? memoryRepository}) {
+    _memoryRepository = memoryRepository;
+  }
 
-  final FfmAssistantMemoryRepository? _memoryRepository;
+  FfmAssistantMemoryRepository? _memoryRepository;
+  final _supabase = SupabaseService();
 
   /// Extract memory candidates dari percakapan turn.
   Future<List<FfmMemoryPromotionCandidate>> extractCandidates({
@@ -404,6 +407,18 @@ class FfmMemoryLearningService {
         if (promotionCandidate.reason != null) 'reason': promotionCandidate.reason,
       },
     );
+
+    // Sync to Cloud if approved
+    if (memoryCandidate.evidence.approved) {
+      unawaited(_supabase.saveMemory(
+        content: '${memoryCandidate.key}: ${memoryCandidate.value}',
+        category: memoryCandidate.type.name,
+        metadata: {
+          'importance': memoryCandidate.importance,
+          'source': 'auto-sync',
+        },
+      ));
+    }
   }
 
   double _calculateInitialImportance(FfmMemoryPromotionCandidate candidate) {

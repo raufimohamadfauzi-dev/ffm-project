@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'ffm_assistant_memory_repository.dart';
 
 /// Kategori fakta yang diingat tentang pengguna.
@@ -216,7 +215,4 @@ class FfmPersonalMemoryService {
     if (kind.contains('habit_data')) return FfmPersonalMemoryKind.habitData;
     return FfmPersonalMemoryKind.habitChat;
   }
-
-  @visibleForTesting
-  static List<_MemoryPattern> get patterns => _patterns;
 }

@@ -34,6 +34,13 @@ class FfmActivityGuardPlugin extends FfmAgentPlugin {
     'selesaikan',
     'sudah beres',
     'sudah selesai',
+    'udah beres',
+    'stop',
+    'berhenti',
+    'matikan timer',
+    'akhiri',
+    'kelar',
+    'beresin',
   ];
 
   @override

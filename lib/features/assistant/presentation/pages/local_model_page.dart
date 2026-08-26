@@ -304,7 +304,6 @@ class _LocalModelPageState extends State<LocalModelPage>
     final staging = _stagingStatus;
     final roles = <String>{
       if (staging == null || !staging.hasModel) 'language_model',
-      if (staging == null || !staging.hasProjector) 'multimodal_projector',
     };
     if (roles.isEmpty) {
       await _load(showLoading: false);
@@ -320,17 +319,16 @@ class _LocalModelPageState extends State<LocalModelPage>
       if (!mounted) return;
       setState(() => _backgroundStatuses = statuses);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            roles.length == 1
-                ? 'Hanya komponen yang belum ada sedang diunduh di background.'
-                : 'Dua komponen yang belum ada sedang diunduh di background.',
+            'Komponen model yang belum ada sedang diunduh di background.',
           ),
         ),
       );
     } on PlatformException catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = error.message ?? 'Download background gagal.');
+      }
     } finally {
       if (mounted) setState(() => _working = false);
     }
@@ -375,7 +373,7 @@ class _LocalModelPageState extends State<LocalModelPage>
         _progress = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Model Qwen2-VL terverifikasi dan siap.')),
+        const SnackBar(content: Text('SLM teks terverifikasi dan siap.')),
       );
     } on FfmLocalModelDownloadException catch (error) {
       if (!mounted) return;
@@ -492,8 +490,6 @@ class _LocalModelPageState extends State<LocalModelPage>
               _workingMessage = switch (status.stage) {
                 FfmLocalModelAssemblyStage.verifyingModel =>
                   'Sedang memeriksa isi file model GGUF...',
-                FfmLocalModelAssemblyStage.verifyingProjector =>
-                  'Sedang memeriksa isi file projector GGUF...',
                 FfmLocalModelAssemblyStage.committing =>
                   'Sedang memasang bundle dan menyimpan manifest...',
                 FfmLocalModelAssemblyStage.ready =>
@@ -654,7 +650,7 @@ class _LocalModelPageState extends State<LocalModelPage>
         title: const Text('Hapus model lokal?'),
         content: const Text(
           'Yang dihapus hanya file model dan metadata verifikasinya. '
-          'Database transaksi dan lampiran FFM tetap aman.',
+          'Database transaksi FFM tetap aman.',
         ),
         actions: [
           TextButton(
@@ -686,7 +682,7 @@ class _LocalModelPageState extends State<LocalModelPage>
 
   Future<void> _runBenchmark() async {
     final model = _model;
-    if (model == null || model.projectorPath == null) return;
+    if (model == null) return;
 
     setState(() {
       _working = true;
@@ -698,7 +694,6 @@ class _LocalModelPageState extends State<LocalModelPage>
     try {
       await FfmLocalModelBridgePlugin.initNative(
         modelPath: model.filePath,
-        mmprojPath: model.projectorPath!,
       );
 
       const testPrompt = 'Beli beras 50 ribu di warung Madura';
@@ -836,15 +831,11 @@ class _LocalModelPageState extends State<LocalModelPage>
     final status = _assemblyStatus!;
     final colorScheme = Theme.of(context).colorScheme;
     final isModel = status.stage == FfmLocalModelAssemblyStage.verifyingModel;
-    final isProjector =
-        status.stage == FfmLocalModelAssemblyStage.verifyingProjector;
     final isFailed = status.stage == FfmLocalModelAssemblyStage.failed;
     final isReady = status.stage == FfmLocalModelAssemblyStage.ready;
     final title = switch (status.stage) {
       FfmLocalModelAssemblyStage.verifyingModel =>
         'Memverifikasi Model GGUF...',
-      FfmLocalModelAssemblyStage.verifyingProjector =>
-        'Memverifikasi Projector GGUF...',
       FfmLocalModelAssemblyStage.committing =>
         'Memasang bundle terverifikasi...',
       FfmLocalModelAssemblyStage.ready =>
@@ -853,9 +844,7 @@ class _LocalModelPageState extends State<LocalModelPage>
       FfmLocalModelAssemblyStage.idle => 'Status rakit SLM',
     };
     final detail = isModel
-        ? '${_size(FfmQwen2VlBundle.modelBytes)} — Tahap 1 dari 2'
-        : isProjector
-        ? '${_size(FfmQwen2VlBundle.projectorBytes)} — Tahap 2 dari 2'
+        ? '${_size(FfmQwen2VlBundle.modelBytes)} — Tahap 1 dari 1'
         : status.stage == FfmLocalModelAssemblyStage.committing
         ? 'Menyimpan manifest dan memindahkan bundle secara atomik.'
         : null;
@@ -1101,7 +1090,7 @@ class _LocalModelPageState extends State<LocalModelPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Model AI Qwen2-VL 2B Aktif',
+                          'Model AI Qwen2 2B Aktif',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
@@ -1110,7 +1099,7 @@ class _LocalModelPageState extends State<LocalModelPage>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Vision & Bahasa Alami • 100% Offline',
+                          'Bahasa Alami • 100% Offline',
                           style: TextStyle(
                             color: Colors.teal.shade100,
                             fontSize: 12,
@@ -1165,9 +1154,9 @@ class _LocalModelPageState extends State<LocalModelPage>
                   ),
                   Expanded(
                     child: _buildSpecItem(
-                      icon: Icons.remove_red_eye_outlined,
-                      label: 'Projector',
-                      value: _size(model.projectorBytes ?? 0),
+                      icon: Icons.fingerprint_outlined,
+                      label: 'SHA-256 Hash',
+                      value: '${model.sha256.substring(0, 10)}…',
                     ),
                   ),
                 ],
@@ -1175,13 +1164,6 @@ class _LocalModelPageState extends State<LocalModelPage>
               const SizedBox(height: 10),
               Row(
                 children: [
-                  Expanded(
-                    child: _buildSpecItem(
-                      icon: Icons.fingerprint_outlined,
-                      label: 'SHA-256 Hash',
-                      value: '${model.sha256.substring(0, 10)}…',
-                    ),
-                  ),
                   Expanded(
                     child: _buildSpecItem(
                       icon: Icons.calendar_today_outlined,
@@ -1202,14 +1184,6 @@ class _LocalModelPageState extends State<LocalModelPage>
               const Text(
                 'Kemampuan AI yang Aktif:',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              _buildCapabilityRow(
-                icon: Icons.receipt_long_outlined,
-                color: Colors.blueAccent,
-                title: 'Vision OCR (Baca Foto Struk)',
-                description:
-                    'Membaca foto struk, invoice, dan nota belanja langsung dari kamera/galeri tanpa internet.',
               ),
               const SizedBox(height: 12),
               _buildCapabilityRow(
@@ -1396,12 +1370,12 @@ class _LocalModelPageState extends State<LocalModelPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Paket Qwen2-VL 2B',
+                          'Paket SLM teks Qwen2 2B',
                           style: TextStyle(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Ukuran unduhan sekitar ${_size(FfmQwen2VlBundle.modelBytes + FfmQwen2VlBundle.projectorBytes)}. File disimpan di storage privat aplikasi, diverifikasi dengan SHA-256 streaming, lalu dipindah secara atomik.',
+                          'Ukuran unduhan sekitar ${_size(FfmQwen2VlBundle.modelBytes)}. File disimpan di storage privat aplikasi, diverifikasi dengan SHA-256 streaming, lalu dipindah secara atomik.',
                         ),
                         if (_backgroundStatuses.isNotEmpty) ...[
                           const SizedBox(height: 16),
@@ -1592,22 +1566,6 @@ class _LocalModelPageState extends State<LocalModelPage>
                               ),
                               const SizedBox(width: 8),
                               const Text('Model GGUF (936 MB)'),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              Icon(
-                                _stagingStatus!.hasProjector
-                                    ? Icons.check_circle
-                                    : Icons.radio_button_unchecked,
-                                color: _stagingStatus!.hasProjector
-                                    ? Colors.green
-                                    : Colors.grey,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              const Text('Projector GGUF (1.33 GB)'),
                             ],
                           ),
                         ],

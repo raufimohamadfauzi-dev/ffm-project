@@ -13,21 +13,7 @@ class FfmAssistantFollowUpSuggestions {
     final lowerUser = (userQuestion ?? '').toLowerCase();
     final lowerResponse = (lastResponseText ?? '').toLowerCase();
 
-    // 1. Topik Vision / OCR / Baca Gambar & Struk
-    if (lowerUser.contains('gambar') ||
-        lowerUser.contains('struk') ||
-        lowerUser.contains('foto') ||
-        lowerUser.contains('nota') ||
-        lowerResponse.contains('foto struk') ||
-        lowerResponse.contains('vision')) {
-      return const [
-        'Bagaimana cara foto struk agar terbaca akurat?',
-        'Ukuran gambar seperti apa yang didukung?',
-        'Catat pengeluaran belanja 50rb di minimarket',
-      ];
-    }
-
-    // 2. Topik Kalender & Waktu
+    // 1. Topik Kalender & Waktu
     if (intent?.type == FfmAssistantIntentType.calendarQuery ||
         lowerUser.contains('kalender') ||
         lowerUser.contains('hijri') ||
@@ -106,7 +92,7 @@ class FfmAssistantFollowUpSuggestions {
         lowerUser.contains('bisa apa') ||
         lowerUser.contains('bantuan')) {
       return const [
-        'Bagaimana cara membaca struk belanja?',
+        'Cara mencatat pengeluaran harian?',
         'Berapa sisa anggaran bulan ini?',
         'Tampilkan daftar halaman aplikasi',
       ];

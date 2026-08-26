@@ -479,7 +479,7 @@ Tugas:
                       ),
                       const SizedBox(height: 6),
                       const Text(
-                        'Qwen2-VL tidak dilatih ulang dari halaman ini. Kamu hanya mengelola aturan atau preferensi lokal yang disetujui. Review dengan AI eksternal bersifat opsional; FFM tidak mengirim data ke internet sendiri.',
+                        'SLM lokal tidak dilatih ulang dari halaman ini. Kamu hanya mengelola aturan atau preferensi lokal yang disetujui. Review dengan AI eksternal bersifat opsional; FFM tidak mengirim data ke internet sendiri.',
                       ),
                       const SizedBox(height: 10),
                       Wrap(

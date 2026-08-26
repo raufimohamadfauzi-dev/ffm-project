@@ -161,6 +161,8 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
 
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.liabilities,
+      dataSummary:
+          'Total sisa piutang: ${_moneyLabel(total)}. Ada ${active.length} piutang aktif, ${dueSoon.length} jatuh tempo segera.',
       child: Scaffold(
         appBar: widget.embedded
             ? null

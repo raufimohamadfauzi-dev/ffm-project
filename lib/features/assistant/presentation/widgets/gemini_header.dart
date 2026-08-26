@@ -164,7 +164,7 @@ class GeminiHeader extends StatelessWidget {
                   children: [
                     IconButton(
                       visualDensity: VisualDensity.compact,
-                      tooltip: 'Memori Pribadi (${memoryCount} tersimpan)',
+                      tooltip: 'Memori Pribadi ($memoryCount tersimpan)',
                       onPressed: onOpenMemory,
                       icon: Icon(
                         Icons.psychology_outlined,

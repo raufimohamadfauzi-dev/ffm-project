@@ -22,12 +22,13 @@ class CategoryRepository {
   final AuditLogger _auditLogger;
   final DateTime Function() _clock;
 
-  Future<List<Category>> readActive(String householdId) =>
+  Future<List<Category>> readActive(String householdId, {String? type}) =>
       (_database.select(_database.categories)
             ..where(
               (row) =>
                   row.householdId.equals(householdId) &
-                  row.isActive.equals(true),
+                  row.isActive.equals(true) &
+                  (type == null ? const Constant(true) : row.type.equals(type)),
             )
             ..orderBy([(row) => OrderingTerm.asc(row.name)]))
           .get();
@@ -225,7 +226,7 @@ class CategoryRepository {
     required String type,
     String? excludeId,
   }) async {
-    final rows = await readActive(householdId);
+    final rows = await readActive(householdId, type: type);
     final duplicate = rows.any(
       (row) =>
           row.id != excludeId &&

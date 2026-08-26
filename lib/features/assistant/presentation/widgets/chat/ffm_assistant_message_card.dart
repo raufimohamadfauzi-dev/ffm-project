@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import '../../../domain/ffm_assistant_action_plan.dart';
@@ -70,11 +68,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
     final isUnknown = !isUser && intent?.type == FfmAssistantIntentType.unknown;
 
     final userBubbleColor = isDark
-        ? const Color(0xFF302F2B)
-        : const Color(0xFFF0ECE3);
+        ? const Color(0xFF1E1E1E)
+        : const Color(0xFFFFFFFF);
     final textColor = isUser
-        ? (isDark ? const Color(0xFFEDE8E0) : const Color(0xFF2B2117))
-        : (isDark ? const Color(0xFFEDE8E0) : const Color(0xFF2B2117));
+        ? (isDark ? Colors.white : Colors.black)
+        : (isDark ? Colors.white : Colors.black);
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -82,12 +80,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
       children: [
         if (!isUser && entry.processTrace != null) ...[
           _OriginBadge(trace: entry.processTrace!),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           FfmAssistantProcessDisclosure(
             trace: entry.processTrace!,
             actionPlan: actionPlan,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
         ],
         if (isUnknown) ...[
           Semantics(
@@ -113,10 +111,6 @@ class FfmAssistantMessageCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 5),
-        ],
-        if (entry.imagePath != null) ...[
-          FfmChatImagePreview(path: entry.imagePath!),
-          if (entry.text.isNotEmpty) const SizedBox(height: 5),
         ],
         if (entry.filePath != null) ...[
           FfmChatFileCard(
@@ -238,21 +232,21 @@ class FfmAssistantMessageCard extends StatelessWidget {
                     color: userBubbleColor,
                     border: Border.all(
                       color: isDark
-                          ? const Color(0xFF45413C)
-                          : const Color(0xFFE1DACE),
-                      width: .8,
+                          ? const Color(0xFF666666)
+                          : const Color(0xFF333333),
+                      width: 2.0,
                     ),
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.circular(5),
+                      topLeft: Radius.circular(20),
+                      topRight: Radius.circular(20),
+                      bottomLeft: Radius.circular(20),
+                      bottomRight: Radius.circular(4),
                     ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: 16,
+                      vertical: 12,
                     ),
                     child: content,
                   ),
@@ -261,55 +255,6 @@ class FfmAssistantMessageCard extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(2, 2, 4, 4),
                   child: content,
                 ),
-        ),
-      ),
-    );
-  }
-}
-
-class FfmChatImagePreview extends StatelessWidget {
-  const FfmChatImagePreview({super.key, required this.path});
-
-  final String path;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Pratinjau gambar. Ketuk untuk memperbesar.',
-      child: GestureDetector(
-        onTap: () => showDialog<void>(
-          context: context,
-          builder: (dialogContext) => Dialog(
-            insetPadding: const EdgeInsets.all(16),
-            child: InteractiveViewer(
-              minScale: .8,
-              maxScale: 4,
-              child: Image.file(
-                File(path),
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text('Gambar tidak lagi tersedia di perangkat.'),
-                ),
-              ),
-            ),
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: Image.file(
-            File(path),
-            height: 150,
-            width: double.infinity,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
-              height: 80,
-              alignment: Alignment.center,
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              child: const Text('Gambar tidak tersedia'),
-            ),
-          ),
         ),
       ),
     );
@@ -388,7 +333,7 @@ class _OriginBadge extends StatelessWidget {
 
     // Jika ada pluginName, tampilkan badge plugin eksplisit
     if (trace.pluginName != null && trace.pluginCategory != null) {
-      final color = isDark ? const Color(0xFF5BBFB5) : const Color(0xFF00727A);
+      final color = isDark ? const Color(0xFF00BFA5) : const Color(0xFF00796B);
       final icon = switch (trace.pluginCategory) {
         '👁️ Sense' => Icons.visibility_outlined,
         '🧮 Logic' => Icons.calculate_outlined,
@@ -396,54 +341,74 @@ class _OriginBadge extends StatelessWidget {
         _ => Icons.account_tree_outlined,
       };
       final label = '${trace.pluginCategory}: ${_resolvePluginDisplayName(trace.pluginName!)}';
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 3),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: color,
+      
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color, width: 1.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: color,
+                letterSpacing: 0.5,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       );
     }
 
     final (icon, label, color) = switch (trace.origin) {
       FfmAssistantResponseOrigin.localSlm => (
         Icons.auto_awesome_outlined,
-        'SLM',
-        isDark ? const Color(0xFF6B9DE8) : const Color(0xFF3B6EC4),
+        'LOKAL AI',
+        isDark ? const Color(0xFF64B5F6) : const Color(0xFF1976D2),
       ),
       FfmAssistantResponseOrigin.localFallback => (
         Icons.info_outline,
-        'Fallback',
-        isDark ? const Color(0xFFD4A843) : const Color(0xFF9A5B00),
+        'FALLBACK',
+        isDark ? const Color(0xFFFFD54F) : const Color(0xFFF57C00),
       ),
       FfmAssistantResponseOrigin.agentOrchestrator => (
         Icons.account_tree_outlined,
-        'Agent',
-        isDark ? const Color(0xFF5BBFB5) : const Color(0xFF00727A),
+        'AGENT',
+        isDark ? const Color(0xFF81C784) : const Color(0xFF388E3C),
       ),
     };
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 3),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            color: color,
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color, width: 1.5),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: color,
+              letterSpacing: 0.8,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

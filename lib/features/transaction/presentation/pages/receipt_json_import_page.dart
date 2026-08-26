@@ -9,9 +9,8 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../data/services/receipt_import_models.dart';
 import '../../data/services/receipt_import_service.dart';
 
-/// Halaman khusus untuk meninjau hasil JSON yang sudah disiapkan Asisten.
+/// Halaman khusus untuk meninjau hasil JSON yang sudah disiapkan.
 ///
-/// Foto nota diproses melalui lampiran pada Asisten dengan Qwen2-VL lokal.
 /// Halaman ini tetap hanya membaca JSON dan mengembalikannya ke form untuk
 /// diedit; halaman ini tidak pernah menyimpan transaksi otomatis.
 class ReceiptJsonImportPage extends StatefulWidget {

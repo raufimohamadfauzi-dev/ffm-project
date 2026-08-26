@@ -22,6 +22,7 @@ import '../../../recurring_transaction/presentation/pages/recurring_transaction_
 import 'offline_features_page.dart';
 import 'pin_security_page.dart';
 import 'privacy_center_page.dart';
+import 'supabase_setup_page.dart';
 
 class OtherMenuPage extends StatefulWidget {
   const OtherMenuPage({super.key});
@@ -154,6 +155,16 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Model Asisten Lokal',
                 'Unduh SLM dari GitHub atau impor bundle offline yang sudah dibagikan dan diverifikasi.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.cloud_queue_outlined,
+              title: 'Cloud Brain',
+              subtitle: 'Sambungkan asisten ke memori jangka panjang di cloud menggunakan Supabase.',
+              onTap: () => _open(context, const SupabaseSetupPage()),
+              visible: _matches(
+                'Cloud Brain',
+                'Sambungkan asisten ke memori jangka panjang di cloud menggunakan Supabase.',
               ),
             ),
             const AppSectionHeader(title: 'Data keluarga'),

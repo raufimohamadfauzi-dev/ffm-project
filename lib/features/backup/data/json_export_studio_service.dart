@@ -246,8 +246,9 @@ class JsonExportStudioService {
         .map((row) {
           final result = <String, Object?>{};
           row.data.forEach((key, value) {
-            if (!options.includeNotes && key.toLowerCase().contains('note'))
+            if (!options.includeNotes && key.toLowerCase().contains('note')) {
               return;
+            }
             if (options.anonymizeIdentity &&
                 (key.toLowerCase().contains('name') ||
                     key.toLowerCase().contains('party') ||
@@ -310,8 +311,9 @@ Buat keluaran dalam HTML mandiri berbahasa Indonesia dengan judul, ringkasan kel
 
   bool _inPeriod(DateTime date, DateTime? from, DateTime? to) {
     if (from != null && date.isBefore(from)) return false;
-    if (to != null && date.isAfter(to.add(const Duration(days: 1))))
+    if (to != null && date.isAfter(to.add(const Duration(days: 1)))) {
       return false;
+    }
     return true;
   }
 

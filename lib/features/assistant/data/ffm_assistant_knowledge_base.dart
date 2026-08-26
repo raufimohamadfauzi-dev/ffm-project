@@ -39,7 +39,7 @@ class FfmAssistantKnowledgeBase {
       answer: '''Untuk mencatat transaksi kamu bisa:
 - **Via Chat**: Ketik *"Catat [jenis] [nominal] di [rekening]"* — misalnya *"Catat pengeluaran 50rb di BCA untuk makan"*. Aku akan menyiapkan draft untuk kamu cek dan konfirmasi.
 - **Via Formulir Manual**: Buka menu **Transaksi** → tekan tombol **+** di pojok kanan bawah → isi detail transaksi.
-- **Via Foto Struk**: Kirim foto struk/nota di chat, model AI lokal akan membaca dan menyiapkan draft otomatis.
+- **Via Impor JSON**: Tempel hasil JSON nota di menu impor transaksi untuk ditinjau sebagai draft.
 
 Ingat: draft belum tersimpan sampai kamu tekan **Simpan** di formulir.''',
     ),
@@ -320,7 +320,6 @@ Buka **Penasihat** atau ketik *"Cek kesehatan keuanganku"* di chat — aku langs
 **Jenis Widget yang tersedia:**
 - **Ringkasan**: Saldo total + pengeluaran bulan ini.
 - **Shortcut Asisten**: Langsung buka chat asisten.
-- **Shortcut Scan Nota**: Langsung buka kamera untuk foto struk.
 - **Shortcut Tambah Transaksi**: Langsung ke formulir transaksi.''',
     ),
 
@@ -336,14 +335,14 @@ Buka **Penasihat** atau ketik *"Cek kesehatan keuanganku"* di chat — aku langs
         'cara instal model',
       ],
       title: '🤖 Cara Memasang Model AI Lokal (SLM)',
-      answer: '''FFM menggunakan model AI lokal (Qwen2-VL 2B) yang dijalankan 100% di HP tanpa internet.
+      answer: '''FFM menggunakan SLM teks lokal yang dijalankan 100% di HP tanpa internet.
 **Cara memasang:**
 1. Buka **Asisten** → **Kelola Model Lokal** (atau katakan *"Buka halaman model lokal"*).
 2. Pilih salah satu metode:
-   - **Unduh Langsung**: unduh 2 file GGUF (~2.3 GB total) langsung dari halaman.
-   - **Unduh Background**: unduh sambil pakai aplikasi lain, lalu adopsi saat kembali.
-   - **Impor dari Folder**: jika file sudah ada di folder Download, pilih *"Pilih GGUF dari file"*.
-3. Setelah kedua file selesai, tekan **Rakit dan Pasang SLM**.
+  - **Unduh Langsung**: unduh satu file GGUF dari halaman.
+  - **Unduh Background**: unduh sambil pakai aplikasi lain, lalu adopsi saat kembali.
+  - **Impor dari Folder**: jika file sudah ada di folder Download, pilih *"Pilih GGUF dari file"*.
+3. Setelah file selesai, tekan **Rakit dan Pasang SLM**.
 4. Model siap digunakan — kamu akan melihat indikator **AI Siap** di header chat.
 
 **Persyaratan perangkat:** Android 10+, RAM ≥6 GB, Storage kosong ≥3 GB.''',

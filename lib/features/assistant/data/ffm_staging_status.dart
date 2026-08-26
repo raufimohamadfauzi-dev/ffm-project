@@ -1,9 +1,8 @@
 class FfmStagingStatus {
-  const FfmStagingStatus({required this.hasModel, required this.hasProjector});
+  const FfmStagingStatus({required this.hasModel});
 
   final bool hasModel;
-  final bool hasProjector;
 
-  bool get isReadyToCommit => hasModel && hasProjector;
-  bool get isEmpty => !hasModel && !hasProjector;
+  bool get isReadyToCommit => hasModel;
+  bool get isEmpty => !hasModel;
 }

@@ -51,8 +51,9 @@ class FfmSlmHealthEntry {
 /// Melacak latency, success rate, dan error patterns.
 /// Circuit breaker berfungsi skip inference jika terlalu banyak gagal.
 class FfmSlmHealthMonitor {
-  FfmSlmHealthMonitor({SharedPreferences? preferences})
-      : _preferences = preferences;
+  FfmSlmHealthMonitor({SharedPreferences? preferences}) {
+    _preferences = preferences;
+  }
 
   static const _key = 'ffm_slm_health_v1';
   static const maxEntries = 100;

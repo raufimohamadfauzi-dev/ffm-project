@@ -36,3 +36,10 @@ android/app/build/
 # OS
 .DS_Store
 Thumbs.db
+# Widget Preview related
+.widget_preview/
+
+# Tool caches
+.vs/
+.freebuff/
+.ai/

@@ -33,8 +33,9 @@ class FfmPersonalContextProvider {
     required FfmAssistantPersonalizationRepository personalizationRepository,
     required FfmAssistantChatHistoryRepository chatHistoryRepository,
     required FfmWorkingContextManager workingContextManager,
-  }) : _chatHistoryRepository = chatHistoryRepository,
-       _workingContextManager = workingContextManager {
+  }) {
+    _chatHistoryRepository = chatHistoryRepository;
+    _workingContextManager = workingContextManager;
     _contextEngine = FfmPersonalContextEngineImpl(
       database: database,
       memoryRepository: memoryRepository,

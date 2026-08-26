@@ -46,11 +46,12 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   }
 
   Future<void> _load() async {
-    if (mounted)
+    if (mounted) {
       setState(() {
         _loading = true;
         _error = null;
       });
+    }
     try {
       final logs = await getIt<GetAuditLogs>()(
         action: _action,
@@ -123,8 +124,9 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
 
   String _summary(AuditLogEntity log) {
     final fields = log.changedFields.toList()..sort();
-    if (fields.isEmpty)
+    if (fields.isEmpty) {
       return 'Perubahan penting tercatat tanpa detail sensitif.';
+    }
     final visible = fields.take(4).map((field) => field.replaceAll('_', ' '));
     final suffix = fields.length > 4 ? ' dan lainnya' : '';
     return 'Bagian yang berubah: ${visible.join(', ')}$suffix.';
@@ -134,6 +136,9 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.activityLog,
+      dataSummary: _loading
+          ? 'Sedang memuat log...'
+          : 'Melihat log audit: ada ${_logs.length} perubahan terakhir yang tercatat di perangkat ini.',
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Log aktivitas'),

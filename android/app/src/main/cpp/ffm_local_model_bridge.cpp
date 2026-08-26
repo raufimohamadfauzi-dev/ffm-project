@@ -3,9 +3,9 @@
 
 #include <mutex>
 #include <string>
+#include <vector>
 
-#include "mtmd-helper.h"
-#include "mtmd.h"
+#include "llama.h"
 
 #define LOG_TAG "FfmLocalModelBridge"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -17,7 +17,6 @@ namespace {
 // overlapping llama contexts, and destroy waits for an active generation.
 std::mutex g_session_mutex;
 llama_model *g_model = nullptr;
-mtmd_context *g_ctx_vision = nullptr;
 
 class ScopedUtfChars {
  public:
@@ -50,22 +49,19 @@ jstring ErrorString(JNIEnv *env, const char *message) {
 extern "C" JNIEXPORT jint JNICALL
 Java_com_ffm_1manager_FfmLocalModelBridge_initNative(JNIEnv *env,
                                                        jobject /*unused*/,
-                                                       jstring modelPath,
-                                                       jstring mmprojPath) {
+                                                       jstring modelPath) {
   std::lock_guard<std::mutex> lock(g_session_mutex);
-  if (g_model != nullptr || g_ctx_vision != nullptr) {
+  if (g_model != nullptr) {
     LOGE("Model sudah diinisialisasi. Harus dipanggil destroyNative dulu.");
     return -1;
   }
 
   ScopedUtfChars model_path(env, modelPath);
-  ScopedUtfChars mmproj_path(env, mmprojPath);
-  if (!model_path.valid() || !mmproj_path.valid()) {
-    LOGE("Path model atau mmproj kosong/tidak dapat dibaca.");
+  if (!model_path.valid()) {
+    LOGE("Path model kosong/tidak dapat dibaca.");
     return -4;
   }
 
-  mtmd_helper_log_set(nullptr, nullptr);
   llama_model_params model_params = llama_model_default_params();
   g_model = llama_model_load_from_file(model_path.get(), model_params);
   if (g_model == nullptr) {
@@ -73,20 +69,7 @@ Java_com_ffm_1manager_FfmLocalModelBridge_initNative(JNIEnv *env,
     return -2;
   }
 
-  mtmd_context_params context_params = mtmd_context_params_default();
-  context_params.use_gpu = false;  // CPU fallback deterministik untuk rilis awal.
-  context_params.n_threads = 2;
-  context_params.warmup = false;
-  context_params.image_max_tokens = 1024;
-  g_ctx_vision = mtmd_init_from_file(mmproj_path.get(), g_model, context_params);
-  if (g_ctx_vision == nullptr) {
-    LOGE("Gagal memuat mmproj");
-    llama_model_free(g_model);
-    g_model = nullptr;
-    return -3;
-  }
-
-  LOGI("Model dan mmproj berhasil dimuat.");
+  LOGI("Model berhasil dimuat.");
   return 0;
 }
 
@@ -94,10 +77,6 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_ffm_1manager_FfmLocalModelBridge_destroyNative(JNIEnv * /*env*/,
                                                          jobject /*unused*/) {
   std::lock_guard<std::mutex> lock(g_session_mutex);
-  if (g_ctx_vision != nullptr) {
-    mtmd_free(g_ctx_vision);
-    g_ctx_vision = nullptr;
-  }
   if (g_model != nullptr) {
     llama_model_free(g_model);
     g_model = nullptr;
@@ -110,68 +89,40 @@ Java_com_ffm_1manager_FfmLocalModelBridge_generateSingleShotNative(
     JNIEnv *env,
     jobject /*unused*/,
     jstring systemPrompt,
-    jstring userPrompt,
-    jstring imagePath) {
+    jstring userPrompt) {
   std::lock_guard<std::mutex> lock(g_session_mutex);
-  if (g_model == nullptr || g_ctx_vision == nullptr) {
+  if (g_model == nullptr) {
     LOGE("Model belum dimuat.");
     return ErrorString(env, "Model belum dimuat.");
   }
 
   ScopedUtfChars system_prompt(env, systemPrompt);
   ScopedUtfChars user_prompt(env, userPrompt);
-  ScopedUtfChars image_path(env, imagePath);
   if (!system_prompt.valid() || !user_prompt.valid()) {
     return ErrorString(env, "Prompt tidak valid.");
   }
-  const bool has_image = image_path.valid() && image_path.get()[0] != '\0';
 
-  std::string prompt = std::string(system_prompt.get()) + "\n\n" + user_prompt.get();
-  if (has_image) {
-    prompt = mtmd_get_marker(g_ctx_vision) + std::string("\n") + prompt;
-  }
+  std::string prompt =
+      std::string(system_prompt.get()) + "\n\n" + user_prompt.get();
 
-  mtmd_input_text input_text{};
-  input_text.text = prompt.data();
-  input_text.text_len = prompt.size();
-  input_text.add_special = true;
-  input_text.parse_special = true;
+  const llama_vocab *vocab = llama_model_get_vocab(g_model);
 
-  mtmd_helper_bitmap_wrapper bitmap_wrapper{nullptr, nullptr};
-  const mtmd_bitmap *bitmaps[1] = {nullptr};
-  size_t bitmap_count = 0;
-  if (has_image) {
-    bitmap_wrapper = mtmd_helper_bitmap_init_from_file(g_ctx_vision, image_path.get(), false);
-    if (bitmap_wrapper.bitmap != nullptr) {
-      bitmaps[0] = bitmap_wrapper.bitmap;
-      bitmap_count = 1;
-    } else {
-      LOGE("Gagal memuat gambar dari %s", image_path.get());
-      return ErrorString(env, "Gagal memuat gambar.");
-    }
-  }
-
-  mtmd_input_chunks *chunks = mtmd_input_chunks_init();
-  if (chunks == nullptr) {
-    if (bitmap_wrapper.bitmap != nullptr) mtmd_bitmap_free(bitmap_wrapper.bitmap);
-    return ErrorString(env, "Gagal mengalokasikan input model.");
-  }
-
-  const int32_t tokenize_result =
-      mtmd_tokenize(g_ctx_vision, chunks, &input_text, bitmaps, bitmap_count);
-  if (bitmap_wrapper.bitmap != nullptr) mtmd_bitmap_free(bitmap_wrapper.bitmap);
-  if (tokenize_result != 0) {
-    LOGE("Tokenisasi gagal: %d", tokenize_result);
-    mtmd_input_chunks_free(chunks);
+  const int n_prompt_tokens = -llama_tokenize(
+      vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()), nullptr, 0,
+      true, true);
+  if (n_prompt_tokens <= 0) {
     return ErrorString(env, "Gagal tokenisasi input.");
   }
-
-  const size_t total_tokens = mtmd_helper_get_n_tokens(chunks);
-  LOGI("Total token input: %zu", total_tokens);
-  if (total_tokens > 1900) {
-    LOGE("Token input (%zu) terlalu besar, melebihi budget context aman.", total_tokens);
-    mtmd_input_chunks_free(chunks);
+  if (n_prompt_tokens > 1900) {
+    LOGE("Token input (%d) terlalu besar, melebihi budget context aman.",
+         n_prompt_tokens);
     return ErrorString(env, "Input terlalu panjang untuk diproses aman di perangkat.");
+  }
+  std::vector<llama_token> tokens(static_cast<size_t>(n_prompt_tokens));
+  if (llama_tokenize(vocab, prompt.c_str(), static_cast<int32_t>(prompt.size()),
+                     tokens.data(), static_cast<int32_t>(tokens.size()), true,
+                     true) < 0) {
+    return ErrorString(env, "Gagal tokenisasi input.");
   }
 
   llama_context_params context_params = llama_context_default_params();
@@ -181,16 +132,13 @@ Java_com_ffm_1manager_FfmLocalModelBridge_generateSingleShotNative(
   context_params.n_threads_batch = 2;
   llama_context *context = llama_init_from_model(g_model, context_params);
   if (context == nullptr) {
-    mtmd_input_chunks_free(chunks);
     return ErrorString(env, "Gagal inisialisasi context memori.");
   }
 
-  llama_pos n_past = 0;
-  const int32_t eval_result = mtmd_helper_eval_chunks(
-      g_ctx_vision, context, chunks, 0, 0, context_params.n_batch, true, &n_past);
-  mtmd_input_chunks_free(chunks);
-  if (eval_result != 0) {
-    LOGE("Evaluasi chunk gagal: %d", eval_result);
+  llama_batch batch = llama_batch_get_one(tokens.data(),
+                                          static_cast<int>(tokens.size()));
+  if (llama_decode(context, batch) != 0) {
+    LOGE("Decode prompt gagal.");
     llama_free(context);
     return ErrorString(env, "Gagal evaluasi prompt.");
   }
@@ -204,7 +152,6 @@ Java_com_ffm_1manager_FfmLocalModelBridge_generateSingleShotNative(
   llama_sampler_chain_add(sampler, llama_sampler_init_greedy());
 
   std::string response;
-  const llama_vocab *vocab = llama_model_get_vocab(g_model);
   for (int i = 0; i < 1024; ++i) {
     const llama_token token = llama_sampler_sample(sampler, context, -1);
     llama_sampler_accept(sampler, token);
@@ -222,8 +169,8 @@ Java_com_ffm_1manager_FfmLocalModelBridge_generateSingleShotNative(
     }
 
     llama_token next_token = token;
-    llama_batch batch = llama_batch_get_one(&next_token, 1);
-    if (llama_decode(context, batch) != 0) {
+    llama_batch next_batch = llama_batch_get_one(&next_token, 1);
+    if (llama_decode(context, next_batch) != 0) {
       LOGE("Decode gagal pada token ke-%d", i);
       break;
     }

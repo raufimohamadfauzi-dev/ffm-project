@@ -42,6 +42,7 @@ import '../../domain/ffm_assistant_proactive_service.dart';
 import '../../data/ffm_assistant_user_model_service.dart';
 import '../../data/ffm_personal_context_provider.dart';
 import '../../data/ffm_personal_memory_service.dart';
+import '../../../../core/network/supabase_config.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import 'chat/ffm_json_expandable.dart';
 import 'chat/ffm_assistant_message_card.dart';
@@ -50,10 +51,10 @@ import 'ffm_memory_nudge_card.dart';
 import 'gemini_header.dart';
 import 'gemini_typing_indicator.dart';
 import 'ffm_assistant_page_context.dart';
-import '../../data/ffm_image_helper.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
 import 'ffm_assistant_message_correction_dialog.dart';
 import 'ffm_assistant_markdown_text.dart';
+import 'ffm_assistant_global_launcher.dart';
 import '../pages/ffm_memory_viewer_page.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
@@ -69,6 +70,7 @@ Future<void> showFfmAssistantSheet(
   required FfmAssistantIntentHandler onIntent,
   required FfmAssistantIntentBatchHandler onIntents,
   required FfmAssistantChatSession session,
+  ValueNotifier<FfmAssistantLauncherState>? launcherState,
   FfmAssistantDestination? currentDestination,
   FfmAssistantPageContextSnapshot? currentPageContext,
 }) => Navigator.of(context).push<void>(
@@ -78,6 +80,7 @@ Future<void> showFfmAssistantSheet(
       onIntent: onIntent,
       onIntents: onIntents,
       session: session,
+      launcherState: launcherState,
       currentDestination: currentDestination,
       currentPageContext: currentPageContext,
     ),
@@ -90,6 +93,7 @@ class FfmAssistantSheet extends StatefulWidget {
     required this.onIntent,
     required this.onIntents,
     required this.session,
+    this.launcherState,
     this.currentDestination,
     this.currentPageContext,
   });
@@ -97,6 +101,7 @@ class FfmAssistantSheet extends StatefulWidget {
   final FfmAssistantIntentHandler onIntent;
   final FfmAssistantIntentBatchHandler onIntents;
   final FfmAssistantChatSession session;
+  final ValueNotifier<FfmAssistantLauncherState>? launcherState;
   final FfmAssistantDestination? currentDestination;
   final FfmAssistantPageContextSnapshot? currentPageContext;
 
@@ -108,7 +113,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _controller = TextEditingController();
   final _inputFocusNode = FocusNode();
   final _scrollController = ScrollController();
-  final _imageHelper = FfmImageHelper();
+
   final _historyRepository = FfmAssistantChatHistoryRepository();
   final _actionPlanController = FfmAssistantActionPlanController();
   final _actionPlanner = const FfmAssistantActionPlanner();
@@ -157,11 +162,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       <FfmAssistantProcessEvent>[];
   var _submitting = false;
   var _activeProcessLabel = 'Menyiapkan permintaan...';
-  File? _pendingImage;
   var _navigatingFromChat = false;
   var _modelReady = false;
   var _modelChecking = true;
-  var _isFullScreen = true;
+  final _isFullScreen = true;
   String? _modelStatusError;
   var _listening = false;
   var _followLatestMessages = true;
@@ -181,9 +185,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   // Streaming state
   final _streamingController = FfmStreamingTextController();
 
-  // Retry state for failed image processing
-  String? _retryImagePath;
-  String? _retryText;
+
   String? _streamingEntryKey;
   String _streamingVisibleText = '';
   StreamSubscription<String>? _streamingSubscription;
@@ -210,11 +212,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   FfmAssistantProcessTrace _traceFor(
     FfmAssistantIntent intent,
-    Duration elapsed, {
-    required bool hasImage,
-  }) {
+    Duration elapsed,
+  ) {
     final origin = intent.responseOrigin;
-    final visionFailure = intent.visionFailure;
     final pluginName = intent.pluginName;
     final pluginCategory = intent.pluginCategory;
 
@@ -242,7 +242,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       origin: origin,
       elapsed: elapsed,
       fallbackReason: origin == FfmAssistantResponseOrigin.localFallback
-          ? visionFailure?.traceLabel ?? 'Proposal visi ditolak validator'
+          ? 'Proposal visi ditolak validator'
           : null,
       pluginName: pluginName,
       pluginCategory: pluginCategory,
@@ -250,14 +250,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..._activeProcessEvents,
         if (_activeProcessEvents.isEmpty)
           FfmAssistantProcessEvent(
-            label: hasImage
-                ? 'Lampiran diterima untuk dianalisis'
-                : 'Permintaan diterima untuk dirutekan',
+            label: 'Permintaan diterima untuk dirutekan',
             elapsed: Duration.zero,
           ),
         FfmAssistantProcessEvent(
-          label: visionFailure?.traceLabel ?? sourceEvent.label,
-          detail: visionFailure == null ? sourceEvent.detail : 'FFM menampilkan fallback lokal tanpa membuat atau mengubah data.',
+          label: sourceEvent.label,
+          detail: sourceEvent.detail,
           elapsed: elapsed,
         ),
       ],
@@ -532,18 +530,50 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
+  final _supabaseConfig = SupabaseConfig();
+  String _llmMode = 'auto';
+
   @override
   void initState() {
     super.initState();
+    _loadLlmMode();
     _scrollController.addListener(_updateLatestMessagePreference);
     _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
     _historyRestoreFuture = _restoreChatHistory();
     _refreshModelStatus();
     _refreshMemoryCount();
     unawaited(_refreshProactiveSuggestion());
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _scrollToEnd(force: true, animated: false),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToEnd(force: true, animated: false);
+      _checkAndInitiateProactiveGreeting();
+    });
+  }
+
+  void _checkAndInitiateProactiveGreeting() {
+    final launcherState = widget.launcherState?.value;
+    if (launcherState != null && launcherState.hasNotification && launcherState.notificationReason != null) {
+      final reason = launcherState.notificationReason!;
+      if (reason.startsWith('long_running_session:')) {
+        final title = reason.split(':').last;
+        final message =
+            'Halo! Sesi aktivitas “$title” sepertinya sudah berjalan sangat lama (lebih dari 12 jam). Apakah kamu lupa mematikannya?';
+        setState(() {
+          widget.session.lastAssistantText = message;
+          _appendEntry(FfmAssistantChatEntry(isUser: false, text: message));
+        });
+        _scrollToEnd();
+      }
+    }
+  }
+
+  Future<void> _loadLlmMode() async {
+    final mode = await _supabaseConfig.getLlmMode();
+    if (mounted) setState(() => _llmMode = mode);
+  }
+
+  Future<void> _updateLlmMode(String mode) async {
+    await _supabaseConfig.setLlmMode(mode);
+    if (mounted) setState(() => _llmMode = mode);
   }
 
   Future<void> _refreshModelStatus() async {
@@ -551,8 +581,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final installed = await _modelService.getInstalled();
       if (!mounted) return;
       setState(() {
-        _modelReady =
-            installed?.isVerified == true && installed?.projectorPath != null;
+        _modelReady = installed?.isVerified == true;
         _modelChecking = false;
         _modelStatusError = null;
       });
@@ -639,22 +668,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     super.dispose();
   }
 
-  Future<void> _stagePendingImage(bool fromCamera) async {
-    await _historyRestoreFuture;
-    if (_submitting) return;
-    final file = fromCamera
-        ? await _imageHelper.pickFromCamera()
-        : await _imageHelper.pickFromGallery();
-    if (file == null || !mounted) return;
-    final chatFile = await _imageHelper.copyToPrivateChatStorage(file);
-    if (!mounted) return;
-    setState(() {
-      _pendingImage = chatFile;
-      _retryImagePath = null;
-      _retryText = null;
-    });
-    _inputFocusNode.requestFocus();
-  }
+
 
   Future<void> _executeReadPlan(String planId) async {
     _setActiveProcess('Membaca data yang diperlukan secara lokal...');
@@ -797,30 +811,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         false;
   }
 
-  Future<void> _retryFailedImage() async {
-    final path = _retryImagePath;
-    final text = _retryText ?? '';
-    if (path == null || !mounted) return;
-    setState(() {
-      _retryImagePath = null;
-      _retryText = null;
-      _pendingImage = File(path);
-      _controller.text = text;
-    });
-    await _submit(text);
-  }
 
   Future<void> _submit([String? overrideText]) async {
     await _historyRestoreFuture;
     final text = (overrideText ?? _controller.text).trim();
-    final File? stagedImage = _pendingImage;
-    final hasImage = stagedImage != null;
-    if ((text.isEmpty && !hasImage) || _submitting) return;
-    final displayText = text.isEmpty && hasImage ? 'Gambar dilampirkan' : text;
+    if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
-      _retryImagePath = null;
-      _retryText = null;
       _processStopwatch
         ..reset()
         ..start();
@@ -830,131 +827,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _appendEntry(
         FfmAssistantChatEntry(
           isUser: true,
-          text: displayText,
-          imagePath: stagedImage?.path,
+          text: text,
           createdAt: DateTime.now(),
         ),
       );
       _controller.clear();
-      _pendingImage = null;
     });
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
-    if (hasImage) {
-      final stopwatch = Stopwatch()..start();
-      _setActiveProcess('Tahap 1/3: Menyiapkan lampiran foto...');
-      try {
-        _setActiveProcess('Tahap 2/3: Menganalisis gambar dengan SLM lokal / OCR...');
-        final intent = await _interpreter.interpret(
-          text,
-          imagePath: stagedImage.path,
-          currentDestination: widget.currentDestination,
-          pageContext: FfmAssistantScreenContextPolicy.forPrompt(
-            destination: widget.currentDestination,
-            snapshot: widget.currentPageContext,
-          ),
-          capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
-        );
-        stopwatch.stop();
-        _setActiveProcess('Tahap 3/3: Memvalidasi hasil & menyusun draft...');
-        if (!mounted) return;
-        final traceEventCount = _activeProcessEvents.length;
-        final processTrace = _traceFor(
-          intent,
-          stopwatch.elapsed,
-          hasImage: true,
-        );
-        final readPlanIds = <String>[];
-        setState(() {
-          String response = intent.response ?? intent.clarification ?? '';
-          if (response.isEmpty) {
-            if (intent.responseMode == FfmAssistantResponseMode.localModel &&
-                intent.type == FfmAssistantIntentType.help) {
-              response = 'Aku mengerti ini terkait literasi keuangan keluarga. (Jawaban SLM offline akan muncul di sini).';
-            } else if (intent.draft != null) {
-              response =
-                  'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
-            } else {
-              response = 'Struk sudah aku baca.';
-            }
-          }
-          final actionPlan = _actionPlanner.planFor(intent);
-          if (actionPlan != null) {
-            _actionPlanController.register(actionPlan);
-            if (!actionPlan.hasMutation) readPlanIds.add(actionPlan.id);
-          }
-          final review = intent.draft == null
-              ? null
-              : FfmAssistantDraftReview(
-                  draft: intent.draft!,
-                  version: 1,
-                  issues: FfmAssistantDraftValidator.validate(intent.draft!),
-                );
-          if (review != null) {
-            widget.session
-              ..activeDraftReview = review
-              ..activeDraftIntent = intent;
-          }
-          widget.session.lastAssistantText = response;
-          _appendEntry(
-            FfmAssistantChatEntry(
-              isUser: false,
-              text: response,
-              intent: intent,
-              review: review,
-              processTrace: processTrace,
-              createdAt: DateTime.now(),
-            ),
-          );
-          if (intent.needsClarification) {
-            widget.session.pendingDialog = FfmAssistantPendingDialog(
-              originalRequest: text,
-              prompt: intent.clarification ?? response,
-              missingFields: _pendingFieldsFor(intent),
-              draft: intent.draft,
-            );
-          }
-          if (!intent.needsClarification &&
-              (intent.destination != null || intent.draft != null)) {
-            _queuedIntents.add(intent);
-          }
-        });
-        for (final planId in readPlanIds) {
-          await _executeReadPlan(planId);
-        }
-        _appendProcessEventsToTrace(processTrace, traceEventCount);
-        if (intent.type == FfmAssistantIntentType.unknown) {
-          await _unansweredRepository.record(
-            rawQuestion: text,
-            pageContext: widget.currentDestination?.name,
-          );
-        }
-        _updateWorkingContextAfterTurn(userQuery: text, intents: [intent]);
-        unawaited(
-          _learnFromTurn(userQuery: text, assistantResponse: intent.response),
-        );
-        if (mounted) setState(() { _retryImagePath = null; _retryText = null; });
-      } catch (_) {
-        if (!mounted) return;
-        setState(() {
-          _retryImagePath = stagedImage.path;
-          _retryText = text;
-          _appendEntry(
-            const FfmAssistantChatEntry(
-              isUser: false,
-              text: 'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau ketuk "Coba Lagi" di bawah.',
-            ),
-          );
-        });
-        _scrollToEnd();
-      } finally {
-        _processStopwatch.stop();
-        if (mounted) setState(() => _submitting = false);
-        unawaited(_refreshSlmFollowUpSuggestions());
-        _scrollToEnd(force: true);
-      }
-      return;
-    }
     final stopwatch = Stopwatch()..start();
     _setActiveProcess('Tahap 1/2: Merutekan permintaan ke plugin & SLM lokal...');
     try {
@@ -1036,7 +916,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           final processTrace = _traceFor(
             intent,
             stopwatch.elapsed,
-            hasImage: false,
           );
           _appendEntry(
             FfmAssistantChatEntry(
@@ -1257,30 +1136,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd();
   }
 
-  Future<void> _openAttachmentPicker() async {
-    final choice = await showModalBottomSheet<bool>(
-      context: context,
-      useSafeArea: true,
-      builder: (sheetContext) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Ambil foto struk'),
-              onTap: () => Navigator.of(sheetContext).pop(true),
-            ),
-            ListTile(
-              leading: const Icon(Icons.image_outlined),
-              title: const Text('Pilih gambar dari galeri'),
-              onTap: () => Navigator.of(sheetContext).pop(false),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted || choice == null) return;
-    await _stagePendingImage(choice);
-  }
+
 
   Future<void> _toggleListening() async {
     if (_listening) {
@@ -1430,7 +1286,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   if (!dialogContext.mounted) return;
                   Navigator.of(dialogContext).pop();
                   if (selected && mounted) {
-                    ScaffoldMessenger.of(this.context).showSnackBar(
+                    ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Suara $name dipilih.')),
                     );
                   }
@@ -2182,7 +2038,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     for (final entry in recent) {
       final role = entry.isUser ? 'Pengguna' : 'Asisten';
       final text = entry.text.trim();
-      if (text.isNotEmpty && !text.startsWith('Gambar dilampirkan')) {
+      if (text.isNotEmpty) {
         // Ambil baris pertama atau maksimal 100 karakter agar konteks tetap ringkas
         final snippet = text.split('\n').first.trim();
         lines.add('$role: $snippet');
@@ -2520,77 +2376,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ],
                   ),
                 ),
-              if (_pendingImage != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            _pendingImage!,
-                            width: 72,
-                            height: 72,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 72,
-                              height: 72,
-                              color: theme.colorScheme.surfaceContainerHighest,
-                              alignment: Alignment.center,
-                              child: const Icon(Icons.broken_image_outlined),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: -8,
-                          right: -8,
-                          child: GestureDetector(
-                            onTap: () => setState(() => _pendingImage = null),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.error,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: theme.colorScheme.surface,
-                                  width: 2,
-                                ),
-                              ),
-                              padding: const EdgeInsets.all(4),
-                              child: const Icon(
-                                Icons.close,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (_retryImagePath != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _submitting ? null : _retryFailedImage,
-                      icon: const Icon(Icons.refresh, size: 18),
-                      label: const Text('Coba Lagi'),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFC27B5F),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               if (getIt.isRegistered<ActivityBloc>())
                 BlocBuilder<ActivityBloc, ActivityState>(
                   bloc: getIt<ActivityBloc>(),
@@ -2613,84 +2398,157 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     builder: (context, value, _) {
                       final canSend =
                           !_submitting &&
-                          (value.text.trim().isNotEmpty ||
-                              _pendingImage != null);
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF292724)
-                              : const Color(0xFFF4F1EA),
-                          borderRadius: BorderRadius.circular(22),
-                          border: Border.all(
-                            color: isDark
-                                ? const Color(0xFF403C37)
-                                : const Color(0xFFE1DAD0),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(
-                                alpha: isDark ? .18 : .06,
+                          value.text.trim().isNotEmpty;
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildModelSelector(),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF111111)
+                                  : const Color(0xFFFFFFFF),
+                              borderRadius: BorderRadius.circular(22),
+                              border: Border.all(
+                                color: isDark
+                                    ? const Color(0xFF666666)
+                                    : const Color(0xFF000000),
+                                width: 2.0,
                               ),
-                              blurRadius: 14,
-                              offset: const Offset(0, 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(
+                                    alpha: isDark ? .30 : .12,
+                                  ),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            IconButton(
-                              tooltip: _listening
-                                  ? 'Berhenti dengar'
-                                  : 'Bicara ke Asisten',
-                              onPressed: _submitting ? null : _toggleListening,
-                              icon: Icon(
-                                _listening ? Icons.stop : Icons.mic_none,
-                              ),
-                            ),
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                focusNode: _inputFocusNode,
-                                minLines: 1,
-                                maxLines: 5,
-                                textInputAction: TextInputAction.newline,
-                                onTap: _scrollToEnd,
-                                decoration: const InputDecoration(
-                                  hintText: 'Tulis perintah atau pertanyaan…',
-                                  border: InputBorder.none,
-                                  contentPadding: EdgeInsets.symmetric(
-                                    vertical: 13,
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  tooltip: _listening
+                                      ? 'Berhenti dengar'
+                                      : 'Bicara ke Asisten',
+                                  onPressed:
+                                      _submitting ? null : _toggleListening,
+                                  icon: Icon(
+                                    _listening ? Icons.stop : Icons.mic_none,
                                   ),
                                 ),
-                              ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _controller,
+                                    focusNode: _inputFocusNode,
+                                    minLines: 1,
+                                    maxLines: 5,
+                                    textInputAction: TextInputAction.newline,
+                                    onTap: _scrollToEnd,
+                                    decoration: const InputDecoration(
+                                      hintText: 'Tulis perintah atau pertanyaan…',
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        vertical: 13,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    right: 5,
+                                    bottom: 5,
+                                  ),
+                                  child: IconButton.filled(
+                                    tooltip: 'Kirim',
+                                    onPressed: canSend ? _submit : null,
+                                    icon: const Icon(Icons.arrow_upward),
+                                  ),
+                                ),
+                              ],
                             ),
-                            IconButton(
-                              tooltip: 'Lampirkan foto',
-                              onPressed: _submitting
-                                  ? null
-                                  : _openAttachmentPicker,
-                              icon: const Icon(Icons.attach_file),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                right: 5,
-                                bottom: 5,
-                              ),
-                              child: IconButton.filled(
-                                tooltip: 'Kirim',
-                                onPressed: canSend ? _submit : null,
-                                icon: const Icon(Icons.arrow_upward),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       );
                     },
                   ),
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelSelector() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _ModelPill(
+            label: 'Auto',
+            selected: _llmMode == 'auto',
+            onTap: () => _updateLlmMode('auto'),
+          ),
+          const SizedBox(width: 8),
+          _ModelPill(
+            label: 'Lokal',
+            selected: _llmMode == 'local',
+            onTap: () => _updateLlmMode('local'),
+          ),
+          const SizedBox(width: 8),
+          _ModelPill(
+            label: 'Gemini',
+            selected: _llmMode == 'gemini',
+            onTap: () => _updateLlmMode('gemini'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelPill extends StatelessWidget {
+  const _ModelPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.colorScheme.primary
+              : (isDark ? Colors.white24 : Colors.black.withValues(alpha: 0.1)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? Colors.white30 : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Text(
+          label.toUpperCase(),
+          style: TextStyle(
+            fontSize: 12,
+            letterSpacing: 0.5,
+            fontWeight: FontWeight.w900,
+            color: selected
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurface,
           ),
         ),
       ),

@@ -33,6 +33,13 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
     'ada aktivitas apa',
     'aktivitas yang sedang berjalan',
     'status aktivitas',
+    'sedang apa',
+    'lagi apa',
+    'cek timer',
+    'progres',
+    'jalan berapa lama',
+    'masih aktif',
+    'apa yang lagi jalan',
   ];
 
   @override
@@ -111,6 +118,15 @@ class FfmLiveActivitySensePlugin extends FfmAgentPlugin {
         'startedAt': orphan.startedAt.toIso8601String(),
         'parentSessionId': orphan.parentSessionId,
       });
+    }
+
+    // Advanced Proactivity: Detect sessions running for too long (> 12 hours)
+    final veryLongSessions = snapshot.activeSessions.where((s) => s.durationAt(now).inHours >= 12).toList();
+    if (veryLongSessions.isNotEmpty) {
+      buffer.writeln('\n⚠️ **Perhatian:**');
+      for (final s in veryLongSessions) {
+        buffer.writeln('Sesi **${s.title}** sudah jalan ${_calculator.format(s.durationAt(now))}. Apakah kamu lupa mematikannya?');
+      }
     }
 
     return FfmHarnessResult(

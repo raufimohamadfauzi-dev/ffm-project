@@ -32,18 +32,18 @@ class _FfmReasoningJourneyDisclosureState
   ) {
     if (isSlm) {
       return (
-        'AI Lokal Qwen2-VL 2B (Vision & NLP On-Device)',
-        'Model GGUF & Projector Vision (Storage internal)',
+        'AI Lokal SLM Teks (NLP On-Device)',
+        'Model GGUF teks (Storage internal)',
         const [
           _ReasoningStep(
-            icon: Icons.image_search_outlined,
-            title: 'Mendeteksi input multimodal / foto struk',
-            detail: 'Memindai teks dan angka pada gambar secara offline',
+            icon: Icons.text_fields_outlined,
+            title: 'Memahami perintah teks pengguna',
+            detail: 'Menganalisis maksud dan entitas bahasa secara offline',
           ),
           _ReasoningStep(
             icon: Icons.code_rounded,
-            title: 'Ekstraksi entitas transaksi (Nama toko, total, tanggal)',
-            detail: 'Mengurai struktur JSON draf dari representasi visual',
+            title: 'Ekstraksi entitas transaksi',
+            detail: 'Mengurai nominal, jenis, akun, kategori, dan tanggal',
           ),
           _ReasoningStep(
             icon: Icons.edit_note_rounded,

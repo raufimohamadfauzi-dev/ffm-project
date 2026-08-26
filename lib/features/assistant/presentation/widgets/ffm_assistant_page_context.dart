@@ -51,6 +51,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.activityLog,
     FfmAssistantDestination.reconciliation,
     FfmAssistantDestination.recurringTransaction,
+    FfmAssistantDestination.intelligenceDashboard,
   };
 
   static String forPrompt({
@@ -103,6 +104,8 @@ abstract final class FfmAssistantScreenContextPolicy {
       'Sedang melihat panduan fitur tanpa internet.',
     FfmAssistantDestination.localModel =>
       'Sedang melihat setup model Asisten lokal.',
+    FfmAssistantDestination.intelligenceDashboard =>
+      'Sedang melihat pengaturan Cloud Brain (Supabase & Gemini).',
     _ => 'Sedang melihat halaman fitur FFM.',
   };
 

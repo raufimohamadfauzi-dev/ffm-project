@@ -833,8 +833,13 @@ void main() {
       final image = await interpreter.interpret('bisa lihat gambar?');
 
       expect(app.type, FfmAssistantIntentType.assistantIdentity);
+      // Fitur pembacaan gambar/struk sudah dihapus: pertanyaan kemampuan
+      // gambar dijawab jujur sebagai bantuan teks, bukan unknown.
       expect(image.type, FfmAssistantIntentType.help);
-      expect(image.response, contains('Model lokal belum aktif'));
+      expect(
+        image.response,
+        contains('hanya menerima perintah teks'),
+      );
     },
   );
 

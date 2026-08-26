@@ -52,7 +52,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   final _historyService = OfflineToolHistoryService();
   var _searchQuery = '';
   var _showSearch = false;
-  var _sort = _BudgetSort.nominalTerbesar;
+  final _sort = _BudgetSort.nominalTerbesar;
   var _periodTypeFilter = 'weekly';
   var _weekStartDay = DateTime.monday;
   var _assistantDraftHandled = false;
@@ -115,7 +115,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
   String get _activePeriodKey {
     final start = _periodStart(DateTime.now(), _periodTypeFilter);
-    return '${_periodTypeFilter}-${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
+    return '$_periodTypeFilter-${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -803,6 +803,8 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.budget,
+      dataSummary:
+          'Ada ${attention.length} pos anggaran butuh perhatian: ${attention.map((e) => e.name).join(', ')}.',
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Anggaran berbasis pos'),
@@ -1126,7 +1128,7 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
           .insert(
             EnvelopeBudgetsCompanion.insert(
               id: widget.envelope.isOverall
-                  ? 'overall-${_periodType}-${_startDate.year}-${_startDate.month}-${_startDate.day}'
+                  ? 'overall-$_periodType-${_startDate.year}-${_startDate.month}-${_startDate.day}'
                   : 'envelope-${widget.envelope.categoryIds.first}-$storageKey',
               householdId: AppContext.householdId,
               month: Value(storageKey),
@@ -1241,6 +1243,8 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.budget,
+      dataSummary:
+          'Mengubah pos "${widget.envelope.name}" dengan periode ${_periodName(_periodType)} dan alokasi Rp${widget.envelope.allocated}.',
       child: Scaffold(
         appBar: AppBar(title: Text('Atur pos ${widget.envelope.name}')),
         body: Form(

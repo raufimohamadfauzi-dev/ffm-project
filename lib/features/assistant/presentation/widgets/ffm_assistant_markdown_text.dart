@@ -124,8 +124,9 @@ class FfmAssistantMarkdownText extends StatelessWidget {
                     _inlineSpans(content, color),
                     style: TextStyle(
                       color: color,
-                      height: 1.42,
+                      height: 1.45,
                       fontSize: fontSize,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -159,7 +160,12 @@ class FfmAssistantMarkdownText extends StatelessWidget {
         children.add(
           Text.rich(
             _inlineSpans(line.trim(), color),
-            style: TextStyle(color: color, height: 1.42, fontSize: fontSize),
+            style: TextStyle(
+              color: color,
+              height: 1.45,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         );
       }
@@ -192,7 +198,7 @@ class FfmAssistantMarkdownText extends StatelessWidget {
       spans.add(
         TextSpan(
           children: _linkSpans(match.group(2)!, color, bold: true),
-          style: const TextStyle(fontWeight: FontWeight.w800),
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
       );
       cursor = match.end;
@@ -216,8 +222,8 @@ class FfmAssistantMarkdownText extends StatelessWidget {
                       text: span.text,
                       children: span.children,
                       style:
-                          span.style?.copyWith(fontWeight: FontWeight.w800) ??
-                          const TextStyle(fontWeight: FontWeight.w800),
+                          span.style?.copyWith(fontWeight: FontWeight.w900) ??
+                          const TextStyle(fontWeight: FontWeight.w900),
                     )
                   : span,
             )

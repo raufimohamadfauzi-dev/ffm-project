@@ -29,11 +29,13 @@ class DataExportService {
     final records = await GetTransactions(database)(householdId);
     final filtered = records.where((entry) {
       final date = entry.transaction.date;
-      if (options.startDate != null && date.isBefore(options.startDate!))
+      if (options.startDate != null && date.isBefore(options.startDate!)) {
         return false;
+      }
       if (options.endDate != null &&
-          date.isAfter(options.endDate!.add(const Duration(days: 1))))
+          date.isAfter(options.endDate!.add(const Duration(days: 1)))) {
         return false;
+      }
       return true;
     }).toList();
 

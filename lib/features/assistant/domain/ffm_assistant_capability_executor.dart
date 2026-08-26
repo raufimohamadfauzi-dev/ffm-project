@@ -41,24 +41,25 @@ class FfmAssistantCapabilityExecutor {
     Duration stepTimeout = const Duration(seconds: 10),
     int maxRetries = 2,
     FfmErrorLoggingService? errorLogger,
-  }) : _controller = controller,
-       _handlers = Map.unmodifiable(handlers),
-       _readTransaction = readTransaction,
-       _pageReadySignal = pageReadySignal,
-       _onPlanProgress = onPlanProgress,
-       _stepTimeout = stepTimeout,
-       _maxRetries = maxRetries,
-       _errorLogger = errorLogger;
+  }) : _handlers = Map.unmodifiable(handlers) {
+    _controller = controller;
+    _readTransaction = readTransaction;
+    _pageReadySignal = pageReadySignal;
+    _onPlanProgress = onPlanProgress;
+    _stepTimeout = stepTimeout;
+    _maxRetries = maxRetries;
+    _errorLogger = errorLogger;
+  }
 
-  final FfmAssistantActionPlanController _controller;
+  late final FfmAssistantActionPlanController _controller;
   final Map<String, FfmAssistantCapabilityHandler> _handlers;
   final Set<String> _executedSteps = <String>{};
-  final FfmAssistantReadTransaction? _readTransaction;
-  final Future<void> Function()? _pageReadySignal;
-  final FfmAssistantPlanProgressListener? _onPlanProgress;
-  final Duration _stepTimeout;
-  final int _maxRetries;
-  final FfmErrorLoggingService? _errorLogger;
+  FfmAssistantReadTransaction? _readTransaction;
+  Future<void> Function()? _pageReadySignal;
+  FfmAssistantPlanProgressListener? _onPlanProgress;
+  late final Duration _stepTimeout;
+  late final int _maxRetries;
+  FfmErrorLoggingService? _errorLogger;
 
   FfmAssistantActionPlan? _report(FfmAssistantActionPlan? plan) {
     if (plan != null) _onPlanProgress?.call(plan);
@@ -67,8 +68,9 @@ class FfmAssistantCapabilityExecutor {
 
   Future<FfmAssistantActionPlan?> execute(String planId) async {
     final plan = _controller.get(planId);
-    if (plan != null && !plan.hasMutation && _readTransaction != null) {
-      return _readTransaction(() => _executeInternal(planId));
+    final readTransaction = _readTransaction;
+    if (plan != null && !plan.hasMutation && readTransaction != null) {
+      return readTransaction(() => _executeInternal(planId));
     }
     return _executeInternal(planId);
   }
@@ -114,9 +116,10 @@ class FfmAssistantCapabilityExecutor {
           ),
         );
         if (plan == null) return null;
-        if (_pageReadySignal != null) {
+        final pageReadySignal = _pageReadySignal;
+        if (pageReadySignal != null) {
           try {
-            await _pageReadySignal().timeout(
+            await pageReadySignal().timeout(
               const Duration(seconds: 5),
               onTimeout: () {},
             );

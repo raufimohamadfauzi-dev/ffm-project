@@ -1,7 +1,6 @@
 enum FfmLocalModelAssemblyStage {
   idle,
   verifyingModel,
-  verifyingProjector,
   committing,
   ready,
   failed,
@@ -28,7 +27,6 @@ class FfmLocalModelAssemblyStatus {
 
   bool get isWorking => switch (stage) {
     FfmLocalModelAssemblyStage.verifyingModel ||
-    FfmLocalModelAssemblyStage.verifyingProjector ||
     FfmLocalModelAssemblyStage.committing => true,
     _ => false,
   };

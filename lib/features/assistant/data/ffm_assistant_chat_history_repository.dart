@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,8 +7,7 @@ import '../domain/ffm_assistant_models.dart';
 /// Menyimpan riwayat chat dasar secara lokal.
 /// Intent/draft aktif tidak diserialisasikan karena harus kedaluwarsa bersama sesi.
 class FfmAssistantChatHistoryRepository {
-  FfmAssistantChatHistoryRepository({SharedPreferences? preferences})
-    : _preferences = preferences;
+  FfmAssistantChatHistoryRepository({this._preferences});
 
   static const _key = 'ffm_assistant_chat_history_v1';
   static const maxEntries = 100;
@@ -75,7 +73,6 @@ class FfmAssistantChatHistoryRepository {
   Map<String, Object?> _encodeEntry(FfmAssistantChatEntry entry) => {
     'isUser': entry.isUser,
     'text': entry.text,
-    if (entry.imagePath != null) 'imagePath': entry.imagePath,
     'createdAt': (entry.createdAt ?? DateTime.now()).toIso8601String(),
   };
 
@@ -83,18 +80,13 @@ class FfmAssistantChatHistoryRepository {
     final isUser = raw['isUser'];
     final text = raw['text'];
     if (isUser is! bool || text is! String) return null;
-    final imagePath = raw['imagePath'];
     final createdAt = raw['createdAt'];
     final parsedDate = createdAt is String
         ? DateTime.tryParse(createdAt)
         : null;
-    final safeImagePath = imagePath is String && File(imagePath).existsSync()
-        ? imagePath
-        : null;
     return FfmAssistantChatEntry(
       isUser: isUser,
       text: text,
-      imagePath: safeImagePath,
       createdAt: parsedDate,
     );
   }

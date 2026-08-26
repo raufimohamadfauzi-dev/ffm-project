@@ -43,7 +43,7 @@ class _FfmAssistantProcessDisclosureState
 
   String get _duration {
     final milliseconds = widget.trace.elapsed.inMilliseconds;
-    if (milliseconds < 1000) return '${milliseconds} ms';
+    if (milliseconds < 1000) return '$milliseconds ms';
     return '${(milliseconds / 1000).toStringAsFixed(2)} dtk';
   }
 

@@ -2933,6 +2933,17 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _linkedActivityIdMeta = const VerificationMeta(
+    'linkedActivityId',
+  );
+  @override
+  late final GeneratedColumn<String> linkedActivityId = GeneratedColumn<String>(
+    'linked_activity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _transferIdMeta = const VerificationMeta(
     'transferId',
   );
@@ -3058,6 +3069,7 @@ class $TransactionsTable extends Transactions
     sourceId,
     recurringTransactionId,
     location,
+    linkedActivityId,
     transferId,
     receiptRawText,
     receiptNumber,
@@ -3195,6 +3207,15 @@ class $TransactionsTable extends Transactions
       context.handle(
         _locationMeta,
         location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('linked_activity_id')) {
+      context.handle(
+        _linkedActivityIdMeta,
+        linkedActivityId.isAcceptableOrUnknown(
+          data['linked_activity_id']!,
+          _linkedActivityIdMeta,
+        ),
       );
     }
     if (data.containsKey('transfer_id')) {
@@ -3342,6 +3363,10 @@ class $TransactionsTable extends Transactions
         DriftSqlType.string,
         data['${effectivePrefix}location'],
       ),
+      linkedActivityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_activity_id'],
+      ),
       transferId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}transfer_id'],
@@ -3405,6 +3430,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? sourceId;
   final String? recurringTransactionId;
   final String? location;
+  final String? linkedActivityId;
   final String? transferId;
   final String? receiptRawText;
   final String? receiptNumber;
@@ -3432,6 +3458,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.sourceId,
     this.recurringTransactionId,
     this.location,
+    this.linkedActivityId,
     this.transferId,
     this.receiptRawText,
     this.receiptNumber,
@@ -3485,6 +3512,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     }
     if (!nullToAbsent || location != null) {
       map['location'] = Variable<String>(location);
+    }
+    if (!nullToAbsent || linkedActivityId != null) {
+      map['linked_activity_id'] = Variable<String>(linkedActivityId);
     }
     if (!nullToAbsent || transferId != null) {
       map['transfer_id'] = Variable<String>(transferId);
@@ -3549,6 +3579,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       location: location == null && nullToAbsent
           ? const Value.absent()
           : Value(location),
+      linkedActivityId: linkedActivityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedActivityId),
       transferId: transferId == null && nullToAbsent
           ? const Value.absent()
           : Value(transferId),
@@ -3598,6 +3631,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         json['recurringTransactionId'],
       ),
       location: serializer.fromJson<String?>(json['location']),
+      linkedActivityId: serializer.fromJson<String?>(json['linkedActivityId']),
       transferId: serializer.fromJson<String?>(json['transferId']),
       receiptRawText: serializer.fromJson<String?>(json['receiptRawText']),
       receiptNumber: serializer.fromJson<String?>(json['receiptNumber']),
@@ -3634,6 +3668,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         recurringTransactionId,
       ),
       'location': serializer.toJson<String?>(location),
+      'linkedActivityId': serializer.toJson<String?>(linkedActivityId),
       'transferId': serializer.toJson<String?>(transferId),
       'receiptRawText': serializer.toJson<String?>(receiptRawText),
       'receiptNumber': serializer.toJson<String?>(receiptNumber),
@@ -3664,6 +3699,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> sourceId = const Value.absent(),
     Value<String?> recurringTransactionId = const Value.absent(),
     Value<String?> location = const Value.absent(),
+    Value<String?> linkedActivityId = const Value.absent(),
     Value<String?> transferId = const Value.absent(),
     Value<String?> receiptRawText = const Value.absent(),
     Value<String?> receiptNumber = const Value.absent(),
@@ -3693,6 +3729,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         ? recurringTransactionId.value
         : this.recurringTransactionId,
     location: location.present ? location.value : this.location,
+    linkedActivityId: linkedActivityId.present
+        ? linkedActivityId.value
+        : this.linkedActivityId,
     transferId: transferId.present ? transferId.value : this.transferId,
     receiptRawText: receiptRawText.present
         ? receiptRawText.value
@@ -3740,6 +3779,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ? data.recurringTransactionId.value
           : this.recurringTransactionId,
       location: data.location.present ? data.location.value : this.location,
+      linkedActivityId: data.linkedActivityId.present
+          ? data.linkedActivityId.value
+          : this.linkedActivityId,
       transferId: data.transferId.present
           ? data.transferId.value
           : this.transferId,
@@ -3784,6 +3826,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('sourceId: $sourceId, ')
           ..write('recurringTransactionId: $recurringTransactionId, ')
           ..write('location: $location, ')
+          ..write('linkedActivityId: $linkedActivityId, ')
           ..write('transferId: $transferId, ')
           ..write('receiptRawText: $receiptRawText, ')
           ..write('receiptNumber: $receiptNumber, ')
@@ -3816,6 +3859,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     sourceId,
     recurringTransactionId,
     location,
+    linkedActivityId,
     transferId,
     receiptRawText,
     receiptNumber,
@@ -3847,6 +3891,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.sourceId == this.sourceId &&
           other.recurringTransactionId == this.recurringTransactionId &&
           other.location == this.location &&
+          other.linkedActivityId == this.linkedActivityId &&
           other.transferId == this.transferId &&
           other.receiptRawText == this.receiptRawText &&
           other.receiptNumber == this.receiptNumber &&
@@ -3876,6 +3921,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> sourceId;
   final Value<String?> recurringTransactionId;
   final Value<String?> location;
+  final Value<String?> linkedActivityId;
   final Value<String?> transferId;
   final Value<String?> receiptRawText;
   final Value<String?> receiptNumber;
@@ -3904,6 +3950,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.sourceId = const Value.absent(),
     this.recurringTransactionId = const Value.absent(),
     this.location = const Value.absent(),
+    this.linkedActivityId = const Value.absent(),
     this.transferId = const Value.absent(),
     this.receiptRawText = const Value.absent(),
     this.receiptNumber = const Value.absent(),
@@ -3933,6 +3980,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.sourceId = const Value.absent(),
     this.recurringTransactionId = const Value.absent(),
     this.location = const Value.absent(),
+    this.linkedActivityId = const Value.absent(),
     this.transferId = const Value.absent(),
     this.receiptRawText = const Value.absent(),
     this.receiptNumber = const Value.absent(),
@@ -3968,6 +4016,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? sourceId,
     Expression<String>? recurringTransactionId,
     Expression<String>? location,
+    Expression<String>? linkedActivityId,
     Expression<String>? transferId,
     Expression<String>? receiptRawText,
     Expression<String>? receiptNumber,
@@ -3998,6 +4047,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (recurringTransactionId != null)
         'recurring_transaction_id': recurringTransactionId,
       if (location != null) 'location': location,
+      if (linkedActivityId != null) 'linked_activity_id': linkedActivityId,
       if (transferId != null) 'transfer_id': transferId,
       if (receiptRawText != null) 'receipt_raw_text': receiptRawText,
       if (receiptNumber != null) 'receipt_number': receiptNumber,
@@ -4030,6 +4080,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? sourceId,
     Value<String?>? recurringTransactionId,
     Value<String?>? location,
+    Value<String?>? linkedActivityId,
     Value<String?>? transferId,
     Value<String?>? receiptRawText,
     Value<String?>? receiptNumber,
@@ -4060,6 +4111,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       recurringTransactionId:
           recurringTransactionId ?? this.recurringTransactionId,
       location: location ?? this.location,
+      linkedActivityId: linkedActivityId ?? this.linkedActivityId,
       transferId: transferId ?? this.transferId,
       receiptRawText: receiptRawText ?? this.receiptRawText,
       receiptNumber: receiptNumber ?? this.receiptNumber,
@@ -4129,6 +4181,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (location.present) {
       map['location'] = Variable<String>(location.value);
     }
+    if (linkedActivityId.present) {
+      map['linked_activity_id'] = Variable<String>(linkedActivityId.value);
+    }
     if (transferId.present) {
       map['transfer_id'] = Variable<String>(transferId.value);
     }
@@ -4182,6 +4237,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('sourceId: $sourceId, ')
           ..write('recurringTransactionId: $recurringTransactionId, ')
           ..write('location: $location, ')
+          ..write('linkedActivityId: $linkedActivityId, ')
           ..write('transferId: $transferId, ')
           ..write('receiptRawText: $receiptRawText, ')
           ..write('receiptNumber: $receiptNumber, ')
@@ -13184,6 +13240,16 @@ class $ActivitySessionsTable extends ActivitySessions
     requiredDuringInsert: false,
     defaultValue: const Constant('lainnya'),
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('timer'),
+  );
   static const VerificationMeta _startedAtMeta = const VerificationMeta(
     'startedAt',
   );
@@ -13205,6 +13271,70 @@ class $ActivitySessionsTable extends ActivitySessions
     true,
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
+  );
+  static const VerificationMeta _scheduledAtMeta = const VerificationMeta(
+    'scheduledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> scheduledAt = GeneratedColumn<DateTime>(
+    'scheduled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dueDateMeta = const VerificationMeta(
+    'dueDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> dueDate = GeneratedColumn<DateTime>(
+    'due_date',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isAllDayMeta = const VerificationMeta(
+    'isAllDay',
+  );
+  @override
+  late final GeneratedColumn<bool> isAllDay = GeneratedColumn<bool>(
+    'is_all_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_all_day" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isCompletedMeta = const VerificationMeta(
+    'isCompleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isCompleted = GeneratedColumn<bool>(
+    'is_completed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_completed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
   );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
@@ -13269,8 +13399,14 @@ class $ActivitySessionsTable extends ActivitySessions
     title,
     parentSessionId,
     category,
+    kind,
     startedAt,
     endedAt,
+    scheduledAt,
+    dueDate,
+    isAllDay,
+    isCompleted,
+    priority,
     status,
     notes,
     isArchived,
@@ -13328,6 +13464,12 @@ class $ActivitySessionsTable extends ActivitySessions
         category.isAcceptableOrUnknown(data['category']!, _categoryMeta),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     if (data.containsKey('started_at')) {
       context.handle(
         _startedAtMeta,
@@ -13340,6 +13482,42 @@ class $ActivitySessionsTable extends ActivitySessions
       context.handle(
         _endedAtMeta,
         endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
+      );
+    }
+    if (data.containsKey('scheduled_at')) {
+      context.handle(
+        _scheduledAtMeta,
+        scheduledAt.isAcceptableOrUnknown(
+          data['scheduled_at']!,
+          _scheduledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('due_date')) {
+      context.handle(
+        _dueDateMeta,
+        dueDate.isAcceptableOrUnknown(data['due_date']!, _dueDateMeta),
+      );
+    }
+    if (data.containsKey('is_all_day')) {
+      context.handle(
+        _isAllDayMeta,
+        isAllDay.isAcceptableOrUnknown(data['is_all_day']!, _isAllDayMeta),
+      );
+    }
+    if (data.containsKey('is_completed')) {
+      context.handle(
+        _isCompletedMeta,
+        isCompleted.isAcceptableOrUnknown(
+          data['is_completed']!,
+          _isCompletedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
       );
     }
     if (data.containsKey('status')) {
@@ -13403,6 +13581,10 @@ class $ActivitySessionsTable extends ActivitySessions
         DriftSqlType.string,
         data['${effectivePrefix}category'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
       startedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}started_at'],
@@ -13411,6 +13593,26 @@ class $ActivitySessionsTable extends ActivitySessions
         DriftSqlType.dateTime,
         data['${effectivePrefix}ended_at'],
       ),
+      scheduledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}scheduled_at'],
+      ),
+      dueDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}due_date'],
+      ),
+      isAllDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_all_day'],
+      )!,
+      isCompleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_completed'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -13446,8 +13648,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
   final String title;
   final String? parentSessionId;
   final String category;
+  final String kind;
   final DateTime startedAt;
   final DateTime? endedAt;
+  final DateTime? scheduledAt;
+  final DateTime? dueDate;
+  final bool isAllDay;
+  final bool isCompleted;
+  final int priority;
   final String status;
   final String? notes;
   final bool isArchived;
@@ -13459,8 +13667,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     required this.title,
     this.parentSessionId,
     required this.category,
+    required this.kind,
     required this.startedAt,
     this.endedAt,
+    this.scheduledAt,
+    this.dueDate,
+    required this.isAllDay,
+    required this.isCompleted,
+    required this.priority,
     required this.status,
     this.notes,
     required this.isArchived,
@@ -13477,10 +13691,20 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       map['parent_session_id'] = Variable<String>(parentSessionId);
     }
     map['category'] = Variable<String>(category);
+    map['kind'] = Variable<String>(kind);
     map['started_at'] = Variable<DateTime>(startedAt);
     if (!nullToAbsent || endedAt != null) {
       map['ended_at'] = Variable<DateTime>(endedAt);
     }
+    if (!nullToAbsent || scheduledAt != null) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt);
+    }
+    if (!nullToAbsent || dueDate != null) {
+      map['due_date'] = Variable<DateTime>(dueDate);
+    }
+    map['is_all_day'] = Variable<bool>(isAllDay);
+    map['is_completed'] = Variable<bool>(isCompleted);
+    map['priority'] = Variable<int>(priority);
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
@@ -13502,10 +13726,20 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ? const Value.absent()
           : Value(parentSessionId),
       category: Value(category),
+      kind: Value(kind),
       startedAt: Value(startedAt),
       endedAt: endedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(endedAt),
+      scheduledAt: scheduledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(scheduledAt),
+      dueDate: dueDate == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueDate),
+      isAllDay: Value(isAllDay),
+      isCompleted: Value(isCompleted),
+      priority: Value(priority),
       status: Value(status),
       notes: notes == null && nullToAbsent
           ? const Value.absent()
@@ -13529,8 +13763,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       title: serializer.fromJson<String>(json['title']),
       parentSessionId: serializer.fromJson<String?>(json['parentSessionId']),
       category: serializer.fromJson<String>(json['category']),
+      kind: serializer.fromJson<String>(json['kind']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
+      scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
+      dueDate: serializer.fromJson<DateTime?>(json['dueDate']),
+      isAllDay: serializer.fromJson<bool>(json['isAllDay']),
+      isCompleted: serializer.fromJson<bool>(json['isCompleted']),
+      priority: serializer.fromJson<int>(json['priority']),
       status: serializer.fromJson<String>(json['status']),
       notes: serializer.fromJson<String?>(json['notes']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
@@ -13547,8 +13787,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       'title': serializer.toJson<String>(title),
       'parentSessionId': serializer.toJson<String?>(parentSessionId),
       'category': serializer.toJson<String>(category),
+      'kind': serializer.toJson<String>(kind),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'endedAt': serializer.toJson<DateTime?>(endedAt),
+      'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
+      'dueDate': serializer.toJson<DateTime?>(dueDate),
+      'isAllDay': serializer.toJson<bool>(isAllDay),
+      'isCompleted': serializer.toJson<bool>(isCompleted),
+      'priority': serializer.toJson<int>(priority),
       'status': serializer.toJson<String>(status),
       'notes': serializer.toJson<String?>(notes),
       'isArchived': serializer.toJson<bool>(isArchived),
@@ -13563,8 +13809,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     String? title,
     Value<String?> parentSessionId = const Value.absent(),
     String? category,
+    String? kind,
     DateTime? startedAt,
     Value<DateTime?> endedAt = const Value.absent(),
+    Value<DateTime?> scheduledAt = const Value.absent(),
+    Value<DateTime?> dueDate = const Value.absent(),
+    bool? isAllDay,
+    bool? isCompleted,
+    int? priority,
     String? status,
     Value<String?> notes = const Value.absent(),
     bool? isArchived,
@@ -13578,8 +13830,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
         ? parentSessionId.value
         : this.parentSessionId,
     category: category ?? this.category,
+    kind: kind ?? this.kind,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
+    scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
+    dueDate: dueDate.present ? dueDate.value : this.dueDate,
+    isAllDay: isAllDay ?? this.isAllDay,
+    isCompleted: isCompleted ?? this.isCompleted,
+    priority: priority ?? this.priority,
     status: status ?? this.status,
     notes: notes.present ? notes.value : this.notes,
     isArchived: isArchived ?? this.isArchived,
@@ -13597,8 +13855,18 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ? data.parentSessionId.value
           : this.parentSessionId,
       category: data.category.present ? data.category.value : this.category,
+      kind: data.kind.present ? data.kind.value : this.kind,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      scheduledAt: data.scheduledAt.present
+          ? data.scheduledAt.value
+          : this.scheduledAt,
+      dueDate: data.dueDate.present ? data.dueDate.value : this.dueDate,
+      isAllDay: data.isAllDay.present ? data.isAllDay.value : this.isAllDay,
+      isCompleted: data.isCompleted.present
+          ? data.isCompleted.value
+          : this.isCompleted,
+      priority: data.priority.present ? data.priority.value : this.priority,
       status: data.status.present ? data.status.value : this.status,
       notes: data.notes.present ? data.notes.value : this.notes,
       isArchived: data.isArchived.present
@@ -13617,8 +13885,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ..write('title: $title, ')
           ..write('parentSessionId: $parentSessionId, ')
           ..write('category: $category, ')
+          ..write('kind: $kind, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('isAllDay: $isAllDay, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('priority: $priority, ')
           ..write('status: $status, ')
           ..write('notes: $notes, ')
           ..write('isArchived: $isArchived, ')
@@ -13635,8 +13909,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     title,
     parentSessionId,
     category,
+    kind,
     startedAt,
     endedAt,
+    scheduledAt,
+    dueDate,
+    isAllDay,
+    isCompleted,
+    priority,
     status,
     notes,
     isArchived,
@@ -13652,8 +13932,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           other.title == this.title &&
           other.parentSessionId == this.parentSessionId &&
           other.category == this.category &&
+          other.kind == this.kind &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
+          other.scheduledAt == this.scheduledAt &&
+          other.dueDate == this.dueDate &&
+          other.isAllDay == this.isAllDay &&
+          other.isCompleted == this.isCompleted &&
+          other.priority == this.priority &&
           other.status == this.status &&
           other.notes == this.notes &&
           other.isArchived == this.isArchived &&
@@ -13667,8 +13953,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
   final Value<String> title;
   final Value<String?> parentSessionId;
   final Value<String> category;
+  final Value<String> kind;
   final Value<DateTime> startedAt;
   final Value<DateTime?> endedAt;
+  final Value<DateTime?> scheduledAt;
+  final Value<DateTime?> dueDate;
+  final Value<bool> isAllDay;
+  final Value<bool> isCompleted;
+  final Value<int> priority;
   final Value<String> status;
   final Value<String?> notes;
   final Value<bool> isArchived;
@@ -13681,8 +13973,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     this.title = const Value.absent(),
     this.parentSessionId = const Value.absent(),
     this.category = const Value.absent(),
+    this.kind = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.isAllDay = const Value.absent(),
+    this.isCompleted = const Value.absent(),
+    this.priority = const Value.absent(),
     this.status = const Value.absent(),
     this.notes = const Value.absent(),
     this.isArchived = const Value.absent(),
@@ -13696,8 +13994,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     required String title,
     this.parentSessionId = const Value.absent(),
     this.category = const Value.absent(),
+    this.kind = const Value.absent(),
     required DateTime startedAt,
     this.endedAt = const Value.absent(),
+    this.scheduledAt = const Value.absent(),
+    this.dueDate = const Value.absent(),
+    this.isAllDay = const Value.absent(),
+    this.isCompleted = const Value.absent(),
+    this.priority = const Value.absent(),
     this.status = const Value.absent(),
     this.notes = const Value.absent(),
     this.isArchived = const Value.absent(),
@@ -13715,8 +14019,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Expression<String>? title,
     Expression<String>? parentSessionId,
     Expression<String>? category,
+    Expression<String>? kind,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? endedAt,
+    Expression<DateTime>? scheduledAt,
+    Expression<DateTime>? dueDate,
+    Expression<bool>? isAllDay,
+    Expression<bool>? isCompleted,
+    Expression<int>? priority,
     Expression<String>? status,
     Expression<String>? notes,
     Expression<bool>? isArchived,
@@ -13730,8 +14040,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       if (title != null) 'title': title,
       if (parentSessionId != null) 'parent_session_id': parentSessionId,
       if (category != null) 'category': category,
+      if (kind != null) 'kind': kind,
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
+      if (scheduledAt != null) 'scheduled_at': scheduledAt,
+      if (dueDate != null) 'due_date': dueDate,
+      if (isAllDay != null) 'is_all_day': isAllDay,
+      if (isCompleted != null) 'is_completed': isCompleted,
+      if (priority != null) 'priority': priority,
       if (status != null) 'status': status,
       if (notes != null) 'notes': notes,
       if (isArchived != null) 'is_archived': isArchived,
@@ -13747,8 +14063,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Value<String>? title,
     Value<String?>? parentSessionId,
     Value<String>? category,
+    Value<String>? kind,
     Value<DateTime>? startedAt,
     Value<DateTime?>? endedAt,
+    Value<DateTime?>? scheduledAt,
+    Value<DateTime?>? dueDate,
+    Value<bool>? isAllDay,
+    Value<bool>? isCompleted,
+    Value<int>? priority,
     Value<String>? status,
     Value<String?>? notes,
     Value<bool>? isArchived,
@@ -13762,8 +14084,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       title: title ?? this.title,
       parentSessionId: parentSessionId ?? this.parentSessionId,
       category: category ?? this.category,
+      kind: kind ?? this.kind,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      dueDate: dueDate ?? this.dueDate,
+      isAllDay: isAllDay ?? this.isAllDay,
+      isCompleted: isCompleted ?? this.isCompleted,
+      priority: priority ?? this.priority,
       status: status ?? this.status,
       notes: notes ?? this.notes,
       isArchived: isArchived ?? this.isArchived,
@@ -13791,11 +14119,29 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     if (category.present) {
       map['category'] = Variable<String>(category.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
     if (startedAt.present) {
       map['started_at'] = Variable<DateTime>(startedAt.value);
     }
     if (endedAt.present) {
       map['ended_at'] = Variable<DateTime>(endedAt.value);
+    }
+    if (scheduledAt.present) {
+      map['scheduled_at'] = Variable<DateTime>(scheduledAt.value);
+    }
+    if (dueDate.present) {
+      map['due_date'] = Variable<DateTime>(dueDate.value);
+    }
+    if (isAllDay.present) {
+      map['is_all_day'] = Variable<bool>(isAllDay.value);
+    }
+    if (isCompleted.present) {
+      map['is_completed'] = Variable<bool>(isCompleted.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
     }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
@@ -13826,8 +14172,14 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
           ..write('title: $title, ')
           ..write('parentSessionId: $parentSessionId, ')
           ..write('category: $category, ')
+          ..write('kind: $kind, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
+          ..write('scheduledAt: $scheduledAt, ')
+          ..write('dueDate: $dueDate, ')
+          ..write('isAllDay: $isAllDay, ')
+          ..write('isCompleted: $isCompleted, ')
+          ..write('priority: $priority, ')
           ..write('status: $status, ')
           ..write('notes: $notes, ')
           ..write('isArchived: $isArchived, ')
@@ -25580,6 +25932,7 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> sourceId,
       Value<String?> recurringTransactionId,
       Value<String?> location,
+      Value<String?> linkedActivityId,
       Value<String?> transferId,
       Value<String?> receiptRawText,
       Value<String?> receiptNumber,
@@ -25610,6 +25963,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> sourceId,
       Value<String?> recurringTransactionId,
       Value<String?> location,
+      Value<String?> linkedActivityId,
       Value<String?> transferId,
       Value<String?> receiptRawText,
       Value<String?> receiptNumber,
@@ -25713,6 +26067,11 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<String> get location => $composableBuilder(
     column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -25856,6 +26215,11 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get transferId => $composableBuilder(
     column: $table.transferId,
     builder: (column) => ColumnOrderings(column),
@@ -25972,6 +26336,11 @@ class $$TransactionsTableAnnotationComposer
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
 
+  GeneratedColumn<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get transferId => $composableBuilder(
     column: $table.transferId,
     builder: (column) => column,
@@ -26060,6 +26429,7 @@ class $$TransactionsTableTableManager
                 Value<String?> sourceId = const Value.absent(),
                 Value<String?> recurringTransactionId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<String?> linkedActivityId = const Value.absent(),
                 Value<String?> transferId = const Value.absent(),
                 Value<String?> receiptRawText = const Value.absent(),
                 Value<String?> receiptNumber = const Value.absent(),
@@ -26088,6 +26458,7 @@ class $$TransactionsTableTableManager
                 sourceId: sourceId,
                 recurringTransactionId: recurringTransactionId,
                 location: location,
+                linkedActivityId: linkedActivityId,
                 transferId: transferId,
                 receiptRawText: receiptRawText,
                 receiptNumber: receiptNumber,
@@ -26118,6 +26489,7 @@ class $$TransactionsTableTableManager
                 Value<String?> sourceId = const Value.absent(),
                 Value<String?> recurringTransactionId = const Value.absent(),
                 Value<String?> location = const Value.absent(),
+                Value<String?> linkedActivityId = const Value.absent(),
                 Value<String?> transferId = const Value.absent(),
                 Value<String?> receiptRawText = const Value.absent(),
                 Value<String?> receiptNumber = const Value.absent(),
@@ -26146,6 +26518,7 @@ class $$TransactionsTableTableManager
                 sourceId: sourceId,
                 recurringTransactionId: recurringTransactionId,
                 location: location,
+                linkedActivityId: linkedActivityId,
                 transferId: transferId,
                 receiptRawText: receiptRawText,
                 receiptNumber: receiptNumber,
@@ -30576,8 +30949,14 @@ typedef $$ActivitySessionsTableCreateCompanionBuilder =
       required String title,
       Value<String?> parentSessionId,
       Value<String> category,
+      Value<String> kind,
       required DateTime startedAt,
       Value<DateTime?> endedAt,
+      Value<DateTime?> scheduledAt,
+      Value<DateTime?> dueDate,
+      Value<bool> isAllDay,
+      Value<bool> isCompleted,
+      Value<int> priority,
       Value<String> status,
       Value<String?> notes,
       Value<bool> isArchived,
@@ -30592,8 +30971,14 @@ typedef $$ActivitySessionsTableUpdateCompanionBuilder =
       Value<String> title,
       Value<String?> parentSessionId,
       Value<String> category,
+      Value<String> kind,
       Value<DateTime> startedAt,
       Value<DateTime?> endedAt,
+      Value<DateTime?> scheduledAt,
+      Value<DateTime?> dueDate,
+      Value<bool> isAllDay,
+      Value<bool> isCompleted,
+      Value<int> priority,
       Value<String> status,
       Value<String?> notes,
       Value<bool> isArchived,
@@ -30636,6 +31021,11 @@ class $$ActivitySessionsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get startedAt => $composableBuilder(
     column: $table.startedAt,
     builder: (column) => ColumnFilters(column),
@@ -30643,6 +31033,31 @@ class $$ActivitySessionsTableFilterComposer
 
   ColumnFilters<DateTime> get endedAt => $composableBuilder(
     column: $table.endedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30706,6 +31121,11 @@ class $$ActivitySessionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get startedAt => $composableBuilder(
     column: $table.startedAt,
     builder: (column) => ColumnOrderings(column),
@@ -30713,6 +31133,31 @@ class $$ActivitySessionsTableOrderingComposer
 
   ColumnOrderings<DateTime> get endedAt => $composableBuilder(
     column: $table.endedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dueDate => $composableBuilder(
+    column: $table.dueDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isAllDay => $composableBuilder(
+    column: $table.isAllDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -30770,11 +31215,33 @@ class $$ActivitySessionsTableAnnotationComposer
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
 
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
   GeneratedColumn<DateTime> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get endedAt =>
       $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get scheduledAt => $composableBuilder(
+    column: $table.scheduledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get dueDate =>
+      $composableBuilder(column: $table.dueDate, builder: (column) => column);
+
+  GeneratedColumn<bool> get isAllDay =>
+      $composableBuilder(column: $table.isAllDay, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCompleted => $composableBuilder(
+    column: $table.isCompleted,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
 
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
@@ -30836,8 +31303,14 @@ class $$ActivitySessionsTableTableManager
                 Value<String> title = const Value.absent(),
                 Value<String?> parentSessionId = const Value.absent(),
                 Value<String> category = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> endedAt = const Value.absent(),
+                Value<DateTime?> scheduledAt = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<bool> isAllDay = const Value.absent(),
+                Value<bool> isCompleted = const Value.absent(),
+                Value<int> priority = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
@@ -30850,8 +31323,14 @@ class $$ActivitySessionsTableTableManager
                 title: title,
                 parentSessionId: parentSessionId,
                 category: category,
+                kind: kind,
                 startedAt: startedAt,
                 endedAt: endedAt,
+                scheduledAt: scheduledAt,
+                dueDate: dueDate,
+                isAllDay: isAllDay,
+                isCompleted: isCompleted,
+                priority: priority,
                 status: status,
                 notes: notes,
                 isArchived: isArchived,
@@ -30866,8 +31345,14 @@ class $$ActivitySessionsTableTableManager
                 required String title,
                 Value<String?> parentSessionId = const Value.absent(),
                 Value<String> category = const Value.absent(),
+                Value<String> kind = const Value.absent(),
                 required DateTime startedAt,
                 Value<DateTime?> endedAt = const Value.absent(),
+                Value<DateTime?> scheduledAt = const Value.absent(),
+                Value<DateTime?> dueDate = const Value.absent(),
+                Value<bool> isAllDay = const Value.absent(),
+                Value<bool> isCompleted = const Value.absent(),
+                Value<int> priority = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> notes = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
@@ -30880,8 +31365,14 @@ class $$ActivitySessionsTableTableManager
                 title: title,
                 parentSessionId: parentSessionId,
                 category: category,
+                kind: kind,
                 startedAt: startedAt,
                 endedAt: endedAt,
+                scheduledAt: scheduledAt,
+                dueDate: dueDate,
+                isAllDay: isAllDay,
+                isCompleted: isCompleted,
+                priority: priority,
                 status: status,
                 notes: notes,
                 isArchived: isArchived,

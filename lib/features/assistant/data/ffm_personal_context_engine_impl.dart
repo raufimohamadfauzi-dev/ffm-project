@@ -45,14 +45,15 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
            FfmPersonalMemoryService(FfmAssistantMemoryRepository(database)),
        _personalizationRepository =
            personalizationRepository ??
-           FfmAssistantPersonalizationRepository(database),
-       _workingContextManager = workingContextManager;
+               FfmAssistantPersonalizationRepository(database) {
+    _workingContextManager = workingContextManager;
+  }
 
   final FfmAssistantMemoryRepository _memoryRepository;
   final FfmAssistantUserModelService _userModelService;
   final FfmPersonalMemoryService _personalMemoryService;
   final FfmAssistantPersonalizationRepository _personalizationRepository;
-  final FfmWorkingContextManager? _workingContextManager;
+  FfmWorkingContextManager? _workingContextManager;
   final _random = Random();
 
   static const householdId = 'local-household';

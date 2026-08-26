@@ -1,5 +1,6 @@
 /// Plugin kategori Actuator (Tangan) — Menyiapkan draf aksi dan format ekspor.
 /// Tidak melakukan penulisan ke database secara langsung (wajib konfirmasi pengguna).
+library;
 
 import 'dart:convert';
 

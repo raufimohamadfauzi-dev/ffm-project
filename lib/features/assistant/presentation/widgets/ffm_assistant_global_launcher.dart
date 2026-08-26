@@ -5,9 +5,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Launcher global FFM yang dapat digeser agar tidak menghalangi FAB atau isi
 /// halaman. Posisi tetap selama aplikasi terbuka dan selalu dibatasi layar.
 class FfmAssistantLauncherState {
-  const FfmAssistantLauncherState({required this.isSheetOpen});
+  const FfmAssistantLauncherState({
+    required this.isSheetOpen,
+    this.hasNotification = false,
+    this.notificationReason,
+  });
 
   final bool isSheetOpen;
+  final bool hasNotification;
+  final String? notificationReason;
 }
 
 class FfmAssistantGlobalLauncher extends StatefulWidget {
@@ -92,10 +98,27 @@ class _FfmAssistantGlobalLauncherState
                   child: Semantics(
                     button: true,
                     label: 'Buka atau geser Asisten FFM',
-                    child: FloatingActionButton.small(
-                      heroTag: 'ffm-assistant-global-launcher',
-                      onPressed: widget.onOpen,
-                      child: const Icon(Icons.auto_awesome_outlined),
+                    child: Stack(
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: 'ffm-assistant-global-launcher',
+                          onPressed: widget.onOpen,
+                          child: const Icon(Icons.auto_awesome_outlined),
+                        ),
+                        if (value.hasNotification)
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),

@@ -1,5 +1,6 @@
 /// Plugin kategori Sense (Mata) — Membaca data database SQLite secara lokal.
 /// Tidak melakukan penulisan ke database.
+library;
 
 import 'package:drift/drift.dart';
 

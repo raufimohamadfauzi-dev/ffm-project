@@ -68,9 +68,8 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
         when (call.method) {
             "initNative" -> {
                 val modelPath = call.argument<String>("modelPath")
-                val mmprojPath = call.argument<String>("mmprojPath")
-                if (modelPath.isNullOrBlank() || mmprojPath.isNullOrBlank()) {
-                    result.error("ARG_ERROR", "modelPath/mmprojPath tidak valid", null)
+                if (modelPath.isNullOrBlank()) {
+                    result.error("ARG_ERROR", "modelPath tidak valid", null)
                     return
                 }
                 executor.execute {
@@ -80,7 +79,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                         return@execute
                     }
                     try {
-                        postSuccess(result, native.initNative(modelPath, mmprojPath))
+                        postSuccess(result, native.initNative(modelPath))
                     } catch (error: Throwable) {
                         postError(result, "NATIVE_INIT_ERROR", error.message ?: "Gagal memuat model", null)
                     }
@@ -111,7 +110,6 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                     result.error("ARG_ERROR", "Prompt tidak valid", null)
                     return
                 }
-                val imagePath = call.argument<String>("imagePath")
                 // Exactly one blocking JNI call. The single-thread executor is
                 // the ownership boundary for the native model session.
                 executor.execute {
@@ -121,7 +119,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
                         return@execute
                     }
                     try {
-                        val response = native.generateSingleShotNative(systemPrompt, userPrompt, imagePath)
+                        val response = native.generateSingleShotNative(systemPrompt, userPrompt)
                         postSuccess(result, response)
                     } catch (error: Throwable) {
                         postError(result, "NATIVE_GENERATE_ERROR", error.message ?: "Gagal menjalankan model", null)
@@ -140,7 +138,6 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
         val manager = downloadManager()
         val requests = listOf(
             DownloadSpec("language_model", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/Qwen2-VL-2B-Instruct-IQ4_NL.gguf", "Qwen2-VL-2B-Instruct-IQ4_NL.gguf", 936329984L),
-            DownloadSpec("multimodal_projector", "https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/v1.0.0/mmproj-Qwen2-VL-2B-Instruct-f16.gguf", "mmproj-Qwen2-VL-2B-Instruct-f16.gguf", 1331656192L),
         )
         val requestedRoles = call.argument<List<String>>("roles")?.toSet()
             ?: requests.map { it.role }.toSet()
@@ -161,7 +158,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
             cleanupIncompleteDestination(spec)
             val request = DownloadManager.Request(Uri.parse(spec.url))
                 .setTitle("FFM: ${spec.fileName}")
-                .setDescription("Download SLM Qwen2-VL berjalan di latar belakang")
+                .setDescription("Download SLM teks berjalan di latar belakang")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setAllowedOverMetered(true)
                 .setAllowedOverRoaming(false)
@@ -232,7 +229,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
     private fun backgroundBundleStatus(): List<Map<String, Any?>> {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
         val manager = downloadManager()
-        return listOf("language_model", "multimodal_projector").mapNotNull { role ->
+        return listOf("language_model").mapNotNull { role ->
             val id = prefs.getLong("${role}_id", -1L)
             val fileName = prefs.getString("${role}_file", role) ?: role
             if (id == -1L) return@mapNotNull null
@@ -297,7 +294,7 @@ class FfmLocalModelBridgePlugin : FlutterPlugin, MethodCallHandler {
     private fun cancelBackgroundBundleDownload(result: Result) {
         val prefs = appContext.getSharedPreferences("ffm_slm_background_downloads", Context.MODE_PRIVATE)
         val manager = downloadManager()
-        listOf("language_model", "multimodal_projector").forEach { role ->
+        listOf("language_model").forEach { role ->
             val id = prefs.getLong("${role}_id", -1L)
             if (id != -1L) manager.remove(id)
         }

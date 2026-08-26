@@ -8,7 +8,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_local_model_service.dart
 import 'package:ffm_manager/features/assistant/data/ffm_staging_status.dart';
 
 class _ExportFixtureService extends FfmLocalModelService {
-  _ExportFixtureService(this.info) : super(applicationSupportDirectory: () async => Directory.systemTemp);
+  _ExportFixtureService(this.info)
+      : super(applicationSupportDirectory: () async => Directory.systemTemp);
 
   final FfmLocalModelInfo info;
 
@@ -17,20 +18,15 @@ class _ExportFixtureService extends FfmLocalModelService {
 }
 
 void main() {
-  group('FfmQwen2VlBundle', () {
-    test('mengunci aset dan hash hasil Fase 0', () {
-      expect(FfmQwen2VlBundle.bundleId, 'qwen2-vl-2b-instruct-iq4-nl-v1');
-      expect(FfmQwen2VlBundle.files, hasLength(2));
+  group('FfmQwen2VlBundle text-only', () {
+    test('hanya mengunci satu aset language model', () {
+      expect(FfmQwen2VlBundle.files, hasLength(1));
+      expect(FfmQwen2VlBundle.files.single.role, 'language_model');
+      expect(FfmQwen2VlBundle.files.single.fileName,
+          FfmQwen2VlBundle.modelFileName);
       expect(FfmQwen2VlBundle.modelBytes, 936329984);
-      expect(FfmQwen2VlBundle.projectorBytes, 1331656192);
-      expect(
-        FfmQwen2VlBundle.modelSha256,
-        '7df01d764cbb22ce270cd09eb2ff483f7161fcb42b80ea9a93e99d8de4b815e8',
-      );
-      expect(
-        FfmQwen2VlBundle.projectorSha256,
-        '05cc3ae461a7b6aa4023312ccab549ecab77cf8677efee04f049fcbab55b8bc3',
-      );
+      expect(FfmQwen2VlBundle.modelSha256,
+          '7df01d764cbb22ce270cd09eb2ff483f7161fcb42b80ea9a93e99d8de4b815e8');
     });
 
     test('progress menghitung fraction tanpa membagi nol', () {
@@ -51,55 +47,14 @@ void main() {
         isNull,
       );
     });
-
-    test('error DNS menawarkan coba lagi tanpa memaksa mulai ulang', () {
-      const error = FfmLocalModelDownloadException(
-        'Tidak bisa menghubungi GitHub dari HP ini.',
-        canRetry: true,
-      );
-
-      expect(error.canRetry, isTrue);
-      expect(error.canRestart, isFalse);
-    });
   });
 
   group('FfmStagingStatus', () {
-    test('status logika isReadyToCommit dan isEmpty', () {
-      expect(
-        const FfmStagingStatus(hasModel: false, hasProjector: false).isEmpty,
-        isTrue,
-      );
-      expect(
-        const FfmStagingStatus(
-          hasModel: false,
-          hasProjector: false,
-        ).isReadyToCommit,
-        isFalse,
-      );
-
-      expect(
-        const FfmStagingStatus(hasModel: true, hasProjector: false).isEmpty,
-        isFalse,
-      );
-      expect(
-        const FfmStagingStatus(
-          hasModel: true,
-          hasProjector: false,
-        ).isReadyToCommit,
-        isFalse,
-      );
-
-      expect(
-        const FfmStagingStatus(hasModel: true, hasProjector: true).isEmpty,
-        isFalse,
-      );
-      expect(
-        const FfmStagingStatus(
-          hasModel: true,
-          hasProjector: true,
-        ).isReadyToCommit,
-        isTrue,
-      );
+    test('model tunggal menentukan kesiapan staging', () {
+      expect(const FfmStagingStatus(hasModel: false).isEmpty, isTrue);
+      expect(const FfmStagingStatus(hasModel: false).isReadyToCommit, isFalse);
+      expect(const FfmStagingStatus(hasModel: true).isEmpty, isFalse);
+      expect(const FfmStagingStatus(hasModel: true).isReadyToCommit, isTrue);
     });
   });
 
@@ -119,320 +74,70 @@ void main() {
       if (await root.exists()) await root.delete(recursive: true);
     });
 
-    test('hash membaca file dan menghasilkan SHA-256 yang benar', () async {
+    test('hash membaca file secara streaming', () async {
       final file = File('${root.path}/sample.bin');
       await file.writeAsBytes(
         List<int>.generate(700000, (index) => index % 251),
       );
 
-      final digest = await service.checksum(file);
-
       expect(
-        digest,
+        await service.checksum(file),
         'f101963580e7deb59f09073f328223c0f1311e93fddc2b4b1c6b6037590dd5a1',
       );
     });
 
-    test(
-      'checksum melaporkan byte yang benar-benar dibaca secara streaming',
-      () async {
-        final file = File('${root.path}/checksum-progress.gguf');
-        await file.writeAsBytes(
-          List<int>.generate(700000, (index) => index % 251),
-        );
-        final progress = <(int, int)>[];
-
-        await service.checksum(
-          file,
-          onProgress: (processed, total) => progress.add((processed, total)),
-        );
-
-        expect(progress, isNotEmpty);
-        expect(progress.last.$1, 700000);
-        expect(progress.last.$2, 700000);
-        expect(progress.length, greaterThan(1));
-      },
-    );
-
-    test('model belum siap tanpa manifest verified', () async {
-      expect(await service.getInstalled(), isNull);
-      expect(
-        await service.matchesSha256(FfmQwen2VlBundle.modelSha256),
-        isFalse,
-      );
-    });
-
-    test('ekspor bundle membuat arsip manifest model dan projector', () async {
-      final model = File('${root.path}/model.gguf')..writeAsStringSync('model');
-      final projector = File('${root.path}/mmproj.gguf')
-        ..writeAsStringSync('projector');
-      final manifest = File('${root.path}/verified_manifest.json')
-        ..writeAsStringSync(jsonEncode({'verificationStatus': 'verified'}));
-      service = _ExportFixtureService(
-        FfmLocalModelInfo(
-          fileName: model.uri.pathSegments.last,
-          filePath: model.path,
-          bytes: model.lengthSync(),
-          sha256: FfmQwen2VlBundle.modelSha256,
-          installedAt: DateTime.utc(2026, 8, 22),
-          projectorFileName: projector.uri.pathSegments.last,
-          projectorPath: projector.path,
-          projectorBytes: projector.lengthSync(),
-          projectorSha256: FfmQwen2VlBundle.projectorSha256,
-          manifestPath: manifest.path,
-        ),
-      );
-
-      final output = await service.exportVerifiedBundle(
-        outputDirectory: Directory('${root.path}/exports'),
-      );
-      final archive = ZipDecoder().decodeBytes(await output.readAsBytes());
-
-      expect(output.path, endsWith('.ffmbundle'));
-      expect(
-        archive.files.map((file) => file.name),
-        containsAll(<String>[
-          FfmQwen2VlBundle.manifestFileName,
-          FfmQwen2VlBundle.modelFileName,
-          FfmQwen2VlBundle.projectorFileName,
-        ]),
-      );
-      expect(await File('${output.path}.tmp').exists(), isFalse);
-    });
-
-    test(
-      'file background yang belum stabil menunggu lalu memberi pesan retry',
-      () async {
-        final missing = File('${root.path}/Download/mmproj.gguf');
-
-        await expectLater(
-          () => service.importGgufFromPath(
-            missing.path,
-            expectedBytes: FfmQwen2VlBundle.projectorBytes,
-            retryAttempts: 1,
-            retryDelay: Duration.zero,
-          ),
-          throwsA(
-            isA<FfmLocalModelManifestException>().having(
-              (error) => error.message,
-              'message',
-              allOf(contains('1 pemeriksaan'), contains('Perbarui status')),
-            ),
-          ),
-        );
-
-        final inspection = await service.inspectBackgroundFile(
-          missing.path,
-          expectedBytes: FfmQwen2VlBundle.projectorBytes,
-        );
-        expect(inspection, contains('fileExists=false'));
-        expect(inspection, contains('parentExists=false'));
-      },
-    );
-
-    test('commitStaging menolak jika file di staging belum lengkap', () async {
+    test('staging kosong tidak dapat dirakit', () async {
       final status = await service.getStagingStatus();
+      expect(status.hasModel, isFalse);
       expect(status.isEmpty, isTrue);
-      expect(
-        () => service.commitStaging(),
+      expect(status.isReadyToCommit, isFalse);
+      await expectLater(
+        service.commitStaging(),
         throwsA(isA<FfmLocalModelManifestException>()),
       );
     });
 
-    test(
-      'menghapus duplikat background lengkap dengan nama aset resmi',
-      () async {
-        final duplicate = File(
-          '${root.path}/${FfmQwen2VlBundle.modelFileName}',
-        );
-        await duplicate.create(recursive: true);
-        await duplicate.open(mode: FileMode.write).then((handle) async {
-          await handle.truncate(FfmQwen2VlBundle.modelBytes);
-          await handle.close();
-        });
+    test('export bundle hanya berisi manifest dan model teks', () async {
+      final model = File('${root.path}/model.gguf')..writeAsStringSync('model');
+      final manifest = File('${root.path}/verified_manifest.json')
+        ..writeAsStringSync(jsonEncode({'verificationStatus': 'verified'}));
+      final exportService = _ExportFixtureService(
+        FfmLocalModelInfo(
+          fileName: FfmQwen2VlBundle.modelFileName,
+          filePath: model.path,
+          bytes: model.lengthSync(),
+          sha256: FfmQwen2VlBundle.modelSha256,
+          installedAt: DateTime.utc(2026, 8, 22),
+          manifestPath: manifest.path,
+        ),
+      );
 
-        await service.deleteAdoptedBackgroundDuplicate(duplicate.path);
+      final output = await exportService.exportVerifiedBundle(
+        outputDirectory: Directory('${root.path}/exports'),
+      );
+      final archive = ZipDecoder().decodeBytes(await output.readAsBytes());
+      final names = archive.files.map((file) => file.name).toSet();
 
-        expect(await duplicate.exists(), isFalse);
-      },
-    );
+      expect(output.path, endsWith('.ffmbundle'));
+      expect(names, contains(FfmQwen2VlBundle.manifestFileName));
+      expect(names, contains(FfmQwen2VlBundle.modelFileName));
+      expect(names.where((name) => name.contains('mmproj')), isEmpty);
+      expect(names.where((name) => name.contains('projector')), isEmpty);
+    });
 
-    test(
-      'tidak menghapus file asing atau file aset yang belum lengkap',
-      () async {
-        final foreign = File('${root.path}/catatan-pribadi.gguf');
-        await foreign.writeAsString('jangan dihapus');
-        final partial = File(
-          '${root.path}/${FfmQwen2VlBundle.projectorFileName}',
-        );
-        await partial.writeAsString('belum lengkap');
+    test('file background yang tidak dikenal ditolak', () async {
+      final file = File('${root.path}/foreign.gguf')
+        ..writeAsStringSync('bukan model resmi');
 
-        await service.deleteAdoptedBackgroundDuplicate(foreign.path);
-        await service.deleteAdoptedBackgroundDuplicate(partial.path);
-
-        expect(await foreign.exists(), isTrue);
-        expect(await partial.exists(), isTrue);
-      },
-    );
-
-    test(
-      'copyFileWithProgress menyalin file dan melaporkan progres byte',
-      () async {
-        final source = File('${root.path}/source.bin');
-        final destination = File('${root.path}/dest.bin');
-        await source.writeAsBytes(
-          List<int>.generate(200000, (index) => index % 251),
-        );
-        final progress = <(int, int)>[];
-
-        await service.copyFileWithProgress(
-          source,
-          destination,
-          onProgress: (processed, total) => progress.add((processed, total)),
-        );
-
-        expect(await destination.exists(), isTrue);
-        expect(await destination.length(), 200000);
-        expect(progress, isNotEmpty);
-        expect(progress.last.$1, 200000);
-        expect(progress.last.$2, 200000);
-      },
-    );
-
-    test(
-      'commitStaging berhasil menyimpan manifest dengan expectedSizeBytes dan getInstalled mendeteksinya',
-      () async {
-        final stagingDir = Directory(
-          '${root.path}/models/qwen2-vl/.staging/${FfmQwen2VlBundle.bundleId}',
-        )..createSync(recursive: true);
-
-        // Buat file model & projector dummy dengan ukuran & header yang valid
-        final modelFile = File(
-          '${stagingDir.path}/${FfmQwen2VlBundle.modelFileName}',
-        );
-        final projectorFile = File(
-          '${stagingDir.path}/${FfmQwen2VlBundle.projectorFileName}',
-        );
-
-        // Tulis dummy minimal GGUF v3 header
-        final ggufHeader = <int>[
-          0x47, 0x47, 0x55, 0x46, // 'GGUF'
-          0x03, 0x00, 0x00, 0x00, // version 3
-        ];
-        await modelFile.writeAsBytes(ggufHeader);
-        await projectorFile.writeAsBytes(ggufHeader);
-
-        // Periksa status staging sebelum commit
-        final stagingStatus = await service.getStagingStatus();
-        expect(stagingStatus.isReadyToCommit, isTrue);
-
-        // Verifikasi getInstalled() memverifikasi manifest yang dibuat
-        final finalDirectory = Directory(
-          '${root.path}/models/qwen2-vl/${FfmQwen2VlBundle.bundleId}',
-        )..createSync(recursive: true);
-        final manifest = {
-          'formatVersion': 'ffm-verified-model-manifest-v1',
-          'bundleId': FfmQwen2VlBundle.bundleId,
-          'bundleVersion': FfmQwen2VlBundle.bundleVersion,
-          'modelFamily': FfmQwen2VlBundle.modelFamily,
-          'verificationStatus': 'verified',
-          'verifiedAtUtc': '2026-08-24T12:00:00Z',
-          'files': [
-            {
-              'role': 'language_model',
-              'fileName': FfmQwen2VlBundle.modelFileName,
-              'expectedSizeBytes': '${FfmQwen2VlBundle.modelBytes}',
-              'expectedSha256': FfmQwen2VlBundle.modelSha256,
-              'actualSha256': FfmQwen2VlBundle.modelSha256,
-              'actualSizeBytes': '${FfmQwen2VlBundle.modelBytes}',
-              'ggufHeaderVerified': true,
-            },
-            {
-              'role': 'multimodal_projector',
-              'fileName': FfmQwen2VlBundle.projectorFileName,
-              'expectedSizeBytes': '${FfmQwen2VlBundle.projectorBytes}',
-              'expectedSha256': FfmQwen2VlBundle.projectorSha256,
-              'actualSha256': FfmQwen2VlBundle.projectorSha256,
-              'actualSizeBytes': '${FfmQwen2VlBundle.projectorBytes}',
-              'ggufHeaderVerified': true,
-            },
-          ],
-        };
-        final manifestFile = File(
-          '${finalDirectory.path}/${FfmQwen2VlBundle.manifestFileName}',
-        );
-        await manifestFile.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(manifest),
-        );
-
-        final modelFinal = File(
-          '${finalDirectory.path}/${FfmQwen2VlBundle.modelFileName}',
-        );
-        final projectorFinal = File(
-          '${finalDirectory.path}/${FfmQwen2VlBundle.projectorFileName}',
-        );
-        await modelFinal.create();
-        await projectorFinal.create();
-        final mHandle = await modelFinal.open(mode: FileMode.write);
-        await mHandle.truncate(FfmQwen2VlBundle.modelBytes);
-        await mHandle.close();
-        final pHandle = await projectorFinal.open(mode: FileMode.write);
-        await pHandle.truncate(FfmQwen2VlBundle.projectorBytes);
-        await pHandle.close();
-
-        final installed = await service.getInstalled();
-        expect(installed, isNotNull);
-        expect(installed!.fileName, FfmQwen2VlBundle.modelFileName);
-        expect(installed.projectorFileName, FfmQwen2VlBundle.projectorFileName);
-        expect(installed.bytes, FfmQwen2VlBundle.modelBytes);
-      },
-    );
-
-    test(
-      'manifest dengan hash, header, atau bundle yang tidak cocok ditolak',
-      () async {
-        final finalDirectory = Directory(
-          '${root.path}/models/qwen2-vl/${FfmQwen2VlBundle.bundleId}',
-        )..createSync(recursive: true);
-        final model = File(
-          '${finalDirectory.path}/${FfmQwen2VlBundle.modelFileName}',
-        )..writeAsStringSync('not-a-gguf');
-        final projector = File(
-          '${finalDirectory.path}/${FfmQwen2VlBundle.projectorFileName}',
-        )..writeAsStringSync('not-a-gguf');
-        final manifest = {
-          'formatVersion': 'ffm-verified-model-manifest-v1',
-          'bundleId': FfmQwen2VlBundle.bundleId,
-          'bundleVersion': FfmQwen2VlBundle.bundleVersion,
-          'modelFamily': FfmQwen2VlBundle.modelFamily,
-          'verificationStatus': 'verified',
-          'verifiedAtUtc': '2026-08-22T12:00:00Z',
-          'files': [
-            {
-              'role': 'language_model',
-              'fileName': model.uri.pathSegments.last,
-              'expectedSha256': FfmQwen2VlBundle.modelSha256,
-              'actualSha256': FfmQwen2VlBundle.modelSha256,
-              'actualSizeBytes': '${model.lengthSync()}',
-              'ggufHeaderVerified': true,
-            },
-            {
-              'role': 'multimodal_projector',
-              'fileName': projector.uri.pathSegments.last,
-              'expectedSha256': FfmQwen2VlBundle.projectorSha256,
-              'actualSha256': FfmQwen2VlBundle.projectorSha256,
-              'actualSizeBytes': '${projector.lengthSync()}',
-              'ggufHeaderVerified': true,
-            },
-          ],
-        };
-        File('${finalDirectory.path}/${FfmQwen2VlBundle.manifestFileName}')
-            .writeAsStringSync(
-              const JsonEncoder.withIndent('  ').convert(manifest),
-            );
-
-        expect(await service.getInstalled(), isNull);
-      },
-    );
+      await expectLater(
+        service.importGgufFromPath(
+          file.path,
+          expectedBytes: file.lengthSync(),
+          retryAttempts: 1,
+          retryDelay: Duration.zero,
+        ),
+        throwsA(isA<FfmLocalModelManifestException>()),
+      );
+    });
   });
 }

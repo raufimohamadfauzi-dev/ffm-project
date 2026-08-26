@@ -15,6 +15,7 @@ class FfmAssistantModelProposal {
     this.actionTarget,
     this.queryId,
     this.notes,
+    this.needsReviewBadge = false,
   });
 
   final FfmAssistantIntentType intent;
@@ -32,33 +33,26 @@ class FfmAssistantModelProposal {
   /// Stable query identifier; query execution remains deterministic and local.
   final String? queryId;
   final String? notes;
+  final bool needsReviewBadge;
 
-  bool get isUsable => confidence >= 0.85;
-}
-
-abstract interface class FfmAssistantVisionDiagnostics {
-  /// Alasan terakhir hanya untuk trace gambar tersanitasi; tidak memuat error
-  /// native, prompt, path privat, atau data keuangan.
-  FfmAssistantVisionFailure? get lastVisionFailure;
+  bool get isUsable => confidence >= 0.78;
 }
 
 abstract class FfmAssistantLocalModelGateway {
   /// Mengembalikan null bila model belum diinstal, tidak kompatibel, atau
   /// proposal tidak dapat dipercaya. Pemanggil wajib memakai parser lokal.
-  Future<FfmAssistantModelProposal?> propose({
-    required String input,
-    String? imagePath,
-  });
+  Future<FfmAssistantModelProposal?> propose({required String input});
 
   /// Versi ber-konteks untuk planner. Implementasi lama tetap aman karena
   /// default-nya meneruskan input ke kontrak proposal yang sudah diaudit.
   Future<FfmAssistantModelProposal?> proposeWithContext({
     required String input,
-    String? imagePath,
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
-  }) => propose(input: input, imagePath: imagePath);
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
+  }) => propose(input: input);
 }
 
 /// Implementasi aman sebelum runtime SLM benar-benar dipilih dan diaudit.
@@ -69,10 +63,7 @@ class FfmAssistantDisabledLocalModelGateway
   const FfmAssistantDisabledLocalModelGateway();
 
   @override
-  Future<FfmAssistantModelProposal?> propose({
-    required String input,
-    String? imagePath,
-  }) async {
+  Future<FfmAssistantModelProposal?> propose({required String input}) async {
     // Sengaja tidak menjalankan atau membuka file model: runtime SLM dipasang
     // pada rilis terpisah setelah format model dan evaluasi FFM ditetapkan.
     return null;
@@ -81,9 +72,10 @@ class FfmAssistantDisabledLocalModelGateway
   @override
   Future<FfmAssistantModelProposal?> proposeWithContext({
     required String input,
-    String? imagePath,
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
-  }) => propose(input: input, imagePath: imagePath);
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
+  }) => propose(input: input);
 }

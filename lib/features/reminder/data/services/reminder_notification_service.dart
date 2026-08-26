@@ -101,6 +101,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
+  @override
   Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
   final ValueNotifier<ReminderNotificationOpenTarget?> _openTarget =
       ValueNotifier(null);
@@ -192,6 +193,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     await preferences.setBool(_assistantMorningReminderEnabledKey, true);
   }
 
+  @override
   Future<ReminderPermissionState> permissionState() async {
     await initialize();
     final android = _plugin
@@ -206,6 +208,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     );
   }
 
+  @override
   Future<ReminderPermissionState> requestPermissions() async {
     await initialize();
     final android = _plugin
@@ -214,9 +217,6 @@ class ReminderNotificationService implements ReminderNotificationGateway {
         >();
     if (await android?.areNotificationsEnabled() == false) {
       await android?.requestNotificationsPermission();
-    }
-    if (await android?.canScheduleExactNotifications() == false) {
-      await android?.requestExactAlarmsPermission();
     }
     return permissionState();
   }
@@ -230,6 +230,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
         ?.openAppNotificationSettings();
   }
 
+  @override
   Future<List<ReminderNotificationAction>> consumePendingActions() async {
     final preferences = await SharedPreferences.getInstance();
     final rawItems =
@@ -257,6 +258,7 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     return actions;
   }
 
+  @override
   Future<void> schedule({
     required ReminderEntity reminder,
     required ReminderOccurrence occurrence,
@@ -321,11 +323,13 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     );
   }
 
+  @override
   Future<void> cancel(int notificationId) async {
     await initialize();
     await _plugin.cancel(id: notificationId);
   }
 
+  @override
   Future<void> cancelAll() async {
     await initialize();
     await _plugin.cancelAll();

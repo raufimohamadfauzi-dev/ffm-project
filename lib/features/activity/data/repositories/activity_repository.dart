@@ -110,6 +110,13 @@ class ActivityRepository {
     return rows.map(_checkpointFromRow).toList();
   }
 
+  Future<int> getActivityLinkedCost(String sessionId) async {
+    final rows = await (database.select(database.transactions)
+          ..where((row) => row.linkedActivityId.equals(sessionId)))
+        .get();
+    return rows.fold<int>(0, (sum, row) => sum + row.amount.abs());
+  }
+
   Future<List<ActivityJournalEntryEntity>> getEntries(
     String householdId,
   ) async {
@@ -135,8 +142,14 @@ class ActivityRepository {
             title: entity.title,
             parentSessionId: Value(entity.parentSessionId),
             category: Value(entity.category),
+            kind: Value(entity.kind.value),
             startedAt: entity.startedAt,
             endedAt: Value<DateTime?>(entity.endedAt),
+            scheduledAt: Value<DateTime?>(entity.scheduledAt),
+            dueDate: Value<DateTime?>(entity.dueDate),
+            isAllDay: Value(entity.isAllDay),
+            isCompleted: Value(entity.isCompleted),
+            priority: Value(entity.priority),
             status: Value(entity.status.value),
             notes: Value(entity.notes),
             isArchived: Value(entity.isArchived),
@@ -488,15 +501,124 @@ class ActivityRepository {
     );
   }
 
+  Future<void> migrateOldData(String householdId) async {
+    final prefKey = 'migration_v2_done';
+    final alreadyDone = await (database.select(database.userPreferences)
+          ..where((row) =>
+              row.householdId.equals(householdId) &
+              row.preferenceKey.equals(prefKey)))
+        .getSingleOrNull();
+
+    if (alreadyDone != null && alreadyDone.preferenceValue == 'true') return;
+
+    await database.transaction(() async {
+      // ... (migration logic stays same)
+      // 1. Migrate Tasks
+      final tasks = await (database.select(database.tasks)
+            ..where((row) => row.householdId.equals(householdId)))
+          .get();
+      for (final task in tasks) {
+        await saveSession(
+          ActivitySessionEntity(
+            id: task.id,
+            householdId: householdId,
+            title: task.title,
+            category: 'tugas',
+            kind: ActivityKind.task,
+            startedAt: task.createdAt,
+            endedAt: task.completedAt,
+            dueDate: task.dueDate,
+            isCompleted: task.status == 'completed',
+            status: task.status == 'completed'
+                ? ActivitySessionStatus.completed
+                : ActivitySessionStatus.active,
+            notes: task.note,
+            isArchived: task.isArchived,
+            createdAt: task.createdAt,
+            updatedAt: task.updatedAt,
+          ),
+        );
+      }
+
+      // 2. Migrate Daily Notes
+      final notes = await (database.select(database.dailyNotes)
+            ..where((row) => row.householdId.equals(householdId)))
+          .get();
+      for (final note in notes) {
+        await saveSession(
+          ActivitySessionEntity(
+            id: note.id,
+            householdId: householdId,
+            title: note.title ?? 'Catatan',
+            category: 'catatan',
+            kind: ActivityKind.note,
+            startedAt: note.noteDate,
+            endedAt: note.noteDate,
+            isCompleted: true,
+            status: ActivitySessionStatus.completed,
+            notes: note.body,
+            isArchived: note.isArchived,
+            createdAt: note.createdAt,
+            updatedAt: note.updatedAt,
+          ),
+        );
+      }
+
+      // 3. Migrate Schedule Entries
+      final schedules = await (database.select(database.scheduleEntries)
+            ..where((row) => row.householdId.equals(householdId)))
+          .get();
+      for (final schedule in schedules) {
+        await saveSession(
+          ActivitySessionEntity(
+            id: schedule.id,
+            householdId: householdId,
+            title: schedule.title,
+            category: 'jadwal',
+            kind: ActivityKind.event,
+            startedAt: schedule.scheduledDate,
+            scheduledAt: schedule.scheduledDate,
+            isAllDay: schedule.isAllDay,
+            isCompleted: schedule.scheduledDate.isBefore(DateTime.now()),
+            status: schedule.scheduledDate.isBefore(DateTime.now())
+                ? ActivitySessionStatus.completed
+                : ActivitySessionStatus.active,
+            notes: schedule.note,
+            isArchived: schedule.isArchived,
+            createdAt: schedule.createdAt,
+            updatedAt: schedule.updatedAt,
+          ),
+        );
+      }
+
+      // Mark as done
+      await database.into(database.userPreferences).insertOnConflictUpdate(
+            UserPreferencesCompanion.insert(
+              id: 'pref-mig-$householdId',
+              householdId: householdId,
+              preferenceKey: prefKey,
+              preferenceValue: 'true',
+              updatedAt: DateTime.now(),
+            ),
+          );
+    });
+  }
+
   ActivitySessionEntity _sessionFromRow(ActivitySession row) =>
       ActivitySessionEntity(
         id: row.id,
         householdId: row.householdId,
         title: row.title,
         category: row.category,
+        kind: ActivityKind.fromValue(row.kind),
         parentSessionId: row.parentSessionId,
         startedAt: row.startedAt,
         endedAt: row.endedAt,
+        scheduledAt: row.scheduledAt,
+        dueDate: row.dueDate,
+        isAllDay: row.isAllDay,
+        isCompleted: row.isCompleted,
+        priority: row.priority,
         status: ActivitySessionStatus.fromValue(row.status),
         notes: row.notes,
         isArchived: row.isArchived,

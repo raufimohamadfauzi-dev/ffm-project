@@ -90,15 +90,11 @@ class ReminderState {
 
 class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
   ReminderBloc({
-    required ReminderRepository repository,
-    required ReminderNotificationGateway notificationService,
-    required ReminderOccurrenceCalculator occurrenceCalculator,
-    required String householdId,
-  }) : _repository = repository,
-       _notificationService = notificationService,
-       _occurrenceCalculator = occurrenceCalculator,
-       _householdId = householdId,
-       super(const ReminderState()) {
+    required this._repository,
+    required this._notificationService,
+    required this._occurrenceCalculator,
+    required this._householdId,
+  }) : super(const ReminderState()) {
     on<ReminderLoadRequested>(_load);
     on<ReminderSaved>(_save);
     on<ReminderActiveChanged>(_changeActive);

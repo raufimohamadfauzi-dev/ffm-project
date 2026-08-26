@@ -29,21 +29,17 @@ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_MTMD OFF CACHE BOOL "" FORCE)
 set(LLAMA_CURL OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(MTMD_VIDEO OFF CACHE BOOL "" FORCE)
 
 add_subdirectory("${LLAMA_SRC}" llama-build EXCLUDE_FROM_ALL)
-add_subdirectory("${LLAMA_SRC}/tools/mtmd" mtmd-build EXCLUDE_FROM_ALL)
 
 add_library(ffm_local_model_bridge SHARED ffm_local_model_bridge.cpp)
 
 target_include_directories(ffm_local_model_bridge PRIVATE
     "${LLAMA_SRC}/include"
     "${LLAMA_SRC}/ggml/include"
-    "${LLAMA_SRC}/tools/mtmd"
 )
 
 target_link_libraries(ffm_local_model_bridge
-    mtmd
     llama
     log
 )

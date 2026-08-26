@@ -22,6 +22,8 @@ class _FakeGateway implements FfmAssistantLocalModelGateway {
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
   }) async => proposal;
 }
 

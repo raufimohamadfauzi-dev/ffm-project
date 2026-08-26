@@ -24,18 +24,30 @@ class ReminderPage extends StatelessWidget {
   final String? focusHistoryId;
 
   @override
-  Widget build(BuildContext context) => FfmAssistantPageContext(
-    destination: FfmAssistantDestination.reminders,
-    child: BlocProvider.value(
-      value: getIt<ReminderBloc>()..add(const ReminderLoadRequested()),
-      child: _ReminderView(
-        initialTitle: initialTitle,
-        initialNote: initialNote,
-        focusReminderId: focusReminderId,
-        focusHistoryId: focusHistoryId,
+  Widget build(BuildContext context) {
+    final bloc = getIt<ReminderBloc>()..add(const ReminderLoadRequested());
+    return BlocProvider.value(
+      value: bloc,
+      child: BlocBuilder<ReminderBloc, ReminderState>(
+        builder: (context, state) {
+          final activeCount = state.reminders.where((r) => r.isActive).length;
+          final summary =
+              'Ada ${state.reminders.length} pengingat terdaftar, $activeCount aktif.';
+
+          return FfmAssistantPageContext(
+            destination: FfmAssistantDestination.reminders,
+            dataSummary: summary,
+            child: _ReminderView(
+              initialTitle: initialTitle,
+              initialNote: initialNote,
+              focusReminderId: focusReminderId,
+              focusHistoryId: focusHistoryId,
+            ),
+          );
+        },
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ReminderView extends StatefulWidget {
@@ -408,7 +420,7 @@ class _ReminderViewState extends State<_ReminderView> {
 
   static String _formatDateTime(DateTime value) {
     final local = value.toLocal();
-    final two = (int number) => number.toString().padLeft(2, '0');
+    String two(int number) => number.toString().padLeft(2, '0');
     return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
   }
 }

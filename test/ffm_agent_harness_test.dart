@@ -1,5 +1,6 @@
 /// Unit tests untuk FfmAgentHarness dan FfmAgentPlugin.
 /// Semua test berjalan tanpa database nyata (menggunakan stub/mock ringan).
+library;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_agent_harness.dart';

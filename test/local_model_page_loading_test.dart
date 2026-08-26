@@ -58,11 +58,6 @@ class _InstalledModelService implements FfmLocalModelService {
     filePath: '/data/models/qwen2.gguf',
     bytes: 936329984,
     sha256: '7df01d764cbb22ce270cd09eb2ff483f7161fcb42b80ea9a93e99d8de4b815e8',
-    projectorFileName: 'mmproj-qwen2-vl-2b-f16.gguf',
-    projectorPath: '/data/models/mmproj.gguf',
-    projectorBytes: 1331656192,
-    projectorSha256:
-        '05cc3ae461a7b6aa4023312ccab549ecab77cf8677efee04f049fcbab55b8bc3',
     installedAt: DateTime.utc(2026, 8, 24, 12),
   );
 
@@ -71,7 +66,7 @@ class _InstalledModelService implements FfmLocalModelService {
 
   @override
   Future<FfmStagingStatus> getStagingStatus() async =>
-      const FfmStagingStatus(hasModel: true, hasProjector: true);
+      const FfmStagingStatus(hasModel: true);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

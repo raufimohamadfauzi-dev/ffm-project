@@ -15,13 +15,15 @@ class FfmWorkingContextManager {
   FfmWorkingContextManager({
     required FfmAssistantChatHistoryRepository chatHistoryRepository,
     SharedPreferences? preferences,
-  })  : _chatHistoryRepository = chatHistoryRepository,
-        _preferences = preferences;
+  }) {
+    _chatHistoryRepository = chatHistoryRepository;
+    _preferences = preferences;
+  }
 
   static const _persistenceKey = 'ffm_working_context_v1';
 
-  final FfmAssistantChatHistoryRepository _chatHistoryRepository;
-  final SharedPreferences? _preferences;
+  late final FfmAssistantChatHistoryRepository _chatHistoryRepository;
+  SharedPreferences? _preferences;
   FfmWorkingContext _currentContext = const FfmWorkingContext();
   bool _loaded = false;
 
@@ -75,6 +77,8 @@ class FfmWorkingContextManager {
       currentTopic: merged['topic'] ?? _currentContext.currentTopic,
       currentPeriod: merged['period'] ?? _currentContext.currentPeriod,
       currentGoal: merged['goal'] ?? _currentContext.currentGoal,
+      lastActivityId: merged['activityId'] ?? _currentContext.lastActivityId,
+      lastActivityTitle: merged['activityTitle'] ?? _currentContext.lastActivityTitle,
       pendingClarification: null,
       lastActionResult: assistantResponse != null ? 'assistant_response_ready' : null,
       lastUpdatedAt: DateTime.now(),
@@ -114,6 +118,8 @@ class FfmWorkingContextManager {
           currentTopic: entities['topic'] ?? _currentContext.currentTopic,
           currentPeriod: entities['period'] ?? _currentContext.currentPeriod,
           currentGoal: entities['goal'] ?? _currentContext.currentGoal,
+          lastActivityId: entities['activityId'] ?? _currentContext.lastActivityId,
+          lastActivityTitle: entities['activityTitle'] ?? _currentContext.lastActivityTitle,
           pendingClarification: null,
           lastActionResult: _currentContext.lastActionResult,
           lastUpdatedAt: DateTime.now(),
@@ -134,6 +140,8 @@ class FfmWorkingContextManager {
     String? currentTopic,
     String? currentPeriod,
     String? currentGoal,
+    String? lastActivityId,
+    String? lastActivityTitle,
     String? pendingClarification,
   }) async {
     _currentContext = FfmWorkingContext(
@@ -142,6 +150,8 @@ class FfmWorkingContextManager {
       currentTopic: currentTopic ?? _currentContext.currentTopic,
       currentPeriod: currentPeriod ?? _currentContext.currentPeriod,
       currentGoal: currentGoal ?? _currentContext.currentGoal,
+      lastActivityId: lastActivityId ?? _currentContext.lastActivityId,
+      lastActivityTitle: lastActivityTitle ?? _currentContext.lastActivityTitle,
       pendingClarification: pendingClarification ?? _currentContext.pendingClarification,
       lastActionResult: _currentContext.lastActionResult,
       lastUpdatedAt: DateTime.now(),
@@ -183,6 +193,8 @@ class FfmWorkingContextManager {
     'currentTopic': _currentContext.currentTopic,
     'currentPeriod': _currentContext.currentPeriod,
     'currentGoal': _currentContext.currentGoal,
+    'lastActivityId': _currentContext.lastActivityId,
+    'lastActivityTitle': _currentContext.lastActivityTitle,
     'pendingClarification': _currentContext.pendingClarification,
     'hasLastActionResult': _currentContext.lastActionResult != null,
     'lastUpdatedAt': _currentContext.lastUpdatedAt?.toIso8601String(),
@@ -228,10 +240,18 @@ class FfmWorkingContextManager {
 
     if (lowerQuery.contains('makan') || lowerQuery.contains('makanan')) {
       entities['entity'] = 'food';
+      entities['activityTitle'] = 'Makan';
     } else if (lowerQuery.contains('transportasi') || lowerQuery.contains('bensin')) {
       entities['entity'] = 'transport';
+      entities['activityTitle'] = 'Perjalanan';
     } else if (lowerQuery.contains('listrik') || lowerQuery.contains('air')) {
       entities['entity'] = 'utilities';
+    }
+
+    if (lowerQuery.contains('mulai') || lowerQuery.contains('jalan') || lowerQuery.contains('tambah')) {
+      entities['intent'] = 'start_activity';
+    } else if (lowerQuery.contains('selesai') || lowerQuery.contains('beres') || lowerQuery.contains('stop')) {
+      entities['intent'] = 'finish_activity';
     }
 
     return entities;

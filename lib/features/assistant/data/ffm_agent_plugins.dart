@@ -1,3 +1,5 @@
+library;
+
 /// FFM Built-in Agent Plugins — Barrel export & factory harness.
 ///
 /// File ini mengekspor semua plugin yang telah dipecah modular ke folder `plugins/`:

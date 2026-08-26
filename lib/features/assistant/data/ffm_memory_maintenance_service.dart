@@ -13,11 +13,13 @@ class FfmMemoryMaintenanceService {
   FfmMemoryMaintenanceService({
     required FfmMemoryLearningService learning,
     required FfmAssistantMemoryRepository repository,
-  }) : _learning = learning,
-       _repository = repository;
+  }) {
+    _learning = learning;
+    _repository = repository;
+  }
 
-  final FfmMemoryLearningService _learning;
-  final FfmAssistantMemoryRepository _repository;
+  late final FfmMemoryLearningService _learning;
+  late final FfmAssistantMemoryRepository _repository;
 
   Timer? _timer;
   bool _running = false;

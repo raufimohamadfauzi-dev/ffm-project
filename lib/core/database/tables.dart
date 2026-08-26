@@ -96,6 +96,7 @@ class Transactions extends Table {
   TextColumn get sourceId => text().nullable()();
   TextColumn get recurringTransactionId => text().nullable()();
   TextColumn get location => text().nullable()();
+  TextColumn get linkedActivityId => text().nullable()();
   TextColumn get transferId => text().nullable()();
   TextColumn get receiptRawText => text().nullable()();
   TextColumn get receiptNumber => text().nullable()();
@@ -340,8 +341,14 @@ class ActivitySessions extends Table {
   TextColumn get title => text()();
   TextColumn get parentSessionId => text().nullable()();
   TextColumn get category => text().withDefault(const Constant('lainnya'))();
+  TextColumn get kind => text().withDefault(const Constant('timer'))();
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get endedAt => dateTime().nullable()();
+  DateTimeColumn get scheduledAt => dateTime().nullable()();
+  DateTimeColumn get dueDate => dateTime().nullable()();
+  BoolColumn get isAllDay => boolean().withDefault(const Constant(false))();
+  BoolColumn get isCompleted => boolean().withDefault(const Constant(false))();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
   TextColumn get status => text().withDefault(const Constant('active'))();
   TextColumn get notes => text().nullable()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();

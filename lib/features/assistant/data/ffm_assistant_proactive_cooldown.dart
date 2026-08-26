@@ -9,11 +9,10 @@ import '../domain/ffm_assistant_proactive_service.dart';
 /// berulang ketika pengguna membuka kembali halaman yang sama dalam waktu dekat.
 class FfmAssistantProactiveCooldown {
   FfmAssistantProactiveCooldown({
-    SharedPreferences? preferences,
+    this._preferences,
     DateTime Function()? clock,
     this.duration = const Duration(minutes: 30),
-  }) : _preferences = preferences,
-       _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now;
 
   static const _keyPrefix = 'ffm_assistant_proactive_cooldown_v1';
 

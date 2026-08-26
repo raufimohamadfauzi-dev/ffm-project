@@ -17,6 +17,9 @@ import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_assistant_typo_normalizer.dart';
+import '../../../core/network/gemini_service.dart';
+import '../../../core/network/supabase_service.dart';
+import '../../../core/network/supabase_config.dart';
 import '../domain/ffm_assistant_action_tool.dart';
 import '../domain/ffm_assistant_execution_limits.dart';
 import '../domain/ffm_assistant_models.dart';
@@ -51,18 +54,18 @@ class FfmAssistantInterpreter {
     FfmAssistantAnswerComposer? answerComposer,
     FfmCategorySuggestionService? categorySuggestion,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
-       _modelGateway = modelGateway,
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
-       _slmReadyCheck = slmReadyCheck,
        _taughtMemory = taughtMemory ?? FfmAssistantMemoryRepository(_database),
-       _personalContextProvider = personalContextProvider,
        _clock = clock ?? DateTime.now,
        _diagnostics = diagnostics ?? AppDiagnosticsService(),
        _selfDescription =
-           selfDescription ?? const FfmAssistantSelfDescriptionService(),
-       _answerComposer = answerComposer,
-       _categorySuggestion = categorySuggestion {
+           selfDescription ?? const FfmAssistantSelfDescriptionService() {
+    _modelGateway = modelGateway;
+    _slmReadyCheck = slmReadyCheck;
+    _personalContextProvider = personalContextProvider;
+    _answerComposer = answerComposer;
+    _categorySuggestion = categorySuggestion;
     _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
@@ -71,18 +74,21 @@ class FfmAssistantInterpreter {
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
-  final FfmAssistantLocalModelGateway? _modelGateway;
-  final FfmAssistantAnswerComposer? _answerComposer;
-  final FfmCategorySuggestionService? _categorySuggestion;
+  FfmAssistantLocalModelGateway? _modelGateway;
+  FfmAssistantAnswerComposer? _answerComposer;
+  FfmCategorySuggestionService? _categorySuggestion;
   final FfmAssistantPersonalizationRepository _personalization;
-  final Future<bool> Function()? _slmReadyCheck;
+  Future<bool> Function()? _slmReadyCheck;
   final FfmAssistantMemoryRepository _taughtMemory;
-  final FfmPersonalContextProvider? Function()? _personalContextProvider;
+  FfmPersonalContextProvider? Function()? _personalContextProvider;
   final DateTime Function() _clock;
   final AppDiagnosticsService _diagnostics;
   final FfmAssistantSelfDescriptionService _selfDescription;
   final _financialEducation = const FfmAssistantFinancialEducationService();
   final _knowledgeBase = const FfmAssistantKnowledgeBase();
+  final _supabase = SupabaseService();
+  final _gemini = GeminiService();
+  final _config = SupabaseConfig();
 
   static const _personalContextBudget = FfmContextBudget(
     workingMemoryMax: 2,
@@ -375,7 +381,6 @@ class FfmAssistantInterpreter {
   Future<FfmAssistantIntent> interpret(
     String rawText, {
     FfmAssistantDestination? currentDestination,
-    String? imagePath,
     String? pageContext,
     String? lastAssistantMessage,
     String? conversationHistory,
@@ -383,6 +388,23 @@ class FfmAssistantInterpreter {
     ActivityLiveSnapshot? activitySnapshot,
   }) async {
     var normalized = _normalize(rawText);
+    final hasActionVerb = _containsAny(normalized, const [
+      'buat',
+      'tambah',
+      'mulai',
+      'jalankan',
+      'simpan',
+      'catat',
+      'masukkan',
+      'selesai',
+      'beres',
+      'stop',
+      'tutup',
+      'perbarui',
+      'update',
+      'hapus',
+      'buka',
+    ]);
 
     // Semua guard deterministik berjalan lebih dahulu. Jika tidak menangani
     // permintaan, barulah SLM lokal dicoba sebagai classifier/proposal maker.
@@ -390,25 +412,11 @@ class FfmAssistantInterpreter {
     // pernah diserahkan kepada teks bebas dari model.
 
     // Fallback rule-based
-    if (normalized.isEmpty && imagePath == null) {
+    if (normalized.isEmpty) {
       return _unknown(
         rawText,
         normalized,
         'Tulis atau ucapkan dulu yang mau kamu lakukan, ya.',
-      );
-    }
-
-    // Lampiran selalu mendapat kesempatan melalui visi lokal sebelum bantuan
-    // halaman aktif atau katalog aturan dapat mengambil alih pertanyaan singkat.
-    if (imagePath != null) {
-      return _interpretImageRequest(
-        rawText,
-        normalized,
-        imagePath: imagePath,
-        currentDestination: currentDestination,
-        pageContext: pageContext,
-        conversationHistory: conversationHistory,
-        capabilityIds: capabilityIds,
       );
     }
 
@@ -427,7 +435,32 @@ class FfmAssistantInterpreter {
       createdAt: _clock(),
     );
     if (proposal.draft != null) {
-      return _intentForDraft(rawText, normalized, proposal.draft!);
+      final intent = _intentForDraft(rawText, normalized, proposal.draft!);
+      final hasActive = activitySnapshot != null && activitySnapshot.hasActiveSessions;
+
+      final baseIntent = intent.copyWith(
+        pluginName: 'rule_actuator',
+        pluginCategory: '✋ Actuator',
+      );
+
+      if (proposal.draft!.kind == FfmAssistantDraftKind.activity && hasActive) {
+        final active = activitySnapshot.activeSessions.last;
+        return baseIntent.copyWith(
+          response:
+              'Sip, draft aktivitas “${proposal.draft!.title}” sudah siap. Berhubung kamu masih menjalankan “${active.title}”, apakah ini bagian dari kegiatan tersebut atau aktivitas baru yang terpisah?',
+        );
+      }
+
+      if ((proposal.draft!.kind == FfmAssistantDraftKind.expense ||
+              proposal.draft!.kind == FfmAssistantDraftKind.income) &&
+          hasActive) {
+        final active = activitySnapshot.activeSessions.last;
+        return baseIntent.copyWith(
+          response:
+              'Draft ${proposal.draft!.kind == FfmAssistantDraftKind.expense ? 'pengeluaran' : 'pemasukan'} sudah siap. Mau aku hubungkan sekalian dengan aktivitas “${active.title}” yang sedang jalan?',
+        );
+      }
+      return baseIntent;
     }
     if (proposal.error != null) {
       return _unknown(rawText, normalized, proposal.error!);
@@ -440,14 +473,72 @@ class FfmAssistantInterpreter {
     normalized = await _memory.applyAliases(normalized);
     normalized = await _taughtMemory.applyAliases(normalized);
 
+    // Provider konteks personal bersifat enhancement. Jika pabrik provider
+    // gagal, interpreter tetap lanjut dengan konteks dasar tanpa crash.
+    FfmPersonalContextProvider? provider;
+    try {
+      provider = _personalContextProvider?.call();
+    } catch (_) {
+      provider = null;
+    }
+    final workingContext = provider?.workingContextManager.currentContext;
+
     // ── PILAR 2: Coreference Resolution ─────────────────────────────────────
     // Selesaikan kata ganti/rujukan ke entitas terakhir yang ada di memori
     // sesi sebelum menjalankan guard deterministik lebih lanjut.
     if (_sessionMemory.hasAnyEntity) {
       normalized = _sessionMemory.resolveCoref(normalized);
+    } else if (workingContext != null && workingContext.lastActivityTitle != null) {
+      // Persistence fallback coref
+      if (normalized == 'berapa lama' || normalized == 'durasi') {
+        normalized = 'berapa lama ${workingContext.lastActivityTitle}';
+      } else if (normalized == 'selesai' || normalized == 'beres' || normalized == 'stop') {
+        normalized = 'selesai ${workingContext.lastActivityTitle}';
+      }
     }
 
-    // Kalender Hijriah selalu lebih spesifik daripada jawaban ajaran umum
+    // --- Cloud Memory Retrieval ---
+    String cloudContext = '';
+    try {
+      final cloudMemories = await _supabase.searchMemories(query: normalized);
+      if (cloudMemories.isNotEmpty) {
+        cloudContext = '\n\n**Ingatan tambahan dari Cloud:**\n${cloudMemories.map((m) => '- ${m['content']}').join('\n')}';
+      }
+    } catch (_) {}
+
+    // --- Model Selection Logic ---
+    // Mode LLM dibaca best-effort; jika secure storage belum siap (mis. saat
+    // pengujian atau perangkat terkunci), fallback ke 'auto' tanpa crash.
+    String llmMode = 'auto';
+    try {
+      llmMode = await _config.getLlmMode();
+    } catch (_) {}
+    
+    // Logic Gemini: Jika mode paksa Gemini ATAU (Auto dan bukan perintah aksi/angka)
+    final hasAmount = FfmAssistantAmountParser.parse(normalized) != null;
+    final isGeminiTarget = llmMode == 'gemini' || (llmMode == 'auto' && !hasActionVerb && !hasAmount);
+
+    if (isGeminiTarget) {
+      try {
+        final geminiResponse = await _gemini.chat(
+          prompt: rawText,
+          systemInstruction: "Kamu adalah asisten keluarga FFM yang ramah. Gunakan konteks ini jika relevan: $cloudContext",
+        );
+        if (geminiResponse != null) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.queryData,
+            confidence: 1.0,
+            response: geminiResponse,
+            pluginName: 'gemini_philosopher',
+            pluginCategory: '🧠 Cloud',
+          );
+        }
+      } catch (_) {
+        // Cloud LLM gagal (offline / belum dikonfigurasi) — lanjut ke rute lokal.
+      }
+    }
     // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
     if (_isHijriDateRequest(normalized)) {
       final now = _clock();
@@ -614,11 +705,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.help,
         confidence: 1,
         response:
-            'Halo! Aku Asisten FFM, siap membantu mencatat transaksi, mengelola anggaran, memeriksa saldo, atau membaca foto struk belanja.${isSlm ? '\n\n✨ **AI Lokal Aktif**: Model Qwen2-VL 2B siap memproses teks dan foto struk secara offline.' : ''}\n\nAda yang bisa kubantu hari ini?',
+          'Halo! Aku Asisten FFM, siap membantu mencatat transaksi, mengelola anggaran, atau memeriksa saldo.${isSlm ? '\n\n✨ **AI Lokal Aktif**: SLM teks siap membantu memahami perintah secara offline.' : ''}\n\nAda yang bisa kubantu hari ini?',
       );
     }
 
-    // ── VISION & BACA STRUK CAPABILITY ──────────────────────────────────────
+    // Input gambar tidak tersedia; asisten menerima perintah teks.
     if (_containsAny(normalized, const [
       'bisa membaca struk',
       'bisa baca struk',
@@ -636,15 +727,15 @@ class FfmAssistantInterpreter {
       'ekstrak nota',
       'baca bukti transfer',
     ])) {
-      final isSlm = await _isSlmReady();
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.help,
         confidence: 1,
-        response: isSlm
-            ? 'Ya, aku bisa membaca foto struk belanja, nota, atau bukti transfer secara langsung menggunakan model AI lokal (Qwen2-VL 2B) 100% offline! 📸\n\n**Caranya:** Tekan tombol klip lampiran (📎) di samping kolom input untuk memilih foto dari kamera/galeri. Aku akan mengekstrak toko, tanggal, dan rincian belanja menjadi draf transaksi untuk kamu konfirmasi.'
-            : 'Fitur pembacaan struk belanja didukung oleh model AI lokal Qwen2-VL 2B. Model lokal belum aktif di perangkat ini; kamu bisa memasangnya melalui menu **Lainnya** → **Model Asisten Lokal**.',
+        response:
+            'Asisten saat ini hanya menerima perintah teks. '
+            'Ketikkan rincian belanja secara manual atau tempel hasil JSON '
+            'nota di menu impor transaksi.',
       );
     }
 
@@ -742,7 +833,7 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.localModel,
         confidence: 1,
         response: isSlmReady
-            ? 'Ya, AI lokal sedang siap dipakai di perangkat ini. Kamu dapat tetap memakai chat biasa; model lokal hanya membantu memahami bahasa dan gambar, lalu hasilnya tetap diperiksa FFM sebelum menjadi draft.'
+            ? 'Ya, AI lokal sedang siap dipakai di perangkat ini. Kamu dapat tetap memakai chat biasa; model lokal membantu memahami bahasa, lalu hasilnya tetap diperiksa FFM sebelum menjadi draft.'
             : 'Belum, AI lokal belum siap dipakai di perangkat ini. Chat dan fitur FFM lain tetap dapat digunakan tanpa SLM. Untuk memasangnya, buka Model Asisten Lokal.',
       );
     }
@@ -791,7 +882,7 @@ class FfmAssistantInterpreter {
         normalizedText: normalized,
         type: FfmAssistantIntentType.help,
         confidence: 1,
-        response: '**Data Lokal** berarti seluruh data keuangan keluarga (transaksi, rekening, anggaran, aset, dan catatan hutang) disimpan 100% di penyimpanan internal HP kamu menggunakan database SQLite lokal.\n\n🛡️ **Keunggulan Privasi FFM:**\n- **100% Offline**: Tidak ada data keuangan yang dikirim ke cloud atau server internet.\n- **Tanpa Tracking**: Tidak ada analitik atau pelacakan pihak ketiga.\n- **AI On-Device**: Model AI pembaca struk dan pemroses bahasa alami berjalan mandiri di dalam RAM/chipset HP kamu.',
+        response: '**Data Lokal** berarti seluruh data keuangan keluarga (transaksi, rekening, anggaran, aset, dan catatan hutang) disimpan 100% di penyimpanan internal HP kamu menggunakan database SQLite lokal.\n\n🛡️ **Keunggulan Privasi FFM:**\n- **100% Offline**: Tidak ada data keuangan yang dikirim ke cloud atau server internet.\n- **Tanpa Tracking**: Tidak ada analitik atau pelacakan pihak ketiga.\n- **AI On-Device**: Model bahasa lokal membantu memahami perintah teks secara mandiri di dalam RAM/chipset HP kamu.',
       );
     }
 
@@ -1164,11 +1255,53 @@ class FfmAssistantInterpreter {
       );
     }
 
+    // ── MASTER DATA CREATION (early guard) ───────────────────────────────────────
+    // Deteksi dini permintaan pembuatan data master (tag, kategori, rekening, dll.)
+    // agar tidak tertangkap oleh harness atau SLM sebelum sampai ke _parseFinancialDraft.
+    final earlyMasterData = _masterDataRequest(normalized);
+    if (earlyMasterData != null) {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.masterData,
+        createdAt: _clock(),
+        title: _draftTitle(normalized, earlyMasterData.$2),
+        categoryName: earlyMasterData.$1,
+        note: rawText.trim(),
+        date: _clock(),
+      );
+      return _intentForDraft(rawText, normalized, draft);
+    }
+
     // ── HARNESS DISPATCH ──────────────────────────────────────────────────────
-    // Plugin Mata / Tangan / Logika berjalan sebelum SLM. Karena semua plugin
-    // 100% offline dan deterministik, hasilnya lebih cepat dan lebih hemat
-    // memori dibandingkan memanggil model bahasa untuk query yang sudah ada
-    // jawaban lokalnya.
+    // Plugin Mata / Tangan / Logika berjalan lebih dahulu untuk perintah
+    // terstruktur (catat, buka, hapus, dll). Untuk pesan teks bebas tanpa
+    // kata kerja aksi, SLM dicoba lebih dulu supaya nuansa bahasa non-baku
+    // tetap tertangkap.
+
+    final accounts = await _activeAccounts();
+    final categories = await _activeCategories();
+
+    var modelAlreadyAttempted = false;
+    if (!hasActionVerb) {
+      final modelIntent = await _tryModelFirst(
+        rawText,
+        normalized,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+        currentDestination: currentDestination,
+        activeAccountNames: accounts.map((a) => a.name).toList(),
+        activeCategoryNames: categories.map((c) => c.name).toList(),
+        cloudContext: cloudContext,
+      );
+      // SLM sudah dikonsultasi sekali; jangan panggil ulang di fallback bawah
+      // agar satu pesan tidak memicu dua kali inferensi lokal.
+      modelAlreadyAttempted = true;
+      if (modelIntent != null && modelIntent.type != FfmAssistantIntentType.unknown) {
+        _logRoutingDecision('slm-early', normalized);
+        return _handleModelIntent(rawText, normalized, modelIntent);
+      }
+    }
+
     final harnessResult = await _harness.dispatch(
       FfmHarnessContext(
         rawText: rawText,
@@ -1184,6 +1317,7 @@ class FfmAssistantInterpreter {
         FfmPluginCategory.actuator => '✋ Actuator',
         FfmPluginCategory.logic => '🧮 Logic',
       };
+      _logRoutingDecision('harness:${harnessResult.pluginName}', normalized);
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1196,78 +1330,24 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final modelIntent = await _tryModelFirst(
-      rawText,
-      normalized,
-      imagePath: imagePath,
-      pageContext: pageContext,
-      conversationHistory: conversationHistory,
-      capabilityIds: capabilityIds,
-      currentDestination: currentDestination,
-    );
-    if (modelIntent != null) {
-      if (modelIntent.type == FfmAssistantIntentType.outOfDomain) {
-        // Coba klasifikasi lebih lanjut: apakah topik ini masih relevan dengan keuangan?
-        final financialHints = _containsAny(normalized, const [
-          'asuransi',
-          'pajak',
-          'investasi',
-          'pinjaman',
-          'kredit',
-          'utang',
-          'hutang',
-          'gaji',
-          'penghasilan',
-          'bisnis',
-          'usaha',
-          'modal',
-          'untung',
-          'rugi',
-          'cashflow',
-        ]);
-        if (financialHints) {
-          return FfmAssistantIntent(
-            rawText: rawText,
-            normalizedText: normalized,
-            type: FfmAssistantIntentType.help,
-            confidence: 0.8,
-            response:
-                'Topik ini masih terkait keuangan, tapi aku belum punya panduan spesifik untuk itu. '
-                'Aku bisa bantu dengan:\n'
-                '• Mencatat transaksi terkait sebagai draft\n'
-                '• Mengecek data keuangan yang sudah ada\n'
-                '• Memberikan edukasi dasar tentang topik keuangan\n\n'
-                'Coba jelaskan lebih spesifik apa yang ingin kamu lakukan, atau ketik *"bisa apa?"* untuk melihat semua kemampuanku.',
+    final FfmAssistantIntent? modelIntent = modelAlreadyAttempted
+        ? null
+        : await _tryModelFirst(
+            rawText,
+            normalized,
+            pageContext: pageContext,
+            conversationHistory: conversationHistory,
+            capabilityIds: capabilityIds,
+            currentDestination: currentDestination,
+            activeAccountNames: accounts.map((a) => a.name).toList(),
+            activeCategoryNames: categories.map((c) => c.name).toList(),
+            cloudContext: cloudContext,
           );
-        }
-        return FfmAssistantIntent(
-          rawText: rawText,
-          normalizedText: normalized,
-          type: FfmAssistantIntentType.outOfDomain,
-          confidence: 1,
-          response:
-              'Maaf, aku dirancang khusus sebagai asisten keuangan keluarga untuk FFM. '
-              'Topik ini di luar cakupanku dan di luar fitur yang bisa aku tangani.\n\n'
-              'Yang bisa aku bantu:\n'
-              '• Mencatat transaksi & mengelola anggaran\n'
-              '• Mengecek saldo, progres tabungan, dan analisis pengeluaran\n'
-              '• Edukasi keuangan keluarga (budgeting, menabung, utang, investasi dasar)\n'
-              '• Membaca foto struk belanja\n\n'
-              'Ada yang ingin kamu tanyakan soal keuangan?',
-        );
-      }
-      return modelIntent;
-    }
-    if (imagePath != null) {
-      return _unknown(
-        rawText,
-        normalized,
-        'Maaf, aku tidak bisa memproses foto ini. Coba foto ulang atau pastikan fitur AI lokal sudah terpasang.',
-      );
+    if (modelIntent != null) {
+      _logRoutingDecision('slm', normalized);
+      return _handleModelIntent(rawText, normalized, modelIntent);
     }
 
-    final accounts = await _activeAccounts();
-    final categories = await _activeCategories();
     final contextualDraft = await _actionRegistry.buildDraft(
       input: rawText,
       activePage: currentDestination,
@@ -1280,6 +1360,7 @@ class FfmAssistantInterpreter {
       normalized,
       accounts,
       categories,
+      activitySnapshot: activitySnapshot,
     );
     if (draft != null) {
       final enriched = await _enrichWithCategorySuggestion(rawText, draft);
@@ -1308,49 +1389,43 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final amount = FfmAssistantAmountParser.parse(normalized);
+    if (amount != null) {
+      final candidateTerms = _extractCandidateEntityTerms(normalized);
+      for (final term in candidateTerms) {
+        final matchedAccount = _matchAccount(term, accounts);
+        final matchedCategory = _matchCategory(term, categories, 'expense') ??
+            _matchCategory(term, categories, 'income');
+        if (matchedAccount == null &&
+            matchedCategory == null &&
+            _looksLikeFinancialSourceTerm(term)) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: .6,
+            clarification:
+                '"$term" belum ada di Data Utama. Mau aku buatkan dulu sebagai akun/kategori baru sebelum lanjut mencatat transaksinya?',
+          );
+        }
+      }
+    }
+
     return _unknown(
       rawText,
       normalized,
       _unsupportedQuestionHelp(normalized) ??
           (_isKnownFfmFeatureGap(normalized)
               ? 'Pertanyaanmu berkaitan dengan fitur FFM, tetapi pengecekan khususnya belum tersedia di aturan lokal saat ini. Aku simpan sebagai gap fitur di Pengetahuan Asisten pada menu Lainnya supaya bisa disalin atau diekspor untuk update berikutnya. Tidak ada data yang dibuat atau diubah.'
-              : 'Aku belum punya jawaban yang pas untuk itu. Kalau ada typo, tekan “Benarkan & kirim ulang”. Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.'),
-    );
-  }
-
-  Future<FfmAssistantIntent> _interpretImageRequest(
-    String rawText,
-    String normalized, {
-    required String imagePath,
-    required FfmAssistantDestination? currentDestination,
-    required String? pageContext,
-    required String? conversationHistory,
-    required List<String> capabilityIds,
-  }) async {
-    final modelIntent = await _tryModelFirst(
-      rawText,
-      normalized,
-      imagePath: imagePath,
-      pageContext: pageContext,
-      conversationHistory: conversationHistory,
-      capabilityIds: capabilityIds,
-      currentDestination: currentDestination,
-    );
-    if (modelIntent != null) return modelIntent;
-    final diagnostics = _modelGateway is FfmAssistantVisionDiagnostics
-        ? _modelGateway as FfmAssistantVisionDiagnostics
-        : null;
-    final visionFailure =
-        diagnostics?.lastVisionFailure ??
-        const FfmAssistantVisionFailure(
-          FfmAssistantVisionFailureCode.proposalRejected,
-        );
-    return _unknown(
-      rawText,
-      normalized,
-      '${visionFailure.userMessage}${visionFailure.code == FfmAssistantVisionFailureCode.proposalRejected || visionFailure.code == FfmAssistantVisionFailureCode.responseInvalid ? ' Kamu boleh mencoba lampirkan ulang gambar yang lebih jelas.' : ''}',
-      responseOrigin: FfmAssistantResponseOrigin.localFallback,
-      visionFailure: visionFailure,
+              : (lastAssistantMessage != null &&
+                        lastAssistantMessage.trim().isNotEmpty
+                    ? 'Aku belum bisa menangkap maksudmu terkait percakapan tadi. '
+                        'Bisa ulangi dengan lebih spesifik? Misalnya sebutkan nominal, kategori, atau rekening yang dimaksud. '
+                        'Ketik *"bisa apa?"* untuk melihat semua kemampuanku.'
+                    : 'Aku belum punya jawaban yang pas untuk itu. '
+                        'Kalau ada typo, tekan "Benarkan & kirim ulang". '
+                        'Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. '
+                        'Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.')),
     );
   }
 
@@ -1366,7 +1441,7 @@ class FfmAssistantInterpreter {
     }
     final normalizedLast = _normalize(lastAssistantMessage);
     final words = normalized.trim().split(RegExp(r'\s+'));
-    if (words.length > 7) return null;
+    if (words.length > 12) return null;
 
     final isGreetingLast =
         normalizedLast.contains('ada yang bisa kubantu') ||
@@ -1423,7 +1498,6 @@ class FfmAssistantInterpreter {
     ]);
 
     if (isGreetingLast && isAffirmative) {
-      final isSlm = await _isSlmReady();
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1434,7 +1508,6 @@ class FfmAssistantInterpreter {
             '• **Catat transaksi** — contoh: *"catat beli makan 25rb"* atau *"gaji masuk 5jt"*\n'
             '• **Cek ringkasan keuangan** — contoh: *"berapa saldo sekarang"* atau *"anggaran bulan ini"*\n'
             '• **Evaluasi pinjaman** — contoh: *"apakah bisa ambil cicilan 500rb per bulan"*\n'
-            '• **Foto struk belanja** — tekan tombol klip (📎) untuk baca struk offline${isSlm ? ' (didukung AI Qwen2-VL)' : ''}\n\n'
             'Ada yang ingin kamu mulai terlebih dahulu?',
       );
     }
@@ -1576,7 +1649,6 @@ class FfmAssistantInterpreter {
       'bisa apa lagi',
       'fitur lain',
     ])) {
-      final isSlm = await _isSlmReady();
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1587,9 +1659,57 @@ class FfmAssistantInterpreter {
             '• **Cek saldo rekening** — *"berapa saldo BCA?"*\n'
             '• **Lihat progres tabungan** — *"progres tabungan liburan"*\n'
             '• **Analisis pengeluaran** — *"kategori mana paling boros?"*\n'
-            '• **Hitung zakat** — *"hitung zakat mal"*${isSlm ? '\n• **Baca foto struk** — kirim foto struk belanja' : ''}\n\n'
+            '• **Hitung zakat** — *"hitung zakat mal"*\n\n'
             'Mau coba yang mana?',
       );
+    }
+
+    // 9. Kasus follow-up umum — pesan pendek yang merujuk ke konteks sebelumnya
+    //    ("bagaimana", "yang mana", "bisa tolong", "lanjut dong", "gimana", dll.)
+    if (words.length <= 6) {
+      final isFollowUp = _containsAny(normalized, const [
+        'bagaimana',
+        'gimana',
+        'yang mana',
+        'bisa tolong',
+        'tolong',
+        'lanjut',
+        'terus',
+        'lalu',
+        'selanjutnya',
+        'lagi',
+        'berapa',
+        'berapa total',
+        'totalnya',
+        'sisa',
+        'kurang',
+        'lebih',
+        'tambah',
+        'kurangi',
+        'ubah',
+        'ganti',
+        'edit',
+        'hapus',
+        'batal',
+        'undo',
+        'koreksi',
+        'salah',
+      ]);
+      if (isFollowUp) {
+        final lastSnippet = normalizedLast.length > 150
+            ? normalizedLast.substring(0, 150)
+            : normalizedLast;
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: 0.85,
+          response:
+              'Tentang yang tadi — $lastSnippet\n\n'
+              'Bisa jelaskan lebih spesifik bagian mana yang perlu ditindaklanjuti? '
+              'Misalnya: nominal, kategori, rekening, atau langkah selanjutnya.',
+        );
+      }
     }
 
     return null;
@@ -1641,8 +1761,9 @@ class FfmAssistantInterpreter {
             budget: _personalContextBudget,
           )
           .timeout(const Duration(milliseconds: 350));
-      if (!provider.contextAdapter.validateContext(personalContext))
+      if (!provider.contextAdapter.validateContext(personalContext)) {
         return base;
+      }
       return provider.updateReasoningContext(
         originalContext: base,
         personalContext: personalContext,
@@ -1657,17 +1778,20 @@ class FfmAssistantInterpreter {
   Future<FfmAssistantIntent?> _tryModelFirst(
     String rawText,
     String normalized, {
-    String? imagePath,
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
     FfmAssistantDestination? currentDestination,
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
+    String? cloudContext,
   }) async {
     final gateway = _modelGateway;
     if (gateway == null) {
       return null;
     }
     FfmAssistantModelProposal? proposal;
+    var timedOut = false;
     try {
       final userContext = await FfmAssistantUserModelService(_taughtMemory)
           .buildContext(query: normalized);
@@ -1700,6 +1824,7 @@ class FfmAssistantInterpreter {
           if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
           financialContext,
           masterDataContext,
+          if (cloudContext != null && cloudContext.isNotEmpty) cloudContext,
         ].join('\n'),
         capabilityIds: capabilityIds,
         approvedUserContext: userContext,
@@ -1713,34 +1838,22 @@ class FfmAssistantInterpreter {
       );
       final enrichedContext = await _withPersonalContext(reasoningContext);
       final modelContext = enrichedContext.toBoundedPrompt();
-      var timedOut = false;
       proposal = await gateway
           .proposeWithContext(
             input: rawText,
-            imagePath: imagePath,
             pageContext: modelContext.isEmpty ? null : modelContext,
             conversationHistory: conversationHistory,
             capabilityIds: capabilityIds,
+            activeAccountNames: activeAccountNames,
+            activeCategoryNames: activeCategoryNames,
           )
           .timeout(
-            Duration(seconds: imagePath != null ? 60 : 15),
+            const Duration(seconds: 40),
             onTimeout: () {
               timedOut = true;
               return null;
             },
           );
-      if (timedOut && imagePath != null) {
-        final timeoutFailure = const FfmAssistantVisionFailure(
-          FfmAssistantVisionFailureCode.timedOut,
-        );
-        return _unknown(
-          rawText,
-          normalized,
-          timeoutFailure.userMessage,
-          responseOrigin: FfmAssistantResponseOrigin.localFallback,
-          visionFailure: timeoutFailure,
-        );
-      }
     } catch (error) {
       if (error is FfmInferenceCancelledException) rethrow;
       final msg = error.toString();
@@ -1769,7 +1882,27 @@ class FfmAssistantInterpreter {
       // Other native/model failure — continue with local interpreter.
       return null;
     }
+    if (timedOut) {
+      await _diagnostics.recordException(
+        code: 'SLM_TIMEOUT',
+        feature: 'Asisten lokal',
+        error: 'slm_timeout',
+        impact: 'Model AI lokal membutuhkan waktu lebih lama dari batas tunggu.',
+      );
+      return _unknown(
+        rawText,
+        normalized,
+        'Model AI lokal butuh waktu lebih lama dari biasanya untuk pertanyaan ini. Coba lagi, atau perpendek pertanyaanmu.',
+        responseOrigin: FfmAssistantResponseOrigin.localFallback,
+      );
+    }
     if (proposal == null || !proposal.isUsable) {
+      await _diagnostics.recordException(
+        code: 'SLM_REJECTED',
+        feature: 'Asisten lokal',
+        error: 'slm_rejected confidence=${proposal?.confidence}',
+        impact: 'Proposal model AI lokal tidak memenuhi ambang keyakinan.',
+      );
       return null;
     }
 
@@ -1787,10 +1920,7 @@ class FfmAssistantInterpreter {
     }
 
     if (proposal.intent == FfmAssistantIntentType.help) {
-      final response = imagePath != null
-          ? _safeImageObservation(imagePath: imagePath, message: proposal.notes)
-          : _safeModelHelpResponse(proposal.notes);
-      if (imagePath != null && response == null) return null;
+      final response = _safeModelHelpResponse(proposal.notes);
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1803,21 +1933,6 @@ class FfmAssistantInterpreter {
     }
 
     if (proposal.intent == FfmAssistantIntentType.outOfDomain) {
-      final imageObservation = _safeImageObservation(
-        imagePath: imagePath,
-        message: proposal.notes,
-      );
-      if (imageObservation != null) {
-        return FfmAssistantIntent(
-          rawText: rawText,
-          normalizedText: normalized,
-          type: FfmAssistantIntentType.help,
-          confidence: proposal.confidence,
-          responseMode: FfmAssistantResponseMode.localModel,
-          response: imageObservation,
-          responseOrigin: FfmAssistantResponseOrigin.localSlm,
-        );
-      }
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -1886,14 +2001,60 @@ class FfmAssistantInterpreter {
     return null;
   }
 
-  String? _safeImageObservation({
-    required String? imagePath,
-    required String? message,
-  }) {
-    if (imagePath == null || message == null) return null;
-    final compact = message.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (compact.length < 4 || compact.length > 2000) return null;
-    return 'Dari gambar ini, aku membaca: $compact';
+  void _logRoutingDecision(String source, String normalized) {
+    final snippet = normalized.length > 60
+        ? normalized.substring(0, 60)
+        : normalized;
+    _diagnostics.recordException(
+      code: 'ROUTING',
+      feature: 'Asisten routing',
+      error: 'source=$source query="$snippet"',
+      impact: 'Routing decision logged for observability.',
+    );
+  }
+
+  FfmAssistantIntent _handleModelIntent(
+    String rawText,
+    String normalized,
+    FfmAssistantIntent modelIntent,
+  ) {
+    if (modelIntent.type == FfmAssistantIntentType.outOfDomain) {
+      final financialHints = _containsAny(normalized, const [
+        'asuransi', 'pajak', 'investasi', 'pinjaman', 'kredit',
+        'utang', 'hutang', 'gaji', 'penghasilan', 'bisnis', 'usaha',
+        'modal', 'untung', 'rugi', 'cashflow',
+      ]);
+      if (financialHints) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: 0.8,
+          response:
+              'Topik ini masih terkait keuangan, tapi aku belum punya panduan spesifik untuk itu. '
+              'Aku bisa bantu dengan:\n'
+              '• Mencatat transaksi terkait sebagai draft\n'
+              '• Mengecek data keuangan yang sudah ada\n'
+              '• Memberikan edukasi dasar tentang topik keuangan\n\n'
+              'Coba jelaskan lebih spesifik apa yang ingin kamu lakukan, atau ketik *"bisa apa?"* untuk melihat semua kemampuanku.',
+        );
+      }
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.outOfDomain,
+        confidence: 1,
+        response:
+            'Maaf, aku dirancang khusus sebagai asisten keuangan keluarga untuk FFM. '
+            'Topik ini di luar cakupanku dan di luar fitur yang bisa aku tangani.\n\n'
+            'Yang bisa aku bantu:\n'
+            '• Mencatat transaksi & mengelola anggaran\n'
+            '• Mengecek saldo, progres tabungan, dan analisis pengeluaran\n'
+            '• Edukasi keuangan keluarga (budgeting, menabung, utang, investasi dasar)\n\n'
+            'Ada yang ingin kamu tanyakan soal keuangan?',
+      );
+    }
+    return modelIntent;
   }
 
   Future<FfmAssistantIntent?> _trySlmCurrentPageHelp(
@@ -2166,8 +2327,9 @@ class FfmAssistantInterpreter {
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.featureHelp,
+        destination: FfmAssistantDestination.masterData,
         confidence: 1,
-        response: 'Tag itu penanda tambahan transaksi, bukan kategori dan tidak mengubah saldo. Contohnya “belanja pasar”, “panen cabai”, atau “keperluan anak”. Tag berguna buat cari dan menyaring transaksi yang punya tema sama. Tambah atau rapikan tag di Data Utama.',
+        response: 'Tag itu penanda tambahan transaksi, bukan kategori dan tidak mengubah saldo. Contohnya “belanja pasar”, “panen cabai”, atau “keperluan anak”. Tag berguna buat cari dan menyaring transaksi yang punya tema sama. Tambah atau rapikan tag di Data Utama. Ketuk **Buka** di bawah untuk langsung ke Data Utama.',
       );
     }
     if (_containsAny(normalized, const [
@@ -3362,7 +3524,7 @@ class FfmAssistantInterpreter {
         'targetId': target.id,
         'operation': operation,
         'targetSummary': _taskCandidateLabel(target),
-        if (newTitle != null) 'title': newTitle,
+        'title': ?newTitle,
       },
     );
     final action = switch (operation) {
@@ -3538,7 +3700,7 @@ class FfmAssistantInterpreter {
         'operation': operation,
         'targetSummary': _routineCandidateLabel(target),
         'weekdays': target.weekdaysJson,
-        if (newTitle != null) 'title': newTitle,
+        'title': ?newTitle,
       },
     );
     final action = switch (operation) {
@@ -4337,16 +4499,17 @@ class FfmAssistantInterpreter {
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateReceivable
         : FfmAssistantIntentType.archiveReceivable;
-    if (candidates.length != 1)
+    if (candidates.length != 1) {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: type,
         confidence: candidates.isEmpty ? .8 : .72,
         clarification: candidates.isEmpty
-            ? 'Aku tidak menemukan satu Piutang aktif yang cocok dengan “$targetText”. Belum ada data yang diubah.'
+            ? 'Aku tidak menemukan satu Piutang aktif yang cocok dengan "$targetText". Belum ada data yang diubah.'
             : 'Aku menemukan ${candidates.length} Piutang yang cocok. Sebut nama yang lebih spesifik. Belum ada data yang diubah.',
       );
+    }
     final target = candidates.single;
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
@@ -5296,6 +5459,8 @@ class FfmAssistantInterpreter {
     String normalized,
     List<Account> accounts,
     List<Category> categories,
+    {ActivityLiveSnapshot? activitySnapshot,
+    }
   ) {
     final now = DateTime.now();
     final amount = FfmAssistantAmountParser.parse(normalized);
@@ -5374,15 +5539,16 @@ class FfmAssistantInterpreter {
       'buat aktivitas',
     ]);
     if (createActivity) {
+      final title = _draftTitle(normalized, const [
+        'mulai aktivitas',
+        'mulai kegiatan',
+        'catat aktivitas',
+        'buat aktivitas',
+      ]);
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.activity,
         createdAt: now,
-        title: _draftTitle(normalized, const [
-          'mulai aktivitas',
-          'mulai kegiatan',
-          'catat aktivitas',
-          'buat aktivitas',
-        ]),
+        title: title,
         note: rawText.trim(),
         date: now,
       );
@@ -5583,6 +5749,7 @@ class FfmAssistantInterpreter {
       note: rawText.trim(),
       merchantName: _extractMerchant(normalized),
       slmFieldValues: slmFieldValues,
+      linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,
       date: now,
     );
   }
@@ -5733,6 +5900,62 @@ class FfmAssistantInterpreter {
           ..sort((a, b) => b.$2.compareTo(a.$2));
     if (trigramMatches.length == 1) return trigramMatches.single.$1;
     return null;
+  }
+
+  /// Ekstrak kandidat nama entitas (noun phrase) dari teks normalisasi.
+  /// Mengembalikan token/2-gram selain angka, kata kerja umum, dan preposisi.
+  List<String> _extractCandidateEntityTerms(String normalized) {
+    final stopWords = {
+      'saya', 'aku', 'kamu', 'dia', 'kami', 'mereka',
+      'ini', 'itu', 'yang', 'dan', 'atau', 'dengan', 'untuk', 'dari',
+      'ke', 'di', 'pada', 'ada', 'adalah', 'akan', 'sudah', 'belum',
+      'bisa', 'mau', 'mohon', 'tolong', 'please', 'kira', 'kurang',
+      'lebih', 'total', 'semua', 'seluruh', 'bagian', 'sebagian',
+      'catat', 'tambah', 'simpan', 'transfer', 'bayar', 'beli',
+      'jual', 'hutang', 'piutang', 'ubah', 'edit', 'hapus', 'batal',
+      'rekening', 'akun', 'bank', 'kategori', 'tag', 'metode',
+      'uang', 'transaksi',
+      'ribu', 'juta', 'rb', 'jt', 'rp', 'idr',
+      'pagi', 'siang', 'sore', 'malam', 'hari',
+      'buka', 'lihat', 'cek', 'tampilkan', 'cari',
+    };
+    final tokens = normalized
+        .replaceAll(RegExp(r'[0-9]+'), '')
+        .replaceAll(RegExp(r'[rp.]'), '')
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 3 && !stopWords.contains(t))
+        .toList();
+    final terms = <String>{};
+    for (final token in tokens) {
+      terms.add(token);
+    }
+    for (var i = 0; i < tokens.length - 1; i++) {
+      final bigram = '${tokens[i]} ${tokens[i + 1]}';
+      if (!stopWords.contains(tokens[i]) && !stopWords.contains(tokens[i + 1])) {
+        terms.add(bigram);
+      }
+    }
+    return terms.toList()..sort((a, b) => b.length.compareTo(a.length));
+  }
+
+  /// Heuristik ringan: apakah term ini terlihat seperti nama sumber dana/kategori
+  /// (bukan kata kerja/preposisi/angka umum).
+  bool _looksLikeFinancialSourceTerm(String term) {
+    if (term.length < 3) return false;
+    final commonVerbs = {
+      'catat', 'tambah', 'simpan', 'transfer', 'bayar', 'beli',
+      'jual', 'ubah', 'edit', 'hapus', 'batal', 'kirim', 'terima',
+      'ambil', 'tarik', 'setor', 'pinjam', 'kembalikan', 'lunasi',
+    };
+    final commonPrepositions = {
+      'dari', 'dengan', 'untuk', 'ke', 'di', 'pada', 'dalam',
+      'oleh', 'karena', 'sebagai', 'antara', 'sampai',
+    };
+    if (commonVerbs.contains(term)) return false;
+    if (commonPrepositions.contains(term)) return false;
+    if (RegExp(r'^\d+$').hasMatch(term)) return false;
+    return true;
   }
 
   int? _parseAdminFee(String text) {
@@ -5964,16 +6187,13 @@ class FfmAssistantInterpreter {
     const candidates = <(String, List<String>)>[
       (
         'profil',
-        ['atur keluarga', 'atur profil keluarga', 'ubah nama keluarga'],
+        ['atur keluarga', 'atur profil keluarga', 'ubah nama keluarga', 'edit profil'],
       ),
-      ('rekening', ['tambah rekening', 'buat rekening']),
-      ('kategori', ['tambah kategori', 'buat kategori']),
-      ('toko', ['tambah toko', 'buat toko', 'tambah tempat']),
-      ('tag', ['tambah tag', 'buat tag']),
-      (
-        'sumber_pemasukan',
-        ['tambah sumber pemasukan', 'buat sumber pemasukan'],
-      ),
+      ('rekening', ['tambah rekening', 'buat rekening', 'tambahkan rekening', 'buatkan rekening', 'bikin rekening', 'rekening baru']),
+      ('kategori', ['tambah kategori', 'buat kategori', 'tambahkan kategori', 'buatkan kategori', 'bikin kategori', 'kategori baru']),
+      ('toko', ['tambah toko', 'buat toko', 'tambah tempat', 'tambahkan toko', 'buatkan toko', 'bikin toko', 'toko baru']),
+      ('tag', ['tambah tag', 'buat tag', 'tambahkan tag', 'buatkan tag', 'bikin tag', 'tag baru']),
+      ('sumber_pemasukan', ['tambah sumber pemasukan', 'buat sumber pemasukan', 'tambahkan sumber pemasukan', 'buatkan sumber pemasukan', 'bikin sumber pemasukan', 'sumber pemasukan baru']),
     ];
     for (final candidate in candidates) {
       if (_containsAny(text, candidate.$2)) return candidate;
@@ -6031,7 +6251,6 @@ class FfmAssistantInterpreter {
     String response, {
     FfmAssistantResponseOrigin responseOrigin =
         FfmAssistantResponseOrigin.agentOrchestrator,
-    FfmAssistantVisionFailure? visionFailure,
   }) {
     _maybeSaveUnansweredQuestion(raw, normalized);
     final enriched = _enrichUnknownResponse(normalized, response);
@@ -6043,7 +6262,6 @@ class FfmAssistantInterpreter {
       response: enriched,
       clarification: enriched,
       responseOrigin: responseOrigin,
-      visionFailure: visionFailure,
     );
   }
 
@@ -6062,10 +6280,15 @@ class FfmAssistantInterpreter {
       'hello',
       'hi',
       'hei',
-    ]))
+    ])) {
       return;
-    if (_unsupportedQuestionHelp(trimmed) != null) return;
-    if (_isKnownFfmFeatureGap(trimmed)) return;
+    }
+    if (_unsupportedQuestionHelp(trimmed) != null) {
+      return;
+    }
+    if (_isKnownFfmFeatureGap(trimmed)) {
+      return;
+    }
     final existing = await _taughtMemory.findFuzzyAnswer(trimmed);
     if (existing != null) return;
     try {

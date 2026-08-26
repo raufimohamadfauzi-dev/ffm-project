@@ -606,14 +606,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
     if (!mounted || drafts == null || drafts.isEmpty) return;
   }
 
-  Future<List<_JsonBudgetOption>> _loadJsonBudgetOptions() async {
+  Future<List<JsonBudgetOption>> _loadJsonBudgetOptions() async {
     final database = getIt<AppDatabase>();
     final budgets =
         await (database.select(database.envelopeBudgets)
               ..where((row) => row.householdId.equals(AppContext.householdId))
               ..where((row) => row.isActive.equals(true)))
             .get();
-    final options = <_JsonBudgetOption>[];
+    final options = <JsonBudgetOption>[];
     final configuredCategoryIds = <String>{};
     for (final budget in budgets) {
       final categoryIds = <String>[];
@@ -633,7 +633,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       configuredCategoryIds.addAll(categoryIds);
       final period = budget.periodType == 'weekly' ? 'Mingguan' : 'Bulanan';
       options.add(
-        _JsonBudgetOption(
+        JsonBudgetOption(
           id: budget.id,
           label:
               '${budget.name} · $period · ${formatTanggalSingkat(budget.startDate)}–${formatTanggalSingkat(budget.endDate)}',
@@ -647,7 +647,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
     )) {
       if (configuredCategoryIds.contains(category.id)) continue;
       options.add(
-        _JsonBudgetOption(
+        JsonBudgetOption(
           id: 'category:${category.id}',
           label:
               '${_transactionCategoryLabel(_categories, category)} · belum ada target',
@@ -1413,6 +1413,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
     super.dispose();
   }
 
+  String _money(int value) => 'Rp ${formatRupiahInput(value.toString())}';
+
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _visibleTransactions;
@@ -1433,6 +1435,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         .fold<int>(0, (sum, entry) => sum + entry.transaction.amount.abs());
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.transactions,
+      dataSummary:
+          'Tampil ${visibleTransactions.length} transaksi. Total Masuk: ${_money(incomeTotal)}, Total Keluar: ${_money(expenseTotal)}.',
       child: Scaffold(
         appBar: AppBar(
           titleSpacing: _isSearchOpen ? 0 : null,
@@ -2711,6 +2715,26 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             validator: (account) =>
                 account == null ? 'Pilih rekening atau dompet dulu.' : null,
           ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: () async {
+              final result = await Navigator.of(context).push<String>(
+                MaterialPageRoute(
+                  builder: (_) => const MasterDataPage(
+                    assistantTab: 3,
+                    returnOnCreate: true,
+                  ),
+                ),
+              );
+              if (result != null && mounted) {
+                await _loadAccounts();
+                setState(() => _accountId = result);
+                _loadSelectedAccountBalance(result);
+              }
+            },
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Tambah rekening baru di Data Utama'),
+          ),
           _buildAccountBalancePreview(isExpense: isExpense),
         ],
       ),
@@ -3212,6 +3236,25 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   },
                   validator: (category) =>
                       category == null ? 'Pilih kategori dulu.' : null,
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push<String>(
+                      MaterialPageRoute(
+                        builder: (_) => const MasterDataPage(
+                          assistantTab: 0,
+                          returnOnCreate: true,
+                        ),
+                      ),
+                    );
+                    if (result != null && mounted) {
+                      await _loadCategories();
+                      setState(() => _categoryId = result);
+                    }
+                  },
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Tambah kategori baru di Data Utama'),
                 ),
               if (_type == TransactionType.expense)
                 AppCard(
@@ -6241,14 +6284,11 @@ class _JsonTransactionRow {
     String? merchantName,
     String? partyName,
     String? note,
-    String? categoryId,
-    String? accountId,
-    String? budgetId,
+    this.categoryId,
+    this.accountId,
+    this.budgetId,
     List<ReceiptOcrItem> items = const [],
-  }) : categoryId = categoryId,
-       accountId = accountId,
-       budgetId = budgetId,
-       amountController = TextEditingController(
+  }) : amountController = TextEditingController(
          text: amount != null && amount > 0
              ? formatRupiahInput(amount.toString())
              : '',
@@ -6345,8 +6385,8 @@ class _JsonTransferRow {
   }
 }
 
-class _JsonBudgetOption {
-  const _JsonBudgetOption({
+class JsonBudgetOption {
+  const JsonBudgetOption({
     required this.id,
     required this.label,
     required this.categoryIds,
@@ -6399,14 +6439,14 @@ class JsonTransactionBatchPage extends StatefulWidget {
   final List<Category> categories;
   final List<Merchant> merchants;
   final List<Account> accounts;
-  final List<_JsonBudgetOption> budgetOptions;
+  final List<JsonBudgetOption> budgetOptions;
 
   @override
   State<JsonTransactionBatchPage> createState() =>
-      _JsonTransactionBatchPageState();
+      JsonTransactionBatchPageState();
 }
 
-class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
+class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
   final _jsonController = TextEditingController();
   final _rows = <_JsonTransactionRow>[];
   final _transferRows = <_JsonTransferRow>[];
@@ -6467,7 +6507,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     );
   }
 
-  _JsonBudgetOption? _findBudgetOption(String? idOrName) {
+  JsonBudgetOption? _findBudgetOption(String? idOrName) {
     final query = idOrName?.trim();
     if (query == null || query.isEmpty) return null;
     final exactId = widget.budgetOptions
@@ -6480,7 +6520,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
         .firstOrNull;
   }
 
-  _JsonBudgetOption? _findBudgetByName(String? name) {
+  JsonBudgetOption? _findBudgetByName(String? name) {
     final query = name?.trim().toLowerCase();
     if (query == null || query.isEmpty) return null;
     return widget.budgetOptions
@@ -6492,7 +6532,7 @@ class _JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
         .firstOrNull;
   }
 
-  _JsonBudgetOption? _selectedBudget(_JsonTransactionRow row) => widget
+  JsonBudgetOption? _selectedBudget(_JsonTransactionRow row) => widget
       .budgetOptions
       .where((option) => option.id == row.budgetId)
       .firstOrNull;

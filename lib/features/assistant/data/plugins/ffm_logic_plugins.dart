@@ -1,5 +1,6 @@
 /// Plugin kategori Logic (Logika) — Menjalankan kalkulasi cerdas, rasio, simulasi,
 /// serta evaluasi kondisi finansial keluarga secara 100% deterministik dan offline.
+library;
 
 import 'package:drift/drift.dart';
 
@@ -336,7 +337,7 @@ class FfmBudgetGuardLogicPlugin extends FfmAgentPlugin {
       if (spent > budget.allocated) {
         final over = spent - budget.allocated;
         alerts.add(
-          '🔴 **${budget.name}**: Melebihi ${_rupiah(over)} (${pct}%)',
+          '🔴 **$budget.name**: Melebihi ${_rupiah(over)} ($pct%)',
         );
       } else if (pct >= 80) {
         warnings.add(

@@ -206,207 +206,208 @@ class _MonthlyReportPageState extends State<MonthlyReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FfmAssistantPageContext(
-      destination: FfmAssistantDestination.monthlyReport,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Ringkasan bulanan')),
-        body: FutureBuilder<_MonthlyReportData>(
-          future: _future,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            final data = snapshot.data!;
-            final scheme = Theme.of(context).colorScheme;
-            final positiveColor = AppSemanticColors.positive(context);
-            final negativeColor = AppSemanticColors.negative(context);
-            final warningColor = AppSemanticColors.warning(context);
-            final net = data.income - data.expense;
-            final incomeChange = data.previousIncome == 0
-                ? null
-                : ((data.income - data.previousIncome) /
-                      data.previousIncome *
-                      100);
-            final expenseChange = data.previousExpense == 0
-                ? null
-                : ((data.expense - data.previousExpense) /
-                      data.previousExpense *
-                      100);
-            return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                AppCard(
-                  color: scheme.primaryContainer,
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_month_outlined,
-                        color: scheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _monthLabel(_month),
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(color: scheme.onPrimaryContainer),
-                        ),
-                      ),
-                      OutlinedButton(
-                        onPressed: _pickMonth,
-                        child: const Text('Ganti bulan'),
-                      ),
-                    ],
-                  ),
+    return FutureBuilder<_MonthlyReportData>(
+      future: _future,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final summaryText = data != null
+            ? 'Melihat laporan ${_monthLabel(data.month)}. Pemasukan: ${_money(data.income)}, Pengeluaran: ${_money(data.expense)}. Surplus/Defisit: ${_money(data.income - data.expense)}.'
+            : 'Sedang memuat laporan...';
+
+        return FfmAssistantPageContext(
+          destination: FfmAssistantDestination.monthlyReport,
+          dataSummary: summaryText,
+          child: Scaffold(
+            appBar: AppBar(title: const Text('Ringkasan bulanan')),
+            body: !snapshot.hasData
+                ? const Center(child: CircularProgressIndicator())
+                : _buildBody(context, snapshot.data!),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(BuildContext context, _MonthlyReportData data) {
+    final scheme = Theme.of(context).colorScheme;
+    final positiveColor = AppSemanticColors.positive(context);
+    final negativeColor = AppSemanticColors.negative(context);
+    final warningColor = AppSemanticColors.warning(context);
+    final net = data.income - data.expense;
+    final incomeChange = data.previousIncome == 0
+        ? null
+        : ((data.income - data.previousIncome) / data.previousIncome * 100);
+    final expenseChange = data.previousExpense == 0
+        ? null
+        : ((data.expense - data.previousExpense) / data.previousExpense * 100);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: [
+        AppCard(
+          color: scheme.primaryContainer,
+          child: Row(
+            children: [
+              Icon(Icons.calendar_month_outlined, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _monthLabel(_month),
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(color: scheme.onPrimaryContainer),
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MetricCard(
-                        label: 'Pemasukan',
-                        value: data.income,
-                        color: positiveColor,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _MetricCard(
-                        label: 'Pengeluaran',
-                        value: data.expense,
-                        color: negativeColor,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Arus kas bersih',
-                        style: AppTextStyles.labelCaps,
-                      ),
-                      const SizedBox(height: 6),
-                      AppMoneyText(
-                        net,
-                        color: net >= 0 ? positiveColor : negativeColor,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Dibanding bulan sebelumnya: pemasukan ${_changeLabel(incomeChange)}, pengeluaran ${_changeLabel(expenseChange)}.',
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${data.currentRows.length} transaksi tercatat pada periode ini.',
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                AppCard(
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.health_and_safety_outlined,
-                        color: scheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Skor kesehatan: ${data.score.totalScore}/100\n${_statusLabel(data.score.status)}',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                AppCard(
-                  color: scheme.secondaryContainer,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Piutang (tambahan, bukan kas)',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: scheme.onSecondaryContainer),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Angka ini menunjukkan uang yang masih harus diterima. Belum dihitung sebagai pemasukan sampai benar-benar masuk ke rekening atau dompet.',
-                        style: TextStyle(color: scheme.onSecondaryContainer),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricCard(
-                              label: 'Belum diterima',
-                              value: data.receivablesOutstanding,
-                              color: scheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _MetricCard(
-                              label: 'Jatuh tempo bulan ini',
-                              value: data.receivablesDueThisMonth,
-                              color: warningColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Piutang baru periode ini: ${_money(data.receivablesStartedThisMonth)}',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: scheme.onSecondaryContainer),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: _working ? null : () => _export(data),
-                  icon: _working
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.share_outlined),
-                  label: Text(
-                    _working ? 'Lagi menyiapkan...' : 'Ekspor dan bagikan PDF',
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text('Riwayat laporan', style: AppTextStyles.labelCaps),
-                const SizedBox(height: 8),
-                if (_history.isEmpty)
-                  const Text(
-                    'Belum ada laporan yang dibuat. Pilih bulan lalu ekspor kalau sudah siap.',
-                  ),
-                ..._history
-                    .take(12)
-                    .map(
-                      (item) => ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.description_outlined),
-                        title: Text(_monthLabel(item.month)),
-                        subtitle: Text(
-                          'Dibuat ${item.createdAt.day}/${item.createdAt.month}/${item.createdAt.year} · Arus kas ${_money(item.net)}',
-                        ),
-                        onTap: () => setState(() {
-                          _month = DateTime(item.month.year, item.month.month);
-                          _future = _load(_month);
-                        }),
-                      ),
-                    ),
-              ],
-            );
-          },
+              ),
+              OutlinedButton(
+                onPressed: _pickMonth,
+                child: const Text('Ganti bulan'),
+              ),
+            ],
+          ),
         ),
-      ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricCard(
+                label: 'Pemasukan',
+                value: data.income,
+                color: positiveColor,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _MetricCard(
+                label: 'Pengeluaran',
+                value: data.expense,
+                color: negativeColor,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Arus kas bersih', style: AppTextStyles.labelCaps),
+              const SizedBox(height: 6),
+              AppMoneyText(
+                net,
+                color: net >= 0 ? positiveColor : negativeColor,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Dibanding bulan sebelumnya: pemasukan ${_changeLabel(incomeChange)}, pengeluaran ${_changeLabel(expenseChange)}.',
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${data.currentRows.length} transaksi tercatat pada periode ini.',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 10),
+        AppCard(
+          child: Row(
+            children: [
+              Icon(Icons.health_and_safety_outlined, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Skor kesehatan: ${data.score.totalScore}/100\n${_statusLabel(data.score.status)}',
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        AppCard(
+          color: scheme.secondaryContainer,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Piutang (tambahan, bukan kas)',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(color: scheme.onSecondaryContainer),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Angka ini menunjukkan uang yang masih harus diterima. Belum dihitung sebagai pemasukan sampai benar-benar masuk ke rekening atau dompet.',
+                style: TextStyle(color: scheme.onSecondaryContainer),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Belum diterima',
+                      value: data.receivablesOutstanding,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MetricCard(
+                      label: 'Jatuh tempo bulan ini',
+                      value: data.receivablesDueThisMonth,
+                      color: warningColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Piutang baru periode ini: ${_money(data.receivablesStartedThisMonth)}',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodySmall
+                    ?.copyWith(color: scheme.onSecondaryContainer),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          onPressed: _working ? null : () => _export(data),
+          icon: _working
+              ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+              : const Icon(Icons.share_outlined),
+          label: Text(
+            _working ? 'Lagi menyiapkan...' : 'Ekspor dan bagikan PDF',
+          ),
+        ),
+        const SizedBox(height: 24),
+        const Text('Riwayat laporan', style: AppTextStyles.labelCaps),
+        const SizedBox(height: 8),
+        if (_history.isEmpty)
+          const Text(
+            'Belum ada laporan yang dibuat. Pilih bulan lalu ekspor kalau sudah siap.',
+          ),
+        ..._history
+            .take(12)
+            .map(
+              (item) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.description_outlined),
+                title: Text(_monthLabel(item.month)),
+                subtitle: Text(
+                  'Dibuat ${item.createdAt.day}/${item.createdAt.month}/${item.createdAt.year} · Arus kas ${_money(item.net)}',
+                ),
+                onTap: () => setState(() {
+                  _month = DateTime(item.month.year, item.month.month);
+                  _future = _load(_month);
+                }),
+              ),
+            ),
+      ],
     );
   }
 

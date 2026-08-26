@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -23,12 +25,14 @@ class MasterDataPage extends StatefulWidget {
     this.assistantName,
     this.assistantProfileName,
     this.assistantFormValues,
+    this.returnOnCreate = false,
   });
 
   final int? assistantTab;
   final String? assistantName;
   final String? assistantProfileName;
   final Map<String, String>? assistantFormValues;
+  final bool returnOnCreate;
 
   @override
   State<MasterDataPage> createState() => _MasterDataPageState();
@@ -52,6 +56,10 @@ class _MasterDataPageState extends State<MasterDataPage>
   var _loading = true;
   var _refreshTick = 0;
   var _activeTab = 0;
+  var _categoryCount = 0;
+  var _accountCount = 0;
+  var _merchantCount = 0;
+  var _incomeSourceCount = 0;
   String _householdName = 'Keluarga';
   String? _husbandName;
   String? _wifeName;
@@ -70,6 +78,7 @@ class _MasterDataPageState extends State<MasterDataPage>
     _tabs = TabController(length: _tabLabels.length, vsync: this)
       ..addListener(_onTabChanged);
     _loadProfile();
+    _loadCounts();
     if (widget.assistantProfileName?.trim().isNotEmpty == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -118,6 +127,23 @@ class _MasterDataPageState extends State<MasterDataPage>
       _householdName = row?.name ?? 'Keluarga';
       _husbandName = row?.husbandName;
       _wifeName = row?.wifeName;
+    });
+  }
+
+  Future<void> _loadCounts() async {
+    final householdId = AppContext.householdId;
+    final results = await Future.wait([
+      _categories.readActive(householdId),
+      _accounts.readAvailable(householdId),
+      _merchants.readActive(householdId),
+      _incomeSources.readActive(householdId),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _categoryCount = results[0].length;
+      _accountCount = results[1].length;
+      _merchantCount = results[2].length;
+      _incomeSourceCount = results[3].length;
     });
   }
 
@@ -348,12 +374,17 @@ class _MasterDataPageState extends State<MasterDataPage>
       _showMessage('Nama itu sudah ada di Data Utama. Coba nama lain.');
       return;
     }
+    final newId = item?.id ?? const Uuid().v4();
     await _saveMaster(tab, result, item?.id);
     if (!mounted) return;
     setState(() => _refreshTick++);
+    unawaited(_loadCounts());
     _showMessage(
       item == null ? 'Data sudah ditambahkan.' : 'Data sudah diperbarui.',
     );
+    if (widget.returnOnCreate && item == null) {
+      Navigator.pop(context, newId);
+    }
   }
 
   _MasterFormValues _applyAssistantFormValues(
@@ -622,8 +653,9 @@ class _MasterDataPageState extends State<MasterDataPage>
             id: item.id,
           );
         } on StateError catch (error) {
-          if (mounted)
+          if (mounted) {
             _showMessage('Rekening tidak dapat diarsipkan: ${error.message}');
+          }
           return;
         }
       default:
@@ -634,6 +666,7 @@ class _MasterDataPageState extends State<MasterDataPage>
     }
     if (!mounted) return;
     setState(() => _refreshTick++);
+    unawaited(_loadCounts());
     _showMessage('${item.name} sudah diarsipkan.');
   }
 
@@ -651,6 +684,9 @@ class _MasterDataPageState extends State<MasterDataPage>
     ].whereType<String>().where((item) => item.trim().isNotEmpty).join(' • ');
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.masterData,
+      dataSummary: _loading
+          ? 'Sedang memuat data utama...'
+          : 'Melihat Data Utama keluarga: $_categoryCount kategori, $_accountCount rekening, $_merchantCount toko, dan $_incomeSourceCount sumber pemasukan.',
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Data Utama'),
@@ -1075,10 +1111,13 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
                       child: Text('Pengeluaran'),
                     ),
                     DropdownMenuItem(value: 'income', child: Text('Pemasukan')),
+                    DropdownMenuItem(value: 'activity', child: Text('Aktivitas')),
                   ],
                   onChanged: (value) => setState(() {
                     _type = value ?? 'expense';
-                    if (_type == 'income') _defaultBudgetPeriod = 'none';
+                    if (_type == 'income' || _type == 'activity') {
+                      _defaultBudgetPeriod = 'none';
+                    }
                   }),
                 ),
                 const SizedBox(height: 12),

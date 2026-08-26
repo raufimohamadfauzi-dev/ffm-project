@@ -53,6 +53,8 @@ import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
 import 'features/assistant/data/ffm_memory_maintenance_service.dart';
+import 'features/assistant/data/ffm_assistant_proactive_monitor.dart';
+import 'features/activity/data/repositories/activity_repository.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -409,6 +411,7 @@ class _AppShellState extends State<AppShell> {
   var _assistantSheetOpen = false;
   late final ReminderNotificationService _reminderNotifications =
       getIt<ReminderNotificationService>();
+  FfmAssistantProactiveMonitor? _proactiveMonitor;
   FfmAssistantDraft? _assistantTransactionDraft;
   final _assistantSession = FfmAssistantChatSession();
 
@@ -419,6 +422,11 @@ class _AppShellState extends State<AppShell> {
     _reminderNotifications.openTarget.addListener(
       _openReminderFromNotification,
     );
+    _proactiveMonitor = FfmAssistantProactiveMonitor(
+      activityRepository: getIt<ActivityRepository>(),
+      launcherState: widget.launcherState,
+      householdId: 'local-household',
+    )..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumePendingWidgetAction();
       _openReminderFromNotification();
@@ -494,6 +502,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void dispose() {
+    _proactiveMonitor?.stop();
     _reminderNotifications.openTarget.removeListener(
       _openReminderFromNotification,
     );
@@ -737,6 +746,8 @@ class _AppShellState extends State<AppShell> {
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const AssistantProfilePage()));
+      case FfmAssistantDestination.intelligenceDashboard:
+        setState(() => _index = 4);
     }
   }
 
@@ -759,6 +770,7 @@ class _AppShellState extends State<AppShell> {
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
         session: _assistantSession,
+        launcherState: widget.launcherState,
         currentDestination:
             widget.pageContext.value ?? _assistantCurrentDestination,
         currentPageContext: widget.pageContextController.currentSnapshot,

@@ -7,14 +7,12 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../settings/data/category_repository.dart';
+import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
-import '../../../daily_notes/presentation/widgets/daily_notes_section.dart';
-import '../../../tasks/presentation/widgets/tasks_section.dart';
-import '../../../routines/presentation/widgets/routines_section.dart';
-import '../../../schedule/presentation/widgets/schedule_section.dart';
 
 class ActivityPage extends StatelessWidget {
   const ActivityPage({
@@ -635,14 +633,6 @@ class _ActivityViewState extends State<_ActivityView>
                     onCancel: _cancelVoice,
                   ),
                   const SizedBox(height: 16),
-                  const DailyNotesSection(),
-                  const SizedBox(height: 16),
-                  const TasksSection(),
-                  const SizedBox(height: 16),
-                  const RoutinesSection(),
-                  const SizedBox(height: 16),
-                  const ScheduleSection(),
-                  const SizedBox(height: 16),
                   AppCard(
                     child: Wrap(
                       spacing: 8,
@@ -993,6 +983,10 @@ class _SessionFormState extends State<_SessionForm> {
   late final TextEditingController _category;
   late final TextEditingController _notes;
   DateTime _startedAt = DateTime.now();
+  final _categoryRepository = getIt<CategoryRepository>();
+  List<String> _activityCategories = [];
+  String? _selectedCategory;
+  bool _loadingCategories = true;
 
   @override
   void initState() {
@@ -1001,9 +995,29 @@ class _SessionFormState extends State<_SessionForm> {
     _category = TextEditingController(
       text: widget.initialCategory?.trim().isNotEmpty == true
           ? widget.initialCategory
-          : 'Perjalanan',
+          : '',
     );
+    _selectedCategory = widget.initialCategory?.trim().isNotEmpty == true
+        ? widget.initialCategory
+        : null;
     _notes = TextEditingController(text: widget.initialNotes ?? '');
+    _loadActivityCategories();
+  }
+
+  Future<void> _loadActivityCategories() async {
+    final categories = await _categoryRepository.readActive(
+      'local-household',
+      type: 'activity',
+    );
+    if (!mounted) return;
+    setState(() {
+      _activityCategories = categories.map((c) => c.name).toList();
+      _loadingCategories = false;
+      if (_selectedCategory == null && _activityCategories.isNotEmpty) {
+        _selectedCategory = _activityCategories.first;
+        _category.text = _selectedCategory!;
+      }
+    });
   }
 
   @override
@@ -1045,13 +1059,66 @@ class _SessionFormState extends State<_SessionForm> {
           ),
         ),
         const SizedBox(height: 10),
-        TextField(
-          controller: _category,
-          decoration: const InputDecoration(
-            labelText: 'Jenis aktivitas',
-            hintText: 'Perjalanan, kerja, belanja, atau lainnya',
+        if (_loadingCategories)
+          const Center(child: CircularProgressIndicator())
+        else
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Kategori',
+                  hintText: 'Pilih kategori aktivitas',
+                ),
+                items: _activityCategories
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
+                    _category.text = value ?? '';
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(
+                      builder: (_) => const MasterDataPage(
+                        assistantTab: 0,
+                        returnOnCreate: true,
+                      ),
+                    ),
+                  );
+                  if (result != null && mounted) {
+                    await _loadActivityCategories();
+                    final categories = await _categoryRepository.readActive(
+                      'local-household',
+                      type: 'activity',
+                    );
+                    if (!mounted) return;
+                    final newCategory = categories.firstWhere(
+                      (c) => c.id == result,
+                      orElse: () => categories.first,
+                    );
+                    setState(() {
+                      _selectedCategory = newCategory.name;
+                      _category.text = newCategory.name;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Tambah kategori baru di Data Utama'),
+              ),
+            ],
           ),
-        ),
         const SizedBox(height: 10),
         ListTile(
           contentPadding: EdgeInsets.zero,

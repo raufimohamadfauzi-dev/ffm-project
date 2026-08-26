@@ -15,33 +15,29 @@ import 'ffm_staging_status.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Kontrak aset Qwen2-VL yang telah diverifikasi pada Fase 0.
+/// Kontrak aset SLM teks yang telah diverifikasi pada Fase 0.
+///
+/// Bundle ini sengaja hanya memuat language model. Aset multimodal seperti
+/// mmproj/projector tidak diunduh maupun diterima oleh jalur instalasi aktif.
 class FfmQwen2VlBundle {
   const FfmQwen2VlBundle._();
 
   static const bundleId = 'qwen2-vl-2b-instruct-iq4-nl-v1';
   static const bundleVersion = 'v1.0.0';
-  static const modelFamily = 'Qwen2-VL';
+  static const modelFamily = 'Qwen2 text-only';
   static const repository = 'raufimohamadfauzi-dev/ffm-project';
   static const releaseTag = 'v1.0.0';
 
   static const modelFileName = 'Qwen2-VL-2B-Instruct-IQ4_NL.gguf';
-  static const projectorFileName = 'mmproj-Qwen2-VL-2B-Instruct-f16.gguf';
   static const manifestFileName = 'verified_manifest.json';
 
   static const modelUrl =
       'https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/'
       'v1.0.0/Qwen2-VL-2B-Instruct-IQ4_NL.gguf';
-  static const projectorUrl =
-      'https://github.com/raufimohamadfauzi-dev/ffm-project/releases/download/'
-      'v1.0.0/mmproj-Qwen2-VL-2B-Instruct-f16.gguf';
 
   static const modelBytes = 936329984;
-  static const projectorBytes = 1331656192;
   static const modelSha256 =
       '7df01d764cbb22ce270cd09eb2ff483f7161fcb42b80ea9a93e99d8de4b815e8';
-  static const projectorSha256 =
-      '05cc3ae461a7b6aa4023312ccab549ecab77cf8677efee04f049fcbab55b8bc3';
 
   static const files = <FfmModelFileSpec>[
     FfmModelFileSpec(
@@ -50,13 +46,6 @@ class FfmQwen2VlBundle {
       sourceUrl: modelUrl,
       expectedSizeBytes: modelBytes,
       expectedSha256: modelSha256,
-    ),
-    FfmModelFileSpec(
-      role: 'multimodal_projector',
-      fileName: projectorFileName,
-      sourceUrl: projectorUrl,
-      expectedSizeBytes: projectorBytes,
-      expectedSha256: projectorSha256,
     ),
   ];
 }
@@ -100,10 +89,6 @@ class FfmLocalModelInfo {
     required this.installedAt,
     this.bundleId = FfmQwen2VlBundle.bundleId,
     this.bundleVersion = FfmQwen2VlBundle.bundleVersion,
-    this.projectorFileName,
-    this.projectorPath,
-    this.projectorBytes,
-    this.projectorSha256,
     this.manifestPath,
   });
 
@@ -114,16 +99,11 @@ class FfmLocalModelInfo {
   final DateTime installedAt;
   final String bundleId;
   final String bundleVersion;
-  final String? projectorFileName;
-  final String? projectorPath;
-  final int? projectorBytes;
-  final String? projectorSha256;
   final String? manifestPath;
 
   bool get isVerified =>
       bundleId == FfmQwen2VlBundle.bundleId &&
-      sha256.toLowerCase() == FfmQwen2VlBundle.modelSha256 &&
-      projectorSha256?.toLowerCase() == FfmQwen2VlBundle.projectorSha256;
+      sha256.toLowerCase() == FfmQwen2VlBundle.modelSha256;
 }
 
 class FfmLocalModelManifestException implements Exception {
@@ -209,13 +189,7 @@ class FfmLocalModelService {
     final modelFile = File(
       path.join(staging.path, FfmQwen2VlBundle.modelFileName),
     );
-    final projectorFile = File(
-      path.join(staging.path, FfmQwen2VlBundle.projectorFileName),
-    );
-    return FfmStagingStatus(
-      hasModel: await modelFile.exists(),
-      hasProjector: await projectorFile.exists(),
-    );
+    return FfmStagingStatus(hasModel: await modelFile.exists());
   }
 
   Future<void> clearStaging() async {
@@ -363,12 +337,6 @@ class FfmLocalModelService {
         );
         if (await target.exists()) await target.delete();
         await temporary.rename(target.path);
-      } else if (hash == FfmQwen2VlBundle.projectorSha256) {
-        final target = File(
-          path.join(staging.path, FfmQwen2VlBundle.projectorFileName),
-        );
-        if (await target.exists()) await target.delete();
-        await temporary.rename(target.path);
       } else {
         throw const FfmLocalModelManifestException(
           'File GGUF tidak dikenali atau rusak (hash tidak cocok).',
@@ -408,7 +376,6 @@ class FfmLocalModelService {
     );
     final destinationName = switch (hash) {
       FfmQwen2VlBundle.modelSha256 => FfmQwen2VlBundle.modelFileName,
-      FfmQwen2VlBundle.projectorSha256 => FfmQwen2VlBundle.projectorFileName,
       _ => throw const FfmLocalModelManifestException(
         'File hasil download background tidak cocok dengan aset SLM resmi.',
       ),
@@ -519,9 +486,6 @@ class FfmLocalModelService {
     final modelFile = File(
       path.join(staging.path, FfmQwen2VlBundle.modelFileName),
     );
-    final projectorFile = File(
-      path.join(staging.path, FfmQwen2VlBundle.projectorFileName),
-    );
     final startedAt = _clock();
 
     Future<void> publish(FfmLocalModelAssemblyStatus next) async {
@@ -573,18 +537,13 @@ class FfmLocalModelService {
         file: modelFile,
         stage: FfmLocalModelAssemblyStage.verifyingModel,
       );
-      await verifyWithProgress(
-        spec: FfmQwen2VlBundle.files[1],
-        file: projectorFile,
-        stage: FfmLocalModelAssemblyStage.verifyingProjector,
-      );
       await publish(
         FfmLocalModelAssemblyStatus(
           stage: FfmLocalModelAssemblyStage.committing,
           updatedAt: _clock(),
           startedAt: startedAt,
-          processedBytes: FfmQwen2VlBundle.projectorBytes,
-          totalBytes: FfmQwen2VlBundle.projectorBytes,
+          processedBytes: FfmQwen2VlBundle.modelBytes,
+          totalBytes: FfmQwen2VlBundle.modelBytes,
         ),
       );
 
@@ -606,17 +565,6 @@ class FfmLocalModelService {
               'actualSha256': FfmQwen2VlBundle.files[0].expectedSha256,
               'actualSizeBytes':
                   '${FfmQwen2VlBundle.files[0].expectedSizeBytes}',
-              'ggufHeaderVerified': true,
-            },
-            {
-              'role': FfmQwen2VlBundle.files[1].role,
-              'fileName': FfmQwen2VlBundle.files[1].fileName,
-              'expectedSizeBytes':
-                  '${FfmQwen2VlBundle.files[1].expectedSizeBytes}',
-              'expectedSha256': FfmQwen2VlBundle.files[1].expectedSha256,
-              'actualSha256': FfmQwen2VlBundle.files[1].expectedSha256,
-              'actualSizeBytes':
-                  '${FfmQwen2VlBundle.files[1].expectedSizeBytes}',
               'ggufHeaderVerified': true,
             },
           ],
@@ -645,8 +593,8 @@ class FfmLocalModelService {
           stage: FfmLocalModelAssemblyStage.ready,
           updatedAt: _clock(),
           startedAt: startedAt,
-          processedBytes: FfmQwen2VlBundle.projectorBytes,
-          totalBytes: FfmQwen2VlBundle.projectorBytes,
+          processedBytes: FfmQwen2VlBundle.modelBytes,
+          totalBytes: FfmQwen2VlBundle.modelBytes,
         ),
       );
       return installed;
@@ -681,29 +629,15 @@ class FfmLocalModelService {
         (file) => file['role'] == 'language_model',
         orElse: () => <String, dynamic>{},
       );
-      final projector = files.firstWhere(
-        (file) => file['role'] == 'multimodal_projector',
-        orElse: () => <String, dynamic>{},
-      );
       final modelExpected =
           model['expectedSizeBytes'] ?? model['actualSizeBytes'];
-      final projectorExpected =
-          projector['expectedSizeBytes'] ?? projector['actualSizeBytes'];
       if (model.isEmpty ||
-          projector.isEmpty ||
           model['fileName'] != FfmQwen2VlBundle.modelFileName ||
-          projector['fileName'] != FfmQwen2VlBundle.projectorFileName ||
           modelExpected != '${FfmQwen2VlBundle.modelBytes}' ||
-          projectorExpected != '${FfmQwen2VlBundle.projectorBytes}' ||
           model['actualSizeBytes'] != '${FfmQwen2VlBundle.modelBytes}' ||
-          projector['actualSizeBytes'] !=
-              '${FfmQwen2VlBundle.projectorBytes}' ||
           model['expectedSha256'] != FfmQwen2VlBundle.modelSha256 ||
-          projector['expectedSha256'] != FfmQwen2VlBundle.projectorSha256 ||
           model['actualSha256'] != FfmQwen2VlBundle.modelSha256 ||
-          projector['actualSha256'] != FfmQwen2VlBundle.projectorSha256 ||
-          model['ggufHeaderVerified'] != true ||
-          projector['ggufHeaderVerified'] != true) {
+          model['ggufHeaderVerified'] != true) {
         return null;
       }
 
@@ -711,21 +645,13 @@ class FfmLocalModelService {
         finalDirectory,
         model['fileName'] as String?,
       );
-      final projectorFile = _safeChild(
-        finalDirectory,
-        projector['fileName'] as String?,
-      );
-      if (modelFile == null || projectorFile == null) return null;
-      if (!await modelFile.exists() || !await projectorFile.exists()) {
+      if (modelFile == null) return null;
+      if (!await modelFile.exists()) {
         return null;
       }
 
       final modelBytes = int.tryParse('${model['actualSizeBytes']}');
-      final projectorBytes = int.tryParse('${projector['actualSizeBytes']}');
-      if (modelBytes == null ||
-          projectorBytes == null ||
-          await modelFile.length() != modelBytes ||
-          await projectorFile.length() != projectorBytes) {
+      if (modelBytes == null || await modelFile.length() != modelBytes) {
         return null;
       }
 
@@ -740,10 +666,6 @@ class FfmLocalModelService {
         installedAt: installedAt,
         bundleId: '${manifest['bundleId']}',
         bundleVersion: '${manifest['bundleVersion']}',
-        projectorFileName: path.basename(projectorFile.path),
-        projectorPath: projectorFile.path,
-        projectorBytes: projectorBytes,
-        projectorSha256: '${projector['actualSha256']}',
         manifestPath: manifestFile.path,
       );
     } on Object {
@@ -751,15 +673,13 @@ class FfmLocalModelService {
     }
   }
 
-  /// Memvalidasi hash kedua file secara streaming. Pemeriksaan ini sengaja
+  /// Memvalidasi hash file model secara streaming. Pemeriksaan ini sengaja
   /// eksplisit karena membuka model tidak boleh memuat seluruh file ke RAM.
   Future<FfmLocalModelInfo?> verifyInstalled() async {
     final installed = await getInstalled();
-    if (installed == null || installed.projectorPath == null) return null;
+    if (installed == null) return null;
     final modelHash = await checksum(File(installed.filePath));
-    final projectorHash = await checksum(File(installed.projectorPath!));
-    if (modelHash != FfmQwen2VlBundle.modelSha256 ||
-        projectorHash != FfmQwen2VlBundle.projectorSha256) {
+    if (modelHash != FfmQwen2VlBundle.modelSha256) {
       return null;
     }
     return installed;
@@ -881,9 +801,12 @@ class FfmLocalModelService {
 
       final finalDirectory = await _finalDirectory();
       final backup = Directory('${finalDirectory.path}.previous');
-      if (await backup.exists()) await backup.delete(recursive: true);
-      if (await finalDirectory.exists())
+      if (await backup.exists()) {
+        await backup.delete(recursive: true);
+      }
+      if (await finalDirectory.exists()) {
         await finalDirectory.rename(backup.path);
+      }
       await staging.rename(finalDirectory.path);
       if (await backup.exists()) await backup.delete(recursive: true);
       final persistentStaging = await _stagingDirectory();
@@ -907,9 +830,7 @@ class FfmLocalModelService {
 
   Future<File> exportVerifiedBundle({Directory? outputDirectory}) async {
     final installed = await verifyInstalled();
-    if (installed == null ||
-        installed.manifestPath == null ||
-        installed.projectorPath == null) {
+    if (installed == null || installed.manifestPath == null) {
       throw const FfmLocalModelManifestException(
         'Bundle lokal belum terverifikasi penuh dan tidak dapat diekspor.',
       );
@@ -938,11 +859,6 @@ class FfmLocalModelService {
       FfmQwen2VlBundle.modelFileName,
       ZipFileEncoder.STORE,
     );
-    await encoder.addFile(
-      File(installed.projectorPath!),
-      FfmQwen2VlBundle.projectorFileName,
-      ZipFileEncoder.STORE,
-    );
     await encoder.close();
     await _deleteIfExists(output);
     await temporary.rename(output.path);
@@ -965,11 +881,10 @@ class FfmLocalModelService {
     const requiredNames = <String>{
       FfmQwen2VlBundle.manifestFileName,
       FfmQwen2VlBundle.modelFileName,
-      FfmQwen2VlBundle.projectorFileName,
     };
     if (!byName.keys.toSet().containsAll(requiredNames)) {
       throw const FfmLocalModelManifestException(
-        'Bundle tidak berisi manifest dan dua aset GGUF yang diwajibkan.',
+        'Bundle tidak berisi manifest dan aset GGUF yang diwajibkan.',
       );
     }
     final manifestBytes = await _readZipEntryBytes(
@@ -982,7 +897,7 @@ class FfmLocalModelService {
         decoded['formatVersion'] != _manifestFormat ||
         decoded['bundleId'] != FfmQwen2VlBundle.bundleId) {
       throw const FfmLocalModelManifestException(
-        'Manifest bundle offline tidak cocok dengan kontrak Qwen2-VL FFM.',
+        'Manifest bundle offline tidak cocok dengan kontrak SLM teks FFM.',
       );
     }
     final manifestFiles = _manifestFiles(decoded);
@@ -1156,14 +1071,16 @@ class FfmLocalModelService {
     final bundleDownload = Directory(
       path.join(downloadRoot.path, FfmQwen2VlBundle.bundleId),
     );
-    if (await bundleDownload.exists())
+    if (await bundleDownload.exists()) {
       await bundleDownload.delete(recursive: true);
+    }
   }
 
   Future<void> clear() async {
     final finalDirectory = await _finalDirectory();
-    if (await finalDirectory.exists())
+    if (await finalDirectory.exists()) {
       await finalDirectory.delete(recursive: true);
+    }
     await resetPartialDownload();
 
     // Bersihkan format provisional v47 bila pernah dipakai pada instalasi lama.
@@ -1184,7 +1101,7 @@ class FfmLocalModelService {
   /// produksi baru memakai [downloadBundle] dan hanya menerima bundle Qwen
   /// yang memiliki manifest verified.
   @Deprecated(
-    'Gunakan pickAndInstallBundle untuk bundle Qwen2-VL terverifikasi.',
+    'Gunakan pickAndInstallBundle untuk bundle SLM teks terverifikasi.',
   )
   Future<FfmLocalModelInfo?> pickAndInstall() => pickAndInstallBundle();
 

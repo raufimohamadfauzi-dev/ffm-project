@@ -11,14 +11,15 @@ class FfmAssistantReminderMutationService {
     required ReminderNotificationGateway notificationGateway,
     required ReminderOccurrenceCalculator occurrenceCalculator,
     DateTime Function()? clock,
-  }) : _repository = repository,
-       _notificationGateway = notificationGateway,
-       _occurrenceCalculator = occurrenceCalculator,
-       _clock = clock ?? DateTime.now;
+  }) : _clock = clock ?? DateTime.now {
+    _repository = repository;
+    _notificationGateway = notificationGateway;
+    _occurrenceCalculator = occurrenceCalculator;
+  }
 
-  final ReminderRepository _repository;
-  final ReminderNotificationGateway _notificationGateway;
-  final ReminderOccurrenceCalculator _occurrenceCalculator;
+  late final ReminderRepository _repository;
+  late final ReminderNotificationGateway _notificationGateway;
+  late final ReminderOccurrenceCalculator _occurrenceCalculator;
   final DateTime Function() _clock;
 
   Future<void> save(ReminderEntity next) async {

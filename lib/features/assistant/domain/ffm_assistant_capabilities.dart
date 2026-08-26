@@ -186,7 +186,6 @@ class FfmAssistantCapabilityRegistry {
         'category',
         'note',
         'tags',
-        'attachment',
       ],
     ),
     const FfmAssistantCapability(

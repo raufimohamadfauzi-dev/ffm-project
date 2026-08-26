@@ -206,34 +206,52 @@ class _SummaryPageState extends State<SummaryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return FfmAssistantPageContext(
-      destination: FfmAssistantDestination.summary,
-      child: FutureBuilder<_SummaryData>(
-        future: _summaryFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: AppEmptyState(
-                  icon: Icons.cloud_off,
-                  title: 'Ringkasan belum siap',
-                  message: 'Coba muat ulang halaman ini.',
-                  action: FilledButton(
-                    onPressed: _refresh,
-                    child: const Text('Muat ulang'),
-                  ),
-                ),
+    return FutureBuilder<_SummaryData>(
+      future: _summaryFuture,
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+        final summaryText = data != null
+            ? 'Kekayaan Bersih: ${formatCompactRupiah(data.netWorth)}. Bulan ini: Masuk ${formatCompactRupiah(data.income)}, Keluar ${formatCompactRupiah(data.expenses)}.'
+            : 'Sedang memuat ringkasan...';
+
+        return FfmAssistantPageContext(
+          destination: FfmAssistantDestination.summary,
+          dataSummary: summaryText,
+          child: _buildScaffold(context, snapshot),
+        );
+      },
+    );
+  }
+
+  Widget _buildScaffold(
+    BuildContext context,
+    AsyncSnapshot<_SummaryData> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (snapshot.hasError) {
+      return Scaffold(
+        appBar: AppBar(title: const Text(AppCopy.dashboard)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: AppEmptyState(
+              icon: Icons.cloud_off,
+              title: 'Ringkasan belum siap',
+              message: 'Coba muat ulang halaman ini.',
+              action: FilledButton(
+                onPressed: _refresh,
+                child: const Text('Muat ulang'),
               ),
-            );
-          }
-          final data = snapshot.data!;
-          return _SummaryContent(data: data, onRefresh: _refresh);
-        },
-      ),
+            ),
+          ),
+        ),
+      );
+    }
+    final data = snapshot.data!;
+    return Scaffold(
+      body: _SummaryContent(data: data, onRefresh: _refresh),
     );
   }
 }

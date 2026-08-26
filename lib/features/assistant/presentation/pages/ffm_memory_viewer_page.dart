@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/network/supabase_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_personal_memory_control_service.dart';
 
@@ -16,11 +17,14 @@ class FfmMemoryViewerPage extends StatefulWidget {
 
 class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   late final FfmPersonalMemoryControlService _service;
+  final _supabase = SupabaseService();
   List<FfmPersonalMemoryControlItem> _items = const [];
   List<FfmPendingMemoryItem> _pendingItems = const [];
+  List<Map<String, dynamic>> _cloudItems = const [];
   FfmPersonalMemoryControlScope? _filter;
   String? _error;
   var _loading = true;
+  var _loadingCloud = false;
 
   @override
   void initState() {
@@ -29,6 +33,25 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
       getIt<FfmAssistantMemoryRepository>(),
     );
     _load();
+    _loadCloud();
+  }
+
+  Future<void> _loadCloud() async {
+    setState(() => _loadingCloud = true);
+    try {
+      final cloud = await _supabase.fetchAll();
+      if (mounted) setState(() => _cloudItems = cloud);
+    } catch (_) {
+    } finally {
+      if (mounted) setState(() => _loadingCloud = false);
+    }
+  }
+
+  Future<void> _deleteCloudItem(String id) async {
+    try {
+      await _supabase.deleteMemory(id);
+      await _loadCloud();
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -59,6 +82,7 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
     if (!mounted) return;
     if (ok) {
       await _load();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('“${item.kindLabel}” disetujui dan mulai dipakai Asisten.')),
       );
@@ -74,6 +98,7 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
       await _service.rejectPending(item.id);
       if (!mounted) return;
       await _load();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Usulan memori dibuang tanpa dipakai.')),
       );
@@ -132,23 +157,74 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pusat Kontrol Memori'),
-        actions: [
-          IconButton(
-            tooltip: 'Muat ulang',
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Pusat Kontrol Memori'),
+          bottom: const TabBar(
+            tabs: [
+              Tab(text: 'Lokal'),
+              Tab(text: 'Cloud'),
+            ],
           ),
-        ],
+          actions: [
+            IconButton(
+              tooltip: 'Muat ulang',
+              onPressed: _loading ? null : () {
+                _load();
+                _loadCloud();
+              },
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        body: TabBarView(
+          children: [
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? _ErrorState(message: _error!, onRetry: _load)
+                    : _buildContent(theme),
+            _buildCloudContent(theme),
+          ],
+        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _ErrorState(message: _error!, onRetry: _load)
-          : _buildContent(theme),
     );
+  }
+
+  Widget _buildCloudContent(ThemeData theme) {
+    if (_loadingCloud) return const Center(child: CircularProgressIndicator());
+    if (_cloudItems.isEmpty) return const _EmptyState(hasItems: false);
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _cloudItems.length,
+      itemBuilder: (context, index) {
+        final item = _cloudItems[index];
+        return Card(
+          child: ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.cloud_outlined)),
+            title: Text(item['content'] ?? ''),
+            subtitle: Text('Category: ${item['category']} • ${_formatCloudDate(item['created_at'])}'),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _deleteCloudItem(item['id']),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  String _formatCloudDate(dynamic raw) {
+    if (raw == null) return '-';
+    try {
+      final date = DateTime.parse(raw.toString());
+      return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(date);
+    } catch (_) {
+      return raw.toString();
+    }
   }
 
   Widget _buildContent(ThemeData theme) {

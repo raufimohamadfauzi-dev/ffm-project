@@ -5,13 +5,9 @@ class FfmLocalModelBridgePlugin {
 
   static const MethodChannel _channel = MethodChannel('ffm_local_model_bridge');
 
-  static Future<void> initNative({
-    required String modelPath,
-    required String mmprojPath,
-  }) async {
+  static Future<void> initNative({required String modelPath}) async {
     final result = await _channel.invokeMethod<int>('initNative', {
       'modelPath': modelPath,
-      'mmprojPath': mmprojPath,
     });
     if (result != 0) {
       throw Exception('Gagal inisialisasi native model: kode $result');
@@ -25,14 +21,12 @@ class FfmLocalModelBridgePlugin {
   static Future<String> generateSingleShotNative({
     required String systemPrompt,
     required String userPrompt,
-    String? imagePath,
   }) async {
     final result = await _channel.invokeMethod<String>(
       'generateSingleShotNative',
       {
         'systemPrompt': systemPrompt,
         'userPrompt': userPrompt,
-        'imagePath': imagePath,
       },
     );
     if (result == null) {

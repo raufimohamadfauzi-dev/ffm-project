@@ -1,52 +1,12 @@
 /// Fondasi Asisten FFM Lokal: semua aksi keuangan tetap berupa draft sampai
+/// pengguna melihat preview dan mengonfirmasinya.
+library;
+
 import '../../activity/domain/activity_voice.dart';
 
-/// pengguna melihat preview dan mengonfirmasinya.
 enum FfmAssistantResponseMode { localRules, localModel }
 
 enum FfmAssistantResponseOrigin { agentOrchestrator, localSlm, localFallback }
-
-enum FfmAssistantVisionFailureCode {
-  modelUnavailable,
-  modelNotVerified,
-  nativeInitializationFailed,
-  inferenceFailed,
-  responseInvalid,
-  proposalRejected,
-  timedOut,
-}
-
-class FfmAssistantVisionFailure {
-  const FfmAssistantVisionFailure(this.code);
-
-  final FfmAssistantVisionFailureCode code;
-
-  String get userMessage => switch (code) {
-    FfmAssistantVisionFailureCode.modelUnavailable => 'Model visi belum terpasang lengkap. Buka Model Asisten Lokal untuk memeriksa model dan projector.',
-    FfmAssistantVisionFailureCode.modelNotVerified => 'File model visi belum lolos verifikasi. Periksa ulang status model sebelum mengirim gambar.',
-    FfmAssistantVisionFailureCode.nativeInitializationFailed => 'Model terpasang, tetapi mesin visi lokal belum berhasil disiapkan. Buka Model Asisten Lokal lalu periksa statusnya.',
-    FfmAssistantVisionFailureCode.inferenceFailed => 'Mesin visi lokal belum berhasil menjalankan analisis gambar. Tidak ada data yang dibuat atau diubah.',
-    FfmAssistantVisionFailureCode.responseInvalid => 'Model selesai merespons, tetapi hasilnya tidak sesuai format aman FFM. Tidak ada data yang dibuat atau diubah.',
-    FfmAssistantVisionFailureCode.proposalRejected => 'Model belum menghasilkan proposal gambar yang dapat diperiksa dengan aman. Tidak ada data yang dibuat atau diubah.',
-    FfmAssistantVisionFailureCode.timedOut => 'Analisis gambar melampaui batas waktu lokal. Coba lagi setelah model tidak sedang dipakai proses lain.',
-  };
-
-  String get traceLabel => switch (code) {
-    FfmAssistantVisionFailureCode.modelUnavailable =>
-      'Model visi belum terpasang lengkap',
-    FfmAssistantVisionFailureCode.modelNotVerified =>
-      'Model visi belum terverifikasi',
-    FfmAssistantVisionFailureCode.nativeInitializationFailed =>
-      'Inisialisasi mesin visi gagal',
-    FfmAssistantVisionFailureCode.inferenceFailed =>
-      'Inferensi visi lokal gagal',
-    FfmAssistantVisionFailureCode.responseInvalid => 'Respons visi tidak valid',
-    FfmAssistantVisionFailureCode.proposalRejected =>
-      'Proposal visi ditolak validator',
-    FfmAssistantVisionFailureCode.timedOut =>
-      'Analisis visi melewati batas waktu',
-  };
-}
 
 class FfmAssistantProcessEvent {
   const FfmAssistantProcessEvent({
@@ -197,6 +157,7 @@ enum FfmAssistantDestination {
   offlineFeatures,
   localModel,
   assistantProfile,
+  intelligenceDashboard,
 }
 
 enum FfmAssistantDraftKind {
@@ -328,7 +289,6 @@ class FfmAssistantIntent {
     this.teachingProposal,
     this.responseMode = FfmAssistantResponseMode.localRules,
     this.responseOrigin = FfmAssistantResponseOrigin.agentOrchestrator,
-    this.visionFailure,
     this.pluginName,
     this.pluginCategory,
     this.pluginMetadata,
@@ -345,7 +305,6 @@ class FfmAssistantIntent {
   final FfmAssistantTeachingProposal? teachingProposal;
   final FfmAssistantResponseMode responseMode;
   final FfmAssistantResponseOrigin responseOrigin;
-  final FfmAssistantVisionFailure? visionFailure;
 
   /// Nama plugin harness yang menangani intent ini, misal 'receivable_sense'.
   final String? pluginName;
@@ -361,12 +320,12 @@ class FfmAssistantIntent {
   bool get needsTeachingApproval => teachingProposal != null;
 
   FfmAssistantIntent copyWith({
+    FfmAssistantDestination? destination,
     FfmAssistantDraft? draft,
     String? response,
     String? clarification,
     FfmAssistantResponseMode? responseMode,
     FfmAssistantResponseOrigin? responseOrigin,
-    FfmAssistantVisionFailure? visionFailure,
     String? pluginName,
     String? pluginCategory,
     Map<String, dynamic>? pluginMetadata,
@@ -374,7 +333,7 @@ class FfmAssistantIntent {
     rawText: rawText,
     normalizedText: normalizedText,
     type: type,
-    destination: destination,
+    destination: destination ?? this.destination,
     draft: draft ?? this.draft,
     confidence: confidence,
     clarification: clarification ?? this.clarification,
@@ -382,7 +341,6 @@ class FfmAssistantIntent {
     teachingProposal: teachingProposal,
     responseMode: responseMode ?? this.responseMode,
     responseOrigin: responseOrigin ?? this.responseOrigin,
-    visionFailure: visionFailure ?? this.visionFailure,
     pluginName: pluginName ?? this.pluginName,
     pluginCategory: pluginCategory ?? this.pluginCategory,
     pluginMetadata: pluginMetadata ?? this.pluginMetadata,
@@ -417,6 +375,7 @@ class FfmAssistantDraft {
     this.goalName,
     this.note,
     this.date,
+    this.linkedActivityId,
     this.formValues = const <String, String>{},
     this.merchantName,
     this.slmFieldValues = const <String, String>{},
@@ -434,6 +393,7 @@ class FfmAssistantDraft {
   final String? goalName;
   final String? note;
   final DateTime? date;
+  final String? linkedActivityId;
   final Map<String, String> formValues;
 
   /// Merchant dan nilai field yang berasal dari tebakan awal SLM/rule parser.
@@ -454,6 +414,7 @@ class FfmAssistantDraft {
     String? goalName,
     String? note,
     DateTime? date,
+    String? linkedActivityId,
     Map<String, String>? formValues,
     String? merchantName,
     Map<String, String>? slmFieldValues,
@@ -470,6 +431,7 @@ class FfmAssistantDraft {
     goalName: goalName ?? this.goalName,
     note: note ?? this.note,
     date: date ?? this.date,
+    linkedActivityId: linkedActivityId ?? this.linkedActivityId,
     formValues: formValues ?? this.formValues,
     merchantName: merchantName ?? this.merchantName,
     slmFieldValues: slmFieldValues ?? this.slmFieldValues,
@@ -484,7 +446,6 @@ class FfmAssistantChatEntry {
     this.activityIntent,
     this.understanding,
     this.review,
-    this.imagePath,
     this.filePath,
     this.fileFormat,
     this.processTrace,
@@ -497,7 +458,6 @@ class FfmAssistantChatEntry {
   final ActivityVoiceIntent? activityIntent;
   final String? understanding;
   final FfmAssistantDraftReview? review;
-  final String? imagePath;
   final String? filePath;
   final String? fileFormat;
   final FfmAssistantProcessTrace? processTrace;
@@ -520,6 +480,90 @@ class FfmAssistantPendingDialog {
   final FfmAssistantDraft? draft;
 }
 
+/// Menyimpan state draft transaksi yang sedang disusun antar giliran.
+/// Expire setelah [_expiresAt] (default 5 menit).
+class FfmAssistantPendingDraft {
+  FfmAssistantPendingDraft({
+    required this.type,
+    this.amount,
+    this.accountName,
+    this.categoryName,
+    this.toAccountName,
+    this.merchantName,
+    this.note,
+    DateTime? createdAt,
+    Duration expiry = const Duration(minutes: 5),
+  })  : createdAt = createdAt ?? DateTime.now(),
+        _expiresAt = (createdAt ?? DateTime.now()).add(expiry);
+
+  final String type; // 'income', 'expense', 'transfer'
+  int? amount;
+  String? accountName;
+  String? categoryName;
+  String? toAccountName;
+  String? merchantName;
+  String? note;
+  final DateTime createdAt;
+  final DateTime _expiresAt;
+
+  bool get isExpired => DateTime.now().isAfter(_expiresAt);
+  bool get isComplete {
+    if (type == 'transfer') {
+      return amount != null && accountName != null && toAccountName != null;
+    }
+    if (type == 'income') {
+      return amount != null && accountName != null;
+    }
+    return amount != null && categoryName != null;
+  }
+
+  List<String> get missingFields {
+    final missing = <String>[];
+    if (amount == null) missing.add('nominal');
+    if (type == 'expense' && categoryName == null) missing.add('kategori');
+    if (accountName == null) missing.add('sumber dana/akun');
+    if (type == 'transfer' && toAccountName == null) missing.add('rekening tujuan');
+    return missing;
+  }
+
+  void fillFromAnswer(String answer, {
+    List<String> accountNames = const [],
+    List<String> categoryNames = const [],
+  }) {
+    final lower = answer.toLowerCase().trim();
+    for (final name in accountNames) {
+      if (lower.contains(name.toLowerCase())) {
+        accountName ??= name;
+        if (type == 'transfer' && toAccountName == null &&
+            accountName != name) {
+          toAccountName = name;
+        }
+      }
+    }
+    for (final name in categoryNames) {
+      if (lower.contains(name.toLowerCase()) && categoryName == null) {
+        categoryName = name;
+      }
+    }
+  }
+
+  FfmAssistantDraft toDraft() => FfmAssistantDraft(
+    kind: switch (type) {
+      'income' => FfmAssistantDraftKind.income,
+      'transfer' => FfmAssistantDraftKind.transfer,
+      _ => FfmAssistantDraftKind.expense,
+    },
+    createdAt: createdAt,
+    date: createdAt,
+    title: merchantName,
+    amount: amount,
+    categoryName: categoryName,
+    fromAccountName: accountName,
+    toAccountName: toAccountName,
+    note: note,
+  );
+}
+
 class FfmAssistantChatSession {
   FfmAssistantChatSession()
     : entries = [
@@ -535,6 +579,7 @@ class FfmAssistantChatSession {
   FfmAssistantPendingDialog? pendingDialog;
   FfmAssistantDraftReview? activeDraftReview;
   FfmAssistantIntent? activeDraftIntent;
+  FfmAssistantPendingDraft? pendingDraft;
 
   void reset() {
     entries
@@ -550,6 +595,7 @@ class FfmAssistantChatSession {
     pendingDialog = null;
     activeDraftReview = null;
     activeDraftIntent = null;
+    pendingDraft = null;
   }
 }
 
@@ -1051,5 +1097,6 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.localModel => 'Model Asisten Lokal dipakai untuk mengunduh dari GitHub, mengimpor bundle offline, memverifikasi, menghapus, atau membagikan bundle SLM.',
         FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas, pekerjaan, rutinitas, dan preferensi untuk membantu asisten menjawab lebih relevan tanpa mengirim data transaksi mentah. Kamu juga bisa ekspor atau impor profil di sini.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pengetahuan Asisten.',
+        FfmAssistantDestination.intelligenceDashboard => 'Dashboard Kecerdasan menampilkan ringkasan pola penggunaan, wawasan otomatis, dan rekomendasi berbasis data lokal.',
       };
 }

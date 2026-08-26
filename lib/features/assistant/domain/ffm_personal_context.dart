@@ -172,6 +172,8 @@ class FfmWorkingContext {
     this.currentTopic,
     this.currentPeriod,
     this.currentGoal,
+    this.lastActivityId,
+    this.lastActivityTitle,
     this.pendingClarification,
     this.lastActionResult,
     this.lastUpdatedAt,
@@ -182,6 +184,8 @@ class FfmWorkingContext {
   final String? currentTopic;
   final String? currentPeriod;
   final String? currentGoal;
+  final String? lastActivityId;
+  final String? lastActivityTitle;
   final String? pendingClarification;
   final String? lastActionResult;
   final DateTime? lastUpdatedAt;
@@ -192,6 +196,8 @@ class FfmWorkingContext {
     String? currentTopic,
     String? currentPeriod,
     String? currentGoal,
+    String? lastActivityId,
+    String? lastActivityTitle,
     String? pendingClarification,
     String? lastActionResult,
     DateTime? lastUpdatedAt,
@@ -201,6 +207,8 @@ class FfmWorkingContext {
     currentTopic: currentTopic ?? this.currentTopic,
     currentPeriod: currentPeriod ?? this.currentPeriod,
     currentGoal: currentGoal ?? this.currentGoal,
+    lastActivityId: lastActivityId ?? this.lastActivityId,
+    lastActivityTitle: lastActivityTitle ?? this.lastActivityTitle,
     pendingClarification: pendingClarification ?? this.pendingClarification,
     lastActionResult: lastActionResult ?? this.lastActionResult,
     lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
@@ -214,6 +222,8 @@ class FfmWorkingContext {
     if (currentTopic != null) 'currentTopic': currentTopic,
     if (currentPeriod != null) 'currentPeriod': currentPeriod,
     if (currentGoal != null) 'currentGoal': currentGoal,
+    if (lastActivityId != null) 'lastActivityId': lastActivityId,
+    if (lastActivityTitle != null) 'lastActivityTitle': lastActivityTitle,
     if (pendingClarification != null) 'pendingClarification': pendingClarification,
     if (lastActionResult != null) 'lastActionResult': lastActionResult,
     if (lastUpdatedAt != null) 'lastUpdatedAt': lastUpdatedAt!.toIso8601String(),
@@ -226,6 +236,8 @@ class FfmWorkingContext {
       currentTopic: json['currentTopic'] as String?,
       currentPeriod: json['currentPeriod'] as String?,
       currentGoal: json['currentGoal'] as String?,
+      lastActivityId: json['lastActivityId'] as String?,
+      lastActivityTitle: json['lastActivityTitle'] as String?,
       pendingClarification: json['pendingClarification'] as String?,
       lastActionResult: json['lastActionResult'] as String?,
       lastUpdatedAt: json['lastUpdatedAt'] is String

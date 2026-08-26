@@ -9,17 +9,18 @@ class FfmQwen2VlInferenceService {
   FfmQwen2VlInferenceService(
     this._queue, {
     FfmSlmHealthMonitor? healthMonitor,
-  }) : _healthMonitor = healthMonitor;
+  }) {
+    _healthMonitor = healthMonitor;
+  }
 
   final FfmSingleInferenceQueue _queue;
-  final FfmSlmHealthMonitor? _healthMonitor;
+  FfmSlmHealthMonitor? _healthMonitor;
 
   bool get isBusy => _queue.isBusy;
 
   Future<String> generateJson({
     required String systemPrompt,
     required String userPrompt,
-    String? imagePath,
   }) async {
     if (_healthMonitor?.shouldSkipInference == true) {
       throw Exception('SLM circuit breaker aktif. Coba lagi beberapa menit.');
@@ -32,7 +33,6 @@ class FfmQwen2VlInferenceService {
         return FfmLocalModelBridgePlugin.generateSingleShotNative(
           systemPrompt: systemPrompt,
           userPrompt: userPrompt,
-          imagePath: imagePath,
         );
       });
       stopwatch.stop();
@@ -56,7 +56,6 @@ class FfmQwen2VlInferenceService {
   Future<String?> tryGenerateJsonWhenIdle({
     required String systemPrompt,
     required String userPrompt,
-    String? imagePath,
   }) {
     if (_queue.isBusy) return Future<String?>.value();
     if (_healthMonitor?.shouldSkipInference == true) {
@@ -69,7 +68,6 @@ class FfmQwen2VlInferenceService {
         final result = await FfmLocalModelBridgePlugin.generateSingleShotNative(
           systemPrompt: systemPrompt,
           userPrompt: userPrompt,
-          imagePath: imagePath,
         );
         stopwatch.stop();
         await _healthMonitor?.recordSuccess(
@@ -93,12 +91,10 @@ class FfmQwen2VlInferenceService {
   Future<FfmLocalProposalParseResult> generateProposal({
     required String systemPrompt,
     required String userPrompt,
-    String? imagePath,
   }) async {
     final responseJson = await generateJson(
       systemPrompt: systemPrompt,
       userPrompt: userPrompt,
-      imagePath: imagePath,
     );
 
     final decoded = jsonDecode(responseJson);

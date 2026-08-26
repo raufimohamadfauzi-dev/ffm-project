@@ -11,17 +11,37 @@ enum ActivitySessionStatus {
   );
 }
 
+enum ActivityKind {
+  timer,
+  task,
+  note,
+  event;
+
+  String get value => name;
+
+  static ActivityKind fromValue(String? value) => values.firstWhere(
+    (item) => item.name == value,
+    orElse: () => ActivityKind.timer,
+  );
+}
+
 class ActivitySessionEntity {
   const ActivitySessionEntity({
     required this.id,
     required this.householdId,
     required this.title,
     required this.category,
+    this.kind = ActivityKind.timer,
     this.parentSessionId,
     required this.startedAt,
     required this.status,
     required this.createdAt,
     this.endedAt,
+    this.scheduledAt,
+    this.dueDate,
+    this.isAllDay = false,
+    this.isCompleted = false,
+    this.priority = 0,
     this.notes,
     this.isArchived = false,
     this.updatedAt,
@@ -31,14 +51,55 @@ class ActivitySessionEntity {
   final String householdId;
   final String title;
   final String category;
+  final ActivityKind kind;
   final String? parentSessionId;
   final DateTime startedAt;
   final DateTime? endedAt;
+  final DateTime? scheduledAt;
+  final DateTime? dueDate;
+  final bool isAllDay;
+  final bool isCompleted;
+  final int priority;
   final ActivitySessionStatus status;
   final String? notes;
   final bool isArchived;
   final DateTime createdAt;
   final DateTime? updatedAt;
+
+  ActivitySessionEntity copyWith({
+    String? title,
+    String? category,
+    ActivityKind? kind,
+    DateTime? endedAt,
+    DateTime? scheduledAt,
+    DateTime? dueDate,
+    bool? isAllDay,
+    bool? isCompleted,
+    int? priority,
+    ActivitySessionStatus? status,
+    String? notes,
+    bool? isArchived,
+    DateTime? updatedAt,
+  }) => ActivitySessionEntity(
+    id: id,
+    householdId: householdId,
+    title: title ?? this.title,
+    category: category ?? this.category,
+    kind: kind ?? this.kind,
+    parentSessionId: parentSessionId,
+    startedAt: startedAt,
+    endedAt: endedAt ?? this.endedAt,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    dueDate: dueDate ?? this.dueDate,
+    isAllDay: isAllDay ?? this.isAllDay,
+    isCompleted: isCompleted ?? this.isCompleted,
+    priority: priority ?? this.priority,
+    status: status ?? this.status,
+    notes: notes ?? this.notes,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
 
   Duration durationAt([DateTime? now]) {
     final end = endedAt ?? now ?? DateTime.now();

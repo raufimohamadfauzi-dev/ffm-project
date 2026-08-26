@@ -18,6 +18,7 @@ class TransactionEntity {
     this.accountId,
     this.merchantId,
     this.location,
+    this.linkedActivityId,
     this.goalId,
     this.partyName,
     this.receiptRawText,
@@ -41,6 +42,7 @@ class TransactionEntity {
   final String? accountId;
   final String? merchantId;
   final String? location;
+  final String? linkedActivityId;
   final String? goalId;
   final String? partyName;
   final String? receiptRawText;
@@ -148,6 +150,7 @@ class SaveTransaction {
               partyName: Value(entity.partyName),
               source: Value(entity.source),
               sourceId: Value(entity.sourceId),
+              linkedActivityId: Value(entity.linkedActivityId),
               recurringTransactionId: Value(entity.recurringTransactionId),
               location: Value(entity.location),
               receiptRawText: Value(entity.receiptRawText),

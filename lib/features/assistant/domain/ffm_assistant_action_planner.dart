@@ -3,9 +3,9 @@ import 'ffm_assistant_models.dart';
 import 'ffm_assistant_execution_limits.dart';
 
 class FfmAssistantActionPlanner {
-  const FfmAssistantActionPlanner({DateTime Function()? now}) : _now = now;
+  const FfmAssistantActionPlanner({this.now});
 
-  final DateTime Function()? _now;
+  final DateTime Function()? now;
 
   FfmAssistantActionPlan? planFor(FfmAssistantIntent intent) {
     final steps = <FfmAssistantActionStep>[];
@@ -231,7 +231,7 @@ class FfmAssistantActionPlanner {
           ? FfmAssistantExecutionLimits.tooComplexMessage
           : (intent.response ?? intent.normalizedText),
       steps: steps,
-      createdAt: (_now ?? DateTime.now)(),
+      createdAt: (now ?? DateTime.now)(),
       requiresConfirmation: draft != null,
       status: exceedsBudget
           ? FfmAssistantActionPlanStatus.blockedByBudget
@@ -274,6 +274,7 @@ class FfmAssistantActionPlanner {
     if (draft.goalName != null) 'goal': draft.goalName,
     if (draft.note != null) 'note': draft.note,
     if (draft.date != null) 'date': draft.date!.toIso8601String(),
+    if (draft.linkedActivityId != null) 'linkedActivityId': draft.linkedActivityId,
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.
     if (draft.merchantName != null)

@@ -28,11 +28,12 @@ class _GoalListPageState extends State<GoalListPage> {
 
   Future<void> _load() async {
     final items = await getIt<GetGoals>()(AppContext.householdId);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _items = items;
         _loading = false;
       });
+    }
   }
 
   Future<void> _add() async {

@@ -217,10 +217,11 @@ class JsonBackupService {
   Object? _jsonSafe(Object? value) {
     if (value is DateTime) return value.toIso8601String();
     if (value is Uint8List) return base64Encode(value);
-    if (value is Map)
+    if (value is Map) {
       return value.map(
         (key, value) => MapEntry(key.toString(), _jsonSafe(value)),
       );
+    }
     if (value is Iterable) return value.map(_jsonSafe).toList();
     return value;
   }

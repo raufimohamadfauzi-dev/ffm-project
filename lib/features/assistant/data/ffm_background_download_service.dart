@@ -38,7 +38,6 @@ class FfmBackgroundDownloadStatus {
 
   bool isAlreadyInStaging(FfmStagingStatus staging) => switch (role) {
     'language_model' => staging.hasModel,
-    'multimodal_projector' => staging.hasProjector,
     _ => false,
   };
 
@@ -77,8 +76,6 @@ class FfmBackgroundDownloadService {
         'bundleId': 'qwen2-vl-2b-instruct-iq4-nl-v1',
         'modelUrl': FfmQwen2VlBundle.modelUrl,
         'modelFileName': FfmQwen2VlBundle.modelFileName,
-        'projectorUrl': FfmQwen2VlBundle.projectorUrl,
-        'projectorFileName': FfmQwen2VlBundle.projectorFileName,
         if (roles != null) 'roles': roles.toList(growable: false),
       },
     );

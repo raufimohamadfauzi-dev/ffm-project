@@ -91,15 +91,17 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
         if (mounted) setState(() => _flow = _PinFlow.confirmCreate);
         return null;
       case _PinFlow.confirmCreate:
-        if (pin != _nextPin)
+        if (pin != _nextPin) {
           return 'PIN baru belum sama. Coba ulangi dari awal, ya.';
+        }
         final accepted = await _confirm(
           title: 'Aktifkan PIN?',
           message: 'PIN akan dipakai untuk membuka FFM saat aplikasi dikunci.',
           label: 'Aktifkan PIN',
         );
-        if (!accepted)
+        if (!accepted) {
           return 'PIN belum diaktifkan karena kamu membatalkan konfirmasi.';
+        }
         return _saveNewPin(pin, isReplacement: false);
       case _PinFlow.verifyCurrentForChange:
         final verification = await _verifyCurrentPin(pin);
@@ -112,15 +114,17 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
         if (mounted) setState(() => _flow = _PinFlow.confirmReplacement);
         return null;
       case _PinFlow.confirmReplacement:
-        if (pin != _nextPin)
+        if (pin != _nextPin) {
           return 'PIN baru belum sama. Coba ulangi dari awal, ya.';
+        }
         final accepted = await _confirm(
           title: 'Ganti PIN?',
           message: 'PIN lama akan berhenti dipakai setelah kamu setuju.',
           label: 'Simpan PIN baru',
         );
-        if (!accepted)
+        if (!accepted) {
           return 'PIN belum diganti karena kamu membatalkan konfirmasi.';
+        }
         return _saveNewPin(pin, isReplacement: true);
       case _PinFlow.verifyCurrentForDisable:
         final verification = await _verifyCurrentPin(pin);
@@ -132,8 +136,9 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
           label: 'Matikan PIN',
           isDestructive: true,
         );
-        if (!accepted)
+        if (!accepted) {
           return 'PIN tetap aktif karena kamu membatalkan konfirmasi.';
+        }
         return _disablePin(pin);
       case _PinFlow.idle:
         return 'Pilih tindakan PIN dulu, ya.';

@@ -33,21 +33,20 @@ abstract final class FfmLocalModelReadiness {
     required FfmStagingStatus? staging,
     required List<FfmBackgroundDownloadStatus> backgroundStatuses,
   }) {
-    if (model?.isVerified == true && model?.projectorPath != null) {
+    if (model?.isVerified == true) {
       return const FfmLocalModelReadinessInfo(
         state: FfmLocalModelReadinessState.ready,
         title: 'AI lokal siap dipakai',
-        message:
-            'Model dan projector sudah terverifikasi di storage privat FFM.',
-        nextStep: 'Kembali ke FFM, buka ✨ Asisten, lalu kirim perintah teks atau foto struk untuk dibuatkan proposal.',
+        message: 'Model sudah terverifikasi di storage privat FFM.',
+        nextStep: 'Kembali ke FFM, buka ✨ Asisten, lalu kirim perintah teks untuk dibuatkan proposal.',
       );
     }
 
     if (staging?.isReadyToCommit == true) {
       return const FfmLocalModelReadinessInfo(
         state: FfmLocalModelReadinessState.stagingReady,
-        title: 'Dua file sudah siap dirakit',
-        message: 'Model dan projector telah ada di staging, tetapi belum dipasang sebagai SLM aktif.',
+        title: 'File model siap dirakit',
+        message: 'Model telah ada di staging, tetapi belum dipasang sebagai SLM aktif.',
         nextStep: 'Tekan “Rakit dan Pasang SLM” untuk verifikasi akhir.',
       );
     }
@@ -55,11 +54,11 @@ abstract final class FfmLocalModelReadiness {
     if (staging?.isEmpty == false) {
       return const FfmLocalModelReadinessInfo(
         state: FfmLocalModelReadinessState.stagingPartial,
-        title: 'Menunggu satu file pasangan',
+        title: 'Staging belum lengkap',
         message:
-            'Baru satu dari model atau projector yang sudah lolos pemeriksaan.',
+            'File model di staging belum lolos pemeriksaan penuh.',
         nextStep:
-            'Pilih GGUF berikutnya atau tunggu download background selesai.',
+            'Pilih GGUF model atau tunggu download background selesai.',
       );
     }
 

@@ -194,6 +194,8 @@ class FfmAssistantRuntimeKnowledgeRegistry {
     FfmAssistantDestination? currentDestination,
     List<String> capabilityIds = const <String>[],
     int maxEntries = 8,
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
   }) {
     final selected = <FfmAssistantKnowledgeEntry>[];
     if (currentDestination != null) {
@@ -226,6 +228,8 @@ class FfmAssistantRuntimeKnowledgeRegistry {
     return [
       'Knowledge registry $formatVersion.',
       'Capability aktif: $capabilities.',
+      'Akun aktif di Data Utama: ${activeAccountNames.isEmpty ? '(belum ada)' : activeAccountNames.take(30).join(', ')}.',
+      'Kategori aktif di Data Utama: ${activeCategoryNames.isEmpty ? '(belum ada)' : activeCategoryNames.take(30).join(', ')}.',
       'Fakta FFM yang relevan:',
       ...bounded.map((entry) => '- ${entry.title}: ${entry.content}'),
       'Aturan: angka harus berasal dari adapter lokal; SLM tidak boleh menjalankan SQL atau mutation; mutation selalu preview dan konfirmasi.',

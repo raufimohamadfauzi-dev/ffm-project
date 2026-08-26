@@ -207,6 +207,8 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
 
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.liabilities,
+      dataSummary:
+          'Total sisa hutang: ${_moneyLabel(total)}. Ada ${active.length} hutang aktif, ${dueSoon.length} jatuh tempo segera.',
       child: Scaffold(
         appBar: widget.embedded
             ? null
@@ -442,6 +444,8 @@ class _LiabilityFormPageState extends State<LiabilityFormPage> {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.liabilities,
+      dataSummary:
+          'Formulir catat hutang baru: isi nama, jumlah awal, sisa hutang, cicilan bulanan, dan tanggal jatuh tempo.',
       child: Scaffold(
         appBar: AppBar(title: const Text('Tambah hutang')),
         body: Form(

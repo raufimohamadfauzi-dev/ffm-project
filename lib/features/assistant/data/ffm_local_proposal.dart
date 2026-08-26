@@ -186,7 +186,7 @@ class FfmLocalProposalParseResult {
 class FfmLocalProposalParser {
   const FfmLocalProposalParser._();
 
-  static const formatVersion = 'ffm-local-vision-proposal-v2';
+  static const formatVersion = 'ffm-local-proposal-v2';
   static const _warningCodes = {
     'low_confidence',
     'sum_mismatch',
@@ -408,18 +408,19 @@ class FfmLocalProposalParser {
   static List<String> _missingFieldsFromIssues(List<String> issues) {
     final missing = <String>{};
     for (final issue in issues) {
-      if (issue == 'invalid_total_amount')
+      if (issue == 'invalid_total_amount') {
         missing.add('totalAmount');
-      else if (issue == 'invalid_transaction_date')
+      } else if (issue == 'invalid_transaction_date') {
         missing.add('transactionDate');
-      else if (issue == 'invalid_items')
+      } else if (issue == 'invalid_items') {
         missing.add('items');
-      else if (issue == 'invalid_field_confidence')
+      } else if (issue == 'invalid_field_confidence') {
         missing.add('fieldConfidence');
-      else if (issue.startsWith('low_confidence:'))
+      } else if (issue.startsWith('low_confidence:')) {
         missing.add(issue.substring('low_confidence:'.length));
-      else if (issue == 'missing_clarification_question')
+      } else if (issue == 'missing_clarification_question') {
         missing.add('clarificationQuestion');
+      }
     }
     return missing.toList();
   }

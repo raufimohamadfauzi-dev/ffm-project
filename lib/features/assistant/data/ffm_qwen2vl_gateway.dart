@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_local_model_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_qwen2vl_inference_service.dart';
@@ -19,20 +17,20 @@ class FfmQwen2VlGateway
     implements
         FfmAssistantLocalModelGateway,
         FfmAssistantSlmFollowUpGenerator,
-        FfmAssistantVisionDiagnostics,
         FfmAssistantAnswerComposer,
         FfmAssistantCategoryAdvisor {
   FfmQwen2VlGateway(
     this._modelService,
     this._inferenceService, {
     FfmErrorLoggingService? errorLogger,
-  }) : _errorLogger = errorLogger;
+  }) {
+    _errorLogger = errorLogger;
+  }
 
   final FfmLocalModelService _modelService;
   final FfmQwen2VlInferenceService _inferenceService;
-  final FfmErrorLoggingService? _errorLogger;
+  FfmErrorLoggingService? _errorLogger;
   bool _isNativeInitialized = false;
-  FfmAssistantVisionFailure? _lastVisionFailure;
 
   static const double _kConfidenceHigh = 0.92;
   static const double _kConfidenceMedium = 0.78;
@@ -49,29 +47,16 @@ class FfmQwen2VlGateway
     return _kConfidenceHigh;
   }
 
-  @override
-  FfmAssistantVisionFailure? get lastVisionFailure => _lastVisionFailure;
-
   Future<void> _ensureInitialized() async {
     if (_isNativeInitialized) return;
 
     final installed = await _modelService.verifyInstalled();
-    if (installed == null || installed.projectorPath == null) {
-      _lastVisionFailure = const FfmAssistantVisionFailure(
-        FfmAssistantVisionFailureCode.modelUnavailable,
-      );
-      throw Exception('Model Qwen2-VL belum terinstal atau tidak lengkap.');
-    }
-    if (!installed.isVerified) {
-      _lastVisionFailure = const FfmAssistantVisionFailure(
-        FfmAssistantVisionFailureCode.modelNotVerified,
-      );
-      throw Exception('Model Qwen2-VL belum terverifikasi.');
+    if (installed == null) {
+      throw Exception('SLM teks belum terinstal atau tidak lengkap.');
     }
 
     await FfmLocalModelBridgePlugin.initNative(
       modelPath: installed.filePath,
-      mmprojPath: installed.projectorPath!,
     );
     _isNativeInitialized = true;
   }
@@ -170,54 +155,36 @@ ATURAN MUTLAK:
   @override
   Future<FfmAssistantModelProposal?> propose({
     required String input,
-    String? imagePath,
-  }) async => proposeWithContext(input: input, imagePath: imagePath);
+  }) async => proposeWithContext(input: input);
 
   @override
   Future<FfmAssistantModelProposal?> proposeWithContext({
     required String input,
-    String? imagePath,
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
   }) async {
-    _lastVisionFailure = null;
     try {
       await _ensureInitialized();
 
-      if (imagePath != null) {
-        final imageFile = File(imagePath);
-        if (!await imageFile.exists() || await imageFile.length() == 0) {
-          _lastVisionFailure = const FfmAssistantVisionFailure(
-            FfmAssistantVisionFailureCode.inferenceFailed,
+      final knowledge = FfmAssistantRuntimeKnowledgeRegistry()
+          .buildPromptContext(
+            query: input,
+            capabilityIds: capabilityIds,
+            activeAccountNames: activeAccountNames,
+            activeCategoryNames: activeCategoryNames,
           );
-          throw Exception('File gambar tidak tersedia atau kosong.');
-        }
-      }
-
-      final isVisionRequest = imagePath != null;
-      final knowledge = isVisionRequest
-          ? ''
-          : FfmAssistantRuntimeKnowledgeRegistry()
-              .buildPromptContext(query: input, capabilityIds: capabilityIds);
       final historySection =
           conversationHistory != null && conversationHistory.trim().isNotEmpty
           ? '\nRiwayat dialog sebelumnya:\n$conversationHistory\n'
           : '';
-        final systemPrompt = isVisionRequest
-          ? '''
-    Anda adalah modul vision lokal FFM.
-    Analisis gambar yang dilampirkan dan pertanyaan pengguna.
-    Keluarkan JSON valid saja dengan format:
-    {"proposalType":"help","assistantMessage":"observasi faktual maksimal 3 kalimat"}.
-    Jangan mengarang teks, angka, transaksi, atau diagnosis yang tidak terlihat.
-    Jika gambar tidak terbaca, jelaskan singkat pada assistantMessage.
-    '''
-          : '''
+      final systemPrompt = '''
 Anda adalah Asisten Family Finance Manager (FFM).
 Tugas Anda mengekstrak informasi keuangan atau maksud pengguna menjadi JSON yang valid.
 Gunakan timezone Asia/Jakarta.
-Patuhi format ffm-local-vision-proposal-v2.
+Patuhi format proposal SLM teks FFM.
 proposalType yang didukung: "expense", "income", "transfer", "navigation", "read_query", "help", "out_of_domain", "unknown".
 
 ATURAN INTI:
@@ -227,9 +194,14 @@ ATURAN INTI:
 4. Jika data belum ada, gunakan "help" untuk edukasi yang jujur dan menyatakan data apa yang belum tersedia.
 5. Jangan menyatakan pinjaman disetujui, menjamin keamanan, atau memberi kepastian hasil.
 6. Jangan memberi nasihat hukum, pajak, medis, atau janji imbal hasil investasi.
-7. Jika pengguna melampirkan gambar dan meminta penjelasan visual, screenshot, atau teks error, gunakan proposalType "help" dan isi assistantMessage dengan observasi faktual singkat dari gambar. Jangan membuat transaksi, nominal, atau diagnosis teknis yang tidak tampak pada gambar.
-8. Untuk pertanyaan terbuka tentang fungsi halaman/fitur FFM yang sedang aktif, proposalType boleh "help" dan assistantMessage wajib berupa jawaban singkat yang hanya bersandar pada halaman aktif, katalog FFM, capability, atau runtime knowledge yang diberikan. Jangan mengarang fitur, data pengguna, nominal, atau status penyimpanan.
-9. assistantMessage maksimal 3 kalimat. Jangan menampilkan PIN, password, OTP, token, saldo, transaksi mentah, nominal, path, JSON, atau metadata teknis. Jika gambar adalah nota yang cukup terbaca dan pengguna ingin mencatatnya, gunakan proposal transaksi seperti biasa, bukan assistantMessage.
+7. Untuk pertanyaan terbuka tentang fungsi halaman/fitur FFM yang sedang aktif, proposalType boleh "help" dan assistantMessage wajib berupa jawaban singkat yang hanya bersandar pada halaman aktif, katalog FFM, capability, atau runtime knowledge yang diberikan. Jangan mengarang fitur, data pengguna, nominal, atau status penyimpanan.
+8. assistantMessage maksimal 3 kalimat. Jangan menampilkan PIN, password, OTP, token, saldo, transaksi mentah, nominal, path, JSON, atau metadata teknis.
+9. Jika riwayat dialog menunjukkan draft transaksi yang belum lengkap dan pesan user terlihat sebagai jawaban (bukan permintaan baru), gabungkan jawaban ke draft yang sama.
+
+SLOT-FILLING (pengisian field yang kurang):
+10. Untuk proposalType "income": field wajib adalah amount dan sumber dana (akun/metode). Untuk "expense": amount dan kategori. Jika salah satu field wajib belum disebut user, JANGAN mengarang nilainya — isi clarificationQuestion dengan pertanyaan singkat menanyakan field yang kurang, dan biarkan field itu null.
+11. Jika user menyebut nama akun/kategori/metode yang TIDAK ada di daftar "Akun aktif" atau "Kategori aktif" yang diberikan, isi clarificationQuestion yang menyatakan nama itu belum ada di Data Utama, dan tanyakan apakah user ingin membuatnya (arahkan ke proposalType "help" dengan assistantMessage yang menawarkan pembuatan data baru).
+12. Jika proposalType "transfer": field wajib adalah amount, source account, destination account. Jika kurang satu, tanyakan field yang kurang.
 
 PANDUAN JAWABAN:
 - Untuk pertanyaan finansial umum (asuransi, pajak, investasi dasar, dana darurat), berikan jawaban edukatif dengan disclaimer bahwa ini bukan rekomendasi personal.
@@ -239,27 +211,25 @@ PANDUAN JAWABAN:
 - Topik yang masih terkait keuangan meskipun bukan fitur langsung FFM (asuransi, pajak, investasi) boleh dijawab dengan edukasi dasar dan disclaimer.
 
 Jangan menambahkan teks lain selain JSON.
-${isVisionRequest ? '' : historySection}
+$historySection
 Halaman aktif: ${pageContext ?? 'tidak diketahui'}.
 Halaman FFM yang dikenal:
-${isVisionRequest ? '' : FfmAssistantCatalog.listForChat()}
-${isVisionRequest ? '' : 'Capability yang tersedia pada halaman aktif: ${capabilityIds.isEmpty ? 'gunakan katalog FFM yang relevan' : capabilityIds.join(', ')}.'}
+${FfmAssistantCatalog.listForChat()}
+Capability yang tersedia pada halaman aktif: ${capabilityIds.isEmpty ? 'gunakan katalog FFM yang relevan' : capabilityIds.join(', ')}.
 Runtime knowledge registry:
 $knowledge
 Jika diminta melakukan perubahan, hanya usulkan langkah dan data terstruktur; jangan mengklaim sudah menyimpan.
 Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, literasi keuangan keluarga, cara menabung, manajemen keuangan, saran budgeting, cashflow, target, keputusan finansial, asuransi keluarga, perencanaan pajak, investasi dasar, dana darurat, penghasilan sampingan.
 	''';
 
-        final userPromptWithContext = isVisionRequest
-          ? (input.trim().isEmpty ? 'Apa yang terlihat pada gambar ini?' : input)
-          : conversationHistory != null && conversationHistory.trim().isNotEmpty
+      final userPromptWithContext =
+          conversationHistory != null && conversationHistory.trim().isNotEmpty
             ? '[Konteks percakapan: perhatikan respons sebelumnya]\n$input'
             : input;
 
       final result = await _inferenceService.generateProposal(
         systemPrompt: systemPrompt,
         userPrompt: userPromptWithContext,
-        imagePath: imagePath,
       );
 
       // Map dari Proposal v2 (ekstraksi data murni) ke FfmAssistantModelProposal (keputusan Asisten)
@@ -280,6 +250,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
         return FfmAssistantModelProposal(
           intent: FfmAssistantIntentType.unknown,
           confidence: _confidenceFromProposal(proposal),
+          needsReviewBadge: proposal.needsReview,
           missingFields: proposal.missingFields,
           extractedFields: proposal.extractedFields,
           suggestedCapabilities: proposal.suggestedCapabilities,
@@ -329,6 +300,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
         return FfmAssistantModelProposal(
           intent: intentType,
           confidence: _confidenceFromProposal(proposal),
+          needsReviewBadge: proposal.needsReview,
           draft: draft,
           missingFields: proposal.missingFields,
           extractedFields: proposal.extractedFields,
@@ -351,6 +323,7 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
       return FfmAssistantModelProposal(
         intent: intentType,
         confidence: _confidenceFromProposal(proposal),
+        needsReviewBadge: proposal.needsReview,
         missingFields: proposal.missingFields,
         extractedFields: proposal.extractedFields,
         suggestedCapabilities: proposal.suggestedCapabilities,
@@ -364,35 +337,20 @@ Domain yang diizinkan (help/read_query): fitur FFM, data FFM, laporan keuangan, 
             : null,
       );
     } on FormatException catch (e) {
-      if (imagePath != null) {
-        _lastVisionFailure = const FfmAssistantVisionFailure(
-          FfmAssistantVisionFailureCode.responseInvalid,
-        );
-      }
       await _errorLogger?.logError(
         feature: 'slm-gateway',
         errorType: 'FormatException',
         message: 'SLM response tidak valid: ${e.toString()}',
-        context: {'hasImage': imagePath != null},
+        context: const {},
       );
       return null;
     } catch (e) {
       if (e is FfmInferenceCancelledException) rethrow;
-      if (imagePath != null && _lastVisionFailure == null) {
-        _lastVisionFailure = FfmAssistantVisionFailure(
-          _isNativeInitialized
-              ? FfmAssistantVisionFailureCode.inferenceFailed
-              : FfmAssistantVisionFailureCode.nativeInitializationFailed,
-        );
-      }
       await _errorLogger?.logError(
         feature: 'slm-gateway',
         errorType: e.runtimeType.toString(),
         message: e.toString(),
-        context: {
-          'hasImage': imagePath != null,
-          'nativeInitialized': _isNativeInitialized,
-        },
+        context: {'nativeInitialized': _isNativeInitialized},
       );
       return null;
     }
