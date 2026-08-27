@@ -59,7 +59,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 40;
+  int get schemaVersion => 41;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -185,6 +185,14 @@ class AppDatabase extends _$AppDatabase {
           ])) {
         await _seedActivityCategories();
       }
+      if (from < 41 &&
+          await _hasTable('activity_sessions') &&
+          !await _hasColumns('activity_sessions', const ['kind'])) {
+        await customStatement(
+          "ALTER TABLE activity_sessions "
+          "ADD COLUMN kind TEXT NOT NULL DEFAULT 'timer'",
+        );
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -193,6 +201,14 @@ class AppDatabase extends _$AppDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  Future<bool> _hasTable(String table) async {
+    final row = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable.withString(table)],
+    ).getSingleOrNull();
+    return row != null;
+  }
 
   Future<bool> _hasColumns(String table, List<String> columns) async {
     final rows = await customSelect('PRAGMA table_info("$table")').get();
