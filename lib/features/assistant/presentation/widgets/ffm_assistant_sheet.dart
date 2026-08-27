@@ -2062,54 +2062,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
   }
 
-  Widget _buildRoutingModeSelector(ThemeData theme) {
-    final isGemini = _routingMode == FfmAssistantRoutingMode.geminiCloud;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Mode jawaban',
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 6),
-          SegmentedButton<FfmAssistantRoutingMode>(
-            multiSelectionEnabled: false,
-            emptySelectionAllowed: false,
-            selected: {_routingMode},
-            onSelectionChanged: (selection) {
-              if (selection.isNotEmpty) _setRoutingMode(selection.first);
-            },
-            segments: const [
-              ButtonSegment<FfmAssistantRoutingMode>(
-                value: FfmAssistantRoutingMode.agent,
-                icon: Icon(Icons.account_tree_outlined),
-                label: Text('AGENT'),
-              ),
-              ButtonSegment<FfmAssistantRoutingMode>(
-                value: FfmAssistantRoutingMode.geminiCloud,
-                icon: Icon(Icons.cloud_outlined),
-                label: Text('GEMINI CLOUD'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            isGemini
-                ? (_cloudReady
-                      ? 'Pesan bebas akan dijawab Gemini ${_cloudModel ?? ''}. Operasi keuangan tetap perlu guard dan konfirmasi Agent.'
-                      : 'Gemini belum verified. Pesan akan menampilkan error Gemini, tanpa fallback ke Agent.')
-                : 'Pesan akan dijawab Agent Orchestrator dan operasi mengikuti guard deterministic.',
-            style: theme.textTheme.bodySmall,
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2158,7 +2110,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ? const Color(0xFF2E2A26)
                     : const Color(0xFFE8E0D0),
               ),
-              _buildRoutingModeSelector(theme),
               if (proactiveSuggestion != null && _cloudReady)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
@@ -2452,55 +2403,57 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Widget _buildModelSelector() {
+    final isGemini = _routingMode == FfmAssistantRoutingMode.geminiCloud;
+    final label = isGemini ? 'Gemini Cloud' : 'Agent';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: _ModelPill(
-        label: 'Gemini Cloud',
-        selected: true,
-        onTap: _refreshCloudStatus,
-      ),
-    );
-  }
-}
-
-class _ModelPill extends StatelessWidget {
-  const _ModelPill({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        decoration: BoxDecoration(
-          color: selected
-              ? theme.colorScheme.primary
-              : (isDark ? Colors.white24 : Colors.black.withValues(alpha: 0.1)),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected ? Colors.white30 : Colors.transparent,
-            width: 1.5,
+      child: PopupMenuButton<FfmAssistantRoutingMode>(
+        tooltip: 'Pilih mode jawaban',
+        onSelected: (mode) => unawaited(_setRoutingMode(mode)),
+        itemBuilder: (context) => [
+          CheckedPopupMenuItem<FfmAssistantRoutingMode>(
+            value: FfmAssistantRoutingMode.agent,
+            checked: _routingMode == FfmAssistantRoutingMode.agent,
+            child: const Text('AGENT'),
           ),
-        ),
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontSize: 12,
-            letterSpacing: 0.5,
-            fontWeight: FontWeight.w900,
-            color: selected
-                ? theme.colorScheme.onPrimary
-                : theme.colorScheme.onSurface,
+          CheckedPopupMenuItem<FfmAssistantRoutingMode>(
+            value: FfmAssistantRoutingMode.geminiCloud,
+            checked: isGemini,
+            child: const Text('GEMINI CLOUD'),
+          ),
+        ],
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isGemini ? Icons.cloud_outlined : Icons.account_tree_outlined,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  label.toUpperCase(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .5,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_drop_down,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ],
+            ),
           ),
         ),
       ),
