@@ -6,13 +6,16 @@ void main() {
   const service = FfmAssistantSelfDescriptionService();
 
   test('self-description menyebut kemampuan nyata dan batas keamanan', () {
-    final response = service.build(slmConfigured: true);
+    final response = service.build(
+      slmConfigured: true,
+      includeCreatorLinks: true,
+    );
 
     expect(response, contains('baca transaksi'));
     expect(response, contains('preview'));
     expect(response, contains('konfirmasi'));
     expect(response, contains('tidak ada autosave'));
-    expect(response, contains('model SLM lokal'));
+    expect(response, contains('Gemini Cloud digunakan'));
     expect(response, contains('Masih dalam pengembangan'));
     expect(response, contains('Rafi Sinkkat'));
     expect(response, contains('Family Finance Manager (FFM)'));
@@ -53,7 +56,7 @@ void main() {
         isNot(contains('Mutation terkonfirmasi yang tersedia: simpan draft')),
       );
       expect(response, contains('baca anggaran'));
-      expect(response, contains('Model SLM lokal belum dikonfirmasi siap'));
+      expect(response, contains('Gemini Cloud digunakan'));
     },
   );
 }

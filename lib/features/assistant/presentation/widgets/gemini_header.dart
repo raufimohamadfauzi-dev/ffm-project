@@ -42,10 +42,11 @@ class GeminiHeader extends StatelessWidget {
     required this.onOpenVoicePicker,
     required this.onResetChat,
     required this.onClose,
-    required this.modelChecking,
-    required this.modelReady,
-    required this.modelStatusError,
-    required this.onRefreshModelStatus,
+    required this.cloudChecking,
+    required this.cloudReady,
+    required this.cloudStatusError,
+    required this.onRefreshCloudStatus,
+    this.cloudModel,
     this.onOpenMemory,
     this.memoryCount = 0,
   });
@@ -57,10 +58,11 @@ class GeminiHeader extends StatelessWidget {
   final VoidCallback onOpenVoicePicker;
   final VoidCallback onResetChat;
   final VoidCallback onClose;
-  final bool modelChecking;
-  final bool modelReady;
-  final String? modelStatusError;
-  final VoidCallback onRefreshModelStatus;
+  final bool cloudChecking;
+  final bool cloudReady;
+  final String? cloudStatusError;
+  final VoidCallback onRefreshCloudStatus;
+  final String? cloudModel;
   final VoidCallback? onOpenMemory;
   final int memoryCount;
 
@@ -73,18 +75,20 @@ class GeminiHeader extends StatelessWidget {
     final IconData statusIcon;
     final String statusLabel;
 
-    if (modelChecking) {
+    if (cloudChecking) {
       statusColor = isDark ? const Color(0xFF8B8B8B) : const Color(0xFF8A7E6B);
       statusIcon = Icons.hourglass_top_rounded;
       statusLabel = 'Memeriksa AI';
-    } else if (modelReady) {
+    } else if (cloudReady) {
       statusColor = isDark ? const Color(0xFF7BA37B) : const Color(0xFF6B7F5B);
       statusIcon = Icons.verified_outlined;
-      statusLabel = 'AI lokal siap • offline';
+      statusLabel = cloudModel == null || cloudModel!.trim().isEmpty
+          ? 'Gemini Cloud siap'
+          : 'Gemini Cloud siap · ${cloudModel!.trim()}';
     } else {
       statusColor = isDark ? const Color(0xFFC49A6B) : const Color(0xFFB07A4A);
       statusIcon = Icons.edit_note_outlined;
-      statusLabel = modelStatusError ?? 'Aturan lokal • model belum siap';
+      statusLabel = cloudStatusError ?? 'Gemini Cloud belum diverifikasi';
     }
 
     return Container(
@@ -246,7 +250,7 @@ class GeminiHeader extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           InkWell(
-            onTap: onRefreshModelStatus,
+            onTap: onRefreshCloudStatus,
             borderRadius: BorderRadius.circular(20),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -263,7 +267,8 @@ class GeminiHeader extends StatelessWidget {
                 children: [
                   Icon(statusIcon, size: 13, color: statusColor),
                   const SizedBox(width: 5),
-                  Flexible(
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 320),
                     child: Text(
                       statusLabel,
                       style: theme.textTheme.labelSmall?.copyWith(

@@ -16,26 +16,18 @@ import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart'
 import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
 import '../../features/assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
-import '../../features/assistant/data/ffm_assistant_local_model_gateway.dart';
-import '../../features/assistant/data/ffm_assistant_answer_composer.dart';
 import '../../features/assistant/data/ffm_category_suggestion_service.dart';
 import '../../features/assistant/data/ffm_activity_habit_learner.dart';
-import '../../features/assistant/data/ffm_assistant_slm_follow_up_service.dart';
-import '../../features/assistant/data/ffm_local_inference_queue.dart';
-import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
-import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
 import '../../features/assistant/data/ffm_memory_learning_service.dart';
 import '../../features/assistant/data/ffm_memory_maintenance_service.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
-import '../../features/assistant/data/ffm_slm_health_monitor.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_memory_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
-import '../../features/assistant/data/ffm_local_model_service.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -160,37 +152,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantLocalMemory>(
     FfmAssistantLocalMemory.new,
   );
-  getIt.registerLazySingleton<FfmLocalModelService>(FfmLocalModelService.new);
-  getIt.registerLazySingleton<FfmSingleInferenceQueue>(
-    FfmSingleInferenceQueue.new,
-  );
-  getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
-    () => FfmQwen2VlInferenceService(
-      getIt<FfmSingleInferenceQueue>(),
-      healthMonitor: getIt<FfmSlmHealthMonitor>(),
-    ),
-  );
-  getIt.registerLazySingleton<FfmQwen2VlGateway>(
-    () => FfmQwen2VlGateway(
-      getIt<FfmLocalModelService>(),
-      getIt<FfmQwen2VlInferenceService>(),
-      errorLogger: getIt<FfmErrorLoggingService>(),
-    ),
-  );
-  getIt.registerLazySingleton<FfmAssistantLocalModelGateway>(
-    () => getIt<FfmQwen2VlGateway>(),
-  );
-  getIt.registerLazySingleton<FfmAssistantAnswerComposer>(
-    () => getIt<FfmQwen2VlGateway>(),
-  );
-  getIt.registerLazySingleton<FfmAssistantSlmFollowUpService>(
-    () => FfmAssistantSlmFollowUpService(getIt<FfmQwen2VlGateway>()),
-  );
   getIt.registerLazySingleton<FfmAssistantMemoryRepository>(
     () => FfmAssistantMemoryRepository(db),
-  );
-  getIt.registerLazySingleton<FfmSlmHealthMonitor>(
-    FfmSlmHealthMonitor.new,
   );
   getIt.registerLazySingleton<FfmErrorLoggingService>(
     FfmErrorLoggingService.new,
@@ -251,21 +214,20 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmCategorySuggestionService(
       database: db,
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
-      advisor: getIt<FfmQwen2VlGateway>(),
+      advisor: null,
     ),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
     () => FfmAssistantInterpreter(
       db,
       memory: getIt<FfmAssistantLocalMemory>(),
-      modelGateway: getIt<FfmAssistantLocalModelGateway>(),
+      modelGateway: null,
       diagnostics: getIt<AppDiagnosticsService>(),
       taughtMemory: getIt<FfmAssistantMemoryRepository>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
-      slmReadyCheck: () async =>
-          await getIt<FfmLocalModelService>().getInstalled() != null,
-      answerComposer: getIt<FfmAssistantAnswerComposer>(),
+      slmReadyCheck: null,
+      answerComposer: null,
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
     ),
   );

@@ -1,37 +1,40 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_context.dart';
+import 'package:ffm_manager/core/network/gemini_service.dart';
+import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
-import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
-class _CapturingGateway implements FfmAssistantLocalModelGateway {
-  String? pageContext;
+class _FakeConfig extends SupabaseConfig {
+  @override
+  Future<String?> getGeminiKey() async => 'test-key';
 
   @override
-  Future<FfmAssistantModelProposal?> propose({
-    required String input,
-    String? imagePath,
-  }) async => const FfmAssistantModelProposal(
-    intent: FfmAssistantIntentType.help,
-    confidence: .95,
-  );
+  Future<String?> getGeminiModel() async => 'gemini-2.5-flash';
 
   @override
-  Future<FfmAssistantModelProposal?> proposeWithContext({
-    required String input,
-    String? imagePath,
-    String? pageContext,
-    String? conversationHistory,
-    List<String> capabilityIds = const <String>[],
-    List<String> activeAccountNames = const <String>[],
-    List<String> activeCategoryNames = const <String>[],
+  Future<bool> isGeminiVerified() async => true;
+}
+
+class _CapturingGemini extends GeminiService {
+  String? systemInstruction;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
   }) async {
-    this.pageContext = pageContext;
-    return const FfmAssistantModelProposal(
-      intent: FfmAssistantIntentType.help,
-      confidence: .95,
+    this.systemInstruction = systemInstruction;
+    return const GeminiResult(
+      model: 'gemini-2.5-flash',
+      statusCode: 200,
+      message: 'ok',
+      text: 'Jawaban Gemini.',
     );
   }
 }
@@ -48,7 +51,7 @@ void main() {
   });
 
   test(
-    'context SLM memakai snapshot agregat dan bukan raw transaction rows',
+    'context Gemini memakai snapshot agregat dan bukan raw transaction rows',
     () async {
       final now = DateTime(2026, 8, 23);
       await database
@@ -102,28 +105,28 @@ void main() {
             ),
           );
 
-      final gateway = _CapturingGateway();
+      final gemini = _CapturingGemini();
       final interpreter = FfmAssistantInterpreter(
         database,
-        modelGateway: gateway,
+        geminiService: gemini,
+        config: _FakeConfig(),
         clock: () => now,
       );
 
       final intent = await interpreter.interpret(
-        'bagaimana membagi pendapatan keluarga untuk kebutuhan dan rencana jangka panjang?',
+        'uraikan pendapatan keluarga secara konseptual',
       );
 
-      expect(intent.type, FfmAssistantIntentType.help);
-      expect(intent.responseMode, FfmAssistantResponseMode.localModel);
-      expect(gateway.pageContext, contains('income=8000000'));
-      expect(gateway.pageContext, contains('expenses=3000000'));
-      expect(gateway.pageContext, contains('quality=sufficient'));
-      expect(gateway.pageContext, contains('rekening_aktif=SeaBank'));
-      expect(gateway.pageContext, contains('kategori_aktif='));
-      expect(gateway.pageContext, contains('Belanja Pasar'));
-      expect(gateway.pageContext, contains('nama saja; tanpa saldo'));
-      expect(gateway.pageContext, isNot(contains('987654')));
-      expect(gateway.pageContext, isNot(contains('Rahasia keluarga')));
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+      expect(gemini.systemInstruction, contains('income=8000000'));
+      expect(gemini.systemInstruction, contains('expenses=3000000'));
+      expect(gemini.systemInstruction, contains('quality=sufficient'));
+      expect(gemini.systemInstruction, contains('rekening_aktif=SeaBank'));
+      expect(gemini.systemInstruction, contains('kategori_aktif='));
+      expect(gemini.systemInstruction, contains('Belanja Pasar'));
+      expect(gemini.systemInstruction, contains('nama saja; tanpa saldo'));
+      expect(gemini.systemInstruction, isNot(contains('987654')));
+      expect(gemini.systemInstruction, isNot(contains('Rahasia keluarga')));
     },
   );
 }

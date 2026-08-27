@@ -8,7 +8,7 @@ void main() {
     tester,
   ) async {
     const trace = FfmAssistantProcessTrace(
-      origin: FfmAssistantResponseOrigin.localSlm,
+      origin: FfmAssistantResponseOrigin.geminiCloud,
       elapsed: Duration(milliseconds: 420),
       events: [
         FfmAssistantProcessEvent(
@@ -16,7 +16,7 @@ void main() {
           elapsed: Duration.zero,
         ),
         FfmAssistantProcessEvent(
-          label: 'SLM lokal mengembalikan proposal valid',
+          label: 'Gemini Cloud mengembalikan jawaban',
           elapsed: Duration(milliseconds: 420),
           detail: 'Proposal tetap divalidasi FFM sebelum ditampilkan.',
         ),
@@ -29,13 +29,13 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('Dibantu SLM lokal'), findsOneWidget);
+    expect(find.textContaining('Gemini Cloud'), findsOneWidget);
     expect(find.text('Lampiran diterima untuk dianalisis'), findsNothing);
 
-    await tester.tap(find.textContaining('Dibantu SLM lokal'));
+    await tester.tap(find.textContaining('Gemini Cloud'));
     await tester.pumpAndSettle();
 
     expect(find.text('Lampiran diterima untuk dianalisis'), findsOneWidget);
-    expect(find.text('SLM lokal mengembalikan proposal valid'), findsOneWidget);
+    expect(find.text('Gemini Cloud mengembalikan jawaban'), findsOneWidget);
   });
 }

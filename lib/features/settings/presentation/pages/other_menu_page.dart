@@ -5,7 +5,6 @@ import '../../../audit/presentation/pages/activity_log_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/assistant_profile_page.dart';
 import '../../../assistant/presentation/pages/assistant_training_page.dart';
-import '../../../assistant/presentation/pages/local_model_page.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
@@ -48,7 +47,6 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
   bool _hasMatchingMenu() {
     const menuItems = <List<String>>[
       ['Data Utama', 'kategori toko tag rekening pemasukan'],
-      ['Model Asisten Lokal', 'SLM GitHub bundle offline'],
       ['Aset keluarga', 'barang kekayaan'],
       ['Target keuangan', 'uang dikumpulkan'],
       ['Hutang & piutang', 'kewajiban diterima'],
@@ -104,7 +102,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
                 labelText: 'Cari menu Lainnya',
-                hintText: 'Contoh: laporan, pengingat, SLM',
+                hintText: 'Contoh: laporan, pengingat, Gemini',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchQuery.isEmpty
                     ? null
@@ -148,23 +146,13 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             const SizedBox(height: 20),
             _MenuCard(
-              icon: Icons.memory_outlined,
-              title: 'Model Asisten Lokal',
-              subtitle: 'Unduh SLM dari GitHub atau impor bundle offline yang sudah dibagikan dan diverifikasi.',
-              onTap: () => _open(context, const LocalModelPage()),
-              visible: _matches(
-                'Model Asisten Lokal',
-                'Unduh SLM dari GitHub atau impor bundle offline yang sudah dibagikan dan diverifikasi.',
-              ),
-            ),
-            _MenuCard(
               icon: Icons.cloud_queue_outlined,
-              title: 'Cloud Brain',
-              subtitle: 'Sambungkan asisten ke memori jangka panjang di cloud menggunakan Supabase.',
+              title: 'Gemini Cloud & Memori',
+              subtitle: 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
               onTap: () => _open(context, const SupabaseSetupPage()),
               visible: _matches(
-                'Cloud Brain',
-                'Sambungkan asisten ke memori jangka panjang di cloud menggunakan Supabase.',
+                'Gemini Cloud Memori simpan uji model chatbot Supabase',
+                'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
               ),
             ),
             const AppSectionHeader(title: 'Data keluarga'),

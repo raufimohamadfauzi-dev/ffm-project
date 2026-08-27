@@ -1,58 +1,308 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
+
 import 'supabase_config.dart';
 
-class GeminiService {
-  final _config = SupabaseConfig();
-  static const _model = 'gemini-1.5-flash';
+class GeminiModelOption {
+  const GeminiModelOption({required this.id, required this.displayName});
 
-  Future<String?> chat({
+  final String id;
+  final String displayName;
+}
+
+class GeminiResult {
+  const GeminiResult({
+    required this.model,
+    required this.statusCode,
+    required this.message,
+    this.text,
+    this.latency,
+  });
+
+  final String model;
+  final int? statusCode;
+  final String message;
+  final String? text;
+  final Duration? latency;
+
+  bool get ok => text != null && text!.trim().isNotEmpty;
+}
+
+class GeminiModelsResult {
+  const GeminiModelsResult({
+    required this.models,
+    required this.statusCode,
+    required this.message,
+  });
+
+  final List<GeminiModelOption> models;
+  final int? statusCode;
+  final String message;
+
+  bool get ok => models.isNotEmpty;
+}
+
+class GeminiService {
+  GeminiService({http.Client? client, SupabaseConfig? config})
+    : _client = client ?? http.Client(),
+      _config = config ?? SupabaseConfig();
+
+  final http.Client _client;
+  final SupabaseConfig _config;
+
+  Future<GeminiResult> chat({
     required String prompt,
     String? systemInstruction,
     List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
   }) async {
-    final apiKey = await _config.getGeminiKey();
-    if (apiKey == null || apiKey.isEmpty) return null;
-
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/$_model:generateContent?key=$apiKey',
-    );
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          if (systemInstruction != null)
-            "system_instruction": {
-              "parts": [{"text": systemInstruction}]
-            },
-          "contents": [
-            ...history.map((h) => {
-              "role": h['role'] == 'user' ? 'user' : 'model',
-              "parts": [{"text": h['text']}]
-            }),
-            {
-              "role": "user",
-              "parts": [{"text": prompt}]
-            }
-          ],
-          "generationConfig": {
-            "temperature": 0.7,
-            "topK": 40,
-            "topP": 0.95,
-            "maxOutputTokens": 1024,
-          }
-        }),
-      ).timeout(const Duration(seconds: 15));
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['candidates'][0]['content']['parts'][0]['text'] as String;
-      }
-      return null;
-    } catch (e) {
-      return null;
+    final key = apiKey ?? await _config.getGeminiKey();
+    final selectedModel =
+        (model ?? await _config.getGeminiModel())?.trim() ?? '';
+    if (key == null || key.trim().isEmpty) {
+      return GeminiResult(
+        model: selectedModel,
+        statusCode: null,
+        message: 'API key Gemini belum diisi.',
+      );
     }
+    if (selectedModel.isEmpty) {
+      return const GeminiResult(
+        model: '',
+        statusCode: null,
+        message: 'Model Gemini belum dipilih.',
+      );
+    }
+
+    return _generate(
+      apiKey: key.trim(),
+      model: selectedModel,
+      prompt: prompt,
+      systemInstruction: systemInstruction,
+      history: history,
+    );
+  }
+
+  Future<GeminiResult> testConnection({String? apiKey, String? model}) => chat(
+    apiKey: apiKey,
+    model: model,
+    prompt: 'Tes koneksi FFM. Balas tepat: Gemini aktif.',
+    systemInstruction: 'Balas singkat dalam Bahasa Indonesia. Jangan menambahkan informasi lain.',
+  );
+
+  Future<GeminiModelsResult> fetchModels({required String apiKey}) async {
+    final key = apiKey.trim();
+    if (key.isEmpty) {
+      return const GeminiModelsResult(
+        models: [],
+        statusCode: null,
+        message: 'API key Gemini belum diisi.',
+      );
+    }
+    final uri = Uri.https(
+      'generativelanguage.googleapis.com',
+      '/v1beta/models',
+    );
+    try {
+      final response = await _client
+          .get(uri, headers: {'x-goog-api-key': key})
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        return GeminiModelsResult(
+          models: const [],
+          statusCode: response.statusCode,
+          message: _statusMessage(response.statusCode, response.body),
+        );
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic> || decoded['models'] is! List) {
+        return const GeminiModelsResult(
+          models: [],
+          statusCode: 200,
+          message: 'Respons daftar model Gemini tidak valid.',
+        );
+      }
+      final models = (decoded['models'] as List)
+          .whereType<Map<String, dynamic>>()
+          .where((model) {
+            final methods = model['supportedGenerationMethods'];
+            return methods is List && methods.contains('generateContent');
+          })
+          .map((model) {
+            final name = '${model['name'] ?? ''}';
+            final id = name.startsWith('models/')
+                ? name.substring('models/'.length)
+                : name;
+            final displayName = '${model['displayName'] ?? id}';
+            return GeminiModelOption(id: id, displayName: displayName);
+          })
+          .where((model) => model.id.isNotEmpty)
+          .toList(growable: false);
+      return GeminiModelsResult(
+        models: models,
+        statusCode: 200,
+        message: models.isEmpty
+            ? 'Tidak ada model Gemini dengan generateContent untuk key ini.'
+            : '${models.length} model Gemini tersedia untuk key ini.',
+      );
+    } on Object catch (error) {
+      final message = error.toString().toLowerCase().contains('timeout')
+          ? 'Request daftar model Gemini timeout setelah 10 detik.'
+          : 'Daftar model Gemini gagal diambil: ${error.runtimeType}.';
+      return GeminiModelsResult(
+        models: const [],
+        statusCode: null,
+        message: message,
+      );
+    }
+  }
+
+  Future<List<GeminiModelOption>> listModels({required String apiKey}) async {
+    final result = await fetchModels(apiKey: apiKey);
+    return result.models;
+  }
+
+  Future<GeminiResult> _generate({
+    required String apiKey,
+    required String model,
+    required String prompt,
+    required String? systemInstruction,
+    required List<Map<String, String>> history,
+  }) async {
+    final url = Uri.https(
+      'generativelanguage.googleapis.com',
+      '/v1beta/models/$model:generateContent',
+    );
+    final stopwatch = Stopwatch()..start();
+    try {
+      final response = await _client
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: jsonEncode({
+              if (systemInstruction != null)
+                'system_instruction': {
+                  'parts': [
+                    {'text': systemInstruction},
+                  ],
+                },
+              'contents': [
+                ...history.map(
+                  (item) => {
+                    'role': item['role'] == 'user' ? 'user' : 'model',
+                    'parts': [
+                      {'text': item['text'] ?? ''},
+                    ],
+                  },
+                ),
+                {
+                  'role': 'user',
+                  'parts': [
+                    {'text': prompt},
+                  ],
+                },
+              ],
+              'generationConfig': {
+                'temperature': 0.7,
+                'topK': 40,
+                'topP': 0.95,
+                'maxOutputTokens': 1024,
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      stopwatch.stop();
+      if (response.statusCode != 200) {
+        return GeminiResult(
+          model: model,
+          statusCode: response.statusCode,
+          message: _statusMessage(response.statusCode, response.body),
+          latency: stopwatch.elapsed,
+        );
+      }
+      final text = _extractText(response.body);
+      if (text == null) {
+        return GeminiResult(
+          model: model,
+          statusCode: response.statusCode,
+          message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.',
+          latency: stopwatch.elapsed,
+        );
+      }
+      return GeminiResult(
+        model: model,
+        statusCode: response.statusCode,
+        message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).',
+        text: text,
+        latency: stopwatch.elapsed,
+      );
+    } on http.ClientException {
+      stopwatch.stop();
+      return GeminiResult(
+        model: model,
+        statusCode: null,
+        message: 'Koneksi ke Gemini gagal. Periksa internet atau endpoint API.',
+        latency: stopwatch.elapsed,
+      );
+    } on FormatException {
+      stopwatch.stop();
+      return GeminiResult(
+        model: model,
+        statusCode: null,
+        message: 'Respons Gemini tidak berformat JSON yang valid.',
+        latency: stopwatch.elapsed,
+      );
+    } on Exception catch (error) {
+      stopwatch.stop();
+      final message = error.toString().toLowerCase().contains('timeout')
+          ? 'Request Gemini timeout setelah 15 detik.'
+          : 'Request Gemini gagal: ${error.runtimeType}.';
+      return GeminiResult(
+        model: model,
+        statusCode: null,
+        message: message,
+        latency: stopwatch.elapsed,
+      );
+    }
+  }
+
+  String? _extractText(String body) {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map<String, dynamic>) return null;
+    final candidates = decoded['candidates'];
+    if (candidates is! List || candidates.isEmpty) return null;
+    final first = candidates.first;
+    if (first is! Map<String, dynamic>) return null;
+    final content = first['content'];
+    if (content is! Map<String, dynamic>) return null;
+    final parts = content['parts'];
+    if (parts is! List) return null;
+    final text = parts
+        .whereType<Map<String, dynamic>>()
+        .map((part) => part['text'])
+        .whereType<String>()
+        .join();
+    return text.trim().isEmpty ? null : text.trim();
+  }
+
+  String _statusMessage(int statusCode, [String? body]) {
+    final lowerBody = body?.toLowerCase() ?? '';
+    if (lowerBody.contains('api key not valid') ||
+        lowerBody.contains('invalid api key')) {
+      return 'API key Gemini ditolak (HTTP $statusCode).';
+    }
+    return switch (statusCode) {
+      400 => 'Gemini menolak request (HTTP 400). Model atau format request tidak valid.',
+      401 || 403 => 'API key Gemini ditolak (HTTP $statusCode).',
+      404 => 'Model Gemini tidak ditemukan atau tidak tersedia untuk endpoint ini (HTTP 404).',
+      429 => 'Kuota atau rate limit Gemini tercapai (HTTP 429).',
+      >= 500 => 'Layanan Gemini bermasalah sementara (HTTP $statusCode).',
+      _ => 'Gemini mengembalikan HTTP $statusCode.',
+    };
   }
 }

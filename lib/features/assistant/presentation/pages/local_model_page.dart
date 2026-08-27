@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -681,35 +682,93 @@ class _LocalModelPageState extends State<LocalModelPage>
   }
 
   Future<void> _runBenchmark() async {
-    final model = _model;
-    if (model == null) return;
-
     setState(() {
       _working = true;
-      _workingMessage = 'Menjalankan uji inferensi SLM lokal (Benchmark)...';
+      _workingMessage = 'Menjalankan benchmark inferensi SLM lokal...';
       _error = null;
     });
 
-    final stopwatch = Stopwatch()..start();
+    final totalStopwatch = Stopwatch()..start();
     try {
+      final model = await _service.verifyInstalled();
+      if (model == null) {
+        throw StateError('Model lokal belum terverifikasi penuh.');
+      }
       await FfmLocalModelBridgePlugin.initNative(modelPath: model.filePath);
 
-      const testPrompt = 'Beli beras 50 ribu di warung Madura';
-      final response = await FfmLocalModelBridgePlugin.generateSingleShotNative(
-        systemPrompt: 'Ekstrak informasi transaksi belanja ke format JSON: {"title": string, "amount": number, "type": "expense"}. HANYA cetak JSON.',
-        userPrompt: testPrompt,
-      );
-      stopwatch.stop();
+      const cases = [
+        (
+          name: 'Expense',
+          prompt: 'Beli beras 50 ribu di warung Madura',
+          expectedType: 'expense',
+        ),
+        (
+          name: 'Income',
+          prompt: 'Terima gaji 5 juta ke rekening BCA',
+          expectedType: 'income',
+        ),
+        (
+          name: 'Transfer',
+          prompt: 'Transfer 100 ribu dari BCA ke GoPay',
+          expectedType: 'transfer',
+        ),
+      ];
+      final resultLines = <String>[];
+      var passed = 0;
+      var totalLatencyMs = 0;
+      var maxLatencyMs = 0;
+
+      for (final testCase in cases) {
+        final stopwatch = Stopwatch()..start();
+        try {
+          final response =
+              await FfmLocalModelBridgePlugin.generateSingleShotNative(
+                systemPrompt: 'Ekstrak transaksi ke JSON dengan field title (string), amount (number), dan type (expense/income/transfer). HANYA cetak JSON.',
+                userPrompt: testCase.prompt,
+              );
+          stopwatch.stop();
+          totalLatencyMs += stopwatch.elapsedMilliseconds;
+          if (stopwatch.elapsedMilliseconds > maxLatencyMs) {
+            maxLatencyMs = stopwatch.elapsedMilliseconds;
+          }
+          final decoded = jsonDecode(response);
+          final valid =
+              decoded is Map<String, dynamic> &&
+              decoded['title'] is String &&
+              (decoded['amount'] is num) &&
+              decoded['amount'] > 0 &&
+              decoded['type'] == testCase.expectedType;
+          if (valid) passed++;
+          resultLines.add(
+            '${testCase.name}: ${valid ? 'LULUS' : 'GAGAL'} '
+            '(${stopwatch.elapsedMilliseconds} ms)\n${response.trim()}',
+          );
+        } on Object catch (error) {
+          stopwatch.stop();
+          totalLatencyMs += stopwatch.elapsedMilliseconds;
+          if (stopwatch.elapsedMilliseconds > maxLatencyMs) {
+            maxLatencyMs = stopwatch.elapsedMilliseconds;
+          }
+          resultLines.add(
+            '${testCase.name}: GAGAL (${stopwatch.elapsedMilliseconds} ms)\n$error',
+          );
+        }
+      }
+      totalStopwatch.stop();
 
       if (!mounted) return;
+      final allPassed = passed == cases.length;
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.speed, color: Colors.teal),
-              SizedBox(width: 8),
-              Text('Hasil Uji Inferensi SLM'),
+              Icon(
+                allPassed ? Icons.check_circle : Icons.warning_amber,
+                color: allPassed ? Colors.teal : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              const Text('Benchmark SLM Lokal'),
             ],
           ),
           content: SingleChildScrollView(
@@ -717,62 +776,28 @@ class _LocalModelPageState extends State<LocalModelPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.teal.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.check_circle,
-                        color: Colors.teal,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Inferensi Berhasil\nLatensi: ${stopwatch.elapsedMilliseconds} ms (${(stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(2)} detik)',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Prompt Uji:',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const Text(testPrompt, style: TextStyle(fontSize: 12)),
-                const SizedBox(height: 12),
-                const Text(
-                  'Keluaran Model (JSON):',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                Text(
+                  '$passed/${cases.length} kasus lulus validasi JSON dan field transaksi.',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: SelectableText(
-                    response.trim(),
+                Text(
+                  'Rata-rata: ${totalLatencyMs ~/ cases.length} ms · Maksimum: $maxLatencyMs ms · Total: ${totalStopwatch.elapsedMilliseconds} ms',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 14),
+                for (final line in resultLines) ...[
+                  SelectableText(
+                    line,
                     style: const TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 11,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 10),
+                ],
                 Text(
-                  'Catatan: Pemrosesan AI berjalan 100% di CPU lokal HP Anda tanpa koneksi internet.',
+                  'Ini adalah smoke benchmark kemampuan inferensi lokal pada perangkat, bukan bukti bahwa semua intent FFM telah dikuasai model.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: Colors.grey),
                 ),
@@ -787,11 +812,11 @@ class _LocalModelPageState extends State<LocalModelPage>
           ],
         ),
       );
-    } catch (e) {
-      stopwatch.stop();
+    } catch (error) {
+      totalStopwatch.stop();
       if (!mounted) return;
       setState(() {
-        _error = 'Uji inferensi SLM gagal: $e';
+        _error = 'Benchmark inferensi SLM gagal: $error';
       });
     } finally {
       if (mounted) setState(() => _working = false);

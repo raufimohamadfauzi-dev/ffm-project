@@ -151,10 +151,10 @@ class FfmAssistantCapabilityRegistry {
     ),
     const FfmAssistantCapability(
       id: 'read.model_status',
-      label: 'Periksa status model',
-      description: 'Memeriksa kesiapan model lokal.',
+      label: 'Periksa status Gemini Cloud',
+      description: 'Memeriksa apakah key dan model Gemini Cloud sudah diuji serta tersimpan.',
       risk: FfmAssistantCapabilityRisk.readOnly,
-      destination: FfmAssistantDestination.localModel,
+      destination: FfmAssistantDestination.intelligenceDashboard,
       readOnly: true,
     ),
     const FfmAssistantCapability(
@@ -826,10 +826,11 @@ class FfmAssistantCapabilityRegistry {
     ),
     const FfmAssistantCapability(
       id: 'model.status',
-      label: 'Periksa SLM lokal',
-      description: 'Memeriksa kesiapan model lokal tanpa mengunduh otomatis.',
+      label: 'Periksa Gemini Cloud',
+      description:
+          'Memeriksa status key dan model Gemini Cloud tanpa mengubah data.',
       risk: FfmAssistantCapabilityRisk.readOnly,
-      destination: FfmAssistantDestination.localModel,
+      destination: FfmAssistantDestination.intelligenceDashboard,
       readOnly: true,
     ),
   ]);

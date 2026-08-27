@@ -1,8 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/core/network/gemini_service.dart';
+import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
-import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_memory_repository.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_user_model_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_personal_context_engine_impl.dart';
@@ -11,32 +12,36 @@ import 'package:ffm_manager/features/assistant/data/ffm_working_context_manager.
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _CapturingGateway implements FfmAssistantLocalModelGateway {
-  String? pageContext;
+class _FakeConfig extends SupabaseConfig {
+  @override
+  Future<String?> getGeminiKey() async => 'test-key';
 
   @override
-  Future<FfmAssistantModelProposal?> propose({
-    required String input,
-    String? imagePath,
-  }) async => const FfmAssistantModelProposal(
-    intent: FfmAssistantIntentType.help,
-    confidence: .95,
-  );
+  Future<String?> getGeminiModel() async => 'gemini-2.5-flash';
 
   @override
-  Future<FfmAssistantModelProposal?> proposeWithContext({
-    required String input,
-    String? imagePath,
-    String? pageContext,
-    String? conversationHistory,
-    List<String> capabilityIds = const <String>[],
-    List<String> activeAccountNames = const <String>[],
-    List<String> activeCategoryNames = const <String>[],
+  Future<bool> isGeminiVerified() async => true;
+}
+
+class _CapturingGemini extends GeminiService {
+  var calls = 0;
+  String? systemInstruction;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
   }) async {
-    this.pageContext = pageContext;
-    return const FfmAssistantModelProposal(
-      intent: FfmAssistantIntentType.help,
-      confidence: .95,
+    calls++;
+    this.systemInstruction = systemInstruction;
+    return const GeminiResult(
+      model: 'gemini-2.5-flash',
+      statusCode: 200,
+      message: 'ok',
+      text: 'Jawaban Gemini.',
     );
   }
 }
@@ -163,45 +168,58 @@ void main() {
     },
   );
 
-  test('kegagalan resolver context tetap meneruskan model-first dengan context dasar', () async {
-    final gateway = _CapturingGateway();
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-      personalContextProvider: () => throw StateError('provider gagal'),
-    );
+  test(
+    'kegagalan resolver context tetap meneruskan Gemini dengan context dasar',
+    () async {
+      final gemini = _CapturingGemini();
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        geminiService: gemini,
+        config: _FakeConfig(),
+        personalContextProvider: () => throw StateError('provider gagal'),
+      );
 
-    await interpreter.interpret('tolong pahami permintaan baru ini');
+      await interpreter.interpret('tolong pahami permintaan baru ini');
 
-    expect(gateway.pageContext, contains('Reasoning context FFM'));
-  });
+      expect(gemini.calls, 1);
+      expect(gemini.systemInstruction, contains('Reasoning context FFM'));
+    },
+  );
 
-  test('model-first menerima memory approved dan memblokirnya pada halaman sensitif', () async {
-    final memories = FfmAssistantMemoryRepository(database);
-    final userModel = FfmAssistantUserModelService(memories);
-    await userModel.saveApproved(kind: 'name', key: 'panggilan', value: 'Budi');
-    final provider = await FfmPersonalContextProvider.initialize(
-      database: database,
-      memoryRepository: memories,
-      userModelService: userModel,
-    );
-    final gateway = _CapturingGateway();
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-      taughtMemory: memories,
-      personalContextProvider: () => provider,
-    );
+  test(
+    'Gemini menerima memory approved dan memblokirnya pada halaman sensitif',
+    () async {
+      final memories = FfmAssistantMemoryRepository(database);
+      final userModel = FfmAssistantUserModelService(memories);
+      await userModel.saveApproved(
+        kind: 'name',
+        key: 'panggilan',
+        value: 'Budi',
+      );
+      final provider = await FfmPersonalContextProvider.initialize(
+        database: database,
+        memoryRepository: memories,
+        userModelService: userModel,
+      );
+      final gemini = _CapturingGemini();
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        geminiService: gemini,
+        config: _FakeConfig(),
+        taughtMemory: memories,
+        personalContextProvider: () => provider,
+      );
 
-    await interpreter.interpret('tolong pahami panggilan khusus ini');
+      await interpreter.interpret('tolong pahami panggilan khusus ini');
 
-    expect(gateway.pageContext, contains('panggilan=Budi'));
+      expect(gemini.systemInstruction, contains('panggilan=Budi'));
 
-    await interpreter.interpret(
-      'tolong pahami panggilan khusus ini',
-      currentDestination: FfmAssistantDestination.appSecurity,
-    );
+      await interpreter.interpret(
+        'tolong pahami panggilan khusus ini',
+        currentDestination: FfmAssistantDestination.appSecurity,
+      );
 
-    expect(gateway.pageContext, isNot(contains('panggilan=Budi')));
-  });
+      expect(gemini.systemInstruction, isNot(contains('panggilan=Budi')));
+    },
+  );
 }

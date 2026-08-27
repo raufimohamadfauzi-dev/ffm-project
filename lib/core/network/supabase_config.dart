@@ -6,8 +6,10 @@ class SupabaseConfig {
   static const _anonKey = 'supabase_anon_key';
   static const _userKey = 'supabase_user_id';
   static const _geminiKey = 'gemini_api_key';
+  static const _geminiModelKey = 'gemini_model';
+  static const _geminiVerifiedKey = 'gemini_api_verified';
   static const _llmModeKey = 'preferred_llm_mode';
-  
+
   // No longer hardcoded defaults for keys to encourage UI setup
   static const defaultUrl = '';
   static const defaultAnonKey = '';
@@ -17,6 +19,12 @@ class SupabaseConfig {
   Future<String?> getUrl() async => await _storage.read(key: _urlKey);
   Future<String?> getAnonKey() async => await _storage.read(key: _anonKey);
   Future<String?> getGeminiKey() async => await _storage.read(key: _geminiKey);
+
+  Future<String?> getGeminiModel() async =>
+      await _storage.read(key: _geminiModelKey);
+
+  Future<bool> isGeminiVerified() async =>
+      (await _storage.read(key: _geminiVerifiedKey)) == 'true';
 
   Future<String> getLlmMode() async {
     return await _storage.read(key: _llmModeKey) ?? 'auto';
@@ -28,6 +36,17 @@ class SupabaseConfig {
 
   Future<void> saveGeminiKey(String key) async {
     await _storage.write(key: _geminiKey, value: key);
+  }
+
+  Future<void> saveGeminiModel(String model) async {
+    await _storage.write(key: _geminiModelKey, value: model);
+  }
+
+  Future<void> setGeminiVerified(bool verified) async {
+    await _storage.write(
+      key: _geminiVerifiedKey,
+      value: verified ? 'true' : 'false',
+    );
   }
 
   Future<String> getUserId() async {

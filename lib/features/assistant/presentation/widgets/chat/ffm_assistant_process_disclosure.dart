@@ -30,14 +30,24 @@ class _FfmAssistantProcessDisclosureState
           color: const Color(0xFF00727A),
         ),
         FfmAssistantResponseOrigin.localSlm => (
-          label: 'Dibantu SLM lokal',
+          label: 'Agent menyusun proposal',
           icon: Icons.auto_awesome_outlined,
           color: const Color(0xFF3B6EC4),
         ),
         FfmAssistantResponseOrigin.localFallback => (
-          label: 'Fallback lokal setelah SLM',
+          label: 'Agent fallback deterministik',
           icon: Icons.info_outline,
           color: const Color(0xFF9A5B00),
+        ),
+        FfmAssistantResponseOrigin.geminiCloud => (
+          label: 'Gemini Cloud',
+          icon: Icons.cloud_done_outlined,
+          color: const Color(0xFF2E7D32),
+        ),
+        FfmAssistantResponseOrigin.cloudError => (
+          label: 'Gemini Cloud gagal',
+          icon: Icons.cloud_off_outlined,
+          color: const Color(0xFFC62828),
         ),
       };
 
@@ -61,7 +71,7 @@ class _FfmAssistantProcessDisclosureState
     'read.activity' => 'Membaca aktivitas',
     'read.accounts' => 'Memeriksa rekening',
     'read.categories' => 'Memeriksa kategori',
-    'read.model_status' => 'Memeriksa status model lokal',
+    'read.model_status' => 'Memeriksa status Assistant',
     'navigate.budget' => 'Membuka halaman Anggaran',
     _ =>
       capabilityId

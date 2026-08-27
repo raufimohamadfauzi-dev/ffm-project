@@ -1,0 +1,166 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/core/network/gemini_service.dart';
+import 'package:ffm_manager/core/network/supabase_config.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+
+class _FakeConfig extends SupabaseConfig {
+  _FakeConfig({
+    required this.mode,
+    required this.verified,
+    this.model = 'gemini-2.5-flash',
+  });
+
+  final String mode;
+  final bool verified;
+  final String model;
+
+  @override
+  Future<String?> getGeminiKey() async => 'test-key';
+
+  @override
+  Future<String?> getGeminiModel() async => model;
+
+  @override
+  Future<bool> isGeminiVerified() async => verified;
+
+  @override
+  Future<String> getLlmMode() async => mode;
+}
+
+class _FakeGemini extends GeminiService {
+  _FakeGemini(this.result);
+
+  final GeminiResult result;
+  var calls = 0;
+  String? receivedModel;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
+  }) async {
+    calls++;
+    receivedModel = model;
+    return result;
+  }
+}
+
+class _FakeGateway implements FfmAssistantLocalModelGateway {
+  var calls = 0;
+
+  @override
+  Future<FfmAssistantModelProposal?> propose({required String input}) async {
+    calls++;
+    return null;
+  }
+
+  @override
+  Future<FfmAssistantModelProposal?> proposeWithContext({
+    required String input,
+    String? pageContext,
+    String? conversationHistory,
+    List<String> capabilityIds = const <String>[],
+    List<String> activeAccountNames = const <String>[],
+    List<String> activeCategoryNames = const <String>[],
+  }) => propose(input: input);
+}
+
+void main() {
+  late AppDatabase database;
+
+  setUp(() {
+    database = createInMemoryDatabaseForTests();
+  });
+
+  tearDown(() => database.close());
+
+  test('mode Gemini sukses diberi origin Gemini Cloud', () async {
+    final gateway = _FakeGateway();
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-pro',
+        statusCode: 200,
+        message: 'Gemini merespons.',
+        text: 'Jawaban dari Gemini.',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      modelGateway: gateway,
+      config: _FakeConfig(
+        mode: 'gemini',
+        verified: true,
+        model: 'gemini-2.5-pro',
+      ),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+    );
+
+    expect(gemini.calls, 1);
+    expect(gemini.receivedModel, 'gemini-2.5-pro');
+    expect(gateway.calls, 0);
+    expect(intent.response, 'Jawaban dari Gemini.');
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    expect(intent.pluginMetadata?['model'], 'gemini-2.5-pro');
+  });
+
+  test('mode Gemini gagal tidak diam-diam memakai gateway lokal', () async {
+    final gateway = _FakeGateway();
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 401,
+        message: 'API key Gemini ditolak (HTTP 401).',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      modelGateway: gateway,
+      config: _FakeConfig(mode: 'gemini', verified: true),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+    );
+
+    expect(gemini.calls, 1);
+    expect(gateway.calls, 0);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.response, contains('HTTP 401'));
+  });
+
+  test('mode Gemini belum diverifikasi tidak memanggil provider', () async {
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'tidak boleh dipakai',
+        text: 'tidak boleh dipakai',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(mode: 'gemini', verified: false),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+    );
+
+    expect(gemini.calls, 0);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.response, contains('belum siap'));
+  });
+}

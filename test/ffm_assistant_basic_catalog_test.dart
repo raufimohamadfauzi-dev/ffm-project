@@ -29,13 +29,18 @@ void main() {
 
   test('status section non-data dijawab jujur tanpa mengada-ada', () {
     final question = FfmAssistantCatalog.classifyBasicQuestion(
-      'model lokal sudah lengkap?',
+      'apakah gemini cloud bisa dipakai?',
     );
 
-    expect(question?.page.destination, FfmAssistantDestination.localModel);
+    expect(
+      question?.page.destination,
+      FfmAssistantDestination.intelligenceDashboard,
+    );
     expect(
       FfmAssistantCatalog.answerBasicQuestion(question!),
-      contains('bukan section data'),
+      contains(
+        'Mengatur koneksi memori cloud Supabase dan Gemini Cloud'.toLowerCase(),
+      ),
     );
   });
 }

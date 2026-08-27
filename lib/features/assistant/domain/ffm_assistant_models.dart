@@ -6,7 +6,13 @@ import '../../activity/domain/activity_voice.dart';
 
 enum FfmAssistantResponseMode { localRules, localModel }
 
-enum FfmAssistantResponseOrigin { agentOrchestrator, localSlm, localFallback }
+enum FfmAssistantResponseOrigin {
+  agentOrchestrator,
+  localSlm,
+  localFallback,
+  geminiCloud,
+  cloudError,
+}
 
 class FfmAssistantProcessEvent {
   const FfmAssistantProcessEvent({
@@ -874,22 +880,9 @@ abstract final class FfmAssistantCatalog {
       dataSection: FfmAssistantDataSection.profile,
     ),
     FfmAssistantPage(
-      destination: FfmAssistantDestination.localModel,
-      name: 'Model Asisten Lokal',
-      description: 'Mengunduh, mengimpor, memverifikasi, atau membagikan bundle SLM lokal.',
-      aliases: [
-        'model asisten lokal',
-        'model lokal',
-        'slm lokal',
-        'qwen lokal',
-        'qwen2-vl',
-      ],
-    ),
-    FfmAssistantPage(
       destination: FfmAssistantDestination.intelligenceDashboard,
       name: 'Intelligence Dashboard',
-      description:
-          'Mengatur koneksi memori cloud Supabase dan Natural Brain Gemini.',
+      description: 'Mengatur koneksi memori cloud Supabase dan Gemini Cloud.',
       aliases: [
         'intelligence dashboard',
         'dashboard kecerdasan',
@@ -990,11 +983,6 @@ abstract final class FfmAssistantCatalog {
       description:
           'Membaca panduan lengkap tentang teknologi offline yang tersedia.',
       destination: FfmAssistantDestination.offlineFeatures,
-    ),
-    FfmAssistantOtherMenuItem(
-      name: 'Model Asisten Lokal',
-      description: 'Mengunduh SLM dari GitHub atau mengimpor bundle offline yang sudah diverifikasi.',
-      destination: FfmAssistantDestination.localModel,
     ),
   ];
 
@@ -1109,10 +1097,10 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.offlineAdvanced => 'Alat offline lanjutan menyediakan pemeriksaan lokal, cek saldo, rekonsiliasi, dan alat impor yang berjalan di perangkat.',
         FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
         FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM tanpa memberi model akses langsung ke database.',
-        FfmAssistantDestination.offlineFeatures => 'Fitur tanpa internet menjelaskan bagian FFM yang tetap berjalan lokal, termasuk database, Asisten aturan, dan setup SLM setelah model tersedia.',
-        FfmAssistantDestination.localModel => 'Model Asisten Lokal dipakai untuk mengunduh dari GitHub, mengimpor bundle offline, memverifikasi, menghapus, atau membagikan bundle SLM.',
+        FfmAssistantDestination.offlineFeatures => 'Fitur tanpa internet menjelaskan bagian FFM yang tetap berjalan lokal, termasuk database dan Agent deterministic; percakapan AI menggunakan Gemini Cloud saat terverifikasi.',
+        FfmAssistantDestination.localModel => 'Pengaturan model lokal tidak tersedia pada jalur produk Gemini-only. Gunakan Intelligence Dashboard untuk memilih dan menguji Gemini Cloud.',
         FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas, pekerjaan, rutinitas, dan preferensi untuk membantu asisten menjawab lebih relevan tanpa mengirim data transaksi mentah. Kamu juga bisa ekspor atau impor profil di sini.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pengetahuan Asisten.',
-        FfmAssistantDestination.intelligenceDashboard => 'Dashboard Kecerdasan menampilkan ringkasan pola penggunaan, wawasan otomatis, dan rekomendasi berbasis data lokal.',
+        FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
       };
 }

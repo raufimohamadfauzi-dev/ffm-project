@@ -125,7 +125,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
             text: visibleText ?? entry.text,
             color: textColor,
           ),
-          if (isStreaming && visibleText != null && visibleText!.length < entry.text.length)
+          if (isStreaming &&
+              visibleText != null &&
+              visibleText!.length < entry.text.length)
             const Padding(
               padding: EdgeInsets.only(left: 2),
               child: SizedBox(
@@ -145,8 +147,10 @@ class FfmAssistantMessageCard extends StatelessWidget {
           () {
             final meta = intent!.pluginMetadata!;
             final payloadType = meta['activity_payload_type'] as String?;
-            if (payloadType == 'live_activity' || payloadType == 'journey_recap') {
-              final sessions = (meta['sessions'] ?? meta['recapCards']) as List?;
+            if (payloadType == 'live_activity' ||
+                payloadType == 'journey_recap') {
+              final sessions =
+                  (meta['sessions'] ?? meta['recapCards']) as List?;
               if (sessions != null && sessions.isNotEmpty) {
                 return Column(
                   children: [
@@ -158,10 +162,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
                         category: sMap['category'] as String? ?? '',
                         duration: sMap['duration'] as String? ?? '',
                         isActive: meta['hasActive'] as bool? ?? true,
-                        checkpoints: (sMap['checkpoints'] as List?)
+                        checkpoints:
+                            (sMap['checkpoints'] as List?)
                                 ?.cast<Map<String, dynamic>>() ??
                             const [],
-                        childSessions: (sMap['children'] as List?)
+                        childSessions:
+                            (sMap['children'] as List?)
                                 ?.cast<Map<String, dynamic>>() ??
                             const [],
                         lastCheckpoint: sMap['lastCheckpoint'] as String?,
@@ -340,8 +346,9 @@ class _OriginBadge extends StatelessWidget {
         '✋ Actuator' => Icons.edit_outlined,
         _ => Icons.account_tree_outlined,
       };
-      final label = '${trace.pluginCategory}: ${_resolvePluginDisplayName(trace.pluginName!)}';
-      
+      final label =
+          '${trace.pluginCategory}: ${_resolvePluginDisplayName(trace.pluginName!)}';
+
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
@@ -371,18 +378,28 @@ class _OriginBadge extends StatelessWidget {
     final (icon, label, color) = switch (trace.origin) {
       FfmAssistantResponseOrigin.localSlm => (
         Icons.auto_awesome_outlined,
-        'LOKAL AI',
+        'AGENT PROPOSAL',
         isDark ? const Color(0xFF64B5F6) : const Color(0xFF1976D2),
       ),
       FfmAssistantResponseOrigin.localFallback => (
         Icons.info_outline,
-        'FALLBACK',
+        'AGENT FALLBACK',
         isDark ? const Color(0xFFFFD54F) : const Color(0xFFF57C00),
       ),
       FfmAssistantResponseOrigin.agentOrchestrator => (
         Icons.account_tree_outlined,
         'AGENT',
         isDark ? const Color(0xFF81C784) : const Color(0xFF388E3C),
+      ),
+      FfmAssistantResponseOrigin.geminiCloud => (
+        Icons.cloud_done_outlined,
+        'GEMINI CLOUD',
+        isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
+      ),
+      FfmAssistantResponseOrigin.cloudError => (
+        Icons.cloud_off_outlined,
+        'GEMINI GAGAL',
+        isDark ? const Color(0xFFFF8A80) : const Color(0xFFC62828),
       ),
     };
 
@@ -412,38 +429,36 @@ class _OriginBadge extends StatelessWidget {
     );
   }
 
-  static String _resolvePluginDisplayName(String pluginName) => switch (pluginName) {
-    'balance_sense' => 'Saldo & Rekening',
-    'transaction_sense' => 'Ringkasan Transaksi',
-    'budget_sense' => 'Anggaran',
-    'debt_sense' => 'Hutang',
-    'asset_sense' => 'Aset',
-    'goal_sense' => 'Target Tabungan',
-    'user_habits_profile' => 'Profil & Kebiasaan',
-    'receivable_sense' => 'Piutang',
-    'recurring_transaction_sense' => 'Transaksi Berulang',
-    'daily_notes_sense' => 'Catatan Harian',
-    'task_sense' => 'Daftar Tugas',
-    'schedule_sense' => 'Agenda & Jadwal',
-    'routine_sense' => 'Rutinitas Harian',
-    'top_merchant_sense' => 'Analisis Merchant',
-    'activity_report_sense' => 'Laporan Aktivitas',
-    'live_activity_sense' => 'Live Activity (Layar)',
-    'quick_note_actuator' => 'Quick Note Cepat',
-    'activity_context_logic' => 'Konteks & Durasi Sesi',
-    'activity_guard' => 'Pengaman Aktivitas',
-    'zakat_logic' => 'Kalkulator Zakat',
-    'financial_health_logic' => 'Kesehatan Keuangan',
-    'budget_guard_logic' => 'Budget Guard',
-    'loan_affordability_logic' => 'Kemampuan Pinjaman',
-    'spending_pace_logic' => 'Laju Pengeluaran',
-    'holistic_awareness' => 'Potret 360°',
-    'emergency_fund_logic' => 'Dana Darurat',
-    'debt_snowball_logic' => 'Strategi Bebas Hutang',
-    'saving_rate_logic' => 'Rasio Menabung',
-    _ => pluginName,
-  };
+  static String _resolvePluginDisplayName(String pluginName) =>
+      switch (pluginName) {
+        'balance_sense' => 'Saldo & Rekening',
+        'transaction_sense' => 'Ringkasan Transaksi',
+        'budget_sense' => 'Anggaran',
+        'debt_sense' => 'Hutang',
+        'asset_sense' => 'Aset',
+        'goal_sense' => 'Target Tabungan',
+        'user_habits_profile' => 'Profil & Kebiasaan',
+        'receivable_sense' => 'Piutang',
+        'recurring_transaction_sense' => 'Transaksi Berulang',
+        'daily_notes_sense' => 'Catatan Harian',
+        'task_sense' => 'Daftar Tugas',
+        'schedule_sense' => 'Agenda & Jadwal',
+        'routine_sense' => 'Rutinitas Harian',
+        'top_merchant_sense' => 'Analisis Merchant',
+        'activity_report_sense' => 'Laporan Aktivitas',
+        'live_activity_sense' => 'Live Activity (Layar)',
+        'quick_note_actuator' => 'Quick Note Cepat',
+        'activity_context_logic' => 'Konteks & Durasi Sesi',
+        'activity_guard' => 'Pengaman Aktivitas',
+        'zakat_logic' => 'Kalkulator Zakat',
+        'financial_health_logic' => 'Kesehatan Keuangan',
+        'budget_guard_logic' => 'Budget Guard',
+        'loan_affordability_logic' => 'Kemampuan Pinjaman',
+        'spending_pace_logic' => 'Laju Pengeluaran',
+        'holistic_awareness' => 'Potret 360°',
+        'emergency_fund_logic' => 'Dana Darurat',
+        'debt_snowball_logic' => 'Strategi Bebas Hutang',
+        'saving_rate_logic' => 'Rasio Menabung',
+        _ => pluginName,
+      };
 }
-
-
-

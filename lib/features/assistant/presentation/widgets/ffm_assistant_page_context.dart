@@ -103,9 +103,9 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.offlineFeatures =>
       'Sedang melihat panduan fitur tanpa internet.',
     FfmAssistantDestination.localModel =>
-      'Sedang melihat setup model Asisten lokal.',
+      'Pengaturan model lokal tidak tersedia; gunakan Gemini Cloud.',
     FfmAssistantDestination.intelligenceDashboard =>
-      'Sedang melihat pengaturan Cloud Brain (Supabase & Gemini).',
+      'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
     _ => 'Sedang melihat halaman fitur FFM.',
   };
 

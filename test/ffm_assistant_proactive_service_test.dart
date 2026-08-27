@@ -6,15 +6,19 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_proactive_se
 void main() {
   const service = FfmAssistantProactiveSuggestionService();
 
-  test('model belum siap memunculkan saran setup lokal', () {
+  test('Gemini belum siap memunculkan saran setup Cloud', () {
     final suggestion = service.suggest(
       destination: FfmAssistantDestination.summary,
       modelReady: false,
       hasConversation: false,
     );
 
-    expect(suggestion?.id, 'setup-local-model');
-    expect(suggestion?.suggestedPrompt, 'siapkan AI lokal');
+    expect(suggestion?.id, 'setup-gemini-cloud');
+    expect(suggestion?.suggestedPrompt, 'buka pengaturan Gemini Cloud');
+    expect(
+      suggestion?.destination,
+      FfmAssistantDestination.intelligenceDashboard,
+    );
   });
 
   test('halaman transaksi memberi saran read-only saat chat baru', () {

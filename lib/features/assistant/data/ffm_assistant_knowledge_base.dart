@@ -323,31 +323,6 @@ Buka **Penasihat** atau ketik *"Cek kesehatan keuanganku"* di chat — aku langs
 - **Shortcut Tambah Transaksi**: Langsung ke formulir transaksi.''',
     ),
 
-    // ─── SLM / MODEL AI LOKAL ───────────────────────────────────────────────
-    FfmKnowledgeEntry(
-      triggers: [
-        'cara pasang model',
-        'cara install ai',
-        'cara pasang slm',
-        'cara download model',
-        'model ai lokal',
-        'cara aktifkan ai',
-        'cara instal model',
-      ],
-      title: '🤖 Cara Memasang Model AI Lokal (SLM)',
-      answer: '''FFM menggunakan SLM teks lokal yang dijalankan 100% di HP tanpa internet.
-**Cara memasang:**
-1. Buka **Asisten** → **Kelola Model Lokal** (atau katakan *"Buka halaman model lokal"*).
-2. Pilih salah satu metode:
-  - **Unduh Langsung**: unduh satu file GGUF dari halaman.
-  - **Unduh Background**: unduh sambil pakai aplikasi lain, lalu adopsi saat kembali.
-  - **Impor dari Folder**: jika file sudah ada di folder Download, pilih *"Pilih GGUF dari file"*.
-3. Setelah file selesai, tekan **Rakit dan Pasang SLM**.
-4. Model siap digunakan — kamu akan melihat indikator **AI Siap** di header chat.
-
-**Persyaratan perangkat:** Android 10+, RAM ≥6 GB, Storage kosong ≥3 GB.''',
-    ),
-
     // ─── LAPORAN BULANAN ──────────────────────────────────────────────────
     FfmKnowledgeEntry(
       triggers: [

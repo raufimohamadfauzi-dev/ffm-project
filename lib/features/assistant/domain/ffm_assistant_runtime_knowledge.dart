@@ -126,8 +126,8 @@ class FfmAssistantRuntimeKnowledgeRegistry {
     FfmAssistantKnowledgeEntry(
       id: 'domain.assistant',
       title: 'Asisten dan pembelajaran',
-      content: 'Asisten memakai SLM lokal untuk reasoning/extraction, registry untuk knowledge, adapter untuk aplikasi, dan Action Plan untuk lifecycle. Memory user serta workflow candidate hanya aktif setelah approval.',
-      tags: ['assistant', 'agent', 'slm', 'training', 'learning'],
+      content: 'Asisten memakai Gemini Cloud untuk reasoning dan penjelasan setelah key serta model terverifikasi. Agent deterministic, registry knowledge, adapter aplikasi, dan Action Plan tetap menjadi pengaman untuk membaca data, menghitung, menyusun draft, meminta konfirmasi, dan menjalankan lifecycle. Memory user serta workflow candidate hanya aktif setelah approval.',
+      tags: ['assistant', 'agent', 'gemini', 'training', 'learning'],
     ),
     FfmAssistantKnowledgeEntry(
       id: 'domain.operations',

@@ -13,7 +13,7 @@ class FfmAssistantReasoningEvidenceScope {
 }
 
 /// Memilih evidence lokal minimum yang relevan sebelum konteks diberikan ke
-/// proposal SLM. Ini bukan penentu akses: executor tetap memakai allowlist.
+/// Gemini Cloud. Ini bukan penentu akses: executor tetap memakai allowlist.
 abstract final class FfmAssistantReasoningEvidencePolicy {
   static FfmAssistantReasoningEvidenceScope forRequest(String request) {
     final normalized = request.toLowerCase();
@@ -73,7 +73,7 @@ class FfmAssistantReasoningContext {
       if (activeFilters.isNotEmpty)
         'Filter aktif: ${_mapToLine(activeFilters, 700)}',
       'Capability allowlist aktif: ${capabilityIds.take(32).join(', ')}',
-      'SLM lokal siap: ${modelReady ? 'ya' : 'tidak'}',
+      'Gemini Cloud siap: ${modelReady ? 'ya' : 'tidak'}',
       if (approvedUserContext.trim().isNotEmpty)
         'Konteks user yang telah disetujui: ${_clip(approvedUserContext, 1200)}',
       if (personalizationContext.trim().isNotEmpty)

@@ -1,44 +1,67 @@
 import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/core/network/gemini_service.dart';
+import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeGateway implements FfmAssistantLocalModelGateway {
-  _FakeGateway(this.proposal);
+class _FakeConfig extends SupabaseConfig {
+  _FakeConfig({this.verified = true});
 
-  final FfmAssistantModelProposal? proposal;
-  var calls = 0;
-  String? lastInput;
-  String? lastImagePath;
-  String? lastPageContext;
-  List<String> lastCapabilityIds = const [];
+  final bool verified;
 
   @override
-  Future<FfmAssistantModelProposal?> propose({
-    required String input,
-    String? imagePath,
+  Future<String?> getGeminiKey() async => 'test-key';
+
+  @override
+  Future<String?> getGeminiModel() async => 'gemini-2.5-flash';
+
+  @override
+  Future<bool> isGeminiVerified() async => verified;
+}
+
+class _FakeGemini extends GeminiService {
+  _FakeGemini(this.result);
+
+  final GeminiResult result;
+  var calls = 0;
+  String? lastPrompt;
+  String? lastSystemInstruction;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
   }) async {
     calls++;
-    lastInput = input;
-    lastImagePath = imagePath;
-    return proposal;
+    lastPrompt = prompt;
+    lastSystemInstruction = systemInstruction;
+    return result;
+  }
+}
+
+class _FakeGateway implements FfmAssistantLocalModelGateway {
+  var calls = 0;
+
+  @override
+  Future<FfmAssistantModelProposal?> propose({required String input}) async {
+    calls++;
+    return null;
   }
 
   @override
   Future<FfmAssistantModelProposal?> proposeWithContext({
     required String input,
-    String? imagePath,
     String? pageContext,
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
     List<String> activeAccountNames = const <String>[],
     List<String> activeCategoryNames = const <String>[],
-  }) {
-    lastPageContext = pageContext;
-    lastCapabilityIds = capabilityIds;
-    return propose(input: input, imagePath: imagePath);
-  }
+  }) => propose(input: input);
 }
 
 void main() {
@@ -50,220 +73,148 @@ void main() {
 
   tearDown(() => database.close());
 
-  test('teks yang tidak dikenali diteruskan ke model lokal dan hasilnya menjadi draft', () async {
-    final gateway = _FakeGateway(
-      FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.createIncome,
-        confidence: .97,
-        draft: FfmAssistantDraft(
-          kind: FfmAssistantDraftKind.income,
-          createdAt: DateTime(2026, 8, 22),
-          date: DateTime(2026, 8, 22),
-          amount: 5000000,
-          title: 'Gaji',
-          toAccountName: 'SeaBank Pribadi',
-        ),
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
-
-    final intent = await interpreter.interpret(
-      'tolong siapkan catatan gaji bulan ini',
-    );
-
-    expect(gateway.calls, 1);
-    expect(gateway.lastInput, contains('gaji'));
-    expect(intent.type, FfmAssistantIntentType.createIncome);
-    expect(intent.draft?.amount, 5000000);
-    expect(intent.draft?.toAccountName, 'SeaBank Pribadi');
-    expect(intent.needsConfirmation, isTrue);
-    expect(await database.select(database.transactions).get(), isEmpty);
-  });
-
   test(
-    'proposal klarifikasi model menjadi pertanyaan tanpa auto-save',
+    'pertanyaan bebas diteruskan ke Gemini dengan konteks halaman bounded',
     () async {
-      final gateway = _FakeGateway(
-        const FfmAssistantModelProposal(
-          intent: FfmAssistantIntentType.unknown,
-          confidence: .96,
-          missingFields: ['jenis transaksi'],
-          clarification: 'Ini pemasukan atau pengeluaran?',
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'Gemini merespons.',
+          text: 'Jawaban dari Gemini.',
         ),
       );
       final interpreter = FfmAssistantInterpreter(
         database,
-        modelGateway: gateway,
+        config: _FakeConfig(),
+        geminiService: gemini,
       );
 
       final intent = await interpreter.interpret(
-        'catat 1000000 ke rekening BRI baru',
+        'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+        currentDestination: FfmAssistantDestination.transactions,
+        pageContext: 'Daftar transaksi bulan berjalan',
+        capabilityIds: const ['read.transactions', 'draft.expense'],
       );
 
-      expect(gateway.calls, 1);
-      expect(intent.type, FfmAssistantIntentType.unknown);
-      expect(intent.needsClarification, isTrue);
-      expect(intent.clarification, 'Ini pemasukan atau pengeluaran?');
-      expect(intent.needsConfirmation, isFalse);
-      expect(await database.select(database.transactions).get(), isEmpty);
-    },
-  );
-
-  test(
-    'perintah nama panggilan menjadi proposal user profile tanpa auto-save',
-    () async {
-      final interpreter = FfmAssistantInterpreter(database);
-
-      final intent = await interpreter.interpret('panggil saya Budi');
-
-      expect(intent.type, FfmAssistantIntentType.teachMemory);
-      expect(intent.teachingProposal?.kind, 'user_profile');
-      expect(intent.teachingProposal?.valueText, 'budi');
-      expect(await database.select(database.assistantMemories).get(), isEmpty);
-    },
-  );
-
-  test('page context dan capability diteruskan ke model lokal', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.help,
-        confidence: .99,
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
-
-    await interpreter.interpret(
-      'tolong pahami permintaan baru ini',
-      currentDestination: FfmAssistantDestination.transactions,
-      pageContext: 'Daftar transaksi bulan berjalan',
-      capabilityIds: const ['read.transactions', 'draft.expense'],
-    );
-
-    expect(
-      gateway.lastPageContext,
-      allOf(
-        contains('Daftar transaksi bulan berjalan'),
-        contains('Halaman aktif: Transaksi'),
-        contains('mutation wajib preview dan konfirmasi'),
-      ),
-    );
-    expect(gateway.lastCapabilityIds, ['read.transactions', 'draft.expense']);
-  });
-
-  test('pertanyaan terbuka tentang halaman aktif memakai bantuan SLM bila proposal aman tersedia', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.help,
-        confidence: .99,
-        notes: 'Di halaman Lainnya kamu bisa membuka pengaturan, model lokal, pusat pengetahuan, dan bantuan aplikasi.',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
-
-    final intent = await interpreter.interpret(
-      'apa yang bisa dilakukan di halaman ini?',
-      currentDestination: FfmAssistantDestination.otherMenu,
-      pageContext: 'Menu Lainnya untuk pengaturan dan bantuan aplikasi.',
-    );
-
-    expect(gateway.calls, 1);
-    expect(intent.type, FfmAssistantIntentType.help);
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.localSlm);
-    expect(intent.response, contains('halaman Lainnya'));
-  });
-
-  test(
-    'pertanyaan halaman kembali ke katalog lokal bila proposal SLM tidak ada',
-    () async {
-      final gateway = _FakeGateway(null);
-      final interpreter = FfmAssistantInterpreter(
-        database,
-        modelGateway: gateway,
-      );
-
-      final intent = await interpreter.interpret(
-        'apa yang bisa dilakukan di halaman ini?',
-        currentDestination: FfmAssistantDestination.otherMenu,
-      );
-
-      expect(gateway.calls, 1);
+      expect(gemini.calls, 1);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+      expect(intent.response, 'Jawaban dari Gemini.');
+      expect(intent.pluginMetadata?['model'], 'gemini-2.5-flash');
+      expect(gemini.lastPrompt, contains('inflasi'));
       expect(
-        intent.responseOrigin,
-        FfmAssistantResponseOrigin.agentOrchestrator,
+        gemini.lastSystemInstruction,
+        contains('Daftar transaksi bulan berjalan'),
       );
-      expect(intent.response, contains('Lainnya'));
+      expect(
+        gemini.lastSystemInstruction,
+        contains('Halaman aktif: Transaksi'),
+      );
+      expect(gemini.lastSystemInstruction, contains('read.transactions'));
     },
   );
 
-  test('pertanyaan halaman sensitif tidak diserahkan ke SLM lokal', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.help,
-        confidence: .99,
-        notes: 'Respons yang tidak boleh dipakai.',
+  test('kegagalan Gemini menjadi cloudError tanpa gateway lokal', () async {
+    final gateway = _FakeGateway();
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 401,
+        message: 'API key Gemini ditolak (HTTP 401).',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
       database,
       modelGateway: gateway,
+      config: _FakeConfig(),
+      geminiService: gemini,
     );
 
     final intent = await interpreter.interpret(
-      'apa yang bisa dilakukan di halaman ini?',
-      currentDestination: FfmAssistantDestination.appSecurity,
+      'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
     );
 
+    expect(gemini.calls, 1);
     expect(gateway.calls, 0);
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.agentOrchestrator);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.response, contains('HTTP 401'));
   });
 
-  test('guard PIN tidak pernah diserahkan ke model lokal', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.createExpense,
-        confidence: .99,
+  test('Gemini belum diverifikasi tidak memanggil provider', () async {
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'tidak boleh dipakai',
+        text: 'tidak boleh dipakai',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
       database,
-      modelGateway: gateway,
+      config: _FakeConfig(verified: false),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+    );
+
+    expect(gemini.calls, 0);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.response, contains('belum siap'));
+  });
+
+  test('guard PIN tetap deterministic dan tidak dikirim ke Gemini', () async {
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'tidak boleh dipakai',
+        text: 'tidak boleh dipakai',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(),
+      geminiService: gemini,
     );
 
     final intent = await interpreter.interpret('tolong ganti PIN aplikasi');
 
-    expect(gateway.calls, 0);
+    expect(gemini.calls, 0);
     expect(intent.type, FfmAssistantIntentType.openPage);
     expect(intent.destination, FfmAssistantDestination.appSecurity);
   });
 
-  test('target navigasi dari model harus cocok dengan katalog lokal', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.openPage,
-        confidence: .99,
-        actionTarget: 'hapus_database_diam_diam',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
+  test(
+    'draft transaksi tetap deterministic dan database belum berubah',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'tidak boleh dipakai',
+          text: 'tidak boleh dipakai',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
 
-    final intent = await interpreter.interpret(
-      'bantu aku dengan sesuatu yang belum jelas',
-    );
+      final intent = await interpreter.interpret('catat makan 25000');
 
-    expect(gateway.calls, 1);
-    expect(intent.type, FfmAssistantIntentType.unknown);
-    expect(intent.destination, isNull);
-  });
+      expect(gemini.calls, 0);
+      expect(
+        intent.responseOrigin,
+        isNot(FfmAssistantResponseOrigin.geminiCloud),
+      );
+      expect(
+        intent.responseOrigin,
+        isNot(FfmAssistantResponseOrigin.cloudError),
+      );
+      expect(await database.select(database.transactions).get(), isEmpty);
+    },
+  );
 }

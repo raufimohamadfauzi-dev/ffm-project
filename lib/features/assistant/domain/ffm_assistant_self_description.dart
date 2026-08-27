@@ -6,7 +6,7 @@ class FfmAssistantSelfDescriptionService {
 
   static const appName = 'Family Finance Manager (FFM)';
   static const appPurpose =
-      'aplikasi pengelolaan keuangan keluarga offline-first dengan pendamping lokal';
+      'aplikasi pengelolaan keuangan keluarga offline-first dengan pendamping Gemini Cloud';
   static const creatorName = 'Rafi Sinkkat';
   static const creatorYouTube =
       'https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe';
@@ -18,8 +18,7 @@ class FfmAssistantSelfDescriptionService {
     caseSensitive: false,
   );
 
-  /// Menjamin jawaban untuk pertanyaan seputar pembuat selalu menyertakan
-  /// kedua tautan sosial resmi — apa pun hasil rangkuman SLM.
+  /// Menjamin jawaban untuk pertanyaan seputar pembuat menyertakan tautan resmi.
   String ensureSocialLinks({
     required String question,
     required String response,
@@ -76,6 +75,7 @@ class FfmAssistantSelfDescriptionService {
   String build({
     Iterable<String> implementedCapabilityIds = defaultImplementedCapabilityIds,
     bool slmConfigured = false,
+    bool includeCreatorLinks = false,
     FfmAssistantDestination? currentDestination,
   }) {
     final implemented = <String>{
@@ -131,17 +131,17 @@ class FfmAssistantSelfDescriptionService {
       if (draftLabels.isNotEmpty) 'menyiapkan draft ${draftLabels.join(', ')}',
       if (canSaveDraft) 'menampilkan preview, menunggu konfirmasi, menyimpan mutation yang disetujui, lalu memverifikasi hasilnya',
       'menyiapkan preview laporan berbasis data lokal dan membantu menyusun narasi',
-      'memberi penjelasan berdasarkan ringkasan database lokal tanpa mengirim raw database ke model',
+      'memberi penjelasan berdasarkan ringkasan database lokal dengan konteks terarah dan bounded ke Gemini',
       'menjawab pertanyaan finansial umum (asuransi, pajak, investasi dasar, dana darurat) dengan edukasi dan disclaimer yang tepat',
       'memberikan saran tindak lanjut yang relevan berdasarkan konteks percakapan dan data keuangan',
     ];
-    return '''Aku adalah Asisten FFM, pendamping lokal di $appName.
+    final creatorSection =
+        '\nPembuat aplikasi ini adalah **$creatorName**.\n'
+        '${includeCreatorLinks ? 'YouTube: [$creatorYouTube]($creatorYouTube)\nTikTok: [$creatorTikTok]($creatorTikTok)\n' : ''}';
+    return '''Aku adalah Asisten FFM berbasis Gemini Cloud di $appName.
 
-$appName adalah $appPurpose. Aplikasi ini membantu mencatat transaksi, mengatur anggaran, memantau rekening, aset, hutang/piutang, target, pengingat, aktivitas, Catatan Harian, laporan, cadangan data, privasi, dan model asisten lokal.$pageText
-
-Pembuat aplikasi ini adalah **$creatorName**.
-YouTube: [$creatorYouTube]($creatorYouTube)
-TikTok: [$creatorTikTok]($creatorTikTok)
+$appName adalah $appPurpose. Aplikasi ini membantu mencatat transaksi, mengatur anggaran, memantau rekening, aset, hutang/piutang, target, pengingat, aktivitas, Catatan Harian, laporan, cadangan data, dan privasi.$pageText
+$creatorSection
 
 Yang bisa kulakukan sekarang:
 ${currentActions.map((action) => '- $action;').join('\n')}
@@ -149,10 +149,10 @@ ${currentActions.map((action) => '- $action;').join('\n')}
 Aturan keamanan:
 - draft tidak sama dengan data tersimpan;
 - setiap perubahan permanen membutuhkan preview dan konfirmasi kamu;
-- tidak ada autosave, penghapusan diam-diam, atau pengiriman data ke cloud;
-- angka utama berasal dari database/aggregator lokal, bukan karangan SLM.
+- tidak ada autosave atau penghapusan diam-diam; konteks ke Gemini dibatasi sesuai kebutuhan pertanyaan;
+- angka utama berasal dari database/aggregator lokal, bukan karangan Gemini.
 
-${slmConfigured ? 'Jika model SLM lokal siap, aku dapat memahami bahasa alami, membantu narasi atau insight, serta menjawab pertanyaan finansial umum dengan konteks data keuanganmu. Jika belum siap, aku memakai aturan lokal dan tetap memberi tahu statusnya.' : 'Model SLM lokal belum dikonfirmasi siap; saat ini aku mengandalkan aturan lokal dan menjelaskan status sebenarnya.'}
+Gemini Cloud digunakan untuk percakapan dan penalaran setelah API key serta model diverifikasi. Agent deterministic FFM tetap menjadi otoritas untuk membaca data, menghitung angka, membuat draft, meminta konfirmasi, menyimpan, dan memverifikasi perubahan.
 
 Masih dalam pengembangan: $missing.
 ${mutationLabels.isEmpty ? '' : 'Mutation terkonfirmasi yang tersedia: $mutationLabels.'}

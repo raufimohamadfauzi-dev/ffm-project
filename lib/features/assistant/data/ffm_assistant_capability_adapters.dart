@@ -3302,7 +3302,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
   ) async {
     return FfmAssistantCapabilityExecutionResult.success(
-      'SLM teks lokal Qwen2 2B. Instal via menu Lainnya → Model Asisten Lokal. Fitur ini berjalan 100% offline di perangkat.',
+      'Status Gemini Cloud dikelola dari Dashboard Intelligence. Provider hanya aktif setelah API key dan model diuji berhasil.',
     );
   }
 

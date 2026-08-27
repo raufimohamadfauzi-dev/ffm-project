@@ -21,7 +21,7 @@ void main() {
     expect(prompt.length, lessThanOrEqualTo(800));
     expect(prompt, contains('Ringkasan bulanan'));
     expect(prompt, contains('read.transactions'));
-    expect(prompt, contains('SLM lokal siap: ya'));
+    expect(prompt, contains('Gemini Cloud siap: ya'));
     expect(prompt, isNot(contains('\nberisi')));
     expect(prompt, contains('preview dan konfirmasi'));
   });

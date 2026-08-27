@@ -4,7 +4,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.da
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 void main() {
-  test('katalog mencakup seluruh destination submenu dan model lokal', () {
+  test('katalog mencakup seluruh destination submenu Gemini-only', () {
     final names = FfmAssistantCatalog.pages.map((page) => page.name).toSet();
     expect(
       names,
@@ -16,16 +16,16 @@ void main() {
         'Pusat privasi',
         'Struktur database',
         'Fitur tanpa internet',
-        'Model Asisten Lokal',
+        'Intelligence Dashboard',
       ]),
     );
     expect(
       FfmAssistantCatalog.pages,
-      hasLength(FfmAssistantDestination.values.length),
+      hasLength(FfmAssistantDestination.values.length - 1),
     );
     expect(
       FfmAssistantCatalog.pages.map((page) => page.destination).toSet(),
-      hasLength(FfmAssistantDestination.values.length),
+      hasLength(FfmAssistantDestination.values.length - 1),
     );
   });
 
@@ -45,7 +45,7 @@ void main() {
           expect(intent.response, contains(item.name));
           expect(intent.response, contains(item.description));
         }
-        expect(FfmAssistantCatalog.otherMenuItems, hasLength(17));
+        expect(FfmAssistantCatalog.otherMenuItems, hasLength(16));
       } finally {
         await database.close();
       }
@@ -64,7 +64,7 @@ void main() {
         'pusat privasi': FfmAssistantDestination.privacyCenter,
         'struktur database': FfmAssistantDestination.databaseStructure,
         'fitur tanpa internet': FfmAssistantDestination.offlineFeatures,
-        'model asisten lokal': FfmAssistantDestination.localModel,
+        'gemini cloud': FfmAssistantDestination.intelligenceDashboard,
         'analisa': FfmAssistantDestination.analysis,
       };
       for (final entry in cases.entries) {

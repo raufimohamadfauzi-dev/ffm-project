@@ -156,14 +156,6 @@ void main() {
     expect(intent.response, contains('menyiapkan preview laporan'));
     expect(intent.response, contains('tidak ada autosave'));
     expect(intent.response, contains('Rafi Sinkkat'));
-    expect(
-      intent.response,
-      contains('https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe'),
-    );
-    expect(
-      intent.response,
-      contains('https://www.tiktok.com/@clip.smarts?_r=1&_t=ZS-997Uzi7kXma'),
-    );
     expect(intent.draft, isNull);
   });
 
@@ -756,12 +748,12 @@ void main() {
     expect(intent.clarification, contains('piutang'));
   });
 
-  test('menjelaskan batas saat pertanyaan butuh data di luar FFM', () async {
+  test('menjelaskan status Gemini saat pertanyaan butuh cloud', () async {
     final intent = await interpreter.interpret('Berapa harga cabai hari ini?');
 
-    expect(intent.type, FfmAssistantIntentType.unknown);
-    expect(intent.clarification, contains('akses internet'));
-    expect(intent.clarification, contains('tersimpan di FFM'));
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.response, contains('Mode Gemini belum siap'));
+    expect(intent.response, contains('Test API Key'));
   });
 
   test(
@@ -836,10 +828,7 @@ void main() {
       // Fitur pembacaan gambar/struk sudah dihapus: pertanyaan kemampuan
       // gambar dijawab jujur sebagai bantuan teks, bukan unknown.
       expect(image.type, FfmAssistantIntentType.help);
-      expect(
-        image.response,
-        contains('hanya menerima perintah teks'),
-      );
+      expect(image.response, contains('hanya menerima perintah teks'));
     },
   );
 
@@ -860,24 +849,16 @@ void main() {
   });
 
   test(
-    'status SLM memakai readiness lokal dan navigasi anggaran tetap eksplisit',
+    'status Gemini mengarah ke Dashboard dan navigasi anggaran tetap eksplisit',
     () async {
-      final unavailable = await interpreter.interpret(
-        'sekarang sudah terhubung SLM?',
-      );
-      final readyInterpreter = FfmAssistantInterpreter(
-        database,
-        slmReadyCheck: () async => true,
-      );
-      final ready = await readyInterpreter.interpret(
-        'sekarang sudah terhubung SLM?',
+      final status = await interpreter.interpret(
+        'sekarang sudah terhubung Gemini?',
       );
       final budget = await interpreter.interpret('cek halaman anggaran');
 
-      expect(unavailable.type, FfmAssistantIntentType.help);
-      expect(unavailable.destination, FfmAssistantDestination.localModel);
-      expect(unavailable.response, contains('Belum'));
-      expect(ready.response, contains('siap dipakai'));
+      expect(status.type, FfmAssistantIntentType.help);
+      expect(status.destination, FfmAssistantDestination.intelligenceDashboard);
+      expect(status.response, contains('Dashboard Intelligence'));
       expect(budget.type, FfmAssistantIntentType.openPage);
       expect(budget.destination, FfmAssistantDestination.budget);
     },

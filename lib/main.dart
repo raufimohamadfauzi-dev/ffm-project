@@ -25,7 +25,6 @@ import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 import 'features/assistant/presentation/pages/assistant_training_page.dart';
 import 'features/assistant/presentation/pages/assistant_profile_page.dart';
-import 'features/assistant/presentation/pages/local_model_page.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/audit/presentation/pages/activity_log_page.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
@@ -474,7 +473,7 @@ class _AppShellState extends State<AppShell> {
         setState(() => _index = 0);
       case FfmAssistantWidgetAction.openModelSetup:
         Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const LocalModelPage()));
+            .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
       case FfmAssistantWidgetAction.openTransactions:
         setState(() => _index = 1);
       case FfmAssistantWidgetAction.openBudget:
@@ -742,7 +741,7 @@ class _AppShellState extends State<AppShell> {
         ).push(MaterialPageRoute(builder: (_) => const OfflineFeaturesPage()));
       case FfmAssistantDestination.localModel:
         await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const LocalModelPage()));
+            .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
       case FfmAssistantDestination.assistantProfile:
         await Navigator.of(
           context,

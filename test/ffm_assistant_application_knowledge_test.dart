@@ -46,7 +46,7 @@ void main() {
     expect(intent.response, contains('FFM punya'));
     expect(intent.response, contains('Transaksi'));
     expect(intent.response, contains('Pengetahuan Asisten'));
-    expect(intent.response, contains('Model Asisten Lokal'));
+    expect(intent.response, contains('Intelligence Dashboard'));
   });
 
   test(

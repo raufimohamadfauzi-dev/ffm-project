@@ -26,10 +26,10 @@ class FfmAssistantProactiveSuggestionService {
   }) {
     if (!modelReady) {
       return const FfmAssistantProactiveSuggestion(
-        id: 'setup-local-model',
-        message: 'AI lokal belum siap. Kamu bisa mengunduh SLM dari GitHub atau mengimpor bundle offline.',
-        suggestedPrompt: 'siapkan AI lokal',
-        destination: FfmAssistantDestination.localModel,
+        id: 'setup-gemini-cloud',
+        message: 'Gemini Cloud belum diverifikasi. Buka dashboard untuk menyimpan key, memilih model, dan menjalankan test.',
+        suggestedPrompt: 'buka pengaturan Gemini Cloud',
+        destination: FfmAssistantDestination.intelligenceDashboard,
       );
     }
     if (hasConversation) return null;

@@ -56,9 +56,8 @@ void main() {
         'bagaimana cara budidaya ikan lele?',
       );
 
-      expect(intent.type, FfmAssistantIntentType.outOfDomain);
-      expect(intent.response, contains('asisten keuangan keluarga untuk FFM'));
-      expect(intent.response, contains('di luar fitur'));
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+      expect(intent.response, contains('Mode Gemini belum siap'));
       expect(intent.draft, isNull);
     },
   );
@@ -88,24 +87,18 @@ void main() {
     },
   );
 
-  test('proposal help SLM untuk topik finansial yang belum punya template tetap diterima', () async {
-    final gateway = _FakeGateway(
-      const FfmAssistantModelProposal(
-        intent: FfmAssistantIntentType.help,
-        confidence: .99,
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      modelGateway: gateway,
-    );
+  test(
+    'pertanyaan finansial terbuka menunggu Gemini saat belum diverifikasi',
+    () async {
+      final interpreter = FfmAssistantInterpreter(database);
 
-    final intent = await interpreter.interpret(
-      'bagaimana membagi pendapatan keluarga untuk kebutuhan dan rencana jangka panjang?',
-    );
+      final intent = await interpreter.interpret(
+        'jelaskan perbedaan antara hujan dan gerimis secara singkat',
+      );
 
-    expect(intent.type, FfmAssistantIntentType.help);
-    expect(intent.responseMode, FfmAssistantResponseMode.localModel);
-    expect(intent.response, isNull);
-  });
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+      expect(intent.response, contains('Mode Gemini belum siap'));
+      expect(intent.draft, isNull);
+    },
+  );
 }

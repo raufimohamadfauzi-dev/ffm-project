@@ -29,7 +29,7 @@ void main() {
   AppDatabase freshDb() => createInMemoryDatabaseForTests();
 
   test(
-    'SLM siap dan composer berhasil: jawaban identitas dirangkai SLM',
+    'identitas aplikasi dijawab dari deskripsi resmi tanpa composer lokal',
     () async {
       final db = freshDb();
       addTearDown(db.close);
@@ -44,17 +44,23 @@ void main() {
 
       final intent = await interpreter.interpret('siapa pembuat aplikasi');
 
-      expect(composer.callCount, 1);
+      expect(composer.callCount, 0);
       expect(intent.type, FfmAssistantIntentType.assistantIdentity);
-      expect(intent.response, contains('Rafi Sinkkat'));
-      expect(intent.responseMode, FfmAssistantResponseMode.localModel);
-      expect(intent.responseOrigin, FfmAssistantResponseOrigin.localSlm);
+      expect(
+        intent.response,
+        contains(FfmAssistantSelfDescriptionService.creatorName),
+      );
+      expect(intent.responseMode, FfmAssistantResponseMode.localRules);
+      expect(
+        intent.responseOrigin,
+        FfmAssistantResponseOrigin.agentOrchestrator,
+      );
       expect(intent.draft, isNull);
     },
   );
 
   test(
-    'composer gagal menghasilkan teks: fallback ke deskripsi resmi lokal',
+    'composer lokal tidak dipakai dan deskripsi resmi tetap tersedia',
     () async {
       final db = freshDb();
       addTearDown(db.close);
@@ -67,7 +73,7 @@ void main() {
 
       final intent = await interpreter.interpret('siapa developer fmm');
 
-      expect(composer.callCount, 1);
+      expect(composer.callCount, 0);
       expect(intent.responseMode, FfmAssistantResponseMode.localRules);
       expect(
         intent.response,
@@ -76,7 +82,7 @@ void main() {
     },
   );
 
-  test('composer melempar exception: fallback tetap menjawab', () async {
+  test('exception composer lokal tidak memengaruhi deskripsi resmi', () async {
     final db = freshDb();
     addTearDown(db.close);
     final composer = _FakeComposer(error: Exception('native crash'));
@@ -88,15 +94,12 @@ void main() {
 
     final intent = await interpreter.interpret('kamu bisa apa');
 
-    expect(composer.callCount, 1);
+    expect(composer.callCount, 0);
     expect(intent.responseMode, FfmAssistantResponseMode.localRules);
-    expect(
-      intent.response,
-      contains(FfmAssistantSelfDescriptionService.creatorName),
-    );
+    expect(intent.response, contains('catat transaksi'));
   });
 
-  test('SLM tidak siap: composer tidak dipanggil sama sekali', () async {
+  test('provider lokal tidak dipakai untuk identitas aplikasi', () async {
     final db = freshDb();
     addTearDown(db.close);
     final composer = _FakeComposer(result: 'jawaban seharusnya tidak dipakai');

@@ -25,14 +25,12 @@ import '../../data/ffm_assistant_proactive_cooldown.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
 import '../../data/ffm_assistant_response_feedback_repository.dart';
-import '../../data/ffm_assistant_slm_follow_up_service.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_memory_learning_service.dart';
 import '../../domain/ffm_memory_candidate.dart';
 import '../../domain/ffm_memory_type.dart';
 
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
-import '../../data/ffm_local_model_service.dart';
 import '../../domain/ffm_assistant_action_plan.dart';
 import '../../domain/ffm_assistant_action_planner.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
@@ -142,10 +140,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   );
   final _proactiveService = const FfmAssistantProactiveSuggestionService();
   final _proactiveCooldown = FfmAssistantProactiveCooldown();
-  final _slmFollowUpService = getIt<FfmAssistantSlmFollowUpService>();
   final _speech = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
-  final _modelService = getIt<FfmLocalModelService>();
   final _chatExportService = FfmAssistantChatExportService();
   final _memoryRepository = getIt<FfmAssistantMemoryRepository>();
   final _memoryLearning = getIt<FfmMemoryLearningService>();
@@ -163,17 +159,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _submitting = false;
   var _activeProcessLabel = 'Menyiapkan permintaan...';
   var _navigatingFromChat = false;
-  var _modelReady = false;
-  var _modelChecking = true;
+  var _cloudReady = false;
+  var _cloudChecking = true;
   final _isFullScreen = true;
-  String? _modelStatusError;
+  String? _cloudStatusError;
+  String? _cloudModel;
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
-  List<String> _slmFollowUpSuggestions = const <String>[];
   FfmAssistantProactiveSuggestion? _proactiveSuggestion;
   var _proactiveSuggestionGeneration = 0;
-  var _followUpGeneration = 0;
   String? _speakingEntryKey;
   String? _pausedEntryKey;
   String? _speakingSessionId;
@@ -184,7 +179,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   // Streaming state
   final _streamingController = FfmStreamingTextController();
-
 
   String? _streamingEntryKey;
   String _streamingVisibleText = '';
@@ -219,23 +213,33 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final pluginCategory = intent.pluginCategory;
 
     final sourceEvent = switch (origin) {
-      FfmAssistantResponseOrigin.agentOrchestrator => pluginName != null
-          ? (
-              label: '$pluginCategory Plugin: ${_pluginDisplayName(pluginName)} selesai',
-              detail: 'Data dibaca langsung dari database lokal. Tidak ada koneksi internet.',
-            )
-          : const (
-              label: 'Agent Orkestrator menyelesaikan rute lokal',
-              detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
-            ),
+      FfmAssistantResponseOrigin.agentOrchestrator =>
+        pluginName != null
+            ? (
+                label:
+                    '$pluginCategory Plugin: ${_pluginDisplayName(pluginName)} selesai',
+                detail: 'Data dibaca langsung dari database lokal. Tidak ada koneksi internet.',
+              )
+            : const (
+                label: 'Agent Orkestrator menyelesaikan rute lokal',
+                detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
+              ),
       FfmAssistantResponseOrigin.localSlm => const (
-        label: 'SLM lokal mengembalikan proposal valid',
+        label: 'Agent menyusun proposal terstruktur',
         detail: 'Proposal tetap divalidasi FFM sebelum ditampilkan.',
       ),
       FfmAssistantResponseOrigin.localFallback => const (
-        label: 'SLM lokal belum menghasilkan proposal yang dapat dipakai',
+        label: 'Agent memakai fallback deterministik',
+        detail: 'FFM memakai aturan aman tanpa membuat atau mengubah data secara otomatis.',
+      ),
+      FfmAssistantResponseOrigin.geminiCloud => (
+        label: 'Gemini Cloud mengembalikan jawaban',
+        detail: 'Jawaban dibuat oleh model Gemini yang diuji dan dipilih.',
+      ),
+      FfmAssistantResponseOrigin.cloudError => (
+        label: 'Gemini Cloud gagal merespons',
         detail:
-            'FFM menampilkan fallback lokal tanpa membuat atau mengubah data.',
+            'Tidak ada jawaban lokal yang disamarkan sebagai jawaban Gemini.',
       ),
     };
     return FfmAssistantProcessTrace(
@@ -243,6 +247,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       elapsed: elapsed,
       fallbackReason: origin == FfmAssistantResponseOrigin.localFallback
           ? 'Proposal visi ditolak validator'
+          : origin == FfmAssistantResponseOrigin.cloudError
+          ? 'Request Gemini gagal atau belum diverifikasi'
           : null,
       pluginName: pluginName,
       pluginCategory: pluginCategory,
@@ -293,9 +299,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     'saving_rate_logic' => 'Rasio Menabung',
     _ => pluginName,
   };
-
-
-
 
   Future<void> _showActiveProcessDetails() async {
     await showModalBottomSheet<void>(
@@ -358,8 +361,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     trace.events.insertAll(trace.events.length - 1, newEvents);
   }
 
-
-
   void _showTechnicalDetails(FfmAssistantIntent intent) {
     showModalBottomSheet<void>(
       context: context,
@@ -389,22 +390,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _streamingEntryKey = '${_entries.length - 1}';
     _streamingVisibleText = '';
     _streamingController.startStreaming(entry.text);
-    _streamingSubscription = _streamingController.textStream.listen(
-      (text) {
-        if (mounted) {
+    _streamingSubscription = _streamingController.textStream.listen((text) {
+      if (mounted) {
+        setState(() {
+          _streamingVisibleText = text;
+        });
+        // Clean up when streaming completes
+        if (_streamingController.isComplete) {
           setState(() {
-            _streamingVisibleText = text;
+            _streamingEntryKey = null;
+            _streamingVisibleText = '';
           });
-          // Clean up when streaming completes
-          if (_streamingController.isComplete) {
-            setState(() {
-              _streamingEntryKey = null;
-              _streamingVisibleText = '';
-            });
-          }
         }
-      },
-    );
+      }
+    });
   }
 
   /// Tahap 1 pendekatan hybrid: aktifkan pipeline pembelajaran memori dari
@@ -422,7 +421,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         assistantResponse: assistantResponse,
         usedMemories: const [],
       );
-      final validated = _memoryLearning.validateCandidates(candidates, existing);
+      final validated = _memoryLearning.validateCandidates(
+        candidates,
+        existing,
+      );
       if (validated.isEmpty) return;
       await _memoryLearning.promoteCandidates(
         candidates: validated,
@@ -479,10 +481,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final generation = ++_proactiveSuggestionGeneration;
     final candidate = _proactiveService.suggest(
       destination: widget.currentDestination,
-      modelReady: _modelReady,
+      modelReady: _cloudReady,
       hasConversation: _entries.any((entry) => entry.isUser),
     );
-    if (candidate == null || !_modelReady) {
+    if (candidate == null || !_cloudReady) {
       if (mounted && _proactiveSuggestion != null) {
         setState(() => _proactiveSuggestion = null);
       }
@@ -531,16 +533,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
   final _supabaseConfig = SupabaseConfig();
-  String _llmMode = 'auto';
 
   @override
   void initState() {
     super.initState();
-    _loadLlmMode();
     _scrollController.addListener(_updateLatestMessagePreference);
     _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
     _historyRestoreFuture = _restoreChatHistory();
-    _refreshModelStatus();
+    _refreshCloudStatus();
     _refreshMemoryCount();
     unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -551,7 +551,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   void _checkAndInitiateProactiveGreeting() {
     final launcherState = widget.launcherState?.value;
-    if (launcherState != null && launcherState.hasNotification && launcherState.notificationReason != null) {
+    if (launcherState != null &&
+        launcherState.hasNotification &&
+        launcherState.notificationReason != null) {
       final reason = launcherState.notificationReason!;
       if (reason.startsWith('long_running_session:')) {
         final title = reason.split(':').last;
@@ -566,32 +568,33 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  Future<void> _loadLlmMode() async {
-    final mode = await _supabaseConfig.getLlmMode();
-    if (mounted) setState(() => _llmMode = mode);
-  }
-
-  Future<void> _updateLlmMode(String mode) async {
-    await _supabaseConfig.setLlmMode(mode);
-    if (mounted) setState(() => _llmMode = mode);
-  }
-
-  Future<void> _refreshModelStatus() async {
+  Future<void> _refreshCloudStatus() async {
     try {
-      final installed = await _modelService.getInstalled();
+      final key = await _supabaseConfig.getGeminiKey();
+      final model = await _supabaseConfig.getGeminiModel();
+      final verified = await _supabaseConfig.isGeminiVerified();
       if (!mounted) return;
       setState(() {
-        _modelReady = installed?.isVerified == true;
-        _modelChecking = false;
-        _modelStatusError = null;
+        _cloudModel = model?.trim().isEmpty == true ? null : model?.trim();
+        _cloudReady =
+            verified &&
+            key != null &&
+            key.trim().isNotEmpty &&
+            model != null &&
+            model.trim().isNotEmpty;
+        _cloudChecking = false;
+        _cloudStatusError = _cloudReady
+            ? null
+            : 'Gemini Cloud belum diuji di Pengaturan';
       });
       unawaited(_refreshProactiveSuggestion());
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _modelReady = false;
-        _modelChecking = false;
-        _modelStatusError = 'Status model tidak dapat dibaca';
+        _cloudModel = null;
+        _cloudReady = false;
+        _cloudChecking = false;
+        _cloudStatusError = 'Status Gemini Cloud tidak dapat dibaca';
       });
       unawaited(_refreshProactiveSuggestion());
     }
@@ -601,21 +604,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final all = await _personalMemoryService.readAll();
     if (!mounted) return;
     setState(() => _memoryCount = all.length);
-  }
-
-  Future<void> _refreshSlmFollowUpSuggestions() async {
-    final generation = ++_followUpGeneration;
-    if (!_modelReady || _submitting || !_entries.any((entry) => entry.isUser)) {
-      if (mounted && _slmFollowUpSuggestions.isNotEmpty) {
-        setState(() => _slmFollowUpSuggestions = const <String>[]);
-      }
-      return;
-    }
-    final suggestions = await _slmFollowUpService.generateForConversation(
-      List<FfmAssistantChatEntry>.of(_entries),
-    );
-    if (!mounted || generation != _followUpGeneration || _submitting) return;
-    setState(() => _slmFollowUpSuggestions = suggestions);
   }
 
   void _checkForMemoryNudge(String userMessage) {
@@ -641,19 +629,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
-  Future<void> _openLocalModelPage() async {
-    await _handleIntent(
-      FfmAssistantIntent(
-        rawText: 'siapkan AI lokal',
-        normalizedText: 'siapkan ai lokal',
-        type: FfmAssistantIntentType.openPage,
-        destination: FfmAssistantDestination.localModel,
-        confidence: 1,
-        response: 'Aku buka Model Asisten Lokal supaya kamu bisa memilih download GitHub atau impor bundle offline.',
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _scrollController.removeListener(_updateLatestMessagePreference);
@@ -667,8 +642,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _streamingController.dispose();
     super.dispose();
   }
-
-
 
   Future<void> _executeReadPlan(String planId) async {
     _setActiveProcess('Membaca data yang diperlukan secara lokal...');
@@ -743,7 +716,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ? 'batas proses'
                 : 'batas proses (${plan.blockedReason})')
           : _capabilityLabel(failed.first.capabilityId);
-      final detail = failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
+      final detail =
+          failed.first.error ?? 'Perubahan tidak dapat diverifikasi.';
       final message =
           'Perubahan ${subject.toLowerCase()} tidak selesai ($failureLabel). $detail';
       setState(() {
@@ -811,7 +785,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         false;
   }
 
-
   Future<void> _submit([String? overrideText]) async {
     await _historyRestoreFuture;
     final text = (overrideText ?? _controller.text).trim();
@@ -822,8 +795,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ..reset()
         ..start();
       _activeProcessEvents.clear();
-      _followUpGeneration++;
-      _slmFollowUpSuggestions = const <String>[];
       _appendEntry(
         FfmAssistantChatEntry(
           isUser: true,
@@ -836,7 +807,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
     final stopwatch = Stopwatch()..start();
-    _setActiveProcess('Tahap 1/2: Merutekan permintaan ke plugin & SLM lokal...');
+    _setActiveProcess('Tahap 1/2: Menyiapkan konteks agent & Gemini Cloud...');
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
@@ -886,7 +857,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           if (response.isEmpty) {
             if (intent.responseMode == FfmAssistantResponseMode.localModel &&
                 intent.type == FfmAssistantIntentType.help) {
-              response = 'Aku mengerti ini terkait literasi keuangan keluarga. (Jawaban SLM offline akan muncul di sini).';
+              response = 'Aku memahami permintaanmu. Gemini belum menghasilkan jawaban yang dapat dipakai.';
             } else if (intent.draft != null) {
               response =
                   'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
@@ -913,10 +884,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
           widget.session.lastAssistantText = response;
           final traceEventCount = _activeProcessEvents.length;
-          final processTrace = _traceFor(
-            intent,
-            stopwatch.elapsed,
-          );
+          final processTrace = _traceFor(intent, stopwatch.elapsed);
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
@@ -977,7 +945,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     } finally {
       _processStopwatch.stop();
       if (mounted) setState(() => _submitting = false);
-      unawaited(_refreshSlmFollowUpSuggestions());
       _scrollToEnd(force: true);
     }
   }
@@ -1135,8 +1102,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd();
   }
-
-
 
   Future<void> _toggleListening() async {
     if (_listening) {
@@ -1936,7 +1901,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  Future<void> _openUpdateCheckpointFromLiveBar(ActivitySessionEntity session) async {
+  Future<void> _openUpdateCheckpointFromLiveBar(
+    ActivitySessionEntity session,
+  ) async {
     final controller = TextEditingController();
     final label = await showDialog<String>(
       context: context,
@@ -1955,7 +1922,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             child: const Text('Batal'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            onPressed: () =>
+                Navigator.of(dialogCtx).pop(controller.text.trim()),
             child: const Text('Simpan'),
           ),
         ],
@@ -1971,9 +1939,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         source: ActivityEntrySource.assistant,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res.message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(res.message)));
     }
   }
 
@@ -1982,7 +1949,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       context: context,
       builder: (dialogCtx) => AlertDialog(
         title: Text('Selesaikan ${session.title}?'),
-        content: const Text('Sesi aktivitas ini akan ditutup dan durasinya direkam.'),
+        content: const Text(
+          'Sesi aktivitas ini akan ditutup dan durasinya direkam.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogCtx).pop(false),
@@ -2005,9 +1974,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         forceCloseChildren: true,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res.message)),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(res.message)));
     }
   }
 
@@ -2092,10 +2060,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 onOpenVoicePicker: _openVoicePicker,
                 onResetChat: _confirmResetSession,
                 onClose: () => Navigator.of(context).pop(),
-                modelChecking: _modelChecking,
-                modelReady: _modelReady,
-                modelStatusError: _modelStatusError,
-                onRefreshModelStatus: _refreshModelStatus,
+                cloudChecking: _cloudChecking,
+                cloudReady: _cloudReady,
+                cloudStatusError: _cloudStatusError,
+                cloudModel: _cloudModel,
+                onRefreshCloudStatus: _refreshCloudStatus,
                 memoryCount: _memoryCount,
                 onOpenMemory: () => Navigator.of(context)
                     .push(
@@ -2112,38 +2081,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ? const Color(0xFF2E2A26)
                     : const Color(0xFFE8E0D0),
               ),
-              if (!_modelChecking && !_modelReady)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    color: theme.colorScheme.primaryContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.memory_outlined,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'AI lokal belum siap. Unduh SLM dari GitHub atau impor bundle offline yang sudah dibagikan.',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          FilledButton.tonal(
-                            onPressed: _submitting ? null : _openLocalModelPage,
-                            child: const Text('Siapkan'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              if (proactiveSuggestion != null && _modelReady)
+              if (proactiveSuggestion != null && _cloudReady)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                   child: Card(
@@ -2315,65 +2253,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ),
                   ),
                 ),
-              if (!_submitting &&
-                  _modelReady &&
-                  _slmFollowUpSuggestions.length == 3)
+              if (!_submitting && _pendingMemoryNudge != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Memory Nudge Card (muncul jika ada fakta yang terdeteksi)
-                      if (_pendingMemoryNudge != null)
-                        FfmMemoryNudgeCard(
-                          insight: _pendingMemoryNudge!,
-                          onSave: _saveMemoryNudge,
-                          onDismiss: () =>
-                              setState(() => _pendingMemoryNudge = null),
-                        ),
-                      // Follow-up suggestion chips
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          children: [
-                            for (final suggestion in _slmFollowUpSuggestions)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: ActionChip(
-                                  avatar: const Icon(
-                                    Icons.lightbulb_outline,
-                                    size: 14,
-                                    color: Color(0xFF00727A),
-                                  ),
-                                  label: Text(
-                                    suggestion,
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  onPressed: () {
-                                    _controller.text = suggestion;
-                                    _controller
-                                        .selection = TextSelection.fromPosition(
-                                      TextPosition(offset: suggestion.length),
-                                    );
-                                    _inputFocusNode.requestFocus();
-                                  },
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: FfmMemoryNudgeCard(
+                    insight: _pendingMemoryNudge!,
+                    onSave: _saveMemoryNudge,
+                    onDismiss: () => setState(() => _pendingMemoryNudge = null),
                   ),
                 ),
               if (getIt.isRegistered<ActivityBloc>())
@@ -2381,11 +2267,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   bloc: getIt<ActivityBloc>(),
                   builder: (context, actState) {
                     final snapshot = actState.toSnapshot();
-                    if (!snapshot.hasActiveSessions) return const SizedBox.shrink();
+                    if (!snapshot.hasActiveSessions) {
+                      return const SizedBox.shrink();
+                    }
                     return ActivityLiveBar(
                       snapshot: snapshot,
-                      onUpdateCheckpoint: (session) => _openUpdateCheckpointFromLiveBar(session),
-                      onFinishSession: (session) => _finishSessionFromLiveBar(session),
+                      onUpdateCheckpoint: (session) =>
+                          _openUpdateCheckpointFromLiveBar(session),
+                      onFinishSession: (session) =>
+                          _finishSessionFromLiveBar(session),
                     );
                   },
                 ),
@@ -2397,8 +2287,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     valueListenable: _controller,
                     builder: (context, value, _) {
                       final canSend =
-                          !_submitting &&
-                          value.text.trim().isNotEmpty;
+                          !_submitting && value.text.trim().isNotEmpty;
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -2432,8 +2321,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   tooltip: _listening
                                       ? 'Berhenti dengar'
                                       : 'Bicara ke Asisten',
-                                  onPressed:
-                                      _submitting ? null : _toggleListening,
+                                  onPressed: _submitting
+                                      ? null
+                                      : _toggleListening,
                                   icon: Icon(
                                     _listening ? Icons.stop : Icons.mic_none,
                                   ),
@@ -2447,7 +2337,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     textInputAction: TextInputAction.newline,
                                     onTap: _scrollToEnd,
                                     decoration: const InputDecoration(
-                                      hintText: 'Tulis perintah atau pertanyaan…',
+                                      hintText:
+                                          'Tulis perintah atau pertanyaan…',
                                       border: InputBorder.none,
                                       contentPadding: EdgeInsets.symmetric(
                                         vertical: 13,
@@ -2485,27 +2376,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Widget _buildModelSelector() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _ModelPill(
-            label: 'Auto',
-            selected: _llmMode == 'auto',
-            onTap: () => _updateLlmMode('auto'),
-          ),
-          const SizedBox(width: 8),
-          _ModelPill(
-            label: 'Lokal',
-            selected: _llmMode == 'local',
-            onTap: () => _updateLlmMode('local'),
-          ),
-          const SizedBox(width: 8),
-          _ModelPill(
-            label: 'Gemini',
-            selected: _llmMode == 'gemini',
-            onTap: () => _updateLlmMode('gemini'),
-          ),
-        ],
+      child: _ModelPill(
+        label: 'Gemini Cloud',
+        selected: true,
+        onTap: _refreshCloudStatus,
       ),
     );
   }
