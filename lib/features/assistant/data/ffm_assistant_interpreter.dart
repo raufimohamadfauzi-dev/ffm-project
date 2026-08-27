@@ -17,6 +17,7 @@ import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_assistant_typo_normalizer.dart';
+import '../../../core/network/gemini_diagnostics.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../core/network/supabase_service.dart';
 import '../../../core/network/supabase_config.dart';
@@ -218,6 +219,11 @@ class FfmAssistantInterpreter {
         !geminiVerified ||
         geminiModel == null ||
         geminiModel.trim().isEmpty) {
+      await _recordGeminiUsage(
+        code: GeminiDiagnosticCodes.configMissing,
+        model: geminiModel ?? '',
+        ok: false,
+      );
       return _cloudError(
         rawText,
         normalized,
@@ -240,6 +246,17 @@ Jawab Bahasa Indonesia secara ringkas dan jelas. Jika konteks tidak memiliki dat
 KONTEKS TERARAH FFM:
 $geminiContext
 ''',
+    );
+    await _recordGeminiUsage(
+      code:
+          result.diagnosticCode ??
+          (result.ok
+              ? GeminiDiagnosticCodes.chatSuccess
+              : GeminiDiagnosticCodes.chatError),
+      model: result.model,
+      ok: result.ok,
+      httpStatus: result.statusCode,
+      latency: result.latency,
     );
     if (!result.ok) {
       return _cloudError(
@@ -6060,6 +6077,27 @@ $geminiContext
       buffer.write(digits[index]);
     }
     return 'Rp$buffer';
+  }
+
+  Future<void> _recordGeminiUsage({
+    required String code,
+    required String model,
+    required bool ok,
+    int? httpStatus,
+    Duration? latency,
+  }) async {
+    try {
+      await _config.saveGeminiUsage(
+        code: code,
+        model: model,
+        ok: ok,
+        at: _clock(),
+        httpStatus: httpStatus,
+        latency: latency,
+      );
+    } on Object {
+      // Diagnostik tidak boleh mengubah jawaban atau memutus alur chatbot.
+    }
   }
 
   FfmAssistantIntent _cloudError(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/network/gemini_diagnostics.dart';
 import '../../../../core/network/gemini_service.dart';
 import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_client_provider.dart';
@@ -32,6 +33,8 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
   String? _geminiStatus;
   Color _supabaseColor = Colors.grey;
   Color _geminiColor = Colors.grey;
+  final List<GeminiDiagnosticEvent> _geminiDiagnostics = [];
+  GeminiUsageSnapshot? _lastGeminiUsage;
 
   @override
   void initState() {
@@ -42,12 +45,41 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
     _loadCredentials();
   }
 
+  void _addGeminiDiagnostic({
+    required String code,
+    required String message,
+    required GeminiDiagnosticLevel level,
+    String? model,
+    int? httpStatus,
+    Duration? latency,
+  }) {
+    if (!mounted) return;
+    setState(() {
+      _geminiDiagnostics.insert(
+        0,
+        GeminiDiagnosticEvent(
+          code: code,
+          message: message,
+          level: level,
+          at: DateTime.now(),
+          model: model,
+          httpStatus: httpStatus,
+          latency: latency,
+        ),
+      );
+      if (_geminiDiagnostics.length > 12) {
+        _geminiDiagnostics.removeRange(12, _geminiDiagnostics.length);
+      }
+    });
+  }
+
   Future<void> _loadCredentials() async {
     final url = await _config.getUrl();
     final key = await _config.getAnonKey();
     final gemini = await _config.getGeminiKey();
     final geminiModel = await _config.getGeminiModel();
     final geminiVerified = await _config.isGeminiVerified();
+    final lastUsage = await _config.getGeminiUsage();
 
     if (mounted) {
       setState(() {
@@ -58,14 +90,25 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
             ? null
             : geminiModel;
         _geminiVerified = geminiVerified;
+        _lastGeminiUsage = lastUsage;
         _loading = false;
       });
-      _checkAllConnections(persistGemini: true);
+      if (lastUsage != null) {
+        _addGeminiDiagnostic(
+          code: GeminiDiagnosticCodes.usageLoaded,
+          message: GeminiDiagnosticCodes.descriptionFor(
+            GeminiDiagnosticCodes.usageLoaded,
+          ),
+          level: GeminiDiagnosticLevel.info,
+          model: lastUsage.model,
+          httpStatus: lastUsage.httpStatus,
+          latency: lastUsage.latencyMs == null
+              ? null
+              : Duration(milliseconds: lastUsage.latencyMs!),
+        );
+      }
+      _checkSupabase();
     }
-  }
-
-  Future<void> _checkAllConnections({bool persistGemini = false}) async {
-    await Future.wait([_checkSupabase(), _checkGemini(persist: persistGemini)]);
   }
 
   Future<void> _checkSupabase() async {
@@ -124,14 +167,30 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
         _geminiStatus = 'Belum Aktif';
         _geminiColor = Colors.grey;
       });
+      _addGeminiDiagnostic(
+        code: GeminiDiagnosticCodes.keyEmpty,
+        message: GeminiDiagnosticCodes.descriptionFor(
+          GeminiDiagnosticCodes.keyEmpty,
+        ),
+        level: GeminiDiagnosticLevel.warning,
+      );
       if (persist) {
-        await _config.saveGeminiKey('');
-        await _config.saveGeminiModel('');
-        await _config.setGeminiVerified(false);
+        await _config.saveVerifiedGeminiConfiguration(
+          key: '',
+          model: '',
+          verified: false,
+        );
       }
       return;
     }
 
+    _addGeminiDiagnostic(
+      code: GeminiDiagnosticCodes.modelsRequest,
+      message: GeminiDiagnosticCodes.descriptionFor(
+        GeminiDiagnosticCodes.modelsRequest,
+      ),
+      level: GeminiDiagnosticLevel.info,
+    );
     if (mounted) {
       setState(() {
         _geminiStatus = 'Mencari model untuk API key...';
@@ -141,6 +200,18 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
     }
     final modelsResult = await _gemini.fetchModels(apiKey: key);
     final models = modelsResult.models;
+    _addGeminiDiagnostic(
+      code:
+          modelsResult.diagnosticCode ??
+          (models.isEmpty
+              ? GeminiDiagnosticCodes.modelsUnavailable
+              : GeminiDiagnosticCodes.modelsSuccess),
+      message: modelsResult.message,
+      level: models.isEmpty
+          ? GeminiDiagnosticLevel.error
+          : GeminiDiagnosticLevel.success,
+      httpStatus: modelsResult.statusCode,
+    );
     if (models.isEmpty) {
       if (mounted) {
         setState(() {
@@ -151,9 +222,18 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
         });
       }
       if (persist) {
-        await _config.saveGeminiKey(key);
-        await _config.saveGeminiModel('');
-        await _config.setGeminiVerified(false);
+        await _config.saveVerifiedGeminiConfiguration(
+          key: key,
+          model: '',
+          verified: false,
+        );
+        _addGeminiDiagnostic(
+          code: GeminiDiagnosticCodes.configRejected,
+          message: GeminiDiagnosticCodes.descriptionFor(
+            GeminiDiagnosticCodes.configRejected,
+          ),
+          level: GeminiDiagnosticLevel.warning,
+        );
       }
       return;
     }
@@ -170,7 +250,29 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
         _geminiVerified = false;
       });
     }
+    _addGeminiDiagnostic(
+      code: GeminiDiagnosticCodes.testRequest,
+      message: GeminiDiagnosticCodes.descriptionFor(
+        GeminiDiagnosticCodes.testRequest,
+      ),
+      level: GeminiDiagnosticLevel.info,
+      model: model,
+    );
     final result = await _gemini.testConnection(apiKey: key, model: model);
+    _addGeminiDiagnostic(
+      code:
+          result.diagnosticCode ??
+          (result.ok
+              ? GeminiDiagnosticCodes.verified
+              : GeminiDiagnosticCodes.chatError),
+      message: result.message,
+      level: result.ok
+          ? GeminiDiagnosticLevel.success
+          : GeminiDiagnosticLevel.error,
+      model: result.model,
+      httpStatus: result.statusCode,
+      latency: result.latency,
+    );
     if (mounted) {
       setState(() {
         _geminiModels = models;
@@ -180,9 +282,25 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
       });
     }
     if (persist) {
-      await _config.saveGeminiKey(key);
-      await _config.saveGeminiModel(model ?? '');
-      await _config.setGeminiVerified(result.ok);
+      await _config.saveVerifiedGeminiConfiguration(
+        key: key,
+        model: model ?? '',
+        verified: result.ok,
+      );
+      _addGeminiDiagnostic(
+        code: result.ok
+            ? GeminiDiagnosticCodes.configSaved
+            : GeminiDiagnosticCodes.configRejected,
+        message: GeminiDiagnosticCodes.descriptionFor(
+          result.ok
+              ? GeminiDiagnosticCodes.configSaved
+              : GeminiDiagnosticCodes.configRejected,
+        ),
+        level: result.ok
+            ? GeminiDiagnosticLevel.success
+            : GeminiDiagnosticLevel.warning,
+        model: model,
+      );
     }
   }
 
@@ -198,9 +316,38 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
 
   Future<void> _loadGeminiModels() async {
     final key = _geminiController.text.trim();
-    if (key.isEmpty || _geminiModelsLoading) return;
+    if (key.isEmpty) {
+      _addGeminiDiagnostic(
+        code: GeminiDiagnosticCodes.keyEmpty,
+        message: GeminiDiagnosticCodes.descriptionFor(
+          GeminiDiagnosticCodes.keyEmpty,
+        ),
+        level: GeminiDiagnosticLevel.warning,
+      );
+      return;
+    }
+    if (_geminiModelsLoading) return;
     setState(() => _geminiModelsLoading = true);
+    _addGeminiDiagnostic(
+      code: GeminiDiagnosticCodes.modelsRequest,
+      message: GeminiDiagnosticCodes.descriptionFor(
+        GeminiDiagnosticCodes.modelsRequest,
+      ),
+      level: GeminiDiagnosticLevel.info,
+    );
     final result = await _gemini.fetchModels(apiKey: key);
+    _addGeminiDiagnostic(
+      code:
+          result.diagnosticCode ??
+          (result.models.isEmpty
+              ? GeminiDiagnosticCodes.modelsUnavailable
+              : GeminiDiagnosticCodes.modelsSuccess),
+      message: result.message,
+      level: result.models.isEmpty
+          ? GeminiDiagnosticLevel.error
+          : GeminiDiagnosticLevel.success,
+      httpStatus: result.statusCode,
+    );
     if (!mounted) return;
     setState(() {
       _geminiModels = result.models;
@@ -222,26 +369,18 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
   Future<void> _save() async {
     if (_geminiTesting) return;
     setState(() => _loading = true);
-    final key = _geminiController.text.trim();
-    final model = _selectedGeminiModel;
-    final result = key.isNotEmpty && model != null
-        ? await _gemini.testConnection(apiKey: key, model: model)
-        : null;
-    final geminiSucceeded = result?.ok == true;
     await _config.save(_urlController.text.trim(), _keyController.text.trim());
-    await _config.saveGeminiKey(key);
-    await _config.saveGeminiModel(model ?? '');
-    await _config.setGeminiVerified(geminiSucceeded);
+    await _checkGemini(persist: true);
     await SupabaseClientProvider.reset();
     if (mounted) setState(() => _loading = false);
-    await _checkAllConnections(persistGemini: true);
+    await _checkSupabase();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            geminiSucceeded
+            _geminiVerified
                 ? 'Konfigurasi tersimpan dan Gemini berhasil diuji.'
-                : 'Supabase tersimpan, tetapi Gemini tidak diaktifkan karena test gagal atau model belum dipilih.',
+                : 'Supabase tersimpan, tetapi Gemini belum diaktifkan. Lihat kode diagnostik di bawah.',
           ),
         ),
       );
@@ -302,6 +441,8 @@ end; \$\$;
                   _buildSupabaseSection(theme),
                   const SizedBox(height: 24),
                   _buildGeminiSection(theme),
+                  const SizedBox(height: 16),
+                  _buildGeminiDiagnostics(theme),
                   const SizedBox(height: 24),
                   _buildSqlSection(theme),
                   const SizedBox(height: 40),
@@ -389,6 +530,14 @@ end; \$\$;
               _geminiStatus = 'Key berubah; tekan Test API Key lalu Simpan';
               _geminiColor = Colors.orange;
             });
+            _config.invalidateGeminiVerification();
+            _addGeminiDiagnostic(
+              code: GeminiDiagnosticCodes.keyChanged,
+              message: GeminiDiagnosticCodes.descriptionFor(
+                GeminiDiagnosticCodes.keyChanged,
+              ),
+              level: GeminiDiagnosticLevel.warning,
+            );
           },
           decoration: const InputDecoration(
             labelText: 'Gemini API Key',
@@ -422,6 +571,15 @@ end; \$\$;
               _geminiStatus = 'Model berubah; tekan Test API Key lalu Simpan';
               _geminiColor = Colors.orange;
             });
+            _config.invalidateGeminiVerification();
+            _addGeminiDiagnostic(
+              code: GeminiDiagnosticCodes.modelSelected,
+              message: GeminiDiagnosticCodes.descriptionFor(
+                GeminiDiagnosticCodes.modelSelected,
+              ),
+              level: GeminiDiagnosticLevel.info,
+              model: model,
+            );
           },
         ),
         const SizedBox(height: 8),
@@ -456,6 +614,236 @@ end; \$\$;
       ],
     );
   }
+
+  Widget _buildGeminiDiagnostics(ThemeData theme) {
+    final keyReady = _geminiController.text.trim().isNotEmpty;
+    final modelReady = _selectedGeminiModel?.trim().isNotEmpty == true;
+    final modelsReady = _geminiModels.isNotEmpty;
+    final steps =
+        <
+          ({
+            String title,
+            String code,
+            String meaning,
+            Color color,
+            IconData icon,
+          })
+        >[
+          (
+            title: '1. API key diisi',
+            code: keyReady
+                ? GeminiDiagnosticCodes.keyReady
+                : GeminiDiagnosticCodes.keyEmpty,
+            meaning: keyReady
+                ? GeminiDiagnosticCodes.descriptionFor(
+                    GeminiDiagnosticCodes.keyReady,
+                  )
+                : GeminiDiagnosticCodes.descriptionFor(
+                    GeminiDiagnosticCodes.keyEmpty,
+                  ),
+            color: keyReady ? Colors.green : Colors.grey,
+            icon: keyReady ? Icons.check_circle : Icons.radio_button_unchecked,
+          ),
+          (
+            title: '2. Daftar model diambil',
+            code: modelsReady
+                ? GeminiDiagnosticCodes.modelsSuccess
+                : GeminiDiagnosticCodes.modelsRequest,
+            meaning: modelsReady
+                ? '${_geminiModels.length} model generateContent tersedia.'
+                : 'Tekan “Muat model dari key” untuk memeriksa key ke endpoint models.',
+            color: modelsReady ? Colors.green : Colors.orange,
+            icon: modelsReady ? Icons.check_circle : Icons.pending,
+          ),
+          (
+            title: '3. Model dipilih',
+            code: modelReady
+                ? GeminiDiagnosticCodes.modelSelected
+                : GeminiDiagnosticCodes.modelEmpty,
+            meaning: modelReady
+                ? 'Model $_selectedGeminiModel dipilih; perubahan tetap perlu dites.'
+                : GeminiDiagnosticCodes.descriptionFor(
+                    GeminiDiagnosticCodes.modelEmpty,
+                  ),
+            color: modelReady ? Colors.blue : Colors.grey,
+            icon: modelReady
+                ? Icons.check_circle
+                : Icons.radio_button_unchecked,
+          ),
+          (
+            title: '4. Test generateContent',
+            code: _geminiVerified
+                ? GeminiDiagnosticCodes.verified
+                : (_geminiStatus == null
+                      ? GeminiDiagnosticCodes.testRequest
+                      : GeminiDiagnosticCodes.testPending),
+            meaning: _geminiVerified
+                ? 'Request test berhasil dengan model pilihan.'
+                : (_geminiStatus ?? 'Belum ada test berhasil.'),
+            color: _geminiVerified ? Colors.green : Colors.orange,
+            icon: _geminiVerified ? Icons.check_circle : Icons.pending,
+          ),
+          (
+            title: '5. Tersimpan dan siap chatbot',
+            code: _geminiVerified
+                ? GeminiDiagnosticCodes.configSaved
+                : GeminiDiagnosticCodes.configRejected,
+            meaning: _geminiVerified
+                ? 'Tuple key + model + verified tersimpan; chatbot membaca tuple yang sama.'
+                : GeminiDiagnosticCodes.descriptionFor(
+                    GeminiDiagnosticCodes.configRejected,
+                  ),
+            color: _geminiVerified ? Colors.green : Colors.red,
+            icon: _geminiVerified ? Icons.check_circle : Icons.error_outline,
+          ),
+        ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AppSectionHeader(title: 'Pelacakan Gemini'),
+        const SizedBox(height: 8),
+        AppCard(
+          child: Column(
+            children: [
+              for (final step in steps)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(step.icon, color: step.color),
+                  title: Text(step.title),
+                  subtitle: Text('${step.code} · ${step.meaning}'),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _buildLastGeminiUsageCard(),
+        const SizedBox(height: 12),
+        _buildGeminiLogCard(theme),
+      ],
+    );
+  }
+
+  Widget _buildLastGeminiUsageCard() {
+    final usage = _lastGeminiUsage;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Pemakaian chatbot terakhir',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Segarkan',
+                onPressed: () async {
+                  final latest = await _config.getGeminiUsage();
+                  if (mounted) setState(() => _lastGeminiUsage = latest);
+                },
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (usage == null)
+            const Text(
+              'Belum ada request chatbot yang tercatat pada perangkat ini.',
+            )
+          else ...[
+            Text('Status: ${usage.ok ? 'berhasil' : 'gagal'} · ${usage.code}'),
+            Text('Model: ${usage.model.isEmpty ? '-' : usage.model}'),
+            Text(
+              'HTTP: ${usage.httpStatus?.toString() ?? '-'} · Waktu: ${usage.latencyMs?.toString() ?? '-'} ms',
+            ),
+            Text('Terakhir: ${_formatTime(usage.at)}'),
+          ],
+          const SizedBox(height: 6),
+          const Text(
+            'Metadata saja: API key, prompt, konteks, dan respons tidak disimpan di log ini.',
+            style: TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGeminiLogCard(ThemeData theme) {
+    final logText = _geminiDiagnostics.isEmpty
+        ? 'Belum ada event. Jalankan Muat model atau Test API Key.'
+        : _geminiDiagnostics.map(_formatDiagnostic).join('\\n');
+    return AppCard(
+      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Log diagnostik aman',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _geminiDiagnostics.isEmpty
+                    ? null
+                    : () {
+                        final safeLog = [
+                          'Gemini diagnostics aman.',
+                          'API key, prompt, konteks, dan raw response sengaja tidak dicatat.',
+                          ..._geminiDiagnostics.map(_formatDiagnostic),
+                        ].join('\\n');
+                        Clipboard.setData(ClipboardData(text: safeLog));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Log aman disalin. Rahasia tidak termasuk.',
+                            ),
+                          ),
+                        );
+                      },
+                icon: const Icon(Icons.copy, size: 16),
+                label: const Text('Salin log aman'),
+              ),
+              IconButton(
+                tooltip: 'Hapus log tampilan',
+                onPressed: _geminiDiagnostics.isEmpty
+                    ? null
+                    : () => setState(_geminiDiagnostics.clear),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(logText, style: const TextStyle(fontSize: 11, height: 1.35)),
+          const SizedBox(height: 6),
+          const Text(
+            'Maksimal 12 event disimpan hanya selama halaman ini terbuka.',
+            style: TextStyle(fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDiagnostic(GeminiDiagnosticEvent event) {
+    final http = event.httpStatus == null ? '' : ' · HTTP ${event.httpStatus}';
+    final latency = event.latency == null
+        ? ''
+        : ' · ${event.latency!.inMilliseconds} ms';
+    final model = event.model == null || event.model!.isEmpty
+        ? ''
+        : ' · model ${event.model}';
+    return '[${_formatTime(event.at)}] ${event.code}$http$latency$model\\n${event.message}';
+  }
+
+  String _formatTime(DateTime time) =>
+      time.toLocal().toIso8601String().replaceFirst('T', ' ').split('.').first;
 
   Widget _buildSqlSection(ThemeData theme) {
     return AppCard(

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'gemini_diagnostics.dart';
 import 'supabase_config.dart';
 
 class GeminiModelOption {
@@ -18,6 +19,7 @@ class GeminiResult {
     required this.message,
     this.text,
     this.latency,
+    this.diagnosticCode,
   });
 
   final String model;
@@ -25,6 +27,7 @@ class GeminiResult {
   final String message;
   final String? text;
   final Duration? latency;
+  final String? diagnosticCode;
 
   bool get ok => text != null && text!.trim().isNotEmpty;
 }
@@ -34,11 +37,13 @@ class GeminiModelsResult {
     required this.models,
     required this.statusCode,
     required this.message,
+    this.diagnosticCode,
   });
 
   final List<GeminiModelOption> models;
   final int? statusCode;
   final String message;
+  final String? diagnosticCode;
 
   bool get ok => models.isNotEmpty;
 }
@@ -66,6 +71,7 @@ class GeminiService {
         model: selectedModel,
         statusCode: null,
         message: 'API key Gemini belum diisi.',
+        diagnosticCode: GeminiDiagnosticCodes.keyEmpty,
       );
     }
     if (selectedModel.isEmpty) {
@@ -73,6 +79,7 @@ class GeminiService {
         model: '',
         statusCode: null,
         message: 'Model Gemini belum dipilih.',
+        diagnosticCode: GeminiDiagnosticCodes.modelEmpty,
       );
     }
 
@@ -99,6 +106,7 @@ class GeminiService {
         models: [],
         statusCode: null,
         message: 'API key Gemini belum diisi.',
+        diagnosticCode: GeminiDiagnosticCodes.keyEmpty,
       );
     }
     final uri = Uri.https(
@@ -114,6 +122,7 @@ class GeminiService {
           models: const [],
           statusCode: response.statusCode,
           message: _statusMessage(response.statusCode, response.body),
+          diagnosticCode: _diagnosticCodeFor(response.statusCode),
         );
       }
       final decoded = jsonDecode(response.body);
@@ -122,6 +131,7 @@ class GeminiService {
           models: [],
           statusCode: 200,
           message: 'Respons daftar model Gemini tidak valid.',
+          diagnosticCode: GeminiDiagnosticCodes.responseMalformed,
         );
       }
       final models = (decoded['models'] as List)
@@ -146,15 +156,29 @@ class GeminiService {
         message: models.isEmpty
             ? 'Tidak ada model Gemini dengan generateContent untuk key ini.'
             : '${models.length} model Gemini tersedia untuk key ini.',
+        diagnosticCode: models.isEmpty
+            ? GeminiDiagnosticCodes.modelsUnavailable
+            : GeminiDiagnosticCodes.modelsSuccess,
+      );
+    } on FormatException {
+      return const GeminiModelsResult(
+        models: [],
+        statusCode: 200,
+        message: 'Respons daftar model Gemini tidak berformat JSON yang valid.',
+        diagnosticCode: GeminiDiagnosticCodes.responseMalformed,
       );
     } on Object catch (error) {
-      final message = error.toString().toLowerCase().contains('timeout')
+      final isTimeout = error.toString().toLowerCase().contains('timeout');
+      final message = isTimeout
           ? 'Request daftar model Gemini timeout setelah 10 detik.'
           : 'Daftar model Gemini gagal diambil: ${error.runtimeType}.';
       return GeminiModelsResult(
         models: const [],
         statusCode: null,
         message: message,
+        diagnosticCode: isTimeout
+            ? GeminiDiagnosticCodes.timeout
+            : GeminiDiagnosticCodes.network,
       );
     }
   }
@@ -223,6 +247,7 @@ class GeminiService {
           statusCode: response.statusCode,
           message: _statusMessage(response.statusCode, response.body),
           latency: stopwatch.elapsed,
+          diagnosticCode: _diagnosticCodeFor(response.statusCode),
         );
       }
       final text = _extractText(response.body);
@@ -232,6 +257,7 @@ class GeminiService {
           statusCode: response.statusCode,
           message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.',
           latency: stopwatch.elapsed,
+          diagnosticCode: GeminiDiagnosticCodes.responseEmpty,
         );
       }
       return GeminiResult(
@@ -240,6 +266,7 @@ class GeminiService {
         message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).',
         text: text,
         latency: stopwatch.elapsed,
+        diagnosticCode: GeminiDiagnosticCodes.chatSuccess,
       );
     } on http.ClientException {
       stopwatch.stop();
@@ -248,6 +275,7 @@ class GeminiService {
         statusCode: null,
         message: 'Koneksi ke Gemini gagal. Periksa internet atau endpoint API.',
         latency: stopwatch.elapsed,
+        diagnosticCode: GeminiDiagnosticCodes.network,
       );
     } on FormatException {
       stopwatch.stop();
@@ -256,10 +284,12 @@ class GeminiService {
         statusCode: null,
         message: 'Respons Gemini tidak berformat JSON yang valid.',
         latency: stopwatch.elapsed,
+        diagnosticCode: GeminiDiagnosticCodes.responseMalformed,
       );
     } on Exception catch (error) {
       stopwatch.stop();
-      final message = error.toString().toLowerCase().contains('timeout')
+      final isTimeout = error.toString().toLowerCase().contains('timeout');
+      final message = isTimeout
           ? 'Request Gemini timeout setelah 15 detik.'
           : 'Request Gemini gagal: ${error.runtimeType}.';
       return GeminiResult(
@@ -267,6 +297,9 @@ class GeminiService {
         statusCode: null,
         message: message,
         latency: stopwatch.elapsed,
+        diagnosticCode: isTimeout
+            ? GeminiDiagnosticCodes.timeout
+            : GeminiDiagnosticCodes.network,
       );
     }
   }
@@ -305,4 +338,14 @@ class GeminiService {
       _ => 'Gemini mengembalikan HTTP $statusCode.',
     };
   }
+
+  String _diagnosticCodeFor(int statusCode) => switch (statusCode) {
+    400 => GeminiDiagnosticCodes.invalidRequest,
+    401 => GeminiDiagnosticCodes.unauthorized,
+    403 => GeminiDiagnosticCodes.forbidden,
+    404 => GeminiDiagnosticCodes.modelNotFound,
+    429 => GeminiDiagnosticCodes.rateLimited,
+    >= 500 => GeminiDiagnosticCodes.server,
+    _ => GeminiDiagnosticCodes.chatError,
+  };
 }

@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:ffm_manager/core/network/gemini_diagnostics.dart';
 import 'package:ffm_manager/core/network/gemini_service.dart';
 
 class _FakeHttpClient extends http.BaseClient {
@@ -56,6 +58,7 @@ void main() {
     expect(result.text, 'Gemini aktif.');
     expect(result.statusCode, 200);
     expect(result.model, 'gemini-2.5-flash');
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.chatSuccess);
   });
 
   test(
@@ -80,6 +83,7 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.statusCode, 401);
       expect(result.message, contains('ditolak'));
+      expect(result.diagnosticCode, GeminiDiagnosticCodes.unauthorized);
     },
   );
 
@@ -96,6 +100,7 @@ void main() {
     expect(result.ok, isFalse);
     expect(result.statusCode, 404);
     expect(result.message, contains('tidak ditemukan'));
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.modelNotFound);
   });
 
   test('respons tanpa kandidat teks tidak dianggap valid', () async {
@@ -113,6 +118,7 @@ void main() {
 
     expect(result.ok, isFalse);
     expect(result.message, contains('tanpa teks'));
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.responseEmpty);
   });
 
   test('model kosong ditolak tanpa default tersembunyi', () async {
@@ -123,6 +129,7 @@ void main() {
     expect(result.ok, isFalse);
     expect(result.model, isEmpty);
     expect(result.message, contains('belum dipilih'));
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.modelEmpty);
   });
 
   test('fetchModels membedakan key invalid dari daftar model kosong', () async {
@@ -143,6 +150,7 @@ void main() {
     expect(result.models, isEmpty);
     expect(result.statusCode, 400);
     expect(result.message, contains('API key Gemini ditolak'));
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.invalidRequest);
   });
 
   test(
@@ -175,6 +183,7 @@ void main() {
       expect(result.ok, isTrue);
       expect(client.lastHeaders?['x-goog-api-key'], 'test-key');
       expect(client.lastUri?.query, isEmpty);
+      expect(result.diagnosticCode, GeminiDiagnosticCodes.chatSuccess);
     },
   );
 
@@ -203,10 +212,83 @@ void main() {
         ),
       );
 
-      final models = await service.listModels(apiKey: 'test-key');
+      final modelsResult = await service.fetchModels(apiKey: 'test-key');
+      final models = modelsResult.models;
 
+      expect(modelsResult.diagnosticCode, GeminiDiagnosticCodes.modelsSuccess);
       expect(models.map((model) => model.id), ['gemini-2.5-flash']);
       expect(models.single.displayName, 'Gemini 2.5 Flash');
     },
   );
+
+  test('status HTTP penting dipetakan ke kode diagnostik', () async {
+    final expected = <int, String>{
+      400: GeminiDiagnosticCodes.invalidRequest,
+      401: GeminiDiagnosticCodes.unauthorized,
+      403: GeminiDiagnosticCodes.forbidden,
+      404: GeminiDiagnosticCodes.modelNotFound,
+      429: GeminiDiagnosticCodes.rateLimited,
+      500: GeminiDiagnosticCodes.server,
+      503: GeminiDiagnosticCodes.server,
+    };
+    for (final entry in expected.entries) {
+      final service = GeminiService(
+        client: _FakeHttpClient(
+          (method, uri) async => http.Response('{}', entry.key),
+        ),
+      );
+      final result = await service.testConnection(
+        apiKey: 'test-key',
+        model: 'gemini-2.5-flash',
+      );
+      expect(result.diagnosticCode, entry.value, reason: 'HTTP ${entry.key}');
+    }
+  });
+
+  test('respons JSON malformed menghasilkan kode respons malformed', () async {
+    final service = GeminiService(
+      client: _FakeHttpClient(
+        (method, uri) async => http.Response('not-json', 200),
+      ),
+    );
+    final result = await service.testConnection(
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+    );
+    expect(result.diagnosticCode, GeminiDiagnosticCodes.responseMalformed);
+  });
+
+  test(
+    'respons daftar model malformed diberi kode respons malformed',
+    () async {
+      final service = GeminiService(
+        client: _FakeHttpClient(
+          (method, uri) async => http.Response('not-json', 200),
+        ),
+      );
+      final result = await service.fetchModels(apiKey: 'test-key');
+      expect(result.diagnosticCode, GeminiDiagnosticCodes.responseMalformed);
+    },
+  );
+
+  test('timeout dan network diberi kode diagnostik tanpa rahasia', () async {
+    final timeoutService = GeminiService(
+      client: _FakeHttpClient(
+        (method, uri) async =>
+            Future<http.Response>.error(TimeoutException('timed out')),
+      ),
+    );
+    final timeoutResult = await timeoutService.fetchModels(apiKey: 'test-key');
+    expect(timeoutResult.diagnosticCode, GeminiDiagnosticCodes.timeout);
+
+    final networkService = GeminiService(
+      client: _FakeHttpClient(
+        (method, uri) async => Future<http.Response>.error(
+          http.ClientException('connection failed'),
+        ),
+      ),
+    );
+    final networkResult = await networkService.fetchModels(apiKey: 'test-key');
+    expect(networkResult.diagnosticCode, GeminiDiagnosticCodes.network);
+  });
 }
