@@ -292,6 +292,7 @@ $geminiContext
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
     ActivityLiveSnapshot? activitySnapshot,
+    FfmAssistantRoutingMode? routingMode,
   }) async {
     final commands = _splitCompositeCommands(rawText);
     if (commands.length >
@@ -316,6 +317,7 @@ $geminiContext
           conversationHistory: conversationHistory,
           capabilityIds: capabilityIds,
           activitySnapshot: activitySnapshot,
+          routingMode: routingMode,
         ),
       ];
     }
@@ -330,6 +332,7 @@ $geminiContext
           conversationHistory: conversationHistory,
           capabilityIds: capabilityIds,
           activitySnapshot: activitySnapshot,
+          routingMode: routingMode,
         ),
       );
     }
@@ -535,6 +538,7 @@ $geminiContext
     String? conversationHistory,
     List<String> capabilityIds = const <String>[],
     ActivityLiveSnapshot? activitySnapshot,
+    FfmAssistantRoutingMode? routingMode,
   }) async {
     var normalized = _normalize(rawText);
     final hasActionVerb = _containsAny(normalized, const [
@@ -1345,11 +1349,29 @@ $geminiContext
       return _intentForDraft(rawText, normalized, draft);
     }
 
+    // ── ROUTING MODE GEMINI CLOUD ─────────────────────────────────────────────
+    // Mode eksplisit Gemini mengambil pertanyaan bebas sebelum harness Agent.
+    // Perintah aksi/nominal tetap melewati guard deterministic di bawah agar
+    // Gemini tidak pernah mendapat hak mutasi langsung.
+    if (routingMode == FfmAssistantRoutingMode.geminiCloud &&
+        !hasActionVerb &&
+        FfmAssistantAmountParser.parse(normalized) == null) {
+      final geminiIntent = await _tryGeminiResponse(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+        cloudContext: cloudContext,
+      );
+      if (geminiIntent != null) return geminiIntent;
+    }
+
     // ── HARNESS DISPATCH ──────────────────────────────────────────────────────
     // Plugin Mata / Tangan / Logika berjalan lebih dahulu untuk perintah
     // terstruktur (catat, buka, hapus, dll). Pertanyaan bebas diteruskan ke
     // Gemini setelah aturan deterministic selesai.
-
     final accounts = await _activeAccounts();
     final categories = await _activeCategories();
 
@@ -1449,7 +1471,9 @@ $geminiContext
     }
 
     final hasAmount = FfmAssistantAmountParser.parse(normalized) != null;
-    if (!hasActionVerb && !hasAmount) {
+    if (routingMode != FfmAssistantRoutingMode.agent &&
+        !hasActionVerb &&
+        !hasAmount) {
       final geminiIntent = await _tryGeminiResponse(
         rawText,
         normalized,

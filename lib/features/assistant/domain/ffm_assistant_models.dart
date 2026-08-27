@@ -6,6 +6,8 @@ import '../../activity/domain/activity_voice.dart';
 
 enum FfmAssistantResponseMode { localRules, localModel }
 
+enum FfmAssistantRoutingMode { agent, geminiCloud }
+
 enum FfmAssistantResponseOrigin {
   agentOrchestrator,
   localSlm,

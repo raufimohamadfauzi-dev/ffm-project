@@ -81,6 +81,99 @@ void main() {
 
   tearDown(() => database.close());
 
+  test(
+    'mode AGENT eksplisit tidak memanggil Gemini untuk pertanyaan bebas',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'tidak boleh dipakai',
+          text: 'tidak boleh dipakai',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'agent', verified: true),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+        routingMode: FfmAssistantRoutingMode.agent,
+      );
+
+      expect(gemini.calls, 0);
+      expect(
+        intent.responseOrigin,
+        FfmAssistantResponseOrigin.agentOrchestrator,
+      );
+    },
+  );
+
+  test(
+    'mode Gemini eksplisit memanggil Gemini untuk pertanyaan bebas',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'Gemini merespons.',
+          text: 'Jawaban dari Gemini.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(
+          mode: 'agent',
+          verified: true,
+          model: 'gemini-2.5-pro',
+        ),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'beri rekomendasi bibit pepaya',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 1);
+      expect(gemini.receivedModel, 'gemini-2.5-pro');
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    },
+  );
+
+  test(
+    'mode Gemini tetap memakai Agent untuk perintah yang menjadi draft',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'tidak boleh dipakai untuk mutasi',
+          text: 'tidak boleh dipakai untuk mutasi',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'agent', verified: true),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'catat beli makan 25rb',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 0);
+      expect(intent.draft, isNotNull);
+      expect(
+        intent.responseOrigin,
+        FfmAssistantResponseOrigin.agentOrchestrator,
+      );
+    },
+  );
+
   test('mode Gemini sukses diberi origin Gemini Cloud', () async {
     final gateway = _FakeGateway();
     final gemini = _FakeGemini(

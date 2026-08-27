@@ -164,6 +164,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _isFullScreen = true;
   String? _cloudStatusError;
   String? _cloudModel;
+  FfmAssistantRoutingMode _routingMode = FfmAssistantRoutingMode.agent;
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
@@ -541,6 +542,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _speechStateSubscription = _speech.playbackStates.listen(_onSpeechState);
     _historyRestoreFuture = _restoreChatHistory();
     _refreshCloudStatus();
+    _loadRoutingMode();
     _refreshMemoryCount();
     unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -566,6 +568,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _scrollToEnd();
       }
     }
+  }
+
+  Future<void> _loadRoutingMode() async {
+    try {
+      final mode = await _supabaseConfig.getLlmMode();
+      if (!mounted) return;
+      setState(() {
+        _routingMode = mode == 'gemini' || mode == 'gemini_cloud'
+            ? FfmAssistantRoutingMode.geminiCloud
+            : FfmAssistantRoutingMode.agent;
+      });
+    } on Object {
+      // AGENT adalah default aman bila preference belum tersedia.
+    }
+  }
+
+  Future<void> _setRoutingMode(FfmAssistantRoutingMode mode) async {
+    if (_routingMode == mode) return;
+    setState(() => _routingMode = mode);
+    await _supabaseConfig.setLlmMode(
+      mode == FfmAssistantRoutingMode.geminiCloud ? 'gemini_cloud' : 'agent',
+    );
   }
 
   Future<void> _refreshCloudStatus() async {
@@ -807,7 +831,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
     final stopwatch = Stopwatch()..start();
-    _setActiveProcess('Tahap 1/2: Menyiapkan konteks agent & Gemini Cloud...');
+    _setActiveProcess(
+      _routingMode == FfmAssistantRoutingMode.geminiCloud
+          ? 'Tahap 1/2: Mengirim pertanyaan ke Gemini Cloud...'
+          : 'Tahap 1/2: Menyiapkan konteks Agent...',
+    );
     try {
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
@@ -833,6 +861,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
               activitySnapshot: activitySnapshot,
+              routingMode: _routingMode,
             )
           : await _interpreter.resolvePendingDialog(
               text,
@@ -2033,6 +2062,54 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
   }
 
+  Widget _buildRoutingModeSelector(ThemeData theme) {
+    final isGemini = _routingMode == FfmAssistantRoutingMode.geminiCloud;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Mode jawaban',
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SegmentedButton<FfmAssistantRoutingMode>(
+            multiSelectionEnabled: false,
+            emptySelectionAllowed: false,
+            selected: {_routingMode},
+            onSelectionChanged: (selection) {
+              if (selection.isNotEmpty) _setRoutingMode(selection.first);
+            },
+            segments: const [
+              ButtonSegment<FfmAssistantRoutingMode>(
+                value: FfmAssistantRoutingMode.agent,
+                icon: Icon(Icons.account_tree_outlined),
+                label: Text('AGENT'),
+              ),
+              ButtonSegment<FfmAssistantRoutingMode>(
+                value: FfmAssistantRoutingMode.geminiCloud,
+                icon: Icon(Icons.cloud_outlined),
+                label: Text('GEMINI CLOUD'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Text(
+            isGemini
+                ? (_cloudReady
+                      ? 'Pesan bebas akan dijawab Gemini ${_cloudModel ?? ''}. Operasi keuangan tetap perlu guard dan konfirmasi Agent.'
+                      : 'Gemini belum verified. Pesan akan menampilkan error Gemini, tanpa fallback ke Agent.')
+                : 'Pesan akan dijawab Agent Orchestrator dan operasi mengikuti guard deterministic.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -2081,6 +2158,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ? const Color(0xFF2E2A26)
                     : const Color(0xFFE8E0D0),
               ),
+              _buildRoutingModeSelector(theme),
               if (proactiveSuggestion != null && _cloudReady)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
