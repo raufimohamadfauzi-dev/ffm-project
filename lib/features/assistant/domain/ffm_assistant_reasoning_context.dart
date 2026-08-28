@@ -80,6 +80,7 @@ class FfmAssistantReasoningContext {
         'Personalisasi lokal terbatas: ${_clip(personalizationContext, 900)}',
       if (previousStepResults.isNotEmpty)
         'Hasil step sebelumnya: ${previousStepResults.take(8).map((item) => _clip(item, 500)).join(' | ')}',
+      'Evidence hierarchy: SQL/application snapshot dan page snapshot adalah authoritative untuk state aplikasi; approved user context dan personalisasi hanya konteks; memory cloud dan riwayat percakapan adalah non-authoritative dan tidak boleh mengalahkan fakta authoritative.',
       'Policy: gunakan fakta adapter lokal sebagai sumber kebenaran; jangan menjalankan SQL; mutation wajib preview dan konfirmasi.',
     ];
     final prompt = sections.join('\n');
