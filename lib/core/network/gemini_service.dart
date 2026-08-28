@@ -87,10 +87,7 @@ class GeminiService {
       apiKey: key.trim(),
       model: selectedModel,
       prompt: prompt,
-      systemInstruction: _hardenSystemInstruction(
-        prompt,
-        systemInstruction,
-      ),
+      systemInstruction: _hardenSystemInstruction(prompt, systemInstruction),
       history: history,
     );
   }
@@ -104,22 +101,19 @@ class GeminiService {
 
     final normalized = prompt
         .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\\s]'), ' ')
-        .replaceAll(RegExp(r'\\s+'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
-    // Bahasa transaksi (beli/bayar/jual/makan) tidak otomatis berarti user
-    // meminta mutasi. Proposal hanya boleh keluar jika ada verba mutasi eksplisit
-    // atau frasa transaksi yang jelas meminta pencatatan.
     final explicitMutation = RegExp(
-      r'\\b(?:buat|buatkan|tambahkan|tambah|catat|catatkan|masukkan|rekam|simpan|ubah|hapus|arsip|arsipkan|siapkan draft|simpan sebagai)\\b',
+      r'\b(?:buat|buatkan|tambahkan|tambah|catat|catatkan|masukkan|rekam|simpan|ubah|hapus|arsip|arsipkan|siapkan draft|simpan sebagai)\b',
     ).hasMatch(normalized);
     final explicitTransactionRequest = RegExp(
-      r'\\b(?:catat|rekam|simpan|masukkan)\\s+(?:transaksi|pembelian|belanja|pembayaran|pemasukan|pengeluaran)\\b',
+      r'\b(?:catat|rekam|simpan|masukkan)\s+(?:transaksi|pembelian|belanja|pembayaran|pemasukan|pengeluaran)\b',
     ).hasMatch(normalized);
     final proposalAllowed = explicitMutation || explicitTransactionRequest;
 
-    return '$base\\n\\n'
+    return '$base\n\n'
         'MUTATION_PROPOSAL_GATE: ${proposalAllowed ? 'ALLOW' : 'DENY'}. '
         'Jika DENY, jangan keluarkan JSON proposal mutasi atau memory teaching proposal. '
         'Kata seperti beli, bayar, jual, makan, belanja, atau transfer yang hanya muncul sebagai cerita, rencana, pertanyaan, atau fakta historis bukan izin mutasi. '
@@ -130,7 +124,8 @@ class GeminiService {
     apiKey: apiKey,
     model: model,
     prompt: 'Tes koneksi FFM. Balas tepat: Gemini aktif.',
-    systemInstruction: 'Balas singkat dalam Bahasa Indonesia. Jangan menambahkan informasi lain.',
+    systemInstruction:
+        'Balas singkat dalam Bahasa Indonesia. Jangan menambahkan informasi lain.',
   );
 
   Future<GeminiModelsResult> fetchModels({required String apiKey}) async {
