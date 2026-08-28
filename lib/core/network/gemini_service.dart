@@ -87,9 +87,43 @@ class GeminiService {
       apiKey: key.trim(),
       model: selectedModel,
       prompt: prompt,
-      systemInstruction: systemInstruction,
+      systemInstruction: _hardenSystemInstruction(
+        prompt,
+        systemInstruction,
+      ),
       history: history,
     );
+  }
+
+  String? _hardenSystemInstruction(
+    String prompt,
+    String? systemInstruction,
+  ) {
+    final base = systemInstruction?.trim();
+    if (base == null || base.isEmpty) return base;
+
+    final normalized = prompt
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\\s]'), ' ')
+        .replaceAll(RegExp(r'\\s+'), ' ')
+        .trim();
+
+    // Bahasa transaksi (beli/bayar/jual/makan) tidak otomatis berarti user
+    // meminta mutasi. Proposal hanya boleh keluar jika ada verba mutasi eksplisit
+    // atau frasa transaksi yang jelas meminta pencatatan.
+    final explicitMutation = RegExp(
+      r'\\b(?:buat|buatkan|tambahkan|tambah|catat|catatkan|masukkan|rekam|simpan|ubah|hapus|arsip|arsipkan|siapkan draft|simpan sebagai)\\b',
+    ).hasMatch(normalized);
+    final explicitTransactionRequest = RegExp(
+      r'\\b(?:catat|rekam|simpan|masukkan)\\s+(?:transaksi|pembelian|belanja|pembayaran|pemasukan|pengeluaran)\\b',
+    ).hasMatch(normalized);
+    final proposalAllowed = explicitMutation || explicitTransactionRequest;
+
+    return '$base\\n\\n'
+        'MUTATION_PROPOSAL_GATE: ${proposalAllowed ? 'ALLOW' : 'DENY'}. '
+        'Jika DENY, jangan keluarkan JSON proposal mutasi atau memory teaching proposal. '
+        'Kata seperti beli, bayar, jual, makan, belanja, atau transfer yang hanya muncul sebagai cerita, rencana, pertanyaan, atau fakta historis bukan izin mutasi. '
+        'Jika ALLOW, tetap jangan mengklaim data sudah tersimpan; keluarkan proposal JSON hanya untuk permintaan eksplisit dan biarkan Agent melakukan validasi serta konfirmasi.';
   }
 
   Future<GeminiResult> testConnection({String? apiKey, String? model}) => chat(
