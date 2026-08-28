@@ -1,6 +1,6 @@
 # Handoff: Gemini-first Conversation, Agent-safe Execution
 
-**Status:** tahap 2 berjalan — routing Gemini-first dan loop read-only bounded diterapkan.  
+**Status:** tahap 2 selesai — loop Gemini read-only bounded sudah dimiliki orkestrator.
 **Diperbarui:** 28 Agustus 2026 (Asia/Jakarta).  
 **Pemilik arsitektur:** fitur `lib/features/assistant/`.
 
@@ -63,11 +63,11 @@ Tahap awal capability loop telah dipasang dengan dua capability saja:
 
 1. Gemini dapat mengembalikan JSON `ffm-assistant-capability-request-v1` untuk `read.summary` atau `read.transactions` pada `current_month`.
 2. `FfmAssistantProposalJsonService` memvalidasi format, ID capability, dan periode melalui allowlist sempit.
-3. `FfmAssistantInterpreter` membaca snapshot agregat dari `FfmAssistantFinancialSnapshotService`.
+3. `FfmGeminiCloudOrchestrator` meminta adapter Agent membaca snapshot agregat dari `FfmAssistantFinancialSnapshotService`.
 4. `read.summary` hanya mengirim fakta bounded (`income`, `expenses`, jumlah transaksi, cicilan aktif, dan quality). `read.transactions` hanya mengirim maksimal delapan fakta tanggal/jenis/nominal, tanpa merchant, rekening, kategori, catatan, maupun ID.
 5. Gemini membuat jawaban naratif final. Semua capability selain dua ID tersebut, termasuk `mutate.*`, ditolak tanpa panggilan kedua atau perubahan data.
 
-Eksekusi capability dibungkus dalam `lib/features/assistant/data/ffm_gemini_read_capability_service.dart`; interpreter hanya mengatur percakapan dan meneruskan request yang sudah tervalidasi. File validator tetap `lib/features/assistant/data/ffm_assistant_proposal_json_service.dart`.
+Eksekusi capability dibungkus dalam `lib/features/assistant/data/ffm_gemini_read_capability_service.dart`. Loop Gemini (panggilan pertama → capability → panggilan akhir) berada di `lib/features/assistant/data/ffm_gemini_cloud_orchestrator.dart`; interpreter hanya membangun konteks dan mengubah hasil tervalidasi menjadi intent/draft. File validator tetap `lib/features/assistant/data/ffm_assistant_proposal_json_service.dart`.
 
 ### Privasi dan latensi Agent lokal
 
@@ -91,9 +91,9 @@ Pencarian memory Supabase hanya dilakukan untuk mode Gemini. Mode Agent tidak la
 | Dialog/sapaan tidak menelan pertanyaan | Selesai | Ada regression test khusus. |
 | Riwayat vs sapaan | Selesai | Riwayat dipulihkan sebelum sapaan; `lastAssistantText` diselaraskan. |
 | Aktivitas di mode Gemini | Selesai | Tidak lagi dipotong parser UI lokal. |
-| Tool/result loop Gemini ↔ Agent | Sebagian selesai | `read.summary` dan `read.transactions` / bulan berjalan melalui loop dua panggilan. |
-| Respons final Gemini dari hasil capability | Sebagian selesai | Jawaban akhir Gemini memakai snapshot atau digest bounded. |
-| Structured output capability allowlist | Sebagian selesai | Allowlist eksplisit hanya memuat `read.summary` dan `read.transactions`; capability lain ditolak. |
+| Tool/result loop Gemini ↔ Agent | Selesai (lingkup awal) | `read.summary` dan `read.transactions` / bulan berjalan melalui loop dua panggilan. |
+| Respons final Gemini dari hasil capability | Selesai (lingkup awal) | Jawaban akhir Gemini memakai snapshot atau digest bounded. |
+| Structured output capability allowlist | Selesai (lingkup awal) | Allowlist eksplisit hanya memuat `read.summary` dan `read.transactions`; capability lain ditolak. |
 | Pengujian API Gemini nyata | Belum | Tes memakai fake Gemini; jangan klaim koneksi produksi sudah terbukti. |
 | Uji perangkat Android ARM64 | Belum | Belum memvalidasi alur Gemini-first pada perangkat nyata. |
 
@@ -123,9 +123,9 @@ Implementasi harus:
 
 Jangan tambahkan capability mutation ke kontrak ini. Mutasi tetap memakai proposal draft v1 yang sudah ada.
 
-### 2. Ekstrak orchestrator dua langkah dari interpreter
+### 2. Perluas orchestrator tanpa memperlebar hak akses
 
-Eksekusi read capability sekarang sudah dipisahkan ke `FfmGeminiReadCapabilityService`. Tahap berikutnya adalah memindahkan keseluruhan loop dua panggilan (call Gemini pertama → capability → call Gemini final) ke orchestrator domain/data agar interpreter tidak tumbuh menjadi router paralel:
+`FfmGeminiCloudOrchestrator` sudah menangani loop dua panggilan. Tahap berikutnya hanya boleh menambah capability read setelah memiliki validator allowlist, adapter evidence bounded, dan regression test:
 
 ```text
 Gemini proposal/read request
@@ -162,17 +162,14 @@ Minimal test yang wajib ditambahkan sebelum tahap 2 dianggap selesai:
 
 ## Validasi terakhir
 
-Dijalankan pada perubahan tahap 1:
+Dijalankan pada perubahan tahap 2:
 
 ```powershell
-flutter test --no-pub test/ffm_agent_local_slm_test.dart
-flutter test --no-pub test/ffm_assistant_interpreter_test.dart
-flutter test --no-pub test/gemini_service_test.dart
-dart analyze lib/features/assistant/presentation/widgets/ffm_assistant_sheet.dart
-dart analyze lib/features/assistant/data/ffm_assistant_interpreter.dart test/ffm_agent_local_slm_test.dart
+flutter test --no-pub test/ffm_agent_local_slm_test.dart test/ffm_gemini_routing_test.dart
+dart analyze lib/features/assistant/data/ffm_assistant_interpreter.dart lib/features/assistant/data/ffm_gemini_cloud_orchestrator.dart lib/features/assistant/data/ffm_gemini_read_capability_service.dart lib/features/assistant/data/ffm_assistant_proposal_json_service.dart
 ```
 
-Hasil: seluruh test yang disebut lulus; kedua pemeriksaan `dart analyze` bersih. Ini bukan bukti koneksi Gemini produksi maupun uji perangkat Android.
+Hasil: seluruh test yang disebut lulus; pemeriksaan `dart analyze` bersih. Ini bukan bukti koneksi Gemini produksi maupun uji perangkat Android.
 
 ## Catatan kondisi working tree
 

@@ -38,4 +38,22 @@ void main() {
     expect(find.text('Lampiran diterima untuk dianalisis'), findsOneWidget);
     expect(find.text('Gemini Cloud mengembalikan jawaban'), findsOneWidget);
   });
+
+  testWidgets('jawaban deterministik diberi label Data lokal FFM', (
+    tester,
+  ) async {
+    const trace = FfmAssistantProcessTrace(
+      origin: FfmAssistantResponseOrigin.agentOrchestrator,
+      elapsed: Duration(milliseconds: 12),
+      events: [],
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: FfmAssistantProcessDisclosure(trace: trace)),
+      ),
+    );
+
+    expect(find.textContaining('Data lokal FFM'), findsOneWidget);
+  });
 }

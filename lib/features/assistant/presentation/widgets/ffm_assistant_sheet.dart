@@ -225,12 +225,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 detail: 'Data dibaca langsung dari database lokal. Tidak ada koneksi internet.',
               )
             : const (
-                label: 'Agent Orkestrator menyelesaikan rute lokal',
+                label: 'Data lokal FFM menyelesaikan permintaan',
                 detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
               ),
       FfmAssistantResponseOrigin.localSlm => const (
-        label: 'Agent menyusun proposal terstruktur',
-        detail: 'Proposal tetap divalidasi FFM sebelum ditampilkan.',
+        label: 'Agent lokal menyusun jawaban terarah',
+        detail: 'Jawaban hanya dirangkai dari konteks terbatas dan tidak mengubah data.',
       ),
       FfmAssistantResponseOrigin.localFallback => const (
         label: 'Agent memakai fallback deterministik',

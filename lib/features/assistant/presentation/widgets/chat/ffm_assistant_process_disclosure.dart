@@ -25,12 +25,12 @@ class _FfmAssistantProcessDisclosureState
   ({String label, IconData icon, Color color}) get _origin =>
       switch (widget.trace.origin) {
         FfmAssistantResponseOrigin.agentOrchestrator => (
-          label: 'Agent Orkestrator',
+          label: 'Data lokal FFM',
           icon: Icons.account_tree_outlined,
           color: const Color(0xFF00727A),
         ),
         FfmAssistantResponseOrigin.localSlm => (
-          label: 'Agent menyusun proposal',
+          label: 'Agent lokal',
           icon: Icons.auto_awesome_outlined,
           color: const Color(0xFF3B6EC4),
         ),

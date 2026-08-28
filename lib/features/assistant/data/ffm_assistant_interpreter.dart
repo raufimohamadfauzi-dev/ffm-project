@@ -15,10 +15,10 @@ import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_query_tools.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_gemini_read_capability_service.dart';
+import 'ffm_gemini_cloud_orchestrator.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_assistant_typo_normalizer.dart';
-import '../../../core/network/gemini_diagnostics.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../core/network/supabase_service.dart';
 import '../../../core/network/supabase_config.dart';
@@ -75,6 +75,13 @@ class FfmAssistantInterpreter {
     _geminiReadCapabilities = FfmGeminiReadCapabilityService(
       _financialSnapshot,
     );
+    _geminiCloud = FfmGeminiCloudOrchestrator(
+      gemini: _gemini,
+      config: _config,
+      readCapabilities: _geminiReadCapabilities,
+      clock: _clock,
+      recordUsage: _recordGeminiUsage,
+    );
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
     _harness = createDefaultHarness(_database);
@@ -128,6 +135,7 @@ class FfmAssistantInterpreter {
   final _sessionMemory = _FfmSessionEntityMemory();
   late final FfmAssistantFinancialSnapshotService _financialSnapshot;
   late final FfmGeminiReadCapabilityService _geminiReadCapabilities;
+  late final FfmGeminiCloudOrchestrator _geminiCloud;
   late final FfmAssistantQueryRegistry _queryRegistry;
   late final FfmAssistantContextualActionRegistry _actionRegistry;
 
@@ -247,146 +255,30 @@ class FfmAssistantInterpreter {
       capabilityIds: capabilityIds,
       cloudContext: cloudContext,
     );
-    String? geminiKey;
-    var geminiVerified = false;
-    String? geminiModel;
-    try {
-      geminiKey = await _config.getGeminiKey();
-      geminiVerified = await _config.isGeminiVerified();
-      geminiModel = await _config.getGeminiModel();
-    } on Object {
-      // Secure storage may be unavailable; treat cloud as unverified.
-    }
-    if (geminiKey == null ||
-        geminiKey.trim().isEmpty ||
-        !geminiVerified ||
-        geminiModel == null ||
-        geminiModel.trim().isEmpty) {
-      await _recordGeminiUsage(
-        code: GeminiDiagnosticCodes.configMissing,
-        model: geminiModel ?? '',
-        ok: false,
-      );
+    final turn = await _geminiCloud.run(
+      userText: rawText,
+      boundedContext: geminiContext,
+      householdId: AppContext.householdId,
+    );
+    if (!turn.ok) {
       return _cloudError(
         rawText,
         normalized,
-        'Koneksi ke otak AI saya (Gemini) belum siap. Silakan ketuk tombol "Setup Sekarang" di atas untuk memasukkan Kunci API.',
-        model: geminiModel ?? 'belum dipilih',
+        turn.errorMessage!,
+        model: turn.model,
+        statusCode: turn.statusCode,
       );
-    }
-
-    final systemInstruction =
-        '''
-Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
-Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data pengguna. Jangan mengarang saldo, nominal, akun, kategori, transaksi, tanggal, atau status penyimpanan.
-
-ATURAN WAJIB JAWABAN:
-- Jawab PERTANYAAN USER saja. Jangan dump konteks, capability, page info, atau data internal lainnya ke user.
-- Jangan menampilkan "Context:", "Capability allowlist:", "User preference:", atau bagian internal lainnya.
-- Jawaban harus RINGKAS: 1-3 kalimat saja kecuali user meminta penjelasan detail.
-- Jangan gunakan bullet point untuk data internal. Gunakan hanya untuk poin jawaban yang relevan.
-- Jika pertanyaan tidak berkaitan dengan data keuangan, jawab seperti asisten biasa yang helpful.
-
-Untuk permintaan perubahan data, jangan klaim sudah menyimpan. Jika pengguna jelas meminta membuat/mencatat, keluarkan proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Kopi","category":"Makanan","fromAccount":"cash","date":"2026-08-28"}}. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan tambahkan markdown atau teks lain pada proposal JSON.
-
-Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID: {"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}. Jangan pernah meminta capability lain, jangan meminta mutasi, dan tunggu hasil resmi FFM sebelum menjawab angka. Jika konteks tidak memiliki data yang diperlukan, katakan data tersebut belum tersedia.
-
-KONTEKS TERARAH FFM:
-$geminiContext
-''';
-    var result = await _gemini.chat(
-      apiKey: geminiKey,
-      model: geminiModel,
-      prompt: rawText,
-      systemInstruction: systemInstruction,
-    );
-    await _recordGeminiUsage(
-      code:
-          result.diagnosticCode ??
-          (result.ok
-              ? GeminiDiagnosticCodes.chatSuccess
-              : GeminiDiagnosticCodes.chatError),
-      model: result.model,
-      ok: result.ok,
-      httpStatus: result.statusCode,
-      latency: result.latency,
-    );
-    if (!result.ok) {
-      return _cloudError(
-        rawText,
-        normalized,
-        result.message,
-        model: result.model,
-        statusCode: result.statusCode,
-      );
-    }
-    final readRequest =
-        FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-      result.text!,
-    );
-    if (readRequest.error != null) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.unknown,
-        confidence: .8,
-        response: readRequest.error,
-        clarification: readRequest.error,
-        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
-        pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${result.model}',
-        pluginMetadata: const {'capabilityRequestRejected': true},
-      );
-    }
-    if (readRequest.request != null) {
-      final verifiedFacts = await _geminiReadCapabilities.execute(
-        readRequest.request!,
-        householdId: AppContext.householdId,
-        now: _clock(),
-      );
-      result = await _gemini.chat(
-        apiKey: geminiKey,
-        model: geminiModel,
-        prompt: rawText,
-        systemInstruction:
-            '''$systemInstruction
-
-HASIL CAPABILITY LOKAL TERVERIFIKASI:
-$verifiedFacts
-
-Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.''',
-      );
-      await _recordGeminiUsage(
-        code:
-            result.diagnosticCode ??
-            (result.ok
-                ? GeminiDiagnosticCodes.chatSuccess
-                : GeminiDiagnosticCodes.chatError),
-        model: result.model,
-        ok: result.ok,
-        httpStatus: result.statusCode,
-        latency: result.latency,
-      );
-      if (!result.ok) {
-        return _cloudError(
-          rawText,
-          normalized,
-          result.message,
-          model: result.model,
-          statusCode: result.statusCode,
-        );
-      }
     }
     final proposal = FfmAssistantProposalJsonService.parse(
-      result.text!,
+      turn.text!,
       createdAt: _clock(),
     );
     final geminiMetadata = <String, dynamic>{
-      'model': result.model,
-      'statusCode': result.statusCode,
-      'latencyMs': result.latency?.inMilliseconds,
+      'model': turn.model,
+      'statusCode': turn.statusCode,
+      'latencyMs': turn.latency?.inMilliseconds,
       'proposal': proposal.draft != null || proposal.teachingProposal != null,
-      'usedReadCapability': readRequest.request?.capabilityId,
+      'usedReadCapability': turn.usedReadCapability,
     };
     if (proposal.error != null) {
       return FfmAssistantIntent(
@@ -398,7 +290,7 @@ Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi
         clarification: proposal.error,
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginCategory: '☁ Gemini · ${turn.model}',
         pluginMetadata: geminiMetadata,
       );
     }
@@ -409,7 +301,7 @@ Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi
             'Gemini sudah menyusun draft ${proposal.draft!.kind.name}. Cek detailnya, koreksi bila perlu, lalu konfirmasi sebelum disimpan.',
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginCategory: '☁ Gemini · ${turn.model}',
         pluginMetadata: geminiMetadata,
       );
     }
@@ -423,7 +315,7 @@ Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi
         teachingProposal: proposal.teachingProposal,
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginCategory: '☁ Gemini · ${turn.model}',
         pluginMetadata: geminiMetadata,
       );
     }
@@ -432,10 +324,10 @@ Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi
       normalizedText: normalized,
       type: FfmAssistantIntentType.queryData,
       confidence: 1.0,
-      response: result.text,
+      response: turn.text,
       responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
       pluginName: 'gemini_cloud',
-      pluginCategory: '☁ Gemini · ${result.model}',
+      pluginCategory: '☁ Gemini · ${turn.model}',
       pluginMetadata: geminiMetadata,
     );
   }
