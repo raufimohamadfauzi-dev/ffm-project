@@ -84,8 +84,8 @@ Kriteria selesai: **selesai** — pengguna baru dapat mengetahui cara membuat be
 - [x] Simpan antrean di sesi chat dan migrasikan penggunaan satu `activeDraftReview` secara aman agar beberapa draft tidak saling menimpa.
 - [x] Masukkan setiap hasil valid dari pemecahan perintah ke antrean dengan urutan dan target form yang jelas.
 - [x] Tampilkan daftar draft bernomor ringkas di chat dengan status dan pilihan draft aktif. Detail field serta aksi tetap berada pada kartu draft agar layar tidak penuh.
-- [x] Pastikan peninjauan, koreksi, dan pembatalan dari kartu chat terlebih dahulu memilih review milik draft tersebut, sehingga draft terakhir tidak menimpa draft yang dipilih pengguna. Isolasi status lintas halaman penuh masih tahap berikutnya.
-- [x] Untuk transaksi pemasukan/pengeluaran: saat pengguna kembali dari form tanpa simpan, pulihkan item yang sama ke antrean; tandai selesai hanya sesudah `_saveDrafts` berhasil. Form lain masih tahap berikutnya.
+- [x] Pastikan peninjauan, koreksi, dan pembatalan dari kartu chat terlebih dahulu memilih review milik draft tersebut, sehingga draft terakhir tidak menimpa draft yang dipilih pengguna. Draft yang sedang dibuka di form dikunci sampai pengguna kembali.
+- [x] Saat pengguna kembali dari form tanpa simpan, pulihkan item yang sama ke antrean; tandai selesai hanya sesudah hasil simpan resmi berhasil.
 - [x] Tambahkan test minimal dua draft pada halaman berbeda, lalu uji pembatalan dan koreksi salah satu draft tanpa mengubah yang lain.
 
 Kriteria selesai: pengguna dapat menyimpan beberapa draft aktif untuk form berbeda, memilih urutannya sendiri, dan setiap draft tetap terisolasi sampai selesai atau dibatalkan.

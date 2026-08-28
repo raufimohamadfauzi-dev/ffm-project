@@ -1565,6 +1565,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return null;
   }
 
+  bool get _activeDraftIsOpeningForm {
+    final id = widget.session.activeDraftQueueId;
+    if (id == null) return false;
+    return _draftQueue
+            .where((item) => item.id == id)
+            .firstOrNull
+            ?.status ==
+        FfmAssistantDraftQueueStatus.openingForm;
+  }
+
   void _enqueueDraft(
     FfmAssistantIntent intent,
     FfmAssistantDraftReview review, {
@@ -1859,6 +1869,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!RegExp(r'\b(ubah|ganti|revisi|koreksi)\b').hasMatch(normalized)) {
       return false;
     }
+    if (_activeDraftIsOpeningForm) {
+      setState(
+        () => _appendEntry(
+          const FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                'Draft ini sedang dibuka di form. Kembali tanpa menyimpan dulu, lalu koreksi draft agar versinya tidak tertukar.',
+          ),
+        ),
+      );
+      return true;
+    }
     final nextDraft = _draftFromTextRevision(review.draft, normalized);
     if (nextDraft == null) return false;
     final nextReview = review.revise(
@@ -1952,6 +1974,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _editActiveDraft(FfmAssistantIntent intent) async {
     final review = widget.session.activeDraftReview;
     if (review == null) return;
+    if (_activeDraftIsOpeningForm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Kembali dari form tanpa menyimpan dulu sebelum mengoreksi draft.',
+          ),
+        ),
+      );
+      return;
+    }
     final nextDraft = await showDialog<FfmAssistantDraft>(
       context: context,
       builder: (_) => FfmAssistantDraftEditDialog(draft: review.draft),
@@ -1986,6 +2018,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   void _cancelActiveDraft([FfmAssistantIntent? intent]) {
+    if (_activeDraftIsOpeningForm) {
+      setState(
+        () => _appendEntry(
+          const FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                'Draft sedang dibuka di form sehingga belum dapat dibatalkan. Kembali dari form tanpa menyimpan terlebih dahulu.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() {
       if (intent != null) _queuedIntents.remove(intent);
       final id = widget.session.activeDraftQueueId;

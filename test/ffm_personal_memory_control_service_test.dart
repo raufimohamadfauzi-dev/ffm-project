@@ -4,6 +4,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_memory_reposit
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_user_model_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_personal_context_engine_impl.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_personal_memory_control_service.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_memory_candidate.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_memory_type.dart';
 
 void main() {
   late AppDatabase database;
@@ -116,6 +118,50 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('engine tidak menyimpan kandidat yang masih menunggu persetujuan',
+      () async {
+    final engine = FfmPersonalContextEngineImpl(
+      database: database,
+      memoryRepository: memories,
+    );
+
+    final promoted = await engine.promoteCandidates(
+      candidates: const [
+        FfmMemoryPromotionCandidate(
+          type: FfmMemoryType.preference,
+          key: 'gaya_jawaban',
+          value: 'ringkas',
+          confidence: .9,
+          requiresApproval: true,
+        ),
+      ],
+      requireApproval: true,
+    );
+
+    expect(promoted, isEmpty);
+    expect(await memories.readAll(), isEmpty);
+  });
+
+  test('engine memperbarui penggunaan memori yang benar-benar dipakai',
+      () async {
+    final memory = await memories.save(
+      kind: 'answer',
+      triggerText: 'ringkasan',
+      valueText: 'Jawaban singkat',
+      metadata: const {'useCount': 0},
+    );
+    final engine = FfmPersonalContextEngineImpl(
+      database: database,
+      memoryRepository: memories,
+    );
+
+    await engine.updateMemoryUsage(memoryIds: [memory.id, memory.id]);
+
+    final updated = (await memories.readAll()).single;
+    expect(updated.metadata['useCount'], 1);
+    expect(updated.metadata['lastUsedAt'], isA<String>());
   });
 
   test('save beruntun cepat tetap menghasilkan id unik tanpa saling menimpa',
