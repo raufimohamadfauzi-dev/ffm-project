@@ -195,7 +195,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
             hasPrimaryAction:
                 onIntent != null &&
                 intent != null &&
-                (intent.destination != null ||
+                (intent.needsTeachingApproval ||
+                    intent.destination != null ||
                     intent.draft != null ||
                     intent.type == FfmAssistantIntentType.exportReport ||
                     intent.type == FfmAssistantIntentType.confirm) &&

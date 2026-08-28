@@ -41,6 +41,7 @@ import '../../data/ffm_assistant_user_model_service.dart';
 import '../../data/ffm_personal_context_provider.dart';
 import '../../data/ffm_personal_memory_service.dart';
 import '../../../../core/network/supabase_config.dart';
+import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
 import 'chat/ffm_json_expandable.dart';
 import 'chat/ffm_assistant_message_card.dart';
@@ -534,6 +535,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
 
   final _supabaseConfig = SupabaseConfig();
+  final _supabase = SupabaseService();
 
   @override
   void initState() {
@@ -769,6 +771,42 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd();
   }
 
+  Future<bool> _confirmDraftInChat(FfmAssistantDraft draft) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text(FfmAssistantDraftPreview.draftLabel(draft.kind)),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FfmAssistantDraftPreview(
+                    draft: draft,
+                    review: widget.session.activeDraftReview,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Belum ada data yang disimpan. Konfirmasi untuk melanjutkan ke form resmi dan periksa kembali sebelum simpan.',
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Konfirmasi & lanjutkan'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<bool> _confirmDirectMutation(FfmAssistantDraft draft) async {
     final operation = draft.formValues['operation'] ?? 'perubahan';
     final isActivity = draft.formValues['entity'] == 'activity_session';
@@ -991,6 +1029,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<bool> _tryHandleActivityRequest(String text) async {
     final normalized = text.toLowerCase().trim();
+    if (_routingMode == FfmAssistantRoutingMode.geminiCloud &&
+        RegExp(r'\b(buat|catat|tambah|siapkan)\b').hasMatch(normalized)) {
+      return false;
+    }
     if (!_looksLikeActivityCommand(normalized)) return false;
     if (RegExp(r'\b(berapa lama|durasi)\b').hasMatch(normalized)) {
       await _answerActivityDuration(normalized);
@@ -1348,6 +1390,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       intent = intent.copyWith(draft: review.draft);
     }
     final directMutation = _isDirectMutation(intent.draft);
+    final plan = _actionPlanner.planFor(intent);
+    if (intent.draft != null && !directMutation) {
+      final confirmed = await _confirmDraftInChat(intent.draft!);
+      if (!confirmed) {
+        if (plan != null) _actionPlanController.cancel(plan.id);
+        if (mounted) setState(() => _queuedIntents.remove(intent));
+        return;
+      }
+    }
     final shouldNavigate =
         (intent.destination != null || intent.draft != null) &&
         intent.type != FfmAssistantIntentType.confirm &&
@@ -1357,7 +1408,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         intent.destination == widget.currentDestination &&
         intent.draft == null;
 
-    final plan = _actionPlanner.planFor(intent);
     if (plan != null) {
       if (intent.draft != null) {
         _actionPlanController.markAwaitingConfirmation(plan.id);
@@ -1406,6 +1456,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _navigatingFromChat = true;
         _queuedIntents.remove(intent);
       });
+      if (!mounted) return;
       Navigator.of(context).pop();
       await Future<void>.delayed(const Duration(milliseconds: 180));
       await handler(intent);
@@ -1551,6 +1602,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           source: 'chat_approved',
         );
       }
+      unawaited(
+        _supabase.saveMemory(
+          content: '${proposal.triggerText}: ${proposal.valueText}',
+          category: proposal.kind,
+          metadata: const {'source': 'chat_approved'},
+        ),
+      );
       if (!mounted) return;
       setState(() {
         _savedTeachingKeys.add(key);
@@ -2171,19 +2229,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               : () => _toggleSpeakFor(index, entry),
                           isSpeaking:
                               _speakingEntryKey == _speechKeyFor(index, entry),
-                          onIntent:
-                              entry.intent == null ||
-                                  entry.intent!.needsTeachingApproval ||
-                                  (entry.intent!.destination == null &&
-                                      entry.intent!.draft == null &&
-                                      entry.intent!.type !=
-                                          FfmAssistantIntentType.exportReport &&
-                                      entry.intent!.type !=
-                                          FfmAssistantIntentType.confirm)
+                          onIntent: entry.intent?.needsTeachingApproval ?? false
+                              ? () => _approveTeaching(entry.intent!)
+                              : entry.intent == null ||
+                                    (entry.intent!.destination == null &&
+                                        entry.intent!.draft == null &&
+                                        entry.intent!.type !=
+                                            FfmAssistantIntentType
+                                                .exportReport &&
+                                        entry.intent!.type !=
+                                            FfmAssistantIntentType.confirm)
                               ? null
                               : () => _handleIntent(entry.intent!),
                           primaryActionLabel:
-                              _isDirectMutation(entry.intent?.draft)
+                              entry.intent?.needsTeachingApproval ?? false
+                              ? 'Simpan ajaran'
+                              : entry.intent?.draft != null
                               ? 'Konfirmasi'
                               : opensCurrentPage
                               ? 'Cek halaman'

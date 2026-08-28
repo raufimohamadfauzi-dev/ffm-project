@@ -240,8 +240,7 @@ class FfmAssistantInterpreter {
           '''
 Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
 Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data pengguna. Jangan mengarang saldo, nominal, akun, kategori, transaksi, tanggal, atau status penyimpanan.
-Untuk permintaan perubahan data, berikan pemahaman/draft yang harus divalidasi dan dikonfirmasi aplikasi; jangan mengklaim sudah menyimpan data.
-Jawab Bahasa Indonesia secara ringkas dan jelas. Jika konteks tidak memiliki data yang diperlukan, katakan data tersebut belum tersedia.
+Untuk permintaan perubahan data, jangan mengklaim sudah menyimpan data. Jika pengguna jelas meminta membuat atau mencatat sesuatu, keluarkan proposal JSON saja dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Contoh transaction: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense|income|transfer","amount":250000,"title":"...","category":"...","fromAccount":"...","toAccount":"...","note":"...","date":"YYYY-MM-DD"}}. Contoh master_data: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"master_data","target":"tag|kategori|toko|rekening|sumber_pemasukan","name":"...","fields":{},"note":"..."}}. Contoh activity: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"activity","title":"...","note":"...","date":"YYYY-MM-DD"}}. Contoh memory: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"memory","kind":"preference|goal|habit|explicitFact|correction|profile|identity","trigger":"...","value":"..."}}. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan menambahkan markdown atau teks lain pada proposal JSON. Untuk pertanyaan biasa, jawab Bahasa Indonesia secara ringkas dan jelas. Jika konteks tidak memiliki data yang diperlukan, katakan data tersebut belum tersedia.
 
 KONTEKS TERARAH FFM:
 $geminiContext
@@ -267,6 +266,55 @@ $geminiContext
         statusCode: result.statusCode,
       );
     }
+    final proposal = FfmAssistantProposalJsonService.parse(
+      result.text!,
+      createdAt: _clock(),
+    );
+    final geminiMetadata = <String, dynamic>{
+      'model': result.model,
+      'statusCode': result.statusCode,
+      'latencyMs': result.latency?.inMilliseconds,
+      'proposal': proposal.draft != null || proposal.teachingProposal != null,
+    };
+    if (proposal.error != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: .8,
+        response: proposal.error,
+        clarification: proposal.error,
+        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+        pluginName: 'gemini_cloud',
+        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginMetadata: geminiMetadata,
+      );
+    }
+    if (proposal.draft != null) {
+      final draftIntent = _intentForDraft(rawText, normalized, proposal.draft!);
+      return draftIntent.copyWith(
+        response:
+            'Gemini sudah menyusun draft ${proposal.draft!.kind.name}. Cek detailnya, koreksi bila perlu, lalu konfirmasi sebelum disimpan.',
+        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+        pluginName: 'gemini_cloud',
+        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginMetadata: geminiMetadata,
+      );
+    }
+    if (proposal.teachingProposal != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.teachMemory,
+        confidence: .9,
+        response: 'Gemini mengusulkan memory baru. Tinjau isinya lalu pilih “Simpan ajaran” jika memang benar.',
+        teachingProposal: proposal.teachingProposal,
+        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+        pluginName: 'gemini_cloud',
+        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginMetadata: geminiMetadata,
+      );
+    }
     return FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
@@ -276,11 +324,7 @@ $geminiContext
       responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
       pluginName: 'gemini_cloud',
       pluginCategory: '☁ Gemini · ${result.model}',
-      pluginMetadata: {
-        'model': result.model,
-        'statusCode': result.statusCode,
-        'latencyMs': result.latency?.inMilliseconds,
-      },
+      pluginMetadata: geminiMetadata,
     );
   }
 
@@ -1333,6 +1377,23 @@ $geminiContext
       );
     }
 
+    // ── ROUTING MODE GEMINI DRAFT ──────────────────────────────────────────────
+    // Gemini boleh memahami permintaan natural sebagai proposal JSON. Agent tetap
+    // memvalidasi draft dan menjadi satu-satunya jalur konfirmasi/penyimpanan.
+    if (routingMode == FfmAssistantRoutingMode.geminiCloud &&
+        _looksLikeDraftRequest(normalized)) {
+      final geminiDraftIntent = await _tryGeminiResponse(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+        cloudContext: cloudContext,
+      );
+      if (geminiDraftIntent != null) return geminiDraftIntent;
+    }
+
     // ── MASTER DATA CREATION (early guard) ───────────────────────────────────────
     // Deteksi dini permintaan pembuatan data master (tag, kategori, rekening, dll.)
     // agar tidak tertangkap oleh harness atau SLM sebelum sampai ke _parseFinancialDraft.
@@ -1502,6 +1563,41 @@ $geminiContext
                           'Kalau pertanyaannya memang belum terjawab, aku simpan di Pengetahuan Asisten pada menu Lainnya. '
                           'Di sana kamu bisa salin atau ekspor pertanyaannya untuk bahan update aplikasi.')),
     );
+  }
+
+  bool _looksLikeDraftRequest(String normalized) {
+    final hasDraftVerb = _containsAny(normalized, const [
+      'buat',
+      'tambah',
+      'catat',
+      'rekam',
+      'siapkan draft',
+      'simpan sebagai',
+      'ingat bahwa',
+      'ingat saya',
+    ]);
+    if (!hasDraftVerb) return false;
+    return _containsAny(normalized, const [
+      'transaksi',
+      'pemasukan',
+      'pengeluaran',
+      'belanja',
+      'tag',
+      'kategori',
+      'rekening',
+      'aktivitas',
+      'kegiatan',
+      'catatan',
+      'pengingat',
+      'target',
+      'aset',
+      'hutang',
+      'utang',
+      'piutang',
+      'profil',
+      'memory',
+      'ingat',
+    ]);
   }
 
   /// Memahami respon percakapan multi-turn yang menanggapi pesan/pertanyaan
