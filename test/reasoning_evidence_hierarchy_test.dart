@@ -14,11 +14,11 @@ void main() {
 
     expect(
       prompt,
-      contains('SQL/application snapshot dan page snapshot adalah authoritative'),
+      contains('snapshot SQL & halaman authoritative'),
     );
     expect(
       prompt,
-      contains('memory cloud dan riwayat percakapan adalah non-authoritative'),
+      contains('memory cloud & riwayat tidak mengalahkan fakta'),
     );
   });
 }

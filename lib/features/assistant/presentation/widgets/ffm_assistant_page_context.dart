@@ -66,10 +66,10 @@ abstract final class FfmAssistantScreenContextPolicy {
     final page = FfmAssistantCatalog.findByDestination(activeDestination);
     final pageName = page?.name ?? activeDestination.name;
     final base = 'Konteks layar FFM: Halaman aktif: $pageName.';
-    final snapshotSummary = snapshot?.dataSummary?.trim();
-    final summary = snapshotSummary == null || snapshotSummary.isEmpty
-        ? _genericSummary(activeDestination)
-        : snapshotSummary;
+    if (isNameOnly(activeDestination)) {
+      return base;
+    }
+    final summary = _genericSummary(activeDestination);
     final filters =
         snapshot?.activeFilters.entries
             .where(
