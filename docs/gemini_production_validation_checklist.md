@@ -34,11 +34,11 @@ Kriteria selesai: semua kasus gagal berhenti aman, tidak menyimpan data, dan men
 
 ## Tahap B — Rapikan UX eksekusi
 
-- [ ] Pastikan semua draft dari Gemini terlihat sebagai **Menunggu konfirmasi**.
-- [ ] Tampilkan capability yang dipakai hanya sebagai metadata aman, misalnya “Membaca ringkasan bulan ini”.
-- [ ] Pastikan error Gemini memiliki aksi yang sesuai: coba lagi atau buka Setup Gemini.
-- [ ] Pastikan UI tidak menyebut Gemini ketika jawaban sebenarnya berasal dari data lokal/Agent.
-- [ ] Tambah atau perbarui widget test yang relevan.
+- [x] Pastikan semua draft dari Gemini terlihat sebagai **Menunggu konfirmasi**.
+- [x] Tampilkan capability yang dipakai hanya sebagai metadata aman, misalnya “Membaca ringkasan bulan ini”.
+- [x] Pastikan error Gemini memiliki aksi yang sesuai: coba lagi atau buka Setup Gemini.
+- [x] Pastikan UI tidak menyebut Gemini ketika jawaban sebenarnya berasal dari data lokal/Agent.
+- [x] Tambah atau perbarui widget test yang relevan.
 
 Kriteria selesai: pengguna dapat membedakan jawaban, draft, pembacaan data, dan kegagalan tanpa melihat detail reasoning internal.
 
