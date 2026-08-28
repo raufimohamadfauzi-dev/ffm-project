@@ -282,4 +282,124 @@ void main() {
     final rows = await database.select(database.transactions).get();
     expect(rows, isEmpty);
   });
+
+  test('Tahap A: executor melempar error tidak ada panggilan kedua', () async {
+    final gemini = _TwoCallFakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text:
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-01","endDate":"2026-07-10"}}',
+      ),
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text: 'Seharusnya tidak dipanggil.',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(),
+      geminiService: gemini,
+      clock: () => DateTime(2026, 8, 15),
+    );
+
+    final intent = await interpreter.interpret(
+      'cek transaksi',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 1);
+    expect(intent.response, contains('tidak dapat dibaca'));
+    expect(intent.draft, isNull);
+    final rows = await database.select(database.transactions).get();
+    expect(rows, isEmpty);
+  });
+
+  test('Tahap A: Gemini gagal pada panggilan kedua fallback cloudError', () async {
+    final gemini = _TwoCallFakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text:
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
+      ),
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 500,
+        message: 'Internal error',
+        diagnosticCode: 'chatError',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'ringkasan bulan ini',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 2);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+    expect(intent.draft, isNull);
+  });
+
+  test('Tahap A: JSON capability rusak ditolak sebelum executor', () async {
+    final gemini = _SingleFakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text:
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","unknownArg":"x"}}',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(),
+      geminiService: gemini,
+    );
+
+    final intent = await interpreter.interpret(
+      'cek transaksi',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 1);
+    expect(intent.response, contains('tidak diizinkan'));
+    expect(intent.draft, isNull);
+  });
+
+  test('Tahap A: filter tanggal lintas bulan ditolak executor', () async {
+    final gemini = _SingleFakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text:
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-31","endDate":"2026-08-05"}}',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(),
+      geminiService: gemini,
+      clock: () => DateTime(2026, 8, 15),
+    );
+
+    final intent = await interpreter.interpret(
+      'cek transaksi lintas bulan',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 1);
+    expect(intent.response, contains('tidak dapat dibaca'));
+    expect(intent.draft, isNull);
+  });
 }

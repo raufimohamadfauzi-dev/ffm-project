@@ -88,12 +88,20 @@ class FfmGeminiCloudOrchestrator {
       );
     }
     final instruction = _instruction(boundedContext);
-    var result = await _chat(
-      key: key.trim(),
-      model: model.trim(),
-      userText: userText,
-      instruction: instruction,
-    );
+    GeminiResult result;
+    try {
+      result = await _chat(
+        key: key.trim(),
+        model: model.trim(),
+        userText: userText,
+        instruction: instruction,
+      );
+    } on Object {
+      return FfmGeminiCloudTurnResult.failure(
+        errorMessage: 'Gemini tidak dapat dihubungi saat ini. Coba lagi nanti.',
+        model: model,
+      );
+    }
     if (!result.ok) return _failure(result);
 
     final request = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
@@ -108,18 +116,38 @@ class FfmGeminiCloudOrchestrator {
       );
     }
     if (request.request != null) {
-      final facts = await readCapabilities.execute(
-        request.request!,
-        householdId: householdId,
-        now: clock(),
-      );
-      result = await _chat(
-        key: key.trim(),
-        model: model.trim(),
-        userText: userText,
-        instruction:
-            '$instruction\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n$facts\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.',
-      );
+      String facts;
+      try {
+        facts = await readCapabilities.execute(
+          request.request!,
+          householdId: householdId,
+          now: clock(),
+        );
+      } on Object {
+        return FfmGeminiCloudTurnResult.failure(
+          errorMessage:
+              'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
+          model: result.model,
+          statusCode: result.statusCode,
+          latency: result.latency,
+        );
+      }
+      try {
+        result = await _chat(
+          key: key.trim(),
+          model: model.trim(),
+          userText: userText,
+          instruction:
+              '$instruction\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n$facts\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.',
+        );
+      } on Object {
+        return FfmGeminiCloudTurnResult.failure(
+          errorMessage: 'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
+          model: result.model,
+          statusCode: result.statusCode,
+          latency: result.latency,
+        );
+      }
       if (!result.ok) return _failure(result);
     }
     return FfmGeminiCloudTurnResult.success(
@@ -197,7 +225,7 @@ ATURAN WAJIB JAWABAN:
 
 Untuk permintaan perubahan data, jangan klaim sudah menyimpan. Jika pengguna jelas meminta membuat/mencatat, keluarkan proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan tambahkan markdown atau teks lain pada proposal JSON.
 
-Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID. Jangan pernah meminta capability lain atau mutasi.
+Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat, `read.monthly_summary` untuk ringkasan lengkap bulan berjalan, atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID. `read.transactions` boleh memakai `startDate` dan `endDate` berformat YYYY-MM-DD hanya bila keduanya berada pada bulan berjalan dan rentangnya maksimal 14 hari. Jangan pernah meminta capability lain atau mutasi.
 
 KONTEKS TERARAH FFM:
 $context
