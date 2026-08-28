@@ -11,6 +11,7 @@ import '../domain/ffm_context_relevance.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
 import '../domain/ffm_assistant_models.dart';
 import 'ffm_assistant_memory_repository.dart';
+import 'ffm_memory_learning_service.dart';
 import 'ffm_assistant_user_model_service.dart';
 import 'ffm_personal_memory_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
@@ -228,15 +229,13 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
       // Validasi candidate
       if (!candidate.isValid) continue;
 
+      // Kontrak memori personal mewajibkan persetujuan eksplisit. Engine ini
+      // tidak memiliki UI persetujuan, maka ia tidak boleh mempersistenkan
+      // kandidat yang menunggu user meskipun data kandidat tampak aman.
+      if (requireApproval && candidate.requiresApproval) continue;
+
       // Cek sensitive data
-      if (candidate.isSensitive) {
-        if (requireApproval) {
-          // TODO: Trigger UI approval prompt
-          continue;
-        } else {
-          continue; // Auto-reject sensitive data
-        }
-      }
+      if (candidate.isSensitive) continue;
 
       // Convert ke FfmMemoryCandidate
       final memoryCandidate = FfmMemoryCandidate(
@@ -268,16 +267,12 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
 
   @override
   Future<void> updateMemoryUsage({required List<String> memoryIds}) async {
-    // Batch/debounced write untuk performance
     if (memoryIds.isEmpty) return;
-
-    // TODO: Implement batch update untuk lastUsedAt dan useCount
-    // Untuk sekarang, kita update satu per satu karena struktur existing
-    for (final _ in memoryIds) {
-      // Update via repository yang sesuai
-      // Implementation detail: perlu adapter untuk update usage tracking
-      // Placeholder: currently no-op
-    }
+    await FfmMemoryLearningService().trackMemoryUsage(
+      memoryIds.toSet().toList(),
+      repository: _memoryRepository,
+    );
+    // Add a new line here
   }
 
   @override
