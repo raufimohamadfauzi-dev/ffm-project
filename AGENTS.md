@@ -10,7 +10,7 @@ The assistant is the highest-priority capability of the product. Other applicati
 
 The target product experience is:
 
-> A financial application whose central intelligence layer is an AI assistant/agent, backed by application data, Supabase services, Gemini reasoning, and optional local AI runtimes.
+> A financial application whose central intelligence layer is an AI assistant/agent, backed by application data, Supabase services, and Gemini reasoning via orchestrator.
 
 Do not treat FFM as a traditional finance application with a chatbot attached to it.
 
@@ -22,7 +22,7 @@ When deciding what to build, fix, refactor, test, or optimize, use this order:
 
 1. AI assistant / agent
 2. Agent orchestration, reasoning, planning, tools, and capabilities
-3. Gemini API and local-model routing
+3. Gemini API and orchestrator routing
 4. Assistant context, memory, personalization, and follow-up behavior
 5. Action validation, confirmation, execution, verification, and recovery
 6. Supabase/backend integration required by the assistant
@@ -43,13 +43,12 @@ FFM uses a **hybrid AI architecture**.
 
 Do not enforce an offline-first or cloud-only ideology.
 
-The assistant may use:
+The assistant may use (via orchestrator):
 
 - deterministic application logic,
 - local application/database context,
 - Supabase services and persistence,
-- Gemini API for cloud AI reasoning,
-- optional on-device SLM/native inference,
+- Gemini Cloud for reasoning (bounded read capabilities `read.summary`/`read.transactions`),
 - existing assistant tools and capability executors.
 
 Choose the correct layer for the task instead of forcing every task through one model or one provider.
@@ -99,7 +98,7 @@ Before creating new infrastructure, inspect and reuse the existing implementatio
 - assistant action planner
 - assistant action tools
 - assistant capability registry/executor
-- local-model gateway/runtime integration
+- Gemini Cloud orchestrator (`FfmGeminiCloudOrchestrator`)
 - reasoning context
 - memory services
 - learning candidate services
@@ -250,25 +249,13 @@ The application should degrade gracefully when network services are unavailable,
 
 ---
 
-## 10. Optional On-Device AI
+## 10. Orchestrator + Gemini Cloud
 
-The project may contain local SLM/native inference capabilities.
+The primary reasoning path is **orkestrator → deterministic logic → Gemini Cloud (bounded)**.
 
-Treat them as an **optional AI runtime**, not as a requirement that defines the whole application architecture.
+The orchestrator assembles bounded context (conversation, financial snapshot, page context, approved memory) and decides routing. Gemini Cloud is used via `FfmGeminiCloudOrchestrator` with allowlisted read capabilities `read.summary`/`read.transactions` (max 8 items, no merchant/category/account detail). Supabase is used for backend persistence where required. The application remains authoritative for financial truth.
 
-Use local inference when it is appropriate for:
-
-- supported on-device tasks,
-- low-latency local processing,
-- local multimodal workloads,
-- privacy-sensitive flows intentionally designed for local inference,
-- fallback or specialized workflows already supported by the architecture.
-
-Do not remove Gemini/Supabase integration just to make a feature local.
-
-Do not add a local model dependency when the task is better handled by deterministic code, Supabase, or Gemini.
-
-Respect existing native runtime boundaries, model readiness checks, cancellation, and concurrency controls.
+Do not let the model fabricate financial numbers; all claims must be grounded in authoritative application data. Do not let the model directly mutate state — it may only propose a draft/action plan that passes validation/confirmation/executor.
 
 ---
 
@@ -288,7 +275,6 @@ Context Assembly
 Task / Capability Routing
     ├── Deterministic Application Logic
     ├── Gemini API
-    ├── On-Device SLM
     └── Supabase-backed Data / Capability
     ↓
 Structured Result / Action Plan
@@ -382,7 +368,6 @@ Provide concise user-safe explanations instead.
 The assistant must distinguish between different failure classes, including:
 
 - Gemini/provider unavailable,
-- local model unavailable,
 - Supabase unavailable,
 - authentication failure,
 - network timeout,
@@ -432,10 +417,9 @@ When changing assistant behavior, prioritize testing in this order:
 5. Assistant query/data adapters
 6. Mutation integration
 7. Gemini/provider routing
-8. Local-model routing
-9. Memory/learning
-10. Cancellation/concurrency
-11. Assistant UI/integration
+8. Memory/learning
+9. Cancellation/concurrency
+10. Assistant UI/integration
 
 A change affecting assistant behavior should include relevant tests where practical.
 
@@ -491,7 +475,7 @@ Verify the output is an ARM64 Android APK and does not contain unintended releas
 
 Do not claim real-device AI inference validation unless inference was actually tested on a physical Android device or appropriate emulator.
 
-A successful Flutter build is not proof of successful Gemini calls, Supabase connectivity, or on-device inference.
+A successful Flutter build is not proof of successful Gemini calls or Supabase connectivity.
 
 ---
 
@@ -583,6 +567,6 @@ The highest-level rule for all agents working on this repository is:
 
 > **Make FFM's AI assistant/agent the best part of the product.**
 >
-> Use deterministic application logic for financial truth, Supabase for backend capabilities and data, Gemini for strong cloud reasoning, and local AI only where it provides a meaningful advantage.
+> Use deterministic application logic for financial truth, Supabase for backend capabilities and data, and Gemini for strong cloud reasoning via orchestrator.
 >
 > Ship only the Android ARM64 release target unless the user explicitly requests another platform.

@@ -1,11 +1,11 @@
 # 💎 FFM — Family Financial Management
 
-> **Aplikasi pengelola keuangan keluarga dengan AI Assistant/Agent sebagai pusat pengalaman, didukung Gemini API, Supabase, dan optional on-device AI.**
+> **Aplikasi pengelola keuangan keluarga dengan AI Assistant/Agent sebagai pusat pengalaman, didukung orkestrator, Gemini Cloud, dan Supabase.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
 [![Backend](https://img.shields.io/badge/Backend-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
-[![AI](https://img.shields.io/badge/AI-Gemini%20%2B%20Local%20AI-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
+[![AI](https://img.shields.io/badge/AI-Gemini%20Cloud-4285F4?style=for-the-badge&logo=google)](https://ai.google.dev/)
 [![Android](https://img.shields.io/badge/Android-ARM64-3DDC84?style=for-the-badge&logo=android&logoColor=white)](#-build-release)
 
 ---
@@ -18,14 +18,13 @@ FFM bukan sekadar aplikasi pencatat keuangan dengan chatbot tambahan.
 
 Assistant dirancang untuk menjadi lapisan kecerdasan utama FFM: memahami konteks finansial pengguna, menganalisis data, menjawab pertanyaan, memberikan insight, mengusulkan tindakan, dan menjalankan aksi melalui capability aplikasi setelah melewati validasi dan konfirmasi yang diperlukan.
 
-Arsitektur FFM bersifat **hybrid**:
+Arsitektur FFM bersifat **hybrid** dengan orkestrator sebagai pengarah utama:
 
-- **Gemini API** untuk reasoning dan kemampuan AI cloud yang membutuhkan model lebih kuat.
-- **Supabase** untuk authentication, persistence, sinkronisasi, dan layanan backend yang menjadi bagian dari aplikasi.
+- **Gemini Cloud** untuk reasoning dan kemampuan AI yang membutuhkan model kuat.
+- **Supabase** untuk authentication, persistence, sinkronisasi, dan layanan backend.
 - **Local database/application logic** sebagai sumber kebenaran data finansial dan business rules.
-- **Optional on-device AI/SLM** untuk workload yang memang lebih cocok dijalankan secara lokal.
 
-FFM **bukan** lagi diposisikan sebagai aplikasi “100% Offline-First” atau “Zero Cloud Dependency”. Offline/local capability tetap dapat digunakan pada area yang sesuai, tetapi cloud adalah bagian resmi dari arsitektur produk.
+FFM **bukan** diposisikan sebagai aplikasi “100% Offline-First”. Orkestrator yang menentukan kapan memakai deterministic logic, kapan memakai Gemini Cloud, dan kapan memakai Supabase.
 
 ---
 
@@ -42,10 +41,9 @@ Assistant adalah fitur P0 dan menjadi fokus utama pengembangan.
 - Follow-up questions dan contextual suggestions.
 - Personal memory dengan kontrol pengguna.
 - Action planning dan proposal untuk perubahan data.
-- Capability/tool execution melalui application layer.
+- Capability/tool execution melalui application layer via orkestrator.
 - Verifikasi hasil setelah action dijalankan.
 - Penanganan error, timeout, cancellation, dan partial failure.
-- Optional local/on-device AI untuk capability yang sesuai.
 
 ### Batasan eksekusi AI
 
@@ -79,9 +77,13 @@ Perhitungan finansial yang deterministic tetap dilakukan oleh application logic 
 
 ---
 
-## 🧠 Gemini + Supabase + Local AI
+## 🧠 Orkestrator + Gemini Cloud + Supabase
 
-### Gemini API
+### Orkestrator
+
+Orkestrator adalah pengarah utama: merakit konteks (conversation, financial snapshot, page context, memory), memilih capability deterministic (aturan lokal), lalu bila perlu meneruskan ke Gemini Cloud dengan fakta bounded. Validasi, konfirmasi, dan eksekusi tetap di application layer.
+
+### Gemini Cloud
 
 Digunakan untuk kebutuhan seperti:
 
@@ -89,10 +91,9 @@ Digunakan untuk kebutuhan seperti:
 - reasoning kompleks,
 - generation,
 - explanation dan summarization,
-- planning assistance,
-- multimodal/AI workloads yang sesuai dengan provider.
+- planning assistance.
 
-Gunakan abstraksi Gemini yang sudah ada di project. Jangan membuat banyak client/provider terpisah tanpa kebutuhan arsitektural yang jelas.
+Gunakan abstraksi Gemini yang sudah ada di project (`GeminiService`, `FfmGeminiCloudOrchestrator`). Jangan membuat banyak client/provider terpisah tanpa kebutuhan arsitektural yang jelas. Gemini hanya boleh meminta capability read `read.summary`/`read.transactions` yang bounded (max 8 item, tanpa merchant/kategori/rekening detail).
 
 ### Supabase
 
@@ -103,18 +104,6 @@ Digunakan sebagai bagian resmi backend untuk area seperti:
 - synchronization,
 - shared application data,
 - backend services dan capabilities.
-
-### Local / On-Device AI
-
-Local SLM/native inference merupakan capability tambahan, bukan prinsip yang memaksa seluruh aplikasi menjadi offline-only.
-
-Gunakan local AI ketika workload memang membutuhkan atau diuntungkan oleh:
-
-- low latency,
-- local processing,
-- privacy-sensitive local workload,
-- on-device multimodal processing,
-- fallback atau specialized runtime yang sudah didukung project.
 
 ---
 
@@ -227,9 +216,8 @@ Saat mengubah assistant, prioritaskan pengujian untuk:
 4. Proposal/validation.
 5. Query/data adapters.
 6. Mutation integration.
-7. Gemini/provider routing.
-8. Local AI routing.
-9. Memory/learning.
+7. Gemini Cloud routing (orkestrator → Gemini).
+8. Memory/learning.
 10. Cancellation/concurrency.
 11. Assistant UI/integration.
 
