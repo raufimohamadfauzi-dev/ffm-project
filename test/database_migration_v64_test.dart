@@ -87,7 +87,7 @@ void main() {
           )
           .get();
 
-      expect(version.data['user_version'], 41);
+      expect(version.data['user_version'], 43);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);

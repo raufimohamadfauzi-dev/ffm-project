@@ -340,6 +340,12 @@ class ActivitySessions extends Table {
   TextColumn get householdId => text()();
   TextColumn get title => text()();
   TextColumn get parentSessionId => text().nullable()();
+
+  /// Relasi ke master Categories dengan type = activity.
+  /// Nullable agar data lama tetap dapat dibaca sebelum backfill migrasi.
+  TextColumn get categoryId => text().nullable()();
+
+  /// Label legacy untuk kompatibilitas data lama dan impor lama.
   TextColumn get category => text().withDefault(const Constant('lainnya'))();
   TextColumn get kind => text().withDefault(const Constant('timer'))();
   DateTimeColumn get startedAt => dateTime()();
@@ -351,6 +357,29 @@ class ActivitySessions extends Table {
   IntColumn get priority => integer().withDefault(const Constant(0))();
   TextColumn get status => text().withDefault(const Constant('active'))();
   TextColumn get notes => text().nullable()();
+  BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Fakta panen yang dapat dicari ulang secara deterministik dari SQL.
+/// Nilai finansial disimpan dalam satuan terkecil aplikasi (rupiah).
+class HarvestEvents extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get commodity => text()();
+  RealColumn get quantity => real()();
+  TextColumn get unit => text().withDefault(const Constant('kg'))();
+  IntColumn get unitPrice => integer().nullable()();
+  IntColumn get totalAmount => integer().nullable()();
+  TextColumn get buyerName => text().nullable()();
+  TextColumn get location => text().nullable()();
+  TextColumn get note => text().nullable()();
+  TextColumn get linkedActivityId => text().nullable()();
+  DateTimeColumn get harvestedAt => dateTime()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
@@ -377,6 +406,11 @@ class ActivityEntries extends Table {
   TextColumn get id => text()();
   TextColumn get sessionId => text().nullable()();
   TextColumn get householdId => text()();
+
+  /// Relasi ke master Categories dengan type = activity.
+  TextColumn get categoryId => text().nullable()();
+
+  /// Label legacy untuk kompatibilitas data lama dan impor lama.
   TextColumn get activityType =>
       text().withDefault(const Constant('lainnya'))();
   TextColumn get title => text()();

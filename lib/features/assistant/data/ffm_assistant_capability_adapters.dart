@@ -3431,6 +3431,14 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
+    final categoryName =
+        step.parameters['category']?.toString().trim() ?? 'Lainnya';
+    final category = await _findCategory(categoryName, 'activity');
+    if (category == null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori aktivitas "$categoryName" tidak ditemukan atau tidak aktif di Data Utama.',
+      );
+    }
     final parentId = step.parameters['parentSessionId']?.toString();
     final notes =
         step.parameters['note']?.toString() ??
@@ -3449,6 +3457,8 @@ class FfmAssistantCapabilityAdapterRegistry {
             householdId: _householdId,
             title: title.trim(),
             parentSessionId: Value(parentId),
+            categoryId: Value(category.id),
+            category: Value(category.name),
             kind: Value(activityKind.value),
             startedAt: now,
             dueDate: Value(dueDate),

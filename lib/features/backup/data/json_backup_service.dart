@@ -49,6 +49,7 @@ class JsonBackupService {
     'activity_checkpoints',
     'activity_entries',
     'activity_sessions',
+    'harvest_events',
     'hijri_correction_logs',
     'hijri_month_overrides',
     'hijri_settings',
@@ -58,6 +59,15 @@ class JsonBackupService {
     'assistant_memories',
     'assistant_learning_examples',
     'assistant_unanswered_questions',
+    'assistant_response_feedbacks',
+    'user_corrections',
+    'user_preferences',
+    'interaction_patterns',
+    'daily_notes',
+    'tasks',
+    'daily_routines',
+    'daily_routine_completions',
+    'schedule_entries',
   ];
 
   Future<String> exportJson({
@@ -70,13 +80,29 @@ class JsonBackupService {
       modules[table] = rows.map((row) => _jsonSafe(row.data)).toList();
     }
     if (assistantChatHistory != null) {
-      modules['assistant_chat_history'] = assistantChatHistory;
+      modules['assistant_chat_history'] = assistantChatHistory
+          .map(_jsonSafe)
+          .whereType<Map<String, Object?>>()
+          .toList(growable: false);
     }
     return jsonEncode({
-      'formatVersion': 'ffm-v23-full',
+      'formatVersion': 'ffm-v24-full-safe',
+      'schemaVersion': database.schemaVersion,
       'householdId': AppContext.householdId,
       'exportedAt': DateTime.now().toIso8601String(),
       'isFull': true,
+      'redaction': {
+        'secretFieldsExcluded': true,
+        'excludedNames': const [
+          'api_key',
+          'token',
+          'password',
+          'pin',
+          'otp',
+          'secret',
+          'credential',
+        ],
+      },
       'modules': modules,
     });
   }
@@ -208,6 +234,17 @@ class JsonBackupService {
     );
   }
 
+  bool _isSecretField(String key) {
+    final normalized = key.toLowerCase().replaceAll('-', '_');
+    return normalized.contains('api_key') ||
+        normalized.contains('token') ||
+        normalized.contains('password') ||
+        normalized == 'pin' ||
+        normalized.contains('otp') ||
+        normalized.contains('secret') ||
+        normalized.contains('credential');
+  }
+
   Object? _databaseValue(Object? value) {
     if (value is DateTime) return value.microsecondsSinceEpoch;
     if (value is bool) return value ? 1 : 0;
@@ -218,9 +255,13 @@ class JsonBackupService {
     if (value is DateTime) return value.toIso8601String();
     if (value is Uint8List) return base64Encode(value);
     if (value is Map) {
-      return value.map(
-        (key, value) => MapEntry(key.toString(), _jsonSafe(value)),
-      );
+      final safe = <String, Object?>{};
+      for (final entry in value.entries) {
+        final key = entry.key.toString();
+        if (_isSecretField(key)) continue;
+        safe[key] = _jsonSafe(entry.value);
+      }
+      return safe;
     }
     if (value is Iterable) return value.map(_jsonSafe).toList();
     return value;

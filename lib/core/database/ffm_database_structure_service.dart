@@ -212,6 +212,11 @@ class FfmDatabaseStructureService {
       'Aktivitas',
       'Tahapan atau pembaruan waktu dalam satu sesi aktivitas.',
     ),
+    'harvest_events': _TableDefinition(
+      'Fakta panen',
+      'Aktivitas & Pendapatan',
+      'Catatan terstruktur komoditas, kuantitas, harga, total, dan pembeli panen.',
+    ),
     'activity_entries': _TableDefinition(
       'Catatan aktivitas',
       'Aktivitas',

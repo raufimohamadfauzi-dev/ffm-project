@@ -102,6 +102,8 @@ void main() {
       AuditLogger(database),
     ).getSession(householdId, 'market');
     expect(activity?.isArchived, isTrue);
+    expect(activity?.category, 'Keluarga');
+    expect(activity?.categoryId, isNotNull);
     final logs = await database
         .customSelect(
           'SELECT action FROM audit_logs WHERE entity = ?',

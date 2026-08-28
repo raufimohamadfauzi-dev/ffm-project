@@ -31,6 +31,7 @@ class ActivitySessionEntity {
     required this.householdId,
     required this.title,
     required this.category,
+    this.categoryId,
     this.kind = ActivityKind.timer,
     this.parentSessionId,
     required this.startedAt,
@@ -51,6 +52,9 @@ class ActivitySessionEntity {
   final String householdId;
   final String title;
   final String category;
+
+  /// ID Categories bertipe activity; nullable untuk data legacy.
+  final String? categoryId;
   final ActivityKind kind;
   final String? parentSessionId;
   final DateTime startedAt;
@@ -69,6 +73,7 @@ class ActivitySessionEntity {
   ActivitySessionEntity copyWith({
     String? title,
     String? category,
+    String? categoryId,
     ActivityKind? kind,
     DateTime? endedAt,
     DateTime? scheduledAt,
@@ -85,6 +90,7 @@ class ActivitySessionEntity {
     householdId: householdId,
     title: title ?? this.title,
     category: category ?? this.category,
+    categoryId: categoryId ?? this.categoryId,
     kind: kind ?? this.kind,
     parentSessionId: parentSessionId,
     startedAt: startedAt,

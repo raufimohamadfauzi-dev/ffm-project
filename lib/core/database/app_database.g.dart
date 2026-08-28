@@ -13228,6 +13228,17 @@ class $ActivitySessionsTable extends ActivitySessions
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _categoryMeta = const VerificationMeta(
     'category',
   );
@@ -13398,6 +13409,7 @@ class $ActivitySessionsTable extends ActivitySessions
     householdId,
     title,
     parentSessionId,
+    categoryId,
     category,
     kind,
     startedAt,
@@ -13456,6 +13468,12 @@ class $ActivitySessionsTable extends ActivitySessions
           data['parent_session_id']!,
           _parentSessionIdMeta,
         ),
+      );
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
       );
     }
     if (data.containsKey('category')) {
@@ -13577,6 +13595,10 @@ class $ActivitySessionsTable extends ActivitySessions
         DriftSqlType.string,
         data['${effectivePrefix}parent_session_id'],
       ),
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      ),
       category: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}category'],
@@ -13647,6 +13669,12 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
   final String householdId;
   final String title;
   final String? parentSessionId;
+
+  /// Relasi ke master Categories dengan type = activity.
+  /// Nullable agar data lama tetap dapat dibaca sebelum backfill migrasi.
+  final String? categoryId;
+
+  /// Label legacy untuk kompatibilitas data lama dan impor lama.
   final String category;
   final String kind;
   final DateTime startedAt;
@@ -13666,6 +13694,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     required this.householdId,
     required this.title,
     this.parentSessionId,
+    this.categoryId,
     required this.category,
     required this.kind,
     required this.startedAt,
@@ -13689,6 +13718,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || parentSessionId != null) {
       map['parent_session_id'] = Variable<String>(parentSessionId);
+    }
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<String>(categoryId);
     }
     map['category'] = Variable<String>(category);
     map['kind'] = Variable<String>(kind);
@@ -13725,6 +13757,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       parentSessionId: parentSessionId == null && nullToAbsent
           ? const Value.absent()
           : Value(parentSessionId),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
       category: Value(category),
       kind: Value(kind),
       startedAt: Value(startedAt),
@@ -13762,6 +13797,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       householdId: serializer.fromJson<String>(json['householdId']),
       title: serializer.fromJson<String>(json['title']),
       parentSessionId: serializer.fromJson<String?>(json['parentSessionId']),
+      categoryId: serializer.fromJson<String?>(json['categoryId']),
       category: serializer.fromJson<String>(json['category']),
       kind: serializer.fromJson<String>(json['kind']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
@@ -13786,6 +13822,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       'householdId': serializer.toJson<String>(householdId),
       'title': serializer.toJson<String>(title),
       'parentSessionId': serializer.toJson<String?>(parentSessionId),
+      'categoryId': serializer.toJson<String?>(categoryId),
       'category': serializer.toJson<String>(category),
       'kind': serializer.toJson<String>(kind),
       'startedAt': serializer.toJson<DateTime>(startedAt),
@@ -13808,6 +13845,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     String? householdId,
     String? title,
     Value<String?> parentSessionId = const Value.absent(),
+    Value<String?> categoryId = const Value.absent(),
     String? category,
     String? kind,
     DateTime? startedAt,
@@ -13829,6 +13867,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     parentSessionId: parentSessionId.present
         ? parentSessionId.value
         : this.parentSessionId,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
     category: category ?? this.category,
     kind: kind ?? this.kind,
     startedAt: startedAt ?? this.startedAt,
@@ -13854,6 +13893,9 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       parentSessionId: data.parentSessionId.present
           ? data.parentSessionId.value
           : this.parentSessionId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
       category: data.category.present ? data.category.value : this.category,
       kind: data.kind.present ? data.kind.value : this.kind,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
@@ -13884,6 +13926,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ..write('householdId: $householdId, ')
           ..write('title: $title, ')
           ..write('parentSessionId: $parentSessionId, ')
+          ..write('categoryId: $categoryId, ')
           ..write('category: $category, ')
           ..write('kind: $kind, ')
           ..write('startedAt: $startedAt, ')
@@ -13908,6 +13951,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     householdId,
     title,
     parentSessionId,
+    categoryId,
     category,
     kind,
     startedAt,
@@ -13931,6 +13975,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           other.householdId == this.householdId &&
           other.title == this.title &&
           other.parentSessionId == this.parentSessionId &&
+          other.categoryId == this.categoryId &&
           other.category == this.category &&
           other.kind == this.kind &&
           other.startedAt == this.startedAt &&
@@ -13952,6 +13997,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
   final Value<String> householdId;
   final Value<String> title;
   final Value<String?> parentSessionId;
+  final Value<String?> categoryId;
   final Value<String> category;
   final Value<String> kind;
   final Value<DateTime> startedAt;
@@ -13972,6 +14018,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     this.householdId = const Value.absent(),
     this.title = const Value.absent(),
     this.parentSessionId = const Value.absent(),
+    this.categoryId = const Value.absent(),
     this.category = const Value.absent(),
     this.kind = const Value.absent(),
     this.startedAt = const Value.absent(),
@@ -13993,6 +14040,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     required String householdId,
     required String title,
     this.parentSessionId = const Value.absent(),
+    this.categoryId = const Value.absent(),
     this.category = const Value.absent(),
     this.kind = const Value.absent(),
     required DateTime startedAt,
@@ -14018,6 +14066,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Expression<String>? householdId,
     Expression<String>? title,
     Expression<String>? parentSessionId,
+    Expression<String>? categoryId,
     Expression<String>? category,
     Expression<String>? kind,
     Expression<DateTime>? startedAt,
@@ -14039,6 +14088,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       if (householdId != null) 'household_id': householdId,
       if (title != null) 'title': title,
       if (parentSessionId != null) 'parent_session_id': parentSessionId,
+      if (categoryId != null) 'category_id': categoryId,
       if (category != null) 'category': category,
       if (kind != null) 'kind': kind,
       if (startedAt != null) 'started_at': startedAt,
@@ -14062,6 +14112,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Value<String>? householdId,
     Value<String>? title,
     Value<String?>? parentSessionId,
+    Value<String?>? categoryId,
     Value<String>? category,
     Value<String>? kind,
     Value<DateTime>? startedAt,
@@ -14083,6 +14134,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       householdId: householdId ?? this.householdId,
       title: title ?? this.title,
       parentSessionId: parentSessionId ?? this.parentSessionId,
+      categoryId: categoryId ?? this.categoryId,
       category: category ?? this.category,
       kind: kind ?? this.kind,
       startedAt: startedAt ?? this.startedAt,
@@ -14115,6 +14167,9 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     }
     if (parentSessionId.present) {
       map['parent_session_id'] = Variable<String>(parentSessionId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
     }
     if (category.present) {
       map['category'] = Variable<String>(category.value);
@@ -14171,6 +14226,7 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
           ..write('householdId: $householdId, ')
           ..write('title: $title, ')
           ..write('parentSessionId: $parentSessionId, ')
+          ..write('categoryId: $categoryId, ')
           ..write('category: $category, ')
           ..write('kind: $kind, ')
           ..write('startedAt: $startedAt, ')
@@ -14182,6 +14238,878 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
           ..write('priority: $priority, ')
           ..write('status: $status, ')
           ..write('notes: $notes, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HarvestEventsTable extends HarvestEvents
+    with TableInfo<$HarvestEventsTable, HarvestEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HarvestEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _commodityMeta = const VerificationMeta(
+    'commodity',
+  );
+  @override
+  late final GeneratedColumn<String> commodity = GeneratedColumn<String>(
+    'commodity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _quantityMeta = const VerificationMeta(
+    'quantity',
+  );
+  @override
+  late final GeneratedColumn<double> quantity = GeneratedColumn<double>(
+    'quantity',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unitMeta = const VerificationMeta('unit');
+  @override
+  late final GeneratedColumn<String> unit = GeneratedColumn<String>(
+    'unit',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('kg'),
+  );
+  static const VerificationMeta _unitPriceMeta = const VerificationMeta(
+    'unitPrice',
+  );
+  @override
+  late final GeneratedColumn<int> unitPrice = GeneratedColumn<int>(
+    'unit_price',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _totalAmountMeta = const VerificationMeta(
+    'totalAmount',
+  );
+  @override
+  late final GeneratedColumn<int> totalAmount = GeneratedColumn<int>(
+    'total_amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _buyerNameMeta = const VerificationMeta(
+    'buyerName',
+  );
+  @override
+  late final GeneratedColumn<String> buyerName = GeneratedColumn<String>(
+    'buyer_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _locationMeta = const VerificationMeta(
+    'location',
+  );
+  @override
+  late final GeneratedColumn<String> location = GeneratedColumn<String>(
+    'location',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _linkedActivityIdMeta = const VerificationMeta(
+    'linkedActivityId',
+  );
+  @override
+  late final GeneratedColumn<String> linkedActivityId = GeneratedColumn<String>(
+    'linked_activity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _harvestedAtMeta = const VerificationMeta(
+    'harvestedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> harvestedAt = GeneratedColumn<DateTime>(
+    'harvested_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    commodity,
+    quantity,
+    unit,
+    unitPrice,
+    totalAmount,
+    buyerName,
+    location,
+    note,
+    linkedActivityId,
+    harvestedAt,
+    isArchived,
+    createdAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'harvest_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HarvestEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('commodity')) {
+      context.handle(
+        _commodityMeta,
+        commodity.isAcceptableOrUnknown(data['commodity']!, _commodityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_commodityMeta);
+    }
+    if (data.containsKey('quantity')) {
+      context.handle(
+        _quantityMeta,
+        quantity.isAcceptableOrUnknown(data['quantity']!, _quantityMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_quantityMeta);
+    }
+    if (data.containsKey('unit')) {
+      context.handle(
+        _unitMeta,
+        unit.isAcceptableOrUnknown(data['unit']!, _unitMeta),
+      );
+    }
+    if (data.containsKey('unit_price')) {
+      context.handle(
+        _unitPriceMeta,
+        unitPrice.isAcceptableOrUnknown(data['unit_price']!, _unitPriceMeta),
+      );
+    }
+    if (data.containsKey('total_amount')) {
+      context.handle(
+        _totalAmountMeta,
+        totalAmount.isAcceptableOrUnknown(
+          data['total_amount']!,
+          _totalAmountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('buyer_name')) {
+      context.handle(
+        _buyerNameMeta,
+        buyerName.isAcceptableOrUnknown(data['buyer_name']!, _buyerNameMeta),
+      );
+    }
+    if (data.containsKey('location')) {
+      context.handle(
+        _locationMeta,
+        location.isAcceptableOrUnknown(data['location']!, _locationMeta),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('linked_activity_id')) {
+      context.handle(
+        _linkedActivityIdMeta,
+        linkedActivityId.isAcceptableOrUnknown(
+          data['linked_activity_id']!,
+          _linkedActivityIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('harvested_at')) {
+      context.handle(
+        _harvestedAtMeta,
+        harvestedAt.isAcceptableOrUnknown(
+          data['harvested_at']!,
+          _harvestedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_harvestedAtMeta);
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HarvestEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HarvestEvent(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      commodity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}commodity'],
+      )!,
+      quantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}quantity'],
+      )!,
+      unit: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit'],
+      )!,
+      unitPrice: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unit_price'],
+      ),
+      totalAmount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_amount'],
+      ),
+      buyerName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}buyer_name'],
+      ),
+      location: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}location'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      linkedActivityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}linked_activity_id'],
+      ),
+      harvestedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}harvested_at'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      ),
+    );
+  }
+
+  @override
+  $HarvestEventsTable createAlias(String alias) {
+    return $HarvestEventsTable(attachedDatabase, alias);
+  }
+}
+
+class HarvestEvent extends DataClass implements Insertable<HarvestEvent> {
+  final String id;
+  final String householdId;
+  final String commodity;
+  final double quantity;
+  final String unit;
+  final int? unitPrice;
+  final int? totalAmount;
+  final String? buyerName;
+  final String? location;
+  final String? note;
+  final String? linkedActivityId;
+  final DateTime harvestedAt;
+  final bool isArchived;
+  final DateTime createdAt;
+  final DateTime? updatedAt;
+  const HarvestEvent({
+    required this.id,
+    required this.householdId,
+    required this.commodity,
+    required this.quantity,
+    required this.unit,
+    this.unitPrice,
+    this.totalAmount,
+    this.buyerName,
+    this.location,
+    this.note,
+    this.linkedActivityId,
+    required this.harvestedAt,
+    required this.isArchived,
+    required this.createdAt,
+    this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['commodity'] = Variable<String>(commodity);
+    map['quantity'] = Variable<double>(quantity);
+    map['unit'] = Variable<String>(unit);
+    if (!nullToAbsent || unitPrice != null) {
+      map['unit_price'] = Variable<int>(unitPrice);
+    }
+    if (!nullToAbsent || totalAmount != null) {
+      map['total_amount'] = Variable<int>(totalAmount);
+    }
+    if (!nullToAbsent || buyerName != null) {
+      map['buyer_name'] = Variable<String>(buyerName);
+    }
+    if (!nullToAbsent || location != null) {
+      map['location'] = Variable<String>(location);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || linkedActivityId != null) {
+      map['linked_activity_id'] = Variable<String>(linkedActivityId);
+    }
+    map['harvested_at'] = Variable<DateTime>(harvestedAt);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || updatedAt != null) {
+      map['updated_at'] = Variable<DateTime>(updatedAt);
+    }
+    return map;
+  }
+
+  HarvestEventsCompanion toCompanion(bool nullToAbsent) {
+    return HarvestEventsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      commodity: Value(commodity),
+      quantity: Value(quantity),
+      unit: Value(unit),
+      unitPrice: unitPrice == null && nullToAbsent
+          ? const Value.absent()
+          : Value(unitPrice),
+      totalAmount: totalAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(totalAmount),
+      buyerName: buyerName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(buyerName),
+      location: location == null && nullToAbsent
+          ? const Value.absent()
+          : Value(location),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      linkedActivityId: linkedActivityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(linkedActivityId),
+      harvestedAt: Value(harvestedAt),
+      isArchived: Value(isArchived),
+      createdAt: Value(createdAt),
+      updatedAt: updatedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(updatedAt),
+    );
+  }
+
+  factory HarvestEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HarvestEvent(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      commodity: serializer.fromJson<String>(json['commodity']),
+      quantity: serializer.fromJson<double>(json['quantity']),
+      unit: serializer.fromJson<String>(json['unit']),
+      unitPrice: serializer.fromJson<int?>(json['unitPrice']),
+      totalAmount: serializer.fromJson<int?>(json['totalAmount']),
+      buyerName: serializer.fromJson<String?>(json['buyerName']),
+      location: serializer.fromJson<String?>(json['location']),
+      note: serializer.fromJson<String?>(json['note']),
+      linkedActivityId: serializer.fromJson<String?>(json['linkedActivityId']),
+      harvestedAt: serializer.fromJson<DateTime>(json['harvestedAt']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'commodity': serializer.toJson<String>(commodity),
+      'quantity': serializer.toJson<double>(quantity),
+      'unit': serializer.toJson<String>(unit),
+      'unitPrice': serializer.toJson<int?>(unitPrice),
+      'totalAmount': serializer.toJson<int?>(totalAmount),
+      'buyerName': serializer.toJson<String?>(buyerName),
+      'location': serializer.toJson<String?>(location),
+      'note': serializer.toJson<String?>(note),
+      'linkedActivityId': serializer.toJson<String?>(linkedActivityId),
+      'harvestedAt': serializer.toJson<DateTime>(harvestedAt),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+    };
+  }
+
+  HarvestEvent copyWith({
+    String? id,
+    String? householdId,
+    String? commodity,
+    double? quantity,
+    String? unit,
+    Value<int?> unitPrice = const Value.absent(),
+    Value<int?> totalAmount = const Value.absent(),
+    Value<String?> buyerName = const Value.absent(),
+    Value<String?> location = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    Value<String?> linkedActivityId = const Value.absent(),
+    DateTime? harvestedAt,
+    bool? isArchived,
+    DateTime? createdAt,
+    Value<DateTime?> updatedAt = const Value.absent(),
+  }) => HarvestEvent(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    commodity: commodity ?? this.commodity,
+    quantity: quantity ?? this.quantity,
+    unit: unit ?? this.unit,
+    unitPrice: unitPrice.present ? unitPrice.value : this.unitPrice,
+    totalAmount: totalAmount.present ? totalAmount.value : this.totalAmount,
+    buyerName: buyerName.present ? buyerName.value : this.buyerName,
+    location: location.present ? location.value : this.location,
+    note: note.present ? note.value : this.note,
+    linkedActivityId: linkedActivityId.present
+        ? linkedActivityId.value
+        : this.linkedActivityId,
+    harvestedAt: harvestedAt ?? this.harvestedAt,
+    isArchived: isArchived ?? this.isArchived,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+  );
+  HarvestEvent copyWithCompanion(HarvestEventsCompanion data) {
+    return HarvestEvent(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      commodity: data.commodity.present ? data.commodity.value : this.commodity,
+      quantity: data.quantity.present ? data.quantity.value : this.quantity,
+      unit: data.unit.present ? data.unit.value : this.unit,
+      unitPrice: data.unitPrice.present ? data.unitPrice.value : this.unitPrice,
+      totalAmount: data.totalAmount.present
+          ? data.totalAmount.value
+          : this.totalAmount,
+      buyerName: data.buyerName.present ? data.buyerName.value : this.buyerName,
+      location: data.location.present ? data.location.value : this.location,
+      note: data.note.present ? data.note.value : this.note,
+      linkedActivityId: data.linkedActivityId.present
+          ? data.linkedActivityId.value
+          : this.linkedActivityId,
+      harvestedAt: data.harvestedAt.present
+          ? data.harvestedAt.value
+          : this.harvestedAt,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestEvent(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('commodity: $commodity, ')
+          ..write('quantity: $quantity, ')
+          ..write('unit: $unit, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('buyerName: $buyerName, ')
+          ..write('location: $location, ')
+          ..write('note: $note, ')
+          ..write('linkedActivityId: $linkedActivityId, ')
+          ..write('harvestedAt: $harvestedAt, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    commodity,
+    quantity,
+    unit,
+    unitPrice,
+    totalAmount,
+    buyerName,
+    location,
+    note,
+    linkedActivityId,
+    harvestedAt,
+    isArchived,
+    createdAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HarvestEvent &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.commodity == this.commodity &&
+          other.quantity == this.quantity &&
+          other.unit == this.unit &&
+          other.unitPrice == this.unitPrice &&
+          other.totalAmount == this.totalAmount &&
+          other.buyerName == this.buyerName &&
+          other.location == this.location &&
+          other.note == this.note &&
+          other.linkedActivityId == this.linkedActivityId &&
+          other.harvestedAt == this.harvestedAt &&
+          other.isArchived == this.isArchived &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class HarvestEventsCompanion extends UpdateCompanion<HarvestEvent> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> commodity;
+  final Value<double> quantity;
+  final Value<String> unit;
+  final Value<int?> unitPrice;
+  final Value<int?> totalAmount;
+  final Value<String?> buyerName;
+  final Value<String?> location;
+  final Value<String?> note;
+  final Value<String?> linkedActivityId;
+  final Value<DateTime> harvestedAt;
+  final Value<bool> isArchived;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> updatedAt;
+  final Value<int> rowid;
+  const HarvestEventsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.commodity = const Value.absent(),
+    this.quantity = const Value.absent(),
+    this.unit = const Value.absent(),
+    this.unitPrice = const Value.absent(),
+    this.totalAmount = const Value.absent(),
+    this.buyerName = const Value.absent(),
+    this.location = const Value.absent(),
+    this.note = const Value.absent(),
+    this.linkedActivityId = const Value.absent(),
+    this.harvestedAt = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HarvestEventsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String commodity,
+    required double quantity,
+    this.unit = const Value.absent(),
+    this.unitPrice = const Value.absent(),
+    this.totalAmount = const Value.absent(),
+    this.buyerName = const Value.absent(),
+    this.location = const Value.absent(),
+    this.note = const Value.absent(),
+    this.linkedActivityId = const Value.absent(),
+    required DateTime harvestedAt,
+    this.isArchived = const Value.absent(),
+    required DateTime createdAt,
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       commodity = Value(commodity),
+       quantity = Value(quantity),
+       harvestedAt = Value(harvestedAt),
+       createdAt = Value(createdAt);
+  static Insertable<HarvestEvent> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? commodity,
+    Expression<double>? quantity,
+    Expression<String>? unit,
+    Expression<int>? unitPrice,
+    Expression<int>? totalAmount,
+    Expression<String>? buyerName,
+    Expression<String>? location,
+    Expression<String>? note,
+    Expression<String>? linkedActivityId,
+    Expression<DateTime>? harvestedAt,
+    Expression<bool>? isArchived,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (commodity != null) 'commodity': commodity,
+      if (quantity != null) 'quantity': quantity,
+      if (unit != null) 'unit': unit,
+      if (unitPrice != null) 'unit_price': unitPrice,
+      if (totalAmount != null) 'total_amount': totalAmount,
+      if (buyerName != null) 'buyer_name': buyerName,
+      if (location != null) 'location': location,
+      if (note != null) 'note': note,
+      if (linkedActivityId != null) 'linked_activity_id': linkedActivityId,
+      if (harvestedAt != null) 'harvested_at': harvestedAt,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HarvestEventsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? commodity,
+    Value<double>? quantity,
+    Value<String>? unit,
+    Value<int?>? unitPrice,
+    Value<int?>? totalAmount,
+    Value<String?>? buyerName,
+    Value<String?>? location,
+    Value<String?>? note,
+    Value<String?>? linkedActivityId,
+    Value<DateTime>? harvestedAt,
+    Value<bool>? isArchived,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return HarvestEventsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      commodity: commodity ?? this.commodity,
+      quantity: quantity ?? this.quantity,
+      unit: unit ?? this.unit,
+      unitPrice: unitPrice ?? this.unitPrice,
+      totalAmount: totalAmount ?? this.totalAmount,
+      buyerName: buyerName ?? this.buyerName,
+      location: location ?? this.location,
+      note: note ?? this.note,
+      linkedActivityId: linkedActivityId ?? this.linkedActivityId,
+      harvestedAt: harvestedAt ?? this.harvestedAt,
+      isArchived: isArchived ?? this.isArchived,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (commodity.present) {
+      map['commodity'] = Variable<String>(commodity.value);
+    }
+    if (quantity.present) {
+      map['quantity'] = Variable<double>(quantity.value);
+    }
+    if (unit.present) {
+      map['unit'] = Variable<String>(unit.value);
+    }
+    if (unitPrice.present) {
+      map['unit_price'] = Variable<int>(unitPrice.value);
+    }
+    if (totalAmount.present) {
+      map['total_amount'] = Variable<int>(totalAmount.value);
+    }
+    if (buyerName.present) {
+      map['buyer_name'] = Variable<String>(buyerName.value);
+    }
+    if (location.present) {
+      map['location'] = Variable<String>(location.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (linkedActivityId.present) {
+      map['linked_activity_id'] = Variable<String>(linkedActivityId.value);
+    }
+    if (harvestedAt.present) {
+      map['harvested_at'] = Variable<DateTime>(harvestedAt.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HarvestEventsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('commodity: $commodity, ')
+          ..write('quantity: $quantity, ')
+          ..write('unit: $unit, ')
+          ..write('unitPrice: $unitPrice, ')
+          ..write('totalAmount: $totalAmount, ')
+          ..write('buyerName: $buyerName, ')
+          ..write('location: $location, ')
+          ..write('note: $note, ')
+          ..write('linkedActivityId: $linkedActivityId, ')
+          ..write('harvestedAt: $harvestedAt, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -14737,6 +15665,17 @@ class $ActivityEntriesTable extends ActivityEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _activityTypeMeta = const VerificationMeta(
     'activityType',
   );
@@ -14871,6 +15810,7 @@ class $ActivityEntriesTable extends ActivityEntries
     id,
     sessionId,
     householdId,
+    categoryId,
     activityType,
     title,
     participants,
@@ -14917,6 +15857,12 @@ class $ActivityEntriesTable extends ActivityEntries
       );
     } else if (isInserting) {
       context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
     }
     if (data.containsKey('activity_type')) {
       context.handle(
@@ -15023,6 +15969,10 @@ class $ActivityEntriesTable extends ActivityEntries
         DriftSqlType.string,
         data['${effectivePrefix}household_id'],
       )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      ),
       activityType: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}activity_type'],
@@ -15084,6 +16034,11 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
   final String id;
   final String? sessionId;
   final String householdId;
+
+  /// Relasi ke master Categories dengan type = activity.
+  final String? categoryId;
+
+  /// Label legacy untuk kompatibilitas data lama dan impor lama.
   final String activityType;
   final String title;
   final String? participants;
@@ -15100,6 +16055,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
     required this.id,
     this.sessionId,
     required this.householdId,
+    this.categoryId,
     required this.activityType,
     required this.title,
     this.participants,
@@ -15121,6 +16077,9 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
       map['session_id'] = Variable<String>(sessionId);
     }
     map['household_id'] = Variable<String>(householdId);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<String>(categoryId);
+    }
     map['activity_type'] = Variable<String>(activityType);
     map['title'] = Variable<String>(title);
     if (!nullToAbsent || participants != null) {
@@ -15157,6 +16116,9 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
           ? const Value.absent()
           : Value(sessionId),
       householdId: Value(householdId),
+      categoryId: categoryId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryId),
       activityType: Value(activityType),
       title: Value(title),
       participants: participants == null && nullToAbsent
@@ -15195,6 +16157,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
       id: serializer.fromJson<String>(json['id']),
       sessionId: serializer.fromJson<String?>(json['sessionId']),
       householdId: serializer.fromJson<String>(json['householdId']),
+      categoryId: serializer.fromJson<String?>(json['categoryId']),
       activityType: serializer.fromJson<String>(json['activityType']),
       title: serializer.fromJson<String>(json['title']),
       participants: serializer.fromJson<String?>(json['participants']),
@@ -15216,6 +16179,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
       'id': serializer.toJson<String>(id),
       'sessionId': serializer.toJson<String?>(sessionId),
       'householdId': serializer.toJson<String>(householdId),
+      'categoryId': serializer.toJson<String?>(categoryId),
       'activityType': serializer.toJson<String>(activityType),
       'title': serializer.toJson<String>(title),
       'participants': serializer.toJson<String?>(participants),
@@ -15235,6 +16199,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
     String? id,
     Value<String?> sessionId = const Value.absent(),
     String? householdId,
+    Value<String?> categoryId = const Value.absent(),
     String? activityType,
     String? title,
     Value<String?> participants = const Value.absent(),
@@ -15251,6 +16216,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
     id: id ?? this.id,
     sessionId: sessionId.present ? sessionId.value : this.sessionId,
     householdId: householdId ?? this.householdId,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
     activityType: activityType ?? this.activityType,
     title: title ?? this.title,
     participants: participants.present ? participants.value : this.participants,
@@ -15271,6 +16237,9 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
       householdId: data.householdId.present
           ? data.householdId.value
           : this.householdId,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
       activityType: data.activityType.present
           ? data.activityType.value
           : this.activityType,
@@ -15298,6 +16267,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('householdId: $householdId, ')
+          ..write('categoryId: $categoryId, ')
           ..write('activityType: $activityType, ')
           ..write('title: $title, ')
           ..write('participants: $participants, ')
@@ -15319,6 +16289,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
     id,
     sessionId,
     householdId,
+    categoryId,
     activityType,
     title,
     participants,
@@ -15339,6 +16310,7 @@ class ActivityEntry extends DataClass implements Insertable<ActivityEntry> {
           other.id == this.id &&
           other.sessionId == this.sessionId &&
           other.householdId == this.householdId &&
+          other.categoryId == this.categoryId &&
           other.activityType == this.activityType &&
           other.title == this.title &&
           other.participants == this.participants &&
@@ -15357,6 +16329,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
   final Value<String> id;
   final Value<String?> sessionId;
   final Value<String> householdId;
+  final Value<String?> categoryId;
   final Value<String> activityType;
   final Value<String> title;
   final Value<String?> participants;
@@ -15374,6 +16347,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
     this.id = const Value.absent(),
     this.sessionId = const Value.absent(),
     this.householdId = const Value.absent(),
+    this.categoryId = const Value.absent(),
     this.activityType = const Value.absent(),
     this.title = const Value.absent(),
     this.participants = const Value.absent(),
@@ -15392,6 +16366,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
     required String id,
     this.sessionId = const Value.absent(),
     required String householdId,
+    this.categoryId = const Value.absent(),
     this.activityType = const Value.absent(),
     required String title,
     this.participants = const Value.absent(),
@@ -15414,6 +16389,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
     Expression<String>? id,
     Expression<String>? sessionId,
     Expression<String>? householdId,
+    Expression<String>? categoryId,
     Expression<String>? activityType,
     Expression<String>? title,
     Expression<String>? participants,
@@ -15432,6 +16408,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
       if (id != null) 'id': id,
       if (sessionId != null) 'session_id': sessionId,
       if (householdId != null) 'household_id': householdId,
+      if (categoryId != null) 'category_id': categoryId,
       if (activityType != null) 'activity_type': activityType,
       if (title != null) 'title': title,
       if (participants != null) 'participants': participants,
@@ -15452,6 +16429,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
     Value<String>? id,
     Value<String?>? sessionId,
     Value<String>? householdId,
+    Value<String?>? categoryId,
     Value<String>? activityType,
     Value<String>? title,
     Value<String?>? participants,
@@ -15470,6 +16448,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
       id: id ?? this.id,
       sessionId: sessionId ?? this.sessionId,
       householdId: householdId ?? this.householdId,
+      categoryId: categoryId ?? this.categoryId,
       activityType: activityType ?? this.activityType,
       title: title ?? this.title,
       participants: participants ?? this.participants,
@@ -15497,6 +16476,9 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
     }
     if (householdId.present) {
       map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
     }
     if (activityType.present) {
       map['activity_type'] = Variable<String>(activityType.value);
@@ -15546,6 +16528,7 @@ class ActivityEntriesCompanion extends UpdateCompanion<ActivityEntry> {
           ..write('id: $id, ')
           ..write('sessionId: $sessionId, ')
           ..write('householdId: $householdId, ')
+          ..write('categoryId: $categoryId, ')
           ..write('activityType: $activityType, ')
           ..write('title: $title, ')
           ..write('participants: $participants, ')
@@ -24414,6 +25397,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ActivitySessionsTable activitySessions = $ActivitySessionsTable(
     this,
   );
+  late final $HarvestEventsTable harvestEvents = $HarvestEventsTable(this);
   late final $ActivityCheckpointsTable activityCheckpoints =
       $ActivityCheckpointsTable(this);
   late final $ActivityEntriesTable activityEntries = $ActivityEntriesTable(
@@ -24477,6 +25461,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     reminders,
     reminderHistories,
     activitySessions,
+    harvestEvents,
     activityCheckpoints,
     activityEntries,
     dailyNotes,
@@ -30948,6 +31933,7 @@ typedef $$ActivitySessionsTableCreateCompanionBuilder =
       required String householdId,
       required String title,
       Value<String?> parentSessionId,
+      Value<String?> categoryId,
       Value<String> category,
       Value<String> kind,
       required DateTime startedAt,
@@ -30970,6 +31956,7 @@ typedef $$ActivitySessionsTableUpdateCompanionBuilder =
       Value<String> householdId,
       Value<String> title,
       Value<String?> parentSessionId,
+      Value<String?> categoryId,
       Value<String> category,
       Value<String> kind,
       Value<DateTime> startedAt,
@@ -31013,6 +32000,11 @@ class $$ActivitySessionsTableFilterComposer
 
   ColumnFilters<String> get parentSessionId => $composableBuilder(
     column: $table.parentSessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -31116,6 +32108,11 @@ class $$ActivitySessionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get category => $composableBuilder(
     column: $table.category,
     builder: (column) => ColumnOrderings(column),
@@ -31212,6 +32209,11 @@ class $$ActivitySessionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get category =>
       $composableBuilder(column: $table.category, builder: (column) => column);
 
@@ -31302,6 +32304,7 @@ class $$ActivitySessionsTableTableManager
                 Value<String> householdId = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> parentSessionId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
@@ -31322,6 +32325,7 @@ class $$ActivitySessionsTableTableManager
                 householdId: householdId,
                 title: title,
                 parentSessionId: parentSessionId,
+                categoryId: categoryId,
                 category: category,
                 kind: kind,
                 startedAt: startedAt,
@@ -31344,6 +32348,7 @@ class $$ActivitySessionsTableTableManager
                 required String householdId,
                 required String title,
                 Value<String?> parentSessionId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String> kind = const Value.absent(),
                 required DateTime startedAt,
@@ -31364,6 +32369,7 @@ class $$ActivitySessionsTableTableManager
                 householdId: householdId,
                 title: title,
                 parentSessionId: parentSessionId,
+                categoryId: categoryId,
                 category: category,
                 kind: kind,
                 startedAt: startedAt,
@@ -31403,6 +32409,406 @@ typedef $$ActivitySessionsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $ActivitySessionsTable, ActivitySession>,
       ),
       ActivitySession,
+      PrefetchHooks Function()
+    >;
+typedef $$HarvestEventsTableCreateCompanionBuilder =
+    HarvestEventsCompanion Function({
+      required String id,
+      required String householdId,
+      required String commodity,
+      required double quantity,
+      Value<String> unit,
+      Value<int?> unitPrice,
+      Value<int?> totalAmount,
+      Value<String?> buyerName,
+      Value<String?> location,
+      Value<String?> note,
+      Value<String?> linkedActivityId,
+      required DateTime harvestedAt,
+      Value<bool> isArchived,
+      required DateTime createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$HarvestEventsTableUpdateCompanionBuilder =
+    HarvestEventsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> commodity,
+      Value<double> quantity,
+      Value<String> unit,
+      Value<int?> unitPrice,
+      Value<int?> totalAmount,
+      Value<String?> buyerName,
+      Value<String?> location,
+      Value<String?> note,
+      Value<String?> linkedActivityId,
+      Value<DateTime> harvestedAt,
+      Value<bool> isArchived,
+      Value<DateTime> createdAt,
+      Value<DateTime?> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$HarvestEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $HarvestEventsTable> {
+  $$HarvestEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get commodity => $composableBuilder(
+    column: $table.commodity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get buyerName => $composableBuilder(
+    column: $table.buyerName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get harvestedAt => $composableBuilder(
+    column: $table.harvestedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HarvestEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HarvestEventsTable> {
+  $$HarvestEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get commodity => $composableBuilder(
+    column: $table.commodity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get quantity => $composableBuilder(
+    column: $table.quantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get unitPrice => $composableBuilder(
+    column: $table.unitPrice,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get buyerName => $composableBuilder(
+    column: $table.buyerName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get location => $composableBuilder(
+    column: $table.location,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get harvestedAt => $composableBuilder(
+    column: $table.harvestedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HarvestEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HarvestEventsTable> {
+  $$HarvestEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get commodity =>
+      $composableBuilder(column: $table.commodity, builder: (column) => column);
+
+  GeneratedColumn<double> get quantity =>
+      $composableBuilder(column: $table.quantity, builder: (column) => column);
+
+  GeneratedColumn<String> get unit =>
+      $composableBuilder(column: $table.unit, builder: (column) => column);
+
+  GeneratedColumn<int> get unitPrice =>
+      $composableBuilder(column: $table.unitPrice, builder: (column) => column);
+
+  GeneratedColumn<int> get totalAmount => $composableBuilder(
+    column: $table.totalAmount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get buyerName =>
+      $composableBuilder(column: $table.buyerName, builder: (column) => column);
+
+  GeneratedColumn<String> get location =>
+      $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<String> get linkedActivityId => $composableBuilder(
+    column: $table.linkedActivityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get harvestedAt => $composableBuilder(
+    column: $table.harvestedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$HarvestEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HarvestEventsTable,
+          HarvestEvent,
+          $$HarvestEventsTableFilterComposer,
+          $$HarvestEventsTableOrderingComposer,
+          $$HarvestEventsTableAnnotationComposer,
+          $$HarvestEventsTableCreateCompanionBuilder,
+          $$HarvestEventsTableUpdateCompanionBuilder,
+          (
+            HarvestEvent,
+            BaseReferences<_$AppDatabase, $HarvestEventsTable, HarvestEvent>,
+          ),
+          HarvestEvent,
+          PrefetchHooks Function()
+        > {
+  $$HarvestEventsTableTableManager(_$AppDatabase db, $HarvestEventsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HarvestEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HarvestEventsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HarvestEventsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> commodity = const Value.absent(),
+                Value<double> quantity = const Value.absent(),
+                Value<String> unit = const Value.absent(),
+                Value<int?> unitPrice = const Value.absent(),
+                Value<int?> totalAmount = const Value.absent(),
+                Value<String?> buyerName = const Value.absent(),
+                Value<String?> location = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<String?> linkedActivityId = const Value.absent(),
+                Value<DateTime> harvestedAt = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HarvestEventsCompanion(
+                id: id,
+                householdId: householdId,
+                commodity: commodity,
+                quantity: quantity,
+                unit: unit,
+                unitPrice: unitPrice,
+                totalAmount: totalAmount,
+                buyerName: buyerName,
+                location: location,
+                note: note,
+                linkedActivityId: linkedActivityId,
+                harvestedAt: harvestedAt,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String commodity,
+                required double quantity,
+                Value<String> unit = const Value.absent(),
+                Value<int?> unitPrice = const Value.absent(),
+                Value<int?> totalAmount = const Value.absent(),
+                Value<String?> buyerName = const Value.absent(),
+                Value<String?> location = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<String?> linkedActivityId = const Value.absent(),
+                required DateTime harvestedAt,
+                Value<bool> isArchived = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HarvestEventsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                commodity: commodity,
+                quantity: quantity,
+                unit: unit,
+                unitPrice: unitPrice,
+                totalAmount: totalAmount,
+                buyerName: buyerName,
+                location: location,
+                note: note,
+                linkedActivityId: linkedActivityId,
+                harvestedAt: harvestedAt,
+                isArchived: isArchived,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HarvestEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HarvestEventsTable,
+      HarvestEvent,
+      $$HarvestEventsTableFilterComposer,
+      $$HarvestEventsTableOrderingComposer,
+      $$HarvestEventsTableAnnotationComposer,
+      $$HarvestEventsTableCreateCompanionBuilder,
+      $$HarvestEventsTableUpdateCompanionBuilder,
+      (
+        HarvestEvent,
+        BaseReferences<_$AppDatabase, $HarvestEventsTable, HarvestEvent>,
+      ),
+      HarvestEvent,
       PrefetchHooks Function()
     >;
 typedef $$ActivityCheckpointsTableCreateCompanionBuilder =
@@ -31685,6 +33091,7 @@ typedef $$ActivityEntriesTableCreateCompanionBuilder =
       required String id,
       Value<String?> sessionId,
       required String householdId,
+      Value<String?> categoryId,
       Value<String> activityType,
       required String title,
       Value<String?> participants,
@@ -31704,6 +33111,7 @@ typedef $$ActivityEntriesTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String?> sessionId,
       Value<String> householdId,
+      Value<String?> categoryId,
       Value<String> activityType,
       Value<String> title,
       Value<String?> participants,
@@ -31740,6 +33148,11 @@ class $$ActivityEntriesTableFilterComposer
 
   ColumnFilters<String> get householdId => $composableBuilder(
     column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -31828,6 +33241,11 @@ class $$ActivityEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get activityType => $composableBuilder(
     column: $table.activityType,
     builder: (column) => ColumnOrderings(column),
@@ -31906,6 +33324,11 @@ class $$ActivityEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get householdId => $composableBuilder(
     column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
     builder: (column) => column,
   );
 
@@ -31988,6 +33411,7 @@ class $$ActivityEntriesTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String?> sessionId = const Value.absent(),
                 Value<String> householdId = const Value.absent(),
+                Value<String?> categoryId = const Value.absent(),
                 Value<String> activityType = const Value.absent(),
                 Value<String> title = const Value.absent(),
                 Value<String?> participants = const Value.absent(),
@@ -32005,6 +33429,7 @@ class $$ActivityEntriesTableTableManager
                 id: id,
                 sessionId: sessionId,
                 householdId: householdId,
+                categoryId: categoryId,
                 activityType: activityType,
                 title: title,
                 participants: participants,
@@ -32024,6 +33449,7 @@ class $$ActivityEntriesTableTableManager
                 required String id,
                 Value<String?> sessionId = const Value.absent(),
                 required String householdId,
+                Value<String?> categoryId = const Value.absent(),
                 Value<String> activityType = const Value.absent(),
                 required String title,
                 Value<String?> participants = const Value.absent(),
@@ -32041,6 +33467,7 @@ class $$ActivityEntriesTableTableManager
                 id: id,
                 sessionId: sessionId,
                 householdId: householdId,
+                categoryId: categoryId,
                 activityType: activityType,
                 title: title,
                 participants: participants,
@@ -36651,6 +38078,8 @@ class $AppDatabaseManager {
       $$ReminderHistoriesTableTableManager(_db, _db.reminderHistories);
   $$ActivitySessionsTableTableManager get activitySessions =>
       $$ActivitySessionsTableTableManager(_db, _db.activitySessions);
+  $$HarvestEventsTableTableManager get harvestEvents =>
+      $$HarvestEventsTableTableManager(_db, _db.harvestEvents);
   $$ActivityCheckpointsTableTableManager get activityCheckpoints =>
       $$ActivityCheckpointsTableTableManager(_db, _db.activityCheckpoints);
   $$ActivityEntriesTableTableManager get activityEntries =>

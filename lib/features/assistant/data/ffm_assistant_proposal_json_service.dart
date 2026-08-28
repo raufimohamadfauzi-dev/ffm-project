@@ -136,6 +136,7 @@ class FfmAssistantProposalJsonService {
         'Judul aktivitas wajib diisi.',
       );
     }
+    final category = _boundedText(proposal['category'], 100);
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: FfmAssistantDraftKind.activity,
@@ -143,7 +144,10 @@ class FfmAssistantProposalJsonService {
         title: title,
         note: _boundedText(proposal['note'], 300),
         date: _dateOr(proposal['date'], createdAt),
-        formValues: const {'source': 'gemini_proposal'},
+        formValues: {
+          'source': 'gemini_proposal',
+          ...?(category == null ? null : {'category': category}),
+        },
       ),
     );
   }

@@ -26,6 +26,29 @@ void main() {
       newValue: {'id': 'trx-1', 'amount': 100000},
     );
     await source.customStatement(
+      'INSERT INTO harvest_events '
+      '(id, household_id, commodity, quantity, unit, unit_price, total_amount, '
+      'buyer_name, location, note, linked_activity_id, harvested_at, is_archived, '
+      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'harvest-1',
+        AppContext.householdId,
+        'Pepaya',
+        25.5,
+        'kg',
+        8000,
+        204000,
+        'Pak Budi',
+        'Kebun A',
+        'Panen pagi',
+        null,
+        now.microsecondsSinceEpoch,
+        0,
+        now.microsecondsSinceEpoch,
+        now.microsecondsSinceEpoch,
+      ],
+    );
+    await source.customStatement(
       'INSERT INTO account_reconciliation_logs '
       '(id, household_id, account_id, book_balance, actual_balance, difference, '
       'checked_at, note, adjustment_transaction_id, created_at) '
@@ -50,6 +73,7 @@ void main() {
         'isUser': true,
         'text': 'catat gaji',
         'imagePath': '/path/to/image.jpg',
+        'api_key': 'must-not-export',
         'createdAt': now.toIso8601String(),
       },
     ];
@@ -66,7 +90,8 @@ void main() {
     final decoded = jsonDecode(content) as Map<String, dynamic>;
     final modules = decoded['modules'] as Map<String, dynamic>;
 
-    expect(decoded['formatVersion'], 'ffm-v23-full');
+    expect(decoded['formatVersion'], 'ffm-v24-full-safe');
+    expect(decoded['schemaVersion'], source.schemaVersion);
     expect(decoded['isFull'], isTrue);
     expect(
       modules.keys,
@@ -93,11 +118,16 @@ void main() {
         'assistant_memories',
         'assistant_learning_examples',
         'assistant_unanswered_questions',
+        'harvest_events',
         'assistant_chat_history',
       ]),
     );
     expect((modules['audit_logs'] as List), hasLength(1));
     expect((modules['account_reconciliation_logs'] as List), hasLength(1));
+    expect((modules['harvest_events'] as List), hasLength(1));
+    final exportedChat =
+        (modules['assistant_chat_history'] as List).single as Map;
+    expect(exportedChat.containsKey('api_key'), isFalse);
 
     final directory = await Directory.systemTemp.createTemp('ffm-backup-test-');
     addTearDown(() => directory.delete(recursive: true));
@@ -130,5 +160,6 @@ void main() {
     expect(restoredHistory, hasLength(1));
     expect(restoredHistory!.single['text'], 'catat gaji');
     expect(restoredHistory!.single.containsKey('imagePath'), isFalse);
+    expect(restoredHistory!.single.containsKey('api_key'), isFalse);
   });
 }

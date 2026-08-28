@@ -111,9 +111,9 @@ class ActivityRepository {
   }
 
   Future<int> getActivityLinkedCost(String sessionId) async {
-    final rows = await (database.select(database.transactions)
-          ..where((row) => row.linkedActivityId.equals(sessionId)))
-        .get();
+    final rows = await (database.select(
+      database.transactions,
+    )..where((row) => row.linkedActivityId.equals(sessionId))).get();
     return rows.fold<int>(0, (sum, row) => sum + row.amount.abs());
   }
 
@@ -133,6 +133,7 @@ class ActivityRepository {
   }
 
   Future<void> saveSession(ActivitySessionEntity entity) async {
+    final category = await _resolveActivityCategory(entity);
     await database
         .into(database.activitySessions)
         .insertOnConflictUpdate(
@@ -141,7 +142,8 @@ class ActivityRepository {
             householdId: entity.householdId,
             title: entity.title,
             parentSessionId: Value(entity.parentSessionId),
-            category: Value(entity.category),
+            categoryId: Value(category?.id ?? entity.categoryId),
+            category: Value(category?.name ?? entity.category),
             kind: Value(entity.kind.value),
             startedAt: entity.startedAt,
             endedAt: Value<DateTime?>(entity.endedAt),
@@ -167,12 +169,13 @@ class ActivityRepository {
         'status': entity.status.value,
       },
     );
-    habitLearner?.recordActivityObservation(
-      title: entity.title,
-      occurredAt: entity.startedAt,
-    ).ignore();
+    habitLearner
+        ?.recordActivityObservation(
+          title: entity.title,
+          occurredAt: entity.startedAt,
+        )
+        .ignore();
   }
-
 
   Future<void> saveCheckpoint(ActivityCheckpointEntity entity) async {
     await database
@@ -233,12 +236,13 @@ class ActivityRepository {
         'activityType': entity.activityType,
       },
     );
-    habitLearner?.recordActivityObservation(
-      title: entity.title,
-      occurredAt: entity.startedAt,
-    ).ignore();
+    habitLearner
+        ?.recordActivityObservation(
+          title: entity.title,
+          occurredAt: entity.startedAt,
+        )
+        .ignore();
   }
-
 
   Future<void> recordVoiceCommand({
     required String householdId,
@@ -396,7 +400,8 @@ class ActivityRepository {
     String? category,
   }) async {
     await _ensureNotesTable();
-    var sql = 'SELECT * FROM activity_notes WHERE household_id = ? AND is_archived = 0';
+    var sql =
+        'SELECT * FROM activity_notes WHERE household_id = ? AND is_archived = 0';
     final params = <Object?>[householdId];
     if (linkedSessionId != null) {
       sql += ' AND linked_session_id = ?';
@@ -408,29 +413,33 @@ class ActivityRepository {
     }
     sql += ' ORDER BY created_at DESC';
 
-    final rows = await database.customSelect(sql, variables: params.map((p) => Variable(p)).toList()).get();
-    return rows.map((row) {
-      final data = row.data;
-      final createdAtMillis = data['created_at'] as int;
-      final updatedAtMillis = data['updated_at'] as int?;
-      return ActivityNoteEntity(
-        id: data['id'] as String,
-        householdId: data['household_id'] as String,
-        text: data['text'] as String,
-        category: data['category'] as String,
-        numericValue: (data['numeric_value'] as num?)?.toDouble(),
-        unit: data['unit'] as String?,
-        latitude: (data['latitude'] as num?)?.toDouble(),
-        longitude: (data['longitude'] as num?)?.toDouble(),
-        createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMillis),
-        linkedSessionId: data['linked_session_id'] as String?,
-        source: ActivityEntrySource.fromValue(data['source'] as String?),
-        isArchived: (data['is_archived'] as int? ?? 0) == 1,
-        updatedAt: updatedAtMillis != null
-            ? DateTime.fromMillisecondsSinceEpoch(updatedAtMillis)
-            : null,
-      );
-    }).toList(growable: false);
+    final rows = await database
+        .customSelect(sql, variables: params.map((p) => Variable(p)).toList())
+        .get();
+    return rows
+        .map((row) {
+          final data = row.data;
+          final createdAtMillis = data['created_at'] as int;
+          final updatedAtMillis = data['updated_at'] as int?;
+          return ActivityNoteEntity(
+            id: data['id'] as String,
+            householdId: data['household_id'] as String,
+            text: data['text'] as String,
+            category: data['category'] as String,
+            numericValue: (data['numeric_value'] as num?)?.toDouble(),
+            unit: data['unit'] as String?,
+            latitude: (data['latitude'] as num?)?.toDouble(),
+            longitude: (data['longitude'] as num?)?.toDouble(),
+            createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMillis),
+            linkedSessionId: data['linked_session_id'] as String?,
+            source: ActivityEntrySource.fromValue(data['source'] as String?),
+            isArchived: (data['is_archived'] as int? ?? 0) == 1,
+            updatedAt: updatedAtMillis != null
+                ? DateTime.fromMillisecondsSinceEpoch(updatedAtMillis)
+                : null,
+          );
+        })
+        .toList(growable: false);
   }
 
   Future<void> saveNote(ActivityNoteEntity entity) async {
@@ -503,20 +512,22 @@ class ActivityRepository {
 
   Future<void> migrateOldData(String householdId) async {
     final prefKey = 'migration_v2_done';
-    final alreadyDone = await (database.select(database.userPreferences)
-          ..where((row) =>
-              row.householdId.equals(householdId) &
-              row.preferenceKey.equals(prefKey)))
-        .getSingleOrNull();
+    final alreadyDone =
+        await (database.select(database.userPreferences)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.preferenceKey.equals(prefKey),
+            ))
+            .getSingleOrNull();
 
     if (alreadyDone != null && alreadyDone.preferenceValue == 'true') return;
 
     await database.transaction(() async {
       // ... (migration logic stays same)
       // 1. Migrate Tasks
-      final tasks = await (database.select(database.tasks)
-            ..where((row) => row.householdId.equals(householdId)))
-          .get();
+      final tasks = await (database.select(
+        database.tasks,
+      )..where((row) => row.householdId.equals(householdId))).get();
       for (final task in tasks) {
         await saveSession(
           ActivitySessionEntity(
@@ -541,9 +552,9 @@ class ActivityRepository {
       }
 
       // 2. Migrate Daily Notes
-      final notes = await (database.select(database.dailyNotes)
-            ..where((row) => row.householdId.equals(householdId)))
-          .get();
+      final notes = await (database.select(
+        database.dailyNotes,
+      )..where((row) => row.householdId.equals(householdId))).get();
       for (final note in notes) {
         await saveSession(
           ActivitySessionEntity(
@@ -565,9 +576,9 @@ class ActivityRepository {
       }
 
       // 3. Migrate Schedule Entries
-      final schedules = await (database.select(database.scheduleEntries)
-            ..where((row) => row.householdId.equals(householdId)))
-          .get();
+      final schedules = await (database.select(
+        database.scheduleEntries,
+      )..where((row) => row.householdId.equals(householdId))).get();
       for (final schedule in schedules) {
         await saveSession(
           ActivitySessionEntity(
@@ -592,7 +603,9 @@ class ActivityRepository {
       }
 
       // Mark as done
-      await database.into(database.userPreferences).insertOnConflictUpdate(
+      await database
+          .into(database.userPreferences)
+          .insertOnConflictUpdate(
             UserPreferencesCompanion.insert(
               id: 'pref-mig-$householdId',
               householdId: householdId,
@@ -604,12 +617,42 @@ class ActivityRepository {
     });
   }
 
+  Future<Category?> _resolveActivityCategory(
+    ActivitySessionEntity entity,
+  ) async {
+    if (entity.categoryId != null) {
+      final byId =
+          await (database.select(database.categories)..where(
+                (row) =>
+                    row.householdId.equals(entity.householdId) &
+                    row.id.equals(entity.categoryId!) &
+                    row.type.equals('activity') &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+      if (byId != null) return byId;
+    }
+    final normalized = entity.category.trim();
+    if (normalized.isEmpty) return null;
+    final rows =
+        await (database.select(database.categories)..where(
+              (row) =>
+                  row.householdId.equals(entity.householdId) &
+                  row.type.equals('activity') &
+                  row.isActive.equals(true) &
+                  row.name.equals(normalized),
+            ))
+            .get();
+    return rows.length == 1 ? rows.single : null;
+  }
+
   ActivitySessionEntity _sessionFromRow(ActivitySession row) =>
       ActivitySessionEntity(
         id: row.id,
         householdId: row.householdId,
         title: row.title,
         category: row.category,
+        categoryId: row.categoryId,
         kind: ActivityKind.fromValue(row.kind),
         parentSessionId: row.parentSessionId,
         startedAt: row.startedAt,

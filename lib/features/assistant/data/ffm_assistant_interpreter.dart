@@ -148,6 +148,17 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
+    final harvestContext =
+        _containsAny(normalized, const [
+          'panen',
+          'hasil kebun',
+          'harga jual',
+          'komoditas',
+        ])
+        ? await _financialSnapshot.buildHarvestContext(
+            householdId: AppContext.householdId,
+          )
+        : '';
     final approvedUserContext = await FfmAssistantUserModelService(
       _taughtMemory,
     ).buildContext(query: normalized);
@@ -164,6 +175,7 @@ class FfmAssistantInterpreter {
         if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
         financialContext,
         masterDataContext,
+        harvestContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,

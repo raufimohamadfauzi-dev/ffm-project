@@ -123,6 +123,39 @@ class FfmAssistantFinancialSnapshotService {
     return _clip(context, maxCharacters);
   }
 
+  Future<String> buildHarvestContext({
+    required String householdId,
+    int limit = 8,
+    int maxCharacters = 900,
+  }) async {
+    final rows =
+        await (_database.select(_database.harvestEvents)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.harvestedAt)])
+              ..limit(limit))
+            .get();
+    if (rows.isEmpty) return 'Fakta panen SQL: belum ada record.';
+    final lines = rows
+        .map((row) {
+          final date = row.harvestedAt.toIso8601String().substring(0, 10);
+          final price = row.unitPrice == null ? '-' : row.unitPrice.toString();
+          final total = row.totalAmount == null
+              ? '-'
+              : row.totalAmount.toString();
+          final buyer = row.buyerName == null || row.buyerName!.trim().isEmpty
+              ? '-'
+              : row.buyerName!.trim();
+          return '$date | ${row.commodity} | ${row.quantity} ${row.unit} | '
+              'harga_satuan=$price | total=$total | pembeli=$buyer';
+        })
+        .join('; ');
+    return _clip('Fakta panen SQL authoritative: $lines', maxCharacters);
+  }
+
   String _nameList(List<String> names, int limit) {
     final cleaned = names
         .map((name) => name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim())

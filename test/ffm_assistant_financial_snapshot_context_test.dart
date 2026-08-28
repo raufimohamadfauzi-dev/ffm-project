@@ -4,6 +4,7 @@ import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/network/gemini_service.dart';
 import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_financial_snapshot_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
@@ -50,83 +51,111 @@ void main() {
     await database.close();
   });
 
-  test(
-    'context Gemini memakai snapshot agregat dan bukan raw transaction rows',
-    () async {
-      final now = DateTime(2026, 8, 23);
-      await database
-          .into(database.transactions)
-          .insert(
-            TransactionsCompanion.insert(
-              id: 'income-context',
-              householdId: AppContext.householdId,
-              type: 'income',
-              amount: 8000000,
-              date: now,
-              recordedAt: now,
-              createdAt: now,
-              note: const Value('Rahasia keluarga'),
-            ),
-          );
-      await database
-          .into(database.transactions)
-          .insert(
-            TransactionsCompanion.insert(
-              id: 'expense-context',
-              householdId: AppContext.householdId,
-              type: 'expense',
-              amount: -3000000,
-              date: now,
-              recordedAt: now,
-              createdAt: now,
-            ),
-          );
-      await database
-          .into(database.accounts)
-          .insert(
-            AccountsCompanion.insert(
-              id: 'seabank-context',
-              householdId: AppContext.householdId,
-              name: 'SeaBank',
-              type: 'bank',
-              openingBalance: const Value(987654),
-              createdAt: now,
-            ),
-          );
-      await database
-          .into(database.categories)
-          .insert(
-            CategoriesCompanion.insert(
-              id: 'food-context',
-              householdId: AppContext.householdId,
-              name: 'Belanja Pasar',
-              type: 'expense',
-              createdAt: now,
-            ),
-          );
+  test('context Gemini memakai snapshot agregat dan bukan raw transaction rows', () async {
+    final now = DateTime(2026, 8, 23);
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'income-context',
+            householdId: AppContext.householdId,
+            type: 'income',
+            amount: 8000000,
+            date: now,
+            recordedAt: now,
+            createdAt: now,
+            note: const Value('Rahasia keluarga'),
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'expense-context',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -3000000,
+            date: now,
+            recordedAt: now,
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'seabank-context',
+            householdId: AppContext.householdId,
+            name: 'SeaBank',
+            type: 'bank',
+            openingBalance: const Value(987654),
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'food-context',
+            householdId: AppContext.householdId,
+            name: 'Belanja Pasar',
+            type: 'expense',
+            createdAt: now,
+          ),
+        );
 
-      final gemini = _CapturingGemini();
-      final interpreter = FfmAssistantInterpreter(
-        database,
-        geminiService: gemini,
-        config: _FakeConfig(),
-        clock: () => now,
-      );
+    await database.customStatement(
+      'INSERT INTO harvest_events '
+      '(id, household_id, commodity, quantity, unit, unit_price, total_amount, '
+      'buyer_name, location, note, linked_activity_id, harvested_at, is_archived, '
+      'created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'harvest-context',
+        AppContext.householdId,
+        'Pepaya',
+        30.0,
+        'kg',
+        9000,
+        270000,
+        'Pak Budi',
+        null,
+        null,
+        null,
+        now.subtract(const Duration(days: 2)).millisecondsSinceEpoch,
+        0,
+        now.millisecondsSinceEpoch,
+        now.millisecondsSinceEpoch,
+      ],
+    );
 
-      final intent = await interpreter.interpret(
-        'uraikan pendapatan keluarga secara konseptual',
-      );
+    final gemini = _CapturingGemini();
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      geminiService: gemini,
+      config: _FakeConfig(),
+      clock: () => now,
+    );
 
-      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-      expect(gemini.systemInstruction, contains('income=8000000'));
-      expect(gemini.systemInstruction, contains('expenses=3000000'));
-      expect(gemini.systemInstruction, contains('quality=sufficient'));
-      expect(gemini.systemInstruction, contains('rekening_aktif=SeaBank'));
-      expect(gemini.systemInstruction, contains('kategori_aktif='));
-      expect(gemini.systemInstruction, contains('Belanja Pasar'));
-      expect(gemini.systemInstruction, contains('nama saja; tanpa saldo'));
-      expect(gemini.systemInstruction, isNot(contains('987654')));
-      expect(gemini.systemInstruction, isNot(contains('Rahasia keluarga')));
-    },
-  );
+    final intent = await interpreter.interpret(
+      'uraikan pendapatan keluarga secara konseptual',
+    );
+
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    expect(gemini.systemInstruction, contains('income=8000000'));
+    expect(gemini.systemInstruction, contains('expenses=3000000'));
+    expect(gemini.systemInstruction, contains('quality=sufficient'));
+    expect(gemini.systemInstruction, contains('rekening_aktif=SeaBank'));
+    expect(gemini.systemInstruction, contains('kategori_aktif='));
+    expect(gemini.systemInstruction, contains('Belanja Pasar'));
+    expect(gemini.systemInstruction, contains('nama saja; tanpa saldo'));
+    expect(gemini.systemInstruction, isNot(contains('987654')));
+    expect(gemini.systemInstruction, isNot(contains('Rahasia keluarga')));
+
+    final harvestContext = await FfmAssistantFinancialSnapshotService(database)
+        .buildHarvestContext(householdId: AppContext.householdId);
+    expect(harvestContext, contains('Fakta panen SQL authoritative'));
+    expect(harvestContext, contains('Pepaya'));
+    expect(harvestContext, contains('270000'));
+    expect(harvestContext, contains('Pak Budi'));
+  });
 }

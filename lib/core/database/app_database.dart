@@ -33,6 +33,7 @@ part 'app_database.g.dart';
     Reminders,
     ReminderHistories,
     ActivitySessions,
+    HarvestEvents,
     ActivityCheckpoints,
     ActivityEntries,
     DailyNotes,
@@ -59,13 +60,15 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 43;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (Migrator m) async {
       await m.createAll();
       await _createActivityIndexes();
+      await _createActivityCategoryIndexes();
+      await _createHarvestIndexes();
       await _createDailyNoteIndexes();
       await _createTaskIndexes();
       await _createDailyRoutineIndexes();
@@ -76,6 +79,7 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantResponseFeedbackIndexes();
       await _createPersonalizationIndexes();
       await _seedInitialData();
+      await _seedActivityCategories();
     },
     onUpgrade: (Migrator m, int from, int to) async {
       // Jangan memanggil createAll() saat upgrade. Setiap tabel atau kolom
@@ -193,6 +197,22 @@ class AppDatabase extends _$AppDatabase {
           "ADD COLUMN kind TEXT NOT NULL DEFAULT 'timer'",
         );
       }
+      if (from < 42) {
+        if (await _hasTable('activity_sessions') &&
+            !await _hasColumns('activity_sessions', const ['category_id'])) {
+          await m.addColumn(activitySessions, activitySessions.categoryId);
+        }
+        if (await _hasTable('activity_entries') &&
+            !await _hasColumns('activity_entries', const ['category_id'])) {
+          await m.addColumn(activityEntries, activityEntries.categoryId);
+        }
+        await _backfillActivityCategoryIds();
+        await _createActivityCategoryIndexes();
+      }
+      if (from < 43) {
+        await m.createTable(harvestEvents);
+        await _createHarvestIndexes();
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -214,6 +234,56 @@ class AppDatabase extends _$AppDatabase {
     final rows = await customSelect('PRAGMA table_info("$table")').get();
     final available = rows.map((row) => row.read<String>('name')).toSet();
     return columns.every(available.contains);
+  }
+
+  Future<void> _createHarvestIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_harvest_events_household_date '
+      'ON harvest_events (household_id, harvested_at, commodity)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_harvest_events_household_buyer '
+      'ON harvest_events (household_id, buyer_name, harvested_at)',
+    );
+  }
+
+  Future<void> _createActivityCategoryIndexes() async {
+    if (await _hasTable('activity_sessions')) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_activity_sessions_household_category '
+        'ON activity_sessions (household_id, category_id, started_at)',
+      );
+    }
+    if (await _hasTable('activity_entries')) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_activity_entries_household_category '
+        'ON activity_entries (household_id, category_id, started_at)',
+      );
+    }
+  }
+
+  Future<void> _backfillActivityCategoryIds() async {
+    if (!await _hasTable('categories')) return;
+    if (await _hasTable('activity_sessions')) {
+      await customStatement(
+        "UPDATE activity_sessions SET category_id = ("
+        "SELECT c.id FROM categories c "
+        "WHERE c.household_id = activity_sessions.household_id "
+        "AND c.type = 'activity' "
+        "AND lower(trim(c.name)) = lower(trim(activity_sessions.category)) "
+        "AND c.is_active = 1 LIMIT 1) WHERE category_id IS NULL",
+      );
+    }
+    if (await _hasTable('activity_entries')) {
+      await customStatement(
+        "UPDATE activity_entries SET category_id = ("
+        "SELECT c.id FROM categories c "
+        "WHERE c.household_id = activity_entries.household_id "
+        "AND c.type = 'activity' "
+        "AND lower(trim(c.name)) = lower(trim(activity_entries.activity_type)) "
+        "AND c.is_active = 1 LIMIT 1) WHERE category_id IS NULL",
+      );
+    }
   }
 
   Future<void> _createActivityIndexes() async {
