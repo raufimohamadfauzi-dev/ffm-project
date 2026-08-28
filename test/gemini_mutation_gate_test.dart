@@ -38,6 +38,12 @@ class _GateFakeClient extends http.BaseClient {
   }
 }
 
+String _instructionFrom(String body) {
+  final decoded = jsonDecode(body) as Map<String, dynamic>;
+  return ((decoded['system_instruction'] as Map)['parts'] as List).first['text']
+      as String;
+}
+
 void main() {
   test('cerita transaksi tidak membuka mutation proposal gate', () async {
     final client = _GateFakeClient();
@@ -50,11 +56,46 @@ void main() {
       systemInstruction: 'Kamu adalah assistant FFM.',
     );
 
-    final body = jsonDecode(client.lastBody!) as Map<String, dynamic>;
-    final instruction =
-        ((body['system_instruction'] as Map)['parts'] as List).first['text']
-            as String;
-    expect(instruction, contains('MUTATION_PROPOSAL_GATE: DENY'));
+    expect(
+      _instructionFrom(client.lastBody!),
+      contains('MUTATION_PROPOSAL_GATE: DENY'),
+    );
+  });
+
+  test('fakta historis transaksi tidak membuka mutation proposal gate',
+      () async {
+    final client = _GateFakeClient();
+    final service = GeminiService(client: client);
+
+    await service.chat(
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      prompt: 'Saya sudah bayar listrik kemarin.',
+      systemInstruction: 'Kamu adalah assistant FFM.',
+    );
+
+    expect(
+      _instructionFrom(client.lastBody!),
+      contains('MUTATION_PROPOSAL_GATE: DENY'),
+    );
+  });
+
+  test('pertanyaan tentang jual aset tidak membuka mutation proposal gate',
+      () async {
+    final client = _GateFakeClient();
+    final service = GeminiService(client: client);
+
+    await service.chat(
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      prompt: 'Menurut kamu, sebaiknya saya jual motor ini?',
+      systemInstruction: 'Kamu adalah assistant FFM.',
+    );
+
+    expect(
+      _instructionFrom(client.lastBody!),
+      contains('MUTATION_PROPOSAL_GATE: DENY'),
+    );
   });
 
   test('permintaan catat eksplisit membuka mutation proposal gate', () async {
@@ -68,10 +109,26 @@ void main() {
       systemInstruction: 'Kamu adalah assistant FFM.',
     );
 
-    final body = jsonDecode(client.lastBody!) as Map<String, dynamic>;
-    final instruction =
-        ((body['system_instruction'] as Map)['parts'] as List).first['text'
-            as String;
-    expect(instruction, contains('MUTATION_PROPOSAL_GATE: ALLOW'));
+    expect(
+      _instructionFrom(client.lastBody!),
+      contains('MUTATION_PROPOSAL_GATE: ALLOW'),
+    );
+  });
+
+  test('permintaan tambah eksplisit membuka mutation proposal gate', () async {
+    final client = _GateFakeClient();
+    final service = GeminiService(client: client);
+
+    await service.chat(
+      apiKey: 'test-key',
+      model: 'gemini-2.5-flash',
+      prompt: 'Tambahkan rekening BCA sebagai akun baru.',
+      systemInstruction: 'Kamu adalah assistant FFM.',
+    );
+
+    expect(
+      _instructionFrom(client.lastBody!),
+      contains('MUTATION_PROPOSAL_GATE: ALLOW'),
+    );
   });
 }
