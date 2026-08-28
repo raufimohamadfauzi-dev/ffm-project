@@ -1,1 +1,0 @@
-Mutation proposals require explicit user intent. Facts from SQL/application state outrank memory and conversation context.
