@@ -17,6 +17,7 @@ import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
+import '../../../assistant/domain/ffm_assistant_form_prefill.dart';
 
 enum _BudgetSort {
   nominalTerbesar,
@@ -32,9 +33,16 @@ class BudgetPage extends EnvelopeBudgetPage {
 }
 
 class EnvelopeBudgetPage extends StatefulWidget {
-  const EnvelopeBudgetPage({super.key, this.assistantAmount});
+  const EnvelopeBudgetPage({
+    super.key,
+    this.assistantAmount,
+    this.assistantCategoryName,
+    this.onAssistantDraftResult,
+  });
 
   final int? assistantAmount;
+  final String? assistantCategoryName;
+  final Future<void> Function(bool saved)? onAssistantDraftResult;
 
   @override
   State<EnvelopeBudgetPage> createState() => _EnvelopeBudgetPageState();
@@ -241,8 +249,49 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
   }
 
   Future<void> _openAssistantBudget() async {
-    final envelope = _envelopes.where((item) => item.isOverall).firstOrNull;
+    final categoryName = widget.assistantCategoryName?.trim().toLowerCase();
+    final category = categoryName == null || categoryName.isEmpty
+        ? null
+        : _categories
+              .where((item) => item.name.trim().toLowerCase() == categoryName)
+              .firstOrNull;
+    if (categoryName != null && categoryName.isNotEmpty && category == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Kategori “${widget.assistantCategoryName}” belum ada di Data Utama. Draft tetap bisa dikoreksi di chat.',
+            ),
+          ),
+        );
+      }
+      await widget.onAssistantDraftResult?.call(false);
+      return;
+    }
+    final envelope = category == null
+        ? _envelopes.where((item) => item.isOverall).firstOrNull
+        : _envelopes
+                  .where((item) => item.categoryIds.contains(category.id))
+                  .firstOrNull ??
+              EnvelopeBudgetRow.placeholder(
+                category,
+                _periodTypeFilter,
+                weekStartDay: _weekStartDay,
+              );
     if (envelope == null) return;
+
+    // Create prefill from draft values
+    FfmAssistantFormPrefill? prefill;
+    if (widget.assistantAmount != null) {
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.budget,
+        createdAt: DateTime.now(),
+        amount: widget.assistantAmount,
+        categoryName: widget.assistantCategoryName,
+      );
+      prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
+    }
+
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => EnvelopeEditPage(
@@ -250,10 +299,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
           categories: _categories,
           weekStartDay: _weekStartDay,
           initialAmount: widget.assistantAmount,
+          assistantPrefill: prefill,
         ),
       ),
     );
     if (saved == true && mounted) _load();
+    await widget.onAssistantDraftResult?.call(saved == true);
   }
 
   bool _isInPeriod(DateTime date, EnvelopeBudgetRow envelope) {
@@ -1029,6 +1080,7 @@ class EnvelopeEditPage extends StatefulWidget {
     required this.weekStartDay,
     this.suggestedPeriod,
     this.initialAmount,
+    this.assistantPrefill,
     super.key,
   });
 
@@ -1037,6 +1089,7 @@ class EnvelopeEditPage extends StatefulWidget {
   final int weekStartDay;
   final String? suggestedPeriod;
   final int? initialAmount;
+  final FfmAssistantFormPrefill? assistantPrefill;
 
   @override
   State<EnvelopeEditPage> createState() => _EnvelopeEditPageState();
@@ -1051,10 +1104,17 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
   late DateTime _endDate;
   late String _periodType;
   var _alertPercent = 80;
+  FfmAssistantFormCheck? _prefillCheck;
 
   @override
   void initState() {
     super.initState();
+
+    // Store prefill check if provided
+    if (widget.assistantPrefill != null) {
+      _prefillCheck = widget.assistantPrefill!.check;
+    }
+
     _amountController = TextEditingController(
       text: widget.initialAmount != null
           ? formatRupiahInput(widget.initialAmount.toString())
@@ -1096,6 +1156,23 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
     _amountController.dispose();
     _rolloverController.dispose();
     super.dispose();
+  }
+
+  String _fieldLabel(String field) {
+    switch (field) {
+      case 'amount':
+        return 'Nominal';
+      case 'categoryName':
+        return 'Kategori';
+      case 'title':
+        return 'Judul';
+      case 'note':
+        return 'Catatan';
+      case 'date':
+        return 'Tanggal';
+      default:
+        return field;
+    }
   }
 
   Future<void> _save() async {
@@ -1252,6 +1329,106 @@ class _EnvelopeEditPageState extends State<EnvelopeEditPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
+              if (widget.assistantPrefill != null) ...[
+                const Text(
+                  'Diisi dari draft Asisten — periksa sebelum simpan.',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+                if (_prefillCheck != null &&
+                    _prefillCheck!.missingFields.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Field yang belum lengkap:',
+                              style: TextStyle(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ..._prefillCheck!.missingFields.map(
+                          (field) => Padding(
+                            padding: const EdgeInsets.only(left: 20, top: 2),
+                            child: Text(
+                              _fieldLabel(field),
+                              style: TextStyle(
+                                color: Colors.orange.shade800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 10),
+                if (_prefillCheck != null && _prefillCheck!.warnings.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.amber.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Perhatian:',
+                              style: TextStyle(
+                                color: Colors.amber.shade900,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ..._prefillCheck!.warnings.map(
+                          (warning) => Padding(
+                            padding: const EdgeInsets.only(left: 20, top: 2),
+                            child: Text(
+                              warning,
+                              style: TextStyle(
+                                color: Colors.amber.shade800,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(height: 10),
+              ],
               AppHelpBanner(
                 title: 'Pos ${widget.envelope.name}',
                 message: widget.envelope.categoryIds.isEmpty

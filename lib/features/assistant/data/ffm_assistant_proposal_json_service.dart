@@ -56,10 +56,46 @@ class FfmAssistantProposalJsonService {
           'Capability baca Gemini hanya mendukung periode current_month.',
         );
       }
+      final argumentMap = arguments is Map
+          ? Map<String, dynamic>.from(arguments)
+          : const <String, dynamic>{};
+      const allowedArguments = {'period', 'startDate', 'endDate'};
+      if (argumentMap.keys.any((key) => !allowedArguments.contains(key))) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Argumen capability baca tidak diizinkan.',
+        );
+      }
+      if (capabilityId == 'read.summary' && argumentMap.length > 1) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'read.summary tidak menerima filter tambahan.',
+        );
+      }
+      final startDate = _parseCapabilityDate(argumentMap['startDate']);
+      final endDate = _parseCapabilityDate(argumentMap['endDate']);
+      if ((argumentMap.containsKey('startDate') && startDate == null) ||
+          (argumentMap.containsKey('endDate') && endDate == null)) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Tanggal capability harus berformat YYYY-MM-DD.',
+        );
+      }
+      if ((startDate == null) != (endDate == null)) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Filter transaksi harus menyertakan startDate dan endDate bersama-sama.',
+        );
+      }
+      if (startDate != null &&
+          (endDate!.isBefore(startDate) ||
+              endDate.difference(startDate).inDays > 13)) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Rentang transaksi harus berurutan dan maksimal 14 hari.',
+        );
+      }
       return FfmAssistantReadCapabilityRequestParseResult.request(
         FfmAssistantReadCapabilityRequest(
           capabilityId: capabilityId,
           period: 'current_month',
+          startDate: startDate,
+          endDate: endDate,
         ),
       );
     } on FormatException {
@@ -67,6 +103,15 @@ class FfmAssistantProposalJsonService {
         'JSON request capability belum valid.',
       );
     }
+  }
+
+  static DateTime? _parseCapabilityDate(Object? value) {
+    final raw = value?.toString().trim() ?? '';
+    if (!RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(raw)) return null;
+    final parsed = DateTime.tryParse(raw);
+    return parsed != null && parsed.toIso8601String().startsWith(raw)
+        ? DateTime(parsed.year, parsed.month, parsed.day)
+        : null;
   }
 
   static FfmAssistantProposalParseResult parse(
@@ -352,10 +397,14 @@ class FfmAssistantReadCapabilityRequest {
   const FfmAssistantReadCapabilityRequest({
     required this.capabilityId,
     required this.period,
+    this.startDate,
+    this.endDate,
   });
 
   final String capabilityId;
   final String period;
+  final DateTime? startDate;
+  final DateTime? endDate;
 }
 
 class FfmAssistantReadCapabilityRequestParseResult {

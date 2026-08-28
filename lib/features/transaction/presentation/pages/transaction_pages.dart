@@ -38,6 +38,7 @@ import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/domain/ffm_assistant_form_prefill.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 
 List<Category> _transactionCategoryOptions(
@@ -79,11 +80,15 @@ class TransactionListPage extends StatefulWidget {
     this.assistantDraft,
     this.assistantRequestId = 0,
     this.onOpenAssistant,
+    this.onAssistantDraftSaved,
+    this.onAssistantDraftReturnedWithoutSave,
   });
 
   final FfmAssistantDraft? assistantDraft;
   final int assistantRequestId;
   final Future<void> Function()? onOpenAssistant;
+  final Future<void> Function()? onAssistantDraftSaved;
+  final Future<void> Function()? onAssistantDraftReturnedWithoutSave;
 
   @override
   State<TransactionListPage> createState() => _TransactionListPageState();
@@ -126,38 +131,59 @@ class _TransactionListPageState extends State<TransactionListPage> {
     switch (draft.kind) {
       case FfmAssistantDraftKind.income:
       case FfmAssistantDraftKind.expense:
+        final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
         final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
           MaterialPageRoute(
             builder: (_) => TransactionFormPage(
               initialType: draft.kind == FfmAssistantDraftKind.income
                   ? TransactionType.income
                   : TransactionType.expense,
-              initialAmount: draft.amount,
-              initialAccountName: draft.toAccountName ?? draft.fromAccountName,
-              initialCategoryName: draft.categoryName,
-              initialNote: draft.note,
+              initialAmount: int.tryParse(prefill.values['amount'] ?? ''),
+              initialAccountName:
+                  prefill.values[draft.kind == FfmAssistantDraftKind.income
+                      ? 'toAccountName'
+                      : 'fromAccountName'],
+              initialCategoryName: prefill.values['categoryName'],
+              initialNote: prefill.values['note'],
               initialDate: draft.date,
               assistantMerchantName: draft.merchantName,
               assistantSlmFieldValues: draft.slmFieldValues,
+              assistantPrefill: prefill,
+              onReturnToAssistant: widget.onOpenAssistant,
             ),
           ),
         );
-        if (!mounted || drafts == null || drafts.isEmpty) return;
+        if (!mounted || drafts == null || drafts.isEmpty) {
+          await widget.onAssistantDraftReturnedWithoutSave?.call();
+          return;
+        }
         await _saveDrafts(drafts);
+        await widget.onAssistantDraftSaved?.call();
       case FfmAssistantDraftKind.goalDeposit:
-        await _openGoalContribution();
+        final saved = await _openGoalContribution(assistantDraft: draft);
+        if (saved) {
+          await widget.onAssistantDraftSaved?.call();
+        } else {
+          await widget.onAssistantDraftReturnedWithoutSave?.call();
+        }
       case FfmAssistantDraftKind.goalUsage:
-        await _openGoalContribution(usage: true);
-      case FfmAssistantDraftKind.transfer:
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Draft transfer ${draft.fromAccountName ?? 'asal belum dipilih'} → ${draft.toAccountName ?? 'tujuan belum dipilih'} sudah terbaca. Cek detailnya sebelum simpan, ya.',
-            ),
-          ),
+        final saved = await _openGoalContribution(
+          usage: true,
+          assistantDraft: draft,
         );
-        await _openTransfer();
+        if (saved) {
+          await widget.onAssistantDraftSaved?.call();
+        } else {
+          await widget.onAssistantDraftReturnedWithoutSave?.call();
+        }
+      case FfmAssistantDraftKind.transfer:
+        final saved = await _openTransfer(assistantDraft: draft);
+        if (!mounted) return;
+        if (saved) {
+          await widget.onAssistantDraftSaved?.call();
+        } else {
+          await widget.onAssistantDraftReturnedWithoutSave?.call();
+        }
       case FfmAssistantDraftKind.liability:
       case FfmAssistantDraftKind.liabilityUpdate:
       case FfmAssistantDraftKind.liabilityArchive:
@@ -213,6 +239,15 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.transactionDelete:
       case FfmAssistantDraftKind.activityArchive:
       case FfmAssistantDraftKind.activityDelete:
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Form untuk tipe draft ini belum mendukung prefill otomatis. Silakan buka halaman terkait secara manual.',
+              ),
+            ),
+          );
+        }
         return;
     }
   }
@@ -269,21 +304,24 @@ class _TransactionListPageState extends State<TransactionListPage> {
     });
   }
 
-  Future<void> _openTransfer() async {
+  Future<bool> _openTransfer({FfmAssistantDraft? assistantDraft}) async {
     if (_accounts.length < 2) {
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Tambahkan minimal dua rekening di Data Utama dulu.'),
         ),
       );
-      return;
+      return false;
     }
     final draft = await showDialog<_TransferDraft>(
       context: context,
-      builder: (_) => _TransferFormDialog(accounts: _accounts),
+      builder: (_) => _TransferFormDialog(
+        accounts: _accounts,
+        assistantDraft: assistantDraft,
+      ),
     );
-    if (!mounted || draft == null) return;
+    if (!mounted || draft == null) return false;
     final now = DateTime.now();
     final transferDate = DateTime(
       draft.date.year,
@@ -310,13 +348,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
               ))
               .getSingleOrNull();
       if (feeCategory == null) {
-        if (!mounted) return;
+        if (!mounted) return false;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Kategori Biaya Admin belum tersedia di Data Utama.'),
           ),
         );
-        return;
+        return false;
       }
     }
     await database.transaction(() async {
@@ -377,10 +415,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
       },
     );
     await _loadTransactions();
-    if (!mounted) return;
+    if (!mounted) return true;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Transfer berhasil dicatat.')));
+    return true;
   }
 
   Future<void> _deleteTransfer(Transfer transfer) async {
@@ -563,24 +602,27 @@ class _TransactionListPageState extends State<TransactionListPage> {
     await _saveDrafts(drafts);
   }
 
-  Future<void> _openGoalContribution({
+  Future<bool> _openGoalContribution({
     TransactionWithItems? existing,
     bool usage = false,
+    FfmAssistantDraft? assistantDraft,
   }) async {
     final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
       MaterialPageRoute(
         builder: (_) => GoalContributionFormPage(
           existingTransaction: existing,
           usage: usage || existing?.transaction.source == 'goal_usage',
+          assistantDraft: assistantDraft,
         ),
       ),
     );
-    if (!mounted || drafts == null || drafts.isEmpty) return;
+    if (!mounted || drafts == null || drafts.isEmpty) return false;
     if (existing == null) {
       await _saveDrafts(drafts);
     } else {
       await _saveDraft(drafts.first, transactionId: existing.transaction.id);
     }
+    return true;
   }
 
   Future<void> _openQuickEntry() async {
@@ -1889,6 +1931,8 @@ class TransactionFormPage extends StatefulWidget {
     this.initialDate,
     this.assistantMerchantName,
     this.assistantSlmFieldValues = const <String, String>{},
+    this.assistantPrefill,
+    this.onReturnToAssistant,
     this.showFirstTransactionGuide = false,
   });
 
@@ -1902,6 +1946,8 @@ class TransactionFormPage extends StatefulWidget {
   final DateTime? initialDate;
   final String? assistantMerchantName;
   final Map<String, String> assistantSlmFieldValues;
+  final FfmAssistantFormPrefill? assistantPrefill;
+  final Future<void> Function()? onReturnToAssistant;
   final bool showFirstTransactionGuide;
 
   @override
@@ -1945,10 +1991,17 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   VoiceTransactionParseResult? _voiceResult;
   int? _selectedAccountBalance;
   var _accountBalanceLoading = false;
+  FfmAssistantFormCheck? _prefillCheck;
 
   @override
   void initState() {
     super.initState();
+
+    // Store prefill check if provided
+    if (widget.assistantPrefill != null) {
+      _prefillCheck = widget.assistantPrefill!.check;
+    }
+
     final existing = widget.existingTransaction;
     _type = widget.initialType ?? TransactionType.expense;
     if (existing != null) {
@@ -2521,6 +2574,27 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     super.dispose();
   }
 
+  String _fieldLabel(String field) {
+    switch (field) {
+      case 'amount':
+        return 'Nominal';
+      case 'fromAccountName':
+        return 'Rekening asal';
+      case 'toAccountName':
+        return 'Rekening tujuan';
+      case 'categoryName':
+        return 'Kategori';
+      case 'note':
+        return 'Catatan';
+      case 'date':
+        return 'Tanggal';
+      case 'title':
+        return 'Judul';
+      default:
+        return field;
+    }
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate() ||
         _categoryId == null ||
@@ -2916,6 +2990,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   .map((category) => category.name)
                   .firstOrNull ??
               'Belum terbaca';
+    final hasAssistantPrefill =
+        widget.initialAmount != null ||
+        widget.initialAccountName != null ||
+        widget.initialCategoryName != null ||
+        widget.initialNote != null ||
+        widget.initialDate != null;
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.transactions,
       child: Scaffold(
@@ -2943,6 +3023,124 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   },
                 ),
               if (widget.showFirstTransactionGuide) const SizedBox(height: 16),
+              if (hasAssistantPrefill) ...[
+                AppCard(
+                  color: scheme.secondaryContainer,
+                  padding: const EdgeInsets.all(12),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.auto_awesome_outlined),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Diisi dari draft Asisten — periksa sebelum simpan.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_prefillCheck != null && _prefillCheck!.missingFields.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Field yang belum lengkap:',
+                              style: TextStyle(
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ..._prefillCheck!.missingFields.map((field) => Padding(
+                          padding: const EdgeInsets.only(left: 20, top: 2),
+                          child: Text(
+                            _fieldLabel(field),
+                            style: TextStyle(
+                              color: Colors.orange.shade800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        )),
+                      ],
+                    ),
+                  ),
+                if (_prefillCheck != null && _prefillCheck!.warnings.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              color: Colors.amber.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Perhatian:',
+                              style: TextStyle(
+                                color: Colors.amber.shade900,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ..._prefillCheck!.warnings.map((warning) => Padding(
+                          padding: const EdgeInsets.only(left: 20, top: 2),
+                          child: Text(
+                            warning,
+                            style: TextStyle(
+                              color: Colors.amber.shade800,
+                              fontSize: 11,
+                            ),
+                          ),
+                        )),
+                      ],
+                    ),
+                  ),
+                if (widget.onReturnToAssistant != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await widget.onReturnToAssistant?.call();
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('Kembali ke chat untuk koreksi'),
+                    ),
+                  ),
+                const SizedBox(height: 12),
+              ],
               AppCard(
                 color: flowColor.withValues(alpha: isIncome ? .16 : .10),
                 border: BorderSide(color: flowColor, width: isIncome ? 2 : 1.4),
@@ -3237,25 +3435,25 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   validator: (category) =>
                       category == null ? 'Pilih kategori dulu.' : null,
                 ),
-                const SizedBox(height: 8),
-                TextButton.icon(
-                  onPressed: () async {
-                    final result = await Navigator.of(context).push<String>(
-                      MaterialPageRoute(
-                        builder: (_) => const MasterDataPage(
-                          assistantTab: 0,
-                          returnOnCreate: true,
-                        ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(
+                      builder: (_) => const MasterDataPage(
+                        assistantTab: 0,
+                        returnOnCreate: true,
                       ),
-                    );
-                    if (result != null && mounted) {
-                      await _loadCategories();
-                      setState(() => _categoryId = result);
-                    }
-                  },
-                  icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('Tambah kategori baru di Data Utama'),
-                ),
+                    ),
+                  );
+                  if (result != null && mounted) {
+                    await _loadCategories();
+                    setState(() => _categoryId = result);
+                  }
+                },
+                icon: const Icon(Icons.add_circle_outline),
+                label: const Text('Tambah kategori baru di Data Utama'),
+              ),
               if (_type == TransactionType.expense)
                 AppCard(
                   color: Theme.of(context).colorScheme.primaryContainer
@@ -3721,10 +3919,12 @@ class GoalContributionFormPage extends StatefulWidget {
     super.key,
     this.existingTransaction,
     this.usage = false,
+    this.assistantDraft,
   });
 
   final TransactionWithItems? existingTransaction;
   final bool usage;
+  final FfmAssistantDraft? assistantDraft;
 
   @override
   State<GoalContributionFormPage> createState() =>
@@ -3757,6 +3957,13 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
         existing.transaction.amount.abs().toString(),
       );
       _noteController.text = existing.transaction.note ?? '';
+    } else if (widget.assistantDraft != null) {
+      final draft = widget.assistantDraft!;
+      _date = draft.date ?? _date;
+      if (draft.amount != null) {
+        _amountController.text = formatRupiahInput(draft.amount.toString());
+      }
+      _noteController.text = draft.note ?? draft.title ?? '';
     }
     _loadGoals();
     _loadAccounts();
@@ -3779,6 +3986,13 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
           .toList(growable: false);
       _goalsLoading = false;
     });
+    final goalName = widget.assistantDraft?.goalName?.trim().toLowerCase();
+    if (goalName != null && goalName.isNotEmpty) {
+      final matched = _goals
+          .where((goal) => goal.name.trim().toLowerCase() == goalName)
+          .firstOrNull;
+      if (matched != null && mounted) setState(() => _goalId = matched.id);
+    }
   }
 
   Future<void> _loadAccounts() async {
@@ -3796,6 +4010,17 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
       _accounts = accounts;
       _accountsLoading = false;
     });
+    final accountName =
+        (widget.assistantDraft?.fromAccountName ??
+                widget.assistantDraft?.toAccountName)
+            ?.trim()
+            .toLowerCase();
+    if (accountName != null && accountName.isNotEmpty) {
+      final matched = _accounts
+          .where((account) => account.name.trim().toLowerCase() == accountName)
+          .firstOrNull;
+      if (matched != null && mounted) setState(() => _accountId = matched.id);
+    }
     await _loadBalance(_accountId);
   }
 
@@ -4001,6 +4226,16 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
             children: [
+              if (widget.assistantDraft != null) ...[
+                AppCard(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  padding: const EdgeInsets.all(12),
+                  child: const Text(
+                    'Diisi dari draft Asisten — periksa target, rekening, dan nominal sebelum simpan.',
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               AppCard(
                 color: AppColors.primarySoft.withValues(alpha: .55),
                 border: BorderSide(color: AppColors.primary, width: 1.5),
@@ -4439,9 +4674,10 @@ class _TransferDraft {
 }
 
 class _TransferFormDialog extends StatefulWidget {
-  const _TransferFormDialog({required this.accounts});
+  const _TransferFormDialog({required this.accounts, this.assistantDraft});
 
   final List<Account> accounts;
+  final FfmAssistantDraft? assistantDraft;
 
   @override
   State<_TransferFormDialog> createState() => _TransferFormDialogState();
@@ -4455,12 +4691,51 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
   late String? _fromAccountId;
   late String? _toAccountId;
   var _date = DateTime.now();
+  FfmAssistantFormCheck? _prefillCheck;
+  String? _assistantReferenceWarning;
 
   @override
   void initState() {
     super.initState();
     _fromAccountId = widget.accounts.firstOrNull?.id;
     _toAccountId = widget.accounts.length > 1 ? widget.accounts[1].id : null;
+    final draft = widget.assistantDraft;
+    if (draft == null) return;
+
+    // Get prefill check for highlighting missing fields
+    final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
+    _prefillCheck = prefill.check;
+
+    final fromAccountId = _accountIdForName(draft.fromAccountName);
+    final toAccountId = _accountIdForName(draft.toAccountName);
+    _fromAccountId = fromAccountId ?? _fromAccountId;
+    _toAccountId = toAccountId ?? _toAccountId;
+    final unresolvedAccounts = <String>[
+      if (draft.fromAccountName?.trim().isNotEmpty == true &&
+          fromAccountId == null)
+        'rekening asal “${draft.fromAccountName}”',
+      if (draft.toAccountName?.trim().isNotEmpty == true && toAccountId == null)
+        'rekening tujuan “${draft.toAccountName}”',
+    ];
+    if (unresolvedAccounts.isNotEmpty) {
+      _assistantReferenceWarning =
+          '${unresolvedAccounts.join(' dan ')} belum cocok dengan Data Utama. Pilih rekening yang benar sebelum menyimpan.';
+    }
+    if (draft.amount != null) _amountController.text = draft.amount.toString();
+    if (draft.adminFee != null) {
+      _adminFeeController.text = draft.adminFee.toString();
+    }
+    _noteController.text = draft.note ?? draft.title ?? '';
+    _date = draft.date ?? _date;
+  }
+
+  String? _accountIdForName(String? name) {
+    final normalized = name?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) return null;
+    return widget.accounts
+        .where((account) => account.name.trim().toLowerCase() == normalized)
+        .firstOrNull
+        ?.id;
   }
 
   @override
@@ -4479,6 +4754,27 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
       _ => account.type,
     };
     return '${account.name} · $type';
+  }
+
+  String _fieldLabel(String field) {
+    switch (field) {
+      case 'fromAccountName':
+        return 'Rekening asal';
+      case 'toAccountName':
+        return 'Rekening tujuan';
+      case 'amount':
+        return 'Nominal';
+      case 'date':
+        return 'Tanggal';
+      case 'title':
+        return 'Judul';
+      case 'categoryName':
+        return 'Kategori';
+      case 'note':
+        return 'Catatan';
+      default:
+        return field;
+    }
   }
 
   Future<void> _pickDate() async {
@@ -4536,41 +4832,188 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (widget.assistantDraft != null) ...[
+                  const Text(
+                    'Diisi dari draft Asisten — periksa sebelum simpan.',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 10),
+                  if (_prefillCheck != null &&
+                      _prefillCheck!.missingFields.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange.shade700,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Field yang belum lengkap:',
+                                style: TextStyle(
+                                  color: Colors.orange.shade900,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          ..._prefillCheck!.missingFields.map(
+                            (field) => Padding(
+                              padding: const EdgeInsets.only(left: 20, top: 2),
+                              child: Text(
+                                _fieldLabel(field),
+                                style: TextStyle(
+                                  color: Colors.orange.shade800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 10),
+                  if (_prefillCheck != null &&
+                      _prefillCheck!.warnings.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.amber.shade300),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info_outline,
+                                color: Colors.amber.shade700,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Perhatian:',
+                                style: TextStyle(
+                                  color: Colors.amber.shade900,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          ..._prefillCheck!.warnings.map(
+                            (warning) => Padding(
+                              padding: const EdgeInsets.only(left: 20, top: 2),
+                              child: Text(
+                                warning,
+                                style: TextStyle(
+                                  color: Colors.amber.shade800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_assistantReferenceWarning != null) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.orange.shade300),
+                      ),
+                      child: Text(
+                        _assistantReferenceWarning!,
+                        style: TextStyle(
+                          color: Colors.orange.shade900,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                ],
                 Text(
                   'Pindahkan saldo dari Rekening, Tunai, atau Dompet digital ke tempat lain. Transfer tidak dihitung sebagai pemasukan atau pengeluaran.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 16),
-                SearchableDropdown(
-                  items: widget.accounts,
-                  selectedItem: widget.accounts
-                      .where((account) => account.id == _fromAccountId)
-                      .firstOrNull,
-                  itemLabel: _accountLabel,
-                  itemId: (account) => account.id,
-                  labelText: 'Dari tempat uang',
-                  searchHintText: 'Cari rekening, tunai, atau dompet',
-                  cacheKey: 'transfer.tempat_asal',
-                  onChanged: (account) =>
-                      setState(() => _fromAccountId = account?.id),
-                  validator: (account) =>
-                      account == null ? 'Pilih rekening asal.' : null,
+                Container(
+                  decoration:
+                      _prefillCheck?.missingFields.contains(
+                            'fromAccountName',
+                          ) ==
+                          true
+                      ? BoxDecoration(
+                          border: Border.all(
+                            color: Colors.orange.shade400,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        )
+                      : null,
+                  child: SearchableDropdown(
+                    items: widget.accounts,
+                    selectedItem: widget.accounts
+                        .where((account) => account.id == _fromAccountId)
+                        .firstOrNull,
+                    itemLabel: _accountLabel,
+                    itemId: (account) => account.id,
+                    labelText: 'Dari tempat uang',
+                    searchHintText: 'Cari rekening, tunai, atau dompet',
+                    cacheKey: 'transfer.tempat_asal',
+                    onChanged: (account) =>
+                        setState(() => _fromAccountId = account?.id),
+                    validator: (account) =>
+                        account == null ? 'Pilih rekening asal.' : null,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                SearchableDropdown(
-                  items: widget.accounts,
-                  selectedItem: widget.accounts
-                      .where((account) => account.id == _toAccountId)
-                      .firstOrNull,
-                  itemLabel: _accountLabel,
-                  itemId: (account) => account.id,
-                  labelText: 'Ke tempat uang',
-                  searchHintText: 'Cari rekening, tunai, atau dompet',
-                  cacheKey: 'transfer.tempat_tujuan',
-                  onChanged: (account) =>
-                      setState(() => _toAccountId = account?.id),
-                  validator: (account) =>
-                      account == null ? 'Pilih rekening tujuan.' : null,
+                Container(
+                  decoration:
+                      _prefillCheck?.missingFields.contains('toAccountName') ==
+                          true
+                      ? BoxDecoration(
+                          border: Border.all(
+                            color: Colors.orange.shade400,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        )
+                      : null,
+                  child: SearchableDropdown(
+                    items: widget.accounts,
+                    selectedItem: widget.accounts
+                        .where((account) => account.id == _toAccountId)
+                        .firstOrNull,
+                    itemLabel: _accountLabel,
+                    itemId: (account) => account.id,
+                    labelText: 'Ke tempat uang',
+                    searchHintText: 'Cari rekening, tunai, atau dompet',
+                    cacheKey: 'transfer.tempat_tujuan',
+                    onChanged: (account) =>
+                        setState(() => _toAccountId = account?.id),
+                    validator: (account) =>
+                        account == null ? 'Pilih rekening tujuan.' : null,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -4578,11 +5021,38 @@ class _TransferFormDialogState extends State<_TransferFormDialog> {
                   autofocus: true,
                   keyboardType: TextInputType.number,
                   inputFormatters: [RupiahInputFormatter()],
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Nominal yang dipindahkan',
                     prefixText: 'Rp ',
                     helperText:
                         'Contoh: 250.000. Ini yang masuk ke rekening tujuan.',
+                    border:
+                        _prefillCheck?.missingFields.contains('amount') == true
+                        ? OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.orange.shade400,
+                              width: 2,
+                            ),
+                          )
+                        : null,
+                    enabledBorder:
+                        _prefillCheck?.missingFields.contains('amount') == true
+                        ? OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.orange.shade400,
+                              width: 2,
+                            ),
+                          )
+                        : null,
+                    focusedBorder:
+                        _prefillCheck?.missingFields.contains('amount') == true
+                        ? OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.orange.shade400,
+                              width: 2,
+                            ),
+                          )
+                        : null,
                   ),
                   validator: (value) => parseRupiah(value ?? '') <= 0
                       ? 'Nominal harus lebih dari nol.'

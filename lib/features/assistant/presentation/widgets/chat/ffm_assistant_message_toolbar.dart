@@ -9,6 +9,7 @@ enum FfmAssistantMessageMenuAction {
   cancelDraft,
   approveTeaching,
   technicalDetails,
+  retryGemini,
 }
 
 class FfmAssistantMenuLabel extends StatelessWidget {
@@ -50,6 +51,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
     this.onCancelDraft,
     this.onApproveTeaching,
     this.onShowTechnical,
+    this.onRetryGemini,
     required this.teachingSaved,
     required this.foregroundColor,
     this.actionPlan,
@@ -70,6 +72,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   final VoidCallback? onCancelDraft;
   final VoidCallback? onApproveTeaching;
   final VoidCallback? onShowTechnical;
+  final VoidCallback? onRetryGemini;
   final bool teachingSaved;
   final Color foregroundColor;
   final FfmAssistantActionPlan? actionPlan;
@@ -87,7 +90,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
         onEditDraft != null ||
         onCancelDraft != null ||
         onApproveTeaching != null ||
-        onShowTechnical != null;
+        onShowTechnical != null ||
+        onRetryGemini != null;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 2,
@@ -188,6 +192,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                   case FfmAssistantMessageMenuAction.technicalDetails:
                     onShowTechnical?.call();
                     return;
+                  case FfmAssistantMessageMenuAction.retryGemini:
+                    onRetryGemini?.call();
+                    return;
                 }
               },
               itemBuilder: (context) => [
@@ -242,6 +249,14 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     child: FfmAssistantMenuLabel(
                       icon: Icons.data_object_outlined,
                       label: 'Lihat detail teknis',
+                    ),
+                  ),
+                if (onRetryGemini != null)
+                  const PopupMenuItem(
+                    value: FfmAssistantMessageMenuAction.retryGemini,
+                    child: FfmAssistantMenuLabel(
+                      icon: Icons.refresh_outlined,
+                      label: 'Coba lagi (Gemini)',
                     ),
                   ),
               ],

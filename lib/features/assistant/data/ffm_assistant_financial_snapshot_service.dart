@@ -96,20 +96,31 @@ class FfmAssistantFinancialSnapshotService {
     required String householdId,
     required DateTime now,
     int maxItems = 8,
+    DateTime? startDate,
+    DateTime? endDate,
   }) async {
     final start = DateTime(now.year, now.month);
     final end = DateTime(now.year, now.month + 1);
-    final rows = await (_database.select(_database.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.date)]))
-        .get();
+    final rangeStart = startDate ?? start;
+    final rangeEndExclusive = endDate == null
+        ? end
+        : endDate.add(const Duration(days: 1));
+    final rows =
+        await (_database.select(_database.transactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+            .get();
     final visible = rows
-        .where((row) => !row.date.isBefore(start) && row.date.isBefore(end))
+        .where(
+          (row) =>
+              !row.date.isBefore(rangeStart) &&
+              row.date.isBefore(rangeEndExclusive),
+        )
         .take(maxItems)
         .map((row) {
           final date = row.date.toIso8601String().substring(0, 10);
@@ -118,11 +129,16 @@ class FfmAssistantFinancialSnapshotService {
         })
         .toList(growable: false);
     if (visible.isEmpty) {
-      return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; tidak ada transaksi pemasukan/pengeluaran.';
+      return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; ${_rangeLabel(startDate, endDate)}; tidak ada transaksi pemasukan/pengeluaran.';
     }
-    return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; '
+    return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; ${_rangeLabel(startDate, endDate)}; '
         'items=${visible.join('; ')}. Detail merchant, catatan, rekening, kategori, dan ID tidak tersedia.';
   }
+
+  String _rangeLabel(DateTime? startDate, DateTime? endDate) =>
+      startDate == null || endDate == null
+      ? 'rentang=seluruh_bulan'
+      : 'rentang=${startDate.toIso8601String().substring(0, 10)}..${endDate.toIso8601String().substring(0, 10)}';
 
   /// Daftar nama Data Utama untuk grounding SLM. Nilai saldo, ID, detail
   /// rekening, dan data transaksi sengaja tidak pernah masuk ke prompt.

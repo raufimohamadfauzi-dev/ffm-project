@@ -4,8 +4,11 @@ import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/network/gemini_service.dart';
 import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_answer_composer.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_financial_snapshot_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_gemini_read_capability_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 class _FakeComposer implements FfmAssistantAnswerComposer {
@@ -201,6 +204,38 @@ class _TransactionReadRequestGemini extends GeminiService {
       statusCode: 200,
       message: 'ok',
       text: 'Berikut ringkasan transaksi yang tersedia.',
+    );
+  }
+}
+
+class _DateRangeReadRequestGemini extends GeminiService {
+  int calls = 0;
+  String? finalInstruction;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
+  }) async {
+    calls++;
+    if (calls == 1) {
+      return const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text:
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-08-10","endDate":"2026-08-20"}}',
+      );
+    }
+    finalInstruction = systemInstruction;
+    return const GeminiResult(
+      model: 'gemini-2.5-flash',
+      statusCode: 200,
+      message: 'ok',
+      text: 'Berikut rangkuman transaksi pada rentang yang diminta.',
     );
   }
 }
@@ -440,6 +475,49 @@ void main() {
     expect(gemini.finalInstruction, contains('Transaction digest lokal bounded'));
     expect(intent.pluginMetadata?['usedReadCapability'], 'read.transactions');
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+  });
+
+  test('Gemini dapat meminta rentang tanggal transaksi bounded', () async {
+    final gemini = _DateRangeReadRequestGemini();
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      geminiService: gemini,
+      config: _FakeConfig(),
+      clock: () => DateTime(2026, 8, 28),
+    );
+
+    final intent = await interpreter.interpret(
+      'Bagaimana transaksi pertengahan bulan ini?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(gemini.calls, 2);
+    expect(gemini.finalInstruction, contains('rentang=2026-08-10..2026-08-20'));
+    expect(intent.pluginMetadata?['usedReadCapability'], 'read.transactions');
+  });
+
+  test('filter capability transaksi menolak rentang di luar bulan atau terlalu panjang', () async {
+    final outsideMonth = FfmAssistantProposalJsonService
+        .parseReadCapabilityRequest(
+          '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-31","endDate":"2026-08-01"}}',
+        );
+    final tooLong = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-08-01","endDate":"2026-08-20"}}',
+    );
+
+    expect(outsideMonth.request, isNotNull);
+    await expectLater(
+      FfmGeminiReadCapabilityService(
+        FfmAssistantFinancialSnapshotService(database),
+      ).execute(
+        outsideMonth.request!,
+        householdId: 'test-household',
+        now: DateTime(2026, 8, 28),
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(tooLong.request, isNull);
+    expect(tooLong.error, contains('maksimal 14 hari'));
   });
 
   test(

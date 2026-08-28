@@ -24,12 +24,36 @@ class FfmGeminiReadCapabilityService {
         );
         return _financialSnapshot.buildBoundedPrompt(evidence);
       case 'read.transactions':
+        _validateTransactionRange(request, now);
         return _financialSnapshot.buildCurrentMonthTransactionDigest(
           householdId: householdId,
           now: now,
+          startDate: request.startDate,
+          endDate: request.endDate,
         );
       default:
         throw StateError('Capability baca tidak diizinkan.');
+    }
+  }
+
+  void _validateTransactionRange(
+    FfmAssistantReadCapabilityRequest request,
+    DateTime now,
+  ) {
+    final startDate = request.startDate;
+    final endDate = request.endDate;
+    if (startDate == null && endDate == null) return;
+    if (startDate == null || endDate == null) {
+      throw StateError('Rentang tanggal transaksi tidak lengkap.');
+    }
+    if (endDate.isBefore(startDate) ||
+        endDate.difference(startDate).inDays > 13) {
+      throw StateError('Rentang transaksi tidak valid atau melebihi 14 hari.');
+    }
+    final monthStart = DateTime(now.year, now.month);
+    final monthEnd = DateTime(now.year, now.month + 1);
+    if (startDate.isBefore(monthStart) || !endDate.isBefore(monthEnd)) {
+      throw StateError('Rentang transaksi harus berada dalam bulan berjalan.');
     }
   }
 }

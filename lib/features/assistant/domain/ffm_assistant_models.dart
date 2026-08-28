@@ -575,6 +575,64 @@ class FfmAssistantPendingDraft {
   );
 }
 
+/// Status sementara satu draft di percakapan. Tidak pernah berarti data sudah
+/// tersimpan; status selesai hanya boleh ditetapkan oleh hasil form resmi.
+enum FfmAssistantDraftQueueStatus {
+  ready,
+  needsClarification,
+  openingForm,
+  cancelled,
+  completed,
+}
+
+/// Item antrean draft yang terisolasi dalam satu sesi chat.
+class FfmAssistantDraftQueueItem {
+  const FfmAssistantDraftQueueItem({
+    required this.id,
+    required this.intent,
+    required this.review,
+    required this.targetDestination,
+    required this.createdAt,
+    required this.status,
+    this.knownFieldCount = 0,
+    this.missingFields = const <String>[],
+    this.warningCount = 0,
+  });
+
+  final String id;
+  final FfmAssistantIntent intent;
+  final FfmAssistantDraftReview review;
+  final FfmAssistantDestination? targetDestination;
+  final DateTime createdAt;
+  final FfmAssistantDraftQueueStatus status;
+  final int knownFieldCount;
+  final List<String> missingFields;
+  final int warningCount;
+
+  bool get canOpen =>
+      status == FfmAssistantDraftQueueStatus.ready && review.canContinue;
+
+  FfmAssistantDraftQueueItem copyWith({
+    FfmAssistantIntent? intent,
+    FfmAssistantDraftReview? review,
+    FfmAssistantDestination? targetDestination,
+    FfmAssistantDraftQueueStatus? status,
+    int? knownFieldCount,
+    List<String>? missingFields,
+    int? warningCount,
+  }) => FfmAssistantDraftQueueItem(
+    id: id,
+    intent: intent ?? this.intent,
+    review: review ?? this.review,
+    targetDestination: targetDestination ?? this.targetDestination,
+    createdAt: createdAt,
+    status: status ?? this.status,
+    knownFieldCount: knownFieldCount ?? this.knownFieldCount,
+    missingFields: missingFields ?? this.missingFields,
+    warningCount: warningCount ?? this.warningCount,
+  );
+}
+
 class FfmAssistantChatSession {
   FfmAssistantChatSession()
     : entries = [
@@ -586,10 +644,12 @@ class FfmAssistantChatSession {
 
   final List<FfmAssistantChatEntry> entries;
   final List<FfmAssistantIntent> queuedIntents = [];
+  final List<FfmAssistantDraftQueueItem> draftQueue = [];
   String? lastAssistantText;
   FfmAssistantPendingDialog? pendingDialog;
   FfmAssistantDraftReview? activeDraftReview;
   FfmAssistantIntent? activeDraftIntent;
+  String? activeDraftQueueId;
   FfmAssistantPendingDraft? pendingDraft;
 
   void reset() {
@@ -602,10 +662,12 @@ class FfmAssistantChatSession {
         ),
       );
     queuedIntents.clear();
+    draftQueue.clear();
     lastAssistantText = null;
     pendingDialog = null;
     activeDraftReview = null;
     activeDraftIntent = null;
+    activeDraftQueueId = null;
     pendingDraft = null;
   }
 }

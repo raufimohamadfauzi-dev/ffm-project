@@ -41,7 +41,20 @@ class FfmMemoryLearningService {
     candidates.addAll(correctionCandidates);
 
     // 4. Frequency-based extraction
-    final frequencyCandidates = _extractFrequencyPatterns(userQuery);
+    // Hindari duplikat: kalimat yang sudah menghasilkan fakta spesifik
+    // (mis. jadwal gaji) tidak boleh sekaligus menjadi habit generik dengan
+    // nilai yang sama, agar pending approval dan konteks tetap deterministik.
+    final specificValues = <String>{
+      for (final candidate in candidates)
+        if (candidate.type != FfmMemoryType.habit)
+          candidate.value.trim().toLowerCase(),
+    };
+    final frequencyCandidates =
+        _extractFrequencyPatterns(userQuery).where(
+          (candidate) => !specificValues.contains(
+            candidate.value.trim().toLowerCase(),
+          ),
+        );
     candidates.addAll(frequencyCandidates);
 
     return candidates;

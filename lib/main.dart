@@ -516,6 +516,8 @@ class _AppShellState extends State<AppShell> {
       assistantDraft: _assistantTransactionDraft,
       assistantRequestId: _assistantRequestId,
       onOpenAssistant: _openAssistant,
+      onAssistantDraftSaved: _markActiveAssistantDraftCompleted,
+      onAssistantDraftReturnedWithoutSave: _markActiveAssistantDraftReady,
     ),
     const ActivityPage(), // Menggantikan posisi Anggaran/Analisa sebagai menu harian utama
     const EnvelopeBudgetPage(),
@@ -538,6 +540,42 @@ class _AppShellState extends State<AppShell> {
     _ => 0,
   };
 
+  Future<void> _markActiveAssistantDraftCompleted() async {
+    final id = _assistantSession.activeDraftQueueId;
+    if (id == null || !mounted) return;
+    final index = _assistantSession.draftQueue.indexWhere(
+      (item) => item.id == id,
+    );
+    if (index < 0) return;
+    setState(() {
+      _assistantSession.draftQueue[index] = _assistantSession.draftQueue[index]
+          .copyWith(status: FfmAssistantDraftQueueStatus.completed);
+      _assistantSession
+        ..activeDraftReview = null
+        ..activeDraftIntent = null
+        ..activeDraftQueueId = null;
+      _assistantTransactionDraft = null;
+    });
+  }
+
+  Future<void> _markActiveAssistantDraftReady() async {
+    final id = _assistantSession.activeDraftQueueId;
+    if (id == null || !mounted) return;
+    final index = _assistantSession.draftQueue.indexWhere(
+      (item) => item.id == id,
+    );
+    if (index < 0) return;
+    setState(() {
+      _assistantSession.draftQueue[index] = _assistantSession.draftQueue[index]
+          .copyWith(status: FfmAssistantDraftQueueStatus.ready);
+      _assistantTransactionDraft = null;
+    });
+  }
+
+  Future<void> _syncAssistantDraftAfterForm(Object? result) => result == true
+      ? _markActiveAssistantDraftCompleted()
+      : _markActiveAssistantDraftReady();
+
   Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
     final destination = intent.destination;
     if (destination == null) return;
@@ -549,22 +587,13 @@ class _AppShellState extends State<AppShell> {
           final draft = intent.draft!;
           if (draft.kind == FfmAssistantDraftKind.income ||
               draft.kind == FfmAssistantDraftKind.expense) {
-            await Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => TransactionFormPage(
-                  initialType: draft.kind == FfmAssistantDraftKind.income
-                      ? TransactionType.income
-                      : TransactionType.expense,
-                  initialAmount: draft.amount,
-                  initialAccountName: draft.kind == FfmAssistantDraftKind.income
-                      ? draft.toAccountName
-                      : draft.fromAccountName,
-                  initialCategoryName: draft.categoryName,
-                  initialNote: draft.note ?? draft.title,
-                  initialDate: draft.date,
-                ),
-              ),
-            );
+            // Form resmi dibuka oleh TransactionListPage agar hasil simpan
+            // dapat diverifikasi sebelum status antrean draft diubah.
+            setState(() {
+              _index = 1;
+              _assistantTransactionDraft = draft;
+              _assistantRequestId++;
+            });
           } else {
             setState(() {
               _index = 1;
@@ -580,8 +609,12 @@ class _AppShellState extends State<AppShell> {
         if (draft?.kind == FfmAssistantDraftKind.budget) {
           await Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  EnvelopeBudgetPage(assistantAmount: draft?.amount),
+              builder: (_) => EnvelopeBudgetPage(
+                assistantAmount: draft?.amount,
+                assistantCategoryName: draft?.categoryName,
+                onAssistantDraftResult: (saved) =>
+                    _syncAssistantDraftAfterForm(saved),
+              ),
             ),
           );
         } else {
@@ -595,7 +628,7 @@ class _AppShellState extends State<AppShell> {
         setState(() => _index = 4);
       case FfmAssistantDestination.masterData:
         final draft = intent.draft;
-        await Navigator.of(context).push(
+        final createdId = await Navigator.of(context).push<String>(
           MaterialPageRoute(
             builder: (_) => MasterDataPage(
               assistantTab: draft?.kind == FfmAssistantDraftKind.masterData
@@ -613,12 +646,16 @@ class _AppShellState extends State<AppShell> {
                       draft?.categoryName == 'profil'
                   ? draft?.title
                   : null,
+              returnOnCreate: draft?.kind == FfmAssistantDraftKind.masterData,
             ),
           ),
         );
+        if (draft?.kind == FfmAssistantDraftKind.masterData) {
+          await _syncAssistantDraftAfterForm(createdId != null);
+        }
       case FfmAssistantDestination.assets:
         final draft = intent.draft;
-        await Navigator.of(context).push(
+        final saved = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (_) => draft?.kind == FfmAssistantDraftKind.asset
                 ? AssetFormPage(
@@ -631,9 +668,12 @@ class _AppShellState extends State<AppShell> {
                 : const AssetListPage(),
           ),
         );
+        if (draft?.kind == FfmAssistantDraftKind.asset) {
+          await _syncAssistantDraftAfterForm(saved);
+        }
       case FfmAssistantDestination.goals:
         final draft = intent.draft;
-        await Navigator.of(context).push(
+        final saved = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (_) => draft?.kind == FfmAssistantDraftKind.goal
                 ? GoalFormPage(
@@ -644,10 +684,13 @@ class _AppShellState extends State<AppShell> {
                 : const GoalListPage(),
           ),
         );
+        if (draft?.kind == FfmAssistantDraftKind.goal) {
+          await _syncAssistantDraftAfterForm(saved);
+        }
       case FfmAssistantDestination.liabilities:
         final draft = intent.draft;
         if (draft?.kind == FfmAssistantDraftKind.liability) {
-          await Navigator.of(context).push(
+          final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (_) => LiabilityFormPage(
                 initialName: draft!.partyName,
@@ -655,8 +698,9 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
           );
+          await _syncAssistantDraftAfterForm(saved);
         } else if (draft?.kind == FfmAssistantDraftKind.receivable) {
-          await Navigator.of(context).push(
+          final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (_) => ReceivableFormPage(
                 initialName: draft!.partyName,
@@ -664,6 +708,7 @@ class _AppShellState extends State<AppShell> {
               ),
             ),
           );
+          await _syncAssistantDraftAfterForm(saved);
         } else {
           setState(() => _index = 4);
         }

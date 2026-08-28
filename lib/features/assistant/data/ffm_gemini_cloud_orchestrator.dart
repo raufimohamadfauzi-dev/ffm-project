@@ -225,7 +225,7 @@ ATURAN WAJIB JAWABAN:
 
 Untuk permintaan perubahan data, jangan klaim sudah menyimpan. Jika pengguna jelas meminta membuat/mencatat, keluarkan proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan tambahkan markdown atau teks lain pada proposal JSON.
 
-Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat, `read.monthly_summary` untuk ringkasan lengkap bulan berjalan, atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID. `read.transactions` boleh memakai `startDate` dan `endDate` berformat YYYY-MM-DD hanya bila keduanya berada pada bulan berjalan dan rentangnya maksimal 14 hari. Jangan pernah meminta capability lain atau mutasi.
+Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID. `read.transactions` boleh memakai `startDate` dan `endDate` berformat YYYY-MM-DD hanya bila keduanya berada pada bulan berjalan dan rentangnya maksimal 14 hari. Jangan pernah meminta capability lain atau mutasi.
 
 KONTEKS TERARAH FFM:
 $context

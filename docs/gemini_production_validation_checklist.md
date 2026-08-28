@@ -12,7 +12,7 @@ Dokumen ini memisahkan pekerjaan yang masih perlu dilakukan setelah arsitektur G
 |---|---|---|
 | Gemini sebagai lawan bicara mode Gemini Cloud | Selesai | Interpreter memakai `FfmGeminiCloudOrchestrator`. |
 | Agent sebagai pemilik data, validasi, draft, dan eksekusi | Selesai | Tidak ada mutasi langsung dari model. |
-| Capability baca bounded | Selesai | `read.summary`, `read.monthly_summary`, dan `read.transactions`. |
+| Capability baca bounded | Selesai | `read.summary` dan `read.transactions`. |
 | Filter tanggal transaksi | Selesai | `startDate` + `endDate`, berpasangan, maksimal 14 hari, bulan berjalan. |
 | Privasi hasil transaksi | Selesai | Maksimal 8 item tanpa merchant, kategori, rekening, catatan, atau ID. |
 | Status sumber jawaban di UI | Selesai | Gemini Cloud, Data lokal FFM, Agent lokal, dan error Gemini dibedakan. |
@@ -35,7 +35,7 @@ Kriteria selesai: semua kasus gagal berhenti aman, tidak menyimpan data, dan men
 ## Tahap B — Rapikan UX eksekusi
 
 - [x] Pastikan semua draft dari Gemini terlihat sebagai **Menunggu konfirmasi**.
-- [x] Tampilkan capability yang dipakai hanya sebagai metadata aman, misalnya “Membaca ringkasan bulan ini”.
+- [x] Tampilkan capability yang dipakai hanya sebagai metadata aman, misalnya "Membaca ringkasan bulan ini".
 - [x] Pastikan error Gemini memiliki aksi yang sesuai: coba lagi atau buka Setup Gemini.
 - [x] Pastikan UI tidak menyebut Gemini ketika jawaban sebenarnya berasal dari data lokal/Agent.
 - [x] Tambah atau perbarui widget test yang relevan.

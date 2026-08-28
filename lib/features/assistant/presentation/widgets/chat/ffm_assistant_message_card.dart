@@ -27,6 +27,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onCorrectMessage,
     this.onConfirmActivity,
     this.onShowTechnical,
+    this.onRetryGemini,
     required this.activityConfirmed,
     this.actionPlan,
     this.visibleText,
@@ -49,6 +50,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onCorrectMessage;
   final VoidCallback? onConfirmActivity;
   final VoidCallback? onShowTechnical;
+  final VoidCallback? onRetryGemini;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
 
@@ -196,6 +198,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 onIntent != null &&
                 intent != null &&
                 (intent.needsTeachingApproval ||
+                    intent.responseOrigin ==
+                        FfmAssistantResponseOrigin.cloudError ||
                     intent.destination != null ||
                     intent.draft != null ||
                     intent.type == FfmAssistantIntentType.exportReport ||
@@ -207,6 +211,10 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onPrimaryAction: onIntent,
             onConfirmActivity: onConfirmActivity,
             onShowTechnical: onShowTechnical,
+            onRetryGemini: intent?.responseOrigin ==
+                    FfmAssistantResponseOrigin.cloudError
+                ? onRetryGemini
+                : null,
             activityConfirmed: activityConfirmed,
             actionPlan: actionPlan,
             onCopyText: onCopyText,

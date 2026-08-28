@@ -91,7 +91,7 @@ Pencarian memory Supabase hanya dilakukan untuk mode Gemini. Mode Agent tidak la
 | Dialog/sapaan tidak menelan pertanyaan | Selesai | Ada regression test khusus. |
 | Riwayat vs sapaan | Selesai | Riwayat dipulihkan sebelum sapaan; `lastAssistantText` diselaraskan. |
 | Aktivitas di mode Gemini | Selesai | Tidak lagi dipotong parser UI lokal. |
-| Tool/result loop Gemini ↔ Agent | Selesai (lingkup awal) | `read.summary` dan `read.transactions` / bulan berjalan melalui loop dua panggilan. |
+| Tool/result loop Gemini ↔ Agent | Selesai (lingkup awal) | `read.summary` dan `read.transactions` / bulan berjalan melalui loop dua panggilan. Filter tanggal transaksi dibatasi ke rentang 14 hari dalam bulan berjalan. |
 | Respons final Gemini dari hasil capability | Selesai (lingkup awal) | Jawaban akhir Gemini memakai snapshot atau digest bounded. |
 | Structured output capability allowlist | Selesai (lingkup awal) | Allowlist eksplisit hanya memuat `read.summary` dan `read.transactions`; capability lain ditolak. |
 | Pengujian API Gemini nyata | Belum | Tes memakai fake Gemini; jangan klaim koneksi produksi sudah terbukti. |
@@ -101,13 +101,13 @@ Pencarian memory Supabase hanya dilakukan untuk mode Gemini. Mode Agent tidak la
 
 ### 1. Perluas kontrak read capability secara bertahap
 
-Jangan memberi Gemini akses umum. Berikutnya tambahkan hanya request read yang dapat diizinkan, satu per satu, misalnya `read.transactions` dengan parameter tanggal/kategori yang tervalidasi:
+Jangan memberi Gemini akses umum. Filter tanggal untuk `read.transactions` sudah tersedia dengan `startDate` dan `endDate` ISO; keduanya wajib berpasangan, maksimal 14 hari, dan harus berada dalam bulan berjalan. Berikutnya tambahkan hanya request read lain yang dapat diizinkan, satu per satu:
 
 ```json
 {
   "formatVersion": "ffm-assistant-proposal-v2",
   "kind": "capability_request",
-  "capabilityId": "read.monthly_summary",
+  "capabilityId": "read.summary",
   "arguments": { "period": "current_month" },
   "userFacingReply": "Saya cek ringkasan bulan ini dulu."
 }
@@ -122,6 +122,8 @@ Implementasi harus:
 5. menampilkan jawaban Gemini hanya sebagai penjelasan fakta tersebut.
 
 Jangan tambahkan capability mutation ke kontrak ini. Mutasi tetap memakai proposal draft v1 yang sudah ada.
+
+Filter kategori, merchant, rekening, dan catatan belum diizinkan karena berisiko membuka detail identitas transaksi. Jangan menambahkannya tanpa desain minimisasi data dan persetujuan eksplisit.
 
 ### 2. Perluas orchestrator tanpa memperlebar hak akses
 

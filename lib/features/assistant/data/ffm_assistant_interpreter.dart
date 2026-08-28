@@ -24,11 +24,14 @@ import '../../../core/network/supabase_service.dart';
 import '../../../core/network/supabase_config.dart';
 import '../domain/ffm_assistant_action_tool.dart';
 import '../domain/ffm_assistant_execution_limits.dart';
+import '../domain/ffm_assistant_draft_validator.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_self_description.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
 import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
+import '../domain/ffm_assistant_work_item.dart';
+import 'ffm_assistant_work_item_service.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import 'ffm_assistant_knowledge_base.dart';
 import '../domain/ffm_agent_harness.dart';
@@ -481,7 +484,7 @@ class FfmAssistantInterpreter {
         .trim();
   }
 
-  Future<List<FfmAssistantIntent>> interpretMany(
+  Future<FfmAssistantUnderstandingResult> interpretMany(
     String rawText, {
     FfmAssistantDestination? currentDestination,
     String? pageContext,
@@ -491,37 +494,51 @@ class FfmAssistantInterpreter {
     ActivityLiveSnapshot? activitySnapshot,
     FfmAssistantRoutingMode? routingMode,
   }) async {
+    final normalized = _normalize(rawText);
     final commands = _splitCompositeCommands(rawText);
     if (commands.length >
         FfmAssistantExecutionLimits.maxSubCommandsPerMessage) {
-      return [
-        FfmAssistantIntent(
-          rawText: rawText,
-          normalizedText: _normalize(rawText),
-          type: FfmAssistantIntentType.unknown,
-          confidence: 1,
-          response: FfmAssistantExecutionLimits.tooComplexMessage,
-        ),
-      ];
+      return FfmAssistantUnderstandingResult(
+        workItems: const [],
+        intents: [
+          FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.unknown,
+            confidence: 1,
+            response: FfmAssistantExecutionLimits.tooComplexMessage,
+          ),
+        ],
+        rawText: rawText,
+        normalizedText: normalized,
+      );
     }
     if (commands.length <= 1) {
-      return [
-        await interpret(
-          rawText,
-          currentDestination: currentDestination,
-          pageContext: pageContext,
-          lastAssistantMessage: lastAssistantMessage,
-          conversationHistory: conversationHistory,
-          capabilityIds: capabilityIds,
-          activitySnapshot: activitySnapshot,
-          routingMode: routingMode,
-        ),
-      ];
+      final intent = _withRequiredDraftClarification(await interpret(
+        rawText,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        lastAssistantMessage: lastAssistantMessage,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+        activitySnapshot: activitySnapshot,
+        routingMode: routingMode,
+      ));
+      return const FfmAssistantWorkItemService().intentsToWorkItems(
+        [intent],
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        supportedForms: capabilityIds
+            .map(_capabilityToDestination)
+            .whereType<FfmAssistantDestination>()
+            .toList(),
+      );
     }
     final results = <FfmAssistantIntent>[];
     for (final command in commands) {
       results.add(
-        await interpret(
+        _withRequiredDraftClarification(await interpret(
           command,
           currentDestination: currentDestination,
           pageContext: pageContext,
@@ -530,10 +547,59 @@ class FfmAssistantInterpreter {
           capabilityIds: capabilityIds,
           activitySnapshot: activitySnapshot,
           routingMode: routingMode,
-        ),
+        )),
       );
     }
-    return results;
+    return const FfmAssistantWorkItemService().intentsToWorkItems(
+      results,
+      rawText,
+      normalized,
+      currentDestination: currentDestination,
+      supportedForms: capabilityIds
+          .map(_capabilityToDestination)
+          .whereType<FfmAssistantDestination>()
+          .toList(),
+    );
+  }
+
+  FfmAssistantDestination? _capabilityToDestination(String capabilityId) {
+    // Map capability IDs to destinations for context
+    // This is a simplified mapping - in practice this would be more comprehensive
+    if (capabilityId.contains('expense') || capabilityId.contains('income')) {
+      return FfmAssistantDestination.transactions;
+    }
+    if (capabilityId.contains('budget')) {
+      return FfmAssistantDestination.budget;
+    }
+    if (capabilityId.contains('goal')) {
+      return FfmAssistantDestination.goals;
+    }
+    if (capabilityId.contains('asset')) {
+      return FfmAssistantDestination.assets;
+    }
+    if (capabilityId.contains('liability')) {
+      return FfmAssistantDestination.liabilities;
+    }
+    if (capabilityId.contains('activity')) {
+      return FfmAssistantDestination.activity;
+    }
+    return null;
+  }
+
+  FfmAssistantIntent _withRequiredDraftClarification(
+    FfmAssistantIntent intent,
+  ) {
+    final draft = intent.draft;
+    if (draft == null || intent.clarification != null) return intent;
+    final requiredFields = FfmAssistantDraftValidator.validate(draft)
+        .where((issue) => issue.blocksContinuation)
+        .map((issue) => issue.field ?? issue.code)
+        .toSet()
+        .toList();
+    if (requiredFields.isEmpty) return intent;
+    final prompt =
+        'Agar draft tidak salah, aku masih perlu ${requiredFields.join(', ')}.';
+    return intent.copyWith(response: prompt, clarification: prompt);
   }
 
   // ── PILAR 1: Multi-Action Chaining ─────────────────────────────────────────

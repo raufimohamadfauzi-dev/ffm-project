@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_work_item.dart';
 import 'package:ffm_manager/features/assistant/presentation/widgets/chat/ffm_assistant_message_card.dart';
 import 'package:ffm_manager/features/assistant/presentation/widgets/chat/ffm_assistant_message_toolbar.dart';
 
@@ -9,6 +10,36 @@ import 'package:ffm_manager/features/assistant/presentation/widgets/chat/ffm_ass
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
 void main() {
+  testWidgets('error Gemini menyediakan aksi coba lagi', (tester) async {
+    const intent = FfmAssistantIntent(
+      rawText: 'cek ringkasan',
+      normalizedText: 'cek ringkasan',
+      type: FfmAssistantIntentType.unknown,
+      responseOrigin: FfmAssistantResponseOrigin.cloudError,
+    );
+    var retried = false;
+
+    await tester.pumpWidget(
+      _wrap(
+        FfmAssistantMessageCard(
+          entry: const FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Gemini tidak tersedia.',
+            intent: intent,
+          ),
+          isSpeaking: false,
+          teachingSaved: false,
+          activityConfirmed: false,
+          primaryActionLabel: 'Coba lagi',
+          onIntent: () => retried = true,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Coba lagi'));
+    expect(retried, isTrue);
+  });
+
   testWidgets(
     'FfmAssistantMessageCard menampilkan tombol Buka dengan ikon open_in_new untuk intent dengan draft',
     (tester) async {
@@ -170,4 +201,124 @@ void main() {
       expect(find.byIcon(Icons.open_in_new), findsNothing);
     },
   );
+
+  testWidgets('ringkasan pemahaman menampilkan jumlah draft yang benar',
+      (tester) async {
+    final workItems = [
+      FfmAssistantWorkItem(
+        id: 'work_1',
+        intent: FfmAssistantIntentType.createExpense,
+        targetDestination: FfmAssistantDestination.transactions,
+        confidence: FfmAssistantWorkItemConfidence.high,
+        knownFields: const [],
+        unknownFields: const [],
+        ambiguousFields: const [],
+      ),
+      FfmAssistantWorkItem(
+        id: 'work_2',
+        intent: FfmAssistantIntentType.createBudget,
+        targetDestination: FfmAssistantDestination.budget,
+        confidence: FfmAssistantWorkItemConfidence.low,
+        knownFields: const [],
+        unknownFields: const ['amount'],
+        ambiguousFields: const [],
+        clarificationQuestion: 'Berapa nominal anggaran?',
+      ),
+    ];
+
+    final result = FfmAssistantUnderstandingResult(
+      workItems: workItems,
+      intents: const [],
+      rawText: 'catat makan lalu buat anggaran',
+      normalizedText: 'catat makan lalu buat anggaran',
+    );
+
+    expect(result.summary, contains('2 pekerjaan'));
+    expect(result.hasReadyItems, isTrue);
+    expect(result.needsClarification, isTrue);
+  });
+
+  testWidgets('ringkasan pemahaman kosong saat tidak ada work item',
+      (tester) async {
+    final result = const FfmAssistantUnderstandingResult(
+      workItems: [],
+      intents: [],
+      rawText: 'pesan tidak valid',
+      normalizedText: 'pesan tidak valid',
+    );
+
+    expect(result.summary, contains('Tidak ada pekerjaan'));
+    expect(result.hasReadyItems, isFalse);
+    expect(result.needsClarification, isFalse);
+  });
+
+  testWidgets('loading state ditampilkan saat streaming aktif', (tester) async {
+    final intent = FfmAssistantIntent(
+      rawText: 'cek ringkasan',
+      normalizedText: 'cek ringkasan',
+      type: FfmAssistantIntentType.queryData,
+      response: 'Memproses...',
+      responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+    );
+
+    await tester.pumpWidget(
+      _wrap(
+        FfmAssistantMessageCard(
+          entry: FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Memproses...',
+            intent: intent,
+          ),
+          visibleText: 'Memproses...',
+          isStreaming: true,
+          isSpeaking: false,
+          teachingSaved: false,
+          activityConfirmed: false,
+          onCopyText: () {},
+        ),
+      ),
+    );
+
+    // Streaming state is indicated by isStreaming flag
+    // The widget should render without error
+    expect(find.text('Memproses...'), findsOneWidget);
+  });
+
+  testWidgets('error provider menampilkan pesan dan tombol coba lagi',
+      (tester) async {
+    const intent = FfmAssistantIntent(
+      rawText: 'cek ringkasan',
+      normalizedText: 'cek ringkasan',
+      type: FfmAssistantIntentType.unknown,
+      response: 'Gemini tidak tersedia saat ini.',
+      responseOrigin: FfmAssistantResponseOrigin.cloudError,
+    );
+
+    var retried = false;
+
+    await tester.pumpWidget(
+      _wrap(
+        FfmAssistantMessageCard(
+          entry: const FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Gemini tidak tersedia saat ini.',
+            intent: intent,
+          ),
+          isSpeaking: false,
+          teachingSaved: false,
+          activityConfirmed: false,
+          primaryActionLabel: 'Coba lagi',
+          onIntent: () => retried = true,
+          onRetryGemini: () => retried = true,
+          onCopyText: () {},
+        ),
+      ),
+    );
+
+    expect(find.text('Gemini tidak tersedia saat ini.'), findsOneWidget);
+    expect(find.text('Coba lagi'), findsOneWidget);
+
+    await tester.tap(find.text('Coba lagi'));
+    expect(retried, isTrue);
+  });
 }

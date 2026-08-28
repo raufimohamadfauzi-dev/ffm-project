@@ -726,6 +726,26 @@ void main() {
     },
   );
 
+  test(
+    'perintah majemuk yang ambigu meminta klarifikasi tanpa menebak draft',
+    () async {
+      final result = await interpreter.interpretMany(
+        'transfer 50 ribu dari Tunai lalu beli makan 20 ribu',
+      );
+
+      expect(result, hasLength(2));
+      final transfer = result.first;
+      expect(transfer.type, FfmAssistantIntentType.createTransfer);
+      expect(transfer.needsClarification, isTrue);
+      expect(transfer.clarification, contains('rekening tujuan'));
+      expect(transfer.draft?.toAccountName, isNull);
+
+      final expense = result.last;
+      expect(expense.type, FfmAssistantIntentType.createExpense);
+      expect(expense.draft?.amount, 20000);
+    },
+  );
+
   test('memahami angka Bahasa Indonesia dan perintah berurutan', () async {
     final intents = await interpreter.interpretMany(
       'hasil panen seratus dua puluh lima ribu ke SeaBank terus beli BBM satu setengah juta dari Tunai',
@@ -752,7 +772,10 @@ void main() {
     expect(FfmAssistantAmountParser.parse('dua ratus ribu'), 200000);
     expect(FfmAssistantAmountParser.parse('tiga puluh lima ribu'), 35000);
     expect(FfmAssistantAmountParser.parse('dua ribu lima ratus'), 2500);
-    expect(FfmAssistantAmountParser.parse('seratus dua puluh lima ribu'), 125000);
+    expect(
+      FfmAssistantAmountParser.parse('seratus dua puluh lima ribu'),
+      125000,
+    );
     expect(FfmAssistantAmountParser.parse('satu juta dua ratus ribu'), 1200000);
     expect(FfmAssistantAmountParser.parse('dua juta lima ratus ribu'), 2500000);
     expect(FfmAssistantAmountParser.parse('lima belas ribu'), 15000);
@@ -765,7 +788,10 @@ void main() {
     final intent = await interpreter.interpret('Berapa harga cabai hari ini?');
 
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
-    expect(intent.response, contains('Koneksi ke otak AI saya (Gemini) belum siap'));
+    expect(
+      intent.response,
+      contains('Koneksi ke otak AI saya (Gemini) belum siap'),
+    );
     expect(intent.response, contains('Setup Sekarang'));
   });
 
