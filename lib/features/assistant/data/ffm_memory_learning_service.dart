@@ -412,7 +412,7 @@ class FfmMemoryLearningService {
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
         confidence: candidate.confidence,
-        approved: !candidate.requiresApproval,
+        approved: !requireApproval && !candidate.requiresApproval,
       ),
       importance: _calculateInitialImportance(candidate),
     );

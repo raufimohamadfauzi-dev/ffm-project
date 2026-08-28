@@ -65,7 +65,7 @@ class _MasterDataPageState extends State<MasterDataPage>
   String? _wifeName;
 
   static const _tabLabels = [
-    'Kategori',
+    'Kategori transaksi & aktivitas',
     'Toko/tempat',
     'Tag',
     'Rekening',
@@ -243,7 +243,11 @@ class _MasterDataPageState extends State<MasterDataPage>
                 id: row.id,
                 name: row.name,
                 subtitle:
-                    '${row.type == 'income' ? 'Pemasukan' : 'Pengeluaran'}${row.parentId == null ? '' : ' · ${parents[row.parentId] ?? 'Subkategori'}'}${_budgetPeriodLabel(row.defaultBudgetPeriod)}',
+                    '${row.type == 'income'
+                        ? 'Pemasukan'
+                        : row.type == 'activity'
+                        ? 'Aktivitas'
+                        : 'Pengeluaran'}${row.parentId == null ? '' : ' · ${parents[row.parentId] ?? 'Subkategori'}'}${_budgetPeriodLabel(row.defaultBudgetPeriod)}',
               ),
             )
             .toList();
@@ -1104,14 +1108,20 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _type,
-                  decoration: const InputDecoration(labelText: 'Jenis'),
+                  decoration: const InputDecoration(
+                    labelText: 'Jenis kategori',
+                    helperText: 'Pilih Aktivitas agar kategori muncul di halaman Aktivitas.',
+                  ),
                   items: const [
                     DropdownMenuItem(
                       value: 'expense',
                       child: Text('Pengeluaran'),
                     ),
                     DropdownMenuItem(value: 'income', child: Text('Pemasukan')),
-                    DropdownMenuItem(value: 'activity', child: Text('Aktivitas')),
+                    DropdownMenuItem(
+                      value: 'activity',
+                      child: Text('Aktivitas'),
+                    ),
                   ],
                   onChanged: (value) => setState(() {
                     _type = value ?? 'expense';

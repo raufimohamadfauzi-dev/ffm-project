@@ -37,6 +37,7 @@ class _FakeGemini extends GeminiService {
   final GeminiResult result;
   var calls = 0;
   String? receivedModel;
+  String? receivedSystemInstruction;
 
   @override
   Future<GeminiResult> chat({
@@ -48,6 +49,7 @@ class _FakeGemini extends GeminiService {
   }) async {
     calls++;
     receivedModel = model;
+    receivedSystemInstruction = systemInstruction;
     return result;
   }
 }
@@ -143,36 +145,30 @@ void main() {
     },
   );
 
-  test(
-    'mode Gemini tetap memakai Agent untuk perintah yang menjadi draft',
-    () async {
-      final gemini = _FakeGemini(
-        const GeminiResult(
-          model: 'gemini-2.5-pro',
-          statusCode: 200,
-          message: 'tidak boleh dipakai untuk mutasi',
-          text: 'tidak boleh dipakai untuk mutasi',
-        ),
-      );
-      final interpreter = FfmAssistantInterpreter(
-        database,
-        config: _FakeConfig(mode: 'agent', verified: true),
-        geminiService: gemini,
-      );
+  test('mode Gemini mengirim perintah transaksi natural ke Gemini untuk dibuat draft', () async {
+    final gemini = _FakeGemini(
+      const GeminiResult(
+        model: 'gemini-2.5-pro',
+        statusCode: 200,
+        message: 'draft transaksi',
+        text: '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Makan","category":"Makanan","fromAccount":"Tunai","note":"","date":"2026-08-28"}}',
+      ),
+    );
+    final interpreter = FfmAssistantInterpreter(
+      database,
+      config: _FakeConfig(mode: 'agent', verified: true),
+      geminiService: gemini,
+    );
 
-      final intent = await interpreter.interpret(
-        'catat beli makan 25rb',
-        routingMode: FfmAssistantRoutingMode.geminiCloud,
-      );
+    final intent = await interpreter.interpret(
+      'catat beli makan 25rb',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
 
-      expect(gemini.calls, 0);
-      expect(intent.draft, isNotNull);
-      expect(
-        intent.responseOrigin,
-        FfmAssistantResponseOrigin.agentOrchestrator,
-      );
-    },
-  );
+    expect(gemini.calls, 1);
+    expect(intent.draft, isNotNull);
+    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+  });
 
   test('mode Gemini sukses diberi origin Gemini Cloud', () async {
     final gateway = _FakeGateway();
@@ -197,10 +193,17 @@ void main() {
 
     final intent = await interpreter.interpret(
       'tolong jelaskan dampak inflasi bagi rencana keuangan keluarga',
+      currentDestination: FfmAssistantDestination.masterData,
+      pageContext:
+          'Konteks layar FFM: Data Utama kategori aktivitas sedang dibuka.',
     );
 
     expect(gemini.calls, 1);
     expect(gemini.receivedModel, 'gemini-2.5-pro');
+    expect(
+      gemini.receivedSystemInstruction,
+      contains('Data Utama kategori aktivitas sedang dibuka'),
+    );
     expect(gateway.calls, 0);
     expect(intent.response, 'Jawaban dari Gemini.');
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);

@@ -66,12 +66,21 @@ abstract final class FfmAssistantScreenContextPolicy {
     final page = FfmAssistantCatalog.findByDestination(activeDestination);
     final pageName = page?.name ?? activeDestination.name;
     final base = 'Konteks layar FFM: Halaman aktif: $pageName.';
-    if (_nameOnlyDestinations.contains(activeDestination)) {
-      return base;
-    }
-
-    final summary = _genericSummary(activeDestination);
-    return _clip('$base Ringkasan layar: $summary');
+    final snapshotSummary = snapshot?.dataSummary?.trim();
+    final summary = snapshotSummary == null || snapshotSummary.isEmpty
+        ? _genericSummary(activeDestination)
+        : snapshotSummary;
+    final filters =
+        snapshot?.activeFilters.entries
+            .where(
+              (entry) =>
+                  entry.key.trim().isNotEmpty && entry.value.trim().isNotEmpty,
+            )
+            .map((entry) => '${entry.key}=${entry.value}')
+            .join(', ') ??
+        '';
+    final filterText = filters.isEmpty ? '' : ' Filter aktif: $filters.';
+    return _clip('$base Ringkasan layar: $summary.$filterText');
   }
 
   static bool isNameOnly(FfmAssistantDestination destination) =>

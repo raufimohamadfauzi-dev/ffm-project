@@ -212,6 +212,14 @@ class AppDatabase extends _$AppDatabase {
       if (from < 43) {
         await m.createTable(harvestEvents);
         await _createHarvestIndexes();
+        if (await _hasColumns('categories', const [
+          'type',
+          'default_budget_period',
+          'is_active',
+          'created_at',
+        ])) {
+          await _seedActivityCategories();
+        }
       }
       if (from < 20) {
         await _seedInitialData();
