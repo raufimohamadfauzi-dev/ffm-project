@@ -57,7 +57,7 @@ void main() {
       );
 
       expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
-      expect(intent.response, contains('Mode Gemini belum siap'));
+      expect(intent.response, contains('belum siap'));
       expect(intent.draft, isNull);
     },
   );
@@ -97,7 +97,7 @@ void main() {
       );
 
       expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
-      expect(intent.response, contains('Mode Gemini belum siap'));
+      expect(intent.response, contains('belum siap'));
       expect(intent.draft, isNull);
     },
   );

@@ -570,30 +570,12 @@ class _ActivityViewState extends State<_ActivityView>
             ),
           ],
         ),
-        floatingActionButton: PopupMenuButton<String>(
-          tooltip: 'Tambah aktivitas',
-          onSelected: (value) {
-            if (value == 'session') _startSession();
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
-              value: 'session',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.timer_outlined),
-                title: Text('Mulai sesi aktivitas'),
-                subtitle: Text(
-                  'Timer dan update berjalan dari awal sampai selesai',
-                ),
-              ),
-            ),
-          ],
-          child: const FloatingActionButton.extended(
-            heroTag: 'activity_add_fab',
-            onPressed: null,
-            icon: Icon(Icons.add),
-            label: Text('Tambah'),
-          ),
+        floatingActionButton: FloatingActionButton.extended(
+          heroTag: 'activity_add_fab',
+          onPressed: _startSession,
+          tooltip: 'Mulai sesi aktivitas',
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah'),
         ),
         body: BlocBuilder<ActivityBloc, ActivityState>(
           builder: (context, state) {

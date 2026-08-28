@@ -46,6 +46,7 @@ class GeminiHeader extends StatelessWidget {
     required this.cloudReady,
     required this.cloudStatusError,
     required this.onRefreshCloudStatus,
+    this.onSetupGemini,
     this.cloudModel,
     this.onOpenMemory,
     this.memoryCount = 0,
@@ -62,6 +63,7 @@ class GeminiHeader extends StatelessWidget {
   final bool cloudReady;
   final String? cloudStatusError;
   final VoidCallback onRefreshCloudStatus;
+  final VoidCallback? onSetupGemini;
   final String? cloudModel;
   final VoidCallback? onOpenMemory;
   final int memoryCount;
@@ -74,21 +76,25 @@ class GeminiHeader extends StatelessWidget {
     final Color statusColor;
     final IconData statusIcon;
     final String statusLabel;
+    final bool showSetupAction;
 
     if (cloudChecking) {
       statusColor = isDark ? const Color(0xFF8B8B8B) : const Color(0xFF8A7E6B);
       statusIcon = Icons.hourglass_top_rounded;
       statusLabel = 'Memeriksa AI';
+      showSetupAction = false;
     } else if (cloudReady) {
       statusColor = isDark ? const Color(0xFF7BA37B) : const Color(0xFF6B7F5B);
       statusIcon = Icons.verified_outlined;
       statusLabel = cloudModel == null || cloudModel!.trim().isEmpty
           ? 'Gemini Cloud siap'
           : 'Gemini Cloud siap · ${cloudModel!.trim()}';
+      showSetupAction = false;
     } else {
       statusColor = isDark ? const Color(0xFFC49A6B) : const Color(0xFFB07A4A);
       statusIcon = Icons.edit_note_outlined;
       statusLabel = cloudStatusError ?? 'Gemini Cloud belum diverifikasi';
+      showSetupAction = onSetupGemini != null;
     }
 
     return Container(
@@ -249,43 +255,71 @@ class GeminiHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          InkWell(
-            onTap: onRefreshCloudStatus,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.10),
+          Row(
+            children: [
+              InkWell(
+                onTap: onRefreshCloudStatus,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: statusColor.withValues(alpha: 0.32),
-                  width: 0.8,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(statusIcon, size: 13, color: statusColor),
-                  const SizedBox(width: 5),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 320),
-                    child: Text(
-                      statusLabel,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 11.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: statusColor.withValues(alpha: 0.32),
+                      width: 0.8,
                     ),
                   ),
-                ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, size: 13, color: statusColor),
+                      const SizedBox(width: 5),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 240),
+                        child: Text(
+                          statusLabel,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              if (showSetupAction) ...[
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: onSetupGemini,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    minimumSize: const Size(0, 24),
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: statusColor.withValues(alpha: 0.15),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: Text(
+                    'Setup Sekarang',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),
     );
+
   }
 }

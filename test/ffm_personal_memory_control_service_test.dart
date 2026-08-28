@@ -117,4 +117,21 @@ void main() {
       isFalse,
     );
   });
+
+  test('save beruntun cepat tetap menghasilkan id unik tanpa saling menimpa',
+      () async {
+    final records = await Future.wait(
+      List.generate(64, (index) {
+        return memories.save(
+          kind: 'answer',
+          triggerText: 'contoh-$index',
+          valueText: 'nilai-$index',
+        );
+      }),
+    );
+
+    final distinctIds = records.map((record) => record.id).toSet();
+    expect(distinctIds, hasLength(64));
+    expect(await memories.readActive(), hasLength(64));
+  });
 }

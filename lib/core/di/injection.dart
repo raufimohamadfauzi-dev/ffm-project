@@ -21,6 +21,10 @@ import '../../features/assistant/data/ffm_activity_habit_learner.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
 import '../../features/assistant/data/ffm_memory_learning_service.dart';
 import '../../features/assistant/data/ffm_memory_maintenance_service.dart';
+import '../../features/assistant/data/ffm_local_model_service.dart';
+import '../../features/assistant/data/ffm_local_inference_queue.dart';
+import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
+import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
@@ -214,20 +218,37 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmCategorySuggestionService(
       database: db,
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
-      advisor: null,
+      advisor: getIt<FfmQwen2VlGateway>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmLocalModelService>(
+    FfmLocalModelService.new,
+  );
+  getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
+    () => FfmQwen2VlInferenceService(
+      FfmSingleInferenceQueue(),
+      healthMonitor: null,
+    ),
+  );
+  getIt.registerLazySingleton<FfmQwen2VlGateway>(
+    () => FfmQwen2VlGateway(
+      getIt<FfmLocalModelService>(),
+      getIt<FfmQwen2VlInferenceService>(),
+      errorLogger: getIt<FfmErrorLoggingService>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
     () => FfmAssistantInterpreter(
       db,
       memory: getIt<FfmAssistantLocalMemory>(),
-      modelGateway: null,
+      modelGateway: getIt<FfmQwen2VlGateway>(),
       diagnostics: getIt<AppDiagnosticsService>(),
       taughtMemory: getIt<FfmAssistantMemoryRepository>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
-      slmReadyCheck: null,
-      answerComposer: null,
+      slmReadyCheck: () async =>
+          await getIt<FfmLocalModelService>().getInstalled() != null,
+      answerComposer: getIt<FfmQwen2VlGateway>(),
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
     ),
   );

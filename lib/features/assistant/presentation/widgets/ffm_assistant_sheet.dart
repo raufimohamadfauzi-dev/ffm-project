@@ -55,6 +55,7 @@ import 'ffm_assistant_message_correction_dialog.dart';
 import 'ffm_assistant_markdown_text.dart';
 import 'ffm_assistant_global_launcher.dart';
 import '../pages/ffm_memory_viewer_page.dart';
+import '../../../settings/presentation/pages/supabase_setup_page.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -178,6 +179,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _listeningSession = 0;
   StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
   Future<void>? _historyRestoreFuture;
+  var _historyWasRestored = false;
 
   // Streaming state
   final _streamingController = FfmStreamingTextController();
@@ -521,6 +523,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _entries
         ..clear()
         ..addAll(restored);
+      _historyWasRestored = true;
+      String? lastAssistantText;
+      for (final entry in restored.reversed) {
+        if (!entry.isUser) {
+          lastAssistantText = entry.text;
+          break;
+        }
+      }
+      widget.session.lastAssistantText = lastAssistantText;
     });
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
@@ -547,9 +558,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _loadRoutingMode();
     _refreshMemoryCount();
     unawaited(_refreshProactiveSuggestion());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _historyRestoreFuture;
+      if (!mounted) return;
       _scrollToEnd(force: true, animated: false);
-      _checkAndInitiateProactiveGreeting();
+      _checkAndInitiateGreetings();
+    });
+  }
+
+  void _checkAndInitiateGreetings() {
+    _checkAndInitiateProactiveGreeting();
+    _checkAndInitiateContextualGreeting();
+  }
+
+  void _checkAndInitiateContextualGreeting() {
+    if (_historyWasRestored || _entries.length > 1) return;
+    // Jika hanya ada pesan welcome bawaan, ganti dengan yang kontekstual.
+    final greeting = _interpreter.getContextualGreeting(
+      widget.currentDestination,
+    );
+    setState(() {
+      _entries.clear();
+      _appendEntry(FfmAssistantChatEntry(isUser: false, text: greeting));
+      widget.session.lastAssistantText = greeting;
     });
   }
 
@@ -624,6 +655,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       });
       unawaited(_refreshProactiveSuggestion());
     }
+  }
+
+  void _openGeminiSetup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
+    ).then((_) => _refreshCloudStatus());
   }
 
   Future<void> _refreshMemoryCount() async {
@@ -871,7 +909,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final stopwatch = Stopwatch()..start();
     _setActiveProcess(
       _routingMode == FfmAssistantRoutingMode.geminiCloud
-          ? 'Tahap 1/2: Mengirim pertanyaan ke Gemini Cloud...'
+          ? 'Tahap 1/2: Gemini Cloud memahami permintaan...'
           : 'Tahap 1/2: Menyiapkan konteks Agent...',
     );
     try {
@@ -1029,8 +1067,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<bool> _tryHandleActivityRequest(String text) async {
     final normalized = text.toLowerCase().trim();
-    if (_routingMode == FfmAssistantRoutingMode.geminiCloud &&
-        RegExp(r'\b(buat|catat|tambah|siapkan)\b').hasMatch(normalized)) {
+    // Pada mode Gemini, semua percakapan Aktivitas masuk ke Gemini dulu.
+    // Proposal aktivitasnya tetap divalidasi dan dieksekusi oleh Agent.
+    if (_routingMode == FfmAssistantRoutingMode.geminiCloud) {
       return false;
     }
     if (!_looksLikeActivityCommand(normalized)) return false;
@@ -2152,6 +2191,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 cloudStatusError: _cloudStatusError,
                 cloudModel: _cloudModel,
                 onRefreshCloudStatus: _refreshCloudStatus,
+                onSetupGemini: _openGeminiSetup,
                 memoryCount: _memoryCount,
                 onOpenMemory: () => Navigator.of(context)
                     .push(

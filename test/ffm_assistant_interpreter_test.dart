@@ -748,12 +748,25 @@ void main() {
     expect(intent.clarification, contains('piutang'));
   });
 
+  test('parser kata-bilangan menangani angka majemuk tanpa membuang sisa', () {
+    expect(FfmAssistantAmountParser.parse('dua ratus ribu'), 200000);
+    expect(FfmAssistantAmountParser.parse('tiga puluh lima ribu'), 35000);
+    expect(FfmAssistantAmountParser.parse('dua ribu lima ratus'), 2500);
+    expect(FfmAssistantAmountParser.parse('seratus dua puluh lima ribu'), 125000);
+    expect(FfmAssistantAmountParser.parse('satu juta dua ratus ribu'), 1200000);
+    expect(FfmAssistantAmountParser.parse('dua juta lima ratus ribu'), 2500000);
+    expect(FfmAssistantAmountParser.parse('lima belas ribu'), 15000);
+    expect(FfmAssistantAmountParser.parse('satu setengah juta'), 1500000);
+    expect(FfmAssistantAmountParser.parse('seribu lima ratus'), 1500);
+    expect(FfmAssistantAmountParser.parse('semiliar'), 1000000000);
+  });
+
   test('menjelaskan status Gemini saat pertanyaan butuh cloud', () async {
     final intent = await interpreter.interpret('Berapa harga cabai hari ini?');
 
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
-    expect(intent.response, contains('Mode Gemini belum siap'));
-    expect(intent.response, contains('Test API Key'));
+    expect(intent.response, contains('Koneksi ke otak AI saya (Gemini) belum siap'));
+    expect(intent.response, contains('Setup Sekarang'));
   });
 
   test(

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 
@@ -79,6 +80,7 @@ class FfmAssistantMemoryRepository {
 
   static const householdId = 'local-household';
   final AppDatabase _db;
+  final _random = Random();
 
   Future<List<FfmAssistantMemoryRecord>> readActive({String? kind}) async {
     final query = _db.select(_db.assistantMemories)
@@ -114,7 +116,8 @@ class FfmAssistantMemoryRepository {
       throw ArgumentError('Jenis, pemicu, dan isi ajaran wajib diisi.');
     }
     final now = DateTime.now();
-    final memoryId = id ?? 'assistant-memory-${now.microsecondsSinceEpoch}';
+    final memoryId = id ??
+        'assistant-memory-${now.microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
     await _db
         .into(_db.assistantMemories)
         .insertOnConflictUpdate(

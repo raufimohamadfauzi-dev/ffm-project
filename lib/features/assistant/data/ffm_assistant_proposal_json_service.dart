@@ -9,6 +9,65 @@ import '../domain/ffm_assistant_models.dart';
 /// Agent/flow resmi FFM.
 class FfmAssistantProposalJsonService {
   static const formatVersion = 'ffm-assistant-proposal-v1';
+  static const capabilityRequestFormatVersion =
+      'ffm-assistant-capability-request-v1';
+
+  /// Membaca permintaan capability Gemini yang sangat sempit. Kontrak ini
+  /// sengaja hanya mengenali capability read-only yang di-allowlist; JSON ini
+  /// bukan action plan dan tidak dapat membawa perintah mutasi.
+  static FfmAssistantReadCapabilityRequestParseResult
+  parseReadCapabilityRequest(String rawText) {
+    final jsonText = _extractJson(rawText.trim());
+    if (jsonText == null) {
+      return const FfmAssistantReadCapabilityRequestParseResult.notRequest();
+    }
+    try {
+      final decoded = jsonDecode(jsonText);
+      if (decoded is! Map ||
+          decoded['formatVersion']?.toString() !=
+              capabilityRequestFormatVersion) {
+        return const FfmAssistantReadCapabilityRequestParseResult.notRequest();
+      }
+      if (decoded['kind']?.toString() != 'read_capability_request') {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Format request capability tidak dikenali.',
+        );
+      }
+      final capabilityId = decoded['capabilityId']?.toString().trim() ?? '';
+      // Capability read yang boleh dipanggil model harus punya adapter hasil
+      // bounded sendiri. Jangan mengizinkan ID registry lain secara otomatis.
+      if (capabilityId != 'read.summary' &&
+          capabilityId != 'read.transactions') {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Capability Gemini tidak diizinkan. Hanya read.summary atau read.transactions yang tersedia.',
+        );
+      }
+      final arguments = decoded['arguments'];
+      if (arguments != null && arguments is! Map) {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Argumen capability harus berupa objek JSON.',
+        );
+      }
+      final period = arguments is Map
+          ? arguments['period']?.toString().trim()
+          : null;
+      if (period != null && period.isNotEmpty && period != 'current_month') {
+        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Capability baca Gemini hanya mendukung periode current_month.',
+        );
+      }
+      return FfmAssistantReadCapabilityRequestParseResult.request(
+        FfmAssistantReadCapabilityRequest(
+          capabilityId: capabilityId,
+          period: 'current_month',
+        ),
+      );
+    } on FormatException {
+      return const FfmAssistantReadCapabilityRequestParseResult.invalid(
+        'JSON request capability belum valid.',
+      );
+    }
+  }
 
   static FfmAssistantProposalParseResult parse(
     String rawText, {
@@ -287,4 +346,31 @@ class FfmAssistantProposalParseResult {
 
   bool get isProposal =>
       draft != null || teachingProposal != null || error != null;
+}
+
+class FfmAssistantReadCapabilityRequest {
+  const FfmAssistantReadCapabilityRequest({
+    required this.capabilityId,
+    required this.period,
+  });
+
+  final String capabilityId;
+  final String period;
+}
+
+class FfmAssistantReadCapabilityRequestParseResult {
+  const FfmAssistantReadCapabilityRequestParseResult._({
+    this.request,
+    this.error,
+  });
+
+  const FfmAssistantReadCapabilityRequestParseResult.notRequest() : this._();
+  const FfmAssistantReadCapabilityRequestParseResult.request(
+    FfmAssistantReadCapabilityRequest request,
+  ) : this._(request: request);
+  const FfmAssistantReadCapabilityRequestParseResult.invalid(String error)
+    : this._(error: error);
+
+  final FfmAssistantReadCapabilityRequest? request;
+  final String? error;
 }

@@ -82,7 +82,7 @@ void main() {
 
       expect(result.ok, isFalse);
       expect(result.statusCode, 401);
-      expect(result.message, contains('ditolak'));
+      expect(result.message, contains('tidak valid'));
       expect(result.diagnosticCode, GeminiDiagnosticCodes.unauthorized);
     },
   );
@@ -149,7 +149,7 @@ void main() {
     expect(result.ok, isFalse);
     expect(result.models, isEmpty);
     expect(result.statusCode, 400);
-    expect(result.message, contains('API key Gemini ditolak'));
+    expect(result.message, contains('tidak valid'));
     expect(result.diagnosticCode, GeminiDiagnosticCodes.invalidRequest);
   });
 

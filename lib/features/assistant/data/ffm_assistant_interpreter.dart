@@ -14,6 +14,7 @@ import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_query_tools.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
+import 'ffm_gemini_read_capability_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_assistant_typo_normalizer.dart';
@@ -67,7 +68,13 @@ class FfmAssistantInterpreter {
        _config = config ?? SupabaseConfig() {
     _personalContextProvider = personalContextProvider;
     _categorySuggestion = categorySuggestion;
+    _modelGateway = modelGateway;
+    _slmReadyCheck = slmReadyCheck;
+    _answerComposer = answerComposer;
     _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
+    _geminiReadCapabilities = FfmGeminiReadCapabilityService(
+      _financialSnapshot,
+    );
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
     _harness = createDefaultHarness(_database);
@@ -76,6 +83,9 @@ class FfmAssistantInterpreter {
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
   FfmCategorySuggestionService? _categorySuggestion;
+  FfmAssistantLocalModelGateway? _modelGateway;
+  Future<bool> Function()? _slmReadyCheck;
+  FfmAssistantAnswerComposer? _answerComposer;
   final FfmAssistantPersonalizationRepository _personalization;
   final FfmAssistantMemoryRepository _taughtMemory;
   FfmPersonalContextProvider? Function()? _personalContextProvider;
@@ -117,11 +127,32 @@ class FfmAssistantInterpreter {
   /// sesi percakapan. Tidak dipersistensikan ke database.
   final _sessionMemory = _FfmSessionEntityMemory();
   late final FfmAssistantFinancialSnapshotService _financialSnapshot;
+  late final FfmGeminiReadCapabilityService _geminiReadCapabilities;
   late final FfmAssistantQueryRegistry _queryRegistry;
   late final FfmAssistantContextualActionRegistry _actionRegistry;
 
   /// Harness modular ala DeepSeek Harness — 14 plugin Mata/Tangan/Logika offline.
   late final FfmAgentHarness _harness;
+
+  /// Memberikan sapaan pembuka yang kontekstual berdasarkan halaman aktif.
+  String getContextualGreeting(FfmAssistantDestination? destination) {
+    if (destination == null) {
+      return 'Hai! Aku Asisten FFM. Ada yang bisa kubantu terkait keuangan keluarga hari ini?';
+    }
+    final page = FfmAssistantCatalog.findByDestination(destination);
+    final pageName = page?.name ?? 'halaman ini';
+
+    return switch (destination) {
+      FfmAssistantDestination.summary => 'Hai! Sedang melihat ringkasan keuangan? Aku bisa bantu menganalisis arus kas atau saldo rekeningmu.',
+      FfmAssistantDestination.transactions => 'Hai! Ingin mencatat sesuatu? Sebutkan saja nominal dan kategorinya, nanti aku siapkan draft-nya.',
+      FfmAssistantDestination.budget => 'Halo! Sedang memantau anggaran? Aku bisa bantu cek pos mana yang hampir habis.',
+      FfmAssistantDestination.goals => 'Halo! Fokus ke target keuangan? Aku bisa bantu hitung sisa setoran yang dibutuhkan.',
+      FfmAssistantDestination.liabilities => 'Hai! Sedang mengelola hutang piutang? Aku bisa bantu catat pinjaman baru.',
+      FfmAssistantDestination.activity => 'Halo! Sedang memantau aktivitas? Aku bisa bantu mencatat kegiatan baru atau durasi perjalanan.',
+      _ =>
+        'Hai! Aku lihat kamu sedang di $pageName. Ada yang bisa kubantu di bagian ini?',
+    };
+  }
 
   Future<String> _buildGeminiContext({
     required String rawText,
@@ -239,17 +270,13 @@ class FfmAssistantInterpreter {
       return _cloudError(
         rawText,
         normalized,
-        'Mode Gemini belum siap. Isi API key, pilih model, lalu tekan Test API Key sampai statusnya berhasil.',
+        'Koneksi ke otak AI saya (Gemini) belum siap. Silakan ketuk tombol "Setup Sekarang" di atas untuk memasukkan Kunci API.',
         model: geminiModel ?? 'belum dipilih',
       );
     }
 
-    final result = await _gemini.chat(
-      apiKey: geminiKey,
-      model: geminiModel,
-      prompt: rawText,
-      systemInstruction:
-          '''
+    final systemInstruction =
+        '''
 Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
 Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data pengguna. Jangan mengarang saldo, nominal, akun, kategori, transaksi, tanggal, atau status penyimpanan.
 
@@ -260,11 +287,18 @@ ATURAN WAJIB JAWABAN:
 - Jangan gunakan bullet point untuk data internal. Gunakan hanya untuk poin jawaban yang relevan.
 - Jika pertanyaan tidak berkaitan dengan data keuangan, jawab seperti asisten biasa yang helpful.
 
-Untuk permintaan perubahan data, jangan klaim sudah menyimpan. Jika pengguna jelas meminta membuat/mencatat, keluarkan proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Kopi","category":"Makanan","fromAccount":"cash","date":"2026-08-28"}}. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan tambahkan markdown atau teks lain pada proposal JSON. Jika konteks tidak memiliki data yang diperlukan, katakan data tersebut belum tersedia.
+Untuk permintaan perubahan data, jangan klaim sudah menyimpan. Jika pengguna jelas meminta membuat/mencatat, keluarkan proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, atau memory. Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Kopi","category":"Makanan","fromAccount":"cash","date":"2026-08-28"}}. Jika wajib kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."}. Jangan tambahkan markdown atau teks lain pada proposal JSON.
+
+Jika jawaban membutuhkan data bulan berjalan yang belum ada di konteks, kamu BOLEH meminta satu capability baca dengan JSON saja. Pilih `read.summary` untuk total/agregat atau `read.transactions` untuk maksimal delapan transaksi terbaru tanpa merchant, rekening, kategori, catatan, maupun ID: {"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}. Jangan pernah meminta capability lain, jangan meminta mutasi, dan tunggu hasil resmi FFM sebelum menjawab angka. Jika konteks tidak memiliki data yang diperlukan, katakan data tersebut belum tersedia.
 
 KONTEKS TERARAH FFM:
 $geminiContext
-''',
+''';
+    var result = await _gemini.chat(
+      apiKey: geminiKey,
+      model: geminiModel,
+      prompt: rawText,
+      systemInstruction: systemInstruction,
     );
     await _recordGeminiUsage(
       code:
@@ -286,6 +320,63 @@ $geminiContext
         statusCode: result.statusCode,
       );
     }
+    final readRequest =
+        FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      result.text!,
+    );
+    if (readRequest.error != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.unknown,
+        confidence: .8,
+        response: readRequest.error,
+        clarification: readRequest.error,
+        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+        pluginName: 'gemini_cloud',
+        pluginCategory: '☁ Gemini · ${result.model}',
+        pluginMetadata: const {'capabilityRequestRejected': true},
+      );
+    }
+    if (readRequest.request != null) {
+      final verifiedFacts = await _geminiReadCapabilities.execute(
+        readRequest.request!,
+        householdId: AppContext.householdId,
+        now: _clock(),
+      );
+      result = await _gemini.chat(
+        apiKey: geminiKey,
+        model: geminiModel,
+        prompt: rawText,
+        systemInstruction:
+            '''$systemInstruction
+
+HASIL CAPABILITY LOKAL TERVERIFIKASI:
+$verifiedFacts
+
+Sekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.''',
+      );
+      await _recordGeminiUsage(
+        code:
+            result.diagnosticCode ??
+            (result.ok
+                ? GeminiDiagnosticCodes.chatSuccess
+                : GeminiDiagnosticCodes.chatError),
+        model: result.model,
+        ok: result.ok,
+        httpStatus: result.statusCode,
+        latency: result.latency,
+      );
+      if (!result.ok) {
+        return _cloudError(
+          rawText,
+          normalized,
+          result.message,
+          model: result.model,
+          statusCode: result.statusCode,
+        );
+      }
+    }
     final proposal = FfmAssistantProposalJsonService.parse(
       result.text!,
       createdAt: _clock(),
@@ -295,6 +386,7 @@ $geminiContext
       'statusCode': result.statusCode,
       'latencyMs': result.latency?.inMilliseconds,
       'proposal': proposal.draft != null || proposal.teachingProposal != null,
+      'usedReadCapability': readRequest.request?.capabilityId,
     };
     if (proposal.error != null) {
       return FfmAssistantIntent(
@@ -346,6 +438,155 @@ $geminiContext
       pluginCategory: '☁ Gemini · ${result.model}',
       pluginMetadata: geminiMetadata,
     );
+  }
+
+  /// Menjawab pertanyaan bebas Mode Agent dengan SLM lokal yang tersedia.
+  ///
+  /// Hanya merangkai jawaban dari fakta terarah yang sudah dibangun oleh aturan
+  /// lokal (tidak boleh mengarang nilai). Mengembalikan null bila SLM tidak
+  /// dipasang, belum siap, sibuk, atau outputnya gagal lolos sanitasi — lalu
+  /// interpreter jatuh ke `_unknown` secara jujur tanpa berpindah provider.
+  Future<FfmAssistantIntent?> _tryLocalModelResponse(
+    String rawText,
+    String normalized, {
+    required FfmAssistantDestination? currentDestination,
+    required String? pageContext,
+    required List<String> capabilityIds,
+  }) async {
+    final readyCheck = _slmReadyCheck;
+    if (readyCheck != null) {
+      try {
+        if (!await readyCheck()) return null;
+      } on Object {
+        return null;
+      }
+    }
+    if (_modelGateway == null && _answerComposer == null) return null;
+
+    final composer = _answerComposer;
+    if (composer != null) {
+      final facts = await _buildLocalAnswerFacts(
+        normalized: normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+      );
+      if (facts.trim().isNotEmpty) {
+        String? answer;
+        try {
+          answer = await composer.composeGroundedAnswer(
+            question: rawText,
+            facts: facts,
+          );
+        } on Object {
+          return null;
+        }
+        final sanitized = FfmAssistantComposedAnswerContract.sanitize(
+          answer ?? '',
+        );
+        if (sanitized != null) {
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.queryData,
+            confidence: .8,
+            response: sanitized,
+            responseOrigin: FfmAssistantResponseOrigin.localSlm,
+            responseMode: FfmAssistantResponseMode.localModel,
+            pluginName: 'slm_generator',
+            pluginCategory: '🧠 SLM Lokal',
+          );
+        }
+      }
+    }
+
+    // Jalur proposal: SLM hanya memberi pemahaman/maksud; teks jawaban yang
+    // boleh dipakai hanyalah pesan bantuan terstruktur — bukan draft mutasi.
+    final gateway = _modelGateway;
+    if (gateway == null) return null;
+    final accounts = await _activeAccounts();
+    final categories = await _activeCategories();
+    final FfmAssistantModelProposal? proposal;
+    try {
+      proposal = await gateway.proposeWithContext(
+        input: rawText,
+        pageContext: pageContext,
+        capabilityIds: capabilityIds,
+        activeAccountNames: accounts.map((account) => account.name).toList(),
+        activeCategoryNames: categories
+            .map((category) => category.name)
+            .toList(),
+      );
+    } on Object {
+      return null;
+    }
+    if (proposal == null || !proposal.isUsable) return null;
+    if (proposal.draft != null) return null;
+    final safeIntents = const {
+      FfmAssistantIntentType.help,
+      FfmAssistantIntentType.outOfDomain,
+    };
+    if (!safeIntents.contains(proposal.intent)) return null;
+    final message = proposal.notes?.trim() ?? proposal.clarification?.trim();
+    if (message == null || message.isEmpty) return null;
+    final sanitized = FfmAssistantComposedAnswerContract.sanitize(message);
+    if (sanitized == null) return null;
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: proposal.intent,
+      confidence: proposal.confidence,
+      response: sanitized,
+      responseOrigin: FfmAssistantResponseOrigin.localSlm,
+      responseMode: FfmAssistantResponseMode.localModel,
+      pluginName: 'slm_local',
+      pluginCategory: '🧠 SLM Lokal',
+      clarification: proposal.clarification,
+    );
+  }
+
+  /// Membangun fakta terarah (bounded, aman-pribadi) untuk penyusun jawaban
+  /// SLM lokal. Tidak pernah menyertakan PIN, token, saldo per transaksi, atau
+  /// data mentah sensitif — hanya ringkasan keuangan dan konteks halaman.
+  Future<String> _buildLocalAnswerFacts({
+    required String normalized,
+    required FfmAssistantDestination? currentDestination,
+    required String? pageContext,
+  }) async {
+    final evidenceScope = FfmAssistantReasoningEvidencePolicy.forRequest(
+      normalized,
+    );
+    final financialContext = evidenceScope.includeFinancialSummary
+        ? _financialSnapshot.buildBoundedPrompt(
+            await _financialSnapshot.readCurrentMonth(
+              householdId: AppContext.householdId,
+              now: _clock(),
+            ),
+          )
+        : '';
+    final masterDataContext = evidenceScope.includeMasterData
+        ? await _financialSnapshot.buildMasterDataContext(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final approvedUserContext = await FfmAssistantUserModelService(
+      _taughtMemory,
+    ).buildContext(query: normalized);
+    final personalizationContext = await _personalization
+        .buildPersonalizedContext(
+          householdId: AppContext.householdId,
+          query: normalized,
+        );
+    return [
+          if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
+          financialContext,
+          masterDataContext,
+          approvedUserContext,
+          personalizationContext,
+        ]
+        .where((value) => value.trim().isNotEmpty)
+        .map((value) => value.trim())
+        .join('\n\n')
+        .trim();
   }
 
   Future<List<FfmAssistantIntent>> interpretMany(
@@ -605,6 +846,8 @@ $geminiContext
     FfmAssistantRoutingMode? routingMode,
   }) async {
     var normalized = _normalize(rawText);
+    final isGeminiConversationMode =
+        routingMode == FfmAssistantRoutingMode.geminiCloud;
     final hasActionVerb = _containsAny(normalized, const [
       'buat',
       'tambah',
@@ -622,6 +865,19 @@ $geminiContext
       'hapus',
       'buka',
     ]);
+    // Kata arah perubahan/pindah yang memicu jalur draft deterministic tetapi
+    // tidak memblokir pertanyaan bebas (mis. "sebaiknya saya jual motor?")
+    // agar Gemini tetap bisa menjawab tanpa membuka gate mutasi.
+    final hasDraftOrientedVerb = _containsAny(normalized, const [
+      'beli',
+      'bayar',
+      'jual',
+      'transfer',
+      'pindahkan',
+      'ubah',
+      'koreksi',
+      'edit',
+    ]);
 
     // Semua guard deterministik berjalan lebih dahulu. Jika tidak menangani
     // permintaan, pertanyaan bebas diteruskan ke Gemini Cloud yang sudah diverifikasi.
@@ -637,15 +893,18 @@ $geminiContext
       );
     }
 
-    // ── PILAR 0: Kesadaran Konteks Percakapan (Conversational Dialogue Turn) ───
-    // Sadari tanggapan pengguna terhadap pertanyaan/sapaan asisten sebelumnya
-    // agar dialog terasa terhubung dan alami (misalnya "ada", "iya", "mau").
-    final conversationalTurn = await _resolveConversationalDialogueTurn(
-      rawText,
-      normalized,
-      lastAssistantMessage: lastAssistantMessage,
-    );
-    if (conversationalTurn != null) return conversationalTurn;
+    // Mode Gemini menjadikan Gemini sebagai lawan bicara utama. Dialog
+    // deterministik hanya dipakai di mode Agent agar kata seperti "mau",
+    // "bisa", atau "sip" dalam pertanyaan normal tidak menelan request
+    // sebelum Gemini sempat memahaminya.
+    if (!isGeminiConversationMode) {
+      final conversationalTurn = await _resolveConversationalDialogueTurn(
+        rawText,
+        normalized,
+        lastAssistantMessage: lastAssistantMessage,
+      );
+      if (conversationalTurn != null) return conversationalTurn;
+    }
 
     final proposal = FfmAssistantProposalJsonService.parse(
       rawText,
@@ -684,10 +943,14 @@ $geminiContext
       return _unknown(rawText, normalized, proposal.error!);
     }
 
-    final userProfileIntent = _parseUserProfileMemory(rawText, normalized);
-    if (userProfileIntent != null) return userProfileIntent;
-    final aliasIntent = _parseAliasMemory(rawText, normalized);
-    if (aliasIntent != null) return aliasIntent;
+    // Gemini menyusun proposal memory pada mode Gemini; mode Agent tetap
+    // menggunakan parser lokal supaya tetap bisa bekerja tanpa cloud.
+    if (!isGeminiConversationMode) {
+      final userProfileIntent = _parseUserProfileMemory(rawText, normalized);
+      if (userProfileIntent != null) return userProfileIntent;
+      final aliasIntent = _parseAliasMemory(rawText, normalized);
+      if (aliasIntent != null) return aliasIntent;
+    }
     normalized = await _memory.applyAliases(normalized);
     normalized = await _taughtMemory.applyAliases(normalized);
 
@@ -718,15 +981,35 @@ $geminiContext
       }
     }
 
-    // --- Cloud Memory Retrieval ---
+    // Memory cloud hanya relevan bagi Gemini. Agent lokal tidak perlu
+    // melakukan request Supabase untuk jawaban deterministiknya.
     String cloudContext = '';
-    try {
-      final cloudMemories = await _supabase.searchMemories(query: normalized);
-      if (cloudMemories.isNotEmpty) {
-        cloudContext =
-            '\n\n**Ingatan tambahan dari Cloud:**\n${cloudMemories.map((m) => '- ${m['content']}').join('\n')}';
-      }
-    } catch (_) {}
+    if (isGeminiConversationMode) {
+      try {
+        final cloudMemories = await _supabase.searchMemories(query: normalized);
+        if (cloudMemories.isNotEmpty) {
+          cloudContext =
+              '\n\n**Ingatan tambahan dari Cloud:**\n${cloudMemories.map((m) => '- ${m['content']}').join('\n')}';
+        }
+      } catch (_) {}
+    }
+
+    // Gemini-first: semua percakapan biasa, termasuk sapaan, penjelasan
+    // fitur, dan pertanyaan singkat, menjadi tanggung jawab Gemini. JSON
+    // proposal yang dikembalikan tetap diparse dan divalidasi oleh FFM;
+    // Gemini tidak pernah menulis state aplikasi secara langsung.
+    if (isGeminiConversationMode) {
+      final geminiIntent = await _tryGeminiResponse(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        conversationHistory: conversationHistory,
+        capabilityIds: capabilityIds,
+        cloudContext: cloudContext,
+      );
+      if (geminiIntent != null) return geminiIntent;
+    }
 
     // Gemini dipanggil setelah guard deterministic dan parser draft selesai.
     // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
@@ -1485,7 +1768,9 @@ $geminiContext
       );
     }
 
-    if (hasActionVerb || FfmAssistantAmountParser.parse(normalized) != null) {
+    if (hasActionVerb ||
+        hasDraftOrientedVerb ||
+        FfmAssistantAmountParser.parse(normalized) != null) {
       final contextualDraft = await _actionRegistry.buildDraft(
         input: rawText,
         activePage: currentDestination,
@@ -1565,6 +1850,25 @@ $geminiContext
         cloudContext: cloudContext,
       );
       if (geminiIntent != null) return geminiIntent;
+    }
+
+    // Jalur jawaban SLM lokal untuk Mode Agent. Pertanyaan bebas tanpa aksi atau
+    // nominal yang tidak terselesaikan aturan deterministik dicoba dijawab oleh
+    // penyusun jawaban lokal yang hanya merangkai fakta terarah dari konteks
+    // (tidak boleh mengarang nilai). Jika SLM tidak siap/sibuk/gagal, tetap
+    // jatuh ke _unknown secara jujur — tidak diam-diam beralih provider.
+    if (routingMode == FfmAssistantRoutingMode.agent &&
+        !hasActionVerb &&
+        !hasDraftOrientedVerb &&
+        !hasAmount) {
+      final localSlmIntent = await _tryLocalModelResponse(
+        rawText,
+        normalized,
+        currentDestination: currentDestination,
+        pageContext: pageContext,
+        capabilityIds: capabilityIds,
+      );
+      if (localSlmIntent != null) return localSlmIntent;
     }
 
     return _unknown(
@@ -1649,7 +1953,7 @@ $geminiContext
         normalizedLast.contains('hai');
 
     // 1. Kasus Penolakan / Selesai ("tidak", "enggak", "belum", "makasih", "cukup", "gak ada")
-    final isNegativeOrDone = _containsAny(normalized, const [
+    final isNegativeOrDone = const {
       'tidak',
       'enggak',
       'nggak',
@@ -1663,7 +1967,10 @@ $geminiContext
       'gak ada',
       'ngga ada',
       'ga ada',
-    ]);
+      'tidak ada',
+      'tidak ada makasih',
+      'tidak ada, makasih',
+    }.contains(normalized);
 
     if (isGreetingLast && isNegativeOrDone) {
       return FfmAssistantIntent(
@@ -1671,12 +1978,13 @@ $geminiContext
         normalizedText: normalized,
         type: FfmAssistantIntentType.help,
         confidence: 0.98,
-        response: 'Baik, tidak masalah! Jika sewaktu-waktu butuh bantuan mencatat transaksi atau mengecek anggaran, tinggal sapa aku lagi ya. Selamat beraktivitas!',
+        response:
+            'Baik, tidak masalah! Jika sewaktu-waktu butuh bantuan mencatat transaksi atau mengecek anggaran, tinggal sapa aku lagi ya. Selamat beraktivitas!',
       );
     }
 
     // 2. Kasus Sapaan & Penawaran Bantuan Afirmatif ("ada", "iya", "mau", "bisa", dsb.)
-    final isAffirmative = _containsAny(normalized, const [
+    final isAffirmative = const {
       'ada',
       'iya',
       'ya',
@@ -1693,7 +2001,10 @@ $geminiContext
       'dong',
       'tentu',
       'boleh',
-    ]);
+      'iya mau',
+      'ya mau',
+      'mau dong',
+    }.contains(normalized);
 
     if (isGreetingLast && isAffirmative) {
       return FfmAssistantIntent(
@@ -6258,8 +6569,8 @@ $geminiContext
     normalizedText: normalized,
     type: FfmAssistantIntentType.unknown,
     confidence: 0,
-    response: 'Gemini belum dapat menjawab. $message',
-    clarification: 'Gemini belum dapat menjawab. $message',
+    response: 'Maaf, saya belum bisa menjawab itu. $message',
+    clarification: 'Maaf, saya belum bisa menjawab itu. $message',
     responseOrigin: FfmAssistantResponseOrigin.cloudError,
     pluginName: 'gemini_cloud_error',
     pluginCategory: '☁ Gemini · $model',
@@ -6488,7 +6799,7 @@ abstract final class FfmAssistantAmountParser {
         .split(RegExp(r'\s+'))
         .where((token) => token.isNotEmpty)
         .toList();
-    const words = <String, int>{
+    const digits = <String, int>{
       'nol': 0,
       'satu': 1,
       'dua': 2,
@@ -6499,56 +6810,83 @@ abstract final class FfmAssistantAmountParser {
       'tujuh': 7,
       'delapan': 8,
       'sembilan': 9,
-      'sepuluh': 10,
-      'sebelas': 11,
-      'seratus': 100,
-      'seribu': 1000,
-      'sejuta': 1000000,
-      'semiliar': 1000000000,
     };
-    var total = 0;
-    var current = 0;
-    var found = false;
+
+    // Parsa satu "ruas" angka tanpa skala ribuan/jutaan/miliaran di ekornya.
+    // Contoh: ["dua","ratus","lima","puluh"] -> 250; ["satu","setengah"] -> 1.5.
+    num parseChunkValue(List<String> words) {
+      var chunkTotal = 0.0;
+      for (var index = 0; index < words.length; index++) {
+        final token = words[index];
+        final next = index + 1 < words.length ? words[index + 1] : null;
+        if (token == 'setengah') {
+          chunkTotal += .5;
+        } else if (digits.containsKey(token)) {
+          var value = digits[token]!.toDouble();
+          if (next == 'puluh') {
+            value *= 10;
+            index++;
+          } else if (next == 'belas') {
+            value += 10;
+            index++;
+          } else if (next == 'ratus') {
+            value *= 100;
+            index++;
+          }
+          chunkTotal += value;
+        } else if (token == 'sepuluh' || token == 'sebelas') {
+          chunkTotal += token == 'sepuluh' ? 10 : 11;
+        } else if (token == 'seratus') {
+          chunkTotal += 100;
+        } else if (token == 'puluh') {
+          chunkTotal += 10;
+        } else if (token == 'ratus') {
+          chunkTotal += 100;
+        }
+      }
+      return chunkTotal;
+    }
+
+    var total = 0.0;
+    var chunk = <String>[];
+    var foundScale = false;
+    var chunkHasNumeral = false;
+
+    void flushScale(num scale) {
+      final value = parseChunkValue(chunk);
+      total += (value == 0 ? 1 : value) * scale;
+      chunk = <String>[];
+      foundScale = true;
+    }
+
     for (var index = 0; index < tokens.length; index++) {
       final token = tokens[index];
-      if (token == 'seribu') {
-        final amount = current == 0 ? 1000 : current * 1000;
-        return total + amount;
-      } else if (token == 'sejuta') {
-        final amount = current == 0 ? 1000000 : current * 1000000;
-        return total + amount;
-      } else if (token == 'semiliar') {
-        final amount = current == 0 ? 1000000000 : current * 1000000000;
-        return total + amount;
-      } else if (words.containsKey(token)) {
-        current += words[token]!;
-        found = true;
+      final next = index + 1 < tokens.length ? tokens[index + 1] : null;
+      if (token == 'ribu' || token == 'seribu') {
+        flushScale(1000);
+      } else if (token == 'juta' || token == 'sejuta') {
+        flushScale(1000000);
+      } else if (token == 'miliar' || token == 'semiliar') {
+        flushScale(1000000000);
       } else if (token == 'setengah' &&
-          index + 1 < tokens.length &&
-          const ['ribu', 'juta', 'miliar'].contains(tokens[index + 1])) {
-        final multiplier = switch (tokens[index + 1]) {
-          'ribu' => 1000,
-          'juta' => 1000000,
-          'miliar' => 1000000000,
-          _ => 1,
-        };
-        return total + ((current + .5) * multiplier).round();
-      } else if (token == 'belas') {
-        current += 10;
-      } else if (token == 'puluh') {
-        final lastDigit = current % 10;
-        current = current - lastDigit + (lastDigit == 0 ? 10 : lastDigit * 10);
-      } else if (token == 'ratus') {
-        current = (current == 0 ? 1 : current) * 100;
-      } else if (token == 'ribu') {
-        return total + (current == 0 ? 1 : current) * 1000;
-      } else if (token == 'juta') {
-        return total + (current == 0 ? 1 : current) * 1000000;
-      } else if (token == 'miliar') {
-        return total + (current == 0 ? 1 : current) * 1000000000;
+          next != null &&
+          const ['ribu', 'juta', 'miliar'].contains(next)) {
+        chunk.add(token);
+        chunkHasNumeral = true;
+      } else {
+        if (digits.containsKey(token) ||
+            token == 'sepuluh' ||
+            token == 'sebelas' ||
+            token == 'seratus') {
+          chunkHasNumeral = true;
+        }
+        chunk.add(token);
       }
     }
-    return found ? total + current : null;
+
+    final tail = parseChunkValue(chunk);
+    if (!foundScale && !chunkHasNumeral) return null;
+    return (total + tail).round();
   }
 }
 

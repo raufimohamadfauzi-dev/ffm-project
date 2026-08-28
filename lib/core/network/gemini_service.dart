@@ -137,14 +137,14 @@ class GeminiService {
 
   String _statusMessage(int statusCode, [String? body]) {
     final lowerBody = body?.toLowerCase() ?? '';
-    if (lowerBody.contains('api key not valid') || lowerBody.contains('invalid api key')) return 'API key Gemini ditolak (HTTP $statusCode).';
+    if (lowerBody.contains('api key not valid') || lowerBody.contains('invalid api key')) return 'Kunci API Gemini tidak valid. Silakan periksa kembali di Pengaturan.';
     return switch (statusCode) {
-      400 => 'Gemini menolak request (HTTP 400). Model atau format request tidak valid.',
-      401 || 403 => 'API key Gemini ditolak (HTTP $statusCode).',
-      404 => 'Model Gemini tidak ditemukan atau tidak tersedia untuk endpoint ini (HTTP 404).',
-      429 => 'Kuota atau rate limit Gemini tercapai (HTTP 429).',
-      >= 500 => 'Layanan Gemini bermasalah sementara (HTTP $statusCode).',
-      _ => 'Gemini mengembalikan HTTP $statusCode.',
+      400 => 'Permintaan tidak dipahami oleh Gemini (HTTP 400). Coba gunakan kalimat lain.',
+      401 || 403 => 'Akses Gemini ditolak. Pastikan Kunci API sudah benar dan memiliki kuota.',
+      404 => 'Model Gemini tidak ditemukan. Coba pilih model lain di Pengaturan.',
+      429 => 'Batas pemakaian Gemini tercapai untuk saat ini. Silakan coba lagi nanti.',
+      >= 500 => 'Layanan Gemini sedang mengalami gangguan teknis. Mohon tunggu beberapa saat.',
+      _ => 'Terjadi kendala saat menghubungi Gemini (HTTP $statusCode).',
     };
   }
 
