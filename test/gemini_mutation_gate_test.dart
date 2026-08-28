@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:ffm_manager/core.network/gemini_service.dart';
+import 'package:ffm_manager/core/network/gemini_service.dart';
 
 class _GateFakeClient extends http.BaseClient {
   String? lastBody;
