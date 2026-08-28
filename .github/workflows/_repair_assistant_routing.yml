@@ -1,0 +1,149 @@
+name: apply assistant routing hardening
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch routing and tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          interpreter = Path('lib/features/assistant/data/ffm_assistant_interpreter.dart')
+          text = interpreter.read_text()
+
+          old_verb_block = """    final hasDraftVerb = _containsAny(normalized, const [
+      'buat',
+      'tambah',
+      'catat',
+      'beli',
+      'bayar',
+      'jual',
+      'rekam',
+      'siapkan draft',
+      'simpan sebagai',
+      'ingat bahwa',
+      'ingat saya',
+    ]);"""
+          new_verb_block = """    // Kata seperti \"beli\", \"bayar\", dan \"jual\" adalah bahasa transaksi,
+    // bukan bukti bahwa pengguna meminta mutasi. Proposal Gemini hanya boleh
+    // dipicu oleh verba mutasi yang eksplisit; parser deterministic tetap
+    // menangani transaksi natural yang memiliki detail cukup.
+    final hasDraftVerb = _containsAny(normalized, const [
+      'buat',
+      'tambahkan',
+      'tambah',
+      'catat',
+      'masukkan',
+      'rekam',
+      'siapkan draft',
+      'simpan sebagai',
+      'ubah',
+      'hapus',
+      'ingat bahwa',
+      'ingat saya',
+    ]);"""
+          if old_verb_block not in text:
+              raise SystemExit('expected draft verb block not found')
+          text = text.replace(old_verb_block, new_verb_block, 1)
+
+          anchor = """    final result = await _gemini.chat(
+      apiKey: geminiKey,
+      model: geminiModel,
+      prompt: rawText,
+      systemInstruction:
+          '''"""
+          replacement = """    final mutationProposalAllowed = _containsAny(normalized, const [
+      'buat',
+      'tambahkan',
+      'tambah',
+      'catat',
+      'masukkan',
+      'rekam',
+      'siapkan draft',
+      'simpan sebagai',
+      'ubah',
+      'hapus',
+      'ingat bahwa',
+      'ingat saya',
+    ]);
+
+    final result = await _gemini.chat(
+      apiKey: geminiKey,
+      model: geminiModel,
+      prompt: rawText,
+      systemInstruction:
+          '''"""
+          if anchor not in text:
+              raise SystemExit('expected Gemini call anchor not found')
+          text = text.replace(anchor, replacement, 1)
+
+          old_policy = """Untuk permintaan perubahan data, jangan mengklaim sudah menyimpan data. Jika pengguna jelas meminta membuat atau mencatat sesuatu, keluarkan proposal JSON saja"""
+          new_policy = """Untuk permintaan perubahan data, jangan mengklaim sudah menyimpan data. Nilai MUTATION_PROPOSAL_ALLOWED di bawah adalah pengaman dari aplikasi. Jika bernilai false, JANGAN keluarkan proposal JSON jenis mutasi walaupun kata seperti beli, bayar, jual, makan, buat, atau ubah muncul; jawab sebagai pertanyaan/penjelasan dan jangan mengaku ada perubahan data. Jika bernilai true dan pengguna jelas meminta membuat atau mencatat sesuatu, keluarkan proposal JSON saja"""
+          if old_policy not in text:
+              raise SystemExit('expected Gemini policy text not found')
+          text = text.replace(old_policy, new_policy, 1)
+
+          context_anchor = """KONTEKS TERARAH FFM:\n$geminiContext\n''',"""
+          context_replacement = """KONTEKS TERARAH FFM:\n$geminiContext\n\nMUTATION_PROPOSAL_ALLOWED: $mutationProposalAllowed\nPrioritas sumber kebenaran untuk fakta state aplikasi: SQL/application snapshot dan page snapshot adalah authoritative; memory dan riwayat percakapan hanya konteks non-authoritative dan tidak boleh mengalahkan fakta authoritative.\n''',"""
+          if context_anchor not in text:
+              raise SystemExit('expected context anchor not found')
+          text = text.replace(context_anchor, context_replacement, 1)
+
+          interpreter.write_text(text)
+
+          test = Path('test/ffm_gemini_routing_test.dart')
+          test_text = test.read_text()
+          test_anchor = """    expect(gemini.receivedSystemInstruction,\n      contains('Data Utama kategori aktivitas sedang dibuka'),\n    );"""
+          test_replacement = """    expect(
+      gemini.receivedSystemInstruction,
+      contains('Data Utama kategori aktivitas sedang dibuka'),
+    );
+    expect(
+      gemini.receivedSystemInstruction,
+      contains('MUTATION_PROPOSAL_ALLOWED: false'),
+    );
+    expect(
+      gemini.receivedSystemInstruction,
+      contains('SQL/application snapshot dan page snapshot adalah authoritative'),
+    );"""
+          if test_anchor not in test_text:
+              raise SystemExit('expected routing test anchor not found')
+          test_text = test_text.replace(test_anchor, test_replacement, 1)
+          test.write_text(test_text)
+
+          # Add a positive regression check for explicit mutation language.
+          positive_anchor = """    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);\n  });\n\n  test('mode Gemini sukses diberi origin Gemini Cloud'"""
+          positive_replacement = """    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    expect(
+      gemini.receivedSystemInstruction,
+      contains('MUTATION_PROPOSAL_ALLOWED: true'),
+    );
+  });
+
+  test('mode Gemini sukses diberi origin Gemini Cloud'"""
+          if positive_anchor not in test_text:
+              raise SystemExit('expected positive routing test anchor not found')
+          test_text = test_text.replace(positive_anchor, positive_replacement, 1)
+          test.write_text(test_text)
+
+          workflow = Path('.github/workflows/_repair_assistant_routing.yml')
+
+          import subprocess
+          subprocess.run(['rm', '-f', str(workflow)], check=True)
+          subprocess.run(['git', 'config', 'user.name', 'ffm-repair-bot'], check=True)
+          subprocess.run(['git', 'config', 'user.email', 'actions@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'add', 'lib/features/assistant/data/ffm_assistant_interpreter.dart', 'test/ffm_gemini_routing_test.dart', '.github/workflows/_repair_assistant_routing.yml'], check=True)
+          subprocess.run(['git', 'commit', '-m', 'fix: harden Gemini mutation proposal gating'], check=True)
+          subprocess.run(['git', 'push', 'origin', 'HEAD:main'], check=True)
