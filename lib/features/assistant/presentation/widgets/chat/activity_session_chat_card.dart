@@ -8,19 +8,27 @@ class ActivitySessionChatCard extends StatelessWidget {
     required this.title,
     required this.category,
     required this.duration,
+    this.sessionId,
     this.isActive = true,
     this.checkpoints = const [],
     this.childSessions = const [],
     this.lastCheckpoint,
+    this.onFinish,
+    this.onUpdate,
+    this.onChat,
   });
 
   final String title;
   final String category;
   final String duration;
+  final String? sessionId;
   final bool isActive;
   final List<Map<String, dynamic>> checkpoints;
   final List<Map<String, dynamic>> childSessions;
   final String? lastCheckpoint;
+  final VoidCallback? onFinish;
+  final VoidCallback? onUpdate;
+  final VoidCallback? onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +250,99 @@ class ActivitySessionChatCard extends StatelessWidget {
               ],
             ),
           ],
+
+          // Quick-Action Buttons (hanya untuk sesi aktif)
+          if (isActive && (onFinish != null || onUpdate != null || onChat != null)) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF252F30) : Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: borderCard),
+              ),
+              child: Row(
+                children: [
+                  if (onFinish != null)
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.check_circle_outline,
+                        label: 'Selesai',
+                        color: const Color(0xFF4CAF50),
+                        onPressed: onFinish!,
+                      ),
+                    ),
+                  if (onFinish != null && onUpdate != null) const SizedBox(width: 6),
+                  if (onUpdate != null)
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.edit_note,
+                        label: 'Update',
+                        color: primaryColor,
+                        onPressed: onUpdate!,
+                      ),
+                    ),
+                  if ((onFinish != null || onUpdate != null) && onChat != null) const SizedBox(width: 6),
+                  if (onChat != null)
+                    Expanded(
+                      child: _QuickActionButton(
+                        icon: Icons.chat_bubble_outline,
+                        label: 'Chat',
+                        color: isDark ? const Color(0xFFC9B8A8) : const Color(0xFF8B6F47),
+                        onPressed: onChat!,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: .1),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

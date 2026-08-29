@@ -322,7 +322,7 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         await startSession(
           title: title,
-          category: 'lainnya',
+          category: intent.category.isNotEmpty ? intent.category : 'Lainnya',
           kind: intent.kind,
           notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
         );
@@ -334,7 +334,7 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         await startSession(
           title: title,
-          category: 'lainnya',
+          category: intent.category.isNotEmpty ? intent.category : 'Lainnya',
           kind: intent.kind,
           notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
           parentSessionId: parentId,

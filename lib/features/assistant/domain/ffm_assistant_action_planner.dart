@@ -53,16 +53,22 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.masterData => 'draft.master_data',
         FfmAssistantDraftKind.merchantUpdate => 'draft.merchant_update',
         FfmAssistantDraftKind.merchantArchive => 'draft.merchant_archive',
+        FfmAssistantDraftKind.merchantDelete => 'draft.merchant_delete',
         FfmAssistantDraftKind.tagUpdate => 'draft.tag_update',
         FfmAssistantDraftKind.tagArchive => 'draft.tag_archive',
+        FfmAssistantDraftKind.tagDelete => 'draft.tag_delete',
         FfmAssistantDraftKind.incomeSourceUpdate =>
           'draft.income_source_update',
         FfmAssistantDraftKind.incomeSourceArchive =>
           'draft.income_source_archive',
+        FfmAssistantDraftKind.incomeSourceDelete =>
+          'draft.income_source_delete',
         FfmAssistantDraftKind.categoryUpdate => 'draft.category_update',
         FfmAssistantDraftKind.categoryArchive => 'draft.category_archive',
+        FfmAssistantDraftKind.categoryDelete => 'draft.category_delete',
         FfmAssistantDraftKind.accountUpdate => 'draft.account_update',
         FfmAssistantDraftKind.accountArchive => 'draft.account_archive',
+        FfmAssistantDraftKind.accountDelete => 'draft.account_delete',
         FfmAssistantDraftKind.reminder => 'draft.reminder',
         FfmAssistantDraftKind.reminderUpdate => 'draft.reminder_update',
         FfmAssistantDraftKind.activity => 'draft.activity',
@@ -98,6 +104,9 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
         FfmAssistantDraftKind.activityArchive => 'draft.activity_archive',
         FfmAssistantDraftKind.activityDelete => 'draft.activity_delete',
+        FfmAssistantDraftKind.activityFinish => 'draft.activity_finish',
+        FfmAssistantDraftKind.activityUpdate => 'draft.activity_update',
+        FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
       };
       steps.add(
         FfmAssistantActionStep(
@@ -123,6 +132,9 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
         FfmAssistantDraftKind.activityArchive => 'mutate.archive',
         FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.activityFinish => 'mutate.update',
+        FfmAssistantDraftKind.activityUpdate => 'mutate.update',
+        FfmAssistantDraftKind.activityEdit => 'mutate.update',
         FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
         FfmAssistantDraftKind.taskUpdate => 'mutate.update',
         FfmAssistantDraftKind.taskComplete => 'mutate.update',
@@ -140,14 +152,19 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
         FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
         FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
+        FfmAssistantDraftKind.merchantDelete => 'sensitive.delete',
         FfmAssistantDraftKind.tagUpdate => 'mutate.update',
         FfmAssistantDraftKind.tagArchive => 'mutate.archive',
+        FfmAssistantDraftKind.tagDelete => 'sensitive.delete',
         FfmAssistantDraftKind.incomeSourceUpdate => 'mutate.update',
         FfmAssistantDraftKind.incomeSourceArchive => 'mutate.archive',
+        FfmAssistantDraftKind.incomeSourceDelete => 'sensitive.delete',
         FfmAssistantDraftKind.categoryUpdate => 'mutate.update',
         FfmAssistantDraftKind.categoryArchive => 'mutate.archive',
+        FfmAssistantDraftKind.categoryDelete => 'sensitive.delete',
         FfmAssistantDraftKind.accountUpdate => 'mutate.update',
         FfmAssistantDraftKind.accountArchive => 'mutate.archive',
+        FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
         FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
         FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
         _ => 'mutate.save_draft',
@@ -169,7 +186,10 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.transactionDelete =>
               'verify.transaction_mutation',
             FfmAssistantDraftKind.activityArchive ||
-            FfmAssistantDraftKind.activityDelete => 'verify.activity_mutation',
+            FfmAssistantDraftKind.activityDelete ||
+            FfmAssistantDraftKind.activityFinish ||
+            FfmAssistantDraftKind.activityUpdate ||
+            FfmAssistantDraftKind.activityEdit => 'verify.activity_mutation',
             FfmAssistantDraftKind.dailyNote ||
             FfmAssistantDraftKind.dailyNoteArchive =>
               'verify.daily_note_mutation',
@@ -192,16 +212,21 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.recurringTransactionArchive =>
               'verify.recurring_transaction_mutation',
             FfmAssistantDraftKind.merchantUpdate ||
-            FfmAssistantDraftKind.merchantArchive => 'verify.merchant_mutation',
+            FfmAssistantDraftKind.merchantArchive ||
+            FfmAssistantDraftKind.merchantDelete => 'verify.merchant_mutation',
             FfmAssistantDraftKind.tagUpdate ||
-            FfmAssistantDraftKind.tagArchive => 'verify.tag_mutation',
+            FfmAssistantDraftKind.tagArchive ||
+            FfmAssistantDraftKind.tagDelete => 'verify.tag_mutation',
             FfmAssistantDraftKind.incomeSourceUpdate ||
-            FfmAssistantDraftKind.incomeSourceArchive =>
+            FfmAssistantDraftKind.incomeSourceArchive ||
+            FfmAssistantDraftKind.incomeSourceDelete =>
               'verify.income_source_mutation',
             FfmAssistantDraftKind.categoryUpdate ||
-            FfmAssistantDraftKind.categoryArchive => 'verify.category_mutation',
+            FfmAssistantDraftKind.categoryArchive ||
+            FfmAssistantDraftKind.categoryDelete => 'verify.category_mutation',
             FfmAssistantDraftKind.accountUpdate ||
-            FfmAssistantDraftKind.accountArchive => 'verify.account_mutation',
+            FfmAssistantDraftKind.accountArchive ||
+            FfmAssistantDraftKind.accountDelete => 'verify.account_mutation',
             FfmAssistantDraftKind.budgetUpdate ||
             FfmAssistantDraftKind.budgetArchive => 'verify.budget_mutation',
             FfmAssistantDraftKind.goalUpdate ||

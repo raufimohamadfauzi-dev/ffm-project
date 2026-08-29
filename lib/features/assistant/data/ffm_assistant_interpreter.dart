@@ -18,6 +18,7 @@ import 'ffm_gemini_read_capability_service.dart';
 import 'ffm_gemini_cloud_orchestrator.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_personal_context_provider.dart';
+import 'ffm_personal_memory_service.dart';
 import 'ffm_assistant_typo_normalizer.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../core/network/supabase_service.dart';
@@ -59,10 +60,12 @@ class FfmAssistantInterpreter {
     FfmCategorySuggestionService? categorySuggestion,
     GeminiService? geminiService,
     SupabaseConfig? config,
+    FfmPersonalMemoryService? personalMemoryService,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
        _taughtMemory = taughtMemory ?? FfmAssistantMemoryRepository(_database),
+       _personalMemoryService = personalMemoryService ?? FfmPersonalMemoryService(taughtMemory ?? FfmAssistantMemoryRepository(_database)),
        _clock = clock ?? DateTime.now,
        _diagnostics = diagnostics ?? AppDiagnosticsService(),
        _selfDescription =
@@ -98,6 +101,7 @@ class FfmAssistantInterpreter {
   FfmAssistantAnswerComposer? _answerComposer;
   final FfmAssistantPersonalizationRepository _personalization;
   final FfmAssistantMemoryRepository _taughtMemory;
+  final FfmPersonalMemoryService _personalMemoryService;
   FfmPersonalContextProvider? Function()? _personalContextProvider;
   final DateTime Function() _clock;
   final AppDiagnosticsService _diagnostics;
@@ -145,23 +149,54 @@ class FfmAssistantInterpreter {
   /// Harness modular ala DeepSeek Harness — 14 plugin Mata/Tangan/Logika offline.
   late final FfmAgentHarness _harness;
 
+  /// Intent tambahan dari Gemini (untuk kasus multi-draft).
+  List<FfmAssistantIntent> _pendingGeminiExtraIntents = const [];
+
   /// Memberikan sapaan pembuka yang kontekstual berdasarkan halaman aktif.
   String getContextualGreeting(FfmAssistantDestination? destination) {
     if (destination == null) {
-      return 'Hai! Aku Asisten FFM. Ada yang bisa kubantu terkait keuangan keluarga hari ini?';
+      return _randomGreeting();
     }
     final page = FfmAssistantCatalog.findByDestination(destination);
     final pageName = page?.name ?? 'halaman ini';
 
+    final now = DateTime.now();
     return switch (destination) {
-      FfmAssistantDestination.summary => 'Hai! Sedang melihat ringkasan keuangan? Aku bisa bantu menganalisis arus kas atau saldo rekeningmu.',
-      FfmAssistantDestination.transactions => 'Hai! Ingin mencatat sesuatu? Sebutkan saja nominal dan kategorinya, nanti aku siapkan draft-nya.',
-      FfmAssistantDestination.budget => 'Halo! Sedang memantau anggaran? Aku bisa bantu cek pos mana yang hampir habis.',
-      FfmAssistantDestination.goals => 'Halo! Fokus ke target keuangan? Aku bisa bantu hitung sisa setoran yang dibutuhkan.',
-      FfmAssistantDestination.liabilities => 'Hai! Sedang mengelola hutang piutang? Aku bisa bantu catat pinjaman baru.',
-      FfmAssistantDestination.activity => 'Halo! Sedang memantau aktivitas? Aku bisa bantu mencatat kegiatan baru atau durasi perjalanan.',
-      _ =>
-        'Hai! Aku lihat kamu sedang di $pageName. Ada yang bisa kubantu di bagian ini?',
+      FfmAssistantDestination.summary => [
+        'Hai! Lagi lihat ringkasan? Aku bisa bantu analisis.',
+        'Ringkasan keuangan nih? Mau dicek?',
+        'Sedang melihat ringkasan? Ada yang perlu dijelaskan?',
+      ][now.millisecondsSinceEpoch % 3],
+      FfmAssistantDestination.transactions => [
+        'Mau catat transaksi? Sebutkan nominal dan kategorinya.',
+        'Ingin mencatat? Ketik saja detailnya.',
+        'Transaksi baru? Siap bantu catat.',
+      ][now.millisecondsSinceEpoch % 3],
+      FfmAssistantDestination.budget => [
+        'Anggaran sedang dipantau? Aku bisa bantu cek.',
+        'Mau lihat pos anggaran mana yang hampir habis?',
+        'Cek anggaran yuk. Ada yang perlu diperiksa?',
+      ][now.millisecondsSinceEpoch % 3],
+      FfmAssistantDestination.goals => [
+        'Target keuangan nih? Aku bantu hitung.',
+        'Mau cek sisa setoran target?',
+        'Fokus ke target? Ada yang bisa dibantu.',
+      ][now.millisecondsSinceEpoch % 3],
+      FfmAssistantDestination.liabilities => [
+        'Hutang piutang sedang dikelola? Siap bantu catat.',
+        'Mau catat pinjaman baru?',
+        'Kelola hutang yuk. Ada yang perlu dicatat?',
+      ][now.millisecondsSinceEpoch % 3],
+      FfmAssistantDestination.activity => [
+        'Aktivitas sedang dipantau? Mau catat yang baru?',
+        'Mau catat durasi perjalanan?',
+        'Aktivitas baru? Ketik saja detailnya.',
+      ][now.millisecondsSinceEpoch % 3],
+      _ => [
+        'Aku lihat kamu di $pageName. Ada yang perlu?',
+        'Sedang di $pageName? Ada yang bisa dibantu?',
+        '$pageName nih. Mau lihat data atau catat sesuatu?',
+      ][now.millisecondsSinceEpoch % 3],
     };
   }
 
@@ -231,8 +266,11 @@ class FfmAssistantInterpreter {
     );
     final enrichedContext = await _withPersonalContext(reasoningContext);
     final boundedContext = enrichedContext.toBoundedPrompt();
+    final personalMemoryContext = await _personalMemoryService.buildContext();
     return [
       if (boundedContext.trim().isNotEmpty) boundedContext,
+      if (personalMemoryContext.trim().isNotEmpty)
+        'Memori pribadi user:\n$personalMemoryContext',
       if (cloudContext.trim().isNotEmpty)
         'Memory cloud yang relevan:\n$cloudContext',
       if (conversationHistory != null && conversationHistory.trim().isNotEmpty)
@@ -240,7 +278,7 @@ class FfmAssistantInterpreter {
     ].join('\n\n');
   }
 
-  Future<FfmAssistantIntent?> _tryGeminiResponse(
+  Future<_InterpretResult?> _tryGeminiResponse(
     String rawText,
     String normalized, {
     required FfmAssistantDestination? currentDestination,
@@ -248,6 +286,8 @@ class FfmAssistantInterpreter {
     required String? conversationHistory,
     required List<String> capabilityIds,
     required String cloudContext,
+    required List<Account> accounts,
+    required List<Category> categories,
   }) async {
     final geminiContext = await _buildGeminiContext(
       rawText: rawText,
@@ -264,15 +304,15 @@ class FfmAssistantInterpreter {
       householdId: AppContext.householdId,
     );
     if (!turn.ok) {
-      return _cloudError(
+      return _InterpretResult.single(_cloudError(
         rawText,
         normalized,
         turn.errorMessage!,
         model: turn.model,
         statusCode: turn.statusCode,
-      );
+      ));
     }
-    final proposal = FfmAssistantProposalJsonService.parse(
+    final proposal = FfmAssistantProposalJsonService.parseMultiple(
       turn.text!,
       createdAt: _clock(),
     );
@@ -280,11 +320,11 @@ class FfmAssistantInterpreter {
       'model': turn.model,
       'statusCode': turn.statusCode,
       'latencyMs': turn.latency?.inMilliseconds,
-      'proposal': proposal.draft != null || proposal.teachingProposal != null,
+      'proposal': proposal.drafts.isNotEmpty || proposal.teachingProposals.isNotEmpty,
       'usedReadCapability': turn.usedReadCapability,
     };
     if (proposal.error != null) {
-      return FfmAssistantIntent(
+      return _InterpretResult.single(FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.unknown,
@@ -293,36 +333,56 @@ class FfmAssistantInterpreter {
         clarification: proposal.error,
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${turn.model}',
+        pluginCategory: 'gemini_cloud',
         pluginMetadata: geminiMetadata,
-      );
+      ));
     }
-    if (proposal.draft != null) {
-      final draftIntent = _intentForDraft(rawText, normalized, proposal.draft!);
-      return draftIntent.copyWith(
+    if (proposal.drafts.length > 1) {
+      final draftIntents = proposal.drafts.map((d) {
+        final validated = _validateGeminiDraft(d, accounts, categories);
+        final intent = _intentForDraft(rawText, normalized, validated);
+        return intent.copyWith(
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'gemini_cloud',
+          pluginCategory: 'gemini_cloud_multi',
+          pluginMetadata: geminiMetadata,
+        );
+      }).toList();
+      final count = proposal.drafts.length;
+      final kinds = proposal.drafts.map((d) => d.kind.name).join(', ');
+      draftIntents.first = draftIntents.first.copyWith(
         response:
-            'Gemini sudah menyusun draft ${proposal.draft!.kind.name}. Cek detailnya, koreksi bila perlu, lalu konfirmasi sebelum disimpan.',
+            'Gemini sudah menyusun $count draft sekaligus ($kinds). Cek detail masing-masing, koreksi bila perlu, lalu konfirmasi.',
+      );
+      return _InterpretResult.multi(draftIntents);
+    }
+    if (proposal.drafts.isNotEmpty) {
+      final draft = _validateGeminiDraft(proposal.drafts.first, accounts, categories);
+      final draftIntent = _intentForDraft(rawText, normalized, draft);
+      return _InterpretResult.single(draftIntent.copyWith(
+        response:
+            'Gemini sudah menyusun draft ${draft.kind.name}. Cek detailnya, koreksi bila perlu, lalu konfirmasi sebelum disimpan.',
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${turn.model}',
+        pluginCategory: 'gemini_cloud',
         pluginMetadata: geminiMetadata,
-      );
+      ));
     }
-    if (proposal.teachingProposal != null) {
-      return FfmAssistantIntent(
+    if (proposal.teachingProposals.isNotEmpty) {
+      return _InterpretResult.single(FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.teachMemory,
         confidence: .9,
-        response: 'Gemini mengusulkan memory baru. Tinjau isinya lalu pilih “Simpan ajaran” jika memang benar.',
-        teachingProposal: proposal.teachingProposal,
+        response: 'Gemini mengusulkan memory baru. Tinjau isinya lalu pilih \u201cSimpan ajaran\u201d jika memang benar.',
+        teachingProposal: proposal.teachingProposals.first,
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
         pluginName: 'gemini_cloud',
-        pluginCategory: '☁ Gemini · ${turn.model}',
+        pluginCategory: 'gemini_cloud',
         pluginMetadata: geminiMetadata,
-      );
+      ));
     }
-    return FfmAssistantIntent(
+    return _InterpretResult.single(FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
       type: FfmAssistantIntentType.queryData,
@@ -330,9 +390,9 @@ class FfmAssistantInterpreter {
       response: turn.text,
       responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
       pluginName: 'gemini_cloud',
-      pluginCategory: '☁ Gemini · ${turn.model}',
+      pluginCategory: 'gemini_cloud',
       pluginMetadata: geminiMetadata,
-    );
+    ));
   }
 
   /// Menjawab pertanyaan bebas Mode Agent dengan SLM lokal yang tersedia.
@@ -524,8 +584,10 @@ class FfmAssistantInterpreter {
         activitySnapshot: activitySnapshot,
         routingMode: routingMode,
       ));
+      final allIntents = [intent, ..._pendingGeminiExtraIntents];
+      _pendingGeminiExtraIntents = const [];
       return const FfmAssistantWorkItemService().intentsToWorkItems(
-        [intent],
+        allIntents,
         rawText,
         normalized,
         currentDestination: currentDestination,
@@ -842,6 +904,10 @@ class FfmAssistantInterpreter {
     // Dengan urutan ini, PIN, diagnostik, konfirmasi, dan query lokal tidak
     // pernah diserahkan kepada teks bebas dari model.
 
+    // Fetch master data early for Gemini validation
+    final accounts = await _activeAccounts();
+    final categories = await _activeCategories();
+
     // Fallback rule-based
     if (normalized.isEmpty) {
       return _unknown(
@@ -952,12 +1018,39 @@ class FfmAssistantInterpreter {
       } catch (_) {}
     }
 
+    // ── GREETING & SAPAAN (Deterministik) ─────────────────────────────────────
+    // Sapaan simple dijawab langsung tanpa ke Gemini untuk respons cepat.
+    if (_containsAny(normalized, const [
+      'halo',
+      'hai',
+      'hello',
+      'hi',
+      'hei',
+      'assalamualaikum',
+      "assalamu'alaikum",
+      'selamat pagi',
+      'selamat siang',
+      'selamat sore',
+      'selamat malam',
+      'tes',
+      'test',
+      'ping',
+    ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.help,
+        confidence: 1,
+        response: _randomGreeting(),
+      );
+    }
+
     // Gemini-first: semua percakapan biasa, termasuk sapaan, penjelasan
     // fitur, dan pertanyaan singkat, menjadi tanggung jawab Gemini. JSON
     // proposal yang dikembalikan tetap diparse dan divalidasi oleh FFM;
     // Gemini tidak pernah menulis state aplikasi secara langsung.
     if (isGeminiConversationMode) {
-      final geminiIntent = await _tryGeminiResponse(
+      final geminiResult = await _tryGeminiResponse(
         rawText,
         normalized,
         currentDestination: currentDestination,
@@ -965,8 +1058,14 @@ class FfmAssistantInterpreter {
         conversationHistory: conversationHistory,
         capabilityIds: capabilityIds,
         cloudContext: cloudContext,
+        accounts: accounts,
+        categories: categories,
       );
-      if (geminiIntent != null) return geminiIntent;
+      if (geminiResult != null) {
+        final list = geminiResult.toList();
+        _pendingGeminiExtraIntents = list.length > 1 ? list.sublist(1) : const [];
+        return list.first;
+      }
     }
 
     // Gemini dipanggil setelah guard deterministic dan parser draft selesai.
@@ -1109,32 +1208,6 @@ class FfmAssistantInterpreter {
         destination: basicQuestion.page.destination,
         confidence: .98,
         response: FfmAssistantCatalog.answerBasicQuestion(basicQuestion),
-      );
-    }
-
-    // ── GREETING & SAPAAN ──────────────────────────────────────────────────
-    if (_containsAny(normalized, const [
-      'halo',
-      'hai',
-      'hello',
-      'hi',
-      'hei',
-      'assalamualaikum',
-      "assalamu'alaikum",
-      'selamat pagi',
-      'selamat siang',
-      'selamat sore',
-      'selamat malam',
-      'tes',
-      'test',
-      'ping',
-    ])) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.help,
-        confidence: 1,
-        response: 'Halo! Aku Asisten FFM, siap membantu mencatat transaksi, mengelola anggaran, atau memeriksa saldo.\n\nAda yang bisa kubantu hari ini?',
       );
     }
 
@@ -1643,7 +1716,7 @@ class FfmAssistantInterpreter {
     // memvalidasi draft dan menjadi satu-satunya jalur konfirmasi/penyimpanan.
     if (routingMode == FfmAssistantRoutingMode.geminiCloud &&
         _looksLikeDraftRequest(normalized)) {
-      final geminiDraftIntent = await _tryGeminiResponse(
+      final geminiDraftResult = await _tryGeminiResponse(
         rawText,
         normalized,
         currentDestination: currentDestination,
@@ -1651,8 +1724,14 @@ class FfmAssistantInterpreter {
         conversationHistory: conversationHistory,
         capabilityIds: capabilityIds,
         cloudContext: cloudContext,
+        accounts: accounts,
+        categories: categories,
       );
-      if (geminiDraftIntent != null) return geminiDraftIntent;
+      if (geminiDraftResult != null) {
+        final list = geminiDraftResult.toList();
+        _pendingGeminiExtraIntents = list.length > 1 ? list.sublist(1) : const [];
+        return list.first;
+      }
     }
 
     // ── MASTER DATA CREATION (early guard) ───────────────────────────────────────
@@ -1678,7 +1757,7 @@ class FfmAssistantInterpreter {
     if (routingMode == FfmAssistantRoutingMode.geminiCloud &&
         !hasActionVerb &&
         FfmAssistantAmountParser.parse(normalized) == null) {
-      final geminiIntent = await _tryGeminiResponse(
+      final geminiResult = await _tryGeminiResponse(
         rawText,
         normalized,
         currentDestination: currentDestination,
@@ -1686,16 +1765,20 @@ class FfmAssistantInterpreter {
         conversationHistory: conversationHistory,
         capabilityIds: capabilityIds,
         cloudContext: cloudContext,
+        accounts: accounts,
+        categories: categories,
       );
-      if (geminiIntent != null) return geminiIntent;
+      if (geminiResult != null) {
+        final list = geminiResult.toList();
+        _pendingGeminiExtraIntents = list.length > 1 ? list.sublist(1) : const [];
+        return list.first;
+      }
     }
 
     // ── HARNESS DISPATCH ──────────────────────────────────────────────────────
     // Plugin Mata / Tangan / Logika berjalan lebih dahulu untuk perintah
     // terstruktur (catat, buka, hapus, dll). Pertanyaan bebas diteruskan ke
     // Gemini setelah aturan deterministic selesai.
-    final accounts = await _activeAccounts();
-    final categories = await _activeCategories();
 
     final harnessResult = await _harness.dispatch(
       FfmHarnessContext(
@@ -1798,7 +1881,7 @@ class FfmAssistantInterpreter {
     if (routingMode != FfmAssistantRoutingMode.agent &&
         !hasActionVerb &&
         !hasAmount) {
-      final geminiIntent = await _tryGeminiResponse(
+      final geminiResult = await _tryGeminiResponse(
         rawText,
         normalized,
         currentDestination: currentDestination,
@@ -1806,8 +1889,14 @@ class FfmAssistantInterpreter {
         conversationHistory: conversationHistory,
         capabilityIds: capabilityIds,
         cloudContext: cloudContext,
+        accounts: accounts,
+        categories: categories,
       );
-      if (geminiIntent != null) return geminiIntent;
+      if (geminiResult != null) {
+        final list = geminiResult.toList();
+        _pendingGeminiExtraIntents = list.length > 1 ? list.sublist(1) : const [];
+        return list.first;
+      }
     }
 
     // Jalur jawaban SLM lokal untuk Mode Agent. Pertanyaan bebas tanpa aksi atau
@@ -3034,6 +3123,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Toko/Tempat',
       ),
+      FfmAssistantDraftKind.merchantDelete => (
+        type: FfmAssistantIntentType.deleteMerchant,
+        destination: FfmAssistantDestination.masterData,
+        action: 'hapus Toko/Tempat',
+      ),
       FfmAssistantDraftKind.tagUpdate => (
         type: FfmAssistantIntentType.updateTag,
         destination: FfmAssistantDestination.masterData,
@@ -3043,6 +3137,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveTag,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Tag',
+      ),
+      FfmAssistantDraftKind.tagDelete => (
+        type: FfmAssistantIntentType.deleteTag,
+        destination: FfmAssistantDestination.masterData,
+        action: 'hapus Tag',
       ),
       FfmAssistantDraftKind.incomeSourceUpdate => (
         type: FfmAssistantIntentType.updateIncomeSource,
@@ -3054,6 +3153,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Sumber Pemasukan',
       ),
+      FfmAssistantDraftKind.incomeSourceDelete => (
+        type: FfmAssistantIntentType.deleteIncomeSource,
+        destination: FfmAssistantDestination.masterData,
+        action: 'hapus Sumber Pemasukan',
+      ),
       FfmAssistantDraftKind.categoryUpdate => (
         type: FfmAssistantIntentType.updateCategory,
         destination: FfmAssistantDestination.masterData,
@@ -3064,6 +3168,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Kategori',
       ),
+      FfmAssistantDraftKind.categoryDelete => (
+        type: FfmAssistantIntentType.deleteCategory,
+        destination: FfmAssistantDestination.masterData,
+        action: 'hapus Kategori',
+      ),
       FfmAssistantDraftKind.accountUpdate => (
         type: FfmAssistantIntentType.updateAccount,
         destination: FfmAssistantDestination.masterData,
@@ -3073,6 +3182,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.archiveAccount,
         destination: FfmAssistantDestination.masterData,
         action: 'arsip Rekening',
+      ),
+      FfmAssistantDraftKind.accountDelete => (
+        type: FfmAssistantIntentType.deleteAccount,
+        destination: FfmAssistantDestination.masterData,
+        action: 'hapus Rekening',
       ),
       FfmAssistantDraftKind.reminder => (
         type: FfmAssistantIntentType.createReminder,
@@ -3219,6 +3333,21 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.activity,
         action: 'hapus aktivitas',
       ),
+      FfmAssistantDraftKind.activityFinish => (
+        type: FfmAssistantIntentType.finishActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'selesai aktivitas',
+      ),
+      FfmAssistantDraftKind.activityUpdate => (
+        type: FfmAssistantIntentType.updateActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'update aktivitas',
+      ),
+      FfmAssistantDraftKind.activityEdit => (
+        type: FfmAssistantIntentType.editActivity,
+        destination: FfmAssistantDestination.activity,
+        action: 'edit aktivitas',
+      ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
       final target = _masterDataTargetName(draft.categoryName);
@@ -3258,6 +3387,14 @@ class FfmAssistantInterpreter {
       if (draft.fromAccountName == null) missing.add('rekening asal');
       if (draft.toAccountName == null) missing.add('rekening tujuan');
     }
+    if (draft.kind == FfmAssistantDraftKind.expense) {
+      if (draft.fromAccountName == null) missing.add('rekening sumber');
+      if (draft.categoryName == null) missing.add('kategori');
+    }
+    if (draft.kind == FfmAssistantDraftKind.income) {
+      if (draft.toAccountName == null) missing.add('rekening tujuan');
+      if (draft.categoryName == null) missing.add('kategori');
+    }
     if ((draft.kind == FfmAssistantDraftKind.liability ||
             draft.kind == FfmAssistantDraftKind.receivable) &&
         (draft.partyName == null || draft.partyName!.isEmpty)) {
@@ -3291,9 +3428,31 @@ class FfmAssistantInterpreter {
         ),
       _ => null,
     };
-    final clarification = missing.isEmpty
-        ? safetyWarning
-        : 'Aku sudah menyiapkan draft ${config.action}, tapi masih butuh ${missing.join(', ')}.';
+    String? clarification;
+    if (missing.isNotEmpty) {
+      final needsMasterData = missing.contains('kategori') ||
+          missing.contains('rekening sumber') ||
+          missing.contains('rekening tujuan') ||
+          missing.contains('rekening asal');
+      if (needsMasterData) {
+        final missingItems = <String>[];
+        if (missing.contains('kategori')) missingItems.add('kategori');
+        if (missing.contains('rekening sumber') ||
+            missing.contains('rekening tujuan') ||
+            missing.contains('rekening asal')) {
+          missingItems.add('rekening');
+        }
+        clarification =
+            '${missingItems.map((e) => e[0].toUpperCase() + e.substring(1)).join(' dan ')} belum ada di Data Utama. '
+            'Mau buat dulu lewat perintah seperti "buat kategori [nama]" atau "tambah rekening [nama]"? '
+            'Atau sebut nama yang sudah ada di Data Utama.';
+      } else {
+        clarification =
+            'Aku sudah menyiapkan draft ${config.action}, tapi masih butuh ${missing.join(', ')}.';
+      }
+    } else {
+      clarification = safetyWarning;
+    }
     final categoryHint = draft.categoryName == null
         ? ''
         : ' Kategori ${draft.categoryName} sudah aku pilih dari Data Utama.';
@@ -3345,20 +3504,50 @@ class FfmAssistantInterpreter {
     final archive = RegExp(r'^(?:arsip|arsipkan)\s+aktivitas\s+(.+)$')
         .firstMatch(normalized);
     final delete = RegExp(r'^hapus\s+aktivitas\s+(.+)$').firstMatch(normalized);
-    if (archive == null && delete == null) return null;
-    final operation = archive != null ? 'archive' : 'delete';
-    final targetText = (archive?.group(1) ?? delete!.group(1)!).trim();
-    final candidates = await _findActivityCandidates(targetText);
+    final finish = RegExp(r'^(?:selesai(?:kan)?|tutup)\s+aktivitas\s+(.+)$')
+        .firstMatch(normalized);
+    final update = RegExp(r'^(?:update|tambah\s+(?:catatan|checkpoint))\s+aktivitas\s+(.+?)(?:\s*:\s*(.+))?$')
+        .firstMatch(normalized);
+    final edit = RegExp(r'^(?:edit|ubah|ganti)\s+aktivitas\s+(.+?)(?:\s+jadi\s+|\s+ke\s+)(.+)$')
+        .firstMatch(normalized);
+    
+    if (archive == null && delete == null && finish == null && update == null && edit == null) return null;
+        String operation;
+    String targetText;
+    String? extraText;
+    
+    if (finish != null) {
+      operation = 'finish';
+      targetText = finish.group(1)!.trim();
+      extraText = null;
+    } else if (update != null) {
+      operation = 'update';
+      targetText = update.group(1)!.trim();
+      extraText = update.group(2)?.trim();
+    } else if (edit != null) {
+      operation = 'edit';
+      targetText = edit.group(1)!.trim();
+      extraText = edit.group(2)?.trim();
+    } else if (archive != null) {
+      operation = 'archive';
+      targetText = archive.group(1)!.trim();
+      extraText = null;
+    } else {
+      operation = 'delete';
+      targetText = delete!.group(1)!.trim();
+      extraText = null;
+    }
+    final candidates = await _findActivityCandidates(
+      targetText,
+      activeOnly: operation == 'finish' || operation == 'update',
+    );
     if (candidates.isEmpty) {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
-        type: operation == 'archive'
-            ? FfmAssistantIntentType.archiveActivity
-            : FfmAssistantIntentType.deleteActivity,
+        type: _activityOperationIntentType(operation),
         confidence: .8,
-        clarification:
-            'Aku tidak menemukan satu aktivitas selesai yang cocok dengan “$targetText”. Aktivitas yang masih berjalan harus diselesaikan dari halaman Aktivitas dulu. Belum ada data yang diubah.',
+        clarification: _activityOperationClarification(operation, targetText),
       );
     }
     if (candidates.length > 1) {
@@ -3369,40 +3558,84 @@ class FfmAssistantInterpreter {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
-        type: operation == 'archive'
-            ? FfmAssistantIntentType.archiveActivity
-            : FfmAssistantIntentType.deleteActivity,
+        type: _activityOperationIntentType(operation),
         confidence: .72,
         clarification:
-            'Aku menemukan ${candidates.length} aktivitas yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+            'Aku menemukan  aktivitas yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
       );
     }
     final target = candidates.single;
+    final formValues = <String, String>{
+      'entity': 'activity_session',
+      'targetId': target.id,
+      'operation': operation,
+      'targetSummary': _activityCandidateLabel(target),
+    };
+    if (operation == 'update' && extraText != null) {
+      formValues['label'] = extraText;
+    }
+    if (operation == 'edit' && extraText != null) {
+      formValues['newTitle'] = extraText;
+    }
+    final draftKind = switch (operation) {
+      'finish' => FfmAssistantDraftKind.activityFinish,
+      'update' => FfmAssistantDraftKind.activityUpdate,
+      'edit' => FfmAssistantDraftKind.activityEdit,
+      'archive' => FfmAssistantDraftKind.activityArchive,
+      _ => FfmAssistantDraftKind.activityDelete,
+    };
     final draft = FfmAssistantDraft(
-      kind: operation == 'archive'
-          ? FfmAssistantDraftKind.activityArchive
-          : FfmAssistantDraftKind.activityDelete,
+      kind: draftKind,
       createdAt: _clock(),
-      title: _activityCandidateLabel(target),
+      title: operation == 'edit' && extraText != null
+          ? extraText
+          : _activityCandidateLabel(target),
       note: target.notes,
       date: target.startedAt,
-      formValues: {
-        'entity': 'activity_session',
-        'targetId': target.id,
-        'operation': operation,
-        'targetSummary': _activityCandidateLabel(target),
-      },
+      formValues: formValues,
     );
     return _intentForDraft(rawText, normalized, draft).copyWith(
-      response: operation == 'archive'
-          ? 'Aku menemukan satu aktivitas selesai untuk diarsipkan. Cek preview dulu; belum ada data yang diubah.'
-          : 'Aku menemukan satu aktivitas selesai untuk dihapus permanen beserta data turunannya. Cek preview dampaknya dulu; belum ada data yang diubah.',
+      response: _activityOperationResponse(operation),
     );
   }
 
+  FfmAssistantIntentType _activityOperationIntentType(String operation) =>
+      switch (operation) {
+        'finish' => FfmAssistantIntentType.finishActivity,
+        'update' => FfmAssistantIntentType.updateActivity,
+        'edit' => FfmAssistantIntentType.editActivity,
+        'archive' => FfmAssistantIntentType.archiveActivity,
+        _ => FfmAssistantIntentType.deleteActivity,
+      };
+
+  String _activityOperationClarification(String operation, String targetText) =>
+      switch (operation) {
+        'finish' =>
+          'Aku tidak menemukan satu aktivitas aktif yang cocok dengan $targetText. Aktivitas harus dalam status berjalan untuk diselesaikan. Belum ada data yang diubah.',
+        'update' =>
+          'Aku tidak menemukan satu aktivitas aktif yang cocok dengan $targetText. Aktivitas harus dalam status berjalan untuk ditambahkan checkpoint. Belum ada data yang diubah.',
+        'edit' =>
+          'Aku tidak menemukan satu aktivitas yang cocok dengan $targetText. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+        _ =>
+          'Aku tidak menemukan satu aktivitas yang cocok dengan $targetText. Aktivitas yang masih berjalan harus diselesaikan dari halaman Aktivitas dulu. Belum ada data yang diubah.',
+      };
+
+  String _activityOperationResponse(String operation) => switch (operation) {
+        'finish' =>
+          'Aku menemukan satu aktivitas aktif untuk diselesaikan. Cek preview dulu; belum ada data yang diubah.',
+        'update' =>
+          'Aku menemukan satu aktivitas aktif untuk ditambahkan checkpoint. Cek preview dulu; belum ada data yang diubah.',
+        'edit' =>
+          'Aku menemukan satu aktivitas untuk diedit. Cek preview dulu; belum ada data yang diubah.',
+        'archive' =>
+          'Aku menemukan satu aktivitas selesai untuk diarsipkan. Cek preview dulu; belum ada data yang diubah.',
+        _ =>
+          'Aku menemukan satu aktivitas selesai untuk dihapus permanen beserta data turunannya. Cek preview dampaknya dulu; belum ada data yang diubah.',
+      };
   Future<List<ActivitySession>> _findActivityCandidates(
-    String targetText,
-  ) async {
+    String targetText, {
+    bool activeOnly = false,
+  }) async {
     final terms = targetText
         .toLowerCase()
         .split(RegExp(r'\s+'))
@@ -3421,7 +3654,9 @@ class FfmAssistantInterpreter {
                 (row) =>
                     row.householdId.equals(AppContext.householdId) &
                     row.isArchived.equals(false) &
-                    row.status.isNotValue('active'),
+                    (activeOnly
+                        ? row.status.equals('active')
+                        : row.status.isNotValue('active')),
               )
               ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
             .get();
@@ -4754,16 +4989,20 @@ class FfmAssistantInterpreter {
     final noteMatch = updateNote.firstMatch(normalized);
     final archiveMatch = RegExp(r'^(?:arsip|arsipkan)\s+' + noun + r'\s+(.+)$')
         .firstMatch(normalized);
-    if (nameMatch == null && noteMatch == null && archiveMatch == null) {
+    final deleteMatch = RegExp(r'^(?:hapus|buang|hilangkan)\s+' + noun + r'\s+(.+)$')
+        .firstMatch(normalized);
+    if (nameMatch == null && noteMatch == null && archiveMatch == null && deleteMatch == null) {
       return null;
     }
 
-    final operation = nameMatch == null && noteMatch == null
-        ? 'archive'
-        : 'update';
+    final operation = deleteMatch != null
+        ? 'delete'
+        : (nameMatch == null && noteMatch == null
+            ? 'archive'
+            : 'update');
     final metadataField = noteMatch == null ? 'name' : 'details';
     final targetText =
-        (nameMatch?.group(1) ?? noteMatch?.group(1) ?? archiveMatch!.group(1)!)
+        (nameMatch?.group(1) ?? noteMatch?.group(1) ?? archiveMatch?.group(1) ?? deleteMatch!.group(1)!)
             .trim();
     final rows =
         await (_database.select(_database.merchants)..where(
@@ -4782,7 +5021,9 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateMerchant
-        : FfmAssistantIntentType.archiveMerchant;
+        : operation == 'delete'
+            ? FfmAssistantIntentType.deleteMerchant
+            : FfmAssistantIntentType.archiveMerchant;
     if (candidates.length != 1) {
       final detail = candidates.isEmpty
           ? 'Aku tidak menemukan satu Toko/Tempat aktif yang cocok dengan “$targetText”.'
@@ -4801,7 +5042,9 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
           ? FfmAssistantDraftKind.merchantUpdate
-          : FfmAssistantDraftKind.merchantArchive,
+          : operation == 'delete'
+              ? FfmAssistantDraftKind.merchantDelete
+              : FfmAssistantDraftKind.merchantArchive,
       createdAt: _clock(),
       title: metadataField == 'name' && operation == 'update'
           ? nameMatch!.group(2)!.trim()
@@ -4820,7 +5063,9 @@ class FfmAssistantInterpreter {
     return _intentForDraft(rawText, normalized, draft).copyWith(
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Toko/Tempat. Transaksi historis tidak akan diubah. Cek preview dulu.'
-          : 'Aku menyiapkan arsip lunak satu Toko/Tempat. Data tidak akan muncul di transaksi baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
+          : operation == 'delete'
+              ? 'Aku menyiapkan hapus permanen satu Toko/Tempat. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan. Cek preview dulu.'
+              : 'Aku menyiapkan arsip lunak satu Toko/Tempat. Data tidak akan muncul di transaksi baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 
@@ -4833,10 +5078,12 @@ class FfmAssistantInterpreter {
     ).firstMatch(normalized);
     final archive = RegExp(r'^(?:arsip|arsipkan)\s+tag\s+(.+)$')
         .firstMatch(normalized);
-    if (update == null && archive == null) return null;
+    final delete = RegExp(r'^(?:hapus|buang|hilangkan)\s+tag\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null && delete == null) return null;
 
-    final operation = update == null ? 'archive' : 'update';
-    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final operation = delete != null ? 'delete' : (update == null ? 'archive' : 'update');
+    final targetText = (update?.group(1) ?? archive?.group(1) ?? delete!.group(1)!).trim();
     final rows =
         await (_database.select(_database.tags)..where(
               (row) =>
@@ -4854,7 +5101,9 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateTag
-        : FfmAssistantIntentType.archiveTag;
+        : operation == 'delete'
+            ? FfmAssistantIntentType.deleteTag
+            : FfmAssistantIntentType.archiveTag;
     if (candidates.length != 1) {
       final detail = candidates.isEmpty
           ? 'Aku tidak menemukan satu Tag aktif yang cocok dengan “$targetText”.'
@@ -4873,7 +5122,9 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
           ? FfmAssistantDraftKind.tagUpdate
-          : FfmAssistantDraftKind.tagArchive,
+          : operation == 'delete'
+              ? FfmAssistantDraftKind.tagDelete
+              : FfmAssistantDraftKind.tagArchive,
       createdAt: _clock(),
       title: operation == 'update' ? update!.group(2)!.trim() : target.name,
       formValues: {
@@ -4886,7 +5137,9 @@ class FfmAssistantInterpreter {
     return _intentForDraft(rawText, normalized, draft).copyWith(
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan nama satu Tag. Relasi Tag pada transaksi tidak akan diubah. Cek preview dulu.'
-          : 'Aku menyiapkan arsip lunak satu Tag. Tag tidak akan muncul pada pilihan baru, tetapi relasi pada transaksi historis tetap utuh. Cek preview dulu.',
+          : operation == 'delete'
+              ? 'Aku menyiapkan hapus permanen satu Tag. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan. Cek preview dulu.'
+              : 'Aku menyiapkan arsip lunak satu Tag. Tag tidak akan muncul pada pilihan baru, tetapi relasi pada transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 
@@ -4907,16 +5160,18 @@ class FfmAssistantInterpreter {
     ).firstMatch(normalized);
     final archive = RegExp(r'^(?:arsip|arsipkan)\s+' + noun + r'\s+(.+)$')
         .firstMatch(normalized);
-    if (updateName == null && updateNote == null && archive == null) {
+    final delete = RegExp(r'^(?:hapus|buang|hilangkan)\s+' + noun + r'\s+(.+)$')
+        .firstMatch(normalized);
+    if (updateName == null && updateNote == null && archive == null && delete == null) {
       return null;
     }
 
-    final operation = updateName == null && updateNote == null
-        ? 'archive'
-        : 'update';
+    final operation = delete != null
+        ? 'delete'
+        : (updateName == null && updateNote == null ? 'archive' : 'update');
     final metadataField = updateNote == null ? 'name' : 'details';
     final targetText =
-        (updateName?.group(1) ?? updateNote?.group(1) ?? archive!.group(1)!)
+        (updateName?.group(1) ?? updateNote?.group(1) ?? archive?.group(1) ?? delete!.group(1)!)
             .trim();
     final rows =
         await (_database.select(_database.transactionParties)..where(
@@ -4936,7 +5191,9 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateIncomeSource
-        : FfmAssistantIntentType.archiveIncomeSource;
+        : operation == 'delete'
+            ? FfmAssistantIntentType.deleteIncomeSource
+            : FfmAssistantIntentType.archiveIncomeSource;
     if (candidates.length != 1) {
       final detail = candidates.isEmpty
           ? 'Aku tidak menemukan satu Sumber Pemasukan aktif yang cocok dengan “$targetText”.'
@@ -4955,7 +5212,9 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
           ? FfmAssistantDraftKind.incomeSourceUpdate
-          : FfmAssistantDraftKind.incomeSourceArchive,
+          : operation == 'delete'
+              ? FfmAssistantDraftKind.incomeSourceDelete
+              : FfmAssistantDraftKind.incomeSourceArchive,
       createdAt: _clock(),
       title: metadataField == 'name' && operation == 'update'
           ? updateName!.group(2)!.trim()
@@ -4974,7 +5233,9 @@ class FfmAssistantInterpreter {
     return _intentForDraft(rawText, normalized, draft).copyWith(
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan ${metadataField == 'details' ? 'keterangan' : 'nama'} satu Sumber Pemasukan. Tidak ada sourceId transaksi yang diubah. Cek preview dulu.'
-          : 'Aku menyiapkan arsip lunak satu Sumber Pemasukan. Sumber tidak muncul di input baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
+          : operation == 'delete'
+              ? 'Aku menyiapkan hapus permanen satu Sumber Pemasukan. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan. Cek preview dulu.'
+              : 'Aku menyiapkan arsip lunak satu Sumber Pemasukan. Sumber tidak muncul di input baru, tetapi transaksi historis tetap utuh. Cek preview dulu.',
     );
   }
 
@@ -4987,10 +5248,12 @@ class FfmAssistantInterpreter {
     ).firstMatch(normalized);
     final archive = RegExp(r'^(?:arsip|arsipkan)\s+kategori\s+(.+)$')
         .firstMatch(normalized);
-    if (update == null && archive == null) return null;
+    final delete = RegExp(r'^(?:hapus|buang|hilangkan)\s+kategori\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null && delete == null) return null;
 
-    final operation = update == null ? 'archive' : 'update';
-    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final operation = delete != null ? 'delete' : (update == null ? 'archive' : 'update');
+    final targetText = (update?.group(1) ?? archive?.group(1) ?? delete!.group(1)!).trim();
     final rows =
         await (_database.select(_database.categories)..where(
               (row) =>
@@ -5008,7 +5271,9 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateCategory
-        : FfmAssistantIntentType.archiveCategory;
+        : operation == 'delete'
+            ? FfmAssistantIntentType.deleteCategory
+            : FfmAssistantIntentType.archiveCategory;
     if (candidates.length != 1) {
       final detail = candidates.isEmpty
           ? 'Aku tidak menemukan satu Kategori aktif yang cocok dengan “$targetText”.'
@@ -5027,7 +5292,9 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
           ? FfmAssistantDraftKind.categoryUpdate
-          : FfmAssistantDraftKind.categoryArchive,
+          : operation == 'delete'
+              ? FfmAssistantDraftKind.categoryDelete
+              : FfmAssistantDraftKind.categoryArchive,
       createdAt: _clock(),
       title: operation == 'update' ? update!.group(2)!.trim() : target.name,
       formValues: {
@@ -5043,7 +5310,9 @@ class FfmAssistantInterpreter {
     return _intentForDraft(rawText, normalized, draft).copyWith(
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan nama satu Kategori. Tipe, hierarki, periode Anggaran, transaksi, dan Anggaran tidak akan diubah. Cek preview dulu.'
-          : 'Aku menyiapkan arsip lunak satu Kategori. Guard akan memeriksa subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sebelum ada perubahan. Cek preview dulu.',
+          : operation == 'delete'
+              ? 'Aku menyiapkan hapus permanen satu Kategori. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan. Cek preview dulu.'
+              : 'Aku menyiapkan arsip lunak satu Kategori. Guard akan memeriksa subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sebelum ada perubahan. Cek preview dulu.',
     );
   }
 
@@ -5056,10 +5325,12 @@ class FfmAssistantInterpreter {
     ).firstMatch(normalized);
     final archive = RegExp(r'^(?:arsip|arsipkan)\s+rekening\s+(.+)$')
         .firstMatch(normalized);
-    if (update == null && archive == null) return null;
+    final delete = RegExp(r'^(?:hapus|buang|hilangkan)\s+rekening\s+(.+)$')
+        .firstMatch(normalized);
+    if (update == null && archive == null && delete == null) return null;
 
-    final operation = update == null ? 'archive' : 'update';
-    final targetText = (update?.group(1) ?? archive!.group(1)!).trim();
+    final operation = delete != null ? 'delete' : (update == null ? 'archive' : 'update');
+    final targetText = (update?.group(1) ?? archive?.group(1) ?? delete!.group(1)!).trim();
     final rows =
         await (_database.select(_database.accounts)..where(
               (row) =>
@@ -5081,7 +5352,9 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     final type = operation == 'update'
         ? FfmAssistantIntentType.updateAccount
-        : FfmAssistantIntentType.archiveAccount;
+        : operation == 'delete'
+            ? FfmAssistantIntentType.deleteAccount
+            : FfmAssistantIntentType.archiveAccount;
     if (candidates.length != 1) {
       final detail = candidates.isEmpty
           ? 'Aku tidak menemukan satu Rekening aktif yang cocok dengan “$targetText”.'
@@ -5100,7 +5373,9 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: operation == 'update'
           ? FfmAssistantDraftKind.accountUpdate
-          : FfmAssistantDraftKind.accountArchive,
+          : operation == 'delete'
+              ? FfmAssistantDraftKind.accountDelete
+              : FfmAssistantDraftKind.accountArchive,
       createdAt: _clock(),
       title: operation == 'update' ? update!.group(2)!.trim() : target.name,
       formValues: {
@@ -5120,7 +5395,9 @@ class FfmAssistantInterpreter {
     return _intentForDraft(rawText, normalized, draft).copyWith(
       response: operation == 'update'
           ? 'Aku menyiapkan perubahan nama satu Rekening. Saldo awal, tipe, status aktif, dan seluruh referensi transaksi/transfer tidak akan diubah. Cek preview dulu.'
-          : 'Aku menyiapkan arsip lunak satu Rekening. Arsip hanya boleh jika Rekening belum pernah dipakai transaksi, transfer, transaksi berkala, atau rekonsiliasi. Cek preview dulu.',
+          : operation == 'delete'
+              ? 'Aku menyiapkan hapus permanen satu Rekening. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan. Cek preview dulu.'
+              : 'Aku menyiapkan arsip lunak satu Rekening. Arsip hanya boleh jika Rekening belum pernah dipakai transaksi, transfer, transaksi berkala, atau rekonsiliasi. Cek preview dulu.',
     );
   }
 
@@ -6722,8 +6999,98 @@ class FfmAssistantInterpreter {
     return FfmAssistantTypoNormalizer.correct(cleaned);
   }
 
+  static final _greetingResponses = [
+    'Halo! Ada yang bisa dibantu?',
+    'Hai! Mau catat transaksi atau cek saldo?',
+    'Halo! Silakan ketik perintahmu.',
+    'Hai! Aku siap bantu.',
+    'Halo! Ada yang perlu?',
+    'Hai! Mau lihat data keuangan?',
+    'Halo! Ketik saja apa yang perlu.',
+    'Hai! Ada yang bisa kubantu?',
+  ];
+
+  String _randomGreeting() {
+    final now = DateTime.now();
+    final index = (now.millisecondsSinceEpoch % _greetingResponses.length).toInt();
+    return _greetingResponses[index];
+  }
+
   bool _containsAny(String value, List<String> targets) =>
       targets.any(value.contains);
+
+  /// Validates a draft from Gemini proposal against actual master data.
+  /// If category/account names don't exist in the database, set them to null
+  /// so the validator will flag them as missing.
+  FfmAssistantDraft _validateGeminiDraft(
+    FfmAssistantDraft draft,
+    List<Account> accounts,
+    List<Category> categories,
+  ) {
+    if (draft.kind != FfmAssistantDraftKind.expense &&
+        draft.kind != FfmAssistantDraftKind.income &&
+        draft.kind != FfmAssistantDraftKind.transfer) {
+      return draft;
+    }
+    String? validatedCategory = draft.categoryName;
+    if (validatedCategory != null && validatedCategory.isNotEmpty) {
+      final matched = _matchCategory(
+        validatedCategory.toLowerCase(),
+        categories,
+        draft.kind == FfmAssistantDraftKind.income ? 'income' : 'expense',
+      );
+      if (matched == null) {
+        validatedCategory = null;
+      } else {
+        validatedCategory = matched.name;
+      }
+    }
+    String? validatedFromAccount = draft.fromAccountName;
+    if (validatedFromAccount != null && validatedFromAccount.isNotEmpty) {
+      final matched = _matchAccount(validatedFromAccount.toLowerCase(), accounts);
+      if (matched == null) {
+        validatedFromAccount = null;
+      } else {
+        validatedFromAccount = matched.name;
+      }
+    }
+    String? validatedToAccount = draft.toAccountName;
+    if (validatedToAccount != null && validatedToAccount.isNotEmpty) {
+      final matched = _matchAccount(validatedToAccount.toLowerCase(), accounts);
+      if (matched == null) {
+        validatedToAccount = null;
+      } else {
+        validatedToAccount = matched.name;
+      }
+    }
+    if (validatedCategory == draft.categoryName &&
+        validatedFromAccount == draft.fromAccountName &&
+        validatedToAccount == draft.toAccountName) {
+      return draft;
+    }
+    return draft.copyWith(
+      categoryName: validatedCategory,
+      fromAccountName: validatedFromAccount,
+      toAccountName: validatedToAccount,
+    );
+  }
+}
+
+/// Hasil interpretasi yang bisa berisi satu atau banyak intent.
+class _InterpretResult {
+  const _InterpretResult.single(FfmAssistantIntent intent)
+      : intents = const [],
+        _single = intent;
+  const _InterpretResult.multi(List<FfmAssistantIntent> intents)
+      : _single = null,
+        // ignore: prefer_initializing_formals, unnecessary_this
+        this.intents = intents;
+
+  final FfmAssistantIntent? _single;
+  final List<FfmAssistantIntent> intents;
+
+  List<FfmAssistantIntent> toList() =>
+      _single != null ? [_single] : intents;
 }
 
 abstract final class FfmAssistantAmountParser {

@@ -68,7 +68,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.transaction_delete': _prepareTransactionMutation,
     'draft.activity_archive': _prepareActivityMutation,
     'draft.activity_delete': _prepareActivityMutation,
+    'draft.activity_finish': _prepareActivityMutation,
     'draft.activity_update': _prepareActivityMutation,
+    'draft.activity_edit': _prepareActivityMutation,
     'draft.task_update': _prepareActivityMutation,
     'draft.task_complete': _prepareActivityMutation,
     'draft.task_reopen': _prepareActivityMutation,
@@ -94,14 +96,19 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.master_data': _prepareDraft,
     'draft.merchant_update': _prepareMerchantMutation,
     'draft.merchant_archive': _prepareMerchantMutation,
+    'draft.merchant_delete': _prepareMerchantMutation,
     'draft.tag_update': _prepareTagMutation,
     'draft.tag_archive': _prepareTagMutation,
+    'draft.tag_delete': _prepareTagMutation,
     'draft.income_source_update': _prepareIncomeSourceMutation,
     'draft.income_source_archive': _prepareIncomeSourceMutation,
+    'draft.income_source_delete': _prepareIncomeSourceMutation,
     'draft.category_update': _prepareCategoryMutation,
     'draft.category_archive': _prepareCategoryMutation,
+    'draft.category_delete': _prepareCategoryMutation,
     'draft.account_update': _prepareAccountMutation,
     'draft.account_archive': _prepareAccountMutation,
+    'draft.account_delete': _prepareAccountMutation,
     'draft.goal': _prepareDraft,
     'draft.asset': _prepareDraft,
     'draft.asset_update': _prepareAssetMutation,
@@ -476,6 +483,21 @@ class FfmAssistantCapabilityAdapterRegistry {
         step.parameters['entity'] == 'daily_note' ||
         step.parameters['entity'] == 'schedule_entry') {
       return _deleteActivity(step);
+    }
+    if (step.parameters['entity'] == 'account') {
+      return _deleteAccount(step);
+    }
+    if (step.parameters['entity'] == 'category') {
+      return _deleteCategory(step);
+    }
+    if (step.parameters['entity'] == 'tag') {
+      return _deleteTag(step);
+    }
+    if (step.parameters['entity'] == 'merchant') {
+      return _deleteMerchant(step);
+    }
+    if (step.parameters['entity'] == 'income_source') {
+      return _deleteIncomeSource(step);
     }
     return _deleteTransaction(step);
   }
@@ -864,7 +886,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['operation'] == 'archive') {
       return FfmAssistantCapabilityExecutionResult.success(
-        'Preview arsip Toko/Tempat “${target.name}”. Data tidak akan muncul di transaksi baru dan transaksi historis tetap utuh.',
+        'Preview arsip Toko/Tempat \u201c${target.name}\u201d. Data tidak akan muncul di transaksi baru dan transaksi historis tetap utuh.',
+      );
+    }
+    if (step.parameters['operation'] == 'delete') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview hapus permanen Toko/Tempat \u201c${target.name}\u201d. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan.',
       );
     }
     final metadataField = step.parameters['metadataField']?.toString();
@@ -949,6 +976,15 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: Toko/Tempat masih aktif.',
             );
     }
+    if (step.parameters['operation'] == 'delete') {
+      return row == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Toko/Tempat sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Toko/Tempat masih ditemukan setelah penghapusan.',
+            );
+    }
     final title = step.parameters['title']?.toString().trim();
     final metadataField = step.parameters['metadataField']?.toString();
     final expectedDetails = metadataField == 'details'
@@ -989,7 +1025,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['operation'] == 'archive') {
       return FfmAssistantCapabilityExecutionResult.success(
-        'Preview arsip Tag “${target.name}”. Relasi Tag pada transaksi historis tidak akan diubah.',
+        'Preview arsip Tag \u201c${target.name}\u201d. Relasi Tag pada transaksi historis tidak akan diubah.',
+      );
+    }
+    if (step.parameters['operation'] == 'delete') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview hapus permanen Tag \u201c${target.name}\u201d. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan.',
       );
     }
     final title = step.parameters['title']?.toString().trim();
@@ -1058,6 +1099,15 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: Tag masih aktif.',
             );
     }
+    if (step.parameters['operation'] == 'delete') {
+      return row == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Tag sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Tag masih ditemukan setelah penghapusan.',
+            );
+    }
     final title = step.parameters['title']?.toString().trim();
     return row != null && !row.isArchived && row.name == title
         ? const FfmAssistantCapabilityExecutionResult.success(
@@ -1091,7 +1141,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     if (step.parameters['operation'] == 'archive') {
       return FfmAssistantCapabilityExecutionResult.success(
-        'Preview arsip Sumber Pemasukan “${target.name}”. sourceId transaksi historis tidak akan diubah.',
+        'Preview arsip Sumber Pemasukan \u201c${target.name}\u201d. sourceId transaksi historis tidak akan diubah.',
+      );
+    }
+    if (step.parameters['operation'] == 'delete') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview hapus permanen Sumber Pemasukan \u201c${target.name}\u201d. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan.',
       );
     }
     final metadataField = step.parameters['metadataField']?.toString();
@@ -1176,6 +1231,15 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: Sumber Pemasukan masih aktif.',
             );
     }
+    if (step.parameters['operation'] == 'delete') {
+      return row == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Sumber Pemasukan sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Sumber Pemasukan masih ditemukan setelah penghapusan.',
+            );
+    }
     final title = step.parameters['title']?.toString().trim();
     final metadataField = step.parameters['metadataField']?.toString();
     final expectedDetails = metadataField == 'details'
@@ -1227,7 +1291,12 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
       }
       return FfmAssistantCapabilityExecutionResult.success(
-        'Preview arsip Kategori “${target.name}”. Guard subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sudah lolos.',
+        'Preview arsip Kategori \u201c${target.name}\u201d. Guard subkategori, transaksi berkala, Target Keuangan, dan Anggaran aktif sudah lolos.',
+      );
+    }
+    if (step.parameters['operation'] == 'delete') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview hapus permanen Kategori \u201c${target.name}\u201d. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan.',
       );
     }
     final title = step.parameters['title']?.toString().trim();
@@ -1315,6 +1384,15 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: arsip atau field terlindungi Kategori tidak sesuai.',
             );
     }
+    if (step.parameters['operation'] == 'delete') {
+      return row == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Kategori sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Kategori masih ditemukan setelah penghapusan.',
+            );
+    }
     final title = step.parameters['title']?.toString().trim();
     return row != null &&
             row.isActive &&
@@ -1360,7 +1438,12 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
       }
       return FfmAssistantCapabilityExecutionResult.success(
-        'Preview arsip Rekening “${target.name}”. Guard transaksi, transfer, transaksi berkala, dan rekonsiliasi sudah lolos. Saldo awal, tipe, status aktif, dan seluruh referensi keuangan tidak akan diubah.',
+        'Preview arsip Rekening \u201c${target.name}\u201d. Guard transaksi, transfer, transaksi berkala, dan rekonsiliasi sudah lolos. Saldo awal, tipe, status aktif, dan seluruh referensi keuangan tidak akan diubah.',
+      );
+    }
+    if (step.parameters['operation'] == 'delete') {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview hapus permanen Rekening \u201c${target.name}\u201d. Data akan dihapus total dari database. Tindakan ini tidak dapat dibatalkan.',
       );
     }
     final title = step.parameters['title']?.toString().trim();
@@ -1466,6 +1549,15 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: arsip atau field terlindungi Rekening tidak sesuai.',
             );
     }
+    if (step.parameters['operation'] == 'delete') {
+      return row == null
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Rekening sudah tidak ditemukan di database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Rekening masih ditemukan setelah penghapusan.',
+            );
+    }
     final title = step.parameters['title']?.toString().trim();
     return row != null &&
             !row.isArchived &&
@@ -1567,10 +1659,12 @@ class FfmAssistantCapabilityAdapterRegistry {
 
     final operation = step.parameters['operation']?.toString() ?? 'perubahan';
     final suffix = switch (operation) {
-      'complete' => ' akan ditandai selesai',
+      'complete' || 'finish' => ' akan ditandai selesai',
       'reopen' => ' akan dibuka kembali',
       'archive' => ' akan diarsipkan tanpa dihapus permanen',
       'delete' => ' akan dihapus permanen beserta data turunannya',
+      'update' || 'checkpoint' => ' akan ditambahkan checkpoint/catatan',
+      'edit' => ' akan diedit judul/kategorinya',
       _ => ' akan diperbarui',
     };
 
@@ -1599,7 +1693,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
 
     final now = _clock();
-    if (operation == 'complete') {
+    if (operation == 'complete' || operation == 'finish') {
       await repository.saveSession(
         current.copyWith(
           isCompleted: true,
@@ -1609,7 +1703,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         ),
       );
       return FfmAssistantCapabilityExecutionResult.success(
-        'Aktivitas “${current.title}” ditandai selesai.',
+        'Aktivitas "${current.title}" ditandai selesai.',
       );
     }
 
@@ -1623,11 +1717,33 @@ class FfmAssistantCapabilityAdapterRegistry {
         ),
       );
       return FfmAssistantCapabilityExecutionResult.success(
-        'Aktivitas “${current.title}” dibuka kembali.',
+        'Aktivitas "${current.title}" dibuka kembali.',
       );
     }
 
-    if (operation == 'update') {
+    if (operation == 'update' || operation == 'checkpoint') {
+      final label = step.parameters['label']?.toString();
+      if (label != null && label.isNotEmpty) {
+        final place = step.parameters['place']?.toString();
+        final note = step.parameters['note']?.toString();
+        final checkpoint = ActivityCheckpointEntity(
+          id: 'checkpoint-${now.microsecondsSinceEpoch}',
+          sessionId: targetId,
+          label: label,
+          place: place,
+          note: note,
+          occurredAt: now,
+          sequence: 0,
+          createdAt: now,
+        );
+        await repository.saveCheckpoint(checkpoint);
+        return FfmAssistantCapabilityExecutionResult.success(
+          'Checkpoint "$label" ditambahkan ke aktivitas "${current.title}".',
+        );
+      }
+    }
+
+    if (operation == 'edit') {
       final title = step.parameters['title']?.toString() ?? current.title;
       final notes = step.parameters['note']?.toString() ?? current.notes;
       final category =
@@ -1648,7 +1764,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         ),
       );
       return FfmAssistantCapabilityExecutionResult.success(
-        'Aktivitas “${current.title}” diperbarui.',
+        'Aktivitas "${current.title}" diperbarui.',
       );
     }
 
@@ -1708,6 +1824,131 @@ class FfmAssistantCapabilityAdapterRegistry {
     await repository.deleteSessionPermanently(_householdId, targetId);
     return const FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas dan data turunannya dihapus permanen. Hasilnya akan dibaca kembali untuk verifikasi.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteAccount(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Rekening belum valid.',
+      );
+    }
+    final account = await (_database.select(_database.accounts)
+          ..where((r) => r.id.equals(targetId)))
+        .getSingleOrNull();
+    if (account == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Rekening tidak ditemukan.',
+      );
+    }
+    await (_database.delete(_database.accounts)
+          ..where((r) => r.id.equals(targetId)))
+        .go();
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Rekening "${account.name}" dihapus permanen dari database.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteCategory(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Kategori belum valid.',
+      );
+    }
+    final category = await (_database.select(_database.categories)
+          ..where((r) => r.id.equals(targetId)))
+        .getSingleOrNull();
+    if (category == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori tidak ditemukan.',
+      );
+    }
+    await (_database.delete(_database.categories)
+          ..where((r) => r.id.equals(targetId)))
+        .go();
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Kategori "${category.name}" dihapus permanen dari database.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteTag(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Tag belum valid.',
+      );
+    }
+    final tag = await (_database.select(_database.tags)
+          ..where((r) => r.id.equals(targetId)))
+        .getSingleOrNull();
+    if (tag == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag tidak ditemukan.',
+      );
+    }
+    await (_database.delete(_database.tags)
+          ..where((r) => r.id.equals(targetId)))
+        .go();
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tag "${tag.name}" dihapus permanen dari database.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteMerchant(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Toko/Tempat belum valid.',
+      );
+    }
+    final merchant = await (_database.select(_database.merchants)
+          ..where((r) => r.id.equals(targetId)))
+        .getSingleOrNull();
+    if (merchant == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Toko/Tempat tidak ditemukan.',
+      );
+    }
+    await (_database.delete(_database.merchants)
+          ..where((r) => r.id.equals(targetId)))
+        .go();
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Toko/Tempat "${merchant.name}" dihapus permanen dari database.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _deleteIncomeSource(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    if (targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target Sumber Pemasukan belum valid.',
+      );
+    }
+    final source = await (_database.select(_database.transactionParties)
+          ..where((r) => r.id.equals(targetId)))
+        .getSingleOrNull();
+    if (source == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Sumber Pemasukan tidak ditemukan.',
+      );
+    }
+    await (_database.delete(_database.transactionParties)
+          ..where((r) => r.id.equals(targetId)))
+        .go();
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Sumber Pemasukan "${source.name}" dihapus permanen dari database.',
     );
   }
 
@@ -2973,6 +3214,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     String id,
   ) async {
     final category = step.parameters['category']?.toString();
+    final operation = step.parameters['operation']?.toString();
     if (category == 'rekening') {
       final account =
           await (_database.select(_database.accounts)..where(
@@ -2980,6 +3222,15 @@ class FfmAssistantCapabilityAdapterRegistry {
                     row.householdId.equals(_householdId) & row.id.equals(id),
               ))
               .getSingleOrNull();
+      if (operation == 'delete') {
+        return account == null
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'verified: rekening sudah tidak ditemukan di database lokal.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Verifikasi gagal: rekening masih ditemukan setelah penghapusan.',
+              );
+      }
       return account == null
           ? const FfmAssistantCapabilityExecutionResult.failure(
               'Verifikasi gagal: rekening belum ditemukan di data lokal.',
@@ -2995,12 +3246,69 @@ class FfmAssistantCapabilityAdapterRegistry {
                     row.householdId.equals(_householdId) & row.id.equals(id),
               ))
               .getSingleOrNull();
+      if (operation == 'delete') {
+        return merchant == null
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'verified: toko sudah tidak ditemukan di database lokal.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Verifikasi gagal: toko masih ditemukan setelah penghapusan.',
+              );
+      }
       return merchant == null
           ? const FfmAssistantCapabilityExecutionResult.failure(
               'Verifikasi gagal: toko belum ditemukan di data lokal.',
             )
           : FfmAssistantCapabilityExecutionResult.success(
-              'verified: toko “${merchant.name}” berhasil dibaca kembali dari data lokal.',
+              'verified: toko "${merchant.name}" berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (category == 'kategori' || category == 'sumber_pemasukan') {
+      final cat =
+          await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (operation == 'delete') {
+        return cat == null
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'verified: kategori sudah tidak ditemukan di database lokal.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Verifikasi gagal: kategori masih ditemukan setelah penghapusan.',
+              );
+      }
+      return cat == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: kategori belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: kategori "${cat.name}" berhasil dibaca kembali dari data lokal.',
+            );
+    }
+    if (category == 'tag') {
+      final tag =
+          await (_database.select(_database.tags)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (operation == 'delete') {
+        return tag == null
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'verified: tag sudah tidak ditemukan di database lokal.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Verifikasi gagal: tag masih ditemukan setelah penghapusan.',
+              );
+      }
+      return tag == null
+          ? const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: tag belum ditemukan di data lokal.',
+            )
+          : FfmAssistantCapabilityExecutionResult.success(
+              'verified: tag "${tag.name}" berhasil dibaca kembali dari data lokal.',
             );
     }
     return const FfmAssistantCapabilityExecutionResult.failure(
@@ -3577,6 +3885,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final now = _clock();
     final id = _stableId(idempotencyKey);
+    final formValues = step.parameters;
 
     if (category == 'rekening') {
       final previous =
@@ -3594,6 +3903,17 @@ class FfmAssistantCapabilityAdapterRegistry {
                 'Idempotency key sudah dipakai oleh rekening dengan isi berbeda.',
               );
       }
+      final accountType = formValues['accountType']?.toString() ?? 'cash';
+      final type = switch (accountType) {
+        'cash' || 'tunai' => 'tunai',
+        'bank' => 'bank',
+        'ewallet' || 'e-wallet' || 'dompet digital' => 'ewallet',
+        _ => 'tunai',
+      };
+      final openingBalance = int.tryParse(
+            formValues['openingBalance']?.toString() ?? '0',
+          ) ??
+          0;
       await _database
           .into(_database.accounts)
           .insert(
@@ -3601,7 +3921,8 @@ class FfmAssistantCapabilityAdapterRegistry {
               id: id,
               householdId: _householdId,
               name: title.trim(),
-              type: 'tunai',
+              type: type,
+              openingBalance: Value(openingBalance),
               createdAt: now,
             ),
           );
@@ -3621,10 +3942,75 @@ class FfmAssistantCapabilityAdapterRegistry {
                 'Idempotency key sudah dipakai oleh toko dengan isi berbeda.',
               );
       }
+      final details = formValues['details']?.toString();
       await _database
           .into(_database.merchants)
           .insert(
             MerchantsCompanion.insert(
+              id: id,
+              householdId: _householdId,
+              name: title.trim(),
+              details: Value(details),
+              createdAt: now,
+            ),
+          );
+    } else if (category == 'kategori' || category == 'sumber_pemasukan') {
+      final previous =
+          await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (previous != null) {
+        return previous.name == title.trim()
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: kategori sudah tersimpan.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh kategori dengan isi berbeda.',
+              );
+      }
+      final type = category == 'sumber_pemasukan'
+          ? 'income'
+          : (formValues['type']?.toString() == 'income' ? 'income' : 'expense');
+      final period = formValues['defaultBudgetPeriod']?.toString() ?? 'none';
+      final budgetPeriod = switch (period) {
+        'weekly' || 'mingguan' => 'weekly',
+        'monthly' || 'bulanan' => 'monthly',
+        _ => 'none',
+      };
+      await _database
+          .into(_database.categories)
+          .insert(
+            CategoriesCompanion.insert(
+              id: id,
+              householdId: _householdId,
+              name: title.trim(),
+              type: type,
+              defaultBudgetPeriod: Value(budgetPeriod),
+              createdAt: now,
+            ),
+          );
+    } else if (category == 'tag') {
+      final previous =
+          await (_database.select(_database.tags)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (previous != null) {
+        return previous.name == title.trim()
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: tag sudah tersimpan.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh tag dengan isi berbeda.',
+              );
+      }
+      await _database
+          .into(_database.tags)
+          .insert(
+            TagsCompanion.insert(
               id: id,
               householdId: _householdId,
               name: title.trim(),

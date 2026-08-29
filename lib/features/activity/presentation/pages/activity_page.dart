@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/data/ffm_assistant_interpreter.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../settings/data/category_repository.dart';
@@ -65,12 +66,16 @@ class _ActivityViewState extends State<_ActivityView>
   final _calculator = const ActivityDurationCalculator();
   final _voiceParser = const ActivityVoiceParser();
   final _speechService = ActivitySpeechService();
+  final _interpreter = getIt<FfmAssistantInterpreter>();
   ActivityVoiceIntent? _voiceIntent;
   String _voiceText = '';
   String? _voiceError;
   String _voiceStatus = 'Siap bicara';
   bool _voiceInitialized = false;
   bool _processingFinalVoice = false;
+
+  // Mini conversation state untuk multi-turn voice
+  _VoiceConversation? _voiceConversation;
 
   @override
   void initState() {
@@ -349,6 +354,13 @@ class _ActivityViewState extends State<_ActivityView>
 
   void _previewVoice(String transcript) {
     final state = context.read<ActivityBloc>().state;
+
+    // Jika sedang dalam multi-turn conversation, handle di sini
+    if (_voiceConversation != null) {
+      _handleConversationResponse(transcript);
+      return;
+    }
+
     final parsed = _voiceParser.parse(
       transcript,
       activeSessions: state.activeSessions,
@@ -362,7 +374,7 @@ class _ActivityViewState extends State<_ActivityView>
       setState(() {
         _voiceIntent = null;
         _voiceText = transcript;
-        _voiceError = 'Belum ada perintah aktivitas yang bisa dikonfirmasi. Bilang dulu misalnya “mulai makan” atau “selesai perjalanan”.';
+        _voiceError = 'Belum ada perintah aktivitas yang bisa dikonfirmasi. Bilang dulu misalnya "mulai makan" atau "selesai perjalanan".';
         _voiceStatus = 'Menunggu perintah aktivitas';
       });
       _speechService.speak(
@@ -374,6 +386,20 @@ class _ActivityViewState extends State<_ActivityView>
       _cancelVoice();
       return;
     }
+
+    // Jika parser lokal tidak mengenali (unknown), coba fallback ke Gemini
+    if (parsed.type == ActivityVoiceIntentType.unknown) {
+      _fallbackToGemini(transcript);
+      return;
+    }
+
+    // Jika start dan belum ada category, mulai multi-turn conversation
+    if (parsed.type == ActivityVoiceIntentType.start &&
+        parsed.targetTitle != null) {
+      _startConversation(parsed.targetTitle!);
+      return;
+    }
+
     var intent = parsed;
     if (intent.type == ActivityVoiceIntentType.note &&
         intent.targetSessionId == null &&
@@ -395,6 +421,214 @@ class _ActivityViewState extends State<_ActivityView>
       status: ActivityVoiceStatus.preview,
     );
     _speakVoicePreview(intent);
+  }
+
+  void _startConversation(String title) {
+    _voiceConversation = _VoiceConversation(
+      title: title,
+      category: 'Lainnya',
+    );
+    setState(() {
+      _voiceText = title;
+      _voiceStatus = 'Pilih kategori';
+      _voiceError = null;
+    });
+    final categories = ['Perjalanan', 'Belanja', 'Pekerjaan', 'Keluarga', 'Lainnya'];
+    _speechService.speak(
+      'Aktivitas $title. Pilih kategori: ${categories.join(", ")}. Atau bilang "lewati" untuk pakai Lainnya.',
+    );
+  }
+
+  void _handleConversationResponse(String transcript) {
+    final conv = _voiceConversation;
+    if (conv == null) return;
+
+    final lower = transcript.toLowerCase().trim();
+
+    // Handle cancel
+    if (lower == 'batal' || lower == 'cancel') {
+      _cancelConversation();
+      return;
+    }
+
+    switch (conv.step) {
+      case _ConversationStep.category:
+        final categories = ['perjalanan', 'belanja', 'pekerjaan', 'keluarga', 'lainnya'];
+        final matched = categories.where((c) => lower.contains(c)).toList();
+        if (matched.isNotEmpty) {
+          final cat = matched.first;
+          conv.category = cat[0].toUpperCase() + cat.substring(1);
+        } else if (lower == 'lewati' || lower == 'skip') {
+          conv.category = 'Lainnya';
+        } else {
+          conv.category = transcript.trim();
+        }
+        conv.step = _ConversationStep.note;
+        setState(() {
+          _voiceStatus = 'Tambah catatan?';
+        });
+        _speechService.speak(
+          'Kategori ${conv.category}. Mau tambah catatan? Bilang catatannya, atau bilang "lewati" untuk skip.',
+        );
+        break;
+
+      case _ConversationStep.note:
+        if (lower == 'lewati' || lower == 'skip' || lower == 'tidak' || lower == 'ga' || lower == 'enggak') {
+          conv.note = null;
+        } else {
+          conv.note = transcript.trim();
+        }
+        conv.step = _ConversationStep.confirm;
+        setState(() {
+          _voiceStatus = 'Konfirmasi';
+        });
+        _speechService.speak(conv.confirmMessage);
+        break;
+
+      case _ConversationStep.confirm:
+        if (lower == 'ya' || lower == 'ok' || lower == 'oke' || lower == 'simpan' || lower == 'konfirmasi' || lower.contains('simpan')) {
+          _saveConversation();
+        } else if (lower == 'tidak' || lower == 'batal' || lower == 'ulang') {
+          _cancelConversation();
+        } else {
+          // Anggap sebagai catatan tambahan
+          conv.note = conv.note != null ? '${conv.note!}, $transcript' : transcript.trim();
+          setState(() {
+            _voiceStatus = 'Konfirmasi';
+          });
+          _speechService.speak(conv.confirmMessage);
+        }
+        break;
+
+      case _ConversationStep.title:
+        break;
+    }
+  }
+
+  Future<void> _saveConversation() async {
+    final conv = _voiceConversation;
+    if (conv == null) return;
+
+    setState(() {
+      _voiceStatus = 'Menyimpan...';
+      _voiceError = null;
+    });
+
+    try {
+      final intent = ActivityVoiceIntent(
+        rawTranscript: conv.title,
+        normalizedText: conv.title,
+        type: ActivityVoiceIntentType.start,
+        status: ActivityVoiceStatus.preview,
+        targetTitle: conv.title,
+        category: conv.category,
+      );
+
+      await context.read<ActivityBloc>().executeVoiceIntent(intent);
+
+      // Simpan note jika ada
+      if (conv.note != null && conv.note!.isNotEmpty && mounted) {
+        final state = context.read<ActivityBloc>().state;
+        if (state.activeSessions.isNotEmpty) {
+          final session = state.activeSessions.last;
+          final noteIntent = ActivityVoiceIntent(
+            rawTranscript: conv.note!,
+            normalizedText: conv.note!,
+            type: ActivityVoiceIntentType.note,
+            status: ActivityVoiceStatus.preview,
+            targetSessionId: session.id,
+            targetTitle: session.title,
+          );
+          await context.read<ActivityBloc>().executeVoiceIntent(noteIntent);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _voiceConversation = null;
+        _voiceIntent = null;
+        _voiceText = '';
+        _voiceError = null;
+        _voiceStatus = 'Tersimpan';
+      });
+      await _speechService.speak('Aktivitas ${conv.title} sudah disimpan.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _voiceError = 'Gagal menyimpan: $e';
+        _voiceStatus = 'Error';
+      });
+    }
+  }
+
+  void _cancelConversation() {
+    setState(() {
+      _voiceConversation = null;
+      _voiceIntent = null;
+      _voiceText = '';
+      _voiceError = null;
+      _voiceStatus = 'Dibatalkan';
+    });
+    _speechService.speak('Dibatalkan.');
+  }
+
+  Future<void> _fallbackToGemini(String transcript) async {
+    setState(() {
+      _voiceStatus = 'Memproses via asisten...';
+      _voiceError = null;
+    });
+    try {
+      final state = context.read<ActivityBloc>().state;
+      final intent = await _interpreter.interpret(
+        transcript,
+        currentDestination: FfmAssistantDestination.activity,
+        activitySnapshot: ActivityLiveSnapshot(
+          activeSessions: state.activeSessions,
+        ),
+      );
+      if (!mounted) return;
+
+      // Jika intent mengandung draft (proposal dari Gemini), tampilkan di chat
+      if (intent.draft != null || intent.destination != null) {
+        // Buka assistant sheet dengan hasil Gemini
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Perintah dikirim ke asisten. Cek chat untuk konfirmasi.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        setState(() {
+          _voiceIntent = null;
+          _voiceText = transcript;
+          _voiceError = null;
+          _voiceStatus = 'Dikirim ke asisten';
+        });
+        return;
+      }
+
+      // Jika tidak ada draft/destination, tampilkan error
+      final response = intent.response ?? intent.clarification;
+      setState(() {
+        _voiceIntent = null;
+        _voiceText = transcript;
+        _voiceError = response ?? 'Perintah tidak dikenali. Coba ulangi dengan kata lain.';
+        _voiceStatus = 'Tidak dikenali';
+      });
+      if (response != null) {
+        _speechService.speak(response);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _voiceIntent = null;
+        _voiceText = transcript;
+        _voiceError = 'Gagal memproses: ${e.toString()}';
+        _voiceStatus = 'Error';
+      });
+    }
   }
 
   Future<void> _speakVoicePreview(ActivityVoiceIntent intent) async {
@@ -471,6 +705,11 @@ class _ActivityViewState extends State<_ActivityView>
   }
 
   Future<void> _cancelVoice() async {
+    // Cancel conversation if active
+    if (_voiceConversation != null) {
+      _cancelConversation();
+      return;
+    }
     final intent = _voiceIntent;
     if (intent != null) {
       await context.read<ActivityBloc>().recordVoiceIntent(
@@ -611,6 +850,12 @@ class _ActivityViewState extends State<_ActivityView>
                         ? null
                         : () => _speakVoicePreview(_voiceIntent!),
                     onSelectTarget: _selectVoiceTarget,
+                    onCategoryChanged: (category) {
+                      if (_voiceIntent == null) return;
+                      setState(() {
+                        _voiceIntent = _voiceIntent!.copyWith(category: category);
+                      });
+                    },
                     onConfirm: _confirmVoice,
                     onCancel: _cancelVoice,
                   ),
@@ -1290,6 +1535,25 @@ String _dateOnly(DateTime value) =>
 String _dateTime(DateTime value) =>
     '${_two(value.day)}/${_two(value.month)}/${value.year} ${_time(value)}';
 
+enum _ConversationStep { title, category, note, confirm }
+
+class _VoiceConversation {
+  _VoiceConversation({required this.title, required this.category});
+
+  final String title;
+  String category;
+  String? note;
+  _ConversationStep step = _ConversationStep.category;
+
+  bool get isComplete => step == _ConversationStep.confirm;
+
+  String get confirmMessage {
+    final catPart = category.isNotEmpty ? ' kategori $category' : '';
+    final notePart = note != null && note!.isNotEmpty ? ', catatan "$note"' : '';
+    return 'Aktivitas "$title"$catPart$notePart. Simpan?';
+  }
+}
+
 class _VoiceActivityCard extends StatelessWidget {
   const _VoiceActivityCard({
     required this.intent,
@@ -1303,6 +1567,7 @@ class _VoiceActivityCard extends StatelessWidget {
     required this.onEdit,
     required this.onSpeak,
     required this.onSelectTarget,
+    required this.onCategoryChanged,
     required this.onConfirm,
     required this.onCancel,
   });
@@ -1318,6 +1583,7 @@ class _VoiceActivityCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback? onSpeak;
   final ValueChanged<String?> onSelectTarget;
+  final ValueChanged<String> onCategoryChanged;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
 
@@ -1427,6 +1693,32 @@ class _VoiceActivityCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text('Update: ${intent!.checkpointLabel}'),
               ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: intent!.category.isNotEmpty ? intent!.category : 'Lainnya',
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Kategori aktivitas',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                'Lainnya',
+                'Perjalanan',
+                'Belanja',
+                'Pekerjaan',
+                'Keluarga',
+              ]
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) onCategoryChanged(value);
+              },
+            ),
             if (needsTarget && activeSessions.isNotEmpty) ...[
               const SizedBox(height: 10),
               Text(

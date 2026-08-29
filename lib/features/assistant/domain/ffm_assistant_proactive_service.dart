@@ -68,7 +68,7 @@ class FfmAssistantProactiveSuggestionService {
         ),
       FfmAssistantDestination.activity => const FfmAssistantProactiveSuggestion(
         id: 'review-activities',
-        message: 'Aku bisa membantu melihat aktivitas yang aktif atau menyiapkan aktivitas baru untuk kamu tinjau.',
+        message: 'Aku bisa membantu melihat aktivitas yang aktif, menyelesaikan aktivitas, menambah checkpoint, atau menyiapkan aktivitas baru.',
         suggestedPrompt: 'cek aktivitas yang perlu diperhatikan',
         destination: FfmAssistantDestination.activity,
       ),

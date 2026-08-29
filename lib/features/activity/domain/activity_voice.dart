@@ -27,6 +27,7 @@ class ActivityVoiceIntent {
     required this.type,
     required this.status,
     this.kind = ActivityKind.timer,
+    this.category = 'Lainnya',
     this.targetTitle,
     this.targetSessionId,
     this.parentTitle,
@@ -42,6 +43,7 @@ class ActivityVoiceIntent {
   final ActivityVoiceIntentType type;
   final ActivityVoiceStatus status;
   final ActivityKind kind;
+  final String category;
   final String? targetTitle;
   final String? targetSessionId;
   final String? parentTitle;
@@ -55,6 +57,7 @@ class ActivityVoiceIntent {
     ActivityVoiceIntentType? type,
     ActivityVoiceStatus? status,
     ActivityKind? kind,
+    String? category,
     String? targetTitle,
     String? targetSessionId,
     String? parentTitle,
@@ -70,6 +73,7 @@ class ActivityVoiceIntent {
     type: type ?? this.type,
     status: status ?? this.status,
     kind: kind ?? this.kind,
+    category: category ?? this.category,
     targetTitle: targetTitle ?? this.targetTitle,
     targetSessionId: targetSessionId ?? this.targetSessionId,
     parentTitle: parentTitle ?? this.parentTitle,
@@ -113,12 +117,14 @@ class ActivityVoiceParser {
     if (text.isEmpty) {
       return _unknown(raw, text, 'Teksnya masih kosong. Coba ngomong lagi ya.');
     }
+    final detectedCategory = _detectCategory(text) ?? 'Lainnya';
     if (_isConfirm(text)) {
       return ActivityVoiceIntent(
         rawTranscript: raw,
         normalizedText: text,
         type: ActivityVoiceIntentType.confirm,
         status: ActivityVoiceStatus.preview,
+        category: detectedCategory,
         confidence: 1,
       );
     }
@@ -128,6 +134,7 @@ class ActivityVoiceParser {
         normalizedText: text,
         type: ActivityVoiceIntentType.cancel,
         status: ActivityVoiceStatus.preview,
+        category: detectedCategory,
         confidence: 1,
       );
     }
@@ -198,6 +205,7 @@ class ActivityVoiceParser {
             : ActivityVoiceIntentType.startChild,
         status: ActivityVoiceStatus.preview,
         kind: kind,
+        category: detectedCategory,
         targetTitle: title,
         parentTitle: parentTitle,
         confidence: title == null ? .45 : .9,
@@ -215,6 +223,7 @@ class ActivityVoiceParser {
           normalizedText: text,
           type: ActivityVoiceIntentType.checkpoint,
           status: ActivityVoiceStatus.preview,
+          category: detectedCategory,
           targetTitle: title,
           checkpointLabel: label,
           confidence: title == null || label == null ? .45 : .85,
@@ -229,9 +238,35 @@ class ActivityVoiceParser {
       normalizedText: text,
       type: ActivityVoiceIntentType.note,
       status: ActivityVoiceStatus.preview,
+      category: detectedCategory,
       checkpointLabel: raw,
       confidence: .55,
     );
+  }
+
+  String? _detectCategory(String text) {
+    if (_containsAny(text, const ['belanja', 'beli', 'shop', 'pasar'])) {
+      return 'Belanja';
+    }
+    if (_containsAny(text, const ['perjalanan', 'travel', 'jalan', 'bepergian'])) {
+      return 'Perjalanan';
+    }
+    if (_containsAny(text, const ['kerja', 'pekerjaan', 'task', 'tugas'])) {
+      return 'Pekerjaan';
+    }
+    if (_containsAny(text, const ['keluarga', 'rumah', 'anak', 'suami', 'istri'])) {
+      return 'Keluarga';
+    }
+    if (_containsAny(text, const ['kategori', 'kelas'])) {
+      final match = RegExp(r'kategori\s+([a-z0-9\s]+)').firstMatch(text);
+      if (match != null) {
+        final candidate = match.group(1)?.trim();
+        if (candidate != null && candidate.isNotEmpty) {
+          return candidate[0].toUpperCase() + candidate.substring(1);
+        }
+      }
+    }
+    return 'Lainnya';
   }
 
   ActivityVoiceIntent resolveEdited(

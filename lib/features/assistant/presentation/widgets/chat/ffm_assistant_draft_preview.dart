@@ -31,16 +31,22 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.masterData => 'Draft Data Utama',
     FfmAssistantDraftKind.merchantUpdate => 'Preview Perubahan Toko/Tempat',
     FfmAssistantDraftKind.merchantArchive => 'Preview Arsip Toko/Tempat',
+    FfmAssistantDraftKind.merchantDelete => 'Preview Hapus Toko/Tempat',
     FfmAssistantDraftKind.tagUpdate => 'Preview Perubahan Tag',
     FfmAssistantDraftKind.tagArchive => 'Preview Arsip Tag',
+    FfmAssistantDraftKind.tagDelete => 'Preview Hapus Tag',
     FfmAssistantDraftKind.incomeSourceUpdate =>
       'Preview Perubahan Sumber Pemasukan',
     FfmAssistantDraftKind.incomeSourceArchive =>
       'Preview Arsip Sumber Pemasukan',
+    FfmAssistantDraftKind.incomeSourceDelete =>
+      'Preview Hapus Sumber Pemasukan',
     FfmAssistantDraftKind.categoryUpdate => 'Preview Perubahan Nama Kategori',
     FfmAssistantDraftKind.categoryArchive => 'Preview Arsip Kategori',
+    FfmAssistantDraftKind.categoryDelete => 'Preview Hapus Kategori',
     FfmAssistantDraftKind.accountUpdate => 'Preview Perubahan Nama Rekening',
     FfmAssistantDraftKind.accountArchive => 'Preview Arsip Rekening',
+    FfmAssistantDraftKind.accountDelete => 'Preview Hapus Rekening',
     FfmAssistantDraftKind.reminder => 'Draft Pengingat',
     FfmAssistantDraftKind.reminderUpdate => 'Preview Perubahan Pengingat',
     FfmAssistantDraftKind.reminderArchive => 'Preview Arsip Pengingat',
@@ -76,6 +82,9 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.transactionDelete => 'Preview Hapus Transaksi',
     FfmAssistantDraftKind.activityArchive => 'Preview Arsip Aktivitas',
     FfmAssistantDraftKind.activityDelete => 'Preview Hapus Aktivitas',
+    FfmAssistantDraftKind.activityFinish => 'Preview Selesaikan Aktivitas',
+    FfmAssistantDraftKind.activityUpdate => 'Preview Update Aktivitas',
+    FfmAssistantDraftKind.activityEdit => 'Preview Edit Aktivitas',
   };
 
   static String rupiah(int amount) =>

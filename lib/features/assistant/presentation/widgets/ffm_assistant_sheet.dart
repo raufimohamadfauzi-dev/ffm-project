@@ -44,11 +44,9 @@ import '../../data/ffm_personal_memory_service.dart';
 import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
-import 'chat/ffm_assistant_chat_intro.dart';
 import 'chat/ffm_json_expandable.dart';
 import 'chat/ffm_assistant_message_card.dart';
 import 'chat/ffm_streaming_text_controller.dart';
-import 'ffm_memory_nudge_card.dart';
 import 'gemini_header.dart';
 import 'gemini_typing_indicator.dart';
 import 'ffm_assistant_page_context.dart';
@@ -194,7 +192,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   late final _personalMemoryService = FfmPersonalMemoryService(
     getIt<FfmAssistantMemoryRepository>(),
   );
-  FfmPersonalMemoryInsight? _pendingMemoryNudge;
   var _memoryCount = 0;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
@@ -251,6 +248,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             'Tidak ada jawaban lokal yang disamarkan sebagai jawaban Gemini.',
       ),
     };
+
+    final intentLabel = _intentLabel(intent);
+    final capabilityDetail = usedReadCapability != null
+        ? _readCapabilityDetail(usedReadCapability, intent)
+        : null;
+
     return FfmAssistantProcessTrace(
       origin: origin,
       elapsed: elapsed,
@@ -262,17 +265,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       pluginName: pluginName,
       pluginCategory: pluginCategory,
       events: [
+        FfmAssistantProcessEvent(
+          label: 'Memahami: $intentLabel',
+          detail: 'Confidence: ${(intent.confidence * 100).toStringAsFixed(0)}%',
+          elapsed: Duration.zero,
+        ),
         ..._activeProcessEvents,
-        if (_activeProcessEvents.isEmpty)
-          FfmAssistantProcessEvent(
-            label: 'Permintaan diterima untuk dirutekan',
-            elapsed: Duration.zero,
-          ),
         if (usedReadCapability != null)
           FfmAssistantProcessEvent(
             label: _geminiReadCapabilityLabel(usedReadCapability),
-            detail:
-                'FFM hanya mengirim hasil baca yang sudah dibatasi ke Gemini.',
+            detail: capabilityDetail,
             elapsed: elapsed,
           ),
         FfmAssistantProcessEvent(
@@ -284,10 +286,68 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
   }
 
+  static String _intentLabel(FfmAssistantIntent intent) {
+    if (intent.draft != null) {
+      final draft = intent.draft!;
+      final kind = switch (draft.kind) {
+        FfmAssistantDraftKind.expense => 'Pengeluaran',
+        FfmAssistantDraftKind.income => 'Pemasukan',
+        FfmAssistantDraftKind.transfer => 'Transfer',
+        FfmAssistantDraftKind.activity => 'Aktivitas',
+        FfmAssistantDraftKind.goal => 'Target',
+        FfmAssistantDraftKind.budget => 'Anggaran',
+        FfmAssistantDraftKind.liability => 'Hutang',
+        FfmAssistantDraftKind.masterData => 'Data Utama',
+        FfmAssistantDraftKind.accountDelete => 'Hapus Rekening',
+        FfmAssistantDraftKind.categoryDelete => 'Hapus Kategori',
+        FfmAssistantDraftKind.tagDelete => 'Hapus Tag',
+        FfmAssistantDraftKind.merchantDelete => 'Hapus Toko',
+        FfmAssistantDraftKind.incomeSourceDelete => 'Hapus Sumber Pemasukan',
+        _ => draft.kind.name,
+      };
+      return 'Menyusun draft $kind${draft.amount != null ? ' Rp ${draft.amount}' : ''}';
+    }
+    return switch (intent.type) {
+      FfmAssistantIntentType.openPage => 'Membuka halaman',
+      FfmAssistantIntentType.queryData => 'Menjawab pertanyaan data',
+      FfmAssistantIntentType.transactionStats => 'Menganalisis transaksi',
+      FfmAssistantIntentType.weeklyAnalysis => 'Analisis mingguan',
+      FfmAssistantIntentType.financialWarnings => 'Peringatan keuangan',
+      FfmAssistantIntentType.help => 'Menjawab pertanyaan umum',
+      FfmAssistantIntentType.calendarQuery => 'Informasi kalender',
+      FfmAssistantIntentType.teachMemory => 'Menyimpan pengajaran',
+      FfmAssistantIntentType.confirm => 'Konfirmasi aksi',
+      FfmAssistantIntentType.unknown => 'Memproses permintaan',
+      _ => 'Memproses permintaan',
+    };
+  }
+
+  static String _readCapabilityDetail(
+    String capabilityId,
+    FfmAssistantIntent intent,
+  ) {
+    final draftKind = intent.draft?.kind.name ?? '-';
+    return switch (capabilityId) {
+      'read.summary' => 'Total transaksi bulan berjalan untuk konteks jawaban.',
+      'read.transactions' => 'Daftar transaksi terbaru (max 8) untuk analisis.',
+      'read.accounts' => 'Daftar rekening dan saldo untuk referensi.',
+      'read.budget' => 'Posisi anggaran terkini untuk perbandingan.',
+      'read.categories' => 'Daftar kategori aktif untuk validasi draft $draftKind.',
+      'read.goals' => 'Target keuangan untuk konteks perencanaan.',
+      'read.activity' => 'Sesi aktivitas aktif untuk konteks.',
+      _ => 'Data lokal terverifikasi untuk konteks jawaban.',
+    };
+  }
+
   static String _geminiReadCapabilityLabel(String capabilityId) =>
       switch (capabilityId) {
-        'read.summary' => 'Membaca ringkasan bulan ini',
-        'read.transactions' => 'Membaca transaksi terbatas yang tersimpan',
+        'read.summary' => 'Membaca ringkasan transaksi bulan ini',
+        'read.transactions' => 'Membaca transaksi terbaru (maks 8 item)',
+        'read.accounts' => 'Membaca daftar rekening dan saldo',
+        'read.budget' => 'Membaca anggaran dan posisi terkini',
+        'read.categories' => 'Membaca daftar kategori aktif',
+        'read.goals' => 'Membaca target keuangan',
+        'read.activity' => 'Membaca sesi aktivitas aktif',
         _ => 'Membaca data lokal terverifikasi',
       };
 
@@ -580,6 +640,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _historyRestoreFuture;
       if (!mounted) return;
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_scrollController.hasClients) return;
       _scrollToEnd(force: true, animated: false);
       _checkAndInitiateGreetings();
     });
@@ -636,14 +699,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
   }
 
-  Future<void> _setRoutingMode(FfmAssistantRoutingMode mode) async {
-    if (_routingMode == mode) return;
-    setState(() => _routingMode = mode);
-    await _supabaseConfig.setLlmMode(
-      mode == FfmAssistantRoutingMode.geminiCloud ? 'gemini_cloud' : 'agent',
-    );
-  }
-
   Future<void> _refreshCloudStatus() async {
     try {
       final key = await _supabaseConfig.getGeminiKey();
@@ -691,25 +746,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   void _checkForMemoryNudge(String userMessage) {
     if (userMessage.trim().isEmpty) return;
-    final insight = _personalMemoryService.extractFromMessage(userMessage);
-    if (insight != null && mounted) {
-      setState(() => _pendingMemoryNudge = insight);
-    }
-  }
-
-  Future<void> _saveMemoryNudge() async {
-    final insight = _pendingMemoryNudge;
-    if (insight == null) return;
-    setState(() => _pendingMemoryNudge = null);
-    await _personalMemoryService.saveApproved(insight);
-    await _refreshMemoryCount();
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✅ Aku sudah mengingatnya!'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    _personalMemoryService.extractFromMessage(userMessage);
   }
 
   @override
@@ -2329,17 +2366,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   String? _buildRecentConversationHistory() {
     if (_entries.isEmpty) return null;
-    final recent = _entries.length > 5
-        ? _entries.sublist(_entries.length - 5)
+    final recent = _entries.length > 8
+        ? _entries.sublist(_entries.length - 8)
         : _entries;
     final lines = <String>[];
     for (final entry in recent) {
       final role = entry.isUser ? 'Pengguna' : 'Asisten';
       final text = entry.text.trim();
       if (text.isNotEmpty) {
-        // Ambil baris pertama atau maksimal 100 karakter agar konteks tetap ringkas
-        final snippet = text.split('\n').first.trim();
-        lines.add('$role: $snippet');
+        final snippet = text.split('\n').take(3).join(' ').trim();
+        final truncated = snippet.length > 200
+            ? '${snippet.substring(0, 200)}...'
+            : snippet;
+        lines.add('$role: $truncated');
+      }
+      if (entry.intent?.draft != null) {
+        final draft = entry.intent!.draft!;
+        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}]');
       }
     }
     return lines.isEmpty ? null : lines.join('\n');
@@ -2370,7 +2413,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final currentPage = widget.currentDestination == null
         ? null
         : FfmAssistantCatalog.findByDestination(widget.currentDestination!);
-    final proactiveSuggestion = _proactiveSuggestion;
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -2412,31 +2454,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ? const Color(0xFF2E2A26)
                     : const Color(0xFFE8E0D0),
               ),
-              if (proactiveSuggestion != null && _cloudReady)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Card(
-                    margin: EdgeInsets.zero,
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(
-                        Icons.lightbulb_outline,
-                        color: theme.colorScheme.primary,
-                      ),
-                      title: Text(
-                        proactiveSuggestion.message,
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      trailing: TextButton(
-                        onPressed: _submitting
-                            ? null
-                            : () =>
-                                  _submit(proactiveSuggestion.suggestedPrompt),
-                        child: const Text('Coba'),
-                      ),
-                    ),
-                  ),
-                ),
               Expanded(
                 child: Stack(
                   children: [
@@ -2560,6 +2577,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   _actionPlanner.planFor(entry.intent!)?.id ??
                                       '',
                                 ),
+                          onActivityFinish: (sessionId) =>
+                              _submit('selesai aktivitas $sessionId'),
+                          onActivityUpdate: (sessionId) =>
+                              _submit('update aktivitas $sessionId: '),
+                          onActivityChat: (sessionId) =>
+                              _submit('cek aktivitas $sessionId'),
                         );
                       },
                     ),
@@ -2590,15 +2613,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               if (_submitting) const LinearProgressIndicator(minHeight: 2),
               if (_queuedDraftCount > 1)
                 _buildDraftQueueSummary(_queuedDraftCount),
-              if (!_submitting && _pendingMemoryNudge != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 2),
-                  child: FfmMemoryNudgeCard(
-                    insight: _pendingMemoryNudge!,
-                    onSave: _saveMemoryNudge,
-                    onDismiss: () => setState(() => _pendingMemoryNudge = null),
-                  ),
-                ),
               if (getIt.isRegistered<ActivityBloc>())
                 BlocBuilder<ActivityBloc, ActivityState>(
                   bloc: getIt<ActivityBloc>(),
@@ -2616,20 +2630,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     );
                   },
                 ),
-              if (!_submitting && widget.session.pendingDialog != null)
-                FfmAssistantAmbiguousClarification(
-                  question: widget.session.pendingDialog!.prompt,
-                  safeChoices: _safeClarificationChoices(
-                    widget.session.pendingDialog!,
-                  ),
-                  onSelectChoice: _submit,
-                ),
-              if (!_submitting && _entries.every((entry) => !entry.isUser))
-                _buildQuickDraftPrompts(),
-              if (!_submitting &&
-                  widget.session.pendingDialog == null &&
-                  _entries.any((entry) => entry.isUser))
-                _buildContextualSuggestions(),
               SafeArea(
                 top: false,
                 child: Padding(
@@ -2642,7 +2642,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildModelSelector(),
                           Container(
                             decoration: BoxDecoration(
                               color: isDark
@@ -2845,122 +2844,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           _scrollToEnd(force: true);
         },
         child: Text('#$number $label · $status'),
-      ),
-    );
-  }
-
-  Widget _buildQuickDraftPrompts() {
-    const prompts = <FfmAssistantQuickPrompt>[
-      (
-        label: 'Draft transaksi',
-        text: 'Catat pengeluaran makan Rp50.000 hari ini',
-        icon: Icons.receipt_long_outlined,
-      ),
-      (
-        label: 'Draft anggaran',
-        text: 'Buatkan draft anggaran makan bulan ini',
-        icon: Icons.pie_chart_outline,
-      ),
-      (
-        label: '2 draft sekaligus',
-        text: 'Catat pengeluaran makan Rp50.000 hari ini, lalu buat draft anggaran makan bulan ini',
-        icon: Icons.playlist_add_rounded,
-      ),
-    ];
-
-    return FfmAssistantChatIntro(examples: prompts, onFillExample: _fillPrompt);
-  }
-
-  Widget _buildContextualSuggestions() => FfmAssistantContextualSuggestions(
-    suggestions: const <FfmAssistantSuggestion>[
-      (
-        label: 'Draft transaksi',
-        text: 'Buat draft transaksi baru',
-        icon: Icons.receipt_long_outlined,
-      ),
-      (
-        label: 'Draft anggaran',
-        text: 'Buat draft anggaran bulan ini',
-        icon: Icons.pie_chart_outline,
-      ),
-      (
-        label: '2 draft sekaligus',
-        text: 'Catat pengeluaran lalu buat draft anggaran',
-        icon: Icons.playlist_add_rounded,
-      ),
-    ],
-    onFillExample: _fillPrompt,
-  );
-
-  List<String> _safeClarificationChoices(FfmAssistantPendingDialog pending) {
-    if (pending.missingFields.contains('jenis transaksi')) {
-      return const ['Pemasukan', 'Pengeluaran'];
-    }
-    return const [];
-  }
-
-  void _fillPrompt(String text) {
-    _controller.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-    _inputFocusNode.requestFocus();
-  }
-
-  Widget _buildModelSelector() {
-    final isGemini = _routingMode == FfmAssistantRoutingMode.geminiCloud;
-    final label = isGemini ? 'Gemini Cloud' : 'Agent';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: PopupMenuButton<FfmAssistantRoutingMode>(
-        tooltip: 'Pilih mode jawaban',
-        onSelected: (mode) => unawaited(_setRoutingMode(mode)),
-        itemBuilder: (context) => [
-          CheckedPopupMenuItem<FfmAssistantRoutingMode>(
-            value: FfmAssistantRoutingMode.agent,
-            checked: _routingMode == FfmAssistantRoutingMode.agent,
-            child: const Text('AGENT'),
-          ),
-          CheckedPopupMenuItem<FfmAssistantRoutingMode>(
-            value: FfmAssistantRoutingMode.geminiCloud,
-            checked: isGemini,
-            child: const Text('GEMINI CLOUD'),
-          ),
-        ],
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isGemini ? Icons.cloud_outlined : Icons.account_tree_outlined,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .5,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.arrow_drop_down,
-                  color: Theme.of(context).colorScheme.onPrimary,
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -239,6 +239,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
       case FfmAssistantDraftKind.transactionDelete:
       case FfmAssistantDraftKind.activityArchive:
       case FfmAssistantDraftKind.activityDelete:
+      case FfmAssistantDraftKind.activityFinish:
+      case FfmAssistantDraftKind.activityUpdate:
+      case FfmAssistantDraftKind.activityEdit:
+      case FfmAssistantDraftKind.merchantDelete:
+      case FfmAssistantDraftKind.tagDelete:
+      case FfmAssistantDraftKind.incomeSourceDelete:
+      case FfmAssistantDraftKind.categoryDelete:
+      case FfmAssistantDraftKind.accountDelete:
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

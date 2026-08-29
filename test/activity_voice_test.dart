@@ -27,6 +27,16 @@ void main() {
 
     expect(intent.type, ActivityVoiceIntentType.start);
     expect(intent.targetTitle, 'Makan');
+    expect(intent.category, 'Lainnya');
+    expect(intent.canConfirm, isTrue);
+  });
+
+  test('mendeteksi kategori suara dari kata kunci aktivitas', () {
+    final intent = parser.parse('mulai belanja untuk sayur');
+
+    expect(intent.type, ActivityVoiceIntentType.start);
+    expect(intent.targetTitle, 'Belanja Untuk Sayur');
+    expect(intent.category, 'Belanja');
     expect(intent.canConfirm, isTrue);
   });
 

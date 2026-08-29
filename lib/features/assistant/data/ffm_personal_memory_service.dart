@@ -88,6 +88,60 @@ class FfmPersonalMemoryService {
       labeler: (m) => 'Pekerjaan: ${m.group(1)?.trim()}',
     ),
     _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'hobby',
+      pattern: RegExp(
+        r'(?:hobi|kesenangan|suka)\s+(?:ku|saya|gue)?\s*(?:adalah|nya)?\s*([\w\s,]{2,40})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Hobi: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'location',
+      pattern: RegExp(
+        r'(?:aku|saya|gue)\s+(?:tinggal|domisili|berdomisili)\s+(?:di|dalam)?\s*([\w\s]{3,30})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Domisili: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'monthly_income',
+      pattern: RegExp(
+        r'(?:gaji|penghasilan|pendapatan)(?:\s*(?:ku|saya|gue))?\s+(?:perbulan|per\s*bulan|sebulan)?\s*(?:sekitar|kurang\s+lebih|about)?\s*([\d.,]+(?:\s*(?:juta|ribu|rb|jt))?)',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Penghasilan/bulan: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'spouse_name',
+      pattern: RegExp(
+        r'(?:istri|suami|pasangan)(?:\s*(?:ku|saya|gue))?\s+(?:nama(?:nya)?)?\s*(?:adalah\s+)?([A-Za-z]{2,20})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Nama pasangan: ${m.group(1)}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'child_count',
+      pattern: RegExp(
+        r'(?:anak(?:ku|saya|gue)?)\s+(?:ada|berjumlah)\s+(\d+)',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Jumlah anak: ${m.group(1)}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'financial_goal',
+      pattern: RegExp(
+        r'(?:ingin|mau|目标|mimpi)\s+(?:beli|punya|membeli)\s+([\w\s]{3,30})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Goal keuangan: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
       kind: FfmPersonalMemoryKind.habitChat,
       key: 'savings_target',
       pattern: RegExp(

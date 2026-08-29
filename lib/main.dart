@@ -479,9 +479,12 @@ class _AppShellState extends State<AppShell> {
       case FfmAssistantWidgetAction.openBudget:
         setState(() => _index = 3);
       case FfmAssistantWidgetAction.openActivity:
+        if (_index == 2) {
+          return;
+        }
         setState(() => _index = 2);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
+          if (mounted && !Navigator.of(context).canPop()) {
             Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
           }

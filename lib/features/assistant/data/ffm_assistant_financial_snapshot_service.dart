@@ -241,4 +241,80 @@ class FfmAssistantFinancialSnapshotService {
     ];
     return month >= 1 && month <= 12 ? names[month - 1] : 'berjalan';
   }
+
+  /// Digest rekening untuk capability cloud.
+  Future<String> buildAccountsDigest({
+    required String householdId,
+  }) async {
+    final accounts =
+        await (_database.select(_database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    if (accounts.isEmpty) {
+      return 'Accounts digest: belum ada rekening aktif.';
+    }
+    final lines = accounts.map((row) {
+      return '${row.name}|type=${row.type}|balance=${row.openingBalance}';
+    }).toList();
+    return 'Accounts digest: ${lines.join('; ')}.';
+  }
+
+  /// Digest anggaran untuk capability cloud.
+  Future<String> buildBudgetDigest({
+    required String householdId,
+    required DateTime now,
+  }) async {
+    final budgets =
+        await (_database.select(_database.envelopeBudgets)..where(
+              (row) => row.householdId.equals(householdId),
+            ))
+            .get();
+    if (budgets.isEmpty) {
+      return 'Budget digest: belum ada anggaran.';
+    }
+    final lines = budgets.map((row) {
+      return '${row.name}|allocated=${row.allocated}|period=${row.periodType}';
+    }).toList();
+    return 'Budget digest: ${lines.join('; ')}.';
+  }
+
+  /// Digest kategori untuk capability cloud.
+  Future<String> buildCategoriesDigest({
+    required String householdId,
+  }) async {
+    final categories =
+        await (_database.select(_database.categories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    if (categories.isEmpty) {
+      return 'Categories digest: belum ada kategori.';
+    }
+    final names = categories.map((row) => row.name).toList()..sort();
+    return 'Categories digest: ${names.join(', ')}.';
+  }
+
+  /// Digest target keuangan untuk capability cloud.
+  Future<String> buildGoalsDigest({
+    required String householdId,
+  }) async {
+    final goals =
+        await (_database.select(_database.goals)..where(
+              (row) => row.householdId.equals(householdId),
+            ))
+            .get();
+    if (goals.isEmpty) {
+      return 'Goals digest: belum ada target keuangan.';
+    }
+    final lines = goals.map((row) {
+      return '${row.name}|target=${row.targetAmount}|saved=${row.currentAmount}';
+    }).toList();
+    return 'Goals digest: ${lines.join('; ')}.';
+  }
 }

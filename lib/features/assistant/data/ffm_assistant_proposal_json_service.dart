@@ -37,9 +37,13 @@ class FfmAssistantProposalJsonService {
       // Capability read yang boleh dipanggil model harus punya adapter hasil
       // bounded sendiri. Jangan mengizinkan ID registry lain secara otomatis.
       if (capabilityId != 'read.summary' &&
-          capabilityId != 'read.transactions') {
+          capabilityId != 'read.transactions' &&
+          capabilityId != 'read.accounts' &&
+          capabilityId != 'read.budget' &&
+          capabilityId != 'read.categories' &&
+          capabilityId != 'read.goals') {
         return const FfmAssistantReadCapabilityRequestParseResult.invalid(
-          'Capability Gemini tidak diizinkan. Hanya read.summary atau read.transactions yang tersedia.',
+          'Capability Gemini tidak diizinkan. Hanya read.summary, read.transactions, read.accounts, read.budget, read.categories, atau read.goals yang tersedia.',
         );
       }
       final arguments = decoded['arguments'];
@@ -68,6 +72,15 @@ class FfmAssistantProposalJsonService {
       if (capabilityId == 'read.summary' && argumentMap.length > 1) {
         return const FfmAssistantReadCapabilityRequestParseResult.invalid(
           'read.summary tidak menerima filter tambahan.',
+        );
+      }
+      if ((capabilityId == 'read.accounts' ||
+              capabilityId == 'read.budget' ||
+              capabilityId == 'read.categories' ||
+              capabilityId == 'read.goals') &&
+          argumentMap.isNotEmpty) {
+        return FfmAssistantReadCapabilityRequestParseResult.invalid(
+          '$capabilityId tidak menerima filter tambahan.',
         );
       }
       final startDate = _parseCapabilityDate(argumentMap['startDate']);
@@ -155,6 +168,84 @@ class FfmAssistantProposalJsonService {
     } on FormatException {
       return const FfmAssistantProposalParseResult.invalid(
         'JSON proposal belum valid. Salin ulang hasil LLM tanpa Markdown atau teks tambahan.',
+      );
+    }
+  }
+
+  /// Parse beberapa proposal sekaligus dari satu respon LLM.
+  ///
+  /// Mendukung format:
+  /// ```json
+  /// { "formatVersion": "ffm-assistant-proposal-v1", "proposals": [ ... ] }
+  /// ```
+  /// atau fallback ke `parse()` single proposal.
+  static FfmAssistantMultiProposalParseResult parseMultiple(
+    String rawText, {
+    required DateTime createdAt,
+  }) {
+    final jsonText = _extractJson(rawText.trim());
+    if (jsonText == null) {
+      return const FfmAssistantMultiProposalParseResult.notProposal();
+    }
+    try {
+      final decoded = jsonDecode(jsonText);
+      if (decoded is! Map ||
+          decoded['formatVersion']?.toString() != formatVersion) {
+        return const FfmAssistantMultiProposalParseResult.notProposal();
+      }
+      final rawProposals = decoded['proposals'];
+      if (rawProposals is List && rawProposals.isNotEmpty) {
+        final drafts = <FfmAssistantDraft>[];
+        final teachings = <FfmAssistantTeachingProposal>[];
+        String? firstError;
+        for (final item in rawProposals) {
+          if (item is! Map) continue;
+          final proposal = Map<String, dynamic>.from(item);
+          final result = switch (proposal['type']?.toString()) {
+            'master_data' => _parseMasterData(proposal, createdAt),
+            'transaction' => _parseTransaction(proposal, createdAt),
+            'activity' => _parseActivity(proposal, createdAt),
+            'memory' => _parseMemory(proposal),
+            _ => const FfmAssistantProposalParseResult.invalid(
+              'Jenis proposal belum didukung.',
+            ),
+          };
+          if (result.error != null && firstError == null) {
+            firstError = result.error;
+          }
+          if (result.draft != null) drafts.add(result.draft!);
+          if (result.teachingProposal != null) {
+            teachings.add(result.teachingProposal!);
+          }
+        }
+        if (drafts.isEmpty && teachings.isEmpty && firstError != null) {
+          return FfmAssistantMultiProposalParseResult.error(firstError);
+        }
+        return FfmAssistantMultiProposalParseResult.multi(
+          drafts: drafts,
+          teachingProposals: teachings,
+        );
+      }
+      final single = parse(rawText, createdAt: createdAt);
+      if (single.draft != null) {
+        return FfmAssistantMultiProposalParseResult.multi(
+          drafts: [single.draft!],
+          teachingProposals: const [],
+        );
+      }
+      if (single.teachingProposal != null) {
+        return FfmAssistantMultiProposalParseResult.multi(
+          drafts: const [],
+          teachingProposals: [single.teachingProposal!],
+        );
+      }
+      if (single.error != null) {
+        return FfmAssistantMultiProposalParseResult.error(single.error!);
+      }
+      return const FfmAssistantMultiProposalParseResult.notProposal();
+    } on FormatException {
+      return const FfmAssistantMultiProposalParseResult.error(
+        'JSON proposal belum valid.',
       );
     }
   }
@@ -391,6 +482,30 @@ class FfmAssistantProposalParseResult {
 
   bool get isProposal =>
       draft != null || teachingProposal != null || error != null;
+}
+
+class FfmAssistantMultiProposalParseResult {
+  const FfmAssistantMultiProposalParseResult._({
+    this.drafts = const [],
+    this.teachingProposals = const [],
+    this.error,
+  });
+
+  const FfmAssistantMultiProposalParseResult.notProposal() : this._();
+  const FfmAssistantMultiProposalParseResult.error(String error)
+    : this._(error: error);
+  const FfmAssistantMultiProposalParseResult.multi({
+    required List<FfmAssistantDraft> drafts,
+    required List<FfmAssistantTeachingProposal> teachingProposals,
+  }) : this._(drafts: drafts, teachingProposals: teachingProposals);
+
+  final List<FfmAssistantDraft> drafts;
+  final List<FfmAssistantTeachingProposal> teachingProposals;
+  final String? error;
+
+  bool get isProposal =>
+      drafts.isNotEmpty || teachingProposals.isNotEmpty || error != null;
+  bool get hasMultipleDrafts => drafts.length > 1;
 }
 
 class FfmAssistantReadCapabilityRequest {

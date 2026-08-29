@@ -35,9 +35,19 @@ abstract final class FfmAssistantDraftValidator {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'income_destination_untracked',
-              severity: FfmAssistantDraftIssueSeverity.warning,
+              severity: FfmAssistantDraftIssueSeverity.required,
               field: 'rekening tujuan',
-              message: 'Rekening tujuan belum dipilih. Pemasukan akan berstatus Belum terlacak jika kamu lanjut.',
+              message: 'Rekening tujuan belum dipilih. Sebut nama rekening yang ada di Data Utama.',
+            ),
+          );
+        }
+        if (_isBlank(draft.categoryName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'income_category_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'kategori',
+              message: 'Kategori pemasukan belum ada. Sebut nama kategori yang ada di Data Utama, atau buat dulu lewat "buat kategori [nama]".',
             ),
           );
         }
@@ -46,9 +56,19 @@ abstract final class FfmAssistantDraftValidator {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'expense_source_untracked',
-              severity: FfmAssistantDraftIssueSeverity.warning,
+              severity: FfmAssistantDraftIssueSeverity.required,
               field: 'rekening sumber',
-              message: 'Rekening sumber belum dipilih. Pengeluaran akan berstatus Belum terlacak jika kamu lanjut.',
+              message: 'Rekening sumber belum dipilih. Sebut nama rekening yang ada di Data Utama.',
+            ),
+          );
+        }
+        if (_isBlank(draft.categoryName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'expense_category_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'kategori',
+              message: 'Kategori pengeluaran belum ada. Sebut nama kategori yang ada di Data Utama, atau buat dulu lewat "buat kategori [nama]".',
             ),
           );
         }
@@ -177,6 +197,17 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.merchantDelete:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'merchant_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Toko/Tempat',
+              message: 'Toko/Tempat target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.tagUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -189,6 +220,17 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.tagArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'tag_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Tag',
+              message: 'Tag target belum ditemukan secara unik.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.tagDelete:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -221,6 +263,17 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.incomeSourceDelete:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'income_source_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Sumber Pemasukan',
+              message: 'Sumber Pemasukan target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.categoryUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -243,6 +296,17 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.categoryDelete:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'category_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Kategori',
+              message: 'Kategori target belum ditemukan secara unik.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.accountUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -255,6 +319,17 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.accountArchive:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'account_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Rekening',
+              message: 'Rekening target belum ditemukan secara unik.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.accountDelete:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -467,6 +542,9 @@ abstract final class FfmAssistantDraftValidator {
       case FfmAssistantDraftKind.transactionDelete:
       case FfmAssistantDraftKind.activityArchive:
       case FfmAssistantDraftKind.activityDelete:
+      case FfmAssistantDraftKind.activityFinish:
+      case FfmAssistantDraftKind.activityUpdate:
+      case FfmAssistantDraftKind.activityEdit:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -540,14 +618,19 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.recurringTransactionArchive ||
     FfmAssistantDraftKind.merchantUpdate ||
     FfmAssistantDraftKind.merchantArchive ||
+    FfmAssistantDraftKind.merchantDelete ||
     FfmAssistantDraftKind.tagUpdate ||
     FfmAssistantDraftKind.tagArchive ||
+    FfmAssistantDraftKind.tagDelete ||
     FfmAssistantDraftKind.incomeSourceUpdate ||
     FfmAssistantDraftKind.incomeSourceArchive ||
+    FfmAssistantDraftKind.incomeSourceDelete ||
     FfmAssistantDraftKind.categoryUpdate ||
     FfmAssistantDraftKind.categoryArchive ||
+    FfmAssistantDraftKind.categoryDelete ||
     FfmAssistantDraftKind.accountUpdate ||
     FfmAssistantDraftKind.accountArchive ||
+    FfmAssistantDraftKind.accountDelete ||
     FfmAssistantDraftKind.budgetArchive ||
     FfmAssistantDraftKind.reminderUpdate ||
     FfmAssistantDraftKind.profile ||

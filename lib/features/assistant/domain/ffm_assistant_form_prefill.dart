@@ -110,7 +110,10 @@ abstract final class FfmAssistantFormPrefillMapper {
     FfmAssistantDraftKind.reminderArchive => FfmAssistantDestination.reminders,
     FfmAssistantDraftKind.activity ||
     FfmAssistantDraftKind.activityArchive ||
-    FfmAssistantDraftKind.activityDelete => FfmAssistantDestination.activity,
+    FfmAssistantDraftKind.activityDelete ||
+    FfmAssistantDraftKind.activityFinish ||
+    FfmAssistantDraftKind.activityUpdate ||
+    FfmAssistantDraftKind.activityEdit => FfmAssistantDestination.activity,
     _ => FfmAssistantDestination.masterData,
   };
 }

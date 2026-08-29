@@ -53,6 +53,9 @@ class FfmAssistantSelfDescriptionService {
     'draft.expense',
     'draft.transfer',
     'draft.activity',
+    'draft.activity_finish',
+    'draft.activity_update',
+    'draft.activity_edit',
     'draft.daily_note',
     'draft.reminder',
     'draft.goal',
@@ -98,6 +101,12 @@ class FfmAssistantSelfDescriptionService {
       if (implemented.contains('draft.expense') && canSaveDraft) 'pengeluaran',
       if (implemented.contains('draft.transfer') && canSaveDraft) 'transfer',
       if (implemented.contains('draft.activity') && canSaveDraft) 'aktivitas',
+      if (implemented.contains('draft.activity_finish') && canSaveDraft)
+        'selesai aktivitas',
+      if (implemented.contains('draft.activity_update') && canSaveDraft)
+        'update aktivitas',
+      if (implemented.contains('draft.activity_edit') && canSaveDraft)
+        'edit aktivitas',
       if (implemented.contains('draft.daily_note') && canSaveDraft)
         'Catatan Harian',
     ];

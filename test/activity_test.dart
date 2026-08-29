@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/database/audit_logger.dart';
 import 'package:ffm_manager/features/activity/data/repositories/activity_repository.dart';
+import 'package:ffm_manager/features/activity/domain/activity_voice.dart';
 import 'package:ffm_manager/features/activity/presentation/bloc/activity_bloc.dart';
 import 'package:ffm_manager/features/activity/domain/entities/activity_entity.dart';
 
@@ -446,6 +447,28 @@ void main() {
       expect(await repository.getEntries('local-household'), isEmpty);
     },
   );
+
+  test('ActivityBloc voice intent membuat sesi baru dengan kategori yang dipilih', () async {
+    final bloc = ActivityBloc(repository);
+    addTearDown(bloc.close);
+
+    final intent = ActivityVoiceIntent(
+      rawTranscript: 'mulai belanja sayur',
+      normalizedText: 'mulai belanja sayur',
+      type: ActivityVoiceIntentType.start,
+      status: ActivityVoiceStatus.preview,
+      category: 'Belanja',
+      targetTitle: 'Belanja sayur',
+      confidence: 1,
+    );
+
+    await bloc.executeVoiceIntent(intent);
+
+    final active = await repository.getActiveSessions('local-household');
+    expect(active, hasLength(1));
+    expect(active.single.title, 'Belanja sayur');
+    expect(active.single.category, 'Belanja');
+  });
 
   test('ActivityBloc mengosongkan kartu aktif setelah sesi dihapus', () async {
     final now = DateTime(2026, 8, 21, 11);

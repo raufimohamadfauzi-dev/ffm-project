@@ -32,6 +32,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.actionPlan,
     this.visibleText,
     this.isStreaming = false,
+    this.onActivityFinish,
+    this.onActivityUpdate,
+    this.onActivityChat,
   });
 
   final FfmAssistantChatEntry entry;
@@ -61,13 +64,17 @@ class FfmAssistantMessageCard extends StatelessWidget {
   /// Apakah teks sedang dalam proses streaming.
   final bool isStreaming;
 
+  /// Quick-action callbacks untuk activity cards
+  final void Function(String sessionId)? onActivityFinish;
+  final void Function(String sessionId)? onActivityUpdate;
+  final void Function(String sessionId)? onActivityChat;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isUser = entry.isUser;
     final intent = entry.intent;
-    final isUnknown = !isUser && intent?.type == FfmAssistantIntentType.unknown;
 
     final userBubbleColor = isDark
         ? const Color(0xFF1E1E1E)
@@ -81,38 +88,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!isUser && entry.processTrace != null) ...[
-          _OriginBadge(trace: entry.processTrace!),
-          const SizedBox(height: 6),
           FfmAssistantProcessDisclosure(
             trace: entry.processTrace!,
             actionPlan: actionPlan,
           ),
           const SizedBox(height: 8),
-        ],
-        if (isUnknown) ...[
-          Semantics(
-            label: 'Belum ada jawaban tetap. Pertanyaan tersimpan untuk pembaruan.',
-            child: Row(
-              children: [
-                Icon(
-                  Icons.school_outlined,
-                  size: 17,
-                  color: theme.colorScheme.onTertiaryContainer,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Tersimpan di Pengetahuan Asisten • menu Lainnya',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: theme.colorScheme.onTertiaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 5),
         ],
         if (entry.filePath != null) ...[
           FfmChatFileCard(
@@ -159,11 +139,14 @@ class FfmAssistantMessageCard extends StatelessWidget {
                     const SizedBox(height: 6),
                     ...sessions.map((s) {
                       final sMap = s as Map<String, dynamic>;
+                      final sessionId = sMap['id'] as String? ?? '';
+                      final isActive = meta['hasActive'] as bool? ?? true;
                       return ActivitySessionChatCard(
                         title: sMap['title'] as String? ?? '',
                         category: sMap['category'] as String? ?? '',
                         duration: sMap['duration'] as String? ?? '',
-                        isActive: meta['hasActive'] as bool? ?? true,
+                        sessionId: sessionId,
+                        isActive: isActive,
                         checkpoints:
                             (sMap['checkpoints'] as List?)
                                 ?.cast<Map<String, dynamic>>() ??
@@ -173,6 +156,15 @@ class FfmAssistantMessageCard extends StatelessWidget {
                                 ?.cast<Map<String, dynamic>>() ??
                             const [],
                         lastCheckpoint: sMap['lastCheckpoint'] as String?,
+                        onFinish: isActive && onActivityFinish != null
+                            ? () => onActivityFinish!(sessionId)
+                            : null,
+                        onUpdate: isActive && onActivityUpdate != null
+                            ? () => onActivityUpdate!(sessionId)
+                            : null,
+                        onChat: isActive && onActivityChat != null
+                            ? () => onActivityChat!(sessionId)
+                            : null,
                       );
                     }),
                   ],
@@ -336,138 +328,4 @@ class FfmChatFileCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _OriginBadge extends StatelessWidget {
-  const _OriginBadge({required this.trace});
-  final FfmAssistantProcessTrace trace;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Jika ada pluginName, tampilkan badge plugin eksplisit
-    if (trace.pluginName != null && trace.pluginCategory != null) {
-      final color = isDark ? const Color(0xFF00BFA5) : const Color(0xFF00796B);
-      final icon = switch (trace.pluginCategory) {
-        '👁️ Sense' => Icons.visibility_outlined,
-        '🧮 Logic' => Icons.calculate_outlined,
-        '✋ Actuator' => Icons.edit_outlined,
-        _ => Icons.account_tree_outlined,
-      };
-      final label =
-          '${trace.pluginCategory}: ${_resolvePluginDisplayName(trace.pluginName!)}';
-
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.2),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color, width: 1.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: color,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final (icon, label, color) = switch (trace.origin) {
-      FfmAssistantResponseOrigin.localSlm => (
-        Icons.auto_awesome_outlined,
-        'AGENT PROPOSAL',
-        isDark ? const Color(0xFF64B5F6) : const Color(0xFF1976D2),
-      ),
-      FfmAssistantResponseOrigin.localFallback => (
-        Icons.info_outline,
-        'AGENT FALLBACK',
-        isDark ? const Color(0xFFFFD54F) : const Color(0xFFF57C00),
-      ),
-      FfmAssistantResponseOrigin.agentOrchestrator => (
-        Icons.account_tree_outlined,
-        'AGENT',
-        isDark ? const Color(0xFF81C784) : const Color(0xFF388E3C),
-      ),
-      FfmAssistantResponseOrigin.geminiCloud => (
-        Icons.cloud_done_outlined,
-        'GEMINI CLOUD',
-        isDark ? const Color(0xFF81C784) : const Color(0xFF2E7D32),
-      ),
-      FfmAssistantResponseOrigin.cloudError => (
-        Icons.cloud_off_outlined,
-        'GEMINI GAGAL',
-        isDark ? const Color(0xFFFF8A80) : const Color(0xFFC62828),
-      ),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color, width: 1.5),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-              color: color,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _resolvePluginDisplayName(String pluginName) =>
-      switch (pluginName) {
-        'balance_sense' => 'Saldo & Rekening',
-        'transaction_sense' => 'Ringkasan Transaksi',
-        'budget_sense' => 'Anggaran',
-        'debt_sense' => 'Hutang',
-        'asset_sense' => 'Aset',
-        'goal_sense' => 'Target Tabungan',
-        'user_habits_profile' => 'Profil & Kebiasaan',
-        'receivable_sense' => 'Piutang',
-        'recurring_transaction_sense' => 'Transaksi Berulang',
-        'daily_notes_sense' => 'Catatan Harian',
-        'task_sense' => 'Daftar Tugas',
-        'schedule_sense' => 'Agenda & Jadwal',
-        'routine_sense' => 'Rutinitas Harian',
-        'top_merchant_sense' => 'Analisis Merchant',
-        'activity_report_sense' => 'Laporan Aktivitas',
-        'live_activity_sense' => 'Live Activity (Layar)',
-        'quick_note_actuator' => 'Quick Note Cepat',
-        'activity_context_logic' => 'Konteks & Durasi Sesi',
-        'activity_guard' => 'Pengaman Aktivitas',
-        'zakat_logic' => 'Kalkulator Zakat',
-        'financial_health_logic' => 'Kesehatan Keuangan',
-        'budget_guard_logic' => 'Budget Guard',
-        'loan_affordability_logic' => 'Kemampuan Pinjaman',
-        'spending_pace_logic' => 'Laju Pengeluaran',
-        'holistic_awareness' => 'Potret 360°',
-        'emergency_fund_logic' => 'Dana Darurat',
-        'debt_snowball_logic' => 'Strategi Bebas Hutang',
-        'saving_rate_logic' => 'Rasio Menabung',
-        _ => pluginName,
-      };
 }

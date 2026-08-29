@@ -66,13 +66,19 @@ class _FfmAssistantProcessDisclosureState
 
   String _capabilityLabel(String capabilityId) => switch (capabilityId) {
     'read.summary' => 'Membaca ringkasan transaksi',
-    'read.transactions' => 'Membaca transaksi yang tersimpan',
+    'read.transactions' => 'Membaca transaksi terbaru',
     'read.budget' => 'Memeriksa anggaran',
     'read.activity' => 'Membaca aktivitas',
-    'read.accounts' => 'Memeriksa rekening',
-    'read.categories' => 'Memeriksa kategori',
+    'read.accounts' => 'Memeriksa rekening dan saldo',
+    'read.categories' => 'Memeriksa daftar kategori',
+    'read.goals' => 'Memeriksa target keuangan',
     'read.model_status' => 'Memeriksa status Assistant',
     'navigate.budget' => 'Membuka halaman Anggaran',
+    'navigate.categories' => 'Membuka halaman Kategori',
+    'navigate.accounts' => 'Membuka halaman Rekening',
+    'navigate.tags' => 'Membuka halaman Tag',
+    'navigate.merchants' => 'Membuka halaman Toko',
+    'navigate.income_sources' => 'Membuka halaman Sumber Pemasukan',
     _ =>
       capabilityId
           .replaceFirst(RegExp(r'^(read|draft|mutate|verify|navigate)\.'), '')
@@ -154,14 +160,15 @@ class _FfmAssistantProcessDisclosureState
                 ),
                 child: Row(
                   children: [
-                    Icon(origin.icon, size: 16, color: origin.color),
-                    const SizedBox(width: 8),
+                    Icon(origin.icon, size: 14, color: origin.color),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         planSummary,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
                         ),
                       ),
                     ),
@@ -169,7 +176,7 @@ class _FfmAssistantProcessDisclosureState
                       _expanded
                           ? Icons.keyboard_arrow_up_rounded
                           : Icons.keyboard_arrow_down_rounded,
-                      size: 18,
+                      size: 16,
                     ),
                   ],
                 ),
