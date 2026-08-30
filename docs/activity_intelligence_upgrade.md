@@ -6,15 +6,19 @@ Menjadikan **Aktivitas** sebagai salah satu sumber data utama FFM untuk pencatat
 
 Target utama:
 
-- aktivitas mudah dicatat dari UI, chat, dan voice;
-- setiap kejadian memiliki ID unik;
-- aktivitas yang merupakan bagian dari proses/objek yang sama dapat ditelusuri kembali;
+- aktivitas tetap cepat dan natural untuk dicatat dari UI, chat, dan voice;
+- aktivitas sederhana **tidak dipaksa mengisi banyak field**;
+- setiap kejadian memiliki ID unik yang dibuat otomatis oleh sistem;
+- aktivitas yang merupakan bagian dari proses/objek yang sama dapat ditelusuri;
 - aktivitas berbeda tetap terpisah walaupun kategori/domain-nya sama;
-- pencarian berdasarkan ID/relasi hanya mengembalikan riwayat yang relevan;
+- aktivitas pertanian dapat memiliki konteks lebih kaya tanpa membuat aktivitas umum menjadi rumit;
+- pencarian berdasarkan ID/relasi hanya mengembalikan history yang relevan;
 - analisis 7/30/90 hari memakai seluruh data aktivitas yang relevan;
 - Agent/LLM memahami aktivitas berdasarkan data terstruktur, bukan hanya judul teks;
-- aktivitas dapat dihubungkan dengan transaksi, kebun/komoditas, target, hutang/piutang, aset, dan entitas lain tanpa mencampur data domain tersebut ke dalam satu tabel aktivitas;
+- aktivitas dapat dihubungkan dengan transaksi, kebun/komoditas, target, hutang/piutang, aset, dan entitas lain melalui relasi;
 - semua hasil analisis dapat ditelusuri ke data sumber.
+
+> Prinsip UX utama: **simple by default, richer when needed**. Struktur internal boleh kompleks, tetapi input pengguna tetap natural.
 
 ---
 
@@ -35,8 +39,6 @@ Fondasi sudah tersedia:
 - `FfmActivityHabitLearner` sudah membuat memory habit dari aktivitas;
 - test aktivitas, nested journey, plugin, dan voice sudah ada.
 
-Referensi utama: `activity_entity.dart`, `activity_repository.dart`, `activity_bloc.dart`, `activity_page.dart`, `activity_voice.dart`, `app_database.dart`, dan task `docs/progress/task-activity-full-llm-support.md`.
-
 **Jangan membangun ulang fondasi tersebut. Upgrade di atasnya.**
 
 ---
@@ -45,24 +47,25 @@ Referensi utama: `activity_entity.dart`, `activity_repository.dart`, `activity_b
 
 ## 1.1 Event ID wajib unik
 
-Pertahankan `ActivitySession.id` sebagai **ID unik setiap sesi/kejadian aktivitas**.
+Pertahankan `ActivitySession.id` sebagai **ID unik setiap sesi/kejadian aktivitas**. ID dibuat otomatis oleh sistem dan tidak perlu diketahui/diisi pengguna.
 
 Contoh:
 
 ```text
-activity_id A = menanam timun
-activity_id B = memupuk timun
-activity_id C = menyemprot pepaya
-activity_id D = jogging
+ACT-001 = Menanam timun
+ACT-002 = Memupuk timun
+ACT-003 = Menyemprot pepaya
+ACT-004 = Jogging
+ACT-005 = Belanja pasar
 ```
 
 Jangan menggunakan kategori atau judul sebagai identitas unik.
 
-## 1.2 Tambahkan identitas kelompok/proses bila diperlukan
+## 1.2 Bedakan event, group, dan parent
 
-`parentSessionId` saat ini berguna untuk nested activity, tetapi **parent-child tidak sama dengan identitas satu rangkaian/proyek jangka panjang**.
+`parentSessionId` berguna untuk nested activity, tetapi tidak selalu sama dengan satu rangkaian/proses jangka panjang.
 
-Jika kebutuhan sudah terbukti, tambahkan konsep terpisah seperti:
+Gunakan konsep terpisah bila kebutuhan sudah terbukti:
 
 ```text
 activity_id        = satu kejadian unik
@@ -73,43 +76,42 @@ parent_activity_id = hubungan nested bila memang ada
 Contoh:
 
 ```text
-Budidaya Timun #01
-  ├─ A: Menanam timun
-  ├─ B: Memupuk timun
-  ├─ C: Menyiram timun
-  └─ D: Panen timun
+BUD-001 — Budidaya Timun Lahan A
+  ├─ ACT-001 Menanam timun
+  ├─ ACT-002 Memupuk timun
+  ├─ ACT-003 Menyiram timun
+  └─ ACT-004 Panen timun
+
+BUD-002 — Budidaya Timun Lahan B
+  ├─ ACT-005 Menanam timun
+  └─ ACT-006 Memupuk timun
+
+ACT-007 — Semprot pepaya
+ACT-008 — Jogging
+ACT-009 — Belanja pasar
 ```
 
-Sedangkan:
-
-```text
-Budidaya Pepaya #02
-  └─ E: Semprot pepaya
-```
-
-**Catatan:** jangan menyamakan semua aktivitas "pertanian" menjadi satu ID.
+**Jangan menyatukan semua aktivitas pertanian menjadi satu ID.**
 
 ---
 
-# Tahap 2 — Tambahkan Subject/Entity Linking
+# Tahap 2 — Subject / Entity Linking
 
-Aktivitas perlu dapat menunjuk ke objek yang sedang dikerjakan.
+Aktivitas dapat menunjuk ke objek yang sedang dikerjakan bila konteks memang membutuhkan pelacakan.
 
-Contoh besar:
+Contoh:
 
 ```text
 Activity
+ ├─ activity_id
  ├─ category/domain: Pertanian
- ├─ activity_id: UUID
- ├─ group_id: Budidaya Timun #01
- ├─ subject_type: commodity/crop
+ ├─ group_id: BUD-001
+ ├─ subject_type: crop
  ├─ subject_id: timun-01
- └─ location_id: kebun-01
+ └─ location_id: lahan-A
 ```
 
-Gunakan relasi/ID, bukan hanya teks bebas.
-
-Kemampuan linking harus dapat berkembang untuk:
+Relasi dapat digunakan untuk:
 
 - komoditas/kebun;
 - transaksi;
@@ -120,15 +122,73 @@ Kemampuan linking harus dapat berkembang untuk:
 - merchant/tempat;
 - entitas domain lain yang memang relevan.
 
-**Prinsip:** Activity menjadi pusat kejadian, sedangkan detail domain tetap berada pada tabel/domain masing-masing.
+**Activity menjadi pusat kejadian; detail domain tetap berada di domain masing-masing.**
 
 ---
 
-# Tahap 3 — Activity Query Layer
+# Tahap 3 — Progressive Context / Simple by Default
 
-Jangan membuat LLM membaca tabel aktivitas secara bebas.
+Ini adalah aturan UX penting.
 
-Buat query capability khusus aktivitas yang dapat menerima:
+### Aktivitas sederhana
+
+User cukup mengatakan:
+
+```text
+"Tadi jogging 5 km."
+```
+
+Sistem tidak perlu meminta:
+
+```text
+lahan?
+komoditas?
+group?
+subject?
+```
+
+Cukup simpan data yang relevan dan buat ID otomatis.
+
+### Aktivitas kontekstual
+
+Jika user mengatakan:
+
+```text
+"Tanam timun di Lahan A."
+```
+
+Agent dapat menghubungkan aktivitas ke lahan/komoditas/group yang relevan.
+
+### Aktivitas ambigu
+
+Jika ada:
+
+```text
+Lahan A → Timun
+Lahan B → Timun
+```
+
+dan user berkata:
+
+```text
+"Besok saya pupuk timun."
+```
+
+Agent **tidak boleh menebak**. Jika konteks sebelumnya tidak cukup, tanyakan:
+
+```text
+"Timun di Lahan A atau Lahan B?"
+```
+
+**Jangan memaksa semua jenis aktivitas memiliki semua field.**
+
+---
+
+# Tahap 4 — Activity Query Layer
+
+LLM tidak membaca tabel aktivitas secara bebas.
+
+Buat capability query khusus yang mendukung filter:
 
 - tanggal/rentang waktu;
 - activity ID;
@@ -139,7 +199,7 @@ Buat query capability khusus aktivitas yang dapat menerima:
 - status/kind;
 - keyword/title bila diperlukan.
 
-Contoh:
+Contoh capability:
 
 ```text
 activity.history
@@ -150,18 +210,17 @@ activity.by_category
 activity.timeline
 ```
 
-**Target:** pertanyaan "riwayat budidaya timun" dan "riwayat jogging" tidak bercampur hanya karena sama-sama masuk Activity.
+**Filter harus dilakukan di query/data layer, bukan hanya menyembunyikan hasil setelah semua data diambil.**
 
 ---
 
-# Tahap 4 — Activity Analysis Engine
+# Tahap 5 — Activity Analysis Engine
 
 Tambahkan lapisan analisis di atas Activity Query Layer.
 
 Minimal mendukung:
 
-- frequency;
-- count;
+- count/frequency;
 - duration;
 - trend;
 - comparison;
@@ -178,12 +237,12 @@ Contoh:
 "3 bulan terakhir saya jogging berapa kali dan ke mana saja?"
 
 Query:
-  activity domain = olahraga/jogging
+  domain/activity = jogging
   period = 90 hari
 
 Analysis:
   count
-  places
+  locations
   frequency
   timeline
 
@@ -195,14 +254,16 @@ LLM hanya menyusun hasil menjadi bahasa natural.
 
 ---
 
-# Tahap 5 — Verified Activity Fact / Context
+# Tahap 6 — Verified Fact / Context Layer
 
-Setiap hasil query/analisis menghasilkan context terstruktur yang memiliki minimal:
+Hasil query/analisis harus diubah menjadi context/fact terstruktur sebelum diberikan kepada LLM.
+
+Minimal memiliki konsep:
 
 ```text
 period
 filters
-source records/count
+source record IDs/count
 metrics
 facts
 ```
@@ -221,36 +282,38 @@ Contoh konsep:
 }
 ```
 
-LLM **tidak boleh mengisi angka/fakta sendiri** jika data tersebut seharusnya berasal dari database.
+LLM **tidak boleh mengarang angka/fakta** yang seharusnya berasal dari database.
 
 ---
 
-# Tahap 6 — Upgrade Pemahaman LLM terhadap Activity
+# Tahap 7 — Upgrade Pemahaman LLM terhadap Activity
 
 LLM/Agent harus memahami perbedaan:
 
 ```text
-category      = klasifikasi
-activity_id   = satu kejadian
-activity_group= satu rangkaian/proses
-subject_id    = objek yang dikerjakan
-parent_id     = hubungan nested
-checkpoint    = perkembangan di dalam aktivitas
+category       = klasifikasi
+activity_id    = satu kejadian
+activity_group = satu rangkaian/proses
+subject_id     = objek yang dikerjakan
+parent_id      = hubungan nested
+checkpoint     = perkembangan di dalam aktivitas
 ```
 
 Contoh:
 
 > "Kemarin saya pupuk timun."
 
-Agent harus dapat mencari apakah ada proses/subject timun yang relevan dan menghubungkan aktivitas baru dengan ID/group yang benar — **bukan sekadar membuat aktivitas baru tanpa relasi**.
+Agent mencari konteks/subject/group yang relevan dan menghubungkan aktivitas baru bila memang jelas.
 
-Jika identitas tidak cukup jelas, Agent harus meminta klarifikasi.
+Jika ada lebih dari satu kandidat yang valid dan konteks tidak cukup, **minta klarifikasi**.
+
+LLM tidak boleh memilih lahan/komoditas hanya karena nama teksnya kebetulan sama.
 
 ---
 
-# Tahap 7 — Satu Halaman Activity dengan Filtering Kuat
+# Tahap 8 — Satu Halaman Activity dengan Filtering Kuat
 
-Tetap gunakan **satu halaman Activity**, tetapi jadikan halaman tersebut sebagai Activity Explorer.
+Tetap gunakan **satu halaman Activity**, tetapi jadikan sebagai Activity Explorer.
 
 Filter besar:
 
@@ -266,25 +329,25 @@ Lokasi
 Source
 ```
 
-Mode pencarian ID:
+Mode ID:
 
 ```text
-Cari: ACT-XXXX / UUID
+Cari ACT-XXXX / UUID
         ↓
-Tampilkan aktivitas + checkpoint + relasi terkait
+Tampilkan history aktivitas + relasi yang relevan
 ```
 
 Mode group/process:
 
 ```text
-Budidaya Timun #01
+Budidaya Timun Lahan A
  ├─ Menanam
  ├─ Memupuk
  ├─ Menyiram
  └─ Panen
 ```
 
-Mode kategori:
+Mode category:
 
 ```text
 Pertanian
@@ -294,22 +357,22 @@ Pertanian
  └─ dst.
 ```
 
-**Filter harus dilakukan di query/data layer, bukan hanya menyembunyikan card setelah semua data diambil.**
+**Satu halaman, banyak filter; bukan banyak halaman untuk setiap jenis aktivitas.**
 
 ---
 
-# Tahap 8 — Detail Activity yang Menjadi Timeline
+# Tahap 9 — Detail Activity sebagai Timeline
 
-Detail satu aktivitas harus dapat memperlihatkan:
+Detail satu aktivitas dapat memperlihatkan:
 
-- metadata aktivitas;
+- metadata;
 - ID;
 - group/process;
 - subject/entity;
 - parent/child;
 - checkpoint;
 - notes;
-- transaksi yang terkait;
+- transaksi terkait;
 - hasil/kejadian domain terkait jika memang memiliki relasi;
 - timeline.
 
@@ -319,7 +382,7 @@ Contoh:
 ACT-001 — Menanam Timun
 Group: BUD-001
 Subject: Timun
-Lokasi: Kebun A
+Lokasi: Lahan A
 
 Timeline
 09:00 Menanam
@@ -329,13 +392,11 @@ Timeline
 
 ---
 
-# Tahap 9 — Hubungkan Activity dengan Domain Lain
+# Tahap 10 — Cross-Domain Activity Linking
 
 Jangan menjadikan Activity sebagai pengganti transaksi/aset/target/hutang/piutang.
 
 Gunakan relasi.
-
-Contoh:
 
 ```text
 Activity
@@ -348,27 +409,44 @@ Activity
   └── Subject/Project
 ```
 
-Dengan demikian Agent dapat menjawab pertanyaan lintas domain seperti:
+Contoh pertanyaan:
 
-> "Berapa biaya yang sudah keluar untuk budidaya timun ini?"
+> "Berapa biaya yang sudah keluar untuk budidaya timun Lahan A?"
 
-dengan mengambil Activity Group → transaksi terkait → analisis biaya.
+Agent:
+
+```text
+Activity Group
+ → linked transactions
+ → analysis
+ → verified result
+```
 
 ---
 
-# Tahap 10 — Perbaiki Habit Learning
+# Tahap 11 — Upgrade Habit Learning
 
-`FfmActivityHabitLearner` saat ini mengenali kebiasaan berdasarkan **judul yang sama** dalam window 60 hari.
+`FfmActivityHabitLearner` saat ini perlu diperkuat agar pembelajaran habit tidak hanya bergantung pada judul yang sama.
 
-Upgrade berikutnya harus mempertimbangkan ID/subject/category yang terstruktur agar:
+Gunakan konteks terstruktur bila tersedia:
+
+```text
+activity type
+category
+subject
+location
+frequency
+```
+
+Tujuannya:
 
 ```text
 "Jogging pagi"
-"jogging pagi"
+"jogging"
 "lari pagi"
 ```
 
-tidak selalu dianggap sama atau berbeda secara keliru.
+dapat dianalisis sebagai pola yang sama bila memang terbukti relevan.
 
 Sebaliknya:
 
@@ -382,9 +460,9 @@ tidak boleh otomatis digabung hanya karena domain/category sama.
 
 ---
 
-# Tahap 11 — Activity Testing
+# Tahap 12 — Activity Testing
 
-Test wajib mencakup:
+Test utama:
 
 ### Database
 - unique activity ID;
@@ -400,7 +478,8 @@ Test wajib mencakup:
 - filter subject;
 - filter ID;
 - filter group;
-- kombinasi filter.
+- kombinasi filter;
+- dua objek dengan nama sama tetapi ID berbeda.
 
 ### Analysis
 - count;
@@ -413,11 +492,13 @@ Test wajib mencakup:
 - large dataset.
 
 ### Agent/LLM
+- aktivitas sederhana tidak meminta field yang tidak diperlukan;
 - membuat aktivitas baru;
 - menemukan aktivitas lama;
 - melanjutkan group yang benar;
+- membedakan dua lahan dengan komoditas sama;
 - meminta klarifikasi jika ambigu;
-- tidak mencampur aktivitas berbeda;
+- tidak mencampur jogging dengan aktivitas pertanian;
 - menjawab berdasarkan verified facts.
 
 ### Integration
@@ -426,7 +507,7 @@ Test wajib mencakup:
 User
  → Agent
  → Activity Tool
- → SQLite/Drift
+ → Database
  → Query
  → Analysis
  → Facts
@@ -436,34 +517,41 @@ User
 
 ---
 
-# Tahap 12 — Regression & Golden Scenarios
+# Tahap 13 — Golden & Regression Scenarios
 
-Buat skenario tetap seperti:
+Gunakan dataset uji yang sengaja memiliki konteks mirip:
 
 ```text
-1. Menanam timun
-2. Memupuk timun
-3. Menyiram timun
-4. Semprot pepaya
-5. Jogging di taman
-6. Belanja ke pasar
-7. Belanja ke toko A
+Lahan A → Timun
+Lahan B → Timun
+Lahan A → Pepaya
 ```
 
-Lalu uji:
+Dan aktivitas umum:
 
 ```text
-"Riwayat budidaya timun?"
-→ hanya rangkaian timun
+Jogging
+Belanja pasar
+Belanja toko A
+```
+
+Contoh pengujian:
+
+```text
+"Riwayat budidaya timun Lahan A?"
+→ hanya group/subject Lahan A yang relevan
 
 "3 bulan terakhir saya jogging ke mana saja?"
 → hanya jogging
 
-"Berapa biaya budidaya timun?"
-→ activity group + linked transactions
+"Berapa biaya budidaya timun Lahan A?"
+→ group/subject + linked transactions
 
 "Apa yang paling sering saya lakukan?"
 → analysis seluruh activity yang relevan
+
+"Besok saya pupuk timun."
+→ jika dua timun aktif dan konteks tidak cukup: clarification
 ```
 
 ---
@@ -475,21 +563,23 @@ Lalu uji:
         ↓
 2. Group / Subject linking
         ↓
-3. Activity Query Layer
+3. Progressive Context / simple input
         ↓
-4. Activity Analysis Engine
+4. Activity Query Layer
         ↓
-5. Verified Fact / Context
+5. Activity Analysis Engine
         ↓
-6. LLM Activity Understanding
+6. Verified Fact / Context Layer
         ↓
-7. Activity Explorer / Filtering
+7. LLM Activity Understanding
         ↓
-8. Cross-domain Linking
+8. Activity Explorer / Filtering
         ↓
-9. Habit Learning Upgrade
+9. Cross-domain Linking
         ↓
-10. Unit + Integration + Golden + Regression Tests
+10. Habit Learning Upgrade
+        ↓
+11. Unit + Integration + Golden + Regression Tests
 ```
 
 ---
@@ -497,16 +587,19 @@ Lalu uji:
 # Prinsip Utama
 
 - **Satu Activity = satu kejadian dengan ID unik.**
+- **ID dibuat otomatis; user tidak perlu mengisinya.**
 - **Satu Group = satu rangkaian/proses bila memang ada hubungan.**
 - **Category bukan identitas.**
 - **Parent-child bukan pengganti group/project.**
-- **Subject/entity harus terstruktur jika perlu dilacak lintas waktu.**
+- **Subject/entity digunakan bila aktivitas memang perlu dilacak terhadap objek tertentu.**
+- **Aktivitas sederhana tetap sederhana.**
+- **Konteks ditambahkan secara progresif ketika diperlukan.**
+- **Jika identitas objek ambigu, Agent bertanya; jangan menebak.**
 - **Filter dilakukan sebelum data masuk ke LLM.**
 - **Analisis dihitung oleh engine/tool, bukan ditebak LLM.**
 - **LLM menjelaskan verified facts.**
 - **Activity menjadi pusat kejadian, bukan tempat menampung seluruh domain data.**
 - **Jangan menggabungkan aktivitas hanya karena kategorinya sama.**
-- **Jika relasi tidak jelas, Agent harus meminta klarifikasi.**
 
 ---
 
@@ -515,12 +608,14 @@ Lalu uji:
 Activity siap menjadi fondasi analisis jika:
 
 - setiap aktivitas dapat diidentifikasi secara unik;
+- aktivitas sederhana dapat dicatat tanpa form/field berlebihan;
 - rangkaian aktivitas dapat ditelusuri melalui group/subject;
+- dua objek dengan nama sama tidak mudah tertukar;
 - aktivitas berbeda tetap terisolasi;
 - query dapat memfilter secara deterministik;
 - analisis 7/30/90 hari menggunakan data lengkap yang relevan;
 - Agent dapat membuat dan menemukan relasi aktivitas dengan benar;
 - hasil analisis dapat ditelusuri ke record sumber;
-- cross-domain analysis dapat memakai relasi Activity tanpa mencampur tabel domain;
-- UI satu halaman dapat menjelajah/filter history dengan cepat;
+- cross-domain analysis dapat memakai relasi Activity tanpa mencampur domain;
+- satu halaman Activity dapat menjelajah/filter history dengan cepat;
 - unit, integration, golden, dan regression tests mencakup jalur kritis.
