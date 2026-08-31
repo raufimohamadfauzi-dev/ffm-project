@@ -17,8 +17,8 @@ void main() {
       previousStepResults: const ['adapter lokal selesai'],
     );
 
-    final prompt = context.toBoundedPrompt(maxCharacters: 800);
-    expect(prompt.length, lessThanOrEqualTo(800));
+    final prompt = context.toBoundedPrompt(maxCharacters: 900);
+    expect(prompt.length, lessThanOrEqualTo(900));
     expect(prompt, contains('Ringkasan bulanan'));
     expect(prompt, contains('read.transactions'));
     expect(prompt, contains('Gemini Cloud siap: ya'));

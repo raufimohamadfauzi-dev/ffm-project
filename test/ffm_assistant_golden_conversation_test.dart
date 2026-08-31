@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 /// Golden Conversation Tests untuk FFM Assistant
 /// 
@@ -304,30 +303,14 @@ void main() {
 }
 
 void _validateConversation(GoldenConversationTest test) {
-  print('\n=== ${test.name} (${test.category}) ===');
-  print('Expected: ${test.expectedBehavior}');
-  
   for (var i = 0; i < test.conversation.length; i++) {
     final turn = test.conversation[i];
-    print('\nTurn ${i + 1}:');
-    print('  User: "${turn.userMessage}"');
-    print('  Expected Response Type: ${turn.expectedResponseType}');
-    
-    if (turn.expectedKeywords != null) {
-      print('  Expected Keywords: ${turn.expectedKeywords!.join(", ")}');
-    }
-    
-    if (turn.shouldUseContext) {
-      print('  Should Use Context: ${turn.contextReference}');
-    }
-    
+
     // Validasi basic
     expect(turn.userMessage, isNotEmpty, reason: 'User message should not be empty');
-    
+
     if (turn.shouldUseContext) {
       expect(turn.contextReference, isNotEmpty, reason: 'Context reference should be provided when using context');
     }
   }
-  
-  print('\n✓ Conversation structure validated');
 }

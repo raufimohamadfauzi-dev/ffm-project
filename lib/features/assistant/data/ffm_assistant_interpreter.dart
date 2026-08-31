@@ -1050,23 +1050,10 @@ class FfmAssistantInterpreter {
     }
 
     // ── GREETING & SAPAAN (Deterministik) ─────────────────────────────────────
-    // Sapaan simple dijawab langsung tanpa ke Gemini untuk respons cepat.
-    if (_containsAny(normalized, const [
-      'halo',
-      'hai',
-      'hello',
-      'hi',
-      'hei',
-      'assalamualaikum',
-      "assalamu'alaikum",
-      'selamat pagi',
-      'selamat siang',
-      'selamat sore',
-      'selamat malam',
-      'tes',
-      'test',
-      'ping',
-    ])) {
+    // Sapaan simple dijawab langsung tanpa ke Gemini untuk respons cepat, hanya
+    // di mode Agent. Di mode Gemini Cloud, sapaan tetap diteruskan ke Gemini
+    // agar asisten cloud menjadi lawan bicara utama.
+    if (!isGeminiConversationMode && _isGreetingWord(normalized)) {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
@@ -3510,7 +3497,11 @@ class FfmAssistantInterpreter {
           missing.contains('rekening sumber') ||
           missing.contains('rekening tujuan') ||
           missing.contains('rekening asal');
-      if (needsMasterData) {
+      final transferNeedsDestination =
+          draft.kind == FfmAssistantDraftKind.transfer &&
+              missing.contains('rekening tujuan') &&
+              !RegExp(r'\bke\b').hasMatch(normalized);
+      if (needsMasterData && !transferNeedsDestination) {
         final missingItems = <String>[];
         if (missing.contains('kategori')) missingItems.add('kategori');
         if (missing.contains('rekening sumber') ||
@@ -3643,7 +3634,7 @@ class FfmAssistantInterpreter {
         type: _activityOperationIntentType(operation),
         confidence: .72,
         clarification:
-            'Aku menemukan  aktivitas yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
+            'Aku menemukan ${candidates.length} aktivitas yang cocok: $options. Sebut judul yang lebih spesifik. Belum ada data yang diubah.',
       );
     }
     final target = candidates.single;
@@ -7212,6 +7203,14 @@ class FfmAssistantInterpreter {
         .trim();
     return FfmAssistantTypoNormalizer.correct(cleaned);
   }
+
+  static final RegExp _greetingPattern = RegExp(
+    r'\b(?:halo|hai|hello|hi|hei|assalamualaikum|assalamu alaikum|'
+    r'selamat pagi|selamat siang|selamat sore|selamat malam|'
+    r'tes|test|ping)\b',
+  );
+
+  bool _isGreetingWord(String text) => _greetingPattern.hasMatch(text);
 
   static final _greetingResponses = [
     'Halo! Ada yang bisa dibantu?',

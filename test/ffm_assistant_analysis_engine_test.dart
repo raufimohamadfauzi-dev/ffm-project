@@ -9,17 +9,6 @@ AppDatabase createInMemoryDatabase() {
   return AppDatabase(NativeDatabase.memory());
 }
 
-// Helper function to format currency (matches implementation)
-String _formatCurrency(int amount) {
-  final digits = amount.abs().toString();
-  final buffer = StringBuffer();
-  for (var index = 0; index < digits.length; index++) {
-    if (index > 0 && (digits.length - index) % 3 == 0) buffer.write('.');
-    buffer.write(digits[index]);
-  }
-  return 'Rp$buffer';
-}
-
 void main() {
   group('FfmAssistantAnalysisEngine', () {
     late AppDatabase database;
@@ -46,6 +35,7 @@ void main() {
           name: const Value('Makanan'),
           type: const Value('expense'),
           isActive: const Value(true),
+          createdAt: Value(now),
         ),
       );
       await database.into(database.categories).insert(
@@ -55,6 +45,7 @@ void main() {
           name: const Value('Transport'),
           type: const Value('expense'),
           isActive: const Value(true),
+          createdAt: Value(now),
         ),
       );
       
@@ -64,6 +55,7 @@ void main() {
           householdId: const Value(householdId),
           name: const Value('Warung A'),
           isActive: const Value(true),
+          createdAt: Value(now),
         ),
       );
       await database.into(database.merchants).insert(
@@ -72,6 +64,7 @@ void main() {
           householdId: const Value(householdId),
           name: const Value('Warung B'),
           isActive: const Value(true),
+          createdAt: Value(now),
         ),
       );
       await database.into(database.merchants).insert(
@@ -80,6 +73,7 @@ void main() {
           householdId: const Value(householdId),
           name: const Value('Ojek'),
           isActive: const Value(true),
+          createdAt: Value(now),
         ),
       );
       
@@ -93,6 +87,8 @@ void main() {
           categoryId: const Value('cat1'),
           merchantId: const Value('merch1'),
           date: Value(now),
+          recordedAt: Value(now),
+          createdAt: Value(now),
         ),
       );
       await database.into(database.transactions).insert(
@@ -104,6 +100,8 @@ void main() {
           categoryId: const Value('cat1'),
           merchantId: const Value('merch2'),
           date: Value(now.add(const Duration(days: 1))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
         ),
       );
       await database.into(database.transactions).insert(
@@ -115,6 +113,8 @@ void main() {
           categoryId: const Value('cat2'),
           merchantId: const Value('merch3'),
           date: Value(now.add(const Duration(days: 2))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
         ),
       );
 
@@ -178,15 +178,28 @@ void main() {
 
     test('analyzePatterns should calculate category statistics correctly', () async {
       final now = DateTime.now();
-      
+
+      await database.into(database.categories).insert(
+        CategoriesCompanion(
+          id: const Value('cat1'),
+          householdId: const Value(householdId),
+          name: const Value('Makanan'),
+          type: const Value('expense'),
+          isActive: const Value(true),
+          createdAt: Value(now),
+        ),
+      );
+
       await database.into(database.transactions).insert(
         TransactionsCompanion(
           id: const Value('tx1'),
           householdId: const Value(householdId),
           type: const Value('expense'),
           amount: const Value(100000),
-          category: const Value('Makanan'),
+          categoryId: const Value('cat1'),
           date: Value(now),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -197,8 +210,10 @@ void main() {
           householdId: const Value(householdId),
           type: const Value('expense'),
           amount: const Value(150000),
-          category: const Value('Makanan'),
+          categoryId: const Value('cat1'),
           date: Value(now.add(const Duration(days: 1))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -209,8 +224,10 @@ void main() {
           householdId: const Value(householdId),
           type: const Value('expense'),
           amount: const Value(200000),
-          category: const Value('Makanan'),
+          categoryId: const Value('cat1'),
           date: Value(now.add(const Duration(days: 2))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -236,15 +253,37 @@ void main() {
 
     test('analyzePeriod should provide correct period analysis', () async {
       final now = DateTime.now();
-      
+
+      await database.into(database.categories).insert(
+        CategoriesCompanion(
+          id: const Value('cat1'),
+          householdId: const Value(householdId),
+          name: const Value('Makanan'),
+          type: const Value('expense'),
+          isActive: const Value(true),
+          createdAt: Value(now),
+        ),
+      );
+      await database.into(database.categories).insert(
+        CategoriesCompanion(
+          id: const Value('cat2'),
+          householdId: const Value(householdId),
+          name: const Value('Transport'),
+          type: const Value('expense'),
+          isActive: const Value(true),
+          createdAt: Value(now),
+        ),
+      );
+
       await database.into(database.transactions).insert(
         TransactionsCompanion(
           id: const Value('tx1'),
           householdId: const Value(householdId),
           type: const Value('income'),
           amount: const Value(2000000),
-          category: const Value('Gaji'),
           date: Value(now.subtract(const Duration(days: 15))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -255,8 +294,10 @@ void main() {
           householdId: const Value(householdId),
           type: const Value('expense'),
           amount: const Value(500000),
-          category: const Value('Makanan'),
+          categoryId: const Value('cat1'),
           date: Value(now.subtract(const Duration(days: 10))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -267,8 +308,10 @@ void main() {
           householdId: const Value(householdId),
           type: const Value('expense'),
           amount: const Value(300000),
-          category: const Value('Transport'),
+          categoryId: const Value('cat2'),
           date: Value(now.subtract(const Duration(days: 5))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),
@@ -300,8 +343,9 @@ void main() {
           householdId: const Value(householdId),
           type: const Value('income'),
           amount: const Value(5000000),
-          category: const Value('Gaji'),
           date: Value(now.subtract(const Duration(days: 45))),
+          recordedAt: Value(now),
+          createdAt: Value(now),
           isArchived: const Value(false),
           isDeleted: const Value(false),
         ),

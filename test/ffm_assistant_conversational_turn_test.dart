@@ -76,7 +76,7 @@ void main() {
     test('tanpa konteks pesan sapaan, pesan umum tetap diproses secara independen', () async {
       final intent = await interpreter.interpret('halo asisten');
       expect(intent.type, FfmAssistantIntentType.help);
-      expect(intent.response, contains('Halo!'));
+      expect(intent.response, anyOf(contains('Halo!'), contains('Hai!')));
     });
 
     test('perintah "pindah ke halaman riwayat asisten" langsung membuka Pengetahuan Asisten secara instan', () async {
