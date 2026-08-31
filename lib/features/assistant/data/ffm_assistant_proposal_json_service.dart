@@ -160,9 +160,11 @@ class FfmAssistantProposalJsonService {
         'master_data' => _parseMasterData(proposal, createdAt),
         'transaction' => _parseTransaction(proposal, createdAt),
         'activity' => _parseActivity(proposal, createdAt),
+        'goal' => _parseGoal(proposal, createdAt),
+        'budget' => _parseBudget(proposal, createdAt),
         'memory' => _parseMemory(proposal),
         _ => const FfmAssistantProposalParseResult.invalid(
-          'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, atau memory.',
+          'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, goal, budget, atau memory.',
         ),
       };
     } on FormatException {
@@ -205,6 +207,8 @@ class FfmAssistantProposalJsonService {
             'master_data' => _parseMasterData(proposal, createdAt),
             'transaction' => _parseTransaction(proposal, createdAt),
             'activity' => _parseActivity(proposal, createdAt),
+            'goal' => _parseGoal(proposal, createdAt),
+            'budget' => _parseBudget(proposal, createdAt),
             'memory' => _parseMemory(proposal),
             _ => const FfmAssistantProposalParseResult.invalid(
               'Jenis proposal belum didukung.',
@@ -374,6 +378,54 @@ class FfmAssistantProposalJsonService {
         valueText: value,
       ),
     );
+  }
+
+  static FfmAssistantProposalParseResult _parseGoal(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(proposal['title'] ?? proposal['name'], 100);
+    if (title == null) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Target keuangan wajib punya nama/judul.',
+      );
+    }
+    final amount = _positiveInt(proposal['amount'] ?? proposal['targetAmount']);
+    final note = _boundedText(proposal['note'], 200);
+    final date = _dateOr(proposal['targetDate'], createdAt.add(const Duration(days: 30)));
+
+    return FfmAssistantProposalParseResult.draft(FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.goal,
+      createdAt: createdAt,
+      title: title,
+      amount: amount,
+      note: note,
+      date: date,
+    ));
+  }
+
+  static FfmAssistantProposalParseResult _parseBudget(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(proposal['title'] ?? proposal['category'] ?? proposal['name'], 100);
+    if (title == null) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Anggaran wajib punya nama/kategori.',
+      );
+    }
+    final amount = _positiveInt(proposal['amount'] ?? proposal['limit'] ?? proposal['budgetAmount']);
+    final note = _boundedText(proposal['note'], 200);
+
+    return FfmAssistantProposalParseResult.draft(FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.budget,
+      createdAt: createdAt,
+      title: title,
+      amount: amount,
+      categoryName: title,
+      note: note,
+      date: createdAt,
+    ));
   }
 
   static String? _extractJson(String text) {

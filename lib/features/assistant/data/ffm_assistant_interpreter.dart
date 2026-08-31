@@ -1,3 +1,6 @@
+import '../domain/ffm_assistant_analysis_engine.dart';
+import '../domain/ffm_assistant_verified_fact_service.dart';
+import '../domain/ffm_assistant_reasoning_context.dart';
 import 'package:drift/drift.dart' hide Column;
 
 import 'dart:convert';
@@ -28,7 +31,6 @@ import '../domain/ffm_assistant_execution_limits.dart';
 import '../domain/ffm_assistant_draft_validator.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_self_description.dart';
-import '../domain/ffm_assistant_reasoning_context.dart';
 import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
 import '../domain/ffm_assistant_work_item.dart';
@@ -61,6 +63,8 @@ class FfmAssistantInterpreter {
     GeminiService? geminiService,
     SupabaseConfig? config,
     FfmPersonalMemoryService? personalMemoryService,
+    FfmAssistantAnalysisEngine? analysisEngine,
+    FfmAssistantVerifiedFactService? verifiedFactService,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
@@ -91,6 +95,11 @@ class FfmAssistantInterpreter {
     _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
     _harness = createDefaultHarness(_database);
+    _analysisEngine = analysisEngine ?? FfmAssistantAnalysisEngine(_database);
+    _verifiedFactService = verifiedFactService ?? FfmAssistantVerifiedFactService(
+      database: _database,
+      analysisEngine: _analysisEngine,
+    );
   }
 
   final AppDatabase _database;
@@ -111,6 +120,8 @@ class FfmAssistantInterpreter {
   final _supabase = SupabaseService();
   final GeminiService _gemini;
   final SupabaseConfig _config;
+  late final FfmAssistantAnalysisEngine _analysisEngine;
+  late final FfmAssistantVerifiedFactService _verifiedFactService;
 
   static const _personalContextBudget = FfmContextBudget(
     workingMemoryMax: 2,
@@ -264,8 +275,17 @@ class FfmAssistantInterpreter {
             )
           : const <String>[],
     );
-    final enrichedContext = await _withPersonalContext(reasoningContext);
-    final boundedContext = enrichedContext.toBoundedPrompt();
+
+    // Generate and add verified facts to reasoning context
+    final verifiedFacts = await _verifiedFactService.generateFacts(
+      householdId: AppContext.householdId,
+      scope: evidenceScope,
+      referenceDate: _clock(),
+    );
+    
+    final enrichedContext = reasoningContext.withVerifiedFacts(verifiedFacts);
+    final contextWithPersonal = await _withPersonalContext(enrichedContext);
+    final boundedContext = contextWithPersonal.toBoundedPrompt();
     final personalMemoryContext = await _personalMemoryService.buildContext();
     return [
       if (boundedContext.trim().isNotEmpty) boundedContext,
@@ -392,6 +412,7 @@ class FfmAssistantInterpreter {
       pluginName: 'gemini_cloud',
       pluginCategory: 'gemini_cloud',
       pluginMetadata: geminiMetadata,
+      verifiedFacts: await _generateVerifiedFactsForQuery(normalized),
     ));
   }
 
@@ -836,6 +857,11 @@ class FfmAssistantInterpreter {
           type: resolved.type,
           destination: resolved.destination,
           draft: draft,
+          review: FfmAssistantDraftReview(
+            draft: draft,
+            version: 1,
+            issues: const [],
+          ),
           confidence: .6,
           clarification:
               '${resolved.clarification ?? pending.prompt}${accountMissing ? ' Rekening yang kamu sebut belum ada. Sebut rekening yang terdaftar atau buat dulu lewat “tambah rekening [nama]”.' : ''}',
@@ -849,6 +875,11 @@ class FfmAssistantInterpreter {
         type: resolved.type,
         destination: resolved.destination,
         draft: draft,
+        review: FfmAssistantDraftReview(
+          draft: draft,
+          version: 1,
+          issues: const [],
+        ),
         confidence: .9,
         response: 'Sip, datanya sudah lengkap. Cek draft ini dulu sebelum kamu simpan.',
       ),
@@ -1628,12 +1659,27 @@ class FfmAssistantInterpreter {
         householdId: AppContext.householdId,
       );
       if (queryAnswer != null) {
+        // Generate verified facts for grounding
+        String? verifiedFacts;
+        try {
+          final scope = FfmAssistantReasoningEvidencePolicy.forRequest(normalized);
+          final facts = await _verifiedFactService.generateFacts(
+            householdId: AppContext.householdId,
+            scope: scope,
+          );
+          verifiedFacts = facts.toLLMContext();
+        } catch (_) {
+          // If verified fact service fails, continue without it
+          verifiedFacts = null;
+        }
+        
         return FfmAssistantIntent(
           rawText: rawText,
           normalizedText: normalized,
           type: FfmAssistantIntentType.queryData,
           confidence: .98,
           response: '${queryAnswer.title}\n${queryAnswer.message}',
+          verifiedFacts: verifiedFacts,
         );
       }
     }
@@ -3361,6 +3407,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createMasterData,
         destination: FfmAssistantDestination.masterData,
         draft: draft,
+        review: FfmAssistantDraftReview(
+          draft: draft,
+          version: 1,
+          issues: const [],
+        ),
         confidence: .9,
         response:
             'Aku akan membuka form $target di Data Utama$nameDetail. Belum ada data yang disimpan. Kamu bisa cek dan lengkapi kolom yang belum ada, lalu tekan Simpan sendiri di form.',
@@ -3456,12 +3507,18 @@ class FfmAssistantInterpreter {
     final categoryHint = draft.categoryName == null
         ? ''
         : ' Kategori ${draft.categoryName} sudah aku pilih dari Data Utama.';
+    final review = FfmAssistantDraftReview(
+      draft: draft,
+      version: 1,
+      issues: const [],
+    );
     return FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
       type: config.type,
       destination: config.destination,
       draft: draft,
+      review: review,
       confidence: missing.isEmpty ? .9 : .55,
       clarification: clarification,
       response: missing.isEmpty
@@ -7073,6 +7130,21 @@ class FfmAssistantInterpreter {
       fromAccountName: validatedFromAccount,
       toAccountName: validatedToAccount,
     );
+  }
+
+  /// Generate verified facts for a query
+  Future<String?> _generateVerifiedFactsForQuery(String normalized) async {
+    try {
+      final scope = FfmAssistantReasoningEvidencePolicy.forRequest(normalized);
+      final facts = await _verifiedFactService.generateFacts(
+        householdId: AppContext.householdId,
+        scope: scope,
+      );
+      return facts.toLLMContext();
+    } catch (_) {
+      // If verified fact service fails, return null
+      return null;
+    }
   }
 }
 

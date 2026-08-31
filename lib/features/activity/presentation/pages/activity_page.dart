@@ -423,7 +423,7 @@ class _ActivityViewState extends State<_ActivityView>
     _speakVoicePreview(intent);
   }
 
-  void _startConversation(String title) {
+  void _startConversation(String title) async {
     _voiceConversation = _VoiceConversation(
       title: title,
       category: 'Lainnya',
@@ -433,13 +433,21 @@ class _ActivityViewState extends State<_ActivityView>
       _voiceStatus = 'Pilih kategori';
       _voiceError = null;
     });
-    final categories = ['Perjalanan', 'Belanja', 'Pekerjaan', 'Keluarga', 'Lainnya'];
+
+    // Ambil kategori dari database
+    final repo = getIt<CategoryRepository>();
+    final cats = await repo.readActive('local-household', type: 'activity');
+    final categories = cats.isEmpty
+        ? ['Lainnya']
+        : [...cats.map((c) => c.name), 'Lainnya'];
+
+    if (!mounted) return;
     _speechService.speak(
-      'Aktivitas $title. Pilih kategori: ${categories.join(", ")}. Atau bilang "lewati" untuk pakai Lainnya.',
+      'Aktivitas $title. Pilih kategori: ${categories.join(", ")}. Atau bilang "lewati" untuk pakai kategori pertama.',
     );
   }
 
-  void _handleConversationResponse(String transcript) {
+  void _handleConversationResponse(String transcript) async {
     final conv = _voiceConversation;
     if (conv == null) return;
 
@@ -453,14 +461,21 @@ class _ActivityViewState extends State<_ActivityView>
 
     switch (conv.step) {
       case _ConversationStep.category:
-        final categories = ['perjalanan', 'belanja', 'pekerjaan', 'keluarga', 'lainnya'];
-        final matched = categories.where((c) => lower.contains(c)).toList();
+        // Ambil kategori dari database untuk validasi
+        final repo = getIt<CategoryRepository>();
+        final cats = await repo.readActive('local-household', type: 'activity');
+        final categoryNames = cats.map((c) => c.name.toLowerCase()).toList();
+
+        final matched = categoryNames.where((c) => lower.contains(c)).toList();
         if (matched.isNotEmpty) {
-          final cat = matched.first;
-          conv.category = cat[0].toUpperCase() + cat.substring(1);
+          // Use the matched category from database
+          final catIndex = categoryNames.indexOf(matched.first);
+          conv.category = cats[catIndex].name;
         } else if (lower == 'lewati' || lower == 'skip') {
-          conv.category = 'Lainnya';
+          // Use first available category or 'Lainnya'
+          conv.category = cats.isNotEmpty ? cats.first.name : 'Lainnya';
         } else {
+          // Fallback to user input, but this might not exist in database
           conv.category = transcript.trim();
         }
         conv.step = _ConversationStep.note;
@@ -813,6 +828,8 @@ class _ActivityViewState extends State<_ActivityView>
           heroTag: 'activity_add_fab',
           onPressed: _startSession,
           tooltip: 'Mulai sesi aktivitas',
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
           icon: const Icon(Icons.add),
           label: const Text('Tambah'),
         ),

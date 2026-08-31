@@ -306,6 +306,7 @@ class FfmAssistantIntent {
     required this.type,
     this.destination,
     this.draft,
+    this.review,
     this.confidence = 0,
     this.clarification,
     this.response,
@@ -315,6 +316,8 @@ class FfmAssistantIntent {
     this.pluginName,
     this.pluginCategory,
     this.pluginMetadata,
+    this.verifiedFacts,
+    this.analysisResults,
   });
 
   final String rawText;
@@ -322,6 +325,7 @@ class FfmAssistantIntent {
   final FfmAssistantIntentType type;
   final FfmAssistantDestination? destination;
   final FfmAssistantDraft? draft;
+  final FfmAssistantDraftReview? review;
   final double confidence;
   final String? clarification;
   final String? response;
@@ -338,6 +342,12 @@ class FfmAssistantIntent {
   /// Metadata terstruktur tambahan dari plugin harness (contoh: payload rekap/aktivitas live).
   final Map<String, dynamic>? pluginMetadata;
 
+  /// Verified facts dari database untuk grounding response
+  final String? verifiedFacts;
+
+  /// Analysis results dari analysis engine
+  final String? analysisResults;
+
   bool get needsClarification => clarification != null;
   bool get needsConfirmation => draft != null && !needsClarification;
   bool get needsTeachingApproval => teachingProposal != null;
@@ -345,6 +355,7 @@ class FfmAssistantIntent {
   FfmAssistantIntent copyWith({
     FfmAssistantDestination? destination,
     FfmAssistantDraft? draft,
+    FfmAssistantDraftReview? review,
     String? response,
     String? clarification,
     FfmAssistantResponseMode? responseMode,
@@ -352,12 +363,15 @@ class FfmAssistantIntent {
     String? pluginName,
     String? pluginCategory,
     Map<String, dynamic>? pluginMetadata,
+    String? verifiedFacts,
+    String? analysisResults,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
     type: type,
     destination: destination ?? this.destination,
     draft: draft ?? this.draft,
+    review: review ?? this.review,
     confidence: confidence,
     clarification: clarification ?? this.clarification,
     response: response ?? this.response,
@@ -367,6 +381,8 @@ class FfmAssistantIntent {
     pluginName: pluginName ?? this.pluginName,
     pluginCategory: pluginCategory ?? this.pluginCategory,
     pluginMetadata: pluginMetadata ?? this.pluginMetadata,
+    verifiedFacts: verifiedFacts ?? this.verifiedFacts,
+    analysisResults: analysisResults ?? this.analysisResults,
   );
 }
 
@@ -473,6 +489,10 @@ class FfmAssistantChatEntry {
     this.fileFormat,
     this.processTrace,
     this.createdAt,
+    this.verifiedFacts,
+    this.analysisResults,
+    this.feedbackType,
+    this.feedbackCategory,
   });
 
   final bool isUser;
@@ -485,6 +505,10 @@ class FfmAssistantChatEntry {
   final String? fileFormat;
   final FfmAssistantProcessTrace? processTrace;
   final DateTime? createdAt;
+  final String? verifiedFacts;
+  final String? analysisResults;
+  final String? feedbackType;
+  final String? feedbackCategory;
 }
 
 /// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.
@@ -685,6 +709,32 @@ class FfmAssistantChatSession {
     activeDraftIntent = null;
     activeDraftQueueId = null;
     pendingDraft = null;
+  }
+
+  void addEntry(FfmAssistantChatEntry entry) {
+    entries.add(entry);
+  }
+
+  void updateEntryWithFeedback(int index, String feedbackType, String? feedbackCategory) {
+    if (index >= 0 && index < entries.length) {
+      final entry = entries[index];
+      entries[index] = FfmAssistantChatEntry(
+        isUser: entry.isUser,
+        text: entry.text,
+        intent: entry.intent,
+        activityIntent: entry.activityIntent,
+        understanding: entry.understanding,
+        review: entry.review,
+        filePath: entry.filePath,
+        fileFormat: entry.fileFormat,
+        processTrace: entry.processTrace,
+        createdAt: entry.createdAt,
+        verifiedFacts: entry.verifiedFacts,
+        analysisResults: entry.analysisResults,
+        feedbackType: feedbackType,
+        feedbackCategory: feedbackCategory,
+      );
+    }
   }
 }
 
