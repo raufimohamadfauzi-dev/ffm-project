@@ -7,6 +7,10 @@ import '../security/app_pin_service.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/domain/services/activity_application_service.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
+import '../../features/activity/domain/activity_query_layer.dart';
+import '../../features/activity/domain/activity_analysis_engine.dart';
+import '../../features/activity/domain/activity_verified_fact_layer.dart';
+import '../../features/activity/domain/activity_mode_detector.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
@@ -19,6 +23,9 @@ import '../../features/assistant/data/ffm_assistant_local_memory.dart';
 import '../../features/assistant/data/ffm_category_suggestion_service.dart';
 import '../../features/assistant/data/ffm_activity_habit_learner.dart';
 import '../../features/assistant/data/ffm_assistant_memory_repository.dart';
+import '../../features/assistant/data/ffm_assistant_draft_feedback_service.dart';
+import '../../features/assistant/data/ffm_assistant_intent_classification_service.dart';
+import '../../features/assistant/data/ffm_personal_memory_service.dart';
 import '../../features/assistant/data/ffm_memory_learning_service.dart';
 import '../../features/assistant/data/ffm_memory_maintenance_service.dart';
 import '../../features/assistant/data/ffm_local_model_service.dart';
@@ -28,7 +35,6 @@ import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
-import '../../features/assistant/data/ffm_personal_memory_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
@@ -47,6 +53,7 @@ import '../../features/reminder/data/services/reminder_notification_service.dart
 import '../../features/reminder/data/services/reminder_sound_picker.dart';
 import '../../features/reminder/domain/usecases/reminder_usecases.dart';
 import '../../features/reminder/presentation/bloc/reminder_bloc.dart';
+import '../../features/settings/data/category_repository.dart';
 import '../../features/transaction/data/services/offline_ai_engine_service.dart';
 import '../../features/transaction/domain/usecases/transaction_crud_usecases.dart';
 
@@ -115,6 +122,12 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => HijriCalendarService(db),
   );
   getIt.registerLazySingleton<AuditLogger>(() => AuditLogger(db));
+  getIt.registerLazySingleton<CategoryRepository>(
+    () => CategoryRepository(
+      db,
+      getIt<AuditLogger>(),
+    ),
+  );
   getIt.registerLazySingleton<ActivityRepository>(
     () => ActivityRepository(
       db,
@@ -131,6 +144,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       repository: getIt<ActivityRepository>(),
       activityBloc: getIt<ActivityBloc>(),
     ),
+  );
+  // Activity Intelligence Upgrade services
+  getIt.registerLazySingleton<ActivityQueryLayer>(() => ActivityQueryLayer(db));
+  getIt.registerLazySingleton<ActivityAnalysisEngine>(
+    () => ActivityAnalysisEngine(getIt<ActivityQueryLayer>()),
+  );
+  getIt.registerLazySingleton<ActivityVerifiedFactLayer>(
+    () => ActivityVerifiedFactLayer(getIt<ActivityAnalysisEngine>()),
+  );
+  getIt.registerLazySingleton<ActivityModeDetector>(
+    ActivityModeDetector.new,
   );
   getIt.registerLazySingleton<ReminderRepository>(() => ReminderRepository(db));
   getIt.registerLazySingleton<ReminderOccurrenceCalculator>(
@@ -179,8 +203,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantUserModelService>(
     () => FfmAssistantUserModelService(getIt<FfmAssistantMemoryRepository>()),
   );
+  getIt.registerLazySingleton<FfmAssistantDraftFeedbackService>(
+    FfmAssistantDraftFeedbackService.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantIntentClassificationService>(
+    FfmAssistantIntentClassificationService.new,
+  );
   getIt.registerLazySingleton<FfmPersonalMemoryService>(
-    () => FfmPersonalMemoryService(getIt<FfmAssistantMemoryRepository>()),
+    () => FfmPersonalMemoryService(
+      getIt<FfmAssistantMemoryRepository>(),
+      getIt<FfmAssistantDraftFeedbackService>(),
+    ),
   );
   getIt.registerLazySingleton<FfmAssistantLearningRepository>(
     () => FfmAssistantLearningRepository(db),
@@ -221,9 +254,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       advisor: getIt<FfmQwen2VlGateway>(),
     ),
   );
-  getIt.registerLazySingleton<FfmLocalModelService>(
-    FfmLocalModelService.new,
-  );
+  getIt.registerLazySingleton<FfmLocalModelService>(FfmLocalModelService.new);
   getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
     () => FfmQwen2VlInferenceService(
       FfmSingleInferenceQueue(),

@@ -62,6 +62,9 @@ class _ActivityViewState extends State<_ActivityView>
     with WidgetsBindingObserver {
   Timer? _ticker;
   String _typeFilter = 'Semua';
+  String _modeFilter = 'Semua mode';
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
   DateTime? _dayFilter;
   final _calculator = const ActivityDurationCalculator();
   final _voiceParser = const ActivityVoiceParser();
@@ -110,6 +113,7 @@ class _ActivityViewState extends State<_ActivityView>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _ticker?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -120,6 +124,26 @@ class _ActivityViewState extends State<_ActivityView>
             value.month == day.month &&
             value.day == day.day);
   }
+
+  bool _matchesSearch(ActivitySessionEntity session) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return true;
+    return <String?>[
+      session.id,
+      session.title,
+      session.category,
+      session.notes,
+      session.activityGroupId,
+      session.subjectType,
+      session.subjectId,
+    ].whereType<String>().any((value) => value.toLowerCase().contains(query));
+  }
+
+  bool _matchesMode(ActivitySessionEntity session) => switch (_modeFilter) {
+    'Timer' => session.isTimeTracking,
+    'Catatan' => session.isHistory,
+    _ => true,
+  };
 
   Future<void> _showSessionDetails(
     ActivitySessionEntity session,
@@ -256,6 +280,8 @@ class _ActivityViewState extends State<_ActivityView>
     await context.read<ActivityBloc>().startSession(
       title: result.title,
       category: result.category,
+      kind: result.kind,
+      mode: result.mode,
       notes: result.notes,
       startedAt: result.startedAt,
       parentSessionId: parentSessionId,
@@ -424,10 +450,7 @@ class _ActivityViewState extends State<_ActivityView>
   }
 
   void _startConversation(String title) async {
-    _voiceConversation = _VoiceConversation(
-      title: title,
-      category: 'Lainnya',
-    );
+    _voiceConversation = _VoiceConversation(title: title, category: 'Lainnya');
     setState(() {
       _voiceText = title;
       _voiceStatus = 'Pilih kategori';
@@ -488,7 +511,11 @@ class _ActivityViewState extends State<_ActivityView>
         break;
 
       case _ConversationStep.note:
-        if (lower == 'lewati' || lower == 'skip' || lower == 'tidak' || lower == 'ga' || lower == 'enggak') {
+        if (lower == 'lewati' ||
+            lower == 'skip' ||
+            lower == 'tidak' ||
+            lower == 'ga' ||
+            lower == 'enggak') {
           conv.note = null;
         } else {
           conv.note = transcript.trim();
@@ -501,13 +528,20 @@ class _ActivityViewState extends State<_ActivityView>
         break;
 
       case _ConversationStep.confirm:
-        if (lower == 'ya' || lower == 'ok' || lower == 'oke' || lower == 'simpan' || lower == 'konfirmasi' || lower.contains('simpan')) {
+        if (lower == 'ya' ||
+            lower == 'ok' ||
+            lower == 'oke' ||
+            lower == 'simpan' ||
+            lower == 'konfirmasi' ||
+            lower.contains('simpan')) {
           _saveConversation();
         } else if (lower == 'tidak' || lower == 'batal' || lower == 'ulang') {
           _cancelConversation();
         } else {
           // Anggap sebagai catatan tambahan
-          conv.note = conv.note != null ? '${conv.note!}, $transcript' : transcript.trim();
+          conv.note = conv.note != null
+              ? '${conv.note!}, $transcript'
+              : transcript.trim();
           setState(() {
             _voiceStatus = 'Konfirmasi';
           });
@@ -629,7 +663,9 @@ class _ActivityViewState extends State<_ActivityView>
       setState(() {
         _voiceIntent = null;
         _voiceText = transcript;
-        _voiceError = response ?? 'Perintah tidak dikenali. Coba ulangi dengan kata lain.';
+        _voiceError =
+            response ??
+            'Perintah tidak dikenali. Coba ulangi dengan kata lain.';
         _voiceStatus = 'Tidak dikenali';
       });
       if (response != null) {
@@ -870,7 +906,9 @@ class _ActivityViewState extends State<_ActivityView>
                     onCategoryChanged: (category) {
                       if (_voiceIntent == null) return;
                       setState(() {
-                        _voiceIntent = _voiceIntent!.copyWith(category: category);
+                        _voiceIntent = _voiceIntent!.copyWith(
+                          category: category,
+                        );
                       });
                     },
                     onConfirm: _confirmVoice,
@@ -920,6 +958,45 @@ class _ActivityViewState extends State<_ActivityView>
                             onPressed: () => setState(() => _dayFilter = null),
                             icon: const Icon(Icons.clear),
                           ),
+                        DropdownButton<String>(
+                          value: _modeFilter,
+                          underline: const SizedBox.shrink(),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'Semua mode',
+                              child: Text('Semua mode'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Timer',
+                              child: Text('Timer'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'Catatan',
+                              child: Text('Catatan'),
+                            ),
+                          ],
+                          onChanged: (value) => setState(
+                            () => _modeFilter = value ?? 'Semua mode',
+                          ),
+                        ),
+                        SizedBox(
+                          width: 160,
+                          child: TextField(
+                            controller: _searchController,
+                            decoration: const InputDecoration(
+                              hintText: 'Cari...',
+                              isDense: true,
+                              prefixIcon: Icon(Icons.search, size: 18),
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                            ),
+                            onChanged: (value) =>
+                                setState(() => _searchQuery = value),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -931,7 +1008,9 @@ class _ActivityViewState extends State<_ActivityView>
                             (session) =>
                                 (_typeFilter == 'Semua' ||
                                     session.category == _typeFilter) &&
-                                _matchesDay(session.startedAt),
+                                _matchesDay(session.startedAt) &&
+                                _matchesMode(session) &&
+                                _matchesSearch(session),
                           )
                           .toList();
                       final visibleSessions = state.sessions
@@ -941,7 +1020,9 @@ class _ActivityViewState extends State<_ActivityView>
                                     ActivitySessionStatus.active &&
                                 (_typeFilter == 'Semua' ||
                                     session.category == _typeFilter) &&
-                                _matchesDay(session.startedAt),
+                                _matchesDay(session.startedAt) &&
+                                _matchesMode(session) &&
+                                _matchesSearch(session),
                           )
                           .toList();
                       return Column(
@@ -1199,9 +1280,17 @@ class _SessionCard extends StatelessWidget {
 }
 
 class _SessionDraft {
-  const _SessionDraft(this.title, this.category, this.notes, this.startedAt);
+  const _SessionDraft(
+    this.title,
+    this.category,
+    this.mode,
+    this.notes,
+    this.startedAt,
+  );
   final String title;
   final String category;
+  final ActivityMode mode;
+  ActivityKind get kind => mode.activityKind;
   final String? notes;
   final DateTime startedAt;
 }
@@ -1227,6 +1316,7 @@ class _SessionFormState extends State<_SessionForm> {
   late final TextEditingController _category;
   late final TextEditingController _notes;
   DateTime _startedAt = DateTime.now();
+  ActivityMode _mode = ActivityMode.timeTracking;
   final _categoryRepository = getIt<CategoryRepository>();
   List<String> _activityCategories = [];
   String? _selectedCategory;
@@ -1249,19 +1339,31 @@ class _SessionFormState extends State<_SessionForm> {
   }
 
   Future<void> _loadActivityCategories() async {
-    final categories = await _categoryRepository.readActive(
-      'local-household',
-      type: 'activity',
-    );
-    if (!mounted) return;
-    setState(() {
-      _activityCategories = categories.map((c) => c.name).toList();
-      _loadingCategories = false;
-      if (_selectedCategory == null && _activityCategories.isNotEmpty) {
-        _selectedCategory = _activityCategories.first;
-        _category.text = _selectedCategory!;
-      }
-    });
+    try {
+      final categories = await _categoryRepository.readActive(
+        'local-household',
+        type: 'activity',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _activityCategories = categories.map((c) => c.name).toList();
+        _loadingCategories = false;
+
+        if (_selectedCategory == null && _activityCategories.isNotEmpty) {
+          _selectedCategory = _activityCategories.first;
+          _category.text = _selectedCategory!;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _activityCategories = [];
+        _loadingCategories = false;
+      });
+    }
   }
 
   @override
@@ -1294,6 +1396,33 @@ class _SessionFormState extends State<_SessionForm> {
           Text('Induk: ${widget.parentSessionTitle}'),
         ],
         const SizedBox(height: 12),
+        SegmentedButton<ActivityMode>(
+          segments: const [
+            ButtonSegment(
+              value: ActivityMode.timeTracking,
+              icon: Icon(Icons.timer_outlined),
+              label: Text('Pakai timer'),
+            ),
+            ButtonSegment(
+              value: ActivityMode.history,
+              icon: Icon(Icons.edit_note_outlined),
+              label: Text('Catat saja'),
+            ),
+          ],
+          selected: {_mode},
+          showSelectedIcon: false,
+          onSelectionChanged: (selection) {
+            setState(() => _mode = selection.first);
+          },
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _mode == ActivityMode.timeTracking
+              ? 'Untuk kegiatan yang sedang berjalan dan perlu dihitung durasinya.'
+              : 'Untuk kejadian satu kali, misalnya menanam, belanja, atau membayar upah.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
         TextField(
           controller: _title,
           autofocus: true,
@@ -1317,10 +1446,8 @@ class _SessionFormState extends State<_SessionForm> {
                 ),
                 items: _activityCategories
                     .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(item),
-                      ),
+                      (item) =>
+                          DropdownMenuItem(value: item, child: Text(item)),
                     )
                     .toList(),
                 onChanged: (value) {
@@ -1366,7 +1493,11 @@ class _SessionFormState extends State<_SessionForm> {
         const SizedBox(height: 10),
         ListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Mulai pada'),
+          title: Text(
+            _mode == ActivityMode.timeTracking
+                ? 'Mulai pada'
+                : 'Tanggal kejadian',
+          ),
           subtitle: Text(_dateTime(_startedAt)),
           trailing: const Icon(Icons.schedule),
           onTap: () async {
@@ -1404,13 +1535,16 @@ class _SessionFormState extends State<_SessionForm> {
                 _category.text.trim().isEmpty
                     ? 'Lainnya'
                     : _category.text.trim(),
+                _mode,
                 _notes.text.trim().isEmpty ? null : _notes.text.trim(),
                 _startedAt,
               ),
             );
           },
           child: Text(
-            widget.parentSessionTitle == null
+            _mode == ActivityMode.history
+                ? 'Simpan catatan'
+                : widget.parentSessionTitle == null
                 ? 'Mulai sekarang'
                 : 'Mulai aktivitas anak',
           ),
@@ -1566,7 +1700,9 @@ class _VoiceConversation {
 
   String get confirmMessage {
     final catPart = category.isNotEmpty ? ' kategori $category' : '';
-    final notePart = note != null && note!.isNotEmpty ? ', catatan "$note"' : '';
+    final notePart = note != null && note!.isNotEmpty
+        ? ', catatan "$note"'
+        : '';
     return 'Aktivitas "$title"$catPart$notePart. Simpan?';
   }
 }
@@ -1712,26 +1848,29 @@ class _VoiceActivityCard extends StatelessWidget {
               ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: intent!.category.isNotEmpty ? intent!.category : 'Lainnya',
+              initialValue: intent!.category.isNotEmpty
+                  ? intent!.category
+                  : 'Lainnya',
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Kategori aktivitas',
                 border: OutlineInputBorder(),
               ),
-              items: const [
-                'Lainnya',
-                'Perjalanan',
-                'Belanja',
-                'Pekerjaan',
-                'Keluarga',
-              ]
-                  .map(
-                    (category) => DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  const [
+                        'Lainnya',
+                        'Perjalanan',
+                        'Belanja',
+                        'Pekerjaan',
+                        'Keluarga',
+                      ]
+                      .map(
+                        (category) => DropdownMenuItem(
+                          value: category,
+                          child: Text(category),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) {
                 if (value != null) onCategoryChanged(value);
               },
