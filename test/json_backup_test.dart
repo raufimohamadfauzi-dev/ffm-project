@@ -66,6 +66,60 @@ void main() {
         now.microsecondsSinceEpoch,
       ],
     );
+    await source.customStatement(
+      'INSERT INTO reminders '
+      '(id, household_id, title, scheduled_at, recurrence_type, weekdays_json, '
+      'is_active, default_snooze_minutes, notification_id, created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        'reminder-1',
+        AppContext.householdId,
+        'Bayar listrik',
+        now.microsecondsSinceEpoch,
+        'once',
+        '[]',
+        1,
+        10,
+        101,
+        now.microsecondsSinceEpoch,
+      ],
+    );
+    await source.customStatement(
+      'INSERT INTO assistant_agent_runs '
+      '(id, household_id, trigger, status, summary, started_at, updated_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        'agent-run-1',
+        AppContext.householdId,
+        'database_change',
+        'completed',
+        'Ringkasan aman',
+        now.microsecondsSinceEpoch,
+        now.microsecondsSinceEpoch,
+      ],
+    );
+    await source.customStatement(
+      'CREATE TABLE activity_notes ('
+      'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, text TEXT NOT NULL, '
+      'category TEXT NOT NULL, numeric_value REAL, unit TEXT, latitude REAL, '
+      'longitude REAL, created_at INTEGER NOT NULL, linked_session_id TEXT, '
+      'source TEXT NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0, '
+      'updated_at INTEGER)',
+    );
+    await source.customStatement(
+      'INSERT INTO activity_notes '
+      '(id, household_id, text, category, created_at, source, is_archived) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [
+        'activity-note-1',
+        AppContext.householdId,
+        'Menyiram kebun',
+        'farming',
+        now.microsecondsSinceEpoch,
+        'manual',
+        0,
+      ],
+    );
 
     final service = JsonBackupService(source);
     final historyRows = [
@@ -113,12 +167,22 @@ void main() {
         'hijri_settings',
         'hijri_correction_logs',
         'hijri_month_overrides',
+        'reminders',
+        'reminder_histories',
         'account_reconciliation_logs',
         'audit_logs',
         'assistant_memories',
         'assistant_learning_examples',
         'assistant_unanswered_questions',
         'harvest_events',
+        'activity_notes',
+        'assistant_agent_runs',
+        'assistant_agent_events',
+        'assistant_agent_approvals',
+        'assistant_agent_tool_executions',
+        'assistant_agent_goals',
+        'assistant_agent_tasks',
+        'assistant_agent_task_executions',
         'assistant_chat_history',
       ]),
     );
@@ -128,11 +192,13 @@ void main() {
     final exportedChat =
         (modules['assistant_chat_history'] as List).single as Map;
     expect(exportedChat.containsKey('api_key'), isFalse);
+    final exportedReminder = (modules['reminders'] as List).single as Map;
+    exportedReminder['scheduled_at'] = now.toIso8601String();
 
     final directory = await Directory.systemTemp.createTemp('ffm-backup-test-');
     addTearDown(() => directory.delete(recursive: true));
     final file = File('${directory.path}/backup.json');
-    await file.writeAsString(content);
+    await file.writeAsString(jsonEncode(decoded));
 
     await closeSource();
     final restored = createInMemoryDatabaseForTests();
@@ -151,10 +217,26 @@ void main() {
     final reconciliationRows = await restored
         .customSelect('SELECT id, difference FROM account_reconciliation_logs')
         .get();
+    final reminderRows = await restored
+        .customSelect('SELECT scheduled_at FROM reminders')
+        .get();
+    final agentRunRows = await restored
+        .customSelect('SELECT id FROM assistant_agent_runs')
+        .get();
+    final activityNoteRows = await restored
+        .customSelect('SELECT text FROM activity_notes')
+        .get();
     expect(auditRows, hasLength(1));
     expect(auditRows.single.read<String>('action'), 'create');
     expect(reconciliationRows, hasLength(1));
     expect(reconciliationRows.single.read<int>('difference'), -1000);
+    expect(reminderRows, hasLength(1));
+    expect(
+      reminderRows.single.read<int>('scheduled_at'),
+      now.microsecondsSinceEpoch,
+    );
+    expect(agentRunRows, hasLength(1));
+    expect(activityNoteRows.single.read<String>('text'), 'Menyiram kebun');
 
     expect(restoredHistory, isNotNull);
     expect(restoredHistory, hasLength(1));

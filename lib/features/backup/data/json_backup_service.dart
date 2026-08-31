@@ -49,11 +49,14 @@ class JsonBackupService {
     'activity_checkpoints',
     'activity_entries',
     'activity_sessions',
+    'activity_notes',
     'harvest_events',
     'hijri_correction_logs',
     'hijri_month_overrides',
     'hijri_settings',
     'households',
+    'reminder_histories',
+    'reminders',
     'account_reconciliation_logs',
     'audit_logs',
     'assistant_memories',
@@ -68,6 +71,13 @@ class JsonBackupService {
     'daily_routines',
     'daily_routine_completions',
     'schedule_entries',
+    'assistant_agent_task_executions',
+    'assistant_agent_tasks',
+    'assistant_agent_goals',
+    'assistant_agent_tool_executions',
+    'assistant_agent_approvals',
+    'assistant_agent_events',
+    'assistant_agent_runs',
   ];
 
   Future<String> exportJson({
@@ -167,6 +177,9 @@ class JsonBackupService {
       throw const FormatException('Bagian data cadangan tidak ditemukan.');
     }
     await _ensureAuditTable();
+    if (rawModules['activity_notes'] is List) {
+      await _ensureActivityNotesTable();
+    }
     final modules = <String, List<Map<String, dynamic>>>{};
     for (final table in _tables) {
       final rows = rawModules[table];
@@ -184,15 +197,21 @@ class JsonBackupService {
               .toList()
         : null;
 
+    final tableColumnsMap = await _getTableColumnsMap();
+
     await database.transaction(() async {
       await database.customStatement('PRAGMA foreign_keys = OFF');
       try {
-        for (final table in _tables) {
-          await database.customStatement('DELETE FROM "$table"');
+        for (final table in modules.keys) {
+          if (tableColumnsMap.containsKey(table)) {
+            await database.customStatement('DELETE FROM "$table"');
+          }
         }
         for (final table in _tables.reversed) {
+          final validColumns = tableColumnsMap[table];
+          if (validColumns == null || validColumns.isEmpty) continue;
           for (final row in modules[table] ?? const <Map<String, dynamic>>[]) {
-            await _insertRow(table, row);
+            await _insertRowAdaptive(table, row, validColumns);
           }
         }
       } finally {
@@ -223,11 +242,52 @@ class JsonBackupService {
     );
   }
 
-  Future<void> _insertRow(String table, Map<String, dynamic> row) async {
-    if (row.isEmpty) return;
-    final columns = row.keys.map((key) => '"$key"').join(', ');
-    final placeholders = List.filled(row.length, '?').join(', ');
-    final values = row.values.map(_databaseValue).toList();
+  Future<void> _ensureActivityNotesTable() async {
+    await database.customStatement(
+      'CREATE TABLE IF NOT EXISTS activity_notes ('
+      'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, text TEXT NOT NULL, '
+      'category TEXT NOT NULL, numeric_value REAL, unit TEXT, latitude REAL, '
+      'longitude REAL, created_at INTEGER NOT NULL, linked_session_id TEXT, '
+      'source TEXT NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0, '
+      'updated_at INTEGER)',
+    );
+  }
+
+  Future<Map<String, Set<String>>> _getTableColumnsMap() async {
+    final columnsMap = <String, Set<String>>{};
+    for (final table in _tables) {
+      if (!await _tableExists(table)) continue;
+      final rows = await database
+          .customSelect('PRAGMA table_info("$table")')
+          .get();
+      final columns = rows
+          .map((r) => r.data['name']?.toString())
+          .whereType<String>()
+          .toSet();
+      columnsMap[table] = columns;
+    }
+    return columnsMap;
+  }
+
+  Future<void> _insertRowAdaptive(
+    String table,
+    Map<String, dynamic> row,
+    Set<String> validColumns,
+  ) async {
+    if (row.isEmpty || validColumns.isEmpty) return;
+
+    // Hanya ambil kolom dari JSON yang benar-benar ada di tabel database SQLite saat ini
+    final filteredEntries = row.entries
+        .where((e) => validColumns.contains(e.key))
+        .toList();
+    if (filteredEntries.isEmpty) return;
+
+    final columns = filteredEntries.map((e) => '"${e.key}"').join(', ');
+    final placeholders = List.filled(filteredEntries.length, '?').join(', ');
+    final values = filteredEntries
+        .map((entry) => _databaseValue(entry.key, entry.value))
+        .toList();
+
     await database.customStatement(
       'INSERT INTO "$table" ($columns) VALUES ($placeholders)',
       values,
@@ -245,11 +305,49 @@ class JsonBackupService {
         normalized.contains('credential');
   }
 
-  Object? _databaseValue(Object? value) {
+  Object? _databaseValue(String column, Object? value) {
     if (value is DateTime) return value.microsecondsSinceEpoch;
     if (value is bool) return value ? 1 : 0;
+    if (value is String && _isTimestampColumn(column)) {
+      final dateTime = DateTime.tryParse(value);
+      if (dateTime != null) return dateTime.microsecondsSinceEpoch;
+    }
     return value;
   }
+
+  bool _isTimestampColumn(String column) => const {
+    'checked_at',
+    'completed_at',
+    'created_at',
+    'date',
+    'due_at',
+    'due_date',
+    'end_date',
+    'ended_at',
+    'exported_at',
+    'finished_at',
+    'gregorian_start_date',
+    'harvested_at',
+    'last_attempt_at',
+    'last_run_at',
+    'last_updated',
+    'next_run_at',
+    'note_date',
+    'occurred_at',
+    'occurrence_date',
+    'processed_at',
+    'recorded_at',
+    'routine_date',
+    'scheduled_at',
+    'scheduled_date',
+    'snoozed_until',
+    'start_date',
+    'started_at',
+    'target_date',
+    'timestamp',
+    'triggered_at',
+    'updated_at',
+  }.contains(column);
 
   Object? _jsonSafe(Object? value) {
     if (value is DateTime) return value.toIso8601String();
