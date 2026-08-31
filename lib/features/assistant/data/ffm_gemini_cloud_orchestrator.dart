@@ -125,20 +125,19 @@ class FfmGeminiCloudOrchestrator {
         );
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage:
-              'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
+          errorMessage: 'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
         );
       }
       try {
+        final secondInstruction = _boundedSecondInstruction(instruction, facts);
         result = await _chat(
           key: key.trim(),
           model: model.trim(),
           userText: userText,
-          instruction:
-              '$instruction\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n$facts\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.',
+          instruction: secondInstruction,
         );
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
@@ -213,6 +212,26 @@ class FfmGeminiCloudOrchestrator {
     }
   }
 
+  String _boundedSecondInstruction(String instruction, String facts) {
+    const suffix =
+        '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.';
+    const header = '\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n';
+    // Satukan ke budget global ~8000 agar panggilan kedua tidak membengkak di luar envelope.
+    final combined = '$instruction$header$facts$suffix';
+    if (combined.length <= 8000) return combined;
+    // Prioritaskan fakta capability; potong instruction terpanjang bila kelebihan.
+    final availableForInstruction =
+        8000 - header.length - facts.length - suffix.length;
+    if (availableForInstruction <= 1000) {
+      // Fallback: potong gabungan dari belakang instruction.
+      return '${instruction.substring(0, (8000 - header.length - facts.length - suffix.length - 1).clamp(500, instruction.length))}…$header$facts$suffix';
+    }
+    final clippedInstruction = instruction.length > availableForInstruction
+        ? '${instruction.substring(0, availableForInstruction - 1)}…'
+        : instruction;
+    return '$clippedInstruction$header$facts$suffix';
+  }
+
   String _instruction(String context) =>
       '''
 Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
@@ -239,8 +258,15 @@ ATURAN PERSONAL MEMORY:
 ATURAN WAJIB DATA UTAMA:
 - Jika daftar kategori atau rekening aktif bernilai "(belum ada)", kamu TIDAK BOLEH menggunakan nama kategori/rekening yang tidak ada di daftar tersebut dalam proposal transaksi.
 - Untuk transaksi expense/income, nama kategori dan rekening wajib ada di daftar "kategori_aktif" dan "rekening_aktif" pada konteks.
+- Untuk transaksi income, jika user menyebut sumber pemasukan (gaji, usaha, dll), cek apakah ada di daftar "sumber_pemasukan_aktif" pada konteks.
 - Jika user menyebut nama yang tidak ada di daftar, gunakan clarification untuk menanyakan apakah ingin membuat data utama baru terlebih dahulu.
 - Contoh clarification: "Kategori [nama] belum ada di Data Utama. Mau buat dulu lewat perintah 'buat kategori [nama]'?"
+- Untuk membuat Data Utama, gunakan type `master_data`, `target`, `name`, `fields`, dan `note` opsional.
+- Target `tag` hanya memerlukan `name`; jangan meminta nominal, rekening, atau kategori transaksi.
+- Target `kategori` memakai fields `type` (income/expense) dan `defaultBudgetPeriod` (none/weekly/monthly).
+- Target `rekening` memakai fields `accountType` (cash/bank/ewallet) dan `openingBalance`.
+- Target `toko` atau `sumber_pemasukan` boleh memakai fields `details`.
+- Jika `target` atau `name` belum jelas, keluarkan `clarification`; jangan menebak field yang hilang.
 
 UNTUK PERUBAHAN DATA:
 - Jika pengguna meminta membuat/mencatat transaksi, anggaran, target, atau data lainnya, KELUARKAN proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, goal, budget, atau memory.
@@ -249,6 +275,7 @@ UNTUK PERUBAHAN DATA:
 - Jika informasi kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."} untuk menanyakan detail yang kurang.
 - Kamu BOLEH membuat draft transaksi (expense/income/transfer), draft anggaran, draft target, draft aktivitas, atau memory baru.
 - Jangan tambahkan markdown atau teks lain pada proposal JSON.
+- Jika pengguna mengirim kembali proposal JSON yang sudah dikoreksi, pertahankan `formatVersion` dan `type`. Aplikasi akan memperlakukannya sebagai revisi draft aktif, bukan sebagai data yang sudah tersimpan.
 
 ATURAN TARGET KEUANGAN:
 - Untuk membuat target baru, gunakan proposal JSON dengan type "goal", field: title, amount (angka tanpa Rp), targetDate (YYYY-MM-DD), note.
@@ -261,15 +288,9 @@ ATURAN ANGGARAN:
 UNTUK PERTANYAAN DATA:
 - Jika jawaban membutuhkan data dari database, kamu BOLEH meminta capability baca dengan JSON. Pilih:
   - `read.summary` — total/agregat transaksi bulan berjalan
-  - `read.transactions` — maksimal 8 transaksi terbaru tanpa detail merchant/rekening
-  - `read.accounts` — daftar rekening beserta saldo
-  - `read.budget` — daftar anggaran dan posisi terkini
-  - `read.categories` — daftar kategori yang tersedia
-  - `read.goals` — daftar target keuangan
-  - `read.activity` — daftar sesi aktivitas aktif dan riwayat terbaru
+  - `read.transactions` — maksimal 8 transaksi terbaru tanpa merchant, kategori, rekening, catatan, atau ID
 - `read.transactions` boleh memakai `startDate` dan `endDate` berformat YYYY-MM-DD hanya bila keduanya berada pada bulan berjalan dan rentangnya maksimal 14 hari.
-- `read.accounts`, `read.budget`, `read.categories`, `read.goals`, dan `read.activity` tidak menerima filter tambahan.
-- Jangan meminta capability lain atau mutasi.
+- Jangan meminta capability lain, data detail lain, atau mutasi.
 
 ATURAN AKTIVITAS:
 - Untuk memulai aktivitas baru, gunakan proposal JSON dengan kind "activity" dan field title, category, notes.

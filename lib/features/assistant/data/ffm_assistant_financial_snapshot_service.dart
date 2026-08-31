@@ -146,6 +146,7 @@ class FfmAssistantFinancialSnapshotService {
     required String householdId,
     int maxAccounts = 8,
     int maxCategories = 16,
+    int maxIncomeSources = 8,
     int maxCharacters = 520,
   }) async {
     final accounts =
@@ -163,13 +164,23 @@ class FfmAssistantFinancialSnapshotService {
                   row.isActive.equals(true),
             ))
             .get();
+    final incomeSources =
+        await (_database.select(_database.transactionParties)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.kind.equals('income_source') &
+                  row.isArchived.equals(false),
+            ))
+            .get();
 
     final accountNames = accounts.map((row) => row.name).toList()..sort();
     final categoryNames = categories.map((row) => row.name).toList()..sort();
+    final incomeSourceNames = incomeSources.map((row) => row.name).toList()..sort();
     final context =
         'Data Utama lokal (nama saja; tanpa saldo, ID, atau detail): '
         'rekening_aktif=${_nameList(accountNames, maxAccounts)}; '
-        'kategori_aktif=${_nameList(categoryNames, maxCategories)}. '
+        'kategori_aktif=${_nameList(categoryNames, maxCategories)}; '
+        'sumber_pemasukan_aktif=${_nameList(incomeSourceNames, maxIncomeSources)}. '
         'Gunakan hanya nama yang tercantum sebagai evidence; jangan membuat nama baru.';
     return _clip(context, maxCharacters);
   }
@@ -178,6 +189,7 @@ class FfmAssistantFinancialSnapshotService {
     required String householdId,
     int limit = 8,
     int maxCharacters = 900,
+    bool includeBuyer = false,
   }) async {
     final rows =
         await (_database.select(_database.harvestEvents)
@@ -197,11 +209,17 @@ class FfmAssistantFinancialSnapshotService {
           final total = row.totalAmount == null
               ? '-'
               : row.totalAmount.toString();
+          final commodity = row.commodity
+              .replaceAll(RegExp(r'[\r\n]+'), ' ')
+              .trim();
+          final unit = row.unit.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          final base =
+              '$date | $commodity | ${row.quantity} $unit | harga_satuan=$price | total=$total';
+          if (!includeBuyer) return base;
           final buyer = row.buyerName == null || row.buyerName!.trim().isEmpty
               ? '-'
-              : row.buyerName!.trim();
-          return '$date | ${row.commodity} | ${row.quantity} ${row.unit} | '
-              'harga_satuan=$price | total=$total | pembeli=$buyer';
+              : row.buyerName!.trim().replaceAll(RegExp(r'[\r\n]+'), ' ');
+          return '$base | pembeli=$buyer';
         })
         .join('; ');
     return _clip('Fakta panen SQL authoritative: $lines', maxCharacters);
@@ -243,8 +261,13 @@ class FfmAssistantFinancialSnapshotService {
   }
 
   /// Digest rekening untuk capability cloud.
+  ///
+  /// Label `opening_balance` secara eksplisit adalah saldo awal, bukan saldo
+  /// terkini terhitung. Jangan presentasikan sebagai saldo terkini.
   Future<String> buildAccountsDigest({
     required String householdId,
+    int maxItems = 8,
+    int maxCharacters = 600,
   }) async {
     final accounts =
         await (_database.select(_database.accounts)..where(
@@ -257,34 +280,60 @@ class FfmAssistantFinancialSnapshotService {
     if (accounts.isEmpty) {
       return 'Accounts digest: belum ada rekening aktif.';
     }
-    final lines = accounts.map((row) {
-      return '${row.name}|type=${row.type}|balance=${row.openingBalance}';
-    }).toList();
-    return 'Accounts digest: ${lines.join('; ')}.';
+    accounts.sort((a, b) => a.name.compareTo(b.name));
+    final visible = accounts.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|type=${row.type}|opening_balance=${row.openingBalance}';
+        })
+        .toList(growable: false);
+    final suffix = accounts.length > maxItems
+        ? '; … (+${accounts.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Accounts digest (opening_balance = saldo awal, bukan saldo terkini terhitung): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
   }
 
   /// Digest anggaran untuk capability cloud.
+  ///
+  /// Hanya `allocated` yang tersedia; pemakaian aktual tidak dihitung di sini.
   Future<String> buildBudgetDigest({
     required String householdId,
     required DateTime now,
+    int maxItems = 8,
+    int maxCharacters = 700,
   }) async {
-    final budgets =
-        await (_database.select(_database.envelopeBudgets)..where(
-              (row) => row.householdId.equals(householdId),
-            ))
-            .get();
+    final budgets = await (_database.select(
+      _database.envelopeBudgets,
+    )..where((row) => row.householdId.equals(householdId))).get();
     if (budgets.isEmpty) {
       return 'Budget digest: belum ada anggaran.';
     }
-    final lines = budgets.map((row) {
-      return '${row.name}|allocated=${row.allocated}|period=${row.periodType}';
-    }).toList();
-    return 'Budget digest: ${lines.join('; ')}.';
+    budgets.sort((a, b) => a.name.compareTo(b.name));
+    final visible = budgets.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|allocated=${row.allocated}|period=${row.periodType}';
+        })
+        .toList(growable: false);
+    final suffix = budgets.length > maxItems
+        ? '; … (+${budgets.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Budget digest (allocated = batas alokasi, bukan pemakaian terhitung): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
   }
 
   /// Digest kategori untuk capability cloud.
   Future<String> buildCategoriesDigest({
     required String householdId,
+    int maxItems = 16,
+    int maxCharacters = 600,
   }) async {
     final categories =
         await (_database.select(_database.categories)..where(
@@ -296,25 +345,52 @@ class FfmAssistantFinancialSnapshotService {
     if (categories.isEmpty) {
       return 'Categories digest: belum ada kategori.';
     }
-    final names = categories.map((row) => row.name).toList()..sort();
-    return 'Categories digest: ${names.join(', ')}.';
+    final names =
+        categories
+            .map((row) => row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim())
+            .where((name) => name.isNotEmpty)
+            .toList(growable: false)
+          ..sort();
+    final visible = names.take(maxItems).toList(growable: false);
+    final suffix = names.length > maxItems
+        ? ', … (+${names.length - maxItems})'
+        : '';
+    return _clip(
+      'Categories digest: ${visible.join(', ')}$suffix.',
+      maxCharacters,
+    );
   }
 
   /// Digest target keuangan untuk capability cloud.
   Future<String> buildGoalsDigest({
     required String householdId,
+    int maxItems = 8,
+    int maxCharacters = 700,
   }) async {
     final goals =
         await (_database.select(_database.goals)..where(
-              (row) => row.householdId.equals(householdId),
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
             ))
             .get();
     if (goals.isEmpty) {
-      return 'Goals digest: belum ada target keuangan.';
+      return 'Goals digest: belum ada target keuangan aktif.';
     }
-    final lines = goals.map((row) {
-      return '${row.name}|target=${row.targetAmount}|saved=${row.currentAmount}';
-    }).toList();
-    return 'Goals digest: ${lines.join('; ')}.';
+    goals.sort((a, b) => a.name.compareTo(b.name));
+    final visible = goals.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|target=${row.targetAmount}|saved=${row.currentAmount}';
+        })
+        .toList(growable: false);
+    final suffix = goals.length > maxItems
+        ? '; … (+${goals.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Goals digest (hanya target aktif): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
   }
 }
