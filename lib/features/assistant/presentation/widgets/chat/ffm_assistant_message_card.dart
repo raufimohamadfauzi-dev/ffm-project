@@ -7,6 +7,9 @@ import 'activity_session_chat_card.dart';
 import 'ffm_assistant_draft_preview.dart';
 import 'ffm_assistant_message_toolbar.dart';
 import 'ffm_assistant_process_disclosure.dart';
+import 'ffm_verified_facts_card.dart';
+import 'ffm_analysis_results_card.dart';
+import 'ffm_assistant_feedback_toolbar.dart';
 
 class FfmAssistantMessageCard extends StatelessWidget {
   const FfmAssistantMessageCard({
@@ -35,6 +38,15 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onActivityFinish,
     this.onActivityUpdate,
     this.onActivityChat,
+    this.showVerifiedFacts = false,
+    this.onToggleVerifiedFacts,
+    this.showAnalysisResults = false,
+    this.onToggleAnalysisResults,
+    this.onFeedbackThumbsUp,
+    this.onFeedbackThumbsDown,
+    this.onFeedbackMarkIncorrect,
+    this.onFeedbackReportIssue,
+    this.onFeedbackProvideCorrection,
   });
 
   final FfmAssistantChatEntry entry;
@@ -69,6 +81,21 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final void Function(String sessionId)? onActivityUpdate;
   final void Function(String sessionId)? onActivityChat;
 
+  /// Show verified facts card
+  final bool showVerifiedFacts;
+  final VoidCallback? onToggleVerifiedFacts;
+
+  /// Show analysis results card
+  final bool showAnalysisResults;
+  final VoidCallback? onToggleAnalysisResults;
+
+  /// Feedback callbacks
+  final VoidCallback? onFeedbackThumbsUp;
+  final VoidCallback? onFeedbackThumbsDown;
+  final VoidCallback? onFeedbackMarkIncorrect;
+  final VoidCallback? onFeedbackReportIssue;
+  final VoidCallback? onFeedbackProvideCorrection;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -91,6 +118,22 @@ class FfmAssistantMessageCard extends StatelessWidget {
           FfmAssistantProcessDisclosure(
             trace: entry.processTrace!,
             actionPlan: actionPlan,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (!isUser && entry.verifiedFacts != null && entry.verifiedFacts!.isNotEmpty) ...[
+          FfmVerifiedFactsCard(
+            facts: entry.verifiedFacts!,
+            isExpanded: showVerifiedFacts,
+            onToggle: onToggleVerifiedFacts,
+          ),
+          const SizedBox(height: 8),
+        ],
+        if (!isUser && entry.analysisResults != null && entry.analysisResults!.isNotEmpty) ...[
+          FfmAnalysisResultsCard(
+            results: entry.analysisResults!,
+            isExpanded: showAnalysisResults,
+            onToggle: onToggleAnalysisResults,
           ),
           const SizedBox(height: 8),
         ],
@@ -178,6 +221,25 @@ class FfmAssistantMessageCard extends StatelessWidget {
           const SizedBox(height: 7),
           FfmAssistantDraftPreview(draft: intent!.draft!, review: review),
         ],
+        if (!isUser && entry.feedbackType != null) ...[
+          const SizedBox(height: 8),
+          _buildFeedbackIndicator(context, entry.feedbackType!, entry.feedbackCategory),
+        ],
+        if (!isUser && 
+            (onFeedbackThumbsUp != null || 
+             onFeedbackThumbsDown != null ||
+             onFeedbackMarkIncorrect != null ||
+             onFeedbackReportIssue != null ||
+             onFeedbackProvideCorrection != null)) ...[
+          const SizedBox(height: 8),
+          FfmAssistantFeedbackToolbar(
+            onThumbsUp: onFeedbackThumbsUp ?? () {},
+            onThumbsDown: onFeedbackThumbsDown ?? () {},
+            onMarkIncorrect: onFeedbackMarkIncorrect,
+            onReportIssue: onFeedbackReportIssue,
+            onProvideCorrection: onFeedbackProvideCorrection,
+          ),
+        ],
         if (onCopyText != null ||
             onSpeak != null ||
             onIntent != null ||
@@ -263,6 +325,94 @@ class FfmAssistantMessageCard extends StatelessWidget {
                   child: content,
                 ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFeedbackIndicator(BuildContext context, String feedbackType, String? feedbackCategory) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    Color color;
+    IconData icon;
+    String label;
+
+    switch (feedbackType.toLowerCase()) {
+      case 'thumbsup':
+        color = isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32);
+        icon = Icons.thumb_up;
+        label = 'Berguna';
+        break;
+      case 'thumbsdown':
+        color = isDark ? const Color(0xFFF44336) : const Color(0xFFC62828);
+        icon = Icons.thumb_down;
+        label = 'Tidak Berguna';
+        break;
+      case 'incorrect':
+        color = isDark ? const Color(0xFFFF9800) : const Color(0xFFEF6C00);
+        icon = Icons.error_outline;
+        label = 'Salah';
+        break;
+      case 'issue':
+        color = isDark ? const Color(0xFF2196F3) : const Color(0xFF1565C0);
+        icon = Icons.flag;
+        label = 'Dilaporkan';
+        break;
+      case 'correction':
+        color = isDark ? const Color(0xFF9C27B0) : const Color(0xFF6A1B9A);
+        icon = Icons.edit;
+        label = 'Dikoreksi';
+        break;
+      default:
+        color = Colors.grey;
+        icon = Icons.feedback;
+        label = 'Feedback';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 14,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          if (feedbackCategory != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              width: 1,
+              height: 12,
+              color: color.withValues(alpha: 0.3),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              feedbackCategory,
+              style: TextStyle(
+                fontSize: 11,
+                color: color.withValues(alpha: 0.8),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

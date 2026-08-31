@@ -74,6 +74,10 @@ class FfmAssistantChatHistoryRepository {
     'isUser': entry.isUser,
     'text': entry.text,
     'createdAt': (entry.createdAt ?? DateTime.now()).toIso8601String(),
+    'verifiedFacts': entry.verifiedFacts,
+    'analysisResults': entry.analysisResults,
+    'feedbackType': entry.feedbackType,
+    'feedbackCategory': entry.feedbackCategory,
   };
 
   FfmAssistantChatEntry? _decodeEntry(Map raw) {
@@ -84,10 +88,46 @@ class FfmAssistantChatHistoryRepository {
     final parsedDate = createdAt is String
         ? DateTime.tryParse(createdAt)
         : null;
+    final verifiedFacts = raw['verifiedFacts'];
+    final analysisResults = raw['analysisResults'];
+    final feedbackType = raw['feedbackType'];
+    final feedbackCategory = raw['feedbackCategory'];
     return FfmAssistantChatEntry(
       isUser: isUser,
       text: text,
       createdAt: parsedDate,
+      verifiedFacts: verifiedFacts is String ? verifiedFacts : null,
+      analysisResults: analysisResults is String ? analysisResults : null,
+      feedbackType: feedbackType is String ? feedbackType : null,
+      feedbackCategory: feedbackCategory is String ? feedbackCategory : null,
     );
+  }
+
+  Future<void> updateEntryWithFeedback(
+    int index,
+    String feedbackType,
+    String? feedbackCategory,
+  ) async {
+    final entries = await load();
+    if (index >= 0 && index < entries.length) {
+      final entry = entries[index];
+      entries[index] = FfmAssistantChatEntry(
+        isUser: entry.isUser,
+        text: entry.text,
+        intent: entry.intent,
+        activityIntent: entry.activityIntent,
+        understanding: entry.understanding,
+        review: entry.review,
+        filePath: entry.filePath,
+        fileFormat: entry.fileFormat,
+        processTrace: entry.processTrace,
+        createdAt: entry.createdAt,
+        verifiedFacts: entry.verifiedFacts,
+        analysisResults: entry.analysisResults,
+        feedbackType: feedbackType,
+        feedbackCategory: feedbackCategory,
+      );
+      await save(entries);
+    }
   }
 }

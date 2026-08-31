@@ -1058,6 +1058,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               intent: intent,
               review: review,
               processTrace: processTrace,
+              verifiedFacts: intent.verifiedFacts,
+              analysisResults: intent.analysisResults,
             ),
           );
           traceSnapshots.add((processTrace, traceEventCount));

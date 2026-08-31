@@ -2,6 +2,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
+import '../domain/ffm_assistant_analysis_engine.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 
 import 'package:drift/drift.dart';
@@ -40,6 +41,7 @@ abstract interface class FfmAssistantQueryTool {
 class FfmAssistantQueryRegistry {
   FfmAssistantQueryRegistry(AppDatabase database, {DateTime Function()? clock})
     : _clock = clock ?? DateTime.now,
+      _analysisEngine = FfmAssistantAnalysisEngine(database),
       _tools = <FfmAssistantQueryTool>[
         _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
         _AccountBalanceQueryTool(database),
@@ -51,8 +53,17 @@ class FfmAssistantQueryRegistry {
         _LoanAffordabilityQueryTool(database),
         _DataCompletenessQueryTool(database),
         _PersonalProfileQueryTool(database),
-      ];
+      ] {
+        // Initialize analysis tools after _analysisEngine is set
+        _tools.addAll([
+          _FrequencyAnalysisQueryTool(_analysisEngine),
+          _TrendAnalysisQueryTool(_analysisEngine),
+          _PatternAnalysisQueryTool(_analysisEngine),
+          _PeriodAnalysisQueryTool(_analysisEngine),
+        ]);
+      }
   final DateTime Function() _clock;
+  final FfmAssistantAnalysisEngine _analysisEngine;
   final List<FfmAssistantQueryTool> _tools;
 
   Future<FfmAssistantQueryAnswer?> tryAnswer(
@@ -611,6 +622,287 @@ class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
         'Catatan: hasil ini adalah analisis berbasis data lokal FFM, bukan persetujuan kredit atau jaminan pinjaman aman.',
       );
     return buffer.toString();
+  }
+}
+
+class _FrequencyAnalysisQueryTool implements FfmAssistantQueryTool {
+  _FrequencyAnalysisQueryTool(this._analysisEngine);
+
+  final FfmAssistantAnalysisEngine _analysisEngine;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return normalizedText.contains('frekuensi') ||
+           normalizedText.contains('sering') ||
+           normalizedText.contains('paling sering') ||
+           (normalizedText.contains('berapa kali') && 
+            (normalizedText.contains('bulan') || normalizedText.contains('minggu')));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final now = request.now;
+    final start = now.subtract(const Duration(days: 30));
+    final end = now;
+
+    final analysis = await _analysisEngine.analyzeFrequency(
+      householdId: request.householdId,
+      start: start,
+      end: end,
+    );
+
+    if (analysis.totalTransactions == 0) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Analisis Frekuensi',
+        message: 'Belum ada transaksi dalam 30 hari terakhir untuk dianalisis frekuensinya.',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('Analisis frekuensi transaksi (30 hari terakhir):')
+      ..writeln('Total transaksi: ${analysis.totalTransactions}')
+      ..writeln();
+
+    if (analysis.categoryFrequency.isNotEmpty) {
+      buffer.writeln('Frekuensi per kategori:');
+      final sortedCategories = analysis.categoryFrequency.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sortedCategories.take(5)) {
+        buffer.writeln('- ${entry.key}: ${entry.value} kali');
+      }
+      buffer.writeln();
+    }
+
+    if (analysis.merchantFrequency.isNotEmpty) {
+      buffer.writeln('Frekuensi per merchant:');
+      final sortedMerchants = analysis.merchantFrequency.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sortedMerchants.take(5)) {
+        buffer.writeln('- ${entry.key}: ${entry.value} kali');
+      }
+      buffer.writeln();
+    }
+
+    if (analysis.dayOfWeekFrequency.isNotEmpty) {
+      final days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+      final mostFrequentDay = analysis.mostFrequentDay;
+      if (mostFrequentDay >= 1 && mostFrequentDay <= 7) {
+        buffer.writeln('Hari paling aktif: ${days[mostFrequentDay - 1]}');
+      }
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Frekuensi',
+      message: buffer.toString().trim(),
+    );
+  }
+}
+
+class _TrendAnalysisQueryTool implements FfmAssistantQueryTool {
+  _TrendAnalysisQueryTool(this._analysisEngine);
+
+  final FfmAssistantAnalysisEngine _analysisEngine;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return normalizedText.contains('trend') ||
+           normalizedText.contains('tren') ||
+           normalizedText.contains('naik') ||
+           normalizedText.contains('turun') ||
+           (normalizedText.contains('perubahan') && 
+            (normalizedText.contains('bulan') || normalizedText.contains('bulan ke')));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final now = request.now;
+    final start = DateTime(now.year, now.month - 3, 1);
+    final end = DateTime(now.year, now.month + 1, 1);
+
+    // Determine trend type from request
+    FfmTrendType trendType = FfmTrendType.both;
+    if (request.normalizedText.contains('pemasukan') || 
+        request.normalizedText.contains('income')) {
+      trendType = FfmTrendType.income;
+    } else if (request.normalizedText.contains('pengeluaran') || 
+               request.normalizedText.contains('expense')) {
+      trendType = FfmTrendType.expense;
+    }
+
+    final analysis = await _analysisEngine.analyzeTrend(
+      householdId: request.householdId,
+      start: start,
+      end: end,
+      type: trendType,
+    );
+
+    if (analysis.monthlyData.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Analisis Trend',
+        message: 'Belum ada data cukup untuk menganalisis trend dalam 3 bulan terakhir.',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('Analisis trend (3 bulan terakhir):')
+      ..writeln('Arah trend: ${analysis.trendDirection}')
+      ..writeln();
+
+    buffer.writeln('Data bulanan:');
+    for (final month in analysis.monthlyData) {
+      buffer.writeln('- ${month.month}:');
+      if (trendType == FfmTrendType.income || trendType == FfmTrendType.both) {
+        buffer.writeln('  Pemasukan: ${_rupiah(month.income)}');
+      }
+      if (trendType == FfmTrendType.expense || trendType == FfmTrendType.both) {
+        buffer.writeln('  Pengeluaran: ${_rupiah(month.expense)}');
+      }
+      buffer.writeln('  Jumlah transaksi: ${month.count}');
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Trend',
+      message: buffer.toString().trim(),
+    );
+  }
+}
+
+class _PatternAnalysisQueryTool implements FfmAssistantQueryTool {
+  _PatternAnalysisQueryTool(this._analysisEngine);
+
+  final FfmAssistantAnalysisEngine _analysisEngine;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return normalizedText.contains('pola') ||
+           normalizedText.contains('pattern') ||
+           normalizedText.contains('rata-rata') ||
+           normalizedText.contains('biasanya') ||
+           (normalizedText.contains('kategori') && 
+            (normalizedText.contains('terbanyak') || normalizedText.contains('terbesar')));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final now = request.now;
+    final start = now.subtract(const Duration(days: 30));
+    final end = now;
+
+    final analysis = await _analysisEngine.analyzePatterns(
+      householdId: request.householdId,
+      start: start,
+      end: end,
+    );
+
+    if (analysis.categoryPatterns.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Analisis Pola',
+        message: 'Belum ada transaksi dalam 30 hari terakhir untuk dianalisis polanya.',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('Analisis pola pengeluaran (30 hari terakhir):')
+      ..writeln();
+
+    final sortedPatterns = analysis.categoryPatterns.entries.toList()
+      ..sort((a, b) => b.value.total.compareTo(a.value.total));
+
+    for (final entry in sortedPatterns.take(5)) {
+      final pattern = entry.value;
+      buffer.writeln('Kategori: ${pattern.category}');
+      buffer.writeln('- Jumlah: ${pattern.count} kali');
+      buffer.writeln('- Total: ${_rupiah(pattern.total)}');
+      buffer.writeln('- Rata-rata: ${_rupiah(pattern.average)}');
+      buffer.writeln('- Median: ${_rupiah(pattern.median)}');
+      buffer.writeln('- Rentang: ${_rupiah(pattern.min)} - ${_rupiah(pattern.max)}');
+      buffer.writeln();
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Pola',
+      message: buffer.toString().trim(),
+    );
+  }
+}
+
+class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
+  _PeriodAnalysisQueryTool(this._analysisEngine);
+
+  final FfmAssistantAnalysisEngine _analysisEngine;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return (normalizedText.contains('30 hari') || 
+            normalizedText.contains('90 hari') ||
+            normalizedText.contains('3 bulan') ||
+            normalizedText.contains('bulan ini') ||
+            normalizedText.contains('bulan lalu')) &&
+           (normalizedText.contains('berapa') ||
+            normalizedText.contains('total') ||
+            normalizedText.contains('ringkasan'));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    FfmAnalysisPeriod period = FfmAnalysisPeriod.last30Days;
+    
+    if (request.normalizedText.contains('90 hari') || 
+        request.normalizedText.contains('3 bulan')) {
+      period = FfmAnalysisPeriod.last90Days;
+    } else if (request.normalizedText.contains('bulan ini')) {
+      period = FfmAnalysisPeriod.thisMonth;
+    } else if (request.normalizedText.contains('bulan lalu')) {
+      period = FfmAnalysisPeriod.lastMonth;
+    }
+
+    final analysis = await _analysisEngine.analyzePeriod(
+      householdId: request.householdId,
+      period: period,
+      referenceDate: request.now,
+    );
+
+    if (analysis.transactionCount == 0) {
+      return FfmAssistantQueryAnswer(
+        title: 'Analisis Periode',
+        message: 'Belum ada transaksi dalam ${analysis.periodLabel}.',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('Ringkasan ${analysis.periodLabel}:')
+      ..writeln('Pemasukan: ${_rupiah(analysis.income)}')
+      ..writeln('Pengeluaran: ${_rupiah(analysis.expense)}')
+      ..writeln('Net cashflow: ${_rupiah(analysis.netCashflow)}')
+      ..writeln('Jumlah transaksi: ${analysis.transactionCount}')
+      ..writeln();
+
+    if (analysis.expenseRatio != null) {
+      buffer.writeln('Rasio pengeluaran: ${(analysis.expenseRatio! * 100).toStringAsFixed(1)}%');
+    }
+
+    if (analysis.categoryBreakdown.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Breakdown kategori terbesar:');
+      final sortedCategories = analysis.categoryBreakdown.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      for (final entry in sortedCategories.take(5)) {
+        buffer.writeln('- ${entry.key}: ${_rupiah(entry.value)}');
+      }
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Periode',
+      message: buffer.toString().trim(),
+    );
   }
 }
 
