@@ -16,7 +16,7 @@ import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
 import '../../features/assistant/data/ffm_assistant_response_feedback_repository.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
-import '../../features/assistant/data/ffm_assistant_knowledge_pack_service.dart';
+
 import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
 import '../../features/assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../features/assistant/data/ffm_assistant_local_memory.dart';
@@ -34,6 +34,14 @@ import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
 import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_repository.dart';
+import '../../features/assistant/data/ffm_assistant_agent_task_plan_resolver.dart';
+import '../../features/assistant/data/ffm_assistant_agent_task_event_handler.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
+import '../../features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
@@ -74,12 +82,23 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => GetAuditLogs(getIt<AuditLogRepository>()),
   );
   getIt.registerLazySingleton<GetTransaction>(() => GetTransaction(db));
-  getIt.registerLazySingleton<SaveTransaction>(() => SaveTransaction(db));
+  getIt.registerLazySingleton<SaveTransaction>(
+    () => SaveTransaction(
+      db,
+      autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+    ),
+  );
   getIt.registerLazySingleton<SaveTransactionBatch>(
-    () => SaveTransactionBatch(db),
+    () => SaveTransactionBatch(
+      db,
+      autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+    ),
   );
   getIt.registerLazySingleton<SaveMixedTransactionBatch>(
-    () => SaveMixedTransactionBatch(db),
+    () => SaveMixedTransactionBatch(
+      db,
+      autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+    ),
   );
   getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
   getIt.registerLazySingleton<GetAssets>(() => GetAssets(db));
@@ -123,16 +142,14 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<AuditLogger>(() => AuditLogger(db));
   getIt.registerLazySingleton<CategoryRepository>(
-    () => CategoryRepository(
-      db,
-      getIt<AuditLogger>(),
-    ),
+    () => CategoryRepository(db, getIt<AuditLogger>()),
   );
   getIt.registerLazySingleton<ActivityRepository>(
     () => ActivityRepository(
       db,
       getIt<AuditLogger>(),
       habitLearner: getIt<FfmActivityHabitLearner>(),
+      autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
     ),
   );
   // ActivityBloc as LazySingleton so it can be shared with ActivityApplicationService
@@ -153,9 +170,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<ActivityVerifiedFactLayer>(
     () => ActivityVerifiedFactLayer(getIt<ActivityAnalysisEngine>()),
   );
-  getIt.registerLazySingleton<ActivityModeDetector>(
-    ActivityModeDetector.new,
-  );
+  getIt.registerLazySingleton<ActivityModeDetector>(ActivityModeDetector.new);
   getIt.registerLazySingleton<ReminderRepository>(() => ReminderRepository(db));
   getIt.registerLazySingleton<ReminderOccurrenceCalculator>(
     ReminderOccurrenceCalculator.new,
@@ -172,6 +187,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       notificationService: getIt<ReminderNotificationService>(),
       occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
       householdId: 'local-household',
+      autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
     ),
   );
   getIt.registerLazySingleton<OfflineAiEngineService>(
@@ -200,6 +216,46 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
     FfmAssistantChatHistoryRepository.new,
   );
+  getIt.registerLazySingleton<FfmAssistantAutonomyRepository>(
+    () => FfmAssistantAutonomyRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyTriggerService>(
+    () => FfmAssistantAutonomyTriggerService(
+      getIt<FfmAssistantAutonomyRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAgentTaskPlanResolver>(
+    () => FfmAssistantAgentTaskPlanResolver(
+      getIt<FfmAssistantAutonomyRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyWorker>(
+    () => FfmAssistantAutonomyWorker(
+      repository: getIt<FfmAssistantAutonomyRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyTaskExecutionHost>(
+    () => FfmAssistantAutonomyTaskExecutionHost(
+      database: db,
+      repository: getIt<FfmAssistantAutonomyRepository>(),
+      adapters: getIt<FfmAssistantCapabilityAdapterRegistry>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAgentTaskEventHandler>(
+    () => FfmAssistantAgentTaskEventHandler(
+      repository: getIt<FfmAssistantAutonomyRepository>(),
+      resolver: getIt<FfmAssistantAgentTaskPlanResolver>(),
+      executePlan: getIt<FfmAssistantAutonomyTaskExecutionHost>().execute,
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundScheduler>(
+    FfmAssistantAutonomyBackgroundScheduler.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundEventHandler>(
+    () => FfmAssistantAutonomyBackgroundEventHandler(
+      getIt<FfmAssistantAgentTaskEventHandler>(),
+    ),
+  );
   getIt.registerLazySingleton<FfmAssistantUserModelService>(
     () => FfmAssistantUserModelService(getIt<FfmAssistantMemoryRepository>()),
   );
@@ -227,10 +283,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantPersonalizationRepository>(
     () => FfmAssistantPersonalizationRepository(db),
   );
-  getIt.registerLazySingleton<FfmAssistantKnowledgePackService>(
-    () =>
-        FfmAssistantKnowledgePackService(getIt<FfmAssistantMemoryRepository>()),
-  );
+
   getIt.registerLazySingleton<FfmAssistantCapabilityAdapterRegistry>(
     () => FfmAssistantCapabilityAdapterRegistry(
       database: db,

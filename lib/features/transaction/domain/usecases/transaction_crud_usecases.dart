@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../entities/transaction_entity.dart';
 
 class TransactionEntity {
@@ -123,8 +124,9 @@ class GetTransaction {
 }
 
 class SaveTransaction {
-  const SaveTransaction(this.database);
+  const SaveTransaction(this.database, {this.autonomyTrigger});
   final AppDatabase database;
+  final FfmAssistantAutonomyTriggerService? autonomyTrigger;
 
   Future<void> call(
     TransactionEntity entity, {
@@ -180,12 +182,22 @@ class SaveTransaction {
             );
       }
     });
+    await autonomyTrigger?.emitSafely(
+      triggerId:
+          'transaction:${entity.id}:${(entity.updatedAt ?? entity.recordedAt).microsecondsSinceEpoch}',
+      type: 'database.changed',
+      householdId: entity.householdId,
+      occurredAt: entity.updatedAt ?? entity.recordedAt,
+      entityId: entity.id,
+      payload: const {'entityType': 'transaction', 'operation': 'save'},
+    );
   }
 }
 
 class SaveTransactionBatch {
-  const SaveTransactionBatch(this.database);
+  const SaveTransactionBatch(this.database, {this.autonomyTrigger});
   final AppDatabase database;
+  final FfmAssistantAutonomyTriggerService? autonomyTrigger;
 
   Future<void> call(
     List<TransactionEntity> entities, {
@@ -242,6 +254,17 @@ class SaveTransactionBatch {
         }
       }
     });
+    for (final entity in entities) {
+      await autonomyTrigger?.emitSafely(
+        triggerId:
+            'transaction:${entity.id}:${(entity.updatedAt ?? entity.recordedAt).microsecondsSinceEpoch}',
+        type: 'database.changed',
+        householdId: entity.householdId,
+        occurredAt: entity.updatedAt ?? entity.recordedAt,
+        entityId: entity.id,
+        payload: const {'entityType': 'transaction', 'operation': 'save'},
+      );
+    }
   }
 }
 
@@ -276,8 +299,9 @@ class TransferEntity {
 }
 
 class SaveMixedTransactionBatch {
-  const SaveMixedTransactionBatch(this.database);
+  const SaveMixedTransactionBatch(this.database, {this.autonomyTrigger});
   final AppDatabase database;
+  final FfmAssistantAutonomyTriggerService? autonomyTrigger;
 
   Future<void> call(
     List<TransactionEntity> entities, {
@@ -352,6 +376,29 @@ class SaveMixedTransactionBatch {
             );
       }
     });
+    for (final entity in entities) {
+      final occurredAt = entity.updatedAt ?? entity.recordedAt;
+      await autonomyTrigger?.emitSafely(
+        triggerId:
+            'transaction:${entity.id}:${occurredAt.microsecondsSinceEpoch}',
+        type: 'database.changed',
+        householdId: entity.householdId,
+        occurredAt: occurredAt,
+        entityId: entity.id,
+        payload: const {'entityType': 'transaction', 'operation': 'save'},
+      );
+    }
+    for (final transfer in transfers) {
+      await autonomyTrigger?.emitSafely(
+        triggerId:
+            'transfer:${transfer.id}:${transfer.updatedAt.microsecondsSinceEpoch}',
+        type: 'database.changed',
+        householdId: transfer.householdId,
+        occurredAt: transfer.updatedAt,
+        entityId: transfer.id,
+        payload: const {'entityType': 'transfer', 'operation': 'save'},
+      );
+    }
   }
 }
 

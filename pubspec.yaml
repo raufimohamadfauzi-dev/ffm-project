@@ -40,6 +40,7 @@ dependencies:
   whisper_cpp_flutter_plus: ^0.4.0
   hijri_plus: ^0.1.0
   shared_preferences: ^2.5.3
+  workmanager: ^0.10.9
   archive: ^3.6.1
   encrypt: ^5.0.3
 

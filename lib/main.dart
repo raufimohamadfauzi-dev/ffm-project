@@ -23,7 +23,7 @@ import 'features/assistant/domain/ffm_assistant_widget_protocol.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
-import 'features/assistant/presentation/pages/assistant_training_page.dart';
+
 import 'features/assistant/presentation/pages/assistant_profile_page.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/audit/presentation/pages/activity_log_page.dart';
@@ -43,8 +43,7 @@ import 'features/advisor/presentation/pages/analysis_page.dart';
 import 'features/budget/presentation/pages/budget_page.dart';
 import 'features/settings/presentation/pages/app_diagnostics_page.dart';
 import 'features/settings/presentation/pages/database_structure_page.dart';
-import 'features/settings/presentation/pages/offline_advanced_page.dart';
-import 'features/settings/presentation/pages/offline_features_page.dart';
+
 import 'features/settings/presentation/pages/privacy_center_page.dart';
 import 'features/settings/presentation/pages/other_menu_page.dart';
 import 'features/settings/presentation/pages/pin_security_page.dart';
@@ -54,6 +53,8 @@ import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
 import 'features/assistant/data/ffm_memory_maintenance_service.dart';
 import 'features/assistant/data/ffm_assistant_proactive_monitor.dart';
+import 'features/assistant/data/ffm_assistant_autonomy_background_dispatcher.dart';
+import 'features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
 import 'features/activity/data/repositories/activity_repository.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
@@ -69,6 +70,7 @@ Future<void> main() async {
   await configureDependencies();
   final diagnostics = getIt<AppDiagnosticsService>();
   await diagnostics.markStartupPhase('dependencies_ready');
+  await _scheduleAutonomyBackgroundWork(diagnostics);
   unawaited(_initializePersonalContext(diagnostics));
   // Pemeliharaan memori: decay berkala tanpa memblok startup.
   if (getIt.isRegistered<FfmMemoryMaintenanceService>()) {
@@ -104,6 +106,24 @@ Future<void> main() async {
   await getIt<ProcessRecurringTransactions>()('local-household');
   final isDark = await ThemePreference.isDark();
   runApp(FfmApp(initialDarkMode: isDark));
+}
+
+Future<void> _scheduleAutonomyBackgroundWork(
+  AppDiagnosticsService diagnostics,
+) async {
+  try {
+    final scheduler = getIt<FfmAssistantAutonomyBackgroundScheduler>();
+    await scheduler.initialize(ffmAssistantAutonomyCallbackDispatcher);
+    await scheduler.ensureScheduled();
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'AUTONOMY_BACKGROUND_SCHEDULER_INIT_FAILED',
+      feature: 'Background Agent',
+      error: error,
+      stackTrace: stackTrace,
+      impact: 'Agent tetap berjalan saat aplikasi dibuka; scheduler akan dicoba lagi pada startup berikutnya.',
+    );
+  }
 }
 
 Future<void> _initializePersonalContext(
@@ -764,18 +784,12 @@ class _AppShellState extends State<AppShell> {
       case FfmAssistantDestination.activityLog:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const ActivityLogPage()));
-      case FfmAssistantDestination.assistantTraining:
-        await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AssistantTrainingPage()),
-        );
+
       case FfmAssistantDestination.recurringTransaction:
         await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const RecurringTransactionPage()),
         );
-      case FfmAssistantDestination.offlineAdvanced:
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const OfflineAdvancedPage()));
+
       case FfmAssistantDestination.privacyCenter:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const PrivacyCenterPage()));
@@ -783,10 +797,7 @@ class _AppShellState extends State<AppShell> {
         await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const DatabaseStructurePage()),
         );
-      case FfmAssistantDestination.offlineFeatures:
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const OfflineFeaturesPage()));
+
       case FfmAssistantDestination.localModel:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));

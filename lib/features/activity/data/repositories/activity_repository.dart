@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
 import '../../../assistant/data/ffm_activity_habit_learner.dart';
+import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../domain/entities/activity_entity.dart';
 
 class ActivityRepository {
@@ -12,6 +13,7 @@ class ActivityRepository {
     this.database,
     this.auditLogger, {
     this.habitLearner,
+    this.autonomyTrigger,
   });
 
   final AppDatabase database;
@@ -20,6 +22,7 @@ class ActivityRepository {
   /// Pengamat kebiasaan opsional: merekam pola aktivitas sebagai memori
   /// `habit` agar asisten memahami rutinitas pengguna.
   final FfmActivityHabitLearner? habitLearner;
+  final FfmAssistantAutonomyTriggerService? autonomyTrigger;
 
   Future<List<ActivitySessionEntity>> getSessions(String householdId) async {
     final rows =
@@ -145,6 +148,11 @@ class ActivityRepository {
             categoryId: Value(category?.id ?? entity.categoryId),
             category: Value(category?.name ?? entity.category),
             kind: Value(entity.kind.value),
+            mode: Value(entity.effectiveMode.value),
+            // Activity Intelligence Upgrade fields
+            activityGroupId: Value(entity.activityGroupId),
+            subjectType: Value(entity.subjectType),
+            subjectId: Value(entity.subjectId),
             startedAt: entity.startedAt,
             endedAt: Value<DateTime?>(entity.endedAt),
             scheduledAt: Value<DateTime?>(entity.scheduledAt),
@@ -167,12 +175,31 @@ class ActivityRepository {
         'id': entity.id,
         'title': entity.title,
         'status': entity.status.value,
+        'effectiveMode': entity.effectiveMode.name,
+        'activityGroupId': entity.activityGroupId,
+        'subjectType': entity.subjectType,
+        'subjectId': entity.subjectId,
       },
+    );
+    await autonomyTrigger?.emitSafely(
+      triggerId:
+          'activity-session:${entity.id}:${entity.updatedAt?.microsecondsSinceEpoch ?? entity.createdAt.microsecondsSinceEpoch}',
+      type: 'database.changed',
+      householdId: entity.householdId,
+      occurredAt: entity.updatedAt ?? entity.createdAt,
+      entityId: entity.id,
+      activityId: entity.id,
+      payload: const {'entityType': 'activity_session', 'operation': 'save'},
     );
     habitLearner
         ?.recordActivityObservation(
           title: entity.title,
           occurredAt: entity.startedAt,
+          // Activity Intelligence Upgrade - pass structured context
+          category: entity.category,
+          activityGroupId: entity.activityGroupId,
+          subjectType: entity.subjectType,
+          subjectId: entity.subjectId,
         )
         .ignore();
   }
@@ -235,6 +262,16 @@ class ActivityRepository {
         'title': entity.title,
         'activityType': entity.activityType,
       },
+    );
+    await autonomyTrigger?.emitSafely(
+      triggerId:
+          'activity-journal:${entity.id}:${entity.updatedAt?.microsecondsSinceEpoch ?? entity.createdAt.microsecondsSinceEpoch}',
+      type: 'database.changed',
+      householdId: entity.householdId,
+      occurredAt: entity.updatedAt ?? entity.createdAt,
+      entityId: entity.id,
+      activityId: entity.sessionId,
+      payload: const {'entityType': 'activity_journal', 'operation': 'save'},
     );
     habitLearner
         ?.recordActivityObservation(
@@ -476,6 +513,16 @@ class ActivityRepository {
         'linkedSessionId': entity.linkedSessionId,
       },
     );
+    await autonomyTrigger?.emitSafely(
+      triggerId:
+          'activity-note:${entity.id}:${entity.updatedAt?.microsecondsSinceEpoch ?? entity.createdAt.microsecondsSinceEpoch}',
+      type: 'database.changed',
+      householdId: entity.householdId,
+      occurredAt: entity.updatedAt ?? entity.createdAt,
+      entityId: entity.id,
+      activityId: entity.linkedSessionId,
+      payload: const {'entityType': 'activity_note', 'operation': 'save'},
+    );
   }
 
   Future<void> archiveNote(String householdId, String id) async {
@@ -655,6 +702,10 @@ class ActivityRepository {
         categoryId: row.categoryId,
         kind: ActivityKind.fromValue(row.kind),
         parentSessionId: row.parentSessionId,
+        // Activity Intelligence Upgrade fields
+        activityGroupId: row.activityGroupId,
+        subjectType: row.subjectType,
+        subjectId: row.subjectId,
         startedAt: row.startedAt,
         endedAt: row.endedAt,
         scheduledAt: row.scheduledAt,

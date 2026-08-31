@@ -52,6 +52,13 @@ part 'app_database.g.dart';
     UserCorrections,
     UserPreferences,
     InteractionPatterns,
+    AssistantAgentRuns,
+    AssistantAgentEvents,
+    AssistantAgentApprovals,
+    AssistantAgentToolExecutions,
+    AssistantAgentGoals,
+    AssistantAgentTasks,
+    AssistantAgentTaskExecutions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -60,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 50;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -77,6 +84,8 @@ class AppDatabase extends _$AppDatabase {
       await _createAssistantLearningIndexes();
       await _createAssistantUnansweredQuestionIndexes();
       await _createAssistantResponseFeedbackIndexes();
+      await _createAssistantAutonomyIndexes();
+      await _createAssistantApprovalIndexes();
       await _createPersonalizationIndexes();
       await _seedInitialData();
       await _seedActivityCategories();
@@ -221,6 +230,73 @@ class AppDatabase extends _$AppDatabase {
           await _seedActivityCategories();
         }
       }
+      if (from < 44) {
+        // Activity Intelligence Upgrade - Add grouping and subject linking
+        if (await _hasTable('activity_sessions')) {
+          if (!await _hasColumns('activity_sessions', const [
+            'activity_group_id',
+          ])) {
+            await m.addColumn(
+              activitySessions,
+              activitySessions.activityGroupId,
+            );
+          }
+          if (!await _hasColumns('activity_sessions', const ['subject_type'])) {
+            await m.addColumn(activitySessions, activitySessions.subjectType);
+          }
+          if (!await _hasColumns('activity_sessions', const ['subject_id'])) {
+            await m.addColumn(activitySessions, activitySessions.subjectId);
+          }
+          await _createActivityGroupingIndexes();
+        }
+      }
+      if (from < 45) {
+        if (await _hasTable('activity_sessions') &&
+            !await _hasColumns('activity_sessions', const ['mode'])) {
+          await m.addColumn(activitySessions, activitySessions.mode);
+        }
+      }
+      if (from < 46) {
+        await m.createTable(assistantAgentRuns);
+        await m.createTable(assistantAgentEvents);
+        await _createAssistantAutonomyIndexes();
+      }
+      if (from < 47) {
+        await m.createTable(assistantAgentApprovals);
+        await _createAssistantApprovalIndexes();
+      }
+      if (from < 48) {
+        await m.createTable(assistantAgentToolExecutions);
+        await _createAssistantToolExecutionIndexes();
+      }
+      if (from < 49) {
+        await m.createTable(assistantAgentGoals);
+        await m.createTable(assistantAgentTasks);
+        await m.createTable(assistantAgentTaskExecutions);
+        await _createAssistantAgentWorkIndexes();
+      }
+      if (from < 50) {
+        if (await _hasTable('assistant_agent_tasks')) {
+          if (!await _hasColumns(
+            'assistant_agent_tasks',
+            const ['capability_id'],
+          )) {
+            await m.addColumn(
+              assistantAgentTasks,
+              assistantAgentTasks.capabilityId,
+            );
+          }
+          if (!await _hasColumns(
+            'assistant_agent_tasks',
+            const ['parameters_json'],
+          )) {
+            await m.addColumn(
+              assistantAgentTasks,
+              assistantAgentTasks.parametersJson,
+            );
+          }
+        }
+      }
       if (from < 20) {
         await _seedInitialData();
       }
@@ -266,6 +342,19 @@ class AppDatabase extends _$AppDatabase {
       await customStatement(
         'CREATE INDEX IF NOT EXISTS idx_activity_entries_household_category '
         'ON activity_entries (household_id, category_id, started_at)',
+      );
+    }
+  }
+
+  Future<void> _createActivityGroupingIndexes() async {
+    if (await _hasTable('activity_sessions')) {
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_activity_sessions_group '
+        'ON activity_sessions (household_id, activity_group_id, started_at)',
+      );
+      await customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_activity_sessions_subject '
+        'ON activity_sessions (household_id, subject_type, subject_id, started_at)',
       );
     }
   }
@@ -382,6 +471,46 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_assistant_response_feedbacks_review '
       'ON assistant_response_feedbacks '
       '(household_id, review_status, is_archived, updated_at)',
+    );
+  }
+
+  Future<void> _createAssistantAutonomyIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_runs_household_updated '
+      'ON assistant_agent_runs (household_id, updated_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_events_pending '
+      'ON assistant_agent_events (household_id, status, occurred_at)',
+    );
+  }
+
+  Future<void> _createAssistantApprovalIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_approvals_run '
+      'ON assistant_agent_approvals (run_id, decided_at)',
+    );
+  }
+
+  Future<void> _createAssistantToolExecutionIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_tools_run '
+      'ON assistant_agent_tool_executions (run_id, started_at)',
+    );
+  }
+
+  Future<void> _createAssistantAgentWorkIndexes() async {
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_goals_household_status '
+      'ON assistant_agent_goals (household_id, status, priority)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_tasks_goal_status '
+      'ON assistant_agent_tasks (goal_id, status, priority)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_assistant_agent_task_executions_task '
+      'ON assistant_agent_task_executions (task_id, started_at)',
     );
   }
 

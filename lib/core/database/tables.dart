@@ -348,6 +348,19 @@ class ActivitySessions extends Table {
   /// Label legacy untuk kompatibilitas data lama dan impor lama.
   TextColumn get category => text().withDefault(const Constant('lainnya'))();
   TextColumn get kind => text().withDefault(const Constant('timer'))();
+
+  /// Mode aktivitas: time tracking vs catatan/riwayat
+  /// Nullable untuk backward compatibility; default dihitung dari kind jika null
+  TextColumn get mode => text().nullable()();
+
+  /// Activity Intelligence Upgrade - Grouping & Subject Linking
+  /// activity_group_id: Mengelompokkan aktivitas dalam satu rangkaian/proses
+  /// subject_type: Jenis entitas yang sedang dikerjakan (crop, asset, dll)
+  /// subject_id: ID spesifik entitas yang sedang dikerjakan
+  TextColumn get activityGroupId => text().nullable()();
+  TextColumn get subjectType => text().nullable()();
+  TextColumn get subjectId => text().nullable()();
+
   DateTimeColumn get startedAt => dateTime()();
   DateTimeColumn get endedAt => dateTime().nullable()();
   DateTimeColumn get scheduledAt => dateTime().nullable()();
@@ -707,6 +720,148 @@ class AssistantResponseFeedbacks extends Table {
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Ringkasan eksekusi agent yang aman untuk dipulihkan dan diaudit.
+///
+/// Tabel ini sengaja tidak menyimpan prompt, chain-of-thought, atau input tool
+/// mentah. Detail sensitif tetap berada pada data domain dan batas executor.
+class AssistantAgentRuns extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get trigger => text()();
+  TextColumn get status => text()();
+  TextColumn get summary => text()();
+  TextColumn get domain => text().nullable()();
+  TextColumn get entityId => text().nullable()();
+  TextColumn get activityId => text().nullable()();
+  TextColumn get model => text().nullable()();
+  TextColumn get decisionSummary => text().nullable()();
+  TextColumn get error => text().nullable()();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get finishedAt => dateTime().nullable()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Event durable untuk pemicu agent. Status disimpan agar event yang sama
+/// tidak diproses ulang setelah aplikasi dibuka kembali.
+class AssistantAgentEvents extends Table {
+  TextColumn get eventId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get eventType => text()();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  TextColumn get entityId => text().nullable()();
+  TextColumn get activityId => text().nullable()();
+  TextColumn get payloadJson => text().withDefault(const Constant('{}'))();
+  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
+  TextColumn get error => text().nullable()();
+  DateTimeColumn get occurredAt => dateTime()();
+  DateTimeColumn get lastAttemptAt => dateTime().nullable()();
+  DateTimeColumn get processedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {eventId};
+}
+
+/// Keputusan approval yang aman untuk diaudit. Tidak menyimpan prompt atau
+/// payload tool mentah, hanya relasi run dan ringkasan tindakan.
+class AssistantAgentApprovals extends Table {
+  TextColumn get id => text()();
+  TextColumn get runId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get status => text()();
+  TextColumn get summary => text()();
+  TextColumn get actor => text().nullable()();
+  TextColumn get reason => text().nullable()();
+  DateTimeColumn get requestedAt => dateTime()();
+  DateTimeColumn get decidedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Status capability per step untuk audit run tanpa menyimpan parameter mentah.
+class AssistantAgentToolExecutions extends Table {
+  TextColumn get id => text()();
+  TextColumn get runId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get stepId => text()();
+  TextColumn get capabilityId => text()();
+  TextColumn get status => text()();
+  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
+  TextColumn get resultSummary => text().nullable()();
+  TextColumn get error => text().nullable()();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get finishedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Goal berkelanjutan milik Agent, terpisah dari target keuangan pengguna.
+class AssistantAgentGoals extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get domain => text()();
+  TextColumn get entityId => text().nullable()();
+  TextColumn get activityId => text().nullable()();
+  TextColumn get title => text()();
+  TextColumn get objective => text()();
+  TextColumn get status => text().withDefault(const Constant('active'))();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get lastRunAt => dateTime().nullable()();
+  DateTimeColumn get nextRunAt => dateTime().nullable()();
+  TextColumn get completionCondition => text().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Task yang dimiliki Goal Agent, terpisah dari tugas keluarga biasa.
+class AssistantAgentTasks extends Table {
+  TextColumn get id => text()();
+  TextColumn get goalId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get title => text()();
+  TextColumn get objective => text().nullable()();
+  TextColumn get capabilityId => text().nullable()();
+  TextColumn get parametersJson => text().withDefault(const Constant('{}'))();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  IntColumn get priority => integer().withDefault(const Constant(0))();
+  IntColumn get retryCount => integer().withDefault(const Constant(0))();
+  IntColumn get maxRetries => integer().withDefault(const Constant(3))();
+  DateTimeColumn get dueAt => dateTime().nullable()();
+  DateTimeColumn get lastRunAt => dateTime().nullable()();
+  DateTimeColumn get nextRunAt => dateTime().nullable()();
+  TextColumn get lastError => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get updatedAt => dateTime()();
+  DateTimeColumn get completedAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+/// Riwayat setiap percobaan Task Agent tanpa menyimpan prompt atau input tool.
+class AssistantAgentTaskExecutions extends Table {
+  TextColumn get id => text()();
+  TextColumn get taskId => text()();
+  TextColumn get goalId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get runId => text().nullable()();
+  TextColumn get status => text()();
+  TextColumn get summary => text().nullable()();
+  TextColumn get error => text().nullable()();
+  DateTimeColumn get startedAt => dateTime()();
+  DateTimeColumn get finishedAt => dateTime().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

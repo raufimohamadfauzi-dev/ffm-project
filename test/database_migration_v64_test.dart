@@ -86,8 +86,14 @@ void main() {
             "('user_corrections', 'user_preferences', 'interaction_patterns')",
           )
           .get();
+      final approvalTable = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'assistant_agent_approvals'",
+          )
+          .getSingleOrNull();
 
-      expect(version.data['user_version'], 43);
+      expect(version.data['user_version'], 50);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -97,6 +103,7 @@ void main() {
       expect(routinesTables, hasLength(2));
       expect(scheduleTable, isNotNull);
       expect(personalizationTables, hasLength(3));
+      expect(approvalTable, isNotNull);
     });
 
     test(

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_repository.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import 'package:ffm_manager/features/reminder/data/repositories/reminder_repository.dart';
 import 'package:ffm_manager/features/reminder/data/services/reminder_notification_service.dart';
 import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
@@ -124,17 +126,22 @@ void main() {
     late AppDatabase database;
     late ReminderRepository repository;
     late FakeReminderNotificationGateway gateway;
+    late FfmAssistantAutonomyRepository autonomyRepository;
+    late FfmAssistantAutonomyTriggerService autonomyTrigger;
     late ReminderBloc bloc;
 
     setUp(() {
       database = createInMemoryDatabaseForTests();
       repository = ReminderRepository(database);
       gateway = FakeReminderNotificationGateway();
+      autonomyRepository = FfmAssistantAutonomyRepository(database);
+      autonomyTrigger = FfmAssistantAutonomyTriggerService(autonomyRepository);
       bloc = ReminderBloc(
         repository: repository,
         notificationService: gateway,
         occurrenceCalculator: calculator,
         householdId: householdId,
+        autonomyTrigger: autonomyTrigger,
       );
     });
 
@@ -208,6 +215,9 @@ void main() {
           state.history.single.history.status,
           ReminderHistoryStatus.pending,
         );
+        final events = await autonomyRepository.pendingEvents();
+        expect(events, hasLength(1));
+        expect(events.single.type, 'reminder.due');
       },
     );
 

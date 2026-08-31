@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../data/repositories/reminder_repository.dart';
 import '../../data/services/reminder_notification_service.dart';
 import '../../domain/entities/reminder_entity.dart';
@@ -94,6 +95,7 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
     required this._notificationService,
     required this._occurrenceCalculator,
     required this._householdId,
+    this._autonomyTrigger,
   }) : super(const ReminderState()) {
     on<ReminderLoadRequested>(_load);
     on<ReminderSaved>(_save);
@@ -114,6 +116,7 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
   final ReminderNotificationGateway _notificationService;
   final ReminderOccurrenceCalculator _occurrenceCalculator;
   final String _householdId;
+  final FfmAssistantAutonomyTriggerService? _autonomyTrigger;
 
   Future<void> recover() async {
     final pendingActions = await _notificationService.consumePendingActions();
@@ -347,6 +350,26 @@ class ReminderBloc extends Bloc<ReminderEvent, ReminderState> {
               reminder.notificationId,
         ),
       );
+    }
+
+    // Queue the reminder event separately; a trigger failure must not break
+    // the user's complete, snooze, or open action.
+    try {
+      await _autonomyTrigger?.emit(
+        triggerId: history.id,
+        type: 'reminder.due',
+        householdId: _householdId,
+        occurredAt: history.scheduledAt,
+        entityId: reminderId,
+        payload: <String, Object?>{
+          'reminderId': reminderId,
+          'historyId': history.id,
+          'occurrenceKey': history.occurrenceKey,
+          'actionId': actionId,
+        },
+      );
+    } on Object {
+      // Reminder UX remains authoritative when autonomy persistence is down.
     }
 
     if (actionId == 'complete') {

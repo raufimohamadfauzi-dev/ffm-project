@@ -13261,6 +13261,48 @@ class $ActivitySessionsTable extends ActivitySessions
     requiredDuringInsert: false,
     defaultValue: const Constant('timer'),
   );
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  @override
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _activityGroupIdMeta = const VerificationMeta(
+    'activityGroupId',
+  );
+  @override
+  late final GeneratedColumn<String> activityGroupId = GeneratedColumn<String>(
+    'activity_group_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subjectTypeMeta = const VerificationMeta(
+    'subjectType',
+  );
+  @override
+  late final GeneratedColumn<String> subjectType = GeneratedColumn<String>(
+    'subject_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _subjectIdMeta = const VerificationMeta(
+    'subjectId',
+  );
+  @override
+  late final GeneratedColumn<String> subjectId = GeneratedColumn<String>(
+    'subject_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _startedAtMeta = const VerificationMeta(
     'startedAt',
   );
@@ -13412,6 +13454,10 @@ class $ActivitySessionsTable extends ActivitySessions
     categoryId,
     category,
     kind,
+    mode,
+    activityGroupId,
+    subjectType,
+    subjectId,
     startedAt,
     endedAt,
     scheduledAt,
@@ -13486,6 +13532,36 @@ class $ActivitySessionsTable extends ActivitySessions
       context.handle(
         _kindMeta,
         kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
+    if (data.containsKey('mode')) {
+      context.handle(
+        _modeMeta,
+        mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
+      );
+    }
+    if (data.containsKey('activity_group_id')) {
+      context.handle(
+        _activityGroupIdMeta,
+        activityGroupId.isAcceptableOrUnknown(
+          data['activity_group_id']!,
+          _activityGroupIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('subject_type')) {
+      context.handle(
+        _subjectTypeMeta,
+        subjectType.isAcceptableOrUnknown(
+          data['subject_type']!,
+          _subjectTypeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('subject_id')) {
+      context.handle(
+        _subjectIdMeta,
+        subjectId.isAcceptableOrUnknown(data['subject_id']!, _subjectIdMeta),
       );
     }
     if (data.containsKey('started_at')) {
@@ -13607,6 +13683,22 @@ class $ActivitySessionsTable extends ActivitySessions
         DriftSqlType.string,
         data['${effectivePrefix}kind'],
       )!,
+      mode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mode'],
+      ),
+      activityGroupId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_group_id'],
+      ),
+      subjectType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_type'],
+      ),
+      subjectId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}subject_id'],
+      ),
       startedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}started_at'],
@@ -13677,6 +13769,18 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
   /// Label legacy untuk kompatibilitas data lama dan impor lama.
   final String category;
   final String kind;
+
+  /// Mode aktivitas: time tracking vs catatan/riwayat
+  /// Nullable untuk backward compatibility; default dihitung dari kind jika null
+  final String? mode;
+
+  /// Activity Intelligence Upgrade - Grouping & Subject Linking
+  /// activity_group_id: Mengelompokkan aktivitas dalam satu rangkaian/proses
+  /// subject_type: Jenis entitas yang sedang dikerjakan (crop, asset, dll)
+  /// subject_id: ID spesifik entitas yang sedang dikerjakan
+  final String? activityGroupId;
+  final String? subjectType;
+  final String? subjectId;
   final DateTime startedAt;
   final DateTime? endedAt;
   final DateTime? scheduledAt;
@@ -13697,6 +13801,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     this.categoryId,
     required this.category,
     required this.kind,
+    this.mode,
+    this.activityGroupId,
+    this.subjectType,
+    this.subjectId,
     required this.startedAt,
     this.endedAt,
     this.scheduledAt,
@@ -13724,6 +13832,18 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     }
     map['category'] = Variable<String>(category);
     map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || mode != null) {
+      map['mode'] = Variable<String>(mode);
+    }
+    if (!nullToAbsent || activityGroupId != null) {
+      map['activity_group_id'] = Variable<String>(activityGroupId);
+    }
+    if (!nullToAbsent || subjectType != null) {
+      map['subject_type'] = Variable<String>(subjectType);
+    }
+    if (!nullToAbsent || subjectId != null) {
+      map['subject_id'] = Variable<String>(subjectId);
+    }
     map['started_at'] = Variable<DateTime>(startedAt);
     if (!nullToAbsent || endedAt != null) {
       map['ended_at'] = Variable<DateTime>(endedAt);
@@ -13762,6 +13882,16 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           : Value(categoryId),
       category: Value(category),
       kind: Value(kind),
+      mode: mode == null && nullToAbsent ? const Value.absent() : Value(mode),
+      activityGroupId: activityGroupId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activityGroupId),
+      subjectType: subjectType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subjectType),
+      subjectId: subjectId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(subjectId),
       startedAt: Value(startedAt),
       endedAt: endedAt == null && nullToAbsent
           ? const Value.absent()
@@ -13800,6 +13930,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       categoryId: serializer.fromJson<String?>(json['categoryId']),
       category: serializer.fromJson<String>(json['category']),
       kind: serializer.fromJson<String>(json['kind']),
+      mode: serializer.fromJson<String?>(json['mode']),
+      activityGroupId: serializer.fromJson<String?>(json['activityGroupId']),
+      subjectType: serializer.fromJson<String?>(json['subjectType']),
+      subjectId: serializer.fromJson<String?>(json['subjectId']),
       startedAt: serializer.fromJson<DateTime>(json['startedAt']),
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
       scheduledAt: serializer.fromJson<DateTime?>(json['scheduledAt']),
@@ -13825,6 +13959,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
       'categoryId': serializer.toJson<String?>(categoryId),
       'category': serializer.toJson<String>(category),
       'kind': serializer.toJson<String>(kind),
+      'mode': serializer.toJson<String?>(mode),
+      'activityGroupId': serializer.toJson<String?>(activityGroupId),
+      'subjectType': serializer.toJson<String?>(subjectType),
+      'subjectId': serializer.toJson<String?>(subjectId),
       'startedAt': serializer.toJson<DateTime>(startedAt),
       'endedAt': serializer.toJson<DateTime?>(endedAt),
       'scheduledAt': serializer.toJson<DateTime?>(scheduledAt),
@@ -13848,6 +13986,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     Value<String?> categoryId = const Value.absent(),
     String? category,
     String? kind,
+    Value<String?> mode = const Value.absent(),
+    Value<String?> activityGroupId = const Value.absent(),
+    Value<String?> subjectType = const Value.absent(),
+    Value<String?> subjectId = const Value.absent(),
     DateTime? startedAt,
     Value<DateTime?> endedAt = const Value.absent(),
     Value<DateTime?> scheduledAt = const Value.absent(),
@@ -13870,6 +14012,12 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     category: category ?? this.category,
     kind: kind ?? this.kind,
+    mode: mode.present ? mode.value : this.mode,
+    activityGroupId: activityGroupId.present
+        ? activityGroupId.value
+        : this.activityGroupId,
+    subjectType: subjectType.present ? subjectType.value : this.subjectType,
+    subjectId: subjectId.present ? subjectId.value : this.subjectId,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
     scheduledAt: scheduledAt.present ? scheduledAt.value : this.scheduledAt,
@@ -13898,6 +14046,14 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           : this.categoryId,
       category: data.category.present ? data.category.value : this.category,
       kind: data.kind.present ? data.kind.value : this.kind,
+      mode: data.mode.present ? data.mode.value : this.mode,
+      activityGroupId: data.activityGroupId.present
+          ? data.activityGroupId.value
+          : this.activityGroupId,
+      subjectType: data.subjectType.present
+          ? data.subjectType.value
+          : this.subjectType,
+      subjectId: data.subjectId.present ? data.subjectId.value : this.subjectId,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
       scheduledAt: data.scheduledAt.present
@@ -13929,6 +14085,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           ..write('categoryId: $categoryId, ')
           ..write('category: $category, ')
           ..write('kind: $kind, ')
+          ..write('mode: $mode, ')
+          ..write('activityGroupId: $activityGroupId, ')
+          ..write('subjectType: $subjectType, ')
+          ..write('subjectId: $subjectId, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('scheduledAt: $scheduledAt, ')
@@ -13946,7 +14106,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     householdId,
     title,
@@ -13954,6 +14114,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     categoryId,
     category,
     kind,
+    mode,
+    activityGroupId,
+    subjectType,
+    subjectId,
     startedAt,
     endedAt,
     scheduledAt,
@@ -13966,7 +14130,7 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
     isArchived,
     createdAt,
     updatedAt,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -13978,6 +14142,10 @@ class ActivitySession extends DataClass implements Insertable<ActivitySession> {
           other.categoryId == this.categoryId &&
           other.category == this.category &&
           other.kind == this.kind &&
+          other.mode == this.mode &&
+          other.activityGroupId == this.activityGroupId &&
+          other.subjectType == this.subjectType &&
+          other.subjectId == this.subjectId &&
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
           other.scheduledAt == this.scheduledAt &&
@@ -14000,6 +14168,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
   final Value<String?> categoryId;
   final Value<String> category;
   final Value<String> kind;
+  final Value<String?> mode;
+  final Value<String?> activityGroupId;
+  final Value<String?> subjectType;
+  final Value<String?> subjectId;
   final Value<DateTime> startedAt;
   final Value<DateTime?> endedAt;
   final Value<DateTime?> scheduledAt;
@@ -14021,6 +14193,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     this.categoryId = const Value.absent(),
     this.category = const Value.absent(),
     this.kind = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.activityGroupId = const Value.absent(),
+    this.subjectType = const Value.absent(),
+    this.subjectId = const Value.absent(),
     this.startedAt = const Value.absent(),
     this.endedAt = const Value.absent(),
     this.scheduledAt = const Value.absent(),
@@ -14043,6 +14219,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     this.categoryId = const Value.absent(),
     this.category = const Value.absent(),
     this.kind = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.activityGroupId = const Value.absent(),
+    this.subjectType = const Value.absent(),
+    this.subjectId = const Value.absent(),
     required DateTime startedAt,
     this.endedAt = const Value.absent(),
     this.scheduledAt = const Value.absent(),
@@ -14069,6 +14249,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Expression<String>? categoryId,
     Expression<String>? category,
     Expression<String>? kind,
+    Expression<String>? mode,
+    Expression<String>? activityGroupId,
+    Expression<String>? subjectType,
+    Expression<String>? subjectId,
     Expression<DateTime>? startedAt,
     Expression<DateTime>? endedAt,
     Expression<DateTime>? scheduledAt,
@@ -14091,6 +14275,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       if (categoryId != null) 'category_id': categoryId,
       if (category != null) 'category': category,
       if (kind != null) 'kind': kind,
+      if (mode != null) 'mode': mode,
+      if (activityGroupId != null) 'activity_group_id': activityGroupId,
+      if (subjectType != null) 'subject_type': subjectType,
+      if (subjectId != null) 'subject_id': subjectId,
       if (startedAt != null) 'started_at': startedAt,
       if (endedAt != null) 'ended_at': endedAt,
       if (scheduledAt != null) 'scheduled_at': scheduledAt,
@@ -14115,6 +14303,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     Value<String?>? categoryId,
     Value<String>? category,
     Value<String>? kind,
+    Value<String?>? mode,
+    Value<String?>? activityGroupId,
+    Value<String?>? subjectType,
+    Value<String?>? subjectId,
     Value<DateTime>? startedAt,
     Value<DateTime?>? endedAt,
     Value<DateTime?>? scheduledAt,
@@ -14137,6 +14329,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
       categoryId: categoryId ?? this.categoryId,
       category: category ?? this.category,
       kind: kind ?? this.kind,
+      mode: mode ?? this.mode,
+      activityGroupId: activityGroupId ?? this.activityGroupId,
+      subjectType: subjectType ?? this.subjectType,
+      subjectId: subjectId ?? this.subjectId,
       startedAt: startedAt ?? this.startedAt,
       endedAt: endedAt ?? this.endedAt,
       scheduledAt: scheduledAt ?? this.scheduledAt,
@@ -14176,6 +14372,18 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
     }
     if (kind.present) {
       map['kind'] = Variable<String>(kind.value);
+    }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
+    if (activityGroupId.present) {
+      map['activity_group_id'] = Variable<String>(activityGroupId.value);
+    }
+    if (subjectType.present) {
+      map['subject_type'] = Variable<String>(subjectType.value);
+    }
+    if (subjectId.present) {
+      map['subject_id'] = Variable<String>(subjectId.value);
     }
     if (startedAt.present) {
       map['started_at'] = Variable<DateTime>(startedAt.value);
@@ -14229,6 +14437,10 @@ class ActivitySessionsCompanion extends UpdateCompanion<ActivitySession> {
           ..write('categoryId: $categoryId, ')
           ..write('category: $category, ')
           ..write('kind: $kind, ')
+          ..write('mode: $mode, ')
+          ..write('activityGroupId: $activityGroupId, ')
+          ..write('subjectType: $subjectType, ')
+          ..write('subjectId: $subjectId, ')
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('scheduledAt: $scheduledAt, ')
@@ -25359,6 +25571,5252 @@ class InteractionPatternsCompanion extends UpdateCompanion<InteractionPattern> {
   }
 }
 
+class $AssistantAgentRunsTable extends AssistantAgentRuns
+    with TableInfo<$AssistantAgentRunsTable, AssistantAgentRun> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentRunsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _triggerMeta = const VerificationMeta(
+    'trigger',
+  );
+  @override
+  late final GeneratedColumn<String> trigger = GeneratedColumn<String>(
+    'trigger',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _activityIdMeta = const VerificationMeta(
+    'activityId',
+  );
+  @override
+  late final GeneratedColumn<String> activityId = GeneratedColumn<String>(
+    'activity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _modelMeta = const VerificationMeta('model');
+  @override
+  late final GeneratedColumn<String> model = GeneratedColumn<String>(
+    'model',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _decisionSummaryMeta = const VerificationMeta(
+    'decisionSummary',
+  );
+  @override
+  late final GeneratedColumn<String> decisionSummary = GeneratedColumn<String>(
+    'decision_summary',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _finishedAtMeta = const VerificationMeta(
+    'finishedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> finishedAt = GeneratedColumn<DateTime>(
+    'finished_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    trigger,
+    status,
+    summary,
+    domain,
+    entityId,
+    activityId,
+    model,
+    decisionSummary,
+    error,
+    startedAt,
+    finishedAt,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_runs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentRun> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('trigger')) {
+      context.handle(
+        _triggerMeta,
+        trigger.isAcceptableOrUnknown(data['trigger']!, _triggerMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_triggerMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    }
+    if (data.containsKey('activity_id')) {
+      context.handle(
+        _activityIdMeta,
+        activityId.isAcceptableOrUnknown(data['activity_id']!, _activityIdMeta),
+      );
+    }
+    if (data.containsKey('model')) {
+      context.handle(
+        _modelMeta,
+        model.isAcceptableOrUnknown(data['model']!, _modelMeta),
+      );
+    }
+    if (data.containsKey('decision_summary')) {
+      context.handle(
+        _decisionSummaryMeta,
+        decisionSummary.isAcceptableOrUnknown(
+          data['decision_summary']!,
+          _decisionSummaryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('finished_at')) {
+      context.handle(
+        _finishedAtMeta,
+        finishedAt.isAcceptableOrUnknown(data['finished_at']!, _finishedAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentRun map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentRun(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      trigger: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}trigger'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      ),
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      ),
+      activityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_id'],
+      ),
+      model: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}model'],
+      ),
+      decisionSummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}decision_summary'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      finishedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}finished_at'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AssistantAgentRunsTable createAlias(String alias) {
+    return $AssistantAgentRunsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentRun extends DataClass
+    implements Insertable<AssistantAgentRun> {
+  final String id;
+  final String householdId;
+  final String trigger;
+  final String status;
+  final String summary;
+  final String? domain;
+  final String? entityId;
+  final String? activityId;
+  final String? model;
+  final String? decisionSummary;
+  final String? error;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  final DateTime updatedAt;
+  const AssistantAgentRun({
+    required this.id,
+    required this.householdId,
+    required this.trigger,
+    required this.status,
+    required this.summary,
+    this.domain,
+    this.entityId,
+    this.activityId,
+    this.model,
+    this.decisionSummary,
+    this.error,
+    required this.startedAt,
+    this.finishedAt,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['trigger'] = Variable<String>(trigger);
+    map['status'] = Variable<String>(status);
+    map['summary'] = Variable<String>(summary);
+    if (!nullToAbsent || domain != null) {
+      map['domain'] = Variable<String>(domain);
+    }
+    if (!nullToAbsent || entityId != null) {
+      map['entity_id'] = Variable<String>(entityId);
+    }
+    if (!nullToAbsent || activityId != null) {
+      map['activity_id'] = Variable<String>(activityId);
+    }
+    if (!nullToAbsent || model != null) {
+      map['model'] = Variable<String>(model);
+    }
+    if (!nullToAbsent || decisionSummary != null) {
+      map['decision_summary'] = Variable<String>(decisionSummary);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || finishedAt != null) {
+      map['finished_at'] = Variable<DateTime>(finishedAt);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  AssistantAgentRunsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentRunsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      trigger: Value(trigger),
+      status: Value(status),
+      summary: Value(summary),
+      domain: domain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(domain),
+      entityId: entityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(entityId),
+      activityId: activityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activityId),
+      model: model == null && nullToAbsent
+          ? const Value.absent()
+          : Value(model),
+      decisionSummary: decisionSummary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decisionSummary),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      startedAt: Value(startedAt),
+      finishedAt: finishedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finishedAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AssistantAgentRun.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentRun(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      trigger: serializer.fromJson<String>(json['trigger']),
+      status: serializer.fromJson<String>(json['status']),
+      summary: serializer.fromJson<String>(json['summary']),
+      domain: serializer.fromJson<String?>(json['domain']),
+      entityId: serializer.fromJson<String?>(json['entityId']),
+      activityId: serializer.fromJson<String?>(json['activityId']),
+      model: serializer.fromJson<String?>(json['model']),
+      decisionSummary: serializer.fromJson<String?>(json['decisionSummary']),
+      error: serializer.fromJson<String?>(json['error']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      finishedAt: serializer.fromJson<DateTime?>(json['finishedAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'trigger': serializer.toJson<String>(trigger),
+      'status': serializer.toJson<String>(status),
+      'summary': serializer.toJson<String>(summary),
+      'domain': serializer.toJson<String?>(domain),
+      'entityId': serializer.toJson<String?>(entityId),
+      'activityId': serializer.toJson<String?>(activityId),
+      'model': serializer.toJson<String?>(model),
+      'decisionSummary': serializer.toJson<String?>(decisionSummary),
+      'error': serializer.toJson<String?>(error),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'finishedAt': serializer.toJson<DateTime?>(finishedAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  AssistantAgentRun copyWith({
+    String? id,
+    String? householdId,
+    String? trigger,
+    String? status,
+    String? summary,
+    Value<String?> domain = const Value.absent(),
+    Value<String?> entityId = const Value.absent(),
+    Value<String?> activityId = const Value.absent(),
+    Value<String?> model = const Value.absent(),
+    Value<String?> decisionSummary = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+    DateTime? startedAt,
+    Value<DateTime?> finishedAt = const Value.absent(),
+    DateTime? updatedAt,
+  }) => AssistantAgentRun(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    trigger: trigger ?? this.trigger,
+    status: status ?? this.status,
+    summary: summary ?? this.summary,
+    domain: domain.present ? domain.value : this.domain,
+    entityId: entityId.present ? entityId.value : this.entityId,
+    activityId: activityId.present ? activityId.value : this.activityId,
+    model: model.present ? model.value : this.model,
+    decisionSummary: decisionSummary.present
+        ? decisionSummary.value
+        : this.decisionSummary,
+    error: error.present ? error.value : this.error,
+    startedAt: startedAt ?? this.startedAt,
+    finishedAt: finishedAt.present ? finishedAt.value : this.finishedAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AssistantAgentRun copyWithCompanion(AssistantAgentRunsCompanion data) {
+    return AssistantAgentRun(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      trigger: data.trigger.present ? data.trigger.value : this.trigger,
+      status: data.status.present ? data.status.value : this.status,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      activityId: data.activityId.present
+          ? data.activityId.value
+          : this.activityId,
+      model: data.model.present ? data.model.value : this.model,
+      decisionSummary: data.decisionSummary.present
+          ? data.decisionSummary.value
+          : this.decisionSummary,
+      error: data.error.present ? data.error.value : this.error,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      finishedAt: data.finishedAt.present
+          ? data.finishedAt.value
+          : this.finishedAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentRun(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('trigger: $trigger, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('domain: $domain, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('model: $model, ')
+          ..write('decisionSummary: $decisionSummary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    trigger,
+    status,
+    summary,
+    domain,
+    entityId,
+    activityId,
+    model,
+    decisionSummary,
+    error,
+    startedAt,
+    finishedAt,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentRun &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.trigger == this.trigger &&
+          other.status == this.status &&
+          other.summary == this.summary &&
+          other.domain == this.domain &&
+          other.entityId == this.entityId &&
+          other.activityId == this.activityId &&
+          other.model == this.model &&
+          other.decisionSummary == this.decisionSummary &&
+          other.error == this.error &&
+          other.startedAt == this.startedAt &&
+          other.finishedAt == this.finishedAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AssistantAgentRunsCompanion extends UpdateCompanion<AssistantAgentRun> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> trigger;
+  final Value<String> status;
+  final Value<String> summary;
+  final Value<String?> domain;
+  final Value<String?> entityId;
+  final Value<String?> activityId;
+  final Value<String?> model;
+  final Value<String?> decisionSummary;
+  final Value<String?> error;
+  final Value<DateTime> startedAt;
+  final Value<DateTime?> finishedAt;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const AssistantAgentRunsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.trigger = const Value.absent(),
+    this.status = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    this.model = const Value.absent(),
+    this.decisionSummary = const Value.absent(),
+    this.error = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.finishedAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentRunsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String trigger,
+    required String status,
+    required String summary,
+    this.domain = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    this.model = const Value.absent(),
+    this.decisionSummary = const Value.absent(),
+    this.error = const Value.absent(),
+    required DateTime startedAt,
+    this.finishedAt = const Value.absent(),
+    required DateTime updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       trigger = Value(trigger),
+       status = Value(status),
+       summary = Value(summary),
+       startedAt = Value(startedAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AssistantAgentRun> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? trigger,
+    Expression<String>? status,
+    Expression<String>? summary,
+    Expression<String>? domain,
+    Expression<String>? entityId,
+    Expression<String>? activityId,
+    Expression<String>? model,
+    Expression<String>? decisionSummary,
+    Expression<String>? error,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? finishedAt,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (trigger != null) 'trigger': trigger,
+      if (status != null) 'status': status,
+      if (summary != null) 'summary': summary,
+      if (domain != null) 'domain': domain,
+      if (entityId != null) 'entity_id': entityId,
+      if (activityId != null) 'activity_id': activityId,
+      if (model != null) 'model': model,
+      if (decisionSummary != null) 'decision_summary': decisionSummary,
+      if (error != null) 'error': error,
+      if (startedAt != null) 'started_at': startedAt,
+      if (finishedAt != null) 'finished_at': finishedAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentRunsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? trigger,
+    Value<String>? status,
+    Value<String>? summary,
+    Value<String?>? domain,
+    Value<String?>? entityId,
+    Value<String?>? activityId,
+    Value<String?>? model,
+    Value<String?>? decisionSummary,
+    Value<String?>? error,
+    Value<DateTime>? startedAt,
+    Value<DateTime?>? finishedAt,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentRunsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      trigger: trigger ?? this.trigger,
+      status: status ?? this.status,
+      summary: summary ?? this.summary,
+      domain: domain ?? this.domain,
+      entityId: entityId ?? this.entityId,
+      activityId: activityId ?? this.activityId,
+      model: model ?? this.model,
+      decisionSummary: decisionSummary ?? this.decisionSummary,
+      error: error ?? this.error,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (trigger.present) {
+      map['trigger'] = Variable<String>(trigger.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (activityId.present) {
+      map['activity_id'] = Variable<String>(activityId.value);
+    }
+    if (model.present) {
+      map['model'] = Variable<String>(model.value);
+    }
+    if (decisionSummary.present) {
+      map['decision_summary'] = Variable<String>(decisionSummary.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (finishedAt.present) {
+      map['finished_at'] = Variable<DateTime>(finishedAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentRunsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('trigger: $trigger, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('domain: $domain, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('model: $model, ')
+          ..write('decisionSummary: $decisionSummary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentEventsTable extends AssistantAgentEvents
+    with TableInfo<$AssistantAgentEventsTable, AssistantAgentEvent> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentEventsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _eventIdMeta = const VerificationMeta(
+    'eventId',
+  );
+  @override
+  late final GeneratedColumn<String> eventId = GeneratedColumn<String>(
+    'event_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eventTypeMeta = const VerificationMeta(
+    'eventType',
+  );
+  @override
+  late final GeneratedColumn<String> eventType = GeneratedColumn<String>(
+    'event_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _activityIdMeta = const VerificationMeta(
+    'activityId',
+  );
+  @override
+  late final GeneratedColumn<String> activityId = GeneratedColumn<String>(
+    'activity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _occurredAtMeta = const VerificationMeta(
+    'occurredAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> occurredAt = GeneratedColumn<DateTime>(
+    'occurred_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAttemptAtMeta = const VerificationMeta(
+    'lastAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAttemptAt =
+      GeneratedColumn<DateTime>(
+        'last_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _processedAtMeta = const VerificationMeta(
+    'processedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> processedAt = GeneratedColumn<DateTime>(
+    'processed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    eventId,
+    householdId,
+    eventType,
+    status,
+    entityId,
+    activityId,
+    payloadJson,
+    attemptCount,
+    error,
+    occurredAt,
+    lastAttemptAt,
+    processedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_events';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentEvent> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('event_id')) {
+      context.handle(
+        _eventIdMeta,
+        eventId.isAcceptableOrUnknown(data['event_id']!, _eventIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('event_type')) {
+      context.handle(
+        _eventTypeMeta,
+        eventType.isAcceptableOrUnknown(data['event_type']!, _eventTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_eventTypeMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    }
+    if (data.containsKey('activity_id')) {
+      context.handle(
+        _activityIdMeta,
+        activityId.isAcceptableOrUnknown(data['activity_id']!, _activityIdMeta),
+      );
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('occurred_at')) {
+      context.handle(
+        _occurredAtMeta,
+        occurredAt.isAcceptableOrUnknown(data['occurred_at']!, _occurredAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_occurredAtMeta);
+    }
+    if (data.containsKey('last_attempt_at')) {
+      context.handle(
+        _lastAttemptAtMeta,
+        lastAttemptAt.isAcceptableOrUnknown(
+          data['last_attempt_at']!,
+          _lastAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('processed_at')) {
+      context.handle(
+        _processedAtMeta,
+        processedAt.isAcceptableOrUnknown(
+          data['processed_at']!,
+          _processedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {eventId};
+  @override
+  AssistantAgentEvent map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentEvent(
+      eventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      eventType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}event_type'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      ),
+      activityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_id'],
+      ),
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      occurredAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}occurred_at'],
+      )!,
+      lastAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_attempt_at'],
+      ),
+      processedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}processed_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentEventsTable createAlias(String alias) {
+    return $AssistantAgentEventsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentEvent extends DataClass
+    implements Insertable<AssistantAgentEvent> {
+  final String eventId;
+  final String householdId;
+  final String eventType;
+  final String status;
+  final String? entityId;
+  final String? activityId;
+  final String payloadJson;
+  final int attemptCount;
+  final String? error;
+  final DateTime occurredAt;
+  final DateTime? lastAttemptAt;
+  final DateTime? processedAt;
+  const AssistantAgentEvent({
+    required this.eventId,
+    required this.householdId,
+    required this.eventType,
+    required this.status,
+    this.entityId,
+    this.activityId,
+    required this.payloadJson,
+    required this.attemptCount,
+    this.error,
+    required this.occurredAt,
+    this.lastAttemptAt,
+    this.processedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['event_id'] = Variable<String>(eventId);
+    map['household_id'] = Variable<String>(householdId);
+    map['event_type'] = Variable<String>(eventType);
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || entityId != null) {
+      map['entity_id'] = Variable<String>(entityId);
+    }
+    if (!nullToAbsent || activityId != null) {
+      map['activity_id'] = Variable<String>(activityId);
+    }
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['attempt_count'] = Variable<int>(attemptCount);
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['occurred_at'] = Variable<DateTime>(occurredAt);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt);
+    }
+    if (!nullToAbsent || processedAt != null) {
+      map['processed_at'] = Variable<DateTime>(processedAt);
+    }
+    return map;
+  }
+
+  AssistantAgentEventsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentEventsCompanion(
+      eventId: Value(eventId),
+      householdId: Value(householdId),
+      eventType: Value(eventType),
+      status: Value(status),
+      entityId: entityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(entityId),
+      activityId: activityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activityId),
+      payloadJson: Value(payloadJson),
+      attemptCount: Value(attemptCount),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      occurredAt: Value(occurredAt),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+      processedAt: processedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(processedAt),
+    );
+  }
+
+  factory AssistantAgentEvent.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentEvent(
+      eventId: serializer.fromJson<String>(json['eventId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      eventType: serializer.fromJson<String>(json['eventType']),
+      status: serializer.fromJson<String>(json['status']),
+      entityId: serializer.fromJson<String?>(json['entityId']),
+      activityId: serializer.fromJson<String?>(json['activityId']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      error: serializer.fromJson<String?>(json['error']),
+      occurredAt: serializer.fromJson<DateTime>(json['occurredAt']),
+      lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
+      processedAt: serializer.fromJson<DateTime?>(json['processedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'eventId': serializer.toJson<String>(eventId),
+      'householdId': serializer.toJson<String>(householdId),
+      'eventType': serializer.toJson<String>(eventType),
+      'status': serializer.toJson<String>(status),
+      'entityId': serializer.toJson<String?>(entityId),
+      'activityId': serializer.toJson<String?>(activityId),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'error': serializer.toJson<String?>(error),
+      'occurredAt': serializer.toJson<DateTime>(occurredAt),
+      'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
+      'processedAt': serializer.toJson<DateTime?>(processedAt),
+    };
+  }
+
+  AssistantAgentEvent copyWith({
+    String? eventId,
+    String? householdId,
+    String? eventType,
+    String? status,
+    Value<String?> entityId = const Value.absent(),
+    Value<String?> activityId = const Value.absent(),
+    String? payloadJson,
+    int? attemptCount,
+    Value<String?> error = const Value.absent(),
+    DateTime? occurredAt,
+    Value<DateTime?> lastAttemptAt = const Value.absent(),
+    Value<DateTime?> processedAt = const Value.absent(),
+  }) => AssistantAgentEvent(
+    eventId: eventId ?? this.eventId,
+    householdId: householdId ?? this.householdId,
+    eventType: eventType ?? this.eventType,
+    status: status ?? this.status,
+    entityId: entityId.present ? entityId.value : this.entityId,
+    activityId: activityId.present ? activityId.value : this.activityId,
+    payloadJson: payloadJson ?? this.payloadJson,
+    attemptCount: attemptCount ?? this.attemptCount,
+    error: error.present ? error.value : this.error,
+    occurredAt: occurredAt ?? this.occurredAt,
+    lastAttemptAt: lastAttemptAt.present
+        ? lastAttemptAt.value
+        : this.lastAttemptAt,
+    processedAt: processedAt.present ? processedAt.value : this.processedAt,
+  );
+  AssistantAgentEvent copyWithCompanion(AssistantAgentEventsCompanion data) {
+    return AssistantAgentEvent(
+      eventId: data.eventId.present ? data.eventId.value : this.eventId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      eventType: data.eventType.present ? data.eventType.value : this.eventType,
+      status: data.status.present ? data.status.value : this.status,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      activityId: data.activityId.present
+          ? data.activityId.value
+          : this.activityId,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      error: data.error.present ? data.error.value : this.error,
+      occurredAt: data.occurredAt.present
+          ? data.occurredAt.value
+          : this.occurredAt,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+      processedAt: data.processedAt.present
+          ? data.processedAt.value
+          : this.processedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentEvent(')
+          ..write('eventId: $eventId, ')
+          ..write('householdId: $householdId, ')
+          ..write('eventType: $eventType, ')
+          ..write('status: $status, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('error: $error, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('processedAt: $processedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    eventId,
+    householdId,
+    eventType,
+    status,
+    entityId,
+    activityId,
+    payloadJson,
+    attemptCount,
+    error,
+    occurredAt,
+    lastAttemptAt,
+    processedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentEvent &&
+          other.eventId == this.eventId &&
+          other.householdId == this.householdId &&
+          other.eventType == this.eventType &&
+          other.status == this.status &&
+          other.entityId == this.entityId &&
+          other.activityId == this.activityId &&
+          other.payloadJson == this.payloadJson &&
+          other.attemptCount == this.attemptCount &&
+          other.error == this.error &&
+          other.occurredAt == this.occurredAt &&
+          other.lastAttemptAt == this.lastAttemptAt &&
+          other.processedAt == this.processedAt);
+}
+
+class AssistantAgentEventsCompanion
+    extends UpdateCompanion<AssistantAgentEvent> {
+  final Value<String> eventId;
+  final Value<String> householdId;
+  final Value<String> eventType;
+  final Value<String> status;
+  final Value<String?> entityId;
+  final Value<String?> activityId;
+  final Value<String> payloadJson;
+  final Value<int> attemptCount;
+  final Value<String?> error;
+  final Value<DateTime> occurredAt;
+  final Value<DateTime?> lastAttemptAt;
+  final Value<DateTime?> processedAt;
+  final Value<int> rowid;
+  const AssistantAgentEventsCompanion({
+    this.eventId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.eventType = const Value.absent(),
+    this.status = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.error = const Value.absent(),
+    this.occurredAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentEventsCompanion.insert({
+    required String eventId,
+    required String householdId,
+    required String eventType,
+    this.status = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.error = const Value.absent(),
+    required DateTime occurredAt,
+    this.lastAttemptAt = const Value.absent(),
+    this.processedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : eventId = Value(eventId),
+       householdId = Value(householdId),
+       eventType = Value(eventType),
+       occurredAt = Value(occurredAt);
+  static Insertable<AssistantAgentEvent> custom({
+    Expression<String>? eventId,
+    Expression<String>? householdId,
+    Expression<String>? eventType,
+    Expression<String>? status,
+    Expression<String>? entityId,
+    Expression<String>? activityId,
+    Expression<String>? payloadJson,
+    Expression<int>? attemptCount,
+    Expression<String>? error,
+    Expression<DateTime>? occurredAt,
+    Expression<DateTime>? lastAttemptAt,
+    Expression<DateTime>? processedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (eventId != null) 'event_id': eventId,
+      if (householdId != null) 'household_id': householdId,
+      if (eventType != null) 'event_type': eventType,
+      if (status != null) 'status': status,
+      if (entityId != null) 'entity_id': entityId,
+      if (activityId != null) 'activity_id': activityId,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (error != null) 'error': error,
+      if (occurredAt != null) 'occurred_at': occurredAt,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (processedAt != null) 'processed_at': processedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentEventsCompanion copyWith({
+    Value<String>? eventId,
+    Value<String>? householdId,
+    Value<String>? eventType,
+    Value<String>? status,
+    Value<String?>? entityId,
+    Value<String?>? activityId,
+    Value<String>? payloadJson,
+    Value<int>? attemptCount,
+    Value<String?>? error,
+    Value<DateTime>? occurredAt,
+    Value<DateTime?>? lastAttemptAt,
+    Value<DateTime?>? processedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentEventsCompanion(
+      eventId: eventId ?? this.eventId,
+      householdId: householdId ?? this.householdId,
+      eventType: eventType ?? this.eventType,
+      status: status ?? this.status,
+      entityId: entityId ?? this.entityId,
+      activityId: activityId ?? this.activityId,
+      payloadJson: payloadJson ?? this.payloadJson,
+      attemptCount: attemptCount ?? this.attemptCount,
+      error: error ?? this.error,
+      occurredAt: occurredAt ?? this.occurredAt,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      processedAt: processedAt ?? this.processedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (eventId.present) {
+      map['event_id'] = Variable<String>(eventId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (eventType.present) {
+      map['event_type'] = Variable<String>(eventType.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (activityId.present) {
+      map['activity_id'] = Variable<String>(activityId.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (occurredAt.present) {
+      map['occurred_at'] = Variable<DateTime>(occurredAt.value);
+    }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt.value);
+    }
+    if (processedAt.present) {
+      map['processed_at'] = Variable<DateTime>(processedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentEventsCompanion(')
+          ..write('eventId: $eventId, ')
+          ..write('householdId: $householdId, ')
+          ..write('eventType: $eventType, ')
+          ..write('status: $status, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('error: $error, ')
+          ..write('occurredAt: $occurredAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('processedAt: $processedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentApprovalsTable extends AssistantAgentApprovals
+    with TableInfo<$AssistantAgentApprovalsTable, AssistantAgentApproval> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentApprovalsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actorMeta = const VerificationMeta('actor');
+  @override
+  late final GeneratedColumn<String> actor = GeneratedColumn<String>(
+    'actor',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _reasonMeta = const VerificationMeta('reason');
+  @override
+  late final GeneratedColumn<String> reason = GeneratedColumn<String>(
+    'reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _requestedAtMeta = const VerificationMeta(
+    'requestedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> requestedAt = GeneratedColumn<DateTime>(
+    'requested_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _decidedAtMeta = const VerificationMeta(
+    'decidedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> decidedAt = GeneratedColumn<DateTime>(
+    'decided_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    runId,
+    householdId,
+    status,
+    summary,
+    actor,
+    reason,
+    requestedAt,
+    decidedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_approvals';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentApproval> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_summaryMeta);
+    }
+    if (data.containsKey('actor')) {
+      context.handle(
+        _actorMeta,
+        actor.isAcceptableOrUnknown(data['actor']!, _actorMeta),
+      );
+    }
+    if (data.containsKey('reason')) {
+      context.handle(
+        _reasonMeta,
+        reason.isAcceptableOrUnknown(data['reason']!, _reasonMeta),
+      );
+    }
+    if (data.containsKey('requested_at')) {
+      context.handle(
+        _requestedAtMeta,
+        requestedAt.isAcceptableOrUnknown(
+          data['requested_at']!,
+          _requestedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_requestedAtMeta);
+    }
+    if (data.containsKey('decided_at')) {
+      context.handle(
+        _decidedAtMeta,
+        decidedAt.isAcceptableOrUnknown(data['decided_at']!, _decidedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentApproval map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentApproval(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}run_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      )!,
+      actor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}actor'],
+      ),
+      reason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reason'],
+      ),
+      requestedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}requested_at'],
+      )!,
+      decidedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}decided_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentApprovalsTable createAlias(String alias) {
+    return $AssistantAgentApprovalsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentApproval extends DataClass
+    implements Insertable<AssistantAgentApproval> {
+  final String id;
+  final String runId;
+  final String householdId;
+  final String status;
+  final String summary;
+  final String? actor;
+  final String? reason;
+  final DateTime requestedAt;
+  final DateTime? decidedAt;
+  const AssistantAgentApproval({
+    required this.id,
+    required this.runId,
+    required this.householdId,
+    required this.status,
+    required this.summary,
+    this.actor,
+    this.reason,
+    required this.requestedAt,
+    this.decidedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['run_id'] = Variable<String>(runId);
+    map['household_id'] = Variable<String>(householdId);
+    map['status'] = Variable<String>(status);
+    map['summary'] = Variable<String>(summary);
+    if (!nullToAbsent || actor != null) {
+      map['actor'] = Variable<String>(actor);
+    }
+    if (!nullToAbsent || reason != null) {
+      map['reason'] = Variable<String>(reason);
+    }
+    map['requested_at'] = Variable<DateTime>(requestedAt);
+    if (!nullToAbsent || decidedAt != null) {
+      map['decided_at'] = Variable<DateTime>(decidedAt);
+    }
+    return map;
+  }
+
+  AssistantAgentApprovalsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentApprovalsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      householdId: Value(householdId),
+      status: Value(status),
+      summary: Value(summary),
+      actor: actor == null && nullToAbsent
+          ? const Value.absent()
+          : Value(actor),
+      reason: reason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(reason),
+      requestedAt: Value(requestedAt),
+      decidedAt: decidedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(decidedAt),
+    );
+  }
+
+  factory AssistantAgentApproval.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentApproval(
+      id: serializer.fromJson<String>(json['id']),
+      runId: serializer.fromJson<String>(json['runId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      status: serializer.fromJson<String>(json['status']),
+      summary: serializer.fromJson<String>(json['summary']),
+      actor: serializer.fromJson<String?>(json['actor']),
+      reason: serializer.fromJson<String?>(json['reason']),
+      requestedAt: serializer.fromJson<DateTime>(json['requestedAt']),
+      decidedAt: serializer.fromJson<DateTime?>(json['decidedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'runId': serializer.toJson<String>(runId),
+      'householdId': serializer.toJson<String>(householdId),
+      'status': serializer.toJson<String>(status),
+      'summary': serializer.toJson<String>(summary),
+      'actor': serializer.toJson<String?>(actor),
+      'reason': serializer.toJson<String?>(reason),
+      'requestedAt': serializer.toJson<DateTime>(requestedAt),
+      'decidedAt': serializer.toJson<DateTime?>(decidedAt),
+    };
+  }
+
+  AssistantAgentApproval copyWith({
+    String? id,
+    String? runId,
+    String? householdId,
+    String? status,
+    String? summary,
+    Value<String?> actor = const Value.absent(),
+    Value<String?> reason = const Value.absent(),
+    DateTime? requestedAt,
+    Value<DateTime?> decidedAt = const Value.absent(),
+  }) => AssistantAgentApproval(
+    id: id ?? this.id,
+    runId: runId ?? this.runId,
+    householdId: householdId ?? this.householdId,
+    status: status ?? this.status,
+    summary: summary ?? this.summary,
+    actor: actor.present ? actor.value : this.actor,
+    reason: reason.present ? reason.value : this.reason,
+    requestedAt: requestedAt ?? this.requestedAt,
+    decidedAt: decidedAt.present ? decidedAt.value : this.decidedAt,
+  );
+  AssistantAgentApproval copyWithCompanion(
+    AssistantAgentApprovalsCompanion data,
+  ) {
+    return AssistantAgentApproval(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      status: data.status.present ? data.status.value : this.status,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      actor: data.actor.present ? data.actor.value : this.actor,
+      reason: data.reason.present ? data.reason.value : this.reason,
+      requestedAt: data.requestedAt.present
+          ? data.requestedAt.value
+          : this.requestedAt,
+      decidedAt: data.decidedAt.present ? data.decidedAt.value : this.decidedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentApproval(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('householdId: $householdId, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('actor: $actor, ')
+          ..write('reason: $reason, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('decidedAt: $decidedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    runId,
+    householdId,
+    status,
+    summary,
+    actor,
+    reason,
+    requestedAt,
+    decidedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentApproval &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.householdId == this.householdId &&
+          other.status == this.status &&
+          other.summary == this.summary &&
+          other.actor == this.actor &&
+          other.reason == this.reason &&
+          other.requestedAt == this.requestedAt &&
+          other.decidedAt == this.decidedAt);
+}
+
+class AssistantAgentApprovalsCompanion
+    extends UpdateCompanion<AssistantAgentApproval> {
+  final Value<String> id;
+  final Value<String> runId;
+  final Value<String> householdId;
+  final Value<String> status;
+  final Value<String> summary;
+  final Value<String?> actor;
+  final Value<String?> reason;
+  final Value<DateTime> requestedAt;
+  final Value<DateTime?> decidedAt;
+  final Value<int> rowid;
+  const AssistantAgentApprovalsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.actor = const Value.absent(),
+    this.reason = const Value.absent(),
+    this.requestedAt = const Value.absent(),
+    this.decidedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentApprovalsCompanion.insert({
+    required String id,
+    required String runId,
+    required String householdId,
+    required String status,
+    required String summary,
+    this.actor = const Value.absent(),
+    this.reason = const Value.absent(),
+    required DateTime requestedAt,
+    this.decidedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       runId = Value(runId),
+       householdId = Value(householdId),
+       status = Value(status),
+       summary = Value(summary),
+       requestedAt = Value(requestedAt);
+  static Insertable<AssistantAgentApproval> custom({
+    Expression<String>? id,
+    Expression<String>? runId,
+    Expression<String>? householdId,
+    Expression<String>? status,
+    Expression<String>? summary,
+    Expression<String>? actor,
+    Expression<String>? reason,
+    Expression<DateTime>? requestedAt,
+    Expression<DateTime>? decidedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (householdId != null) 'household_id': householdId,
+      if (status != null) 'status': status,
+      if (summary != null) 'summary': summary,
+      if (actor != null) 'actor': actor,
+      if (reason != null) 'reason': reason,
+      if (requestedAt != null) 'requested_at': requestedAt,
+      if (decidedAt != null) 'decided_at': decidedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentApprovalsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? runId,
+    Value<String>? householdId,
+    Value<String>? status,
+    Value<String>? summary,
+    Value<String?>? actor,
+    Value<String?>? reason,
+    Value<DateTime>? requestedAt,
+    Value<DateTime?>? decidedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentApprovalsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      householdId: householdId ?? this.householdId,
+      status: status ?? this.status,
+      summary: summary ?? this.summary,
+      actor: actor ?? this.actor,
+      reason: reason ?? this.reason,
+      requestedAt: requestedAt ?? this.requestedAt,
+      decidedAt: decidedAt ?? this.decidedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (actor.present) {
+      map['actor'] = Variable<String>(actor.value);
+    }
+    if (reason.present) {
+      map['reason'] = Variable<String>(reason.value);
+    }
+    if (requestedAt.present) {
+      map['requested_at'] = Variable<DateTime>(requestedAt.value);
+    }
+    if (decidedAt.present) {
+      map['decided_at'] = Variable<DateTime>(decidedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentApprovalsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('householdId: $householdId, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('actor: $actor, ')
+          ..write('reason: $reason, ')
+          ..write('requestedAt: $requestedAt, ')
+          ..write('decidedAt: $decidedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentToolExecutionsTable extends AssistantAgentToolExecutions
+    with
+        TableInfo<
+          $AssistantAgentToolExecutionsTable,
+          AssistantAgentToolExecution
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentToolExecutionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+    'run_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stepIdMeta = const VerificationMeta('stepId');
+  @override
+  late final GeneratedColumn<String> stepId = GeneratedColumn<String>(
+    'step_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _capabilityIdMeta = const VerificationMeta(
+    'capabilityId',
+  );
+  @override
+  late final GeneratedColumn<String> capabilityId = GeneratedColumn<String>(
+    'capability_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _resultSummaryMeta = const VerificationMeta(
+    'resultSummary',
+  );
+  @override
+  late final GeneratedColumn<String> resultSummary = GeneratedColumn<String>(
+    'result_summary',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _finishedAtMeta = const VerificationMeta(
+    'finishedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> finishedAt = GeneratedColumn<DateTime>(
+    'finished_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    runId,
+    householdId,
+    stepId,
+    capabilityId,
+    status,
+    attemptCount,
+    resultSummary,
+    error,
+    startedAt,
+    finishedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_tool_executions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentToolExecution> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_runIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('step_id')) {
+      context.handle(
+        _stepIdMeta,
+        stepId.isAcceptableOrUnknown(data['step_id']!, _stepIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stepIdMeta);
+    }
+    if (data.containsKey('capability_id')) {
+      context.handle(
+        _capabilityIdMeta,
+        capabilityId.isAcceptableOrUnknown(
+          data['capability_id']!,
+          _capabilityIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_capabilityIdMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('result_summary')) {
+      context.handle(
+        _resultSummaryMeta,
+        resultSummary.isAcceptableOrUnknown(
+          data['result_summary']!,
+          _resultSummaryMeta,
+        ),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('finished_at')) {
+      context.handle(
+        _finishedAtMeta,
+        finishedAt.isAcceptableOrUnknown(data['finished_at']!, _finishedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentToolExecution map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentToolExecution(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}run_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      stepId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}step_id'],
+      )!,
+      capabilityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}capability_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      resultSummary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}result_summary'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      finishedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}finished_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentToolExecutionsTable createAlias(String alias) {
+    return $AssistantAgentToolExecutionsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentToolExecution extends DataClass
+    implements Insertable<AssistantAgentToolExecution> {
+  final String id;
+  final String runId;
+  final String householdId;
+  final String stepId;
+  final String capabilityId;
+  final String status;
+  final int attemptCount;
+  final String? resultSummary;
+  final String? error;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  const AssistantAgentToolExecution({
+    required this.id,
+    required this.runId,
+    required this.householdId,
+    required this.stepId,
+    required this.capabilityId,
+    required this.status,
+    required this.attemptCount,
+    this.resultSummary,
+    this.error,
+    required this.startedAt,
+    this.finishedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['run_id'] = Variable<String>(runId);
+    map['household_id'] = Variable<String>(householdId);
+    map['step_id'] = Variable<String>(stepId);
+    map['capability_id'] = Variable<String>(capabilityId);
+    map['status'] = Variable<String>(status);
+    map['attempt_count'] = Variable<int>(attemptCount);
+    if (!nullToAbsent || resultSummary != null) {
+      map['result_summary'] = Variable<String>(resultSummary);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || finishedAt != null) {
+      map['finished_at'] = Variable<DateTime>(finishedAt);
+    }
+    return map;
+  }
+
+  AssistantAgentToolExecutionsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentToolExecutionsCompanion(
+      id: Value(id),
+      runId: Value(runId),
+      householdId: Value(householdId),
+      stepId: Value(stepId),
+      capabilityId: Value(capabilityId),
+      status: Value(status),
+      attemptCount: Value(attemptCount),
+      resultSummary: resultSummary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(resultSummary),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      startedAt: Value(startedAt),
+      finishedAt: finishedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finishedAt),
+    );
+  }
+
+  factory AssistantAgentToolExecution.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentToolExecution(
+      id: serializer.fromJson<String>(json['id']),
+      runId: serializer.fromJson<String>(json['runId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      stepId: serializer.fromJson<String>(json['stepId']),
+      capabilityId: serializer.fromJson<String>(json['capabilityId']),
+      status: serializer.fromJson<String>(json['status']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      resultSummary: serializer.fromJson<String?>(json['resultSummary']),
+      error: serializer.fromJson<String?>(json['error']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      finishedAt: serializer.fromJson<DateTime?>(json['finishedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'runId': serializer.toJson<String>(runId),
+      'householdId': serializer.toJson<String>(householdId),
+      'stepId': serializer.toJson<String>(stepId),
+      'capabilityId': serializer.toJson<String>(capabilityId),
+      'status': serializer.toJson<String>(status),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'resultSummary': serializer.toJson<String?>(resultSummary),
+      'error': serializer.toJson<String?>(error),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'finishedAt': serializer.toJson<DateTime?>(finishedAt),
+    };
+  }
+
+  AssistantAgentToolExecution copyWith({
+    String? id,
+    String? runId,
+    String? householdId,
+    String? stepId,
+    String? capabilityId,
+    String? status,
+    int? attemptCount,
+    Value<String?> resultSummary = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+    DateTime? startedAt,
+    Value<DateTime?> finishedAt = const Value.absent(),
+  }) => AssistantAgentToolExecution(
+    id: id ?? this.id,
+    runId: runId ?? this.runId,
+    householdId: householdId ?? this.householdId,
+    stepId: stepId ?? this.stepId,
+    capabilityId: capabilityId ?? this.capabilityId,
+    status: status ?? this.status,
+    attemptCount: attemptCount ?? this.attemptCount,
+    resultSummary: resultSummary.present
+        ? resultSummary.value
+        : this.resultSummary,
+    error: error.present ? error.value : this.error,
+    startedAt: startedAt ?? this.startedAt,
+    finishedAt: finishedAt.present ? finishedAt.value : this.finishedAt,
+  );
+  AssistantAgentToolExecution copyWithCompanion(
+    AssistantAgentToolExecutionsCompanion data,
+  ) {
+    return AssistantAgentToolExecution(
+      id: data.id.present ? data.id.value : this.id,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      stepId: data.stepId.present ? data.stepId.value : this.stepId,
+      capabilityId: data.capabilityId.present
+          ? data.capabilityId.value
+          : this.capabilityId,
+      status: data.status.present ? data.status.value : this.status,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      resultSummary: data.resultSummary.present
+          ? data.resultSummary.value
+          : this.resultSummary,
+      error: data.error.present ? data.error.value : this.error,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      finishedAt: data.finishedAt.present
+          ? data.finishedAt.value
+          : this.finishedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentToolExecution(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('householdId: $householdId, ')
+          ..write('stepId: $stepId, ')
+          ..write('capabilityId: $capabilityId, ')
+          ..write('status: $status, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('resultSummary: $resultSummary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    runId,
+    householdId,
+    stepId,
+    capabilityId,
+    status,
+    attemptCount,
+    resultSummary,
+    error,
+    startedAt,
+    finishedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentToolExecution &&
+          other.id == this.id &&
+          other.runId == this.runId &&
+          other.householdId == this.householdId &&
+          other.stepId == this.stepId &&
+          other.capabilityId == this.capabilityId &&
+          other.status == this.status &&
+          other.attemptCount == this.attemptCount &&
+          other.resultSummary == this.resultSummary &&
+          other.error == this.error &&
+          other.startedAt == this.startedAt &&
+          other.finishedAt == this.finishedAt);
+}
+
+class AssistantAgentToolExecutionsCompanion
+    extends UpdateCompanion<AssistantAgentToolExecution> {
+  final Value<String> id;
+  final Value<String> runId;
+  final Value<String> householdId;
+  final Value<String> stepId;
+  final Value<String> capabilityId;
+  final Value<String> status;
+  final Value<int> attemptCount;
+  final Value<String?> resultSummary;
+  final Value<String?> error;
+  final Value<DateTime> startedAt;
+  final Value<DateTime?> finishedAt;
+  final Value<int> rowid;
+  const AssistantAgentToolExecutionsCompanion({
+    this.id = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.stepId = const Value.absent(),
+    this.capabilityId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.resultSummary = const Value.absent(),
+    this.error = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.finishedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentToolExecutionsCompanion.insert({
+    required String id,
+    required String runId,
+    required String householdId,
+    required String stepId,
+    required String capabilityId,
+    required String status,
+    this.attemptCount = const Value.absent(),
+    this.resultSummary = const Value.absent(),
+    this.error = const Value.absent(),
+    required DateTime startedAt,
+    this.finishedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       runId = Value(runId),
+       householdId = Value(householdId),
+       stepId = Value(stepId),
+       capabilityId = Value(capabilityId),
+       status = Value(status),
+       startedAt = Value(startedAt);
+  static Insertable<AssistantAgentToolExecution> custom({
+    Expression<String>? id,
+    Expression<String>? runId,
+    Expression<String>? householdId,
+    Expression<String>? stepId,
+    Expression<String>? capabilityId,
+    Expression<String>? status,
+    Expression<int>? attemptCount,
+    Expression<String>? resultSummary,
+    Expression<String>? error,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? finishedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (runId != null) 'run_id': runId,
+      if (householdId != null) 'household_id': householdId,
+      if (stepId != null) 'step_id': stepId,
+      if (capabilityId != null) 'capability_id': capabilityId,
+      if (status != null) 'status': status,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (resultSummary != null) 'result_summary': resultSummary,
+      if (error != null) 'error': error,
+      if (startedAt != null) 'started_at': startedAt,
+      if (finishedAt != null) 'finished_at': finishedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentToolExecutionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? runId,
+    Value<String>? householdId,
+    Value<String>? stepId,
+    Value<String>? capabilityId,
+    Value<String>? status,
+    Value<int>? attemptCount,
+    Value<String?>? resultSummary,
+    Value<String?>? error,
+    Value<DateTime>? startedAt,
+    Value<DateTime?>? finishedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentToolExecutionsCompanion(
+      id: id ?? this.id,
+      runId: runId ?? this.runId,
+      householdId: householdId ?? this.householdId,
+      stepId: stepId ?? this.stepId,
+      capabilityId: capabilityId ?? this.capabilityId,
+      status: status ?? this.status,
+      attemptCount: attemptCount ?? this.attemptCount,
+      resultSummary: resultSummary ?? this.resultSummary,
+      error: error ?? this.error,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (stepId.present) {
+      map['step_id'] = Variable<String>(stepId.value);
+    }
+    if (capabilityId.present) {
+      map['capability_id'] = Variable<String>(capabilityId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (resultSummary.present) {
+      map['result_summary'] = Variable<String>(resultSummary.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (finishedAt.present) {
+      map['finished_at'] = Variable<DateTime>(finishedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentToolExecutionsCompanion(')
+          ..write('id: $id, ')
+          ..write('runId: $runId, ')
+          ..write('householdId: $householdId, ')
+          ..write('stepId: $stepId, ')
+          ..write('capabilityId: $capabilityId, ')
+          ..write('status: $status, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('resultSummary: $resultSummary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentGoalsTable extends AssistantAgentGoals
+    with TableInfo<$AssistantAgentGoalsTable, AssistantAgentGoal> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentGoalsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _domainMeta = const VerificationMeta('domain');
+  @override
+  late final GeneratedColumn<String> domain = GeneratedColumn<String>(
+    'domain',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _activityIdMeta = const VerificationMeta(
+    'activityId',
+  );
+  @override
+  late final GeneratedColumn<String> activityId = GeneratedColumn<String>(
+    'activity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _objectiveMeta = const VerificationMeta(
+    'objective',
+  );
+  @override
+  late final GeneratedColumn<String> objective = GeneratedColumn<String>(
+    'objective',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('active'),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastRunAtMeta = const VerificationMeta(
+    'lastRunAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastRunAt = GeneratedColumn<DateTime>(
+    'last_run_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextRunAtMeta = const VerificationMeta(
+    'nextRunAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextRunAt = GeneratedColumn<DateTime>(
+    'next_run_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _completionConditionMeta =
+      const VerificationMeta('completionCondition');
+  @override
+  late final GeneratedColumn<String> completionCondition =
+      GeneratedColumn<String>(
+        'completion_condition',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    domain,
+    entityId,
+    activityId,
+    title,
+    objective,
+    status,
+    priority,
+    createdAt,
+    updatedAt,
+    lastRunAt,
+    nextRunAt,
+    completionCondition,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_goals';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentGoal> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('domain')) {
+      context.handle(
+        _domainMeta,
+        domain.isAcceptableOrUnknown(data['domain']!, _domainMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_domainMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    }
+    if (data.containsKey('activity_id')) {
+      context.handle(
+        _activityIdMeta,
+        activityId.isAcceptableOrUnknown(data['activity_id']!, _activityIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('objective')) {
+      context.handle(
+        _objectiveMeta,
+        objective.isAcceptableOrUnknown(data['objective']!, _objectiveMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_objectiveMeta);
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('last_run_at')) {
+      context.handle(
+        _lastRunAtMeta,
+        lastRunAt.isAcceptableOrUnknown(data['last_run_at']!, _lastRunAtMeta),
+      );
+    }
+    if (data.containsKey('next_run_at')) {
+      context.handle(
+        _nextRunAtMeta,
+        nextRunAt.isAcceptableOrUnknown(data['next_run_at']!, _nextRunAtMeta),
+      );
+    }
+    if (data.containsKey('completion_condition')) {
+      context.handle(
+        _completionConditionMeta,
+        completionCondition.isAcceptableOrUnknown(
+          data['completion_condition']!,
+          _completionConditionMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentGoal map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentGoal(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      domain: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}domain'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      ),
+      activityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}activity_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      objective: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}objective'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      lastRunAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_run_at'],
+      ),
+      nextRunAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_run_at'],
+      ),
+      completionCondition: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}completion_condition'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentGoalsTable createAlias(String alias) {
+    return $AssistantAgentGoalsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentGoal extends DataClass
+    implements Insertable<AssistantAgentGoal> {
+  final String id;
+  final String householdId;
+  final String domain;
+  final String? entityId;
+  final String? activityId;
+  final String title;
+  final String objective;
+  final String status;
+  final int priority;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? lastRunAt;
+  final DateTime? nextRunAt;
+  final String? completionCondition;
+  const AssistantAgentGoal({
+    required this.id,
+    required this.householdId,
+    required this.domain,
+    this.entityId,
+    this.activityId,
+    required this.title,
+    required this.objective,
+    required this.status,
+    required this.priority,
+    required this.createdAt,
+    required this.updatedAt,
+    this.lastRunAt,
+    this.nextRunAt,
+    this.completionCondition,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['domain'] = Variable<String>(domain);
+    if (!nullToAbsent || entityId != null) {
+      map['entity_id'] = Variable<String>(entityId);
+    }
+    if (!nullToAbsent || activityId != null) {
+      map['activity_id'] = Variable<String>(activityId);
+    }
+    map['title'] = Variable<String>(title);
+    map['objective'] = Variable<String>(objective);
+    map['status'] = Variable<String>(status);
+    map['priority'] = Variable<int>(priority);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || lastRunAt != null) {
+      map['last_run_at'] = Variable<DateTime>(lastRunAt);
+    }
+    if (!nullToAbsent || nextRunAt != null) {
+      map['next_run_at'] = Variable<DateTime>(nextRunAt);
+    }
+    if (!nullToAbsent || completionCondition != null) {
+      map['completion_condition'] = Variable<String>(completionCondition);
+    }
+    return map;
+  }
+
+  AssistantAgentGoalsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentGoalsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      domain: Value(domain),
+      entityId: entityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(entityId),
+      activityId: activityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(activityId),
+      title: Value(title),
+      objective: Value(objective),
+      status: Value(status),
+      priority: Value(priority),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      lastRunAt: lastRunAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastRunAt),
+      nextRunAt: nextRunAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextRunAt),
+      completionCondition: completionCondition == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completionCondition),
+    );
+  }
+
+  factory AssistantAgentGoal.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentGoal(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      domain: serializer.fromJson<String>(json['domain']),
+      entityId: serializer.fromJson<String?>(json['entityId']),
+      activityId: serializer.fromJson<String?>(json['activityId']),
+      title: serializer.fromJson<String>(json['title']),
+      objective: serializer.fromJson<String>(json['objective']),
+      status: serializer.fromJson<String>(json['status']),
+      priority: serializer.fromJson<int>(json['priority']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      lastRunAt: serializer.fromJson<DateTime?>(json['lastRunAt']),
+      nextRunAt: serializer.fromJson<DateTime?>(json['nextRunAt']),
+      completionCondition: serializer.fromJson<String?>(
+        json['completionCondition'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'domain': serializer.toJson<String>(domain),
+      'entityId': serializer.toJson<String?>(entityId),
+      'activityId': serializer.toJson<String?>(activityId),
+      'title': serializer.toJson<String>(title),
+      'objective': serializer.toJson<String>(objective),
+      'status': serializer.toJson<String>(status),
+      'priority': serializer.toJson<int>(priority),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'lastRunAt': serializer.toJson<DateTime?>(lastRunAt),
+      'nextRunAt': serializer.toJson<DateTime?>(nextRunAt),
+      'completionCondition': serializer.toJson<String?>(completionCondition),
+    };
+  }
+
+  AssistantAgentGoal copyWith({
+    String? id,
+    String? householdId,
+    String? domain,
+    Value<String?> entityId = const Value.absent(),
+    Value<String?> activityId = const Value.absent(),
+    String? title,
+    String? objective,
+    String? status,
+    int? priority,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> lastRunAt = const Value.absent(),
+    Value<DateTime?> nextRunAt = const Value.absent(),
+    Value<String?> completionCondition = const Value.absent(),
+  }) => AssistantAgentGoal(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    domain: domain ?? this.domain,
+    entityId: entityId.present ? entityId.value : this.entityId,
+    activityId: activityId.present ? activityId.value : this.activityId,
+    title: title ?? this.title,
+    objective: objective ?? this.objective,
+    status: status ?? this.status,
+    priority: priority ?? this.priority,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    lastRunAt: lastRunAt.present ? lastRunAt.value : this.lastRunAt,
+    nextRunAt: nextRunAt.present ? nextRunAt.value : this.nextRunAt,
+    completionCondition: completionCondition.present
+        ? completionCondition.value
+        : this.completionCondition,
+  );
+  AssistantAgentGoal copyWithCompanion(AssistantAgentGoalsCompanion data) {
+    return AssistantAgentGoal(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      domain: data.domain.present ? data.domain.value : this.domain,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      activityId: data.activityId.present
+          ? data.activityId.value
+          : this.activityId,
+      title: data.title.present ? data.title.value : this.title,
+      objective: data.objective.present ? data.objective.value : this.objective,
+      status: data.status.present ? data.status.value : this.status,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      lastRunAt: data.lastRunAt.present ? data.lastRunAt.value : this.lastRunAt,
+      nextRunAt: data.nextRunAt.present ? data.nextRunAt.value : this.nextRunAt,
+      completionCondition: data.completionCondition.present
+          ? data.completionCondition.value
+          : this.completionCondition,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentGoal(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('domain: $domain, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('title: $title, ')
+          ..write('objective: $objective, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastRunAt: $lastRunAt, ')
+          ..write('nextRunAt: $nextRunAt, ')
+          ..write('completionCondition: $completionCondition')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    domain,
+    entityId,
+    activityId,
+    title,
+    objective,
+    status,
+    priority,
+    createdAt,
+    updatedAt,
+    lastRunAt,
+    nextRunAt,
+    completionCondition,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentGoal &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.domain == this.domain &&
+          other.entityId == this.entityId &&
+          other.activityId == this.activityId &&
+          other.title == this.title &&
+          other.objective == this.objective &&
+          other.status == this.status &&
+          other.priority == this.priority &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.lastRunAt == this.lastRunAt &&
+          other.nextRunAt == this.nextRunAt &&
+          other.completionCondition == this.completionCondition);
+}
+
+class AssistantAgentGoalsCompanion extends UpdateCompanion<AssistantAgentGoal> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> domain;
+  final Value<String?> entityId;
+  final Value<String?> activityId;
+  final Value<String> title;
+  final Value<String> objective;
+  final Value<String> status;
+  final Value<int> priority;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> lastRunAt;
+  final Value<DateTime?> nextRunAt;
+  final Value<String?> completionCondition;
+  final Value<int> rowid;
+  const AssistantAgentGoalsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.domain = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.objective = const Value.absent(),
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.lastRunAt = const Value.absent(),
+    this.nextRunAt = const Value.absent(),
+    this.completionCondition = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentGoalsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String domain,
+    this.entityId = const Value.absent(),
+    this.activityId = const Value.absent(),
+    required String title,
+    required String objective,
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.lastRunAt = const Value.absent(),
+    this.nextRunAt = const Value.absent(),
+    this.completionCondition = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       domain = Value(domain),
+       title = Value(title),
+       objective = Value(objective),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AssistantAgentGoal> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? domain,
+    Expression<String>? entityId,
+    Expression<String>? activityId,
+    Expression<String>? title,
+    Expression<String>? objective,
+    Expression<String>? status,
+    Expression<int>? priority,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? lastRunAt,
+    Expression<DateTime>? nextRunAt,
+    Expression<String>? completionCondition,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (domain != null) 'domain': domain,
+      if (entityId != null) 'entity_id': entityId,
+      if (activityId != null) 'activity_id': activityId,
+      if (title != null) 'title': title,
+      if (objective != null) 'objective': objective,
+      if (status != null) 'status': status,
+      if (priority != null) 'priority': priority,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (lastRunAt != null) 'last_run_at': lastRunAt,
+      if (nextRunAt != null) 'next_run_at': nextRunAt,
+      if (completionCondition != null)
+        'completion_condition': completionCondition,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentGoalsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? domain,
+    Value<String?>? entityId,
+    Value<String?>? activityId,
+    Value<String>? title,
+    Value<String>? objective,
+    Value<String>? status,
+    Value<int>? priority,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? lastRunAt,
+    Value<DateTime?>? nextRunAt,
+    Value<String?>? completionCondition,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentGoalsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      domain: domain ?? this.domain,
+      entityId: entityId ?? this.entityId,
+      activityId: activityId ?? this.activityId,
+      title: title ?? this.title,
+      objective: objective ?? this.objective,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastRunAt: lastRunAt ?? this.lastRunAt,
+      nextRunAt: nextRunAt ?? this.nextRunAt,
+      completionCondition: completionCondition ?? this.completionCondition,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (domain.present) {
+      map['domain'] = Variable<String>(domain.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (activityId.present) {
+      map['activity_id'] = Variable<String>(activityId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (objective.present) {
+      map['objective'] = Variable<String>(objective.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (lastRunAt.present) {
+      map['last_run_at'] = Variable<DateTime>(lastRunAt.value);
+    }
+    if (nextRunAt.present) {
+      map['next_run_at'] = Variable<DateTime>(nextRunAt.value);
+    }
+    if (completionCondition.present) {
+      map['completion_condition'] = Variable<String>(completionCondition.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentGoalsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('domain: $domain, ')
+          ..write('entityId: $entityId, ')
+          ..write('activityId: $activityId, ')
+          ..write('title: $title, ')
+          ..write('objective: $objective, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('lastRunAt: $lastRunAt, ')
+          ..write('nextRunAt: $nextRunAt, ')
+          ..write('completionCondition: $completionCondition, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentTasksTable extends AssistantAgentTasks
+    with TableInfo<$AssistantAgentTasksTable, AssistantAgentTask> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentTasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _objectiveMeta = const VerificationMeta(
+    'objective',
+  );
+  @override
+  late final GeneratedColumn<String> objective = GeneratedColumn<String>(
+    'objective',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _capabilityIdMeta = const VerificationMeta(
+    'capabilityId',
+  );
+  @override
+  late final GeneratedColumn<String> capabilityId = GeneratedColumn<String>(
+    'capability_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _parametersJsonMeta = const VerificationMeta(
+    'parametersJson',
+  );
+  @override
+  late final GeneratedColumn<String> parametersJson = GeneratedColumn<String>(
+    'parameters_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta(
+    'priority',
+  );
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _retryCountMeta = const VerificationMeta(
+    'retryCount',
+  );
+  @override
+  late final GeneratedColumn<int> retryCount = GeneratedColumn<int>(
+    'retry_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _maxRetriesMeta = const VerificationMeta(
+    'maxRetries',
+  );
+  @override
+  late final GeneratedColumn<int> maxRetries = GeneratedColumn<int>(
+    'max_retries',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(3),
+  );
+  static const VerificationMeta _dueAtMeta = const VerificationMeta('dueAt');
+  @override
+  late final GeneratedColumn<DateTime> dueAt = GeneratedColumn<DateTime>(
+    'due_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastRunAtMeta = const VerificationMeta(
+    'lastRunAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastRunAt = GeneratedColumn<DateTime>(
+    'last_run_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nextRunAtMeta = const VerificationMeta(
+    'nextRunAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextRunAt = GeneratedColumn<DateTime>(
+    'next_run_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _completedAtMeta = const VerificationMeta(
+    'completedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
+    'completed_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    goalId,
+    householdId,
+    title,
+    objective,
+    capabilityId,
+    parametersJson,
+    status,
+    priority,
+    retryCount,
+    maxRetries,
+    dueAt,
+    lastRunAt,
+    nextRunAt,
+    lastError,
+    createdAt,
+    updatedAt,
+    completedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_tasks';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentTask> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_goalIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('objective')) {
+      context.handle(
+        _objectiveMeta,
+        objective.isAcceptableOrUnknown(data['objective']!, _objectiveMeta),
+      );
+    }
+    if (data.containsKey('capability_id')) {
+      context.handle(
+        _capabilityIdMeta,
+        capabilityId.isAcceptableOrUnknown(
+          data['capability_id']!,
+          _capabilityIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('parameters_json')) {
+      context.handle(
+        _parametersJsonMeta,
+        parametersJson.isAcceptableOrUnknown(
+          data['parameters_json']!,
+          _parametersJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('priority')) {
+      context.handle(
+        _priorityMeta,
+        priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta),
+      );
+    }
+    if (data.containsKey('retry_count')) {
+      context.handle(
+        _retryCountMeta,
+        retryCount.isAcceptableOrUnknown(data['retry_count']!, _retryCountMeta),
+      );
+    }
+    if (data.containsKey('max_retries')) {
+      context.handle(
+        _maxRetriesMeta,
+        maxRetries.isAcceptableOrUnknown(data['max_retries']!, _maxRetriesMeta),
+      );
+    }
+    if (data.containsKey('due_at')) {
+      context.handle(
+        _dueAtMeta,
+        dueAt.isAcceptableOrUnknown(data['due_at']!, _dueAtMeta),
+      );
+    }
+    if (data.containsKey('last_run_at')) {
+      context.handle(
+        _lastRunAtMeta,
+        lastRunAt.isAcceptableOrUnknown(data['last_run_at']!, _lastRunAtMeta),
+      );
+    }
+    if (data.containsKey('next_run_at')) {
+      context.handle(
+        _nextRunAtMeta,
+        nextRunAt.isAcceptableOrUnknown(data['next_run_at']!, _nextRunAtMeta),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('completed_at')) {
+      context.handle(
+        _completedAtMeta,
+        completedAt.isAcceptableOrUnknown(
+          data['completed_at']!,
+          _completedAtMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentTask map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentTask(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      objective: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}objective'],
+      ),
+      capabilityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}capability_id'],
+      ),
+      parametersJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parameters_json'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      priority: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}priority'],
+      )!,
+      retryCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}retry_count'],
+      )!,
+      maxRetries: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_retries'],
+      )!,
+      dueAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}due_at'],
+      ),
+      lastRunAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_run_at'],
+      ),
+      nextRunAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_run_at'],
+      ),
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      completedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}completed_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentTasksTable createAlias(String alias) {
+    return $AssistantAgentTasksTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentTask extends DataClass
+    implements Insertable<AssistantAgentTask> {
+  final String id;
+  final String goalId;
+  final String householdId;
+  final String title;
+  final String? objective;
+  final String? capabilityId;
+  final String parametersJson;
+  final String status;
+  final int priority;
+  final int retryCount;
+  final int maxRetries;
+  final DateTime? dueAt;
+  final DateTime? lastRunAt;
+  final DateTime? nextRunAt;
+  final String? lastError;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? completedAt;
+  const AssistantAgentTask({
+    required this.id,
+    required this.goalId,
+    required this.householdId,
+    required this.title,
+    this.objective,
+    this.capabilityId,
+    required this.parametersJson,
+    required this.status,
+    required this.priority,
+    required this.retryCount,
+    required this.maxRetries,
+    this.dueAt,
+    this.lastRunAt,
+    this.nextRunAt,
+    this.lastError,
+    required this.createdAt,
+    required this.updatedAt,
+    this.completedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['goal_id'] = Variable<String>(goalId);
+    map['household_id'] = Variable<String>(householdId);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || objective != null) {
+      map['objective'] = Variable<String>(objective);
+    }
+    if (!nullToAbsent || capabilityId != null) {
+      map['capability_id'] = Variable<String>(capabilityId);
+    }
+    map['parameters_json'] = Variable<String>(parametersJson);
+    map['status'] = Variable<String>(status);
+    map['priority'] = Variable<int>(priority);
+    map['retry_count'] = Variable<int>(retryCount);
+    map['max_retries'] = Variable<int>(maxRetries);
+    if (!nullToAbsent || dueAt != null) {
+      map['due_at'] = Variable<DateTime>(dueAt);
+    }
+    if (!nullToAbsent || lastRunAt != null) {
+      map['last_run_at'] = Variable<DateTime>(lastRunAt);
+    }
+    if (!nullToAbsent || nextRunAt != null) {
+      map['next_run_at'] = Variable<DateTime>(nextRunAt);
+    }
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || completedAt != null) {
+      map['completed_at'] = Variable<DateTime>(completedAt);
+    }
+    return map;
+  }
+
+  AssistantAgentTasksCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentTasksCompanion(
+      id: Value(id),
+      goalId: Value(goalId),
+      householdId: Value(householdId),
+      title: Value(title),
+      objective: objective == null && nullToAbsent
+          ? const Value.absent()
+          : Value(objective),
+      capabilityId: capabilityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capabilityId),
+      parametersJson: Value(parametersJson),
+      status: Value(status),
+      priority: Value(priority),
+      retryCount: Value(retryCount),
+      maxRetries: Value(maxRetries),
+      dueAt: dueAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dueAt),
+      lastRunAt: lastRunAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastRunAt),
+      nextRunAt: nextRunAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextRunAt),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      completedAt: completedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(completedAt),
+    );
+  }
+
+  factory AssistantAgentTask.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentTask(
+      id: serializer.fromJson<String>(json['id']),
+      goalId: serializer.fromJson<String>(json['goalId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      title: serializer.fromJson<String>(json['title']),
+      objective: serializer.fromJson<String?>(json['objective']),
+      capabilityId: serializer.fromJson<String?>(json['capabilityId']),
+      parametersJson: serializer.fromJson<String>(json['parametersJson']),
+      status: serializer.fromJson<String>(json['status']),
+      priority: serializer.fromJson<int>(json['priority']),
+      retryCount: serializer.fromJson<int>(json['retryCount']),
+      maxRetries: serializer.fromJson<int>(json['maxRetries']),
+      dueAt: serializer.fromJson<DateTime?>(json['dueAt']),
+      lastRunAt: serializer.fromJson<DateTime?>(json['lastRunAt']),
+      nextRunAt: serializer.fromJson<DateTime?>(json['nextRunAt']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      completedAt: serializer.fromJson<DateTime?>(json['completedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'goalId': serializer.toJson<String>(goalId),
+      'householdId': serializer.toJson<String>(householdId),
+      'title': serializer.toJson<String>(title),
+      'objective': serializer.toJson<String?>(objective),
+      'capabilityId': serializer.toJson<String?>(capabilityId),
+      'parametersJson': serializer.toJson<String>(parametersJson),
+      'status': serializer.toJson<String>(status),
+      'priority': serializer.toJson<int>(priority),
+      'retryCount': serializer.toJson<int>(retryCount),
+      'maxRetries': serializer.toJson<int>(maxRetries),
+      'dueAt': serializer.toJson<DateTime?>(dueAt),
+      'lastRunAt': serializer.toJson<DateTime?>(lastRunAt),
+      'nextRunAt': serializer.toJson<DateTime?>(nextRunAt),
+      'lastError': serializer.toJson<String?>(lastError),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'completedAt': serializer.toJson<DateTime?>(completedAt),
+    };
+  }
+
+  AssistantAgentTask copyWith({
+    String? id,
+    String? goalId,
+    String? householdId,
+    String? title,
+    Value<String?> objective = const Value.absent(),
+    Value<String?> capabilityId = const Value.absent(),
+    String? parametersJson,
+    String? status,
+    int? priority,
+    int? retryCount,
+    int? maxRetries,
+    Value<DateTime?> dueAt = const Value.absent(),
+    Value<DateTime?> lastRunAt = const Value.absent(),
+    Value<DateTime?> nextRunAt = const Value.absent(),
+    Value<String?> lastError = const Value.absent(),
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> completedAt = const Value.absent(),
+  }) => AssistantAgentTask(
+    id: id ?? this.id,
+    goalId: goalId ?? this.goalId,
+    householdId: householdId ?? this.householdId,
+    title: title ?? this.title,
+    objective: objective.present ? objective.value : this.objective,
+    capabilityId: capabilityId.present ? capabilityId.value : this.capabilityId,
+    parametersJson: parametersJson ?? this.parametersJson,
+    status: status ?? this.status,
+    priority: priority ?? this.priority,
+    retryCount: retryCount ?? this.retryCount,
+    maxRetries: maxRetries ?? this.maxRetries,
+    dueAt: dueAt.present ? dueAt.value : this.dueAt,
+    lastRunAt: lastRunAt.present ? lastRunAt.value : this.lastRunAt,
+    nextRunAt: nextRunAt.present ? nextRunAt.value : this.nextRunAt,
+    lastError: lastError.present ? lastError.value : this.lastError,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    completedAt: completedAt.present ? completedAt.value : this.completedAt,
+  );
+  AssistantAgentTask copyWithCompanion(AssistantAgentTasksCompanion data) {
+    return AssistantAgentTask(
+      id: data.id.present ? data.id.value : this.id,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      title: data.title.present ? data.title.value : this.title,
+      objective: data.objective.present ? data.objective.value : this.objective,
+      capabilityId: data.capabilityId.present
+          ? data.capabilityId.value
+          : this.capabilityId,
+      parametersJson: data.parametersJson.present
+          ? data.parametersJson.value
+          : this.parametersJson,
+      status: data.status.present ? data.status.value : this.status,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      retryCount: data.retryCount.present
+          ? data.retryCount.value
+          : this.retryCount,
+      maxRetries: data.maxRetries.present
+          ? data.maxRetries.value
+          : this.maxRetries,
+      dueAt: data.dueAt.present ? data.dueAt.value : this.dueAt,
+      lastRunAt: data.lastRunAt.present ? data.lastRunAt.value : this.lastRunAt,
+      nextRunAt: data.nextRunAt.present ? data.nextRunAt.value : this.nextRunAt,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      completedAt: data.completedAt.present
+          ? data.completedAt.value
+          : this.completedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentTask(')
+          ..write('id: $id, ')
+          ..write('goalId: $goalId, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('objective: $objective, ')
+          ..write('capabilityId: $capabilityId, ')
+          ..write('parametersJson: $parametersJson, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('maxRetries: $maxRetries, ')
+          ..write('dueAt: $dueAt, ')
+          ..write('lastRunAt: $lastRunAt, ')
+          ..write('nextRunAt: $nextRunAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('completedAt: $completedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    goalId,
+    householdId,
+    title,
+    objective,
+    capabilityId,
+    parametersJson,
+    status,
+    priority,
+    retryCount,
+    maxRetries,
+    dueAt,
+    lastRunAt,
+    nextRunAt,
+    lastError,
+    createdAt,
+    updatedAt,
+    completedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentTask &&
+          other.id == this.id &&
+          other.goalId == this.goalId &&
+          other.householdId == this.householdId &&
+          other.title == this.title &&
+          other.objective == this.objective &&
+          other.capabilityId == this.capabilityId &&
+          other.parametersJson == this.parametersJson &&
+          other.status == this.status &&
+          other.priority == this.priority &&
+          other.retryCount == this.retryCount &&
+          other.maxRetries == this.maxRetries &&
+          other.dueAt == this.dueAt &&
+          other.lastRunAt == this.lastRunAt &&
+          other.nextRunAt == this.nextRunAt &&
+          other.lastError == this.lastError &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.completedAt == this.completedAt);
+}
+
+class AssistantAgentTasksCompanion extends UpdateCompanion<AssistantAgentTask> {
+  final Value<String> id;
+  final Value<String> goalId;
+  final Value<String> householdId;
+  final Value<String> title;
+  final Value<String?> objective;
+  final Value<String?> capabilityId;
+  final Value<String> parametersJson;
+  final Value<String> status;
+  final Value<int> priority;
+  final Value<int> retryCount;
+  final Value<int> maxRetries;
+  final Value<DateTime?> dueAt;
+  final Value<DateTime?> lastRunAt;
+  final Value<DateTime?> nextRunAt;
+  final Value<String?> lastError;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> completedAt;
+  final Value<int> rowid;
+  const AssistantAgentTasksCompanion({
+    this.id = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.objective = const Value.absent(),
+    this.capabilityId = const Value.absent(),
+    this.parametersJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.maxRetries = const Value.absent(),
+    this.dueAt = const Value.absent(),
+    this.lastRunAt = const Value.absent(),
+    this.nextRunAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentTasksCompanion.insert({
+    required String id,
+    required String goalId,
+    required String householdId,
+    required String title,
+    this.objective = const Value.absent(),
+    this.capabilityId = const Value.absent(),
+    this.parametersJson = const Value.absent(),
+    this.status = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.retryCount = const Value.absent(),
+    this.maxRetries = const Value.absent(),
+    this.dueAt = const Value.absent(),
+    this.lastRunAt = const Value.absent(),
+    this.nextRunAt = const Value.absent(),
+    this.lastError = const Value.absent(),
+    required DateTime createdAt,
+    required DateTime updatedAt,
+    this.completedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       goalId = Value(goalId),
+       householdId = Value(householdId),
+       title = Value(title),
+       createdAt = Value(createdAt),
+       updatedAt = Value(updatedAt);
+  static Insertable<AssistantAgentTask> custom({
+    Expression<String>? id,
+    Expression<String>? goalId,
+    Expression<String>? householdId,
+    Expression<String>? title,
+    Expression<String>? objective,
+    Expression<String>? capabilityId,
+    Expression<String>? parametersJson,
+    Expression<String>? status,
+    Expression<int>? priority,
+    Expression<int>? retryCount,
+    Expression<int>? maxRetries,
+    Expression<DateTime>? dueAt,
+    Expression<DateTime>? lastRunAt,
+    Expression<DateTime>? nextRunAt,
+    Expression<String>? lastError,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? completedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (goalId != null) 'goal_id': goalId,
+      if (householdId != null) 'household_id': householdId,
+      if (title != null) 'title': title,
+      if (objective != null) 'objective': objective,
+      if (capabilityId != null) 'capability_id': capabilityId,
+      if (parametersJson != null) 'parameters_json': parametersJson,
+      if (status != null) 'status': status,
+      if (priority != null) 'priority': priority,
+      if (retryCount != null) 'retry_count': retryCount,
+      if (maxRetries != null) 'max_retries': maxRetries,
+      if (dueAt != null) 'due_at': dueAt,
+      if (lastRunAt != null) 'last_run_at': lastRunAt,
+      if (nextRunAt != null) 'next_run_at': nextRunAt,
+      if (lastError != null) 'last_error': lastError,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (completedAt != null) 'completed_at': completedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentTasksCompanion copyWith({
+    Value<String>? id,
+    Value<String>? goalId,
+    Value<String>? householdId,
+    Value<String>? title,
+    Value<String?>? objective,
+    Value<String?>? capabilityId,
+    Value<String>? parametersJson,
+    Value<String>? status,
+    Value<int>? priority,
+    Value<int>? retryCount,
+    Value<int>? maxRetries,
+    Value<DateTime?>? dueAt,
+    Value<DateTime?>? lastRunAt,
+    Value<DateTime?>? nextRunAt,
+    Value<String?>? lastError,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? completedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentTasksCompanion(
+      id: id ?? this.id,
+      goalId: goalId ?? this.goalId,
+      householdId: householdId ?? this.householdId,
+      title: title ?? this.title,
+      objective: objective ?? this.objective,
+      capabilityId: capabilityId ?? this.capabilityId,
+      parametersJson: parametersJson ?? this.parametersJson,
+      status: status ?? this.status,
+      priority: priority ?? this.priority,
+      retryCount: retryCount ?? this.retryCount,
+      maxRetries: maxRetries ?? this.maxRetries,
+      dueAt: dueAt ?? this.dueAt,
+      lastRunAt: lastRunAt ?? this.lastRunAt,
+      nextRunAt: nextRunAt ?? this.nextRunAt,
+      lastError: lastError ?? this.lastError,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      completedAt: completedAt ?? this.completedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (objective.present) {
+      map['objective'] = Variable<String>(objective.value);
+    }
+    if (capabilityId.present) {
+      map['capability_id'] = Variable<String>(capabilityId.value);
+    }
+    if (parametersJson.present) {
+      map['parameters_json'] = Variable<String>(parametersJson.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (retryCount.present) {
+      map['retry_count'] = Variable<int>(retryCount.value);
+    }
+    if (maxRetries.present) {
+      map['max_retries'] = Variable<int>(maxRetries.value);
+    }
+    if (dueAt.present) {
+      map['due_at'] = Variable<DateTime>(dueAt.value);
+    }
+    if (lastRunAt.present) {
+      map['last_run_at'] = Variable<DateTime>(lastRunAt.value);
+    }
+    if (nextRunAt.present) {
+      map['next_run_at'] = Variable<DateTime>(nextRunAt.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (completedAt.present) {
+      map['completed_at'] = Variable<DateTime>(completedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentTasksCompanion(')
+          ..write('id: $id, ')
+          ..write('goalId: $goalId, ')
+          ..write('householdId: $householdId, ')
+          ..write('title: $title, ')
+          ..write('objective: $objective, ')
+          ..write('capabilityId: $capabilityId, ')
+          ..write('parametersJson: $parametersJson, ')
+          ..write('status: $status, ')
+          ..write('priority: $priority, ')
+          ..write('retryCount: $retryCount, ')
+          ..write('maxRetries: $maxRetries, ')
+          ..write('dueAt: $dueAt, ')
+          ..write('lastRunAt: $lastRunAt, ')
+          ..write('nextRunAt: $nextRunAt, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('completedAt: $completedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AssistantAgentTaskExecutionsTable extends AssistantAgentTaskExecutions
+    with
+        TableInfo<
+          $AssistantAgentTaskExecutionsTable,
+          AssistantAgentTaskExecution
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AssistantAgentTaskExecutionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<String> taskId = GeneratedColumn<String>(
+    'task_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _goalIdMeta = const VerificationMeta('goalId');
+  @override
+  late final GeneratedColumn<String> goalId = GeneratedColumn<String>(
+    'goal_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _runIdMeta = const VerificationMeta('runId');
+  @override
+  late final GeneratedColumn<String> runId = GeneratedColumn<String>(
+    'run_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _summaryMeta = const VerificationMeta(
+    'summary',
+  );
+  @override
+  late final GeneratedColumn<String> summary = GeneratedColumn<String>(
+    'summary',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _errorMeta = const VerificationMeta('error');
+  @override
+  late final GeneratedColumn<String> error = GeneratedColumn<String>(
+    'error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _finishedAtMeta = const VerificationMeta(
+    'finishedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> finishedAt = GeneratedColumn<DateTime>(
+    'finished_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    taskId,
+    goalId,
+    householdId,
+    runId,
+    status,
+    summary,
+    error,
+    startedAt,
+    finishedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'assistant_agent_task_executions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AssistantAgentTaskExecution> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(
+        _taskIdMeta,
+        taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_taskIdMeta);
+    }
+    if (data.containsKey('goal_id')) {
+      context.handle(
+        _goalIdMeta,
+        goalId.isAcceptableOrUnknown(data['goal_id']!, _goalIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_goalIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('run_id')) {
+      context.handle(
+        _runIdMeta,
+        runId.isAcceptableOrUnknown(data['run_id']!, _runIdMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('summary')) {
+      context.handle(
+        _summaryMeta,
+        summary.isAcceptableOrUnknown(data['summary']!, _summaryMeta),
+      );
+    }
+    if (data.containsKey('error')) {
+      context.handle(
+        _errorMeta,
+        error.isAcceptableOrUnknown(data['error']!, _errorMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startedAtMeta);
+    }
+    if (data.containsKey('finished_at')) {
+      context.handle(
+        _finishedAtMeta,
+        finishedAt.isAcceptableOrUnknown(data['finished_at']!, _finishedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AssistantAgentTaskExecution map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AssistantAgentTaskExecution(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      taskId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}task_id'],
+      )!,
+      goalId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}goal_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      runId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}run_id'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      summary: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}summary'],
+      ),
+      error: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error'],
+      ),
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      finishedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}finished_at'],
+      ),
+    );
+  }
+
+  @override
+  $AssistantAgentTaskExecutionsTable createAlias(String alias) {
+    return $AssistantAgentTaskExecutionsTable(attachedDatabase, alias);
+  }
+}
+
+class AssistantAgentTaskExecution extends DataClass
+    implements Insertable<AssistantAgentTaskExecution> {
+  final String id;
+  final String taskId;
+  final String goalId;
+  final String householdId;
+  final String? runId;
+  final String status;
+  final String? summary;
+  final String? error;
+  final DateTime startedAt;
+  final DateTime? finishedAt;
+  const AssistantAgentTaskExecution({
+    required this.id,
+    required this.taskId,
+    required this.goalId,
+    required this.householdId,
+    this.runId,
+    required this.status,
+    this.summary,
+    this.error,
+    required this.startedAt,
+    this.finishedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['task_id'] = Variable<String>(taskId);
+    map['goal_id'] = Variable<String>(goalId);
+    map['household_id'] = Variable<String>(householdId);
+    if (!nullToAbsent || runId != null) {
+      map['run_id'] = Variable<String>(runId);
+    }
+    map['status'] = Variable<String>(status);
+    if (!nullToAbsent || summary != null) {
+      map['summary'] = Variable<String>(summary);
+    }
+    if (!nullToAbsent || error != null) {
+      map['error'] = Variable<String>(error);
+    }
+    map['started_at'] = Variable<DateTime>(startedAt);
+    if (!nullToAbsent || finishedAt != null) {
+      map['finished_at'] = Variable<DateTime>(finishedAt);
+    }
+    return map;
+  }
+
+  AssistantAgentTaskExecutionsCompanion toCompanion(bool nullToAbsent) {
+    return AssistantAgentTaskExecutionsCompanion(
+      id: Value(id),
+      taskId: Value(taskId),
+      goalId: Value(goalId),
+      householdId: Value(householdId),
+      runId: runId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(runId),
+      status: Value(status),
+      summary: summary == null && nullToAbsent
+          ? const Value.absent()
+          : Value(summary),
+      error: error == null && nullToAbsent
+          ? const Value.absent()
+          : Value(error),
+      startedAt: Value(startedAt),
+      finishedAt: finishedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(finishedAt),
+    );
+  }
+
+  factory AssistantAgentTaskExecution.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AssistantAgentTaskExecution(
+      id: serializer.fromJson<String>(json['id']),
+      taskId: serializer.fromJson<String>(json['taskId']),
+      goalId: serializer.fromJson<String>(json['goalId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      runId: serializer.fromJson<String?>(json['runId']),
+      status: serializer.fromJson<String>(json['status']),
+      summary: serializer.fromJson<String?>(json['summary']),
+      error: serializer.fromJson<String?>(json['error']),
+      startedAt: serializer.fromJson<DateTime>(json['startedAt']),
+      finishedAt: serializer.fromJson<DateTime?>(json['finishedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'taskId': serializer.toJson<String>(taskId),
+      'goalId': serializer.toJson<String>(goalId),
+      'householdId': serializer.toJson<String>(householdId),
+      'runId': serializer.toJson<String?>(runId),
+      'status': serializer.toJson<String>(status),
+      'summary': serializer.toJson<String?>(summary),
+      'error': serializer.toJson<String?>(error),
+      'startedAt': serializer.toJson<DateTime>(startedAt),
+      'finishedAt': serializer.toJson<DateTime?>(finishedAt),
+    };
+  }
+
+  AssistantAgentTaskExecution copyWith({
+    String? id,
+    String? taskId,
+    String? goalId,
+    String? householdId,
+    Value<String?> runId = const Value.absent(),
+    String? status,
+    Value<String?> summary = const Value.absent(),
+    Value<String?> error = const Value.absent(),
+    DateTime? startedAt,
+    Value<DateTime?> finishedAt = const Value.absent(),
+  }) => AssistantAgentTaskExecution(
+    id: id ?? this.id,
+    taskId: taskId ?? this.taskId,
+    goalId: goalId ?? this.goalId,
+    householdId: householdId ?? this.householdId,
+    runId: runId.present ? runId.value : this.runId,
+    status: status ?? this.status,
+    summary: summary.present ? summary.value : this.summary,
+    error: error.present ? error.value : this.error,
+    startedAt: startedAt ?? this.startedAt,
+    finishedAt: finishedAt.present ? finishedAt.value : this.finishedAt,
+  );
+  AssistantAgentTaskExecution copyWithCompanion(
+    AssistantAgentTaskExecutionsCompanion data,
+  ) {
+    return AssistantAgentTaskExecution(
+      id: data.id.present ? data.id.value : this.id,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      goalId: data.goalId.present ? data.goalId.value : this.goalId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      runId: data.runId.present ? data.runId.value : this.runId,
+      status: data.status.present ? data.status.value : this.status,
+      summary: data.summary.present ? data.summary.value : this.summary,
+      error: data.error.present ? data.error.value : this.error,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      finishedAt: data.finishedAt.present
+          ? data.finishedAt.value
+          : this.finishedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentTaskExecution(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('goalId: $goalId, ')
+          ..write('householdId: $householdId, ')
+          ..write('runId: $runId, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    taskId,
+    goalId,
+    householdId,
+    runId,
+    status,
+    summary,
+    error,
+    startedAt,
+    finishedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AssistantAgentTaskExecution &&
+          other.id == this.id &&
+          other.taskId == this.taskId &&
+          other.goalId == this.goalId &&
+          other.householdId == this.householdId &&
+          other.runId == this.runId &&
+          other.status == this.status &&
+          other.summary == this.summary &&
+          other.error == this.error &&
+          other.startedAt == this.startedAt &&
+          other.finishedAt == this.finishedAt);
+}
+
+class AssistantAgentTaskExecutionsCompanion
+    extends UpdateCompanion<AssistantAgentTaskExecution> {
+  final Value<String> id;
+  final Value<String> taskId;
+  final Value<String> goalId;
+  final Value<String> householdId;
+  final Value<String?> runId;
+  final Value<String> status;
+  final Value<String?> summary;
+  final Value<String?> error;
+  final Value<DateTime> startedAt;
+  final Value<DateTime?> finishedAt;
+  final Value<int> rowid;
+  const AssistantAgentTaskExecutionsCompanion({
+    this.id = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.goalId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.runId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.summary = const Value.absent(),
+    this.error = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.finishedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AssistantAgentTaskExecutionsCompanion.insert({
+    required String id,
+    required String taskId,
+    required String goalId,
+    required String householdId,
+    this.runId = const Value.absent(),
+    required String status,
+    this.summary = const Value.absent(),
+    this.error = const Value.absent(),
+    required DateTime startedAt,
+    this.finishedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       taskId = Value(taskId),
+       goalId = Value(goalId),
+       householdId = Value(householdId),
+       status = Value(status),
+       startedAt = Value(startedAt);
+  static Insertable<AssistantAgentTaskExecution> custom({
+    Expression<String>? id,
+    Expression<String>? taskId,
+    Expression<String>? goalId,
+    Expression<String>? householdId,
+    Expression<String>? runId,
+    Expression<String>? status,
+    Expression<String>? summary,
+    Expression<String>? error,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? finishedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (taskId != null) 'task_id': taskId,
+      if (goalId != null) 'goal_id': goalId,
+      if (householdId != null) 'household_id': householdId,
+      if (runId != null) 'run_id': runId,
+      if (status != null) 'status': status,
+      if (summary != null) 'summary': summary,
+      if (error != null) 'error': error,
+      if (startedAt != null) 'started_at': startedAt,
+      if (finishedAt != null) 'finished_at': finishedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AssistantAgentTaskExecutionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? taskId,
+    Value<String>? goalId,
+    Value<String>? householdId,
+    Value<String?>? runId,
+    Value<String>? status,
+    Value<String?>? summary,
+    Value<String?>? error,
+    Value<DateTime>? startedAt,
+    Value<DateTime?>? finishedAt,
+    Value<int>? rowid,
+  }) {
+    return AssistantAgentTaskExecutionsCompanion(
+      id: id ?? this.id,
+      taskId: taskId ?? this.taskId,
+      goalId: goalId ?? this.goalId,
+      householdId: householdId ?? this.householdId,
+      runId: runId ?? this.runId,
+      status: status ?? this.status,
+      summary: summary ?? this.summary,
+      error: error ?? this.error,
+      startedAt: startedAt ?? this.startedAt,
+      finishedAt: finishedAt ?? this.finishedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<String>(taskId.value);
+    }
+    if (goalId.present) {
+      map['goal_id'] = Variable<String>(goalId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (runId.present) {
+      map['run_id'] = Variable<String>(runId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (summary.present) {
+      map['summary'] = Variable<String>(summary.value);
+    }
+    if (error.present) {
+      map['error'] = Variable<String>(error.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (finishedAt.present) {
+      map['finished_at'] = Variable<DateTime>(finishedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AssistantAgentTaskExecutionsCompanion(')
+          ..write('id: $id, ')
+          ..write('taskId: $taskId, ')
+          ..write('goalId: $goalId, ')
+          ..write('householdId: $householdId, ')
+          ..write('runId: $runId, ')
+          ..write('status: $status, ')
+          ..write('summary: $summary, ')
+          ..write('error: $error, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('finishedAt: $finishedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -25434,6 +30892,20 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   );
   late final $InteractionPatternsTable interactionPatterns =
       $InteractionPatternsTable(this);
+  late final $AssistantAgentRunsTable assistantAgentRuns =
+      $AssistantAgentRunsTable(this);
+  late final $AssistantAgentEventsTable assistantAgentEvents =
+      $AssistantAgentEventsTable(this);
+  late final $AssistantAgentApprovalsTable assistantAgentApprovals =
+      $AssistantAgentApprovalsTable(this);
+  late final $AssistantAgentToolExecutionsTable assistantAgentToolExecutions =
+      $AssistantAgentToolExecutionsTable(this);
+  late final $AssistantAgentGoalsTable assistantAgentGoals =
+      $AssistantAgentGoalsTable(this);
+  late final $AssistantAgentTasksTable assistantAgentTasks =
+      $AssistantAgentTasksTable(this);
+  late final $AssistantAgentTaskExecutionsTable assistantAgentTaskExecutions =
+      $AssistantAgentTaskExecutionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -25480,6 +30952,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     userCorrections,
     userPreferences,
     interactionPatterns,
+    assistantAgentRuns,
+    assistantAgentEvents,
+    assistantAgentApprovals,
+    assistantAgentToolExecutions,
+    assistantAgentGoals,
+    assistantAgentTasks,
+    assistantAgentTaskExecutions,
   ];
 }
 
@@ -31936,6 +37415,10 @@ typedef $$ActivitySessionsTableCreateCompanionBuilder =
       Value<String?> categoryId,
       Value<String> category,
       Value<String> kind,
+      Value<String?> mode,
+      Value<String?> activityGroupId,
+      Value<String?> subjectType,
+      Value<String?> subjectId,
       required DateTime startedAt,
       Value<DateTime?> endedAt,
       Value<DateTime?> scheduledAt,
@@ -31959,6 +37442,10 @@ typedef $$ActivitySessionsTableUpdateCompanionBuilder =
       Value<String?> categoryId,
       Value<String> category,
       Value<String> kind,
+      Value<String?> mode,
+      Value<String?> activityGroupId,
+      Value<String?> subjectType,
+      Value<String?> subjectId,
       Value<DateTime> startedAt,
       Value<DateTime?> endedAt,
       Value<DateTime?> scheduledAt,
@@ -32015,6 +37502,26 @@ class $$ActivitySessionsTableFilterComposer
 
   ColumnFilters<String> get kind => $composableBuilder(
     column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityGroupId => $composableBuilder(
+    column: $table.activityGroupId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectType => $composableBuilder(
+    column: $table.subjectType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -32123,6 +37630,26 @@ class $$ActivitySessionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityGroupId => $composableBuilder(
+    column: $table.activityGroupId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjectType => $composableBuilder(
+    column: $table.subjectType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get subjectId => $composableBuilder(
+    column: $table.subjectId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get startedAt => $composableBuilder(
     column: $table.startedAt,
     builder: (column) => ColumnOrderings(column),
@@ -32220,6 +37747,22 @@ class $$ActivitySessionsTableAnnotationComposer
   GeneratedColumn<String> get kind =>
       $composableBuilder(column: $table.kind, builder: (column) => column);
 
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get activityGroupId => $composableBuilder(
+    column: $table.activityGroupId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subjectType => $composableBuilder(
+    column: $table.subjectType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get subjectId =>
+      $composableBuilder(column: $table.subjectId, builder: (column) => column);
+
   GeneratedColumn<DateTime> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
 
@@ -32307,6 +37850,10 @@ class $$ActivitySessionsTableTableManager
                 Value<String?> categoryId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> mode = const Value.absent(),
+                Value<String?> activityGroupId = const Value.absent(),
+                Value<String?> subjectType = const Value.absent(),
+                Value<String?> subjectId = const Value.absent(),
                 Value<DateTime> startedAt = const Value.absent(),
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<DateTime?> scheduledAt = const Value.absent(),
@@ -32328,6 +37875,10 @@ class $$ActivitySessionsTableTableManager
                 categoryId: categoryId,
                 category: category,
                 kind: kind,
+                mode: mode,
+                activityGroupId: activityGroupId,
+                subjectType: subjectType,
+                subjectId: subjectId,
                 startedAt: startedAt,
                 endedAt: endedAt,
                 scheduledAt: scheduledAt,
@@ -32351,6 +37902,10 @@ class $$ActivitySessionsTableTableManager
                 Value<String?> categoryId = const Value.absent(),
                 Value<String> category = const Value.absent(),
                 Value<String> kind = const Value.absent(),
+                Value<String?> mode = const Value.absent(),
+                Value<String?> activityGroupId = const Value.absent(),
+                Value<String?> subjectType = const Value.absent(),
+                Value<String?> subjectId = const Value.absent(),
                 required DateTime startedAt,
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<DateTime?> scheduledAt = const Value.absent(),
@@ -32372,6 +37927,10 @@ class $$ActivitySessionsTableTableManager
                 categoryId: categoryId,
                 category: category,
                 kind: kind,
+                mode: mode,
+                activityGroupId: activityGroupId,
+                subjectType: subjectType,
+                subjectId: subjectId,
                 startedAt: startedAt,
                 endedAt: endedAt,
                 scheduledAt: scheduledAt,
@@ -38028,6 +43587,2589 @@ typedef $$InteractionPatternsTableProcessedTableManager =
       InteractionPattern,
       PrefetchHooks Function()
     >;
+typedef $$AssistantAgentRunsTableCreateCompanionBuilder =
+    AssistantAgentRunsCompanion Function({
+      required String id,
+      required String householdId,
+      required String trigger,
+      required String status,
+      required String summary,
+      Value<String?> domain,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      Value<String?> model,
+      Value<String?> decisionSummary,
+      Value<String?> error,
+      required DateTime startedAt,
+      Value<DateTime?> finishedAt,
+      required DateTime updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentRunsTableUpdateCompanionBuilder =
+    AssistantAgentRunsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> trigger,
+      Value<String> status,
+      Value<String> summary,
+      Value<String?> domain,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      Value<String?> model,
+      Value<String?> decisionSummary,
+      Value<String?> error,
+      Value<DateTime> startedAt,
+      Value<DateTime?> finishedAt,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentRunsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentRunsTable> {
+  $$AssistantAgentRunsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get decisionSummary => $composableBuilder(
+    column: $table.decisionSummary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentRunsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentRunsTable> {
+  $$AssistantAgentRunsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get trigger => $composableBuilder(
+    column: $table.trigger,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get model => $composableBuilder(
+    column: $table.model,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get decisionSummary => $composableBuilder(
+    column: $table.decisionSummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentRunsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentRunsTable> {
+  $$AssistantAgentRunsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get trigger =>
+      $composableBuilder(column: $table.trigger, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get model =>
+      $composableBuilder(column: $table.model, builder: (column) => column);
+
+  GeneratedColumn<String> get decisionSummary => $composableBuilder(
+    column: $table.decisionSummary,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AssistantAgentRunsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentRunsTable,
+          AssistantAgentRun,
+          $$AssistantAgentRunsTableFilterComposer,
+          $$AssistantAgentRunsTableOrderingComposer,
+          $$AssistantAgentRunsTableAnnotationComposer,
+          $$AssistantAgentRunsTableCreateCompanionBuilder,
+          $$AssistantAgentRunsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentRun,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentRunsTable,
+              AssistantAgentRun
+            >,
+          ),
+          AssistantAgentRun,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentRunsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentRunsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentRunsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantAgentRunsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentRunsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> trigger = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String?> domain = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> decisionSummary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime?> finishedAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentRunsCompanion(
+                id: id,
+                householdId: householdId,
+                trigger: trigger,
+                status: status,
+                summary: summary,
+                domain: domain,
+                entityId: entityId,
+                activityId: activityId,
+                model: model,
+                decisionSummary: decisionSummary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String trigger,
+                required String status,
+                required String summary,
+                Value<String?> domain = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                Value<String?> model = const Value.absent(),
+                Value<String?> decisionSummary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                required DateTime startedAt,
+                Value<DateTime?> finishedAt = const Value.absent(),
+                required DateTime updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentRunsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                trigger: trigger,
+                status: status,
+                summary: summary,
+                domain: domain,
+                entityId: entityId,
+                activityId: activityId,
+                model: model,
+                decisionSummary: decisionSummary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentRunsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentRunsTable,
+      AssistantAgentRun,
+      $$AssistantAgentRunsTableFilterComposer,
+      $$AssistantAgentRunsTableOrderingComposer,
+      $$AssistantAgentRunsTableAnnotationComposer,
+      $$AssistantAgentRunsTableCreateCompanionBuilder,
+      $$AssistantAgentRunsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentRun,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentRunsTable,
+          AssistantAgentRun
+        >,
+      ),
+      AssistantAgentRun,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentEventsTableCreateCompanionBuilder =
+    AssistantAgentEventsCompanion Function({
+      required String eventId,
+      required String householdId,
+      required String eventType,
+      Value<String> status,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      Value<String> payloadJson,
+      Value<int> attemptCount,
+      Value<String?> error,
+      required DateTime occurredAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<DateTime?> processedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentEventsTableUpdateCompanionBuilder =
+    AssistantAgentEventsCompanion Function({
+      Value<String> eventId,
+      Value<String> householdId,
+      Value<String> eventType,
+      Value<String> status,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      Value<String> payloadJson,
+      Value<int> attemptCount,
+      Value<String?> error,
+      Value<DateTime> occurredAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<DateTime?> processedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentEventsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentEventsTable> {
+  $$AssistantAgentEventsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentEventsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentEventsTable> {
+  $$AssistantAgentEventsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get eventId => $composableBuilder(
+    column: $table.eventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get eventType => $composableBuilder(
+    column: $table.eventType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentEventsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentEventsTable> {
+  $$AssistantAgentEventsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get eventId =>
+      $composableBuilder(column: $table.eventId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get eventType =>
+      $composableBuilder(column: $table.eventType, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get occurredAt => $composableBuilder(
+    column: $table.occurredAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get processedAt => $composableBuilder(
+    column: $table.processedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AssistantAgentEventsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentEventsTable,
+          AssistantAgentEvent,
+          $$AssistantAgentEventsTableFilterComposer,
+          $$AssistantAgentEventsTableOrderingComposer,
+          $$AssistantAgentEventsTableAnnotationComposer,
+          $$AssistantAgentEventsTableCreateCompanionBuilder,
+          $$AssistantAgentEventsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentEvent,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentEventsTable,
+              AssistantAgentEvent
+            >,
+          ),
+          AssistantAgentEvent,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentEventsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentEventsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentEventsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantAgentEventsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentEventsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> eventId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> eventType = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<DateTime> occurredAt = const Value.absent(),
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> processedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentEventsCompanion(
+                eventId: eventId,
+                householdId: householdId,
+                eventType: eventType,
+                status: status,
+                entityId: entityId,
+                activityId: activityId,
+                payloadJson: payloadJson,
+                attemptCount: attemptCount,
+                error: error,
+                occurredAt: occurredAt,
+                lastAttemptAt: lastAttemptAt,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String eventId,
+                required String householdId,
+                required String eventType,
+                Value<String> status = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                required DateTime occurredAt,
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> processedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentEventsCompanion.insert(
+                eventId: eventId,
+                householdId: householdId,
+                eventType: eventType,
+                status: status,
+                entityId: entityId,
+                activityId: activityId,
+                payloadJson: payloadJson,
+                attemptCount: attemptCount,
+                error: error,
+                occurredAt: occurredAt,
+                lastAttemptAt: lastAttemptAt,
+                processedAt: processedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentEventsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentEventsTable,
+      AssistantAgentEvent,
+      $$AssistantAgentEventsTableFilterComposer,
+      $$AssistantAgentEventsTableOrderingComposer,
+      $$AssistantAgentEventsTableAnnotationComposer,
+      $$AssistantAgentEventsTableCreateCompanionBuilder,
+      $$AssistantAgentEventsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentEvent,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentEventsTable,
+          AssistantAgentEvent
+        >,
+      ),
+      AssistantAgentEvent,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentApprovalsTableCreateCompanionBuilder =
+    AssistantAgentApprovalsCompanion Function({
+      required String id,
+      required String runId,
+      required String householdId,
+      required String status,
+      required String summary,
+      Value<String?> actor,
+      Value<String?> reason,
+      required DateTime requestedAt,
+      Value<DateTime?> decidedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentApprovalsTableUpdateCompanionBuilder =
+    AssistantAgentApprovalsCompanion Function({
+      Value<String> id,
+      Value<String> runId,
+      Value<String> householdId,
+      Value<String> status,
+      Value<String> summary,
+      Value<String?> actor,
+      Value<String?> reason,
+      Value<DateTime> requestedAt,
+      Value<DateTime?> decidedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentApprovalsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentApprovalsTable> {
+  $$AssistantAgentApprovalsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get actor => $composableBuilder(
+    column: $table.actor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get decidedAt => $composableBuilder(
+    column: $table.decidedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentApprovalsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentApprovalsTable> {
+  $$AssistantAgentApprovalsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get actor => $composableBuilder(
+    column: $table.actor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reason => $composableBuilder(
+    column: $table.reason,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get decidedAt => $composableBuilder(
+    column: $table.decidedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentApprovalsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentApprovalsTable> {
+  $$AssistantAgentApprovalsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get runId =>
+      $composableBuilder(column: $table.runId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get actor =>
+      $composableBuilder(column: $table.actor, builder: (column) => column);
+
+  GeneratedColumn<String> get reason =>
+      $composableBuilder(column: $table.reason, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get requestedAt => $composableBuilder(
+    column: $table.requestedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get decidedAt =>
+      $composableBuilder(column: $table.decidedAt, builder: (column) => column);
+}
+
+class $$AssistantAgentApprovalsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentApprovalsTable,
+          AssistantAgentApproval,
+          $$AssistantAgentApprovalsTableFilterComposer,
+          $$AssistantAgentApprovalsTableOrderingComposer,
+          $$AssistantAgentApprovalsTableAnnotationComposer,
+          $$AssistantAgentApprovalsTableCreateCompanionBuilder,
+          $$AssistantAgentApprovalsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentApproval,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentApprovalsTable,
+              AssistantAgentApproval
+            >,
+          ),
+          AssistantAgentApproval,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentApprovalsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentApprovalsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentApprovalsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantAgentApprovalsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentApprovalsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> runId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> summary = const Value.absent(),
+                Value<String?> actor = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                Value<DateTime> requestedAt = const Value.absent(),
+                Value<DateTime?> decidedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentApprovalsCompanion(
+                id: id,
+                runId: runId,
+                householdId: householdId,
+                status: status,
+                summary: summary,
+                actor: actor,
+                reason: reason,
+                requestedAt: requestedAt,
+                decidedAt: decidedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String runId,
+                required String householdId,
+                required String status,
+                required String summary,
+                Value<String?> actor = const Value.absent(),
+                Value<String?> reason = const Value.absent(),
+                required DateTime requestedAt,
+                Value<DateTime?> decidedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentApprovalsCompanion.insert(
+                id: id,
+                runId: runId,
+                householdId: householdId,
+                status: status,
+                summary: summary,
+                actor: actor,
+                reason: reason,
+                requestedAt: requestedAt,
+                decidedAt: decidedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentApprovalsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentApprovalsTable,
+      AssistantAgentApproval,
+      $$AssistantAgentApprovalsTableFilterComposer,
+      $$AssistantAgentApprovalsTableOrderingComposer,
+      $$AssistantAgentApprovalsTableAnnotationComposer,
+      $$AssistantAgentApprovalsTableCreateCompanionBuilder,
+      $$AssistantAgentApprovalsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentApproval,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentApprovalsTable,
+          AssistantAgentApproval
+        >,
+      ),
+      AssistantAgentApproval,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentToolExecutionsTableCreateCompanionBuilder =
+    AssistantAgentToolExecutionsCompanion Function({
+      required String id,
+      required String runId,
+      required String householdId,
+      required String stepId,
+      required String capabilityId,
+      required String status,
+      Value<int> attemptCount,
+      Value<String?> resultSummary,
+      Value<String?> error,
+      required DateTime startedAt,
+      Value<DateTime?> finishedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentToolExecutionsTableUpdateCompanionBuilder =
+    AssistantAgentToolExecutionsCompanion Function({
+      Value<String> id,
+      Value<String> runId,
+      Value<String> householdId,
+      Value<String> stepId,
+      Value<String> capabilityId,
+      Value<String> status,
+      Value<int> attemptCount,
+      Value<String?> resultSummary,
+      Value<String?> error,
+      Value<DateTime> startedAt,
+      Value<DateTime?> finishedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentToolExecutionsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentToolExecutionsTable> {
+  $$AssistantAgentToolExecutionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get stepId => $composableBuilder(
+    column: $table.stepId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get resultSummary => $composableBuilder(
+    column: $table.resultSummary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentToolExecutionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentToolExecutionsTable> {
+  $$AssistantAgentToolExecutionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get stepId => $composableBuilder(
+    column: $table.stepId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get resultSummary => $composableBuilder(
+    column: $table.resultSummary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentToolExecutionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentToolExecutionsTable> {
+  $$AssistantAgentToolExecutionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get runId =>
+      $composableBuilder(column: $table.runId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get stepId =>
+      $composableBuilder(column: $table.stepId, builder: (column) => column);
+
+  GeneratedColumn<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get resultSummary => $composableBuilder(
+    column: $table.resultSummary,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AssistantAgentToolExecutionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentToolExecutionsTable,
+          AssistantAgentToolExecution,
+          $$AssistantAgentToolExecutionsTableFilterComposer,
+          $$AssistantAgentToolExecutionsTableOrderingComposer,
+          $$AssistantAgentToolExecutionsTableAnnotationComposer,
+          $$AssistantAgentToolExecutionsTableCreateCompanionBuilder,
+          $$AssistantAgentToolExecutionsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentToolExecution,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentToolExecutionsTable,
+              AssistantAgentToolExecution
+            >,
+          ),
+          AssistantAgentToolExecution,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentToolExecutionsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentToolExecutionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentToolExecutionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantAgentToolExecutionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentToolExecutionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> runId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> stepId = const Value.absent(),
+                Value<String> capabilityId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<String?> resultSummary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime?> finishedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentToolExecutionsCompanion(
+                id: id,
+                runId: runId,
+                householdId: householdId,
+                stepId: stepId,
+                capabilityId: capabilityId,
+                status: status,
+                attemptCount: attemptCount,
+                resultSummary: resultSummary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String runId,
+                required String householdId,
+                required String stepId,
+                required String capabilityId,
+                required String status,
+                Value<int> attemptCount = const Value.absent(),
+                Value<String?> resultSummary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                required DateTime startedAt,
+                Value<DateTime?> finishedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentToolExecutionsCompanion.insert(
+                id: id,
+                runId: runId,
+                householdId: householdId,
+                stepId: stepId,
+                capabilityId: capabilityId,
+                status: status,
+                attemptCount: attemptCount,
+                resultSummary: resultSummary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentToolExecutionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentToolExecutionsTable,
+      AssistantAgentToolExecution,
+      $$AssistantAgentToolExecutionsTableFilterComposer,
+      $$AssistantAgentToolExecutionsTableOrderingComposer,
+      $$AssistantAgentToolExecutionsTableAnnotationComposer,
+      $$AssistantAgentToolExecutionsTableCreateCompanionBuilder,
+      $$AssistantAgentToolExecutionsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentToolExecution,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentToolExecutionsTable,
+          AssistantAgentToolExecution
+        >,
+      ),
+      AssistantAgentToolExecution,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentGoalsTableCreateCompanionBuilder =
+    AssistantAgentGoalsCompanion Function({
+      required String id,
+      required String householdId,
+      required String domain,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      required String title,
+      required String objective,
+      Value<String> status,
+      Value<int> priority,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> lastRunAt,
+      Value<DateTime?> nextRunAt,
+      Value<String?> completionCondition,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentGoalsTableUpdateCompanionBuilder =
+    AssistantAgentGoalsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> domain,
+      Value<String?> entityId,
+      Value<String?> activityId,
+      Value<String> title,
+      Value<String> objective,
+      Value<String> status,
+      Value<int> priority,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> lastRunAt,
+      Value<DateTime?> nextRunAt,
+      Value<String?> completionCondition,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentGoalsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentGoalsTable> {
+  $$AssistantAgentGoalsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextRunAt => $composableBuilder(
+    column: $table.nextRunAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get completionCondition => $composableBuilder(
+    column: $table.completionCondition,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentGoalsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentGoalsTable> {
+  $$AssistantAgentGoalsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get domain => $composableBuilder(
+    column: $table.domain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextRunAt => $composableBuilder(
+    column: $table.nextRunAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get completionCondition => $composableBuilder(
+    column: $table.completionCondition,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentGoalsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentGoalsTable> {
+  $$AssistantAgentGoalsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get domain =>
+      $composableBuilder(column: $table.domain, builder: (column) => column);
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get activityId => $composableBuilder(
+    column: $table.activityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get objective =>
+      $composableBuilder(column: $table.objective, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastRunAt =>
+      $composableBuilder(column: $table.lastRunAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextRunAt =>
+      $composableBuilder(column: $table.nextRunAt, builder: (column) => column);
+
+  GeneratedColumn<String> get completionCondition => $composableBuilder(
+    column: $table.completionCondition,
+    builder: (column) => column,
+  );
+}
+
+class $$AssistantAgentGoalsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentGoalsTable,
+          AssistantAgentGoal,
+          $$AssistantAgentGoalsTableFilterComposer,
+          $$AssistantAgentGoalsTableOrderingComposer,
+          $$AssistantAgentGoalsTableAnnotationComposer,
+          $$AssistantAgentGoalsTableCreateCompanionBuilder,
+          $$AssistantAgentGoalsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentGoal,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentGoalsTable,
+              AssistantAgentGoal
+            >,
+          ),
+          AssistantAgentGoal,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentGoalsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentGoalsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentGoalsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantAgentGoalsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentGoalsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> domain = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> objective = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> lastRunAt = const Value.absent(),
+                Value<DateTime?> nextRunAt = const Value.absent(),
+                Value<String?> completionCondition = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentGoalsCompanion(
+                id: id,
+                householdId: householdId,
+                domain: domain,
+                entityId: entityId,
+                activityId: activityId,
+                title: title,
+                objective: objective,
+                status: status,
+                priority: priority,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                lastRunAt: lastRunAt,
+                nextRunAt: nextRunAt,
+                completionCondition: completionCondition,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String domain,
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> activityId = const Value.absent(),
+                required String title,
+                required String objective,
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> lastRunAt = const Value.absent(),
+                Value<DateTime?> nextRunAt = const Value.absent(),
+                Value<String?> completionCondition = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentGoalsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                domain: domain,
+                entityId: entityId,
+                activityId: activityId,
+                title: title,
+                objective: objective,
+                status: status,
+                priority: priority,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                lastRunAt: lastRunAt,
+                nextRunAt: nextRunAt,
+                completionCondition: completionCondition,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentGoalsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentGoalsTable,
+      AssistantAgentGoal,
+      $$AssistantAgentGoalsTableFilterComposer,
+      $$AssistantAgentGoalsTableOrderingComposer,
+      $$AssistantAgentGoalsTableAnnotationComposer,
+      $$AssistantAgentGoalsTableCreateCompanionBuilder,
+      $$AssistantAgentGoalsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentGoal,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentGoalsTable,
+          AssistantAgentGoal
+        >,
+      ),
+      AssistantAgentGoal,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentTasksTableCreateCompanionBuilder =
+    AssistantAgentTasksCompanion Function({
+      required String id,
+      required String goalId,
+      required String householdId,
+      required String title,
+      Value<String?> objective,
+      Value<String?> capabilityId,
+      Value<String> parametersJson,
+      Value<String> status,
+      Value<int> priority,
+      Value<int> retryCount,
+      Value<int> maxRetries,
+      Value<DateTime?> dueAt,
+      Value<DateTime?> lastRunAt,
+      Value<DateTime?> nextRunAt,
+      Value<String?> lastError,
+      required DateTime createdAt,
+      required DateTime updatedAt,
+      Value<DateTime?> completedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentTasksTableUpdateCompanionBuilder =
+    AssistantAgentTasksCompanion Function({
+      Value<String> id,
+      Value<String> goalId,
+      Value<String> householdId,
+      Value<String> title,
+      Value<String?> objective,
+      Value<String?> capabilityId,
+      Value<String> parametersJson,
+      Value<String> status,
+      Value<int> priority,
+      Value<int> retryCount,
+      Value<int> maxRetries,
+      Value<DateTime?> dueAt,
+      Value<DateTime?> lastRunAt,
+      Value<DateTime?> nextRunAt,
+      Value<String?> lastError,
+      Value<DateTime> createdAt,
+      Value<DateTime> updatedAt,
+      Value<DateTime?> completedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentTasksTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTasksTable> {
+  $$AssistantAgentTasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parametersJson => $composableBuilder(
+    column: $table.parametersJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxRetries => $composableBuilder(
+    column: $table.maxRetries,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get dueAt => $composableBuilder(
+    column: $table.dueAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextRunAt => $composableBuilder(
+    column: $table.nextRunAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentTasksTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTasksTable> {
+  $$AssistantAgentTasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get objective => $composableBuilder(
+    column: $table.objective,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get parametersJson => $composableBuilder(
+    column: $table.parametersJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get priority => $composableBuilder(
+    column: $table.priority,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxRetries => $composableBuilder(
+    column: $table.maxRetries,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get dueAt => $composableBuilder(
+    column: $table.dueAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastRunAt => $composableBuilder(
+    column: $table.lastRunAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextRunAt => $composableBuilder(
+    column: $table.nextRunAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentTasksTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTasksTable> {
+  $$AssistantAgentTasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get goalId =>
+      $composableBuilder(column: $table.goalId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get objective =>
+      $composableBuilder(column: $table.objective, builder: (column) => column);
+
+  GeneratedColumn<String> get capabilityId => $composableBuilder(
+    column: $table.capabilityId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get parametersJson => $composableBuilder(
+    column: $table.parametersJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<int> get priority =>
+      $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<int> get retryCount => $composableBuilder(
+    column: $table.retryCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxRetries => $composableBuilder(
+    column: $table.maxRetries,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get dueAt =>
+      $composableBuilder(column: $table.dueAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastRunAt =>
+      $composableBuilder(column: $table.lastRunAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get nextRunAt =>
+      $composableBuilder(column: $table.nextRunAt, builder: (column) => column);
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get completedAt => $composableBuilder(
+    column: $table.completedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AssistantAgentTasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentTasksTable,
+          AssistantAgentTask,
+          $$AssistantAgentTasksTableFilterComposer,
+          $$AssistantAgentTasksTableOrderingComposer,
+          $$AssistantAgentTasksTableAnnotationComposer,
+          $$AssistantAgentTasksTableCreateCompanionBuilder,
+          $$AssistantAgentTasksTableUpdateCompanionBuilder,
+          (
+            AssistantAgentTask,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentTasksTable,
+              AssistantAgentTask
+            >,
+          ),
+          AssistantAgentTask,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentTasksTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentTasksTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentTasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AssistantAgentTasksTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentTasksTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> goalId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> objective = const Value.absent(),
+                Value<String?> capabilityId = const Value.absent(),
+                Value<String> parametersJson = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                Value<int> maxRetries = const Value.absent(),
+                Value<DateTime?> dueAt = const Value.absent(),
+                Value<DateTime?> lastRunAt = const Value.absent(),
+                Value<DateTime?> nextRunAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentTasksCompanion(
+                id: id,
+                goalId: goalId,
+                householdId: householdId,
+                title: title,
+                objective: objective,
+                capabilityId: capabilityId,
+                parametersJson: parametersJson,
+                status: status,
+                priority: priority,
+                retryCount: retryCount,
+                maxRetries: maxRetries,
+                dueAt: dueAt,
+                lastRunAt: lastRunAt,
+                nextRunAt: nextRunAt,
+                lastError: lastError,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String goalId,
+                required String householdId,
+                required String title,
+                Value<String?> objective = const Value.absent(),
+                Value<String?> capabilityId = const Value.absent(),
+                Value<String> parametersJson = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<int> retryCount = const Value.absent(),
+                Value<int> maxRetries = const Value.absent(),
+                Value<DateTime?> dueAt = const Value.absent(),
+                Value<DateTime?> lastRunAt = const Value.absent(),
+                Value<DateTime?> nextRunAt = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                required DateTime createdAt,
+                required DateTime updatedAt,
+                Value<DateTime?> completedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentTasksCompanion.insert(
+                id: id,
+                goalId: goalId,
+                householdId: householdId,
+                title: title,
+                objective: objective,
+                capabilityId: capabilityId,
+                parametersJson: parametersJson,
+                status: status,
+                priority: priority,
+                retryCount: retryCount,
+                maxRetries: maxRetries,
+                dueAt: dueAt,
+                lastRunAt: lastRunAt,
+                nextRunAt: nextRunAt,
+                lastError: lastError,
+                createdAt: createdAt,
+                updatedAt: updatedAt,
+                completedAt: completedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentTasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentTasksTable,
+      AssistantAgentTask,
+      $$AssistantAgentTasksTableFilterComposer,
+      $$AssistantAgentTasksTableOrderingComposer,
+      $$AssistantAgentTasksTableAnnotationComposer,
+      $$AssistantAgentTasksTableCreateCompanionBuilder,
+      $$AssistantAgentTasksTableUpdateCompanionBuilder,
+      (
+        AssistantAgentTask,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentTasksTable,
+          AssistantAgentTask
+        >,
+      ),
+      AssistantAgentTask,
+      PrefetchHooks Function()
+    >;
+typedef $$AssistantAgentTaskExecutionsTableCreateCompanionBuilder =
+    AssistantAgentTaskExecutionsCompanion Function({
+      required String id,
+      required String taskId,
+      required String goalId,
+      required String householdId,
+      Value<String?> runId,
+      required String status,
+      Value<String?> summary,
+      Value<String?> error,
+      required DateTime startedAt,
+      Value<DateTime?> finishedAt,
+      Value<int> rowid,
+    });
+typedef $$AssistantAgentTaskExecutionsTableUpdateCompanionBuilder =
+    AssistantAgentTaskExecutionsCompanion Function({
+      Value<String> id,
+      Value<String> taskId,
+      Value<String> goalId,
+      Value<String> householdId,
+      Value<String?> runId,
+      Value<String> status,
+      Value<String?> summary,
+      Value<String?> error,
+      Value<DateTime> startedAt,
+      Value<DateTime?> finishedAt,
+      Value<int> rowid,
+    });
+
+class $$AssistantAgentTaskExecutionsTableFilterComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTaskExecutionsTable> {
+  $$AssistantAgentTaskExecutionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AssistantAgentTaskExecutionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTaskExecutionsTable> {
+  $$AssistantAgentTaskExecutionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get taskId => $composableBuilder(
+    column: $table.taskId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get goalId => $composableBuilder(
+    column: $table.goalId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get runId => $composableBuilder(
+    column: $table.runId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get summary => $composableBuilder(
+    column: $table.summary,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get error => $composableBuilder(
+    column: $table.error,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AssistantAgentTaskExecutionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AssistantAgentTaskExecutionsTable> {
+  $$AssistantAgentTaskExecutionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get taskId =>
+      $composableBuilder(column: $table.taskId, builder: (column) => column);
+
+  GeneratedColumn<String> get goalId =>
+      $composableBuilder(column: $table.goalId, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get runId =>
+      $composableBuilder(column: $table.runId, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get summary =>
+      $composableBuilder(column: $table.summary, builder: (column) => column);
+
+  GeneratedColumn<String> get error =>
+      $composableBuilder(column: $table.error, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get finishedAt => $composableBuilder(
+    column: $table.finishedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$AssistantAgentTaskExecutionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AssistantAgentTaskExecutionsTable,
+          AssistantAgentTaskExecution,
+          $$AssistantAgentTaskExecutionsTableFilterComposer,
+          $$AssistantAgentTaskExecutionsTableOrderingComposer,
+          $$AssistantAgentTaskExecutionsTableAnnotationComposer,
+          $$AssistantAgentTaskExecutionsTableCreateCompanionBuilder,
+          $$AssistantAgentTaskExecutionsTableUpdateCompanionBuilder,
+          (
+            AssistantAgentTaskExecution,
+            BaseReferences<
+              _$AppDatabase,
+              $AssistantAgentTaskExecutionsTable,
+              AssistantAgentTaskExecution
+            >,
+          ),
+          AssistantAgentTaskExecution,
+          PrefetchHooks Function()
+        > {
+  $$AssistantAgentTaskExecutionsTableTableManager(
+    _$AppDatabase db,
+    $AssistantAgentTaskExecutionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AssistantAgentTaskExecutionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$AssistantAgentTaskExecutionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$AssistantAgentTaskExecutionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> taskId = const Value.absent(),
+                Value<String> goalId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String?> runId = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> summary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<DateTime?> finishedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentTaskExecutionsCompanion(
+                id: id,
+                taskId: taskId,
+                goalId: goalId,
+                householdId: householdId,
+                runId: runId,
+                status: status,
+                summary: summary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String taskId,
+                required String goalId,
+                required String householdId,
+                Value<String?> runId = const Value.absent(),
+                required String status,
+                Value<String?> summary = const Value.absent(),
+                Value<String?> error = const Value.absent(),
+                required DateTime startedAt,
+                Value<DateTime?> finishedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AssistantAgentTaskExecutionsCompanion.insert(
+                id: id,
+                taskId: taskId,
+                goalId: goalId,
+                householdId: householdId,
+                runId: runId,
+                status: status,
+                summary: summary,
+                error: error,
+                startedAt: startedAt,
+                finishedAt: finishedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AssistantAgentTaskExecutionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AssistantAgentTaskExecutionsTable,
+      AssistantAgentTaskExecution,
+      $$AssistantAgentTaskExecutionsTableFilterComposer,
+      $$AssistantAgentTaskExecutionsTableOrderingComposer,
+      $$AssistantAgentTaskExecutionsTableAnnotationComposer,
+      $$AssistantAgentTaskExecutionsTableCreateCompanionBuilder,
+      $$AssistantAgentTaskExecutionsTableUpdateCompanionBuilder,
+      (
+        AssistantAgentTaskExecution,
+        BaseReferences<
+          _$AppDatabase,
+          $AssistantAgentTaskExecutionsTable,
+          AssistantAgentTaskExecution
+        >,
+      ),
+      AssistantAgentTaskExecution,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -38133,4 +46275,29 @@ class $AppDatabaseManager {
       $$UserPreferencesTableTableManager(_db, _db.userPreferences);
   $$InteractionPatternsTableTableManager get interactionPatterns =>
       $$InteractionPatternsTableTableManager(_db, _db.interactionPatterns);
+  $$AssistantAgentRunsTableTableManager get assistantAgentRuns =>
+      $$AssistantAgentRunsTableTableManager(_db, _db.assistantAgentRuns);
+  $$AssistantAgentEventsTableTableManager get assistantAgentEvents =>
+      $$AssistantAgentEventsTableTableManager(_db, _db.assistantAgentEvents);
+  $$AssistantAgentApprovalsTableTableManager get assistantAgentApprovals =>
+      $$AssistantAgentApprovalsTableTableManager(
+        _db,
+        _db.assistantAgentApprovals,
+      );
+  $$AssistantAgentToolExecutionsTableTableManager
+  get assistantAgentToolExecutions =>
+      $$AssistantAgentToolExecutionsTableTableManager(
+        _db,
+        _db.assistantAgentToolExecutions,
+      );
+  $$AssistantAgentGoalsTableTableManager get assistantAgentGoals =>
+      $$AssistantAgentGoalsTableTableManager(_db, _db.assistantAgentGoals);
+  $$AssistantAgentTasksTableTableManager get assistantAgentTasks =>
+      $$AssistantAgentTasksTableTableManager(_db, _db.assistantAgentTasks);
+  $$AssistantAgentTaskExecutionsTableTableManager
+  get assistantAgentTaskExecutions =>
+      $$AssistantAgentTaskExecutionsTableTableManager(
+        _db,
+        _db.assistantAgentTaskExecutions,
+      );
 }
