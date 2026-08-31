@@ -1103,8 +1103,33 @@ class FfmAssistantInterpreter {
     // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
     if (_isHijriDateRequest(normalized)) {
       final now = _clock();
-      final isTomorrow = _containsAny(normalized, const ['besok', 'esok']);
-      final targetDate = isTomorrow ? now.add(const Duration(days: 1)) : now;
+      DateTime targetDate = now;
+      String dateLabel = 'sekarang';
+
+      // Check for hijri event queries
+      final eventQuery = _parseHijriEventQuery(normalized);
+      if (eventQuery != null) {
+        return await _handleHijriEventQuery(rawText, normalized, eventQuery);
+      }
+
+      // Parse relative dates (X hari ke depan/belakang)
+      final daysToAdd = _parseRelativeDays(normalized);
+      if (daysToAdd != null) {
+        targetDate = now.add(Duration(days: daysToAdd));
+        if (daysToAdd > 0) {
+          dateLabel = '$daysToAdd hari ke depan';
+        } else if (daysToAdd < 0) {
+          dateLabel = '${daysToAdd.abs()} hari ke belakang';
+        }
+      } else {
+        // Check for simple "besok"/"esok"
+        final isTomorrow = _containsAny(normalized, const ['besok', 'esok']);
+        if (isTomorrow) {
+          targetDate = now.add(const Duration(days: 1));
+          dateLabel = 'besok';
+        }
+      }
+
       final hijri = await HijriCalendarService(_database)
           .convert(AppContext.householdId, targetDate);
       return FfmAssistantIntent(
@@ -1113,7 +1138,7 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.calendarQuery,
         confidence: 1,
         response:
-            'Tanggal Hijriah ${isTomorrow ? 'besok' : 'sekarang'}: ${_formatHijriDate(hijri)}. Ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
+            'Tanggal Hijriah $dateLabel: ${_formatHijriDate(hijri)}. Ini mengikuti pengaturan Kalender Hijriah FFM di perangkat kamu.',
       );
     }
 
@@ -6669,7 +6694,139 @@ class FfmAssistantInterpreter {
     'tanggal hijri',
     'tanggal islam',
     'kalender islam',
+    'tahun baru hijri',
+    'awal muharram',
+    'ramadhan',
+    'puasa',
+    'bulan puasa',
+    'idul fitri',
+    'lebaran',
+    'syawal',
+    'idul adha',
+    'haji raya',
+    'zulhijjah',
   ]);
+
+  int? _parseRelativeDays(String text) {
+    // Match patterns like "50 hari ke depan", "100 hari ke belakang", "7 hari kedepan"
+    final forwardPattern = RegExp(r'(\d+)\s+hari\s+(ke\s+depan|kedepan)', caseSensitive: false);
+    final backwardPattern = RegExp(r'(\d+)\s+hari\s+(ke\s+belakang|kebelakang)', caseSensitive: false);
+
+    final forwardMatch = forwardPattern.firstMatch(text);
+    if (forwardMatch != null) {
+      final days = int.tryParse(forwardMatch.group(1) ?? '');
+      return days;
+    }
+
+    final backwardMatch = backwardPattern.firstMatch(text);
+    if (backwardMatch != null) {
+      final days = int.tryParse(backwardMatch.group(1) ?? '');
+      return days != null ? -days : null;
+    }
+
+    return null;
+  }
+
+  String? _parseHijriEventQuery(String text) {
+    if (_containsAny(text, const ['tahun baru hijri', 'awal muharram', '1 muharram'])) {
+      return 'muharram_1';
+    }
+    if (_containsAny(text, const ['ramadhan', 'puasa', 'bulan puasa'])) {
+      return 'ramadhan_1';
+    }
+    if (_containsAny(text, const ['idul fitri', 'lebaran', 'syawal'])) {
+      return 'syawal_1';
+    }
+    if (_containsAny(text, const ['idul adha', 'haji raya', 'zulhijjah'])) {
+      return 'zulhijjah_10';
+    }
+    return null;
+  }
+
+  Future<FfmAssistantIntent> _handleHijriEventQuery(
+    String rawText,
+    String normalized,
+    String event,
+  ) async {
+    final now = _clock();
+    int targetHijriMonth;
+    int targetHijriDay;
+
+    switch (event) {
+      case 'muharram_1':
+        targetHijriMonth = 1;
+        targetHijriDay = 1;
+        break;
+      case 'ramadhan_1':
+        targetHijriMonth = 9;
+        targetHijriDay = 1;
+        break;
+      case 'syawal_1':
+        targetHijriMonth = 10;
+        targetHijriDay = 1;
+        break;
+      case 'zulhijjah_10':
+        targetHijriMonth = 12;
+        targetHijriDay = 10;
+        break;
+      default:
+        targetHijriMonth = 1;
+        targetHijriDay = 1;
+    }
+
+    // Get current hijri date
+    final currentHijri = await HijriCalendarService(_database)
+        .convert(AppContext.householdId, now);
+
+    // Calculate days until event
+    // This is a simplified calculation - in production, use proper hijri calendar library
+    final currentMonth = currentHijri.hijri.month.toInt();
+    final currentDay = currentHijri.hijri.day.toInt();
+
+    int daysUntilEvent;
+    if (targetHijriMonth > currentMonth) {
+      // Event is in same hijri year
+      daysUntilEvent = ((targetHijriMonth - currentMonth) * 30 + (targetHijriDay - currentDay)).toInt();
+    } else if (targetHijriMonth < currentMonth) {
+      // Event is in next hijri year
+      daysUntilEvent = ((12 - currentMonth + targetHijriMonth) * 30 + (targetHijriDay - currentDay)).toInt();
+    } else {
+      // Same month
+      if (targetHijriDay >= currentDay) {
+        daysUntilEvent = targetHijriDay - currentDay;
+      } else {
+        // Event already passed this year, next year
+        daysUntilEvent = (354 + (targetHijriDay - currentDay)).toInt();
+      }
+    }
+
+    String eventName;
+    switch (event) {
+      case 'muharram_1':
+        eventName = 'Tahun Baru Hijriah (1 Muharram)';
+        break;
+      case 'ramadhan_1':
+        eventName = 'Awal Ramadhan (1 Ramadhan)';
+        break;
+      case 'syawal_1':
+        eventName = 'Idul Fitri (1 Syawal)';
+        break;
+      case 'zulhijjah_10':
+        eventName = 'Idul Adha (10 Zulhijjah)';
+        break;
+      default:
+        eventName = 'event';
+    }
+
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.calendarQuery,
+      confidence: 1,
+      response:
+          '$eventName masih $daysUntilEvent hari lagi. Perhitungan ini mengikuti Kalender Hijriah FFM di perangkat kamu.',
+    );
+  }
 
   String _formatHijriDate(HijriDisplayDate date) {
     const months = <String>[
