@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
@@ -18,6 +19,7 @@ import '../../../activity/domain/activity_voice.dart';
 import '../../../activity/domain/services/activity_application_service.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
 import '../../../activity/presentation/widgets/activity_live_bar.dart';
+import '../../../settings/data/account_repository.dart';
 import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
@@ -2154,6 +2156,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return 'draft diperbarui.';
   }
 
+  Future<List<String>> _loadAccountNames() async {
+    try {
+      final rows = await AccountRepository(
+        getIt<AppDatabase>(),
+        AuditLogger(getIt<AppDatabase>()),
+      ).readActive(AppContext.householdId);
+      return rows.map((row) => row.name).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<void> _editActiveDraft(FfmAssistantIntent intent) async {
     final review = widget.session.activeDraftReview;
     if (review == null) return;
@@ -2167,11 +2181,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       );
       return;
     }
+    final accounts = await _loadAccountNames();
+    if (!mounted) return;
     final nextDraft = await showDialog<FfmAssistantDraft>(
       context: context,
       builder: (_) => FfmAssistantDraftEditDialog(
         draft: review.draft,
         feedbackService: _personalMemoryService.feedbackService,
+        accounts: accounts,
       ),
     );
     if (nextDraft == null || !mounted) return;

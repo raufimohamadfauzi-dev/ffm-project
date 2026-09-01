@@ -12,10 +12,14 @@ class FfmAssistantDraftEditDialog extends StatefulWidget {
     super.key,
     required this.draft,
     required this.feedbackService,
+    this.accounts = const [],
   });
 
   final FfmAssistantDraft draft;
   final FfmAssistantDraftFeedbackService feedbackService;
+
+  /// Daftar nama rekening aktif (Data Utama) untuk dropdown sumber/tujuan.
+  final List<String> accounts;
 
   @override
   State<FfmAssistantDraftEditDialog> createState() =>
@@ -26,13 +30,13 @@ class _FfmAssistantDraftEditDialogState
     extends State<FfmAssistantDraftEditDialog> {
   late final TextEditingController _amountController;
   late final TextEditingController _titleController;
-  late final TextEditingController _fromController;
-  late final TextEditingController _toController;
   late final TextEditingController _categoryController;
   late final TextEditingController _goalController;
   late final TextEditingController _noteController;
   late final TextEditingController _incomeSourceController;
   late final TextEditingController _tagsController;
+  late String? _fromAccount;
+  late String? _toAccount;
   late ActivityMode _activityMode;
 
   @override
@@ -42,12 +46,6 @@ class _FfmAssistantDraftEditDialogState
       text: widget.draft.amount?.toString() ?? '',
     );
     _titleController = TextEditingController(text: widget.draft.title ?? '');
-    _fromController = TextEditingController(
-      text: widget.draft.fromAccountName ?? '',
-    );
-    _toController = TextEditingController(
-      text: widget.draft.toAccountName ?? '',
-    );
     _categoryController = TextEditingController(
       text: widget.draft.categoryName ?? '',
     );
@@ -59,6 +57,8 @@ class _FfmAssistantDraftEditDialogState
     _tagsController = TextEditingController(
       text: widget.draft.formValues['tags'] ?? '',
     );
+    _fromAccount = widget.draft.fromAccountName?.trim();
+    _toAccount = widget.draft.toAccountName?.trim();
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -71,8 +71,6 @@ class _FfmAssistantDraftEditDialogState
   void dispose() {
     _amountController.dispose();
     _titleController.dispose();
-    _fromController.dispose();
-    _toController.dispose();
     _categoryController.dispose();
     _goalController.dispose();
     _noteController.dispose();
@@ -101,8 +99,10 @@ class _FfmAssistantDraftEditDialogState
       amount: amount,
       title: title,
       partyName: widget.draft.partyName,
-      fromAccountName: _textOrNull(_fromController),
-      toAccountName: _textOrNull(_toController),
+      fromAccountName:
+          _fromAccount?.trim().isNotEmpty == true ? _fromAccount!.trim() : null,
+      toAccountName:
+          _toAccount?.trim().isNotEmpty == true ? _toAccount!.trim() : null,
       categoryName: _textOrNull(_categoryController),
       adminFee: widget.draft.adminFee,
       goalName: goalName,
@@ -151,6 +151,48 @@ class _FfmAssistantDraftEditDialogState
   bool get _isActivityDraft =>
       widget.draft.kind == FfmAssistantDraftKind.activity ||
       widget.draft.kind == FfmAssistantDraftKind.activityEdit;
+
+  /// Menyusun daftar opsi rekening untuk dropdown. Nilai draft yang belum ada
+  /// di Data Utama tetap disertakan supaya tidak hilang saat koreksi.
+  List<String> _accountOptions(String? current, List<String> source) {
+    final result = <String>[];
+    for (final name in source) {
+      if (!result.contains(name)) result.add(name);
+    }
+    if (current != null &&
+        current.trim().isNotEmpty &&
+        !result.contains(current)) {
+      result.add(current);
+    }
+    return result;
+  }
+
+  Widget _accountField({
+    required String? initial,
+    required ValueChanged<String?> onChanged,
+    required String label,
+    required String hint,
+  }) {
+    final options = _accountOptions(initial, widget.accounts);
+    return DropdownButtonFormField<String?>(
+      initialValue: initial?.trim().isNotEmpty == true ? initial!.trim() : null,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+      ),
+      items: [
+        const DropdownMenuItem<String?>(
+          value: null,
+          child: Text('Belum terlacak'),
+        ),
+        ...options.map(
+          (name) => DropdownMenuItem<String?>(value: name, child: Text(name)),
+        ),
+      ],
+      onChanged: (value) => onChanged(value),
+    );
+  }
 
   bool get _showsAmount =>
       _isTransaction ||
@@ -274,26 +316,26 @@ class _FfmAssistantDraftEditDialogState
           if (widget.draft.kind == FfmAssistantDraftKind.expense ||
               widget.draft.kind == FfmAssistantDraftKind.transfer ||
               widget.draft.kind == FfmAssistantDraftKind.goalDeposit)
-            TextField(
-              controller: _fromController,
-              decoration: InputDecoration(
-                labelText: widget.draft.kind == FfmAssistantDraftKind.goalDeposit
-                    ? 'Rekening sumber dana (opsional)'
-                    : 'Rekening asal',
-                hintText: 'Contoh: BCA, Tunai, ShopeePay',
-              ),
+            _accountField(
+              initial: _fromAccount,
+              onChanged: (value) => setState(() => _fromAccount = value),
+              label:
+                  widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+                  ? 'Rekening sumber dana'
+                  : 'Rekening asal',
+              hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
               widget.draft.kind == FfmAssistantDraftKind.transfer ||
               widget.draft.kind == FfmAssistantDraftKind.goalUsage)
-            TextField(
-              controller: _toController,
-              decoration: InputDecoration(
-                labelText: widget.draft.kind == FfmAssistantDraftKind.goalUsage
-                    ? 'Rekening tujuan dana (opsional)'
-                    : 'Rekening tujuan',
-                hintText: 'Contoh: BCA, Tunai, ShopeePay',
-              ),
+            _accountField(
+              initial: _toAccount,
+              onChanged: (value) => setState(() => _toAccount = value),
+              label:
+                  widget.draft.kind == FfmAssistantDraftKind.goalUsage
+                  ? 'Rekening tujuan dana'
+                  : 'Rekening tujuan',
+              hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.activity) ...[
             const SizedBox(height: 8),

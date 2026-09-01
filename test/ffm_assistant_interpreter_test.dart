@@ -687,6 +687,13 @@ void main() {
     expect(await database.select(database.activitySessions).get(), isEmpty);
   });
 
+  test('pindah ke halaman tanpa kata menu tetap membuka tujuan', () async {
+    final intent = await interpreter.interpret('Pindah ke Data Utama');
+
+    expect(intent.type, FfmAssistantIntentType.openPage);
+    expect(intent.destination, FfmAssistantDestination.masterData);
+  });
+
   test(
     'analisa minggu ini hanya memakai nominal transaksi yang tersimpan',
     () async {

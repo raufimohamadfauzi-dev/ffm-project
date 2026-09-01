@@ -73,7 +73,6 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.goalDeposit:
-      case FfmAssistantDraftKind.goalUsage:
         if (_isBlank(draft.goalName)) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -84,6 +83,17 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+        if (_isBlank(draft.fromAccountName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_source_untracked',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'rekening sumber',
+              message: 'Rekening sumber belum dipilih. Sebut nama rekening yang ada di Data Utama, atau pilih di dropdown Rekening sumber dana.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.goalUsage:
       case FfmAssistantDraftKind.goal:
         if (_isBlank(draft.title)) {
           issues.add(

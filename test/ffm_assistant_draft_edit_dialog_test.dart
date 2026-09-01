@@ -83,6 +83,7 @@ void main() {
                 builder: (_) => FfmAssistantDraftEditDialog(
                   draft: draft,
                   feedbackService: FfmAssistantDraftFeedbackService(),
+                  accounts: const ['Tunai', 'BCA', 'ShopeePay'],
                 ),
               );
             },
@@ -99,12 +100,15 @@ void main() {
     expect(find.text('Rekening asal'), findsOneWidget);
     expect(find.text('Rekening tujuan'), findsOneWidget);
     expect(find.text('Nominal (Rp)'), findsOneWidget);
-    expect(find.textContaining('Contoh: BCA, Tunai'), findsWidgets);
+    expect(find.text('BCA'), findsOneWidget);
+    expect(find.text('Tunai'), findsOneWidget);
 
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Rekening tujuan'),
-      'ShopeePay',
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String?>, 'Rekening tujuan'),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('ShopeePay').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Pakai perubahan'));
     await tester.pumpAndSettle();
 
@@ -150,7 +154,7 @@ void main() {
     expect(find.text('Jenis draft: Setor Target'), findsOneWidget);
     expect(find.text('Target keuangan'), findsOneWidget);
     expect(find.text('Nominal setor (Rp)'), findsOneWidget);
-    expect(find.text('Rekening sumber dana (opsional)'), findsOneWidget);
+    expect(find.text('Rekening sumber dana'), findsOneWidget);
     // Nama target baru dipakai di judul sehingga tidak diminta field terpisah
     expect(find.text('Rekening tujuan'), findsNothing);
 
@@ -164,5 +168,6 @@ void main() {
     expect(result?.kind, FfmAssistantDraftKind.goalDeposit);
     expect(result?.goalName, 'Dana Darurat');
     expect(result?.title, 'Setor Target Dana Darurat');
+    expect(result?.fromAccountName, 'BCA');
   });
 }

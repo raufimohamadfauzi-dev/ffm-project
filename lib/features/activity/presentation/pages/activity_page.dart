@@ -34,8 +34,8 @@ class ActivityPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.activity,
-      child: BlocProvider(
-        create: (_) => getIt<ActivityBloc>()..load(),
+      child: BlocProvider.value(
+        value: getIt<ActivityBloc>()..load(),
         child: _ActivityView(
           initialTitle: initialTitle,
           initialCategory: initialCategory,
