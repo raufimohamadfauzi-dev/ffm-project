@@ -7,6 +7,7 @@ import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_financial_snapshot_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/hijri/domain/hijri_calendar_service.dart';
 
 class _FakeConfig extends SupabaseConfig {
   @override
@@ -151,11 +152,22 @@ void main() {
     expect(gemini.systemInstruction, isNot(contains('987654')));
     expect(gemini.systemInstruction, isNot(contains('Rahasia keluarga')));
 
-    final harvestContext = await FfmAssistantFinancialSnapshotService(database)
-        .buildHarvestContext(householdId: AppContext.householdId);
+    final harvestContext = await FfmAssistantFinancialSnapshotService(
+      database,
+      HijriCalendarService(database),
+    ).buildHarvestContext(householdId: AppContext.householdId);
     expect(harvestContext, contains('Fakta panen SQL authoritative'));
     expect(harvestContext, contains('Pepaya'));
     expect(harvestContext, contains('270000'));
-    expect(harvestContext, contains('Pak Budi'));
+    expect(harvestContext, isNot(contains('Pak Budi')));
+    final harvestWithBuyer =
+        await FfmAssistantFinancialSnapshotService(
+          database,
+          HijriCalendarService(database),
+        ).buildHarvestContext(
+              householdId: AppContext.householdId,
+              includeBuyer: true,
+            );
+    expect(harvestWithBuyer, contains('Pak Budi'));
   });
 }

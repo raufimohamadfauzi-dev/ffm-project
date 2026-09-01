@@ -19,18 +19,36 @@ class FfmAssistantReasoningEvidenceScope {
 abstract final class FfmAssistantReasoningEvidencePolicy {
   static FfmAssistantReasoningEvidenceScope forRequest(String request) {
     final normalized = request.toLowerCase();
+    final needsHelp = RegExp(
+      r'\b(bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b',
+    ).hasMatch(normalized);
+    // Help tidak butuh evidence finansial/master.
+    if (needsHelp && normalized.length < 60) {
+      return const FfmAssistantReasoningEvidenceScope(
+        includeFinancialSummary: false,
+        includeMasterData: false,
+        includeRecentTransactions: false,
+      );
+    }
     final needsFinancial = RegExp(
-      r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening)\b',
+      r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap)\b',
     ).hasMatch(normalized);
     final needsMasterData = RegExp(
-      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan)\b',
+      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget)\b',
     ).hasMatch(normalized);
     final needsRecentTransactions = RegExp(
       r'\b(terakhir|terbaru|riwayat|minggu ini|bulan ini|hari ini|kemarin)\b',
     ).hasMatch(normalized);
+    final needsBudget = RegExp(r'\b(anggaran|budget)\b').hasMatch(normalized);
+    final needsCategories = RegExp(r'\b(kategori)\b').hasMatch(normalized);
+    final needsGoals = RegExp(r'\b(target|goal|tujuan)\b').hasMatch(normalized);
+    final needsAccounts = RegExp(r'\b(rekening|akun)\b').hasMatch(normalized);
+    // Jika spesifik akun/budget/kategori/goal, tetap butuh financial+master minimal
+    final specificMaster =
+        needsBudget || needsCategories || needsGoals || needsAccounts;
     return FfmAssistantReasoningEvidenceScope(
-      includeFinancialSummary: needsFinancial,
-      includeMasterData: needsMasterData,
+      includeFinancialSummary: needsFinancial || specificMaster,
+      includeMasterData: needsMasterData || specificMaster,
       includeRecentTransactions: needsRecentTransactions && needsFinancial,
     );
   }
@@ -135,9 +153,7 @@ class FfmAssistantReasoningContext {
     );
   }
 
-  FfmAssistantReasoningContext withVerifiedFacts(
-    FfmVerifiedFacts facts,
-  ) {
+  FfmAssistantReasoningContext withVerifiedFacts(FfmVerifiedFacts facts) {
     return FfmAssistantReasoningContext(
       request: request,
       capturedAt: capturedAt,
@@ -155,40 +171,42 @@ class FfmAssistantReasoningContext {
     );
   }
 
-  FfmAssistantReasoningContext withAnalysisResults(
-    dynamic analysisData,
-  ) {
+  FfmAssistantReasoningContext withAnalysisResults(dynamic analysisData) {
     String analysisText = '';
     if (analysisData is FfmFrequencyAnalysis) {
       final topCats = analysisData.categoryFrequency.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
       final topMers = analysisData.merchantFrequency.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      analysisText = 'Frequency Analysis - ${analysisData.period}: '
+      analysisText =
+          'Frequency Analysis - ${analysisData.period}: '
           '${analysisData.totalTransactions} transactions. '
           'Most frequent category: ${analysisData.mostFrequentCategory}. '
           'Most frequent merchant: ${analysisData.mostFrequentMerchant}. '
           'Top categories: ${topCats.take(3).map((c) => '${c.key} (${c.value})').join(', ')}. '
           'Top merchants: ${topMers.take(3).map((m) => '${m.key} (${m.value})').join(', ')}.';
     } else if (analysisData is FfmTrendAnalysis) {
-      analysisText = 'Trend Analysis - ${analysisData.period}: '
+      analysisText =
+          'Trend Analysis - ${analysisData.period}: '
           'Type: ${analysisData.type.name}, '
           'Trend: ${analysisData.trendDirection}. '
           'Monthly data points: ${analysisData.monthlyData.length}.';
     } else if (analysisData is FfmPatternAnalysis) {
       final patterns = analysisData.categoryPatterns.entries.take(3);
-      analysisText = 'Pattern Analysis - ${analysisData.period}: '
+      analysisText =
+          'Pattern Analysis - ${analysisData.period}: '
           'Patterns found: ${patterns.length} categories. '
           'Categories: ${patterns.map((p) => '${p.key} (avg: ${p.value.average})').join(', ')}.';
     } else if (analysisData is FfmPeriodAnalysis) {
-      analysisText = 'Period Analysis - ${analysisData.periodLabel}: '
+      analysisText =
+          'Period Analysis - ${analysisData.periodLabel}: '
           '${analysisData.transactionCount} transactions, '
           'Total income: ${analysisData.income.toStringAsFixed(0)}, '
           'Total expense: ${analysisData.expense.toStringAsFixed(0)}, '
           'Net cashflow: ${analysisData.netCashflow.toStringAsFixed(0)}. '
           'Top category: ${analysisData.topCategory}.';
     }
-    
+
     return FfmAssistantReasoningContext(
       request: request,
       capturedAt: capturedAt,
@@ -229,7 +247,8 @@ class FfmAssistantReasoningContext {
       activeFilters: activeFilters ?? this.activeFilters,
       capabilityIds: capabilityIds ?? this.capabilityIds,
       approvedUserContext: approvedUserContext ?? this.approvedUserContext,
-      personalizationContext: personalizationContext ?? this.personalizationContext,
+      personalizationContext:
+          personalizationContext ?? this.personalizationContext,
       modelReady: modelReady ?? this.modelReady,
       previousStepResults: previousStepResults ?? this.previousStepResults,
       recentTransactions: recentTransactions ?? this.recentTransactions,

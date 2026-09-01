@@ -59,6 +59,7 @@ flutter:
   assets:
     - assets/fonts/DejaVuSans.ttf
     - assets/fonts/DejaVuSans-Bold.ttf
+    - assets/branding/Logo_FFM.png
 hooks:
   user_defines:
     sqlite3:

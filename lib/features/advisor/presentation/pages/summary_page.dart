@@ -309,12 +309,27 @@ class _SummaryContent extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           sliver: SliverList.list(
             children: [
-              Text(
-                data.householdName == null
-                    ? 'Hai, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.'
-                    : 'Hai ${data.householdName}, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.',
-                style: Theme.of(context).textTheme.bodyLarge
-                    ?.copyWith(color: scheme.onSurfaceVariant),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.asset(
+                      'assets/branding/Logo_FFM.png',
+                      width: 36,
+                      height: 36,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      data.householdName == null
+                          ? 'Hai, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.'
+                          : 'Hai ${data.householdName}, selamat datang di Family Finance Manager (FFM). Yuk lihat kondisi uang keluarga hari ini.',
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               _HijriDateSummaryCard(date: data.hijriToday),

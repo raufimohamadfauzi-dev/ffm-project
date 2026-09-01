@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_interpreter.dart';
@@ -11,6 +13,7 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../../settings/data/category_repository.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../data/services/activity_speech_service.dart';
+import '../../domain/activity_category_resolution.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
@@ -60,8 +63,7 @@ class _ActivityView extends StatefulWidget {
 
 class _ActivityViewState extends State<_ActivityView>
     with WidgetsBindingObserver {
-  Timer? _ticker;
-  String _typeFilter = 'Semua';
+  String? _categoryFilterId;
   String _modeFilter = 'Semua mode';
   final _searchController = TextEditingController();
   String _searchQuery = '';
@@ -76,6 +78,8 @@ class _ActivityViewState extends State<_ActivityView>
   String _voiceStatus = 'Siap bicara';
   bool _voiceInitialized = false;
   bool _processingFinalVoice = false;
+  List<String> _voiceCategories = const [];
+  Map<String, String> _activityCategoryIds = const {};
 
   // Mini conversation state untuk multi-turn voice
   _VoiceConversation? _voiceConversation;
@@ -84,11 +88,7 @@ class _ActivityViewState extends State<_ActivityView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final activityState = context.read<ActivityBloc>().state;
-      if (activityState.activeSessions.isNotEmpty) setState(() {});
-    });
+    _loadVoiceCategories();
     if (widget.initialTitle?.trim().isNotEmpty == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -102,6 +102,25 @@ class _ActivityViewState extends State<_ActivityView>
     }
   }
 
+  Future<void> _loadVoiceCategories() async {
+    try {
+      final categories = await getIt<CategoryRepository>().readActive(
+        AppContext.householdId,
+        type: 'activity',
+      );
+      if (mounted) {
+        setState(() {
+          _voiceCategories = categories.map((item) => item.name).toList();
+          _activityCategoryIds = {
+            for (final category in categories) category.name: category.id,
+          };
+        });
+      }
+    } catch (_) {
+      // The voice form retains its fallback categories when master data is unavailable.
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && mounted) {
@@ -112,8 +131,9 @@ class _ActivityViewState extends State<_ActivityView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ticker?.cancel();
     _searchController.dispose();
+    _speechService.stop();
+    _speechService.stopSpeaking();
     super.dispose();
   }
 
@@ -280,6 +300,7 @@ class _ActivityViewState extends State<_ActivityView>
     await context.read<ActivityBloc>().startSession(
       title: result.title,
       category: result.category,
+      categoryId: result.categoryId,
       kind: result.kind,
       mode: result.mode,
       notes: result.notes,
@@ -310,6 +331,7 @@ class _ActivityViewState extends State<_ActivityView>
       await _speechService.stop();
     }
     await _speechService.stopSpeaking();
+    if (!await _showVoiceOnboardingIfNeeded()) return;
     setState(() {
       _voiceError = null;
       _voiceStatus = 'Menyiapkan mikrofon...';
@@ -356,6 +378,62 @@ class _ActivityViewState extends State<_ActivityView>
     );
   }
 
+  Future<bool> _showVoiceOnboardingIfNeeded() async {
+    const key = 'voice_activity_onboarding_seen';
+    final preferences = await SharedPreferences.getInstance();
+    if (preferences.getBool(key) == true || !mounted) return true;
+    final accepted = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Catat aktivitas dengan suara',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bicara dengan bahasa natural, misalnya “mulai memupuk timun”. '
+                'Kamu juga bisa membetulkan kategori, waktu, atau catatan. '
+                'Tidak ada data yang disimpan sebelum kamu menekan Konfirmasi.',
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Contoh: “kategorinya pertanian”, “ganti waktunya jam 7”, atau “sudah benar”.',
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Nanti saja'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Mengerti'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (accepted != true) return false;
+    await preferences.setBool(key, true);
+    return mounted;
+  }
+
   Future<void> _stopVoiceCapture() async {
     await _speechService.stop();
     if (!mounted) return;
@@ -372,20 +450,22 @@ class _ActivityViewState extends State<_ActivityView>
     try {
       await _speechService.stop();
       if (!mounted) return;
-      _previewVoice(transcript.trim());
+      await _previewVoice(transcript.trim());
     } finally {
       _processingFinalVoice = false;
     }
   }
 
-  void _previewVoice(String transcript) {
+  Future<void> _previewVoice(String transcript) async {
     final state = context.read<ActivityBloc>().state;
 
     // Jika sedang dalam multi-turn conversation, handle di sini
     if (_voiceConversation != null) {
-      _handleConversationResponse(transcript);
+      await _handleConversationResponse(transcript);
       return;
     }
+
+    if (await _interpretVoiceWithAssistant(transcript, state)) return;
 
     final parsed = _voiceParser.parse(
       transcript,
@@ -393,7 +473,7 @@ class _ActivityViewState extends State<_ActivityView>
     );
     if (parsed.type == ActivityVoiceIntentType.confirm &&
         _voiceIntent?.canConfirm == true) {
-      _confirmVoice();
+      await _confirmVoice();
       return;
     }
     if (parsed.type == ActivityVoiceIntentType.confirm) {
@@ -409,20 +489,20 @@ class _ActivityViewState extends State<_ActivityView>
       return;
     }
     if (parsed.type == ActivityVoiceIntentType.cancel) {
-      _cancelVoice();
+      await _cancelVoice();
       return;
     }
 
     // Jika parser lokal tidak mengenali (unknown), coba fallback ke Gemini
     if (parsed.type == ActivityVoiceIntentType.unknown) {
-      _fallbackToGemini(transcript);
+      await _fallbackToGemini(transcript);
       return;
     }
 
     // Jika start dan belum ada category, mulai multi-turn conversation
     if (parsed.type == ActivityVoiceIntentType.start &&
         parsed.targetTitle != null) {
-      _startConversation(parsed.targetTitle!);
+      await _startConversation(parsed.targetTitle!);
       return;
     }
 
@@ -442,39 +522,121 @@ class _ActivityViewState extends State<_ActivityView>
       _voiceError = null;
       _voiceStatus = 'Cek dulu hasilnya sebelum disimpan';
     });
-    context.read<ActivityBloc>().recordVoiceIntent(
+    if (!mounted) return;
+    await context.read<ActivityBloc>().recordVoiceIntent(
       intent,
       status: ActivityVoiceStatus.preview,
     );
-    _speakVoicePreview(intent);
+    await _speakVoicePreview(intent);
   }
 
-  void _startConversation(String title) async {
-    _voiceConversation = _VoiceConversation(title: title, category: 'Lainnya');
+  Future<bool> _interpretVoiceWithAssistant(
+    String transcript,
+    ActivityState state,
+  ) async {
+    try {
+      final interpretation = await _interpreter.interpret(
+        transcript,
+        currentDestination: FfmAssistantDestination.activity,
+        activitySnapshot: ActivityLiveSnapshot(
+          activeSessions: state.activeSessions,
+        ),
+      );
+      final proposal = interpretation.draft;
+      if (proposal?.kind != FfmAssistantDraftKind.activity ||
+          proposal?.title?.trim().isEmpty != false) {
+        return false;
+      }
+
+      final draft =
+          _VoiceConversation(
+              title: proposal!.title!.trim(),
+              category: proposal.categoryName?.trim() ?? '',
+            )
+            ..note = proposal.note
+            ..startedAt = proposal.date ?? DateTime.now()
+            ..conversationHistory.add(transcript);
+      if (draft.category.isNotEmpty) {
+        final categories = await getIt<CategoryRepository>().readActive(
+          AppContext.householdId,
+          type: 'activity',
+        );
+        final resolution = resolveActivityCategoryName(categories, draft.category);
+        if (resolution.isResolved) {
+          draft
+            ..category = resolution.category!.name
+            ..categoryId = resolution.category!.id
+            ..step = _ConversationStep.confirm;
+        } else if (resolution.isAmbiguous) {
+          final names = resolution.candidates.map((c) => c.name).join(', ');
+          draft.validationErrors.add(
+            'Kategori “${draft.category}” mirip beberapa pilihan: $names. Sebutkan yang mana.',
+          );
+        } else {
+          draft.validationErrors.add(
+            'Kategori “${draft.category}” belum ada di Data Utama.',
+          );
+          draft.category = '';
+        }
+      }
+      if (!mounted) return true;
+      setState(() {
+        _voiceConversation = draft;
+        _voiceIntent = null;
+        _voiceText = transcript;
+        _voiceError = draft.validationErrors.isEmpty
+            ? null
+            : draft.validationErrors.single;
+        _voiceStatus = draft.canConfirm
+            ? 'Draft siap dikonfirmasi'
+            : 'Lengkapi kategori draft';
+      });
+      await _speechService.speak(
+        draft.canConfirm
+            ? draft.confirmMessage
+            : 'Aktivitas ${draft.title}. Pilih kategori dari Data Utama sebelum disimpan.',
+      );
+      return true;
+    } catch (_) {
+      // Speech remains usable offline when cloud or assistant routing fails.
+      return false;
+    }
+  }
+
+  Future<void> _startConversation(String title) async {
+    final repo = getIt<CategoryRepository>();
+    final cats = await repo.readActive(
+      AppContext.householdId,
+      type: 'activity',
+    );
+    if (!mounted) return;
+    if (cats.isEmpty) {
+      setState(() {
+        _voiceError = 'Belum ada kategori aktivitas aktif di Data Utama.';
+        _voiceStatus = 'Kategori diperlukan';
+      });
+      await _speechService.speak(
+        'Belum ada kategori aktivitas. Buat satu kategori di Data Utama sebelum melanjutkan.',
+      );
+      return;
+    }
+    _voiceConversation = _VoiceConversation(title: title, category: '');
     setState(() {
       _voiceText = title;
       _voiceStatus = 'Pilih kategori';
       _voiceError = null;
     });
-
-    // Ambil kategori dari database
-    final repo = getIt<CategoryRepository>();
-    final cats = await repo.readActive('local-household', type: 'activity');
-    final categories = cats.isEmpty
-        ? ['Lainnya']
-        : [...cats.map((c) => c.name), 'Lainnya'];
-
-    if (!mounted) return;
     _speechService.speak(
-      'Aktivitas $title. Pilih kategori: ${categories.join(", ")}. Atau bilang "lewati" untuk pakai kategori pertama.',
+      'Aktivitas $title. Pilih kategori: ${cats.map((c) => c.name).join(", ")}. Atau bilang "lewati" untuk pakai kategori pertama.',
     );
   }
 
-  void _handleConversationResponse(String transcript) async {
+  Future<void> _handleConversationResponse(String transcript) async {
     final conv = _voiceConversation;
     if (conv == null) return;
 
     final lower = transcript.toLowerCase().trim();
+    conv.conversationHistory.add(transcript.trim());
 
     // Handle cancel
     if (lower == 'batal' || lower == 'cancel') {
@@ -482,11 +644,22 @@ class _ActivityViewState extends State<_ActivityView>
       return;
     }
 
+    if (conv.step == _ConversationStep.confirm &&
+        await _applyVoiceDraftCorrection(conv, transcript)) {
+      if (!mounted) return;
+      setState(() => _voiceStatus = 'Draft diperbarui, cek lagi');
+      await _speechService.speak(conv.confirmMessage);
+      return;
+    }
+
     switch (conv.step) {
       case _ConversationStep.category:
         // Ambil kategori dari database untuk validasi
         final repo = getIt<CategoryRepository>();
-        final cats = await repo.readActive('local-household', type: 'activity');
+        final cats = await repo.readActive(
+          AppContext.householdId,
+          type: 'activity',
+        );
         final categoryNames = cats.map((c) => c.name.toLowerCase()).toList();
 
         final matched = categoryNames.where((c) => lower.contains(c)).toList();
@@ -494,12 +667,22 @@ class _ActivityViewState extends State<_ActivityView>
           // Use the matched category from database
           final catIndex = categoryNames.indexOf(matched.first);
           conv.category = cats[catIndex].name;
+          conv.categoryId = cats[catIndex].id;
         } else if (lower == 'lewati' || lower == 'skip') {
-          // Use first available category or 'Lainnya'
-          conv.category = cats.isNotEmpty ? cats.first.name : 'Lainnya';
+          if (cats.isEmpty) {
+            setState(() => _voiceError = 'Belum ada kategori aktivitas aktif.');
+            return;
+          }
+          conv.category = cats.first.name;
+          conv.categoryId = cats.first.id;
         } else {
-          // Fallback to user input, but this might not exist in database
-          conv.category = transcript.trim();
+          setState(
+            () => _voiceError = 'Kategori belum ada di Data Utama. Pilih kategori yang disebutkan atau buat dulu kategori baru.',
+          );
+          await _speechService.speak(
+            'Kategori itu belum ada. Sebut salah satu kategori yang tersedia, atau buat kategori baru di Data Utama.',
+          );
+          return;
         }
         conv.step = _ConversationStep.note;
         setState(() {
@@ -554,9 +737,59 @@ class _ActivityViewState extends State<_ActivityView>
     }
   }
 
+  Future<bool> _applyVoiceDraftCorrection(
+    _VoiceConversation draft,
+    String transcript,
+  ) async {
+    final text = transcript.trim();
+    final lower = text.toLowerCase();
+    if (draft.applyTextCorrection(text)) {
+      return true;
+    }
+    final categoryText = RegExp(
+      r'^(?:kategori(?:nya)?|ganti\s+(?:kategori(?:nya)?\s+)?jadi)\s+(.+)$',
+    ).firstMatch(lower);
+    if (categoryText == null) return false;
+    final requested = categoryText.group(1)!.trim();
+    final categories = await getIt<CategoryRepository>().readActive(
+      AppContext.householdId,
+      type: 'activity',
+    );
+    final resolution = resolveActivityCategoryName(categories, requested);
+    if (resolution.isResolved) {
+      draft.category = resolution.category!.name;
+      draft.categoryId = resolution.category!.id;
+      draft.validationErrors.clear();
+      if (mounted) setState(() => _voiceError = null);
+      return true;
+    }
+    if (resolution.isAmbiguous) {
+      final names = resolution.candidates.map((c) => c.name).join(', ');
+      draft.validationErrors
+        ..clear()
+        ..add('Kategori “$requested” mirip beberapa pilihan: $names. Yang mana?');
+      if (mounted) {
+        setState(() => _voiceError = draft.validationErrors.single);
+      }
+      return true;
+    }
+    draft.validationErrors
+      ..clear()
+      ..add('Kategori “$requested” belum ada di Data Utama.');
+    if (mounted) {
+      setState(() => _voiceError = draft.validationErrors.single);
+    }
+    return true;
+  }
+
   Future<void> _saveConversation() async {
     final conv = _voiceConversation;
     if (conv == null) return;
+
+    if (!conv.canConfirm) {
+      setState(() => _voiceError = 'Lengkapi draft sebelum menyimpan.');
+      return;
+    }
 
     setState(() {
       _voiceStatus = 'Menyimpan...';
@@ -571,6 +804,8 @@ class _ActivityViewState extends State<_ActivityView>
         status: ActivityVoiceStatus.preview,
         targetTitle: conv.title,
         category: conv.category,
+        categoryId: conv.categoryId,
+        startedAt: conv.startedAt,
       );
 
       await context.read<ActivityBloc>().executeVoiceIntent(intent);
@@ -710,7 +945,7 @@ class _ActivityViewState extends State<_ActivityView>
       builder: (_) => _VoiceTextEditor(initialText: _voiceText),
     );
     if (edited == null || edited.trim().isEmpty || !mounted) return;
-    _previewVoice(edited.trim());
+    await _previewVoice(edited.trim());
   }
 
   Future<void> _confirmVoice() async {
@@ -891,11 +1126,16 @@ class _ActivityViewState extends State<_ActivityView>
                   const SizedBox(height: 16),
                   _VoiceActivityCard(
                     intent: _voiceIntent,
+                    draft: _voiceConversation,
+                    draftCanConfirm:
+                        _voiceConversation?.isComplete == true &&
+                        _voiceConversation!.canConfirm,
                     text: _voiceText,
                     status: _voiceStatus,
                     error: _voiceError,
                     isListening: _speechService.isListening,
                     activeSessions: state.activeSessions,
+                    activityCategories: _voiceCategories,
                     onListen: _startVoiceCapture,
                     onStop: _stopVoiceCapture,
                     onEdit: _editVoiceText,
@@ -908,10 +1148,12 @@ class _ActivityViewState extends State<_ActivityView>
                       setState(() {
                         _voiceIntent = _voiceIntent!.copyWith(
                           category: category,
+                          categoryId: _activityCategoryIds[category],
                         );
                       });
                     },
                     onConfirm: _confirmVoice,
+                    onConfirmDraft: _saveConversation,
                     onCancel: _cancelVoice,
                   ),
                   const SizedBox(height: 16),
@@ -921,27 +1163,23 @@ class _ActivityViewState extends State<_ActivityView>
                       runSpacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        DropdownButton<String>(
-                          value: _typeFilter,
+                        DropdownButton<String?>(
+                          value: _categoryFilterId,
                           underline: const SizedBox.shrink(),
-                          items:
-                              const [
-                                    'Semua',
-                                    'Perjalanan',
-                                    'Belanja',
-                                    'Pekerjaan',
-                                    'Keluarga',
-                                    'Lainnya',
-                                  ]
-                                  .map(
-                                    (item) => DropdownMenuItem(
-                                      value: item,
-                                      child: Text(item),
-                                    ),
-                                  )
-                                  .toList(),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('Semua kategori'),
+                            ),
+                            ..._voiceCategories.map(
+                              (name) => DropdownMenuItem<String?>(
+                                value: _activityCategoryIds[name],
+                                child: Text(name),
+                              ),
+                            ),
+                          ],
                           onChanged: (value) =>
-                              setState(() => _typeFilter = value ?? 'Semua'),
+                              setState(() => _categoryFilterId = value),
                         ),
                         OutlinedButton.icon(
                           onPressed: _pickDay,
@@ -1006,8 +1244,8 @@ class _ActivityViewState extends State<_ActivityView>
                       final visibleActiveSessions = state.activeSessions
                           .where(
                             (session) =>
-                                (_typeFilter == 'Semua' ||
-                                    session.category == _typeFilter) &&
+                                (_categoryFilterId == null ||
+                                    session.categoryId == _categoryFilterId) &&
                                 _matchesDay(session.startedAt) &&
                                 _matchesMode(session) &&
                                 _matchesSearch(session),
@@ -1018,8 +1256,8 @@ class _ActivityViewState extends State<_ActivityView>
                             (session) =>
                                 session.status !=
                                     ActivitySessionStatus.active &&
-                                (_typeFilter == 'Semua' ||
-                                    session.category == _typeFilter) &&
+                                (_categoryFilterId == null ||
+                                    session.categoryId == _categoryFilterId) &&
                                 _matchesDay(session.startedAt) &&
                                 _matchesMode(session) &&
                                 _matchesSearch(session),
@@ -1139,7 +1377,6 @@ class _ActiveSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = session.durationAt();
     final scheme = Theme.of(context).colorScheme;
     return AppCard(
       color: scheme.primaryContainer,
@@ -1163,8 +1400,9 @@ class _ActiveSessionCard extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(
-                calculator.format(duration),
+              _LiveDurationText(
+                startedAt: session.startedAt,
+                calculator: calculator,
                 style: TextStyle(
                   color: scheme.primary,
                   fontWeight: FontWeight.w900,
@@ -1210,6 +1448,62 @@ class _ActiveSessionCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LiveDurationText extends StatefulWidget {
+  const _LiveDurationText({
+    required this.startedAt,
+    required this.calculator,
+    required this.style,
+  });
+
+  final DateTime startedAt;
+  final ActivityDurationCalculator calculator;
+  final TextStyle style;
+
+  @override
+  State<_LiveDurationText> createState() => _LiveDurationTextState();
+}
+
+class _LiveDurationTextState extends State<_LiveDurationText>
+    with WidgetsBindingObserver {
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startTicker();
+  }
+
+  void _startTicker() {
+    _ticker?.cancel();
+    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _startTicker();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _ticker?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Text(
+    widget.calculator.format(DateTime.now().difference(widget.startedAt)),
+    style: widget.style,
+  );
 }
 
 class _SessionCard extends StatelessWidget {
@@ -1283,12 +1577,14 @@ class _SessionDraft {
   const _SessionDraft(
     this.title,
     this.category,
+    this.categoryId,
     this.mode,
     this.notes,
     this.startedAt,
   );
   final String title;
   final String category;
+  final String? categoryId;
   final ActivityMode mode;
   ActivityKind get kind => mode.activityKind;
   final String? notes;
@@ -1319,6 +1615,7 @@ class _SessionFormState extends State<_SessionForm> {
   ActivityMode _mode = ActivityMode.timeTracking;
   final _categoryRepository = getIt<CategoryRepository>();
   List<String> _activityCategories = [];
+  Map<String, String> _activityCategoryIds = const {};
   String? _selectedCategory;
   bool _loadingCategories = true;
 
@@ -1341,7 +1638,7 @@ class _SessionFormState extends State<_SessionForm> {
   Future<void> _loadActivityCategories() async {
     try {
       final categories = await _categoryRepository.readActive(
-        'local-household',
+        AppContext.householdId,
         type: 'activity',
       );
 
@@ -1349,6 +1646,9 @@ class _SessionFormState extends State<_SessionForm> {
 
       setState(() {
         _activityCategories = categories.map((c) => c.name).toList();
+        _activityCategoryIds = {
+          for (final category in categories) category.name: category.id,
+        };
         _loadingCategories = false;
 
         if (_selectedCategory == null && _activityCategories.isNotEmpty) {
@@ -1471,7 +1771,7 @@ class _SessionFormState extends State<_SessionForm> {
                   if (result != null && mounted) {
                     await _loadActivityCategories();
                     final categories = await _categoryRepository.readActive(
-                      'local-household',
+                      AppContext.householdId,
                       type: 'activity',
                     );
                     if (!mounted) return;
@@ -1532,9 +1832,8 @@ class _SessionFormState extends State<_SessionForm> {
               context,
               _SessionDraft(
                 _title.text.trim(),
-                _category.text.trim().isEmpty
-                    ? 'Lainnya'
-                    : _category.text.trim(),
+                _category.text.trim(),
+                _activityCategoryIds[_selectedCategory],
                 _mode,
                 _notes.text.trim().isEmpty ? null : _notes.text.trim(),
                 _startedAt,
@@ -1688,12 +1987,15 @@ String _dateTime(DateTime value) =>
 
 enum _ConversationStep { title, category, note, confirm }
 
-class _VoiceConversation {
-  _VoiceConversation({required this.title, required this.category});
+class _VoiceConversation extends VoiceActivityDraft {
+  _VoiceConversation({required super.title, required String category})
+    : super(categoryName: category);
 
-  final String title;
-  String category;
-  String? note;
+  String get category => categoryName;
+  set category(String value) => categoryName = value;
+
+  String? get note => notes;
+  set note(String? value) => notes = value;
   _ConversationStep step = _ConversationStep.category;
 
   bool get isComplete => step == _ConversationStep.confirm;
@@ -1710,11 +2012,14 @@ class _VoiceConversation {
 class _VoiceActivityCard extends StatelessWidget {
   const _VoiceActivityCard({
     required this.intent,
+    required this.draft,
+    required this.draftCanConfirm,
     required this.text,
     required this.status,
     required this.error,
     required this.isListening,
     required this.activeSessions,
+    required this.activityCategories,
     required this.onListen,
     required this.onStop,
     required this.onEdit,
@@ -1722,15 +2027,19 @@ class _VoiceActivityCard extends StatelessWidget {
     required this.onSelectTarget,
     required this.onCategoryChanged,
     required this.onConfirm,
+    required this.onConfirmDraft,
     required this.onCancel,
   });
 
   final ActivityVoiceIntent? intent;
+  final VoiceActivityDraft? draft;
+  final bool draftCanConfirm;
   final String text;
   final String status;
   final String? error;
   final bool isListening;
   final List<ActivitySessionEntity> activeSessions;
+  final List<String> activityCategories;
   final VoidCallback onListen;
   final VoidCallback onStop;
   final VoidCallback onEdit;
@@ -1738,6 +2047,7 @@ class _VoiceActivityCard extends StatelessWidget {
   final ValueChanged<String?> onSelectTarget;
   final ValueChanged<String> onCategoryChanged;
   final VoidCallback onConfirm;
+  final VoidCallback onConfirmDraft;
   final VoidCallback onCancel;
 
   @override
@@ -1749,6 +2059,7 @@ class _VoiceActivityCard extends StatelessWidget {
         (intent!.type == ActivityVoiceIntentType.finish ||
             intent!.type == ActivityVoiceIntentType.checkpoint ||
             intent!.type == ActivityVoiceIntentType.note);
+    final categories = activityCategories.toList()..sort();
     return AppCard(
       color: scheme.secondaryContainer,
       child: Column(
@@ -1771,7 +2082,11 @@ class _VoiceActivityCard extends StatelessWidget {
                   builder: (_) => const AlertDialog(
                     title: Text('Voice Aktivitas'),
                     content: Text(
-                      'Contoh: “mulai makan”, “makan selesai”, “mulai makan di dalam perjalanan”, atau “update perjalanan sampai pasar”. Hasil selalu ditampilkan dan dibacakan dulu. Aksi baru disimpan setelah kamu menekan Konfirmasi atau mengucapkan OK.',
+                      'Bicara natural, misalnya “mulai memupuk timun”, '
+                      '“kategorinya pertanian”, “ganti waktunya jam 7”, '
+                      'atau “sudah benar”. Hasil selalu ditampilkan dan '
+                      'dibacakan dulu. Aksi baru disimpan setelah kamu '
+                      'menekan Konfirmasi atau mengucapkan OK.',
                     ),
                   ),
                 ),
@@ -1824,6 +2139,56 @@ class _VoiceActivityCard extends StatelessWidget {
               ],
             ),
           ],
+          if (draft != null) ...[
+            const Divider(height: 24),
+            Text(
+              'Draft aktivitas',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: scheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Aktivitas: ${draft!.title.isEmpty ? 'Belum disebutkan' : draft!.title}',
+            ),
+            Text(
+              'Kategori: ${draft!.categoryName.isEmpty ? 'Belum dipilih' : draft!.categoryName}',
+            ),
+            Text('Mulai: ${_dateTime(draft!.startedAt)}'),
+            Text(
+              'Catatan: ${draft!.notes?.isNotEmpty == true ? draft!.notes : 'Tidak ada'}',
+            ),
+            if (draft!.missingFields.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  'Masih perlu: ${draft!.missingFields.join(', ')}',
+                  style: TextStyle(color: scheme.error),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: isListening ? onStop : onListen,
+                  icon: Icon(isListening ? Icons.stop : Icons.mic_none),
+                  label: Text(isListening ? 'Stop bicara' : 'Bicara lagi'),
+                ),
+                TextButton(
+                  onPressed: onCancel,
+                  child: const Text('Batal draft'),
+                ),
+                if (draftCanConfirm)
+                  FilledButton.icon(
+                    onPressed: onConfirmDraft,
+                    icon: const Icon(Icons.check),
+                    label: const Text('Konfirmasi'),
+                  ),
+              ],
+            ),
+          ],
           if (intent != null) ...[
             const Divider(height: 24),
             Text(
@@ -1848,29 +2213,22 @@ class _VoiceActivityCard extends StatelessWidget {
               ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: intent!.category.isNotEmpty
+              initialValue: categories.contains(intent!.category)
                   ? intent!.category
-                  : 'Lainnya',
+                  : null,
               isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Kategori aktivitas',
                 border: OutlineInputBorder(),
               ),
-              items:
-                  const [
-                        'Lainnya',
-                        'Perjalanan',
-                        'Belanja',
-                        'Pekerjaan',
-                        'Keluarga',
-                      ]
-                      .map(
-                        (category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ),
-                      )
-                      .toList(),
+              items: categories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(),
               onChanged: (value) {
                 if (value != null) onCategoryChanged(value);
               },

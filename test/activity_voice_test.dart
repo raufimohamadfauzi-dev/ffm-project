@@ -27,7 +27,9 @@ void main() {
 
     expect(intent.type, ActivityVoiceIntentType.start);
     expect(intent.targetTitle, 'Makan');
-    expect(intent.category, 'Lainnya');
+    // Kategori bukan default 'Lainnya': penalti kategori liar dari VN dihapus,
+    // jadi kategori kosong di-resolve dari master Data Utama saat konfirmasi.
+    expect(intent.category, '');
     expect(intent.canConfirm, isTrue);
   });
 

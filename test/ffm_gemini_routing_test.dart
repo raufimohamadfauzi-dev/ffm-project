@@ -5,6 +5,7 @@ import 'package:ffm_manager/core/network/gemini_service.dart';
 import 'package:ffm_manager/core/network/supabase_config.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_cloud_context.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
 class _FakeConfig extends SupabaseConfig {
@@ -193,6 +194,36 @@ void main() {
     },
   );
 
+  test(
+    'kill switch context-first tidak diam-diam memanggil provider lain',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'tidak boleh dipakai',
+          text: 'tidak boleh dipakai',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'agent', verified: true),
+        geminiService: gemini,
+        geminiContextFirstEnabled: false,
+      );
+
+      final intent = await interpreter.interpret(
+        'ringkasan keuangan bulan ini',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 0);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+      expect(intent.pluginMetadata?['model'], 'context-first-disabled');
+      expect(intent.response, contains('context-first Gemini'));
+    },
+  );
+
   test('mode Gemini mengirim perintah transaksi natural ke Gemini untuk dibuat draft', () async {
     final gemini = _FakeGemini(
       const GeminiResult(
@@ -252,11 +283,102 @@ void main() {
       gemini.receivedSystemInstruction,
       contains('Data Utama kategori aktivitas sedang dibuka'),
     );
+    expect(gemini.receivedSystemInstruction, contains('`read.summary`'));
+    expect(gemini.receivedSystemInstruction, contains('`read.transactions`'));
+    expect(
+      gemini.receivedSystemInstruction,
+      isNot(contains('`read.accounts`')),
+    );
+    expect(
+      gemini.receivedSystemInstruction,
+      isNot(contains('`read.activity`')),
+    );
+    expect(
+      gemini.receivedSystemInstruction,
+      isNot(contains('ANALYSIS FACTS:')),
+    );
     expect(gateway.calls, 0);
     expect(intent.response, 'Jawaban dari Gemini.');
     expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
     expect(intent.pluginMetadata?['model'], 'gemini-2.5-pro');
   });
+
+  test(
+    'mode Gemini menerima active draft sebagai context field-aware',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'Gemini merespons.',
+          text: 'Nama draft dapat dikoreksi.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'gemini', verified: true),
+        geminiService: gemini,
+      );
+
+      await interpreter.interpret(
+        'koreksi nama draft ini',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+        activeDraft: FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.masterData,
+          createdAt: DateTime(2026, 8, 31),
+          title: 'BandarPPT1',
+          categoryName: 'tag',
+          amount: 987654321,
+          fromAccountName: 'REKENING-TIDAK-RELEVAN',
+        ),
+      );
+
+      expect(
+        gemini.receivedSystemInstruction,
+        contains(FfmAssistantCloudContextEnvelope.schemaVersion),
+      );
+      expect(gemini.receivedSystemInstruction, contains('ACTIVE DRAFT'));
+      expect(gemini.receivedSystemInstruction, contains('kind=masterData'));
+      expect(gemini.receivedSystemInstruction, contains('BandarPPT1'));
+      expect(gemini.receivedSystemInstruction, isNot(contains('987654321')));
+      expect(
+        gemini.receivedSystemInstruction,
+        isNot(contains('REKENING-TIDAK-RELEVAN')),
+      );
+    },
+  );
+
+  test(
+    'permintaan analisis mengirim hasil analysis engine ke Gemini',
+    () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: 'Gemini merespons.',
+          text: 'Belum ada transaksi untuk dianalisis.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'gemini', verified: true),
+        geminiService: gemini,
+        clock: () => DateTime(2026, 8, 31),
+      );
+
+      await interpreter.interpret(
+        'analisis pengeluaran bulan ini',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(
+        gemini.receivedSystemInstruction,
+        contains('"requestClass":"analysis"'),
+      );
+      expect(gemini.receivedSystemInstruction, contains('ANALYSIS FACTS'));
+      expect(gemini.receivedSystemInstruction, contains('bulan ini'));
+    },
+  );
 
   test('mode Gemini gagal tidak diam-diam memakai gateway lokal', () async {
     final gateway = _FakeGateway();

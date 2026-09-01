@@ -8,6 +8,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_financial_snap
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_local_model_gateway.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
+import 'package:ffm_manager/features/hijri/domain/hijri_calendar_service.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_gemini_read_capability_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
@@ -140,8 +141,7 @@ class _ReadRequestGemini extends GeminiService {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
       );
     }
     finalInstruction = systemInstruction;
@@ -170,8 +170,7 @@ class _ForbiddenReadRequestGemini extends GeminiService {
       model: 'gemini-2.5-flash',
       statusCode: 200,
       message: 'ok',
-      text:
-          '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"mutate.save_draft","arguments":{}}',
+      text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"mutate.save_draft","arguments":{}}',
     );
   }
 }
@@ -194,8 +193,7 @@ class _TransactionReadRequestGemini extends GeminiService {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month"}}',
       );
     }
     finalInstruction = systemInstruction;
@@ -226,8 +224,7 @@ class _DateRangeReadRequestGemini extends GeminiService {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-08-10","endDate":"2026-08-20"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-08-10","endDate":"2026-08-20"}}',
       );
     }
     finalInstruction = systemInstruction;
@@ -457,25 +454,30 @@ void main() {
     },
   );
 
-  test('Gemini dapat meminta digest transaksi bounded bulan berjalan',
-      () async {
-    final gemini = _TransactionReadRequestGemini();
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      geminiService: gemini,
-      config: _FakeConfig(),
-    );
+  test(
+    'Gemini dapat meminta digest transaksi bounded bulan berjalan',
+    () async {
+      final gemini = _TransactionReadRequestGemini();
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        geminiService: gemini,
+        config: _FakeConfig(),
+      );
 
-    final intent = await interpreter.interpret(
-      'Transaksi terakhir bulan ini bagaimana?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+      final intent = await interpreter.interpret(
+        'Transaksi terakhir bulan ini bagaimana?',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
 
-    expect(gemini.calls, 2);
-    expect(gemini.finalInstruction, contains('Transaction digest lokal bounded'));
-    expect(intent.pluginMetadata?['usedReadCapability'], 'read.transactions');
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-  });
+      expect(gemini.calls, 2);
+      expect(
+        gemini.finalInstruction,
+        contains('Transaction digest lokal bounded'),
+      );
+      expect(intent.pluginMetadata?['usedReadCapability'], 'read.transactions');
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    },
+  );
 
   test('Gemini dapat meminta rentang tanggal transaksi bounded', () async {
     final gemini = _DateRangeReadRequestGemini();
@@ -497,8 +499,8 @@ void main() {
   });
 
   test('filter capability transaksi menolak rentang di luar bulan atau terlalu panjang', () async {
-    final outsideMonth = FfmAssistantProposalJsonService
-        .parseReadCapabilityRequest(
+    final outsideMonth =
+        FfmAssistantProposalJsonService.parseReadCapabilityRequest(
           '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-31","endDate":"2026-08-01"}}',
         );
     final tooLong = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
@@ -508,7 +510,10 @@ void main() {
     expect(outsideMonth.request, isNotNull);
     await expectLater(
       FfmGeminiReadCapabilityService(
-        FfmAssistantFinancialSnapshotService(database),
+        FfmAssistantFinancialSnapshotService(
+          database,
+          HijriCalendarService(database),
+        ),
       ).execute(
         outsideMonth.request!,
         householdId: 'test-household',
@@ -518,6 +523,30 @@ void main() {
     );
     expect(tooLong.request, isNull);
     expect(tooLong.error, contains('maksimal 14 hari'));
+  });
+
+  test('Gemini hanya boleh meminta summary atau transaksi bounded', () {
+    expect(FfmAssistantProposalJsonService.geminiReadCapabilityIds, {
+      'read.summary',
+      'read.transactions',
+      'read.hijriDate',
+    });
+
+    for (final capabilityId in const [
+      'read.accounts',
+      'read.budget',
+      'read.categories',
+      'read.goals',
+      'read.activity',
+      'mutate.transaction',
+    ]) {
+      final result = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+        '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"$capabilityId","arguments":{}}',
+      );
+
+      expect(result.request, isNull, reason: capabilityId);
+      expect(result.error, contains('tidak diizinkan'), reason: capabilityId);
+    }
   });
 
   test(

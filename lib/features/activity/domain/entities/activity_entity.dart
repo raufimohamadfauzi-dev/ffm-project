@@ -25,6 +25,78 @@ enum ActivityKind {
   );
 }
 
+/// Mode aktivitas utama untuk membedakan time tracking vs catatan/riwayat
+enum ActivityMode {
+  /// Time tracking: aktivitas dengan durasi yang dihitung
+  /// (timer, task yang sedang berjalan)
+  timeTracking,
+
+  /// Catatan/riwayat: kejadian satu kali atau log singkat
+  /// (note, event, task yang sudah selesai tanpa durasi penting)
+  history;
+
+  String get value => name;
+
+  String get label => switch (this) {
+    ActivityMode.timeTracking => 'Pakai timer',
+    ActivityMode.history => 'Catat saja',
+  };
+
+  ActivityKind get activityKind => switch (this) {
+    ActivityMode.timeTracking => ActivityKind.timer,
+    ActivityMode.history => ActivityKind.note,
+  };
+
+  static ActivityMode? tryParse(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    return switch (normalized) {
+      'timetracking' ||
+      'time_tracking' ||
+      'time-tracking' ||
+      'timer' ||
+      'timed' => ActivityMode.timeTracking,
+      'history' ||
+      'record' ||
+      'riwayat' ||
+      'note' ||
+      'catatan' => ActivityMode.history,
+      _ => null,
+    };
+  }
+
+  static ActivityMode fromValue(String? value) =>
+      tryParse(value) ?? ActivityMode.timeTracking;
+
+  /// Mendapatkan mode default untuk ActivityKind tertentu
+  static ActivityMode defaultForKind(ActivityKind kind) {
+    switch (kind) {
+      case ActivityKind.timer:
+        return ActivityMode.timeTracking;
+      case ActivityKind.task:
+        return ActivityMode
+            .timeTracking; // Task default ke time tracking, bisa berubah
+      case ActivityKind.note:
+        return ActivityMode.history;
+      case ActivityKind.event:
+        return ActivityMode.history;
+    }
+  }
+
+  /// Mendapatkan ActivityKind yang direkomendasikan untuk mode
+  static List<ActivityKind> recommendedKindsForMode(ActivityMode mode) {
+    switch (mode) {
+      case ActivityMode.timeTracking:
+        return [ActivityKind.timer, ActivityKind.task];
+      case ActivityMode.history:
+        return [ActivityKind.note, ActivityKind.event];
+    }
+  }
+}
+
+extension ActivityKindMode on ActivityKind {
+  ActivityMode get activityMode => ActivityMode.defaultForKind(this);
+}
+
 class ActivitySessionEntity {
   const ActivitySessionEntity({
     required this.id,
@@ -46,6 +118,10 @@ class ActivitySessionEntity {
     this.notes,
     this.isArchived = false,
     this.updatedAt,
+    // Activity Intelligence Upgrade fields
+    this.activityGroupId,
+    this.subjectType,
+    this.subjectId,
   });
 
   final String id;
@@ -57,6 +133,15 @@ class ActivitySessionEntity {
   final String? categoryId;
   final ActivityKind kind;
   final String? parentSessionId;
+
+  /// Activity Intelligence Upgrade - Grouping & Subject Linking
+  /// activityGroupId: Mengelompokkan aktivitas dalam satu rangkaian/proses
+  /// subjectType: Jenis entitas yang sedang dikerjakan (crop, asset, dll)
+  /// subjectId: ID spesifik entitas yang sedang dikerjakan
+  final String? activityGroupId;
+  final String? subjectType;
+  final String? subjectId;
+
   final DateTime startedAt;
   final DateTime? endedAt;
   final DateTime? scheduledAt;
@@ -69,6 +154,17 @@ class ActivitySessionEntity {
   final bool isArchived;
   final DateTime createdAt;
   final DateTime? updatedAt;
+
+  /// Mendapatkan mode aktual (hitung dari kind/status)
+  ActivityMode get effectiveMode {
+    return ActivityMode.defaultForKind(kind);
+  }
+
+  /// Apakah ini mode time tracking?
+  bool get isTimeTracking => effectiveMode == ActivityMode.timeTracking;
+
+  /// Apakah ini mode catatan/riwayat?
+  bool get isHistory => effectiveMode == ActivityMode.history;
 
   ActivitySessionEntity copyWith({
     String? title,
@@ -85,6 +181,10 @@ class ActivitySessionEntity {
     String? notes,
     bool? isArchived,
     DateTime? updatedAt,
+    // Activity Intelligence Upgrade fields
+    String? activityGroupId,
+    String? subjectType,
+    String? subjectId,
   }) => ActivitySessionEntity(
     id: id,
     householdId: householdId,
@@ -105,6 +205,9 @@ class ActivitySessionEntity {
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    activityGroupId: activityGroupId ?? this.activityGroupId,
+    subjectType: subjectType ?? this.subjectType,
+    subjectId: subjectId ?? this.subjectId,
   );
 
   Duration durationAt([DateTime? now]) {

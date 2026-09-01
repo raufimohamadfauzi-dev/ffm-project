@@ -1,12 +1,17 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../hijri/domain/hijri_calendar_service.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 
 class FfmAssistantFinancialSnapshotService {
-  const FfmAssistantFinancialSnapshotService(this._database);
+  const FfmAssistantFinancialSnapshotService(
+    this._database, [
+    this._hijriService,
+  ]);
 
   final AppDatabase _database;
+  final HijriCalendarService? _hijriService;
 
   Future<FfmAssistantFinancialEvidence> readCurrentMonth({
     required String householdId,
@@ -147,7 +152,8 @@ class FfmAssistantFinancialSnapshotService {
     int maxAccounts = 8,
     int maxCategories = 16,
     int maxIncomeSources = 8,
-    int maxCharacters = 520,
+    int maxGoals = 8,
+    int maxCharacters = 620,
   }) async {
     final accounts =
         await (_database.select(_database.accounts)..where(
@@ -172,15 +178,25 @@ class FfmAssistantFinancialSnapshotService {
                   row.isArchived.equals(false),
             ))
             .get();
+    final goals =
+        await (_database.select(_database.goals)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final accountNames = accounts.map((row) => row.name).toList()..sort();
     final categoryNames = categories.map((row) => row.name).toList()..sort();
-    final incomeSourceNames = incomeSources.map((row) => row.name).toList()..sort();
+    final incomeSourceNames = incomeSources.map((row) => row.name).toList()
+      ..sort();
+    final goalNames = goals.map((row) => row.name).toList()..sort();
     final context =
         'Data Utama lokal (nama saja; tanpa saldo, ID, atau detail): '
         'rekening_aktif=${_nameList(accountNames, maxAccounts)}; '
         'kategori_aktif=${_nameList(categoryNames, maxCategories)}; '
-        'sumber_pemasukan_aktif=${_nameList(incomeSourceNames, maxIncomeSources)}. '
+        'sumber_pemasukan_aktif=${_nameList(incomeSourceNames, maxIncomeSources)}; '
+        'target_aktif=${_nameList(goalNames, maxGoals)}. '
         'Gunakan hanya nama yang tercantum sebagai evidence; jangan membuat nama baru.';
     return _clip(context, maxCharacters);
   }
@@ -223,6 +239,66 @@ class FfmAssistantFinancialSnapshotService {
         })
         .join('; ');
     return _clip('Fakta panen SQL authoritative: $lines', maxCharacters);
+  }
+
+  /// Konteks kalender Hijriah untuk LLM. Menyediakan tanggal hijriah hari ini
+  /// dan beberapa hari ke depan/ke belakang untuk perhitungan.
+  Future<String> buildHijriContext({
+    required String householdId,
+    required DateTime now,
+    int maxCharacters = 300,
+  }) async {
+    final hijriService = _hijriService ?? HijriCalendarService(_database);
+    final hijriToday = await hijriService.convert(householdId, now);
+    final hijriTomorrow = await hijriService.convert(
+      householdId,
+      now.add(const Duration(days: 1)),
+    );
+    final hijriYesterday = await hijriService.convert(
+      householdId,
+      now.subtract(const Duration(days: 1)),
+    );
+
+    final hToday = _formatHijri(hijriToday.hijri);
+    final hTomorrow = _formatHijri(hijriTomorrow.hijri);
+    final hYesterday = _formatHijri(hijriYesterday.hijri);
+
+    final offsetInfo = hijriToday.manualOffsetDays != 0
+        ? ' (koreksi: ${hijriToday.manualOffsetDays > 0 ? "+" : ""}${hijriToday.manualOffsetDays} hari)'
+        : '';
+
+    final context =
+        'Kalender Hijriah lokal (Umm al-Qura offline): '
+        'hari_ini=$hToday$offsetInfo; '
+        'besok=$hTomorrow; '
+        'kemarin=$hYesterday. '
+        'Gunakan tanggal hijriah ini untuk konteks ibadah dan transaksi terkait Islam.';
+    return _clip(context, maxCharacters);
+  }
+
+  String _formatHijri(dynamic hijriDate) {
+    final year = hijriDate.year.toString();
+    final month = _hijriMonthName(hijriDate.month);
+    final day = hijriDate.day.toString();
+    return '$day $month $year H';
+  }
+
+  String _hijriMonthName(int month) {
+    const months = [
+      'Muharram',
+      'Safar',
+      'Rabiul Awwal',
+      'Rabiul Akhir',
+      'Jumadil Awwal',
+      'Jumadil Akhir',
+      'Rajab',
+      'Sya\'ban',
+      'Ramadhan',
+      'Syawal',
+      'Zulqaidah',
+      'Zulhijjah',
+    ];
+    return months[(month - 1) % 12];
   }
 
   String _nameList(List<String> names, int limit) {

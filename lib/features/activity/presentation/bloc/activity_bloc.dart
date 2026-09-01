@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
@@ -106,26 +107,36 @@ class ActivityBloc extends Cubit<ActivityState> {
       final notes = await repository.getNotes(AppContext.householdId);
 
       // Fetch habit suggestions
-      final habits = await (repository.database.select(repository.database.assistantMemories)
-            ..where((row) =>
-                row.householdId.equals(AppContext.householdId) &
-                row.kind.equals('habit') &
-                row.isArchived.equals(false)))
-          .get();
+      final habits =
+          await (repository.database.select(
+                repository.database.assistantMemories,
+              )..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.kind.equals('habit') &
+                    row.isArchived.equals(false),
+              ))
+              .get();
       final currentHour = DateTime.now().hour;
-      final suggestions = habits.where((h) {
-        final typicalHour = h.metadataJson.contains('typicalHour')
-            ? (jsonDecode(h.metadataJson) as Map)['typicalHour'] as int?
-            : null;
-        return typicalHour == null || (typicalHour - currentHour).abs() <= 2;
-      }).map((h) => h.triggerText.replaceFirst('aktivitas:', '')).toList();
+      final suggestions = habits
+          .where((h) {
+            final typicalHour = h.metadataJson.contains('typicalHour')
+                ? (jsonDecode(h.metadataJson) as Map)['typicalHour'] as int?
+                : null;
+            return typicalHour == null ||
+                (typicalHour - currentHour).abs() <= 2;
+          })
+          .map((h) => h.triggerText.replaceFirst('aktivitas:', ''))
+          .toList();
 
       final active = activeSessions.firstOrNull;
       final checkpointMap = <String, List<ActivityCheckpointEntity>>{};
       final costMap = <String, int>{};
       for (final session in sessions) {
         checkpointMap[session.id] = await repository.getCheckpoints(session.id);
-        costMap[session.id] = await repository.getActivityLinkedCost(session.id);
+        costMap[session.id] = await repository.getActivityLinkedCost(
+          session.id,
+        );
       }
       emit(
         state.copyWith(
@@ -157,7 +168,9 @@ class ActivityBloc extends Cubit<ActivityState> {
   Future<void> startSession({
     required String title,
     required String category,
+    String? categoryId,
     ActivityKind kind = ActivityKind.timer,
+    ActivityMode? mode,
     String? notes,
     DateTime? startedAt,
     DateTime? scheduledAt,
@@ -166,6 +179,10 @@ class ActivityBloc extends Cubit<ActivityState> {
     bool isCompleted = false,
     int priority = 0,
     String? parentSessionId,
+    // Activity Intelligence Upgrade fields
+    String? activityGroupId,
+    String? subjectType,
+    String? subjectId,
   }) async {
     var finalTitle = title.trim();
     var finalParentId = parentSessionId;
@@ -178,8 +195,22 @@ class ActivityBloc extends Cubit<ActivityState> {
 
     if (finalTitle.isEmpty) return;
 
+    // Parser/UI bertanggung jawab memilih mode. BLoC tidak mendeteksi ulang
+    // karena dapat membatalkan intent eksplisit seperti "mulai belanja".
+    final resolvedKind = mode?.activityKind ?? kind;
+
     final now = startedAt ?? DateTime.now();
     await _save(() async {
+      final resolvedCategory = await repository.resolveActiveActivityCategory(
+        householdId: AppContext.householdId,
+        categoryId: categoryId,
+        categoryName: category,
+      );
+      if (resolvedCategory == null) {
+        throw StateError(
+          'Pilih kategori aktivitas yang tersedia di Data Utama sebelum menyimpan.',
+        );
+      }
       if (finalParentId != null) {
         final parent = await repository.getSession(
           AppContext.householdId,
@@ -198,16 +229,23 @@ class ActivityBloc extends Cubit<ActivityState> {
           id: _uuid.v4(),
           householdId: AppContext.householdId,
           title: finalTitle,
-          category: category,
-          kind: kind,
+          category: resolvedCategory.name,
+          categoryId: resolvedCategory.id,
+          kind: resolvedKind,
           parentSessionId: finalParentId,
+          // Activity Intelligence Upgrade fields
+          activityGroupId: activityGroupId,
+          subjectType: subjectType,
+          subjectId: subjectId,
           startedAt: now,
           scheduledAt: scheduledAt,
           dueDate: dueDate,
           isAllDay: isAllDay,
           isCompleted: isCompleted,
           priority: priority,
-          status: (kind == ActivityKind.timer || kind == ActivityKind.task)
+          status:
+              (resolvedKind == ActivityKind.timer ||
+                  resolvedKind == ActivityKind.task)
               ? ActivitySessionStatus.active
               : ActivitySessionStatus.completed,
           notes: notes,
@@ -226,18 +264,10 @@ class ActivityBloc extends Cubit<ActivityState> {
     final end = endedAt ?? DateTime.now();
     await _save(
       () => repository.saveSession(
-        ActivitySessionEntity(
-          id: current.id,
-          householdId: current.householdId,
-          title: current.title,
-          category: current.category,
-          parentSessionId: current.parentSessionId,
-          startedAt: current.startedAt,
+        current.copyWith(
           endedAt: end,
           status: ActivitySessionStatus.completed,
-          notes: current.notes,
-          isArchived: current.isArchived,
-          createdAt: current.createdAt,
+          isCompleted: true,
           updatedAt: DateTime.now(),
         ),
       ),
@@ -322,9 +352,11 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         await startSession(
           title: title,
-          category: intent.category.isNotEmpty ? intent.category : 'Lainnya',
+          category: intent.category,
+          categoryId: intent.categoryId,
           kind: intent.kind,
           notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+          startedAt: intent.startedAt,
         );
       case ActivityVoiceIntentType.startChild:
         final title = intent.targetTitle;
@@ -334,9 +366,11 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         await startSession(
           title: title,
-          category: intent.category.isNotEmpty ? intent.category : 'Lainnya',
+          category: intent.category,
+          categoryId: intent.categoryId,
           kind: intent.kind,
           notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+          startedAt: intent.startedAt,
           parentSessionId: parentId,
         );
       case ActivityVoiceIntentType.finish:

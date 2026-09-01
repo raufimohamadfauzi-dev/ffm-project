@@ -93,7 +93,7 @@ void main() {
           )
           .getSingleOrNull();
 
-      expect(version.data['user_version'], 50);
+      expect(version.data['user_version'], 51);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -157,5 +157,41 @@ void main() {
         expect(legacy.data['title'], 'Aktivitas Lama');
       },
     );
+  });
+
+  test('menambahkan scheduled_at pada activity_sessions lama yang belum memilikinya', () async {
+    final executor = NativeDatabase.memory(
+      setup: (database) {
+        database.execute(
+          'CREATE TABLE activity_sessions ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, title TEXT NOT NULL, '
+          'started_at INTEGER NOT NULL, created_at INTEGER NOT NULL)',
+        );
+        database.execute(
+          "INSERT INTO activity_sessions "
+          "(id, household_id, title, started_at, created_at) "
+          "VALUES ('legacy-no-schedule', 'household', 'Aktivitas Lama', 1, 1)",
+        );
+        database.execute('PRAGMA user_version = 50');
+      },
+    );
+    final database = AppDatabase(executor);
+    addTearDown(database.close);
+
+    final columns = await database
+        .customSelect('PRAGMA table_info("activity_sessions")')
+        .get();
+    final legacy = await database
+        .customSelect(
+          "SELECT scheduled_at FROM activity_sessions "
+          "WHERE id = 'legacy-no-schedule'",
+        )
+        .getSingle();
+
+    expect(
+      columns.where((row) => row.read<String>('name') == 'scheduled_at'),
+      hasLength(1),
+    );
+    expect(legacy.data['scheduled_at'], isNull);
   });
 }

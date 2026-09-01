@@ -1,9 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_personal_memory_service.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_draft_feedback_service.dart';
 
 void main() {
   group('FfmPersonalMemoryService Pattern Matching', () {
-    const service = FfmPersonalMemoryService();
+    final service = FfmPersonalMemoryService(null, FfmAssistantDraftFeedbackService());
 
     test('mendeteksi tanggal gajian dari kalimat user', () {
       final insight = service.extractFromMessage('gajianku tiap tanggal 25');

@@ -287,6 +287,41 @@ class FfmDatabaseStructureService {
       'Asisten',
       'Antrean review feedback tersanitasi atas jawaban Asisten; tidak langsung menjadi knowledge.',
     ),
+    'assistant_agent_runs': _TableDefinition(
+      'Riwayat run Agent',
+      'Asisten',
+      'Ringkasan status eksekusi agent tanpa prompt, chain-of-thought, atau input tool mentah.',
+    ),
+    'assistant_agent_events': _TableDefinition(
+      'Event Agent',
+      'Asisten',
+      'Pemicu agent yang tersimpan dengan status idempoten agar tidak diproses dua kali.',
+    ),
+    'assistant_agent_approvals': _TableDefinition(
+      'Approval Agent',
+      'Asisten',
+      'Riwayat keputusan persetujuan tindakan agent tanpa menyimpan prompt atau input tool mentah.',
+    ),
+    'assistant_agent_tool_executions': _TableDefinition(
+      'Eksekusi Tool Agent',
+      'Asisten',
+      'Status capability per langkah run agent tanpa menyimpan parameter tool mentah.',
+    ),
+    'assistant_agent_goals': _TableDefinition(
+      'Goal Agent',
+      'Asisten',
+      'Tujuan berkelanjutan Agent yang dapat dikaitkan ke domain, entity, atau aktivitas.',
+    ),
+    'assistant_agent_tasks': _TableDefinition(
+      'Task Agent',
+      'Asisten',
+      'Langkah kerja Goal Agent dengan status dan retry terkontrol.',
+    ),
+    'assistant_agent_task_executions': _TableDefinition(
+      'Riwayat Task Agent',
+      'Asisten',
+      'Riwayat percobaan Task Agent tanpa prompt atau input tool mentah.',
+    ),
     'user_corrections': _TableDefinition(
       'Koreksi pengguna',
       'Personalisasi',

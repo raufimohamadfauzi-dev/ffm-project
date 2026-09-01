@@ -89,17 +89,23 @@ class _FfmAssistantDraftEditDialogState
   void _save() {
     final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = amountText.isEmpty ? null : int.tryParse(amountText);
+    final goalName = _textOrNull(_goalController);
+    final title = _isGoalContribution
+        ? (widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+            ? 'Setor Target ${goalName ?? ''}'.trim()
+            : 'Pakai Target ${goalName ?? ''}'.trim())
+        : _textOrNull(_titleController);
     final editedDraft = FfmAssistantDraft(
       kind: widget.draft.kind,
       createdAt: widget.draft.createdAt,
       amount: amount,
-      title: _textOrNull(_titleController),
+      title: title,
       partyName: widget.draft.partyName,
       fromAccountName: _textOrNull(_fromController),
       toAccountName: _textOrNull(_toController),
       categoryName: _textOrNull(_categoryController),
       adminFee: widget.draft.adminFee,
-      goalName: _textOrNull(_goalController),
+      goalName: goalName,
       note: _textOrNull(_noteController),
       date: widget.draft.date,
       linkedActivityId: widget.draft.linkedActivityId,
@@ -138,8 +144,17 @@ class _FfmAssistantDraftEditDialogState
     _ => false,
   };
 
+  bool get _isGoalContribution =>
+      widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
+      widget.draft.kind == FfmAssistantDraftKind.goalUsage;
+
+  bool get _isActivityDraft =>
+      widget.draft.kind == FfmAssistantDraftKind.activity ||
+      widget.draft.kind == FfmAssistantDraftKind.activityEdit;
+
   bool get _showsAmount =>
       _isTransaction ||
+      _isGoalContribution ||
       widget.draft.amount != null ||
       switch (widget.draft.kind) {
         FfmAssistantDraftKind.goal ||
@@ -150,24 +165,72 @@ class _FfmAssistantDraftEditDialogState
         _ => false,
       };
 
+  String _draftTypeLabel() => switch (widget.draft.kind) {
+    FfmAssistantDraftKind.income => 'Pemasukan',
+    FfmAssistantDraftKind.expense => 'Pengeluaran',
+    FfmAssistantDraftKind.transfer => 'Transfer Dana',
+    FfmAssistantDraftKind.goalDeposit => 'Setor Target',
+    FfmAssistantDraftKind.goalUsage => 'Pakai Target',
+    FfmAssistantDraftKind.goal => 'Target Keuangan',
+    FfmAssistantDraftKind.masterData => 'Data Utama',
+    FfmAssistantDraftKind.activity => 'Aktivitas',
+    FfmAssistantDraftKind.activityEdit => 'Ubah Aktivitas',
+    FfmAssistantDraftKind.budget => 'Anggaran',
+    FfmAssistantDraftKind.asset => 'Aset',
+    FfmAssistantDraftKind.liability => 'Hutang',
+    FfmAssistantDraftKind.receivable => 'Piutang',
+    _ => 'Draft',
+  };
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
       widget.draft.kind == FfmAssistantDraftKind.masterData
           ? 'Ubah Draft Data Utama'
+          : widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+          ? 'Ubah Draft Setor Target'
+          : widget.draft.kind == FfmAssistantDraftKind.goalUsage
+          ? 'Ubah Draft Pakai Target'
+          : widget.draft.kind == FfmAssistantDraftKind.goal
+          ? 'Ubah Draft Target Keuangan'
           : 'Ubah draft di chat',
     ),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (!_isTransaction) ...[
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.secondaryContainer.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Jenis draft: ${_draftTypeLabel()}',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          if (!_isTransaction && !_isGoalContribution) ...[
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
                 labelText: widget.draft.kind == FfmAssistantDraftKind.masterData
                     ? 'Nama ${widget.draft.categoryName ?? 'data'}'
+                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    ? 'Nama target'
                     : 'Nama/Judul',
+                hintText: widget.draft.kind == FfmAssistantDraftKind.goal
+                    ? 'Contoh: Dana Darurat, Liburan'
+                    : null,
               ),
             ),
             if (widget.draft.kind == FfmAssistantDraftKind.masterData)
@@ -184,23 +247,53 @@ class _FfmAssistantDraftEditDialogState
                 ),
               ),
           ],
+          if (widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
+              widget.draft.kind == FfmAssistantDraftKind.goalUsage)
+            TextField(
+              controller: _goalController,
+              decoration: const InputDecoration(
+                labelText: 'Target keuangan',
+                hintText: 'Contoh: Dana Darurat, Liburan',
+              ),
+            ),
           if (_showsAmount)
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Nominal (Rp)'),
+              decoration: InputDecoration(
+                labelText: widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+                    ? 'Nominal setor (Rp)'
+                    : widget.draft.kind == FfmAssistantDraftKind.goalUsage
+                    ? 'Nominal pakai (Rp)'
+                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    ? 'Target nominal (Rp)'
+                    : 'Nominal (Rp)',
+                hintText: 'Contoh: 500000',
+              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.expense ||
-              widget.draft.kind == FfmAssistantDraftKind.transfer)
+              widget.draft.kind == FfmAssistantDraftKind.transfer ||
+              widget.draft.kind == FfmAssistantDraftKind.goalDeposit)
             TextField(
               controller: _fromController,
-              decoration: const InputDecoration(labelText: 'Rekening asal'),
+              decoration: InputDecoration(
+                labelText: widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+                    ? 'Rekening sumber dana (opsional)'
+                    : 'Rekening asal',
+                hintText: 'Contoh: BCA, Tunai, ShopeePay',
+              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.transfer)
+              widget.draft.kind == FfmAssistantDraftKind.transfer ||
+              widget.draft.kind == FfmAssistantDraftKind.goalUsage)
             TextField(
               controller: _toController,
-              decoration: const InputDecoration(labelText: 'Rekening tujuan'),
+              decoration: InputDecoration(
+                labelText: widget.draft.kind == FfmAssistantDraftKind.goalUsage
+                    ? 'Rekening tujuan dana (opsional)'
+                    : 'Rekening tujuan',
+                hintText: 'Contoh: BCA, Tunai, ShopeePay',
+              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.activity) ...[
             const SizedBox(height: 8),
@@ -221,10 +314,13 @@ class _FfmAssistantDraftEditDialogState
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
               widget.draft.kind == FfmAssistantDraftKind.expense ||
               widget.draft.kind == FfmAssistantDraftKind.budget ||
-              widget.draft.kind == FfmAssistantDraftKind.activity)
+              _isActivityDraft)
             TextField(
               controller: _categoryController,
-              decoration: const InputDecoration(labelText: 'Kategori'),
+              decoration: const InputDecoration(
+                labelText: 'Kategori',
+                hintText: 'Contoh: Makanan, Transportasi',
+              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income)
             TextField(
@@ -243,16 +339,13 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: penting, rutin, dll',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
-              widget.draft.kind == FfmAssistantDraftKind.goalUsage)
-            TextField(
-              controller: _goalController,
-              decoration: const InputDecoration(labelText: 'Target keuangan'),
-            ),
           TextField(
             controller: _noteController,
             maxLines: 2,
-            decoration: const InputDecoration(labelText: 'Catatan'),
+            decoration: const InputDecoration(
+              labelText: 'Catatan',
+              hintText: 'Tambahan keterangan ringkas',
+            ),
           ),
         ],
       ),

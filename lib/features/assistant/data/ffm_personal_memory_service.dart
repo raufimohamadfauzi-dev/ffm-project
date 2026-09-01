@@ -1,4 +1,6 @@
 import 'ffm_assistant_memory_repository.dart';
+import 'ffm_assistant_draft_feedback_service.dart';
+import '../domain/ffm_assistant_models.dart';
 
 /// Kategori fakta yang diingat tentang pengguna.
 enum FfmPersonalMemoryKind {
@@ -28,7 +30,8 @@ class FfmPersonalMemoryInsight {
   final FfmPersonalMemoryKind kind;
   final String key;
   final String value;
-  final String humanLabel; // Tampilan ramah, misal: "Tanggal gaji: 25 setiap bulan"
+  final String
+  humanLabel; // Tampilan ramah, misal: "Tanggal gaji: 25 setiap bulan"
   final String? sourceMessage; // Kalimat user yang memicu deteksi
   final DateTime? savedAt;
 }
@@ -53,9 +56,13 @@ class _MemoryPattern {
 /// Hanya menyimpan data jika user secara eksplisit menyetujuinya
 /// melalui nudge card konfirmasi di UI. Tidak ada penyimpanan diam-diam.
 class FfmPersonalMemoryService {
-  const FfmPersonalMemoryService([this._memories]);
+  FfmPersonalMemoryService([
+    this._memories,
+    FfmAssistantDraftFeedbackService? feedbackService,
+  ]) : feedbackService = feedbackService ?? FfmAssistantDraftFeedbackService();
 
   final FfmAssistantMemoryRepository? _memories;
+  final FfmAssistantDraftFeedbackService feedbackService;
 
   static const _kindPrefix = 'personal_memory_';
 
@@ -170,6 +177,26 @@ class FfmPersonalMemoryService {
     ),
   ];
 
+  /// Mendapatkan context lengkap untuk LLM termasuk draft feedback
+  Map<String, dynamic> getEnhancedContextForLLM(
+    FfmAssistantDraft? activeDraft,
+  ) {
+    final baseContext = <String, dynamic>{};
+
+    // Tambahkan feedback draft
+    final draftFeedback = feedbackService.getFeedbackMessageForLLM();
+    if (draftFeedback.isNotEmpty) {
+      baseContext['draftFeedback'] = draftFeedback;
+    }
+
+    // Tambahkan context draft aktif
+    if (activeDraft != null) {
+      baseContext.addAll(feedbackService.getDraftContextForLLM(activeDraft));
+    }
+
+    return baseContext;
+  }
+
   /// Menganalisis satu kalimat user dan mengembalikan insight jika ada pola yang cocok.
   /// Mengembalikan null jika tidak ada fakta baru yang terdeteksi.
   FfmPersonalMemoryInsight? extractFromMessage(String userMessage) {
@@ -208,7 +235,8 @@ class FfmPersonalMemoryService {
         'scope': 'personal-memory',
         'humanLabel': insight.humanLabel,
         'approved': true,
-        if (insight.sourceMessage != null) 'sourceMessage': insight.sourceMessage,
+        if (insight.sourceMessage != null)
+          'sourceMessage': insight.sourceMessage,
       },
     );
     return FfmPersonalMemoryInsight(
@@ -238,7 +266,9 @@ class FfmPersonalMemoryService {
             kind: kind,
             key: r.triggerText,
             value: r.valueText,
-            humanLabel: (r.metadata['humanLabel'] as String?) ?? '${r.triggerText}: ${r.valueText}',
+            humanLabel:
+                (r.metadata['humanLabel'] as String?) ??
+                '${r.triggerText}: ${r.valueText}',
             sourceMessage: r.metadata['sourceMessage'] as String?,
             savedAt: r.createdAt,
           );

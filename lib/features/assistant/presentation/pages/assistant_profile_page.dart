@@ -251,6 +251,17 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
               icon: Icons.shield_outlined,
             ),
             const SizedBox(height: 16),
+            Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Image.asset(
+                  'assets/branding/Logo_FFM.png',
+                  width: 72,
+                  height: 72,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             AppCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

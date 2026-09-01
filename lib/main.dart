@@ -335,7 +335,22 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
       );
     },
     home: _pinGateLoading
-        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        ? Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
+                    'assets/branding/Logo_FFM.png',
+                    width: 96,
+                    height: 96,
+                  ),
+                  const SizedBox(height: 20),
+                  const CircularProgressIndicator(),
+                ],
+              ),
+            ),
+          )
         : _securityUnavailable
         ? _PinSecurityUnavailable(onRetry: _preparePinGate)
         : _isLocked
@@ -377,7 +392,11 @@ class _PinSecurityUnavailable extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.security_outlined, size: 48),
+              Image.asset(
+                'assets/branding/Logo_FFM.png',
+                width: 80,
+                height: 80,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Keamanan FFM belum bisa dicek',

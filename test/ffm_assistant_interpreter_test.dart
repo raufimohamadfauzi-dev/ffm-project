@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
+import 'package:ffm_manager/features/activity/domain/entities/activity_entity.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
@@ -74,6 +75,39 @@ void main() {
       expect(intent.type, FfmAssistantIntentType.openPage);
       expect(intent.destination, FfmAssistantDestination.budget);
       expect(intent.needsConfirmation, isFalse);
+    },
+  );
+
+  test(
+    'membuat draft edit kategori aktivitas dengan field kategori eksplisit',
+    () async {
+      final now = DateTime(2026, 8, 21, 10);
+      await database
+          .into(database.activitySessions)
+          .insert(
+            ActivitySessionsCompanion.insert(
+              id: 'market',
+              householdId: AppContext.householdId,
+              title: 'Belanja pasar',
+              category: const Value('Keluarga'),
+              kind: const Value('timer'),
+              startedAt: now.subtract(const Duration(hours: 1)),
+              endedAt: Value(now),
+              status: const Value('completed'),
+              createdAt: now.subtract(const Duration(hours: 1)),
+            ),
+          );
+
+      final intent = await interpreter.interpret(
+        'ubah kategori aktivitas belanja pasar jadi kebun',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.editActivity);
+      expect(intent.draft?.kind, FfmAssistantDraftKind.activityEdit);
+      expect(intent.draft?.title, 'Belanja pasar');
+      expect(intent.draft?.categoryName, 'kebun');
+      expect(intent.draft?.formValues['category'], 'kebun');
+      expect(intent.draft?.formValues['targetId'], 'market');
     },
   );
 
@@ -826,24 +860,6 @@ void main() {
     },
   );
 
-  test('Pilar 3: Knowledge Base menjawab pertanyaan panduan cara penggunaan fitur FFM', () async {
-    final budgetHelp = await interpreter.interpret('gimana cara buat anggaran');
-    expect(budgetHelp.type, FfmAssistantIntentType.help);
-    expect(budgetHelp.response, contains('Cara Mengatur Anggaran'));
-
-    final zakatHelp = await interpreter.interpret(
-      'bagaimana cara hitung zakat',
-    );
-    expect(zakatHelp.type, FfmAssistantIntentType.help);
-    expect(zakatHelp.response, contains('Simulasi Kewajiban Zakat'));
-
-    final backupHelp = await interpreter.interpret(
-      'cara backup data saat ganti hp',
-    );
-    expect(backupHelp.type, FfmAssistantIntentType.help);
-    expect(backupHelp.response, contains('Cara Backup & Pindah Data'));
-  });
-
   test(
     'menjelaskan fitur kalender perangkat dan Hijriah secara informatif',
     () async {
@@ -923,6 +939,24 @@ void main() {
 
       expect(intent.type, isNot(FfmAssistantIntentType.unknown));
       expect(intent.response, isNotEmpty);
+    },
+  );
+
+  test(
+    'jalur VN memakai interpreter yang menghasilkan draft aktivitas tanpa menulis database',
+    () async {
+      final intent = await interpreter.interpret(
+        'mulai memupuk timun',
+        currentDestination: FfmAssistantDestination.activity,
+        activitySnapshot: ActivityLiveSnapshot(
+          activeSessions: const [],
+        ),
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind, FfmAssistantDraftKind.activity);
+      expect(intent.draft!.title, isNotEmpty);
+      expect(intent.type, isNot(FfmAssistantIntentType.unknown));
     },
   );
 

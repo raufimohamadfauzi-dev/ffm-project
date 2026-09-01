@@ -33,7 +33,10 @@ class _FakeAdvisor implements FfmAssistantCategoryAdvisor {
 
 class _StubSuggestionService extends FfmCategorySuggestionService {
   _StubSuggestionService(AppDatabase db, this.result)
-    : super(database: db, personalization: FfmAssistantPersonalizationRepository(db));
+    : super(
+        database: db,
+        personalization: FfmAssistantPersonalizationRepository(db),
+      );
 
   final FfmCategorySuggestion? result;
   int callCount = 0;
@@ -204,7 +207,10 @@ void main() {
             sourceLabel: 'AI lokal',
           ),
         );
-        final interpreter = FfmAssistantInterpreter(db, categorySuggestion: stub);
+        final interpreter = FfmAssistantInterpreter(
+          db,
+          categorySuggestion: stub,
+        );
 
         final intent = await interpreter.interpret('beli kopi 20000');
 
@@ -219,7 +225,10 @@ void main() {
       () async {
         await seedExpenseCategory('Makanan');
         final stub = _StubSuggestionService(db, null);
-        final interpreter = FfmAssistantInterpreter(db, categorySuggestion: stub);
+        final interpreter = FfmAssistantInterpreter(
+          db,
+          categorySuggestion: stub,
+        );
 
         final intent = await interpreter.interpret('beli makanan 20000');
 
@@ -245,58 +254,79 @@ void main() {
           );
     }
 
-    test('pola minimal tiga kali menjadi memori habit yang disetujui', () async {
-      final base = DateTime(2026, 8, 20, 6);
-      await insertSession('s1', 'Lari Pagi', base);
-      await insertSession('s2', 'lari pagi', base.add(const Duration(days: 1)));
-      await insertSession('s3', 'Lari Pagi ', base.add(const Duration(days: 2)));
-      final learner = FfmActivityHabitLearner(
-        db,
-        FfmAssistantMemoryRepository(db),
-      );
+    test(
+      'pola minimal tiga kali menjadi memori habit yang disetujui',
+      () async {
+        final base = DateTime(2026, 8, 20, 6);
+        await insertSession('s1', 'Lari Pagi', base);
+        await insertSession(
+          's2',
+          'lari pagi',
+          base.add(const Duration(days: 1)),
+        );
+        await insertSession(
+          's3',
+          'Lari Pagi ',
+          base.add(const Duration(days: 2)),
+        );
+        final learner = FfmActivityHabitLearner(
+          db,
+          FfmAssistantMemoryRepository(db),
+        );
 
-      await learner.recordActivityObservation(
-        title: 'Lari Pagi',
-        occurredAt: base.add(const Duration(days: 3)),
-      );
+        await learner.recordActivityObservation(
+          title: 'Lari Pagi',
+          occurredAt: base.add(const Duration(days: 3)),
+        );
 
-      final memories = await FfmAssistantMemoryRepository(db).readActive(
-        kind: 'habit',
-      );
-      expect(memories, hasLength(1));
-      expect(memories.single.valueText, contains('3 kali'));
-      expect(memories.single.valueText, contains('biasanya'));
-      expect(memories.single.metadata['approved'], true);
-      expect(memories.single.metadata['scope'], 'user-model');
-    });
+        final memories = await FfmAssistantMemoryRepository(db)
+            .readActive(kind: 'habit');
+        expect(memories, hasLength(1));
+        expect(memories.single.valueText, contains('3 kali'));
+        expect(memories.single.valueText, contains('biasanya'));
+        expect(memories.single.metadata['approved'], true);
+        expect(memories.single.metadata['scope'], 'user-model');
+      },
+    );
 
-    test('di bawah ambang batas tidak menyimpan apa pun dan idempoten', () async {
-      final base = DateTime(2026, 8, 18, 20);
-      await insertSession('y1', 'Yoga Malam', base);
-      await insertSession('y2', 'Yoga Malam', base.add(const Duration(days: 1)));
-      final repo = FfmAssistantMemoryRepository(db);
-      final learner = FfmActivityHabitLearner(db, repo);
+    test(
+      'di bawah ambang batas tidak menyimpan apa pun dan idempoten',
+      () async {
+        final base = DateTime(2026, 8, 18, 20);
+        await insertSession('y1', 'Yoga Malam', base);
+        await insertSession(
+          'y2',
+          'Yoga Malam',
+          base.add(const Duration(days: 1)),
+        );
+        final repo = FfmAssistantMemoryRepository(db);
+        final learner = FfmActivityHabitLearner(db, repo);
 
-      await learner.recordActivityObservation(
-        title: 'Yoga Malam',
-        occurredAt: base.add(const Duration(days: 2)),
-      );
-      expect(await repo.readActive(kind: 'habit'), isEmpty);
+        await learner.recordActivityObservation(
+          title: 'Yoga Malam',
+          occurredAt: base.add(const Duration(days: 2)),
+        );
+        expect(await repo.readActive(kind: 'habit'), isEmpty);
 
-      // Capai ambang lalu jalankan dua kali: tetap satu baris.
-      await insertSession('y3', 'Yoga Malam', base.add(const Duration(days: 2)));
-      await learner.recordActivityObservation(
-        title: 'Yoga Malam',
-        occurredAt: base.add(const Duration(days: 2)),
-      );
-      await learner.recordActivityObservation(
-        title: 'Yoga Malam',
-        occurredAt: base.add(const Duration(days: 2)),
-      );
-      final memories = await repo.readActive(kind: 'habit');
-      expect(memories, hasLength(1));
-      expect(memories.single.valueText, contains('3 kali'));
-    });
+        // Capai ambang lalu jalankan dua kali: tetap satu baris.
+        await insertSession(
+          'y3',
+          'Yoga Malam',
+          base.add(const Duration(days: 2)),
+        );
+        await learner.recordActivityObservation(
+          title: 'Yoga Malam',
+          occurredAt: base.add(const Duration(days: 2)),
+        );
+        await learner.recordActivityObservation(
+          title: 'Yoga Malam',
+          occurredAt: base.add(const Duration(days: 2)),
+        );
+        final memories = await repo.readActive(kind: 'habit');
+        expect(memories, hasLength(1));
+        expect(memories.single.valueText, contains('3 kali'));
+      },
+    );
   });
 
   group('Tahap 3: memori belajar mengalir ke konteks SLM', () {
@@ -409,6 +439,10 @@ class _CapturingLearner implements FfmActivityHabitLearner {
   Future<void> recordActivityObservation({
     required String title,
     required DateTime occurredAt,
+    String? category,
+    String? activityGroupId,
+    String? subjectType,
+    String? subjectId,
   }) async {
     onObserve(title, occurredAt);
   }
@@ -431,4 +465,3 @@ ActivitySessionEntity _sessionEntity({
     createdAt: startedAt,
   );
 }
-

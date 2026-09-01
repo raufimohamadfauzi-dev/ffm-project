@@ -204,6 +204,37 @@ class ActivityRepository {
         .ignore();
   }
 
+  Future<Category?> resolveActiveActivityCategory({
+    required String householdId,
+    String? categoryId,
+    String? categoryName,
+  }) async {
+    if (categoryId != null && categoryId.trim().isNotEmpty) {
+      final category =
+          await (database.select(database.categories)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(categoryId) &
+                    row.type.equals('activity') &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+      if (category != null) return category;
+    }
+    final name = categoryName?.trim();
+    if (name == null || name.isEmpty) return null;
+    final categories =
+        await (database.select(database.categories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.type.equals('activity') &
+                  row.isActive.equals(true) &
+                  row.name.equals(name),
+            ))
+            .get();
+    return categories.length == 1 ? categories.single : null;
+  }
+
   Future<void> saveCheckpoint(ActivityCheckpointEntity entity) async {
     await database
         .into(database.activityCheckpoints)

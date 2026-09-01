@@ -14,6 +14,7 @@ import 'ffm_assistant_memory_repository.dart';
 import 'ffm_memory_learning_service.dart';
 import 'ffm_assistant_user_model_service.dart';
 import 'ffm_personal_memory_service.dart';
+import 'ffm_assistant_draft_feedback_service.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_assistant_fuzzy_matcher.dart';
 import 'ffm_assistant_typo_normalizer.dart';
@@ -34,6 +35,7 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
     FfmAssistantMemoryRepository? memoryRepository,
     FfmAssistantUserModelService? userModelService,
     FfmPersonalMemoryService? personalMemoryService,
+    FfmAssistantDraftFeedbackService? draftFeedbackService,
     FfmAssistantPersonalizationRepository? personalizationRepository,
     FfmWorkingContextManager? workingContextManager,
   }) : _memoryRepository =
@@ -43,7 +45,10 @@ class FfmPersonalContextEngineImpl implements FfmPersonalContextEngine {
            FfmAssistantUserModelService(FfmAssistantMemoryRepository(database)),
        _personalMemoryService =
            personalMemoryService ??
-           FfmPersonalMemoryService(FfmAssistantMemoryRepository(database)),
+           FfmPersonalMemoryService(
+             FfmAssistantMemoryRepository(database),
+             draftFeedbackService ?? FfmAssistantDraftFeedbackService(),
+           ),
        _personalizationRepository =
            personalizationRepository ??
                FfmAssistantPersonalizationRepository(database) {

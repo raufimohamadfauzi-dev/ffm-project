@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
@@ -117,10 +118,18 @@ class ActivityApplicationService {
       ..writeln('  action = $action')
       ..writeln('  operationId = $operationId');
     if (trigger != null) sb.writeln('  trigger = "$trigger"');
-    if (matchedSessionId != null) sb.writeln('  matchedSessionId = $matchedSessionId');
-    if (parentSessionId != null) sb.writeln('  parentSessionId = $parentSessionId');
-    if (confidence != null) sb.writeln('  confidence = ${confidence.toStringAsFixed(2)}');
-    if (sourceRevision != null) sb.writeln('  sourceRevision = $sourceRevision');
+    if (matchedSessionId != null) {
+      sb.writeln('  matchedSessionId = $matchedSessionId');
+    }
+    if (parentSessionId != null) {
+      sb.writeln('  parentSessionId = $parentSessionId');
+    }
+    if (confidence != null) {
+      sb.writeln('  confidence = ${confidence.toStringAsFixed(2)}');
+    }
+    if (sourceRevision != null) {
+      sb.writeln('  sourceRevision = $sourceRevision');
+    }
     sb.writeln('  currentRevision = $currentRevision');
     sb.writeln('  result = $result');
     developer.log(sb.toString(), name: 'ActivityAgent');
@@ -149,7 +158,8 @@ class ActivityApplicationService {
         operationId: operationId,
         expectedRevision: expectedRevision,
         currentRevision: currentRevision,
-        message: 'State aktivitas berubah sebelum aksi dijalankan (revisi $expectedRevision vs $currentRevision). Mohon verifikasi ulang draf.',
+        message:
+            'State aktivitas berubah sebelum aksi dijalankan (revisi $expectedRevision vs $currentRevision). Mohon verifikasi ulang draf.',
       );
       _logDebug(
         action: 'start_session',
@@ -164,11 +174,15 @@ class ActivityApplicationService {
 
     // 3. Parent verification
     if (parentSessionId != null) {
-      final parent = await repository.getSession(AppContext.householdId, parentSessionId);
+      final parent = await repository.getSession(
+        AppContext.householdId,
+        parentSessionId,
+      );
       if (parent == null || parent.status != ActivitySessionStatus.active) {
         final res = ActivityCommandResult.failed(
           operationId: operationId,
-          message: 'Aktivitas induk ($parentSessionId) sudah tidak aktif atau tidak ditemukan.',
+          message:
+              'Aktivitas induk ($parentSessionId) sudah tidak aktif atau tidak ditemukan.',
           revision: currentRevision,
         );
         _logDebug(
@@ -265,11 +279,15 @@ class ActivityApplicationService {
     }
 
     // 3. Find target session
-    final target = await repository.getSession(AppContext.householdId, sessionId);
+    final target = await repository.getSession(
+      AppContext.householdId,
+      sessionId,
+    );
     if (target == null || target.status != ActivitySessionStatus.active) {
       final res = ActivityCommandResult.failed(
         operationId: operationId,
-        message: 'Sesi dengan ID "$sessionId" sudah selesai atau tidak ditemukan.',
+        message:
+            'Sesi dengan ID "$sessionId" sudah selesai atau tidak ditemukan.',
         revision: currentRevision,
       );
       _logDebug(
@@ -283,15 +301,20 @@ class ActivityApplicationService {
     }
 
     // 4. Hierarchy Safety: check active child sessions
-    final activeSessions = await repository.getActiveSessions(AppContext.householdId);
-    final activeChildren = activeSessions.where((s) => s.parentSessionId == target.id).toList();
+    final activeSessions = await repository.getActiveSessions(
+      AppContext.householdId,
+    );
+    final activeChildren = activeSessions
+        .where((s) => s.parentSessionId == target.id)
+        .toList();
 
     if (activeChildren.isNotEmpty && !forceCloseChildren) {
       final childNames = activeChildren.map((c) => c.title).join(', ');
       final res = ActivityCommandResult(
         success: false,
         operationId: operationId,
-        message: 'Aktivitas "${target.title}" masih memiliki ${activeChildren.length} sub-kegiatan aktif: $childNames. Tutup sub-kegiatan terlebih dahulu atau konfirmasi tutup semua.',
+        message:
+            'Aktivitas "${target.title}" masih memiliki ${activeChildren.length} sub-kegiatan aktif: $childNames. Tutup sub-kegiatan terlebih dahulu atau konfirmasi tutup semua.',
         newRevision: currentRevision,
         session: target,
         activeChildrenCount: activeChildren.length,
@@ -350,7 +373,8 @@ class ActivityApplicationService {
     final result = ActivityCommandResult(
       success: true,
       operationId: operationId,
-      message: 'Aktivitas "${target.title}" selesai (${const ActivityDurationCalculator().format(closedParent.durationAt())}).',
+      message:
+          'Aktivitas "${target.title}" selesai (${const ActivityDurationCalculator().format(closedParent.durationAt())}).',
       newRevision: currentRevision,
       session: closedParent,
     );
@@ -403,7 +427,10 @@ class ActivityApplicationService {
       );
     }
 
-    final session = await repository.getSession(AppContext.householdId, sessionId);
+    final session = await repository.getSession(
+      AppContext.householdId,
+      sessionId,
+    );
     if (session == null || session.status != ActivitySessionStatus.active) {
       return ActivityCommandResult.failed(
         operationId: operationId,
@@ -431,7 +458,8 @@ class ActivityApplicationService {
     final result = ActivityCommandResult(
       success: true,
       operationId: operationId,
-      message: 'Checkpoint "${cp.label}" berhasil dicatat untuk ${session.title}.',
+      message:
+          'Checkpoint "${cp.label}" berhasil dicatat untuk ${session.title}.',
       newRevision: currentRevision,
       checkpoint: cp,
     );
@@ -535,7 +563,8 @@ class ActivityApplicationService {
     if (op == null) {
       return ActivityCommandResult.failed(
         operationId: operationId,
-        message: 'Operasi dengan ID "$operationId" tidak ditemukan untuk dibatalkan.',
+        message:
+            'Operasi dengan ID "$operationId" tidak ditemukan untuk dibatalkan.',
         revision: currentRevision,
       );
     }
@@ -553,7 +582,10 @@ class ActivityApplicationService {
         );
 
       case ActivityOperationType.finishSession:
-        final session = await repository.getSession(AppContext.householdId, op.entityId);
+        final session = await repository.getSession(
+          AppContext.householdId,
+          op.entityId,
+        );
         if (session != null) {
           final reopened = ActivitySessionEntity(
             id: session.id,

@@ -67,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 50;
+  int get schemaVersion => 51;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -277,25 +277,28 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 50) {
         if (await _hasTable('assistant_agent_tasks')) {
-          if (!await _hasColumns(
-            'assistant_agent_tasks',
-            const ['capability_id'],
-          )) {
+          if (!await _hasColumns('assistant_agent_tasks', const [
+            'capability_id',
+          ])) {
             await m.addColumn(
               assistantAgentTasks,
               assistantAgentTasks.capabilityId,
             );
           }
-          if (!await _hasColumns(
-            'assistant_agent_tasks',
-            const ['parameters_json'],
-          )) {
+          if (!await _hasColumns('assistant_agent_tasks', const [
+            'parameters_json',
+          ])) {
             await m.addColumn(
               assistantAgentTasks,
               assistantAgentTasks.parametersJson,
             );
           }
         }
+      }
+      if (from < 51 &&
+          await _hasTable('activity_sessions') &&
+          !await _hasColumns('activity_sessions', const ['scheduled_at'])) {
+        await m.addColumn(activitySessions, activitySessions.scheduledAt);
       }
       if (from < 20) {
         await _seedInitialData();

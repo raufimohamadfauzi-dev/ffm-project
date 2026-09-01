@@ -16,4 +16,6 @@ enum FfmAssistantBudgetBlockReason {
   tooManySteps,
   tooManyActivePlans,
   stepAlreadyExecuted,
+  tokenBudgetExceeded,
+  costBudgetExceeded,
 }

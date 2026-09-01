@@ -4,7 +4,8 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../audit/presentation/pages/activity_log_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/assistant_profile_page.dart';
-import '../../../assistant/presentation/pages/assistant_training_page.dart';
+import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
+
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
@@ -16,9 +17,9 @@ import 'app_diagnostics_page.dart';
 import 'database_structure_page.dart';
 import '../../../advisor/presentation/pages/analysis_page.dart';
 import 'master_data_page.dart';
-import 'offline_advanced_page.dart';
+
 import '../../../recurring_transaction/presentation/pages/recurring_transaction_page.dart';
-import 'offline_features_page.dart';
+
 import 'pin_security_page.dart';
 import 'privacy_center_page.dart';
 import 'supabase_setup_page.dart';
@@ -54,16 +55,14 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Ringkasan bulanan', 'arus kas laporan'],
       ['Log aktivitas', 'transaksi transfer impor'],
       ['Profil Personalisasi Asisten', 'ekspor impor pola'],
-      ['Pengetahuan Asisten', 'aturan preferensi'],
       ['Analisa', 'pola keuangan'],
       ['Pengingat', 'lokal lupa'],
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
-      ['Alat offline lanjutan', 'saldo rekonsiliasi'],
       ['Kunci aplikasi', 'PIN keamanan'],
       ['Bantuan perbaikan', 'error laporan'],
+      ['Monitoring Agent', 'riwayat run tool eksekusi autonomy'],
       ['Pusat privasi', 'data enkripsi izin'],
       ['Struktur database', 'tabel database'],
-      ['Fitur tanpa internet', 'offline'],
     ];
     final query = _searchQuery.trim().toLowerCase();
     return menuItems.any((item) => '${item[0]} ${item[1]}'.contains(query));
@@ -235,14 +234,16 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Ekspor atau impor preferensi dan pola belajar terkontrol secara terenkripsi.',
               ),
             ),
+
             _MenuCard(
-              icon: Icons.psychology_alt_outlined,
-              title: 'Pengetahuan Asisten (opsional)',
-              subtitle: 'Kelola aturan dan preferensi lokal yang disetujui; ini bukan melatih ulang model.',
-              onTap: () => _open(context, const AssistantTrainingPage()),
+              icon: Icons.monitor_heart_outlined,
+              title: 'Monitoring Agent',
+              subtitle: 'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
+              onTap: () =>
+                  _open(context, const FfmAssistantAutonomyMonitorPage()),
               visible: _matches(
-                'Pengetahuan Asisten opsional',
-                'Kelola aturan dan preferensi lokal yang disetujui; ini bukan melatih ulang model.',
+                'Monitoring Agent riwayat run tool eksekusi autonomy',
+                'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
               ),
             ),
             _MenuCard(
@@ -277,16 +278,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
               ),
             ),
-            _MenuCard(
-              icon: Icons.offline_bolt_outlined,
-              title: 'Alat offline lanjutan',
-              subtitle: 'Cek saldo, rekonsiliasi saldo, impor data, dan pemeriksaan lokal di perangkat.',
-              onTap: () => _open(context, const OfflineAdvancedPage()),
-              visible: _matches(
-                'Alat offline lanjutan',
-                'Cek saldo, rekonsiliasi saldo, impor data, dan pemeriksaan lokal di perangkat.',
-              ),
-            ),
+
             if (_searchQuery.trim().isNotEmpty && !_hasMatchingMenu())
               const Padding(
                 padding: EdgeInsets.only(top: 24),
@@ -336,16 +328,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Lihat tabel dan gambaran isi database lokal FFM.',
               ),
             ),
-            _MenuCard(
-              icon: Icons.wifi_off_outlined,
-              title: 'Fitur tanpa internet',
-              subtitle: 'Baca panduan lengkap tentang teknologi offline yang tersedia.',
-              onTap: () => _open(context, const OfflineFeaturesPage()),
-              visible: _matches(
-                'Fitur tanpa internet',
-                'Baca panduan lengkap tentang teknologi offline yang tersedia.',
-              ),
-            ),
+
           ],
         ),
       ),

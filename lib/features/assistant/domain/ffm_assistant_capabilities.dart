@@ -399,7 +399,8 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'draft.tag_delete',
       label: 'Siapkan hapus Tag',
-      description: 'Menampilkan satu Tag yang akan dihapus permanen dari database.',
+      description:
+          'Menampilkan satu Tag yang akan dihapus permanen dari database.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.masterData,
       parameterNames: ['targetId'],
@@ -447,7 +448,8 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'draft.category_delete',
       label: 'Siapkan hapus Kategori',
-      description: 'Menampilkan satu Kategori yang akan dihapus permanen dari database.',
+      description:
+          'Menampilkan satu Kategori yang akan dihapus permanen dari database.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.masterData,
       parameterNames: ['targetId'],
@@ -471,7 +473,8 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'draft.account_delete',
       label: 'Siapkan hapus Rekening',
-      description: 'Menampilkan satu Rekening yang akan dihapus permanen dari database.',
+      description:
+          'Menampilkan satu Rekening yang akan dihapus permanen dari database.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.masterData,
       parameterNames: ['targetId'],
@@ -731,7 +734,8 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'draft.activity_finish',
       label: 'Siapkan selesai aktivitas',
-      description: 'Menampilkan aktivitas yang akan diselesaikan tanpa mengubah data.',
+      description:
+          'Menampilkan aktivitas yang akan diselesaikan tanpa mengubah data.',
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.activity,
       parameterNames: ['targetId'],
@@ -770,6 +774,28 @@ class FfmAssistantCapabilityRegistry {
       id: 'verify.activity_mutation',
       label: 'Verifikasi perubahan aktivitas',
       description: 'Membaca kembali status aktivitas setelah arsip atau hapus.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.asset_mutation',
+      label: 'Verifikasi perubahan aset',
+      description: 'Membaca kembali aset setelah perubahan atau arsip lunak.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.liability_mutation',
+      label: 'Verifikasi perubahan Hutang',
+      description: 'Membaca kembali Hutang setelah perubahan atau arsip lunak.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.budget_mutation',
+      label: 'Verifikasi perubahan anggaran',
+      description:
+          'Membaca kembali anggaran setelah perubahan batas atau arsip.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),
@@ -841,8 +867,7 @@ class FfmAssistantCapabilityRegistry {
     const FfmAssistantCapability(
       id: 'verify.tag_mutation',
       label: 'Verifikasi Tag',
-      description:
-          'Membaca kembali Tag setelah perubahan nama, arsip lunak, atau hapus permanen.',
+      description: 'Membaca kembali Tag setelah perubahan nama, arsip lunak, atau hapus permanen.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

@@ -92,11 +92,14 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: scheme.primaryContainer,
-                      foregroundColor: scheme.onPrimaryContainer,
-                      child: Icon(widget.icon, size: 30),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: Image.asset(
+                        'assets/branding/Logo_FFM.png',
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Text(

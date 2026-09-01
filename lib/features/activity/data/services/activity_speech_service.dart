@@ -87,7 +87,10 @@ class ActivitySpeechService {
   }
 
   Future<void> stopSpeaking({String? sessionId}) =>
-      _ttsChannel.invokeMethod<void>('stop', sessionId != null ? {'sessionId': sessionId} : {});
+      _ttsChannel.invokeMethod<void>(
+        'stop',
+        sessionId != null ? {'sessionId': sessionId} : {},
+      );
 
   Future<void> cancelSpeaking() => _ttsChannel.invokeMethod<void>('cancel');
 

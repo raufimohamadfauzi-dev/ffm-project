@@ -39,15 +39,13 @@ void main() {
           'lib/features/settings/presentation/pages/app_diagnostics_page.dart',
       FfmAssistantDestination.activityLog:
           'lib/features/audit/presentation/pages/activity_log_page.dart',
-      FfmAssistantDestination.assistantTraining: 'lib/features/assistant/presentation/pages/assistant_training_page.dart',
+
       FfmAssistantDestination.recurringTransaction: 'lib/features/recurring_transaction/presentation/pages/recurring_transaction_page.dart',
-      FfmAssistantDestination.offlineAdvanced:
-          'lib/features/settings/presentation/pages/offline_advanced_page.dart',
+
       FfmAssistantDestination.privacyCenter:
           'lib/features/settings/presentation/pages/privacy_center_page.dart',
       FfmAssistantDestination.databaseStructure: 'lib/features/settings/presentation/pages/database_structure_page.dart',
-      FfmAssistantDestination.offlineFeatures:
-          'lib/features/settings/presentation/pages/offline_features_page.dart',
+
       FfmAssistantDestination.localModel:
           'lib/features/assistant/presentation/pages/local_model_page.dart',
       FfmAssistantDestination.assistantProfile: 'lib/features/assistant/presentation/pages/assistant_profile_page.dart',

@@ -499,80 +499,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
       showDragHandle: true,
       builder: (sheetContext) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: .84,
-        minChildSize: .55,
-        maxChildSize: .96,
+        initialChildSize: .55,
+        minChildSize: .42,
+        maxChildSize: .92,
         builder: (_, controller) => SafeArea(
-          child: ListView(
+          child: _NewEntrySheetBody(
             controller: controller,
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
-            children: [
-              const Text(
-                'Mau mencatat apa?',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Pilih alurnya dulu. Semua pilihan ada di sini, termasuk Input cepat dan JSON batch.',
-              ),
-              const SizedBox(height: 16),
-              _NewEntryChoiceTile(
-                icon: Icons.north_east_rounded,
-                color: AppColors.negative,
-                title: 'Pengeluaran',
-                subtitle: 'Satu uang keluar dari Tunai, Rekening, atau Dompet digital.',
-                onTap: () => Navigator.pop(sheetContext, 'expense'),
-              ),
-              const SizedBox(height: 8),
-              _NewEntryChoiceTile(
-                icon: Icons.south_west_rounded,
-                color: AppColors.positive,
-                title: 'Pemasukan',
-                subtitle:
-                    'Satu uang masuk ke Tunai, Rekening, atau Dompet digital.',
-                onTap: () => Navigator.pop(sheetContext, 'income'),
-              ),
-              const SizedBox(height: 8),
-              _NewEntryChoiceTile(
-                icon: Icons.flag_outlined,
-                color: AppColors.primary,
-                title: 'Isi target uang terkumpul',
-                subtitle: 'Setor ke target dan pilih tempat uang. Tidak ada kategori belanja.',
-                onTap: () => Navigator.pop(sheetContext, 'goal'),
-              ),
-              const SizedBox(height: 8),
-              _NewEntryChoiceTile(
-                icon: Icons.outbox_outlined,
-                color: AppColors.warning,
-                title: 'Pakai dana target',
-                subtitle: 'Gunakan dana yang sudah terkumpul tanpa membuat saldo ganda.',
-                onTap: () => Navigator.pop(sheetContext, 'goal_usage'),
-              ),
-              const Divider(height: 28),
-              _NewEntryChoiceTile(
-                icon: Icons.playlist_add_rounded,
-                color: AppColors.primary,
-                title: 'Input cepat banyak item',
-                subtitle: 'Catat 10+ transaksi manual; tiap baris punya nominal, kategori, tempat uang, jam, dan rincian.',
-                onTap: () => Navigator.pop(sheetContext, 'quick'),
-              ),
-              const SizedBox(height: 8),
-              _NewEntryChoiceTile(
-                icon: Icons.data_object_rounded,
-                color: AppColors.primary,
-                title: 'Impor JSON batch dari Gemini',
-                subtitle: 'Tempel atau impor JSON untuk mengisi banyak transaksi dan item sekaligus. Semua bisa diedit dulu.',
-                onTap: () => Navigator.pop(sheetContext, 'json'),
-              ),
-              const SizedBox(height: 8),
-              _NewEntryChoiceTile(
-                icon: Icons.data_object_rounded,
-                color: AppColors.primary,
-                title: 'Impor JSON nota dari LLM',
-                subtitle: 'Tempel atau pilih JSON hasil LLM, lalu cek semua isinya sebelum masuk ke form transaksi.',
-                onTap: () => Navigator.pop(sheetContext, 'receipt_json'),
-              ),
-            ],
+            onSelect: (choice) => Navigator.pop(sheetContext, choice),
           ),
         ),
       ),
@@ -583,6 +516,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         await _openTransactionForm(TransactionType.expense);
       case 'income':
         await _openTransactionForm(TransactionType.income);
+      case 'transfer':
+        await _openTransfer();
       case 'goal':
         await _openGoalContribution();
       case 'goal_usage':
@@ -3240,12 +3175,18 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                       controller: _amountController,
                       keyboardType: TextInputType.number,
                       inputFormatters: const [RupiahInputFormatter()],
+                      readOnly: _items.isNotEmpty,
                       decoration: InputDecoration(
-                        labelText: 'Nominal $flowLabel',
+                        labelText: _items.isNotEmpty
+                            ? 'Nominal $flowLabel (otomatis dari item)'
+                            : 'Nominal $flowLabel',
                         prefixText: 'Rp ',
                         hintText: '0',
                         filled: true,
                         fillColor: scheme.surfaceContainerLowest,
+                        helperText: _items.isNotEmpty
+                            ? 'Terkunci: dijumlahkan otomatis dari seluruh item di bawah.'
+                            : null,
                       ),
                       onChanged: (_) => setState(() {}),
                       validator: (value) {
@@ -3867,6 +3808,157 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   String _dateLabel(DateTime date) => formatTanggalLengkap(date);
 }
 
+class _NewEntrySheetBody extends StatefulWidget {
+  const _NewEntrySheetBody({
+    required this.controller,
+    required this.onSelect,
+  });
+
+  final ScrollController controller;
+  final ValueChanged<String> onSelect;
+
+  @override
+  State<_NewEntrySheetBody> createState() => _NewEntrySheetBodyState();
+}
+
+class _NewEntrySheetBodyState extends State<_NewEntrySheetBody> {
+  int _section = 0; // 0 = utama, 1 = target, 2 = lebih banyak
+
+  Widget _tile({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: _NewEntryChoiceTile(
+        icon: icon,
+        color: color,
+        title: title,
+        subtitle: subtitle,
+        onTap: onTap,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      controller: widget.controller,
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+      children: [
+        const Text(
+          'Mau mencatat apa?',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _section == 1
+              ? 'Pilih alur target keuangan.'
+              : _section == 2
+              ? 'Alat lanjutan: Input cepat & impor dari Asisten.'
+              : 'Pilih alurnya.',
+          style: TextStyle(color: Colors.grey.shade600),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 16),
+        if (_section == 0) ...[
+          _tile(
+            icon: Icons.north_east_rounded,
+            color: AppColors.negative,
+            title: 'Pengeluaran',
+            subtitle: 'Satu uang keluar',
+            onTap: () => widget.onSelect('expense'),
+          ),
+          _tile(
+            icon: Icons.south_west_rounded,
+            color: AppColors.positive,
+            title: 'Pemasukan',
+            subtitle: 'Satu uang masuk',
+            onTap: () => widget.onSelect('income'),
+          ),
+          _tile(
+            icon: Icons.swap_horiz_rounded,
+            color: AppColors.primary,
+            title: 'Transfer',
+            subtitle: 'Pindah saldo antar rekening',
+            onTap: () => widget.onSelect('transfer'),
+          ),
+          _tile(
+            icon: Icons.flag_outlined,
+            color: AppColors.warning,
+            title: 'Target Keuangan',
+            subtitle: 'Isi atau pakai dana target',
+            onTap: () => setState(() => _section = 1),
+          ),
+          const Divider(height: 28),
+          _tile(
+            icon: Icons.more_horiz_rounded,
+            color: AppColors.primary,
+            title: 'Lebih banyak',
+            subtitle: 'Input cepat & impor dari Asisten',
+            onTap: () => setState(() => _section = 2),
+          ),
+        ] else if (_section == 1) ...[
+          _tile(
+            icon: Icons.arrow_back_rounded,
+            color: AppColors.primary,
+            title: 'Kembali',
+            subtitle: 'Ke pilihan utama',
+            onTap: () => setState(() => _section = 0),
+          ),
+          _tile(
+            icon: Icons.flag_outlined,
+            color: AppColors.primary,
+            title: 'Isi target uang terkumpul',
+            subtitle: 'Setor ke target',
+            onTap: () => widget.onSelect('goal'),
+          ),
+          _tile(
+            icon: Icons.outbox_outlined,
+            color: AppColors.warning,
+            title: 'Pakai dana target',
+            subtitle: 'Gunakan dana terkumpul',
+            onTap: () => widget.onSelect('goal_usage'),
+          ),
+        ] else ...[
+          _tile(
+            icon: Icons.arrow_back_rounded,
+            color: AppColors.primary,
+            title: 'Kembali',
+            subtitle: 'Ke pilihan utama',
+            onTap: () => setState(() => _section = 0),
+          ),
+          _tile(
+            icon: Icons.playlist_add_rounded,
+            color: AppColors.primary,
+            title: 'Input cepat banyak item',
+            subtitle: 'Catat beberapa transaksi manual',
+            onTap: () => widget.onSelect('quick'),
+          ),
+          _tile(
+            icon: Icons.data_object_rounded,
+            color: AppColors.primary,
+            title: 'Impor hasil dari Asisten AI',
+            subtitle: 'Tempel hasil asisten untuk mengisi banyak transaksi',
+            onTap: () => widget.onSelect('json'),
+          ),
+          _tile(
+            icon: Icons.note_alt_outlined,
+            color: AppColors.primary,
+            title: 'Impor nota dari Asisten',
+            subtitle: 'Tempel hasil nota untuk diisi ke form transaksi',
+            onTap: () => widget.onSelect('receipt_json'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _NewEntryChoiceTile extends StatelessWidget {
   const _NewEntryChoiceTile({
     required this.icon,
@@ -3952,6 +4044,7 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
   var _goalsLoading = true;
   var _accountsLoading = true;
   var _balanceLoading = false;
+  String? _assistantGoalWarning;
 
   @override
   void initState() {
@@ -3999,7 +4092,14 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
       final matched = _goals
           .where((goal) => goal.name.trim().toLowerCase() == goalName)
           .firstOrNull;
-      if (matched != null && mounted) setState(() => _goalId = matched.id);
+      if (matched != null && mounted) {
+        setState(() => _goalId = matched.id);
+      } else if (mounted) {
+        setState(() {
+          _assistantGoalWarning =
+              'Target “${widget.assistantDraft!.goalName}” tidak ditemukan di daftar target aktif. Pilih target yang benar dulu.';
+        });
+      }
     }
   }
 
@@ -4303,6 +4403,39 @@ class _GoalContributionFormPageState extends State<GoalContributionFormPage> {
                   ),
                 )
               else ...[
+                if (_assistantGoalWarning != null) ...[
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.orange.shade700,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _assistantGoalWarning!,
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 DropdownButtonFormField<String>(
                   initialValue: _goalId,
                   isExpanded: true,

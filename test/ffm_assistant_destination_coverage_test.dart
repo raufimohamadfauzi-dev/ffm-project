@@ -10,12 +10,9 @@ void main() {
       names,
       containsAll(const [
         'Log aktivitas',
-        'Pengetahuan Asisten',
         'Pemasukan berkala',
-        'Alat offline lanjutan',
         'Pusat privasi',
         'Struktur database',
-        'Fitur tanpa internet',
         'Intelligence Dashboard',
       ]),
     );
@@ -45,7 +42,7 @@ void main() {
           expect(intent.response, contains(item.name));
           expect(intent.response, contains(item.description));
         }
-        expect(FfmAssistantCatalog.otherMenuItems, hasLength(16));
+        expect(FfmAssistantCatalog.otherMenuItems, hasLength(13));
       } finally {
         await database.close();
       }
@@ -58,12 +55,12 @@ void main() {
       final interpreter = FfmAssistantInterpreter(database);
       const cases = <String, FfmAssistantDestination>{
         'log aktivitas': FfmAssistantDestination.activityLog,
-        'pengetahuan asisten': FfmAssistantDestination.assistantTraining,
+
         'pemasukan berkala': FfmAssistantDestination.recurringTransaction,
-        'alat offline lanjutan': FfmAssistantDestination.offlineAdvanced,
+
         'pusat privasi': FfmAssistantDestination.privacyCenter,
         'struktur database': FfmAssistantDestination.databaseStructure,
-        'fitur tanpa internet': FfmAssistantDestination.offlineFeatures,
+
         'gemini cloud': FfmAssistantDestination.intelligenceDashboard,
         'analisa': FfmAssistantDestination.analysis,
       };

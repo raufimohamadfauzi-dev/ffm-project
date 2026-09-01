@@ -4,10 +4,16 @@ import '../../../domain/ffm_assistant_models.dart';
 
 /// Kartu pratinjau draf interaktif yang dapat dibuka-tutup untuk memeriksa detail lengkap.
 class FfmAssistantDraftPreview extends StatefulWidget {
-  const FfmAssistantDraftPreview({super.key, required this.draft, this.review});
+  const FfmAssistantDraftPreview({
+    super.key,
+    required this.draft,
+    this.review,
+    this.onEdit,
+  });
 
   final FfmAssistantDraft draft;
   final FfmAssistantDraftReview? review;
+  final VoidCallback? onEdit;
 
   static String draftLabel(FfmAssistantDraftKind kind) => switch (kind) {
     FfmAssistantDraftKind.income => 'Draft Pemasukan',
@@ -96,6 +102,9 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     'accountType' => 'Jenis Rekening',
     'openingBalance' => 'Saldo Awal',
     'details' => 'Keterangan',
+    'targetSummary' => 'Aktivitas target',
+    'beforeTitle' => 'Judul sebelumnya',
+    'beforeCategory' => 'Kategori sebelumnya',
     _ => field,
   };
 
@@ -223,6 +232,42 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     ),
                   ),
                 ),
+                if (widget.onEdit != null) ...[
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: widget.onEdit,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 12,
+                            color: theme.colorScheme.onPrimaryContainer,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Edit',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

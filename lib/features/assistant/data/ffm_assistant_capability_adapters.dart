@@ -1746,8 +1746,32 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (operation == 'edit') {
       final title = step.parameters['title']?.toString() ?? current.title;
       final notes = step.parameters['note']?.toString() ?? current.notes;
-      final category =
-          step.parameters['category']?.toString() ?? current.category;
+      final requestedCategory = step.parameters['category']?.toString().trim();
+      var category = current.category;
+      var categoryId = current.categoryId;
+      if (requestedCategory != null &&
+          requestedCategory.isNotEmpty &&
+          requestedCategory != current.category) {
+        final matches = await _database
+            .customSelect(
+              'SELECT id, name FROM categories '
+              'WHERE household_id = ? AND type = ? AND is_active = 1 '
+              'AND lower(name) = ?',
+              variables: [
+                Variable.withString(_householdId),
+                Variable.withString('activity'),
+                Variable.withString(requestedCategory.toLowerCase()),
+              ],
+            )
+            .get();
+        if (matches.length != 1) {
+          return FfmAssistantCapabilityExecutionResult.failure(
+            'Kategori aktivitas "$requestedCategory" tidak ditemukan secara unik di Data Utama.',
+          );
+        }
+        category = matches.single.read<String>('name');
+        categoryId = matches.single.read<String>('id');
+      }
       final dueDate = _dateParameter(
         step.parameters['dueDate'] ?? step.parameters['date'],
       );
@@ -1758,6 +1782,7 @@ class FfmAssistantCapabilityAdapterRegistry {
           title: title,
           notes: notes,
           category: category,
+          categoryId: categoryId,
           dueDate: dueDate ?? current.dueDate,
           scheduledAt: scheduledAt ?? current.scheduledAt,
           updatedAt: now,
@@ -1836,17 +1861,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Rekening belum valid.',
       );
     }
-    final account = await (_database.select(_database.accounts)
-          ..where((r) => r.id.equals(targetId)))
-        .getSingleOrNull();
+    final account = await (_database.select(
+      _database.accounts,
+    )..where((r) => r.id.equals(targetId))).getSingleOrNull();
     if (account == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Rekening tidak ditemukan.',
       );
     }
-    await (_database.delete(_database.accounts)
-          ..where((r) => r.id.equals(targetId)))
-        .go();
+    await (_database.delete(
+      _database.accounts,
+    )..where((r) => r.id.equals(targetId))).go();
     return FfmAssistantCapabilityExecutionResult.success(
       'Rekening "${account.name}" dihapus permanen dari database.',
     );
@@ -1861,17 +1886,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Kategori belum valid.',
       );
     }
-    final category = await (_database.select(_database.categories)
-          ..where((r) => r.id.equals(targetId)))
-        .getSingleOrNull();
+    final category = await (_database.select(
+      _database.categories,
+    )..where((r) => r.id.equals(targetId))).getSingleOrNull();
     if (category == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Kategori tidak ditemukan.',
       );
     }
-    await (_database.delete(_database.categories)
-          ..where((r) => r.id.equals(targetId)))
-        .go();
+    await (_database.delete(
+      _database.categories,
+    )..where((r) => r.id.equals(targetId))).go();
     return FfmAssistantCapabilityExecutionResult.success(
       'Kategori "${category.name}" dihapus permanen dari database.',
     );
@@ -1886,17 +1911,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Tag belum valid.',
       );
     }
-    final tag = await (_database.select(_database.tags)
-          ..where((r) => r.id.equals(targetId)))
-        .getSingleOrNull();
+    final tag = await (_database.select(
+      _database.tags,
+    )..where((r) => r.id.equals(targetId))).getSingleOrNull();
     if (tag == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Tag tidak ditemukan.',
       );
     }
-    await (_database.delete(_database.tags)
-          ..where((r) => r.id.equals(targetId)))
-        .go();
+    await (_database.delete(
+      _database.tags,
+    )..where((r) => r.id.equals(targetId))).go();
     return FfmAssistantCapabilityExecutionResult.success(
       'Tag "${tag.name}" dihapus permanen dari database.',
     );
@@ -1911,17 +1936,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Toko/Tempat belum valid.',
       );
     }
-    final merchant = await (_database.select(_database.merchants)
-          ..where((r) => r.id.equals(targetId)))
-        .getSingleOrNull();
+    final merchant = await (_database.select(
+      _database.merchants,
+    )..where((r) => r.id.equals(targetId))).getSingleOrNull();
     if (merchant == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Toko/Tempat tidak ditemukan.',
       );
     }
-    await (_database.delete(_database.merchants)
-          ..where((r) => r.id.equals(targetId)))
-        .go();
+    await (_database.delete(
+      _database.merchants,
+    )..where((r) => r.id.equals(targetId))).go();
     return FfmAssistantCapabilityExecutionResult.success(
       'Toko/Tempat "${merchant.name}" dihapus permanen dari database.',
     );
@@ -1936,17 +1961,17 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target Sumber Pemasukan belum valid.',
       );
     }
-    final source = await (_database.select(_database.transactionParties)
-          ..where((r) => r.id.equals(targetId)))
-        .getSingleOrNull();
+    final source = await (_database.select(
+      _database.transactionParties,
+    )..where((r) => r.id.equals(targetId))).getSingleOrNull();
     if (source == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Sumber Pemasukan tidak ditemukan.',
       );
     }
-    await (_database.delete(_database.transactionParties)
-          ..where((r) => r.id.equals(targetId)))
-        .go();
+    await (_database.delete(
+      _database.transactionParties,
+    )..where((r) => r.id.equals(targetId))).go();
     return FfmAssistantCapabilityExecutionResult.success(
       'Sumber Pemasukan "${source.name}" dihapus permanen dari database.',
     );
@@ -2003,7 +2028,7 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: aktivitas masih ditemukan setelah penghapusan.',
             );
     }
-    if (operation == 'complete') {
+    if (operation == 'complete' || operation == 'finish') {
       return session?.isCompleted == true
           ? const FfmAssistantCapabilityExecutionResult.success(
               'verified: aktivitas sudah berstatus selesai.',
@@ -2021,11 +2046,40 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: aktivitas belum kembali aktif.',
             );
     }
-    if (operation == 'update') {
-      final title = step.parameters['title']?.toString().trim();
-      return session != null && !session.isArchived && session.title == title
+    if (operation == 'update' || operation == 'checkpoint') {
+      final label = step.parameters['label']?.toString().trim();
+      if (session == null ||
+          session.isArchived ||
+          label == null ||
+          label.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Verifikasi gagal: checkpoint aktivitas belum valid.',
+        );
+      }
+      final checkpoints = await repository.getCheckpoints(targetId);
+      return checkpoints.any((checkpoint) => checkpoint.label == label)
           ? FfmAssistantCapabilityExecutionResult.success(
-              'verified: aktivitas “${session.title}” sudah terbaca kembali dengan data yang diperbarui.',
+              'verified: checkpoint "$label" sudah terbaca kembali pada aktivitas “${session.title}”.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: checkpoint aktivitas belum tersimpan.',
+            );
+    }
+    if (operation == 'edit') {
+      final title = step.parameters['title']?.toString().trim();
+      final category = step.parameters['category']?.toString().trim();
+      final note = step.parameters['note']?.toString();
+      final isVerified =
+          session != null &&
+          !session.isArchived &&
+          (title == null || title.isEmpty || session.title == title) &&
+          (category == null ||
+              category.isEmpty ||
+              session.category.toLowerCase() == category.toLowerCase()) &&
+          (note == null || session.notes == note);
+      return isVerified
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'verified: aktivitas “${session.title}” sudah terbaca kembali dengan perubahan draft.',
             )
           : const FfmAssistantCapabilityExecutionResult.failure(
               'Verifikasi gagal: perubahan aktivitas belum sesuai draft.',
@@ -3756,6 +3810,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
     final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
     final isAllDay = _boolParameter(step.parameters['isAllDay']) ?? false;
+    final occurredAt = activityKind == ActivityKind.timer
+        ? now
+        : dueDate ?? now;
+    final activityGroupId = step.parameters['activityGroupId']?.toString();
+    final subjectType = step.parameters['subjectType']?.toString();
+    final subjectId = step.parameters['subjectId']?.toString();
 
     await _database
         .into(_database.activitySessions)
@@ -3768,7 +3828,10 @@ class FfmAssistantCapabilityAdapterRegistry {
             categoryId: Value(category.id),
             category: Value(category.name),
             kind: Value(activityKind.value),
-            startedAt: now,
+            activityGroupId: Value(activityGroupId),
+            subjectType: Value(subjectType),
+            subjectId: Value(subjectId),
+            startedAt: occurredAt,
             dueDate: Value(dueDate),
             scheduledAt: Value(scheduledAt),
             isAllDay: Value(isAllDay),
@@ -3787,7 +3850,7 @@ class FfmAssistantCapabilityAdapterRegistry {
           ),
         );
 
-    await _observeActivityHabit(title, now);
+    await _observeActivityHabit(title, occurredAt);
     return FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas “${title.trim()}” (${activityKind.name}) berhasil disimpan.',
     );
@@ -3910,10 +3973,8 @@ class FfmAssistantCapabilityAdapterRegistry {
         'ewallet' || 'e-wallet' || 'dompet digital' => 'ewallet',
         _ => 'tunai',
       };
-      final openingBalance = int.tryParse(
-            formValues['openingBalance']?.toString() ?? '0',
-          ) ??
-          0;
+      final openingBalance =
+          int.tryParse(formValues['openingBalance']?.toString() ?? '0') ?? 0;
       await _database
           .into(_database.accounts)
           .insert(

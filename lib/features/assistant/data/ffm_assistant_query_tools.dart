@@ -1,5 +1,6 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
+import '../../hijri/domain/hijri_calendar_service.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 import '../domain/ffm_assistant_analysis_engine.dart';
@@ -537,8 +538,10 @@ class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
-    final evidence = await FfmAssistantFinancialSnapshotService(_database)
-        .readCurrentMonth(householdId: request.householdId, now: request.now);
+    final evidence = await FfmAssistantFinancialSnapshotService(
+      _database,
+      HijriCalendarService(_database),
+    ).readCurrentMonth(householdId: request.householdId, now: request.now);
     final analysis = FfmAssistantLoanAffordabilityAnalysis.calculate(
       evidence: evidence,
     );

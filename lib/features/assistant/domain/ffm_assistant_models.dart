@@ -81,6 +81,9 @@ enum FfmAssistantIntentType {
   archiveAsset,
   createBudget,
   createMasterData,
+  createTag,
+  editDraft,
+  reviseDraft,
   updateMerchant,
   archiveMerchant,
   deleteMerchant,
@@ -164,12 +167,9 @@ enum FfmAssistantDestination {
   appSecurity,
   diagnostics,
   activityLog,
-  assistantTraining,
   recurringTransaction,
-  offlineAdvanced,
   privacyCenter,
   databaseStructure,
-  offlineFeatures,
   localModel,
   assistantProfile,
   intelligenceDashboard,
@@ -934,22 +934,7 @@ abstract final class FfmAssistantCatalog {
         'jejak perubahan',
       ],
     ),
-    FfmAssistantPage(
-      destination: FfmAssistantDestination.assistantTraining,
-      name: 'Pengetahuan Asisten',
-      description: 'Mengelola ajaran lokal, alias, pertanyaan belum terjawab, dan contoh belajar yang disetujui.',
-      aliases: [
-        'pengetahuan asisten',
-        'latihan asisten',
-        'belajar asisten',
-        'ajaran asisten',
-        'riwayat asisten',
-        'riwayat chat asisten',
-        'riwayat chat',
-        'riwayat percakapan',
-        'riwayat pesan',
-      ],
-    ),
+
     FfmAssistantPage(
       destination: FfmAssistantDestination.recurringTransaction,
       name: 'Pemasukan berkala',
@@ -961,16 +946,7 @@ abstract final class FfmAssistantCatalog {
         'transaksi rutin',
       ],
     ),
-    FfmAssistantPage(
-      destination: FfmAssistantDestination.offlineAdvanced,
-      name: 'Alat offline lanjutan',
-      description: 'Membuka pemeriksaan lokal, cek saldo, rekonsiliasi, dan alat impor di perangkat.',
-      aliases: [
-        'alat offline lanjutan',
-        'offline lanjutan',
-        'pemeriksaan offline',
-      ],
-    ),
+
     FfmAssistantPage(
       destination: FfmAssistantDestination.privacyCenter,
       name: 'Pusat privasi',
@@ -984,18 +960,7 @@ abstract final class FfmAssistantCatalog {
       description: 'Melihat tabel dan gambaran struktur database lokal FFM.',
       aliases: ['struktur database', 'struktur basis data', 'tabel database'],
     ),
-    FfmAssistantPage(
-      destination: FfmAssistantDestination.offlineFeatures,
-      name: 'Fitur tanpa internet',
-      description:
-          'Membaca panduan teknologi dan fitur yang berjalan tanpa internet.',
-      aliases: [
-        'fitur tanpa internet',
-        'fitur offline',
-        'mode offline',
-        'bisa tanpa internet',
-      ],
-    ),
+
     FfmAssistantPage(
       destination: FfmAssistantDestination.assistantProfile,
       name: 'Profil Personalisasi Asisten',
@@ -1064,11 +1029,7 @@ abstract final class FfmAssistantCatalog {
       description: 'Melihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
       destination: FfmAssistantDestination.activityLog,
     ),
-    FfmAssistantOtherMenuItem(
-      name: 'Pengetahuan Asisten',
-      description: 'Mengajarkan istilah, jawaban fitur, dan kebiasaan lokal secara eksplisit.',
-      destination: FfmAssistantDestination.assistantTraining,
-    ),
+
     FfmAssistantOtherMenuItem(
       name: 'Pengingat',
       description:
@@ -1081,11 +1042,7 @@ abstract final class FfmAssistantCatalog {
           'Mengatur pemasukan atau biaya rutin harian, mingguan, dan bulanan.',
       destination: FfmAssistantDestination.recurringTransaction,
     ),
-    FfmAssistantOtherMenuItem(
-      name: 'Alat offline lanjutan',
-      description: 'Mengecek saldo, rekonsiliasi, impor data, dan pemeriksaan lokal di perangkat.',
-      destination: FfmAssistantDestination.offlineAdvanced,
-    ),
+
     FfmAssistantOtherMenuItem(
       name: 'Kunci aplikasi',
       description:
@@ -1108,12 +1065,7 @@ abstract final class FfmAssistantCatalog {
       description: 'Melihat tabel dan gambaran isi database lokal FFM.',
       destination: FfmAssistantDestination.databaseStructure,
     ),
-    FfmAssistantOtherMenuItem(
-      name: 'Fitur tanpa internet',
-      description:
-          'Membaca panduan lengkap tentang teknologi offline yang tersedia.',
-      destination: FfmAssistantDestination.offlineFeatures,
-    ),
+
   ];
 
   static String listOtherMenuForChat() => otherMenuItems
@@ -1222,15 +1174,12 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.appSecurity => 'Kunci aplikasi dipakai untuk mengaktifkan, mengganti, atau mematikan PIN FFM. PIN hanya dimasukkan lewat keypad khusus, tidak lewat chat, dan setiap perubahan meminta konfirmasi kamu.',
         FfmAssistantDestination.diagnostics => 'Bantuan perbaikan menampilkan error teknis yang benar-benar tertangkap secara lokal. Kamu bisa salin laporan yang sudah disaring; PIN, data keuangan, rekening, dan isi chat tidak ikut dimasukkan.',
         FfmAssistantDestination.activityLog => 'Log aktivitas menampilkan jejak perubahan lokal, termasuk transaksi, transfer, impor, dan rekonsiliasi.',
-        FfmAssistantDestination.assistantTraining => 'Pengetahuan Asisten mengelola alias, ajaran lokal, pertanyaan belum terjawab, dan contoh belajar yang harus disetujui sebelum disimpan.',
-        FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan. Penyimpanan dan perubahan aturan tetap dilakukan lewat form.',
-        FfmAssistantDestination.offlineAdvanced => 'Alat offline lanjutan menyediakan pemeriksaan lokal, cek saldo, rekonsiliasi, dan alat impor yang berjalan di perangkat.',
+        FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
         FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
-        FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM tanpa memberi model akses langsung ke database.',
-        FfmAssistantDestination.offlineFeatures => 'Fitur tanpa internet menjelaskan bagian FFM yang tetap berjalan lokal, termasuk database dan Agent deterministic; percakapan AI menggunakan Gemini Cloud saat terverifikasi.',
-        FfmAssistantDestination.localModel => 'Pengaturan model lokal tidak tersedia pada jalur produk Gemini-only. Gunakan Intelligence Dashboard untuk memilih dan menguji Gemini Cloud.',
-        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas, pekerjaan, rutinitas, dan preferensi untuk membantu asisten menjawab lebih relevan tanpa mengirim data transaksi mentah. Kamu juga bisa ekspor atau impor profil di sini.',
-        FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, cadangan, dan Pengetahuan Asisten.',
+        FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
+        FfmAssistantDestination.localModel => 'Pengaturan model lokal tidak tersedia pada jalur produk Gemini-only.',
+        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas dan preferensi.',
+        FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
         FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
       };
 }

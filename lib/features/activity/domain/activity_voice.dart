@@ -27,7 +27,9 @@ class ActivityVoiceIntent {
     required this.type,
     required this.status,
     this.kind = ActivityKind.timer,
-    this.category = 'Lainnya',
+    this.category = '',
+    this.categoryId,
+    this.startedAt,
     this.targetTitle,
     this.targetSessionId,
     this.parentTitle,
@@ -44,6 +46,8 @@ class ActivityVoiceIntent {
   final ActivityVoiceStatus status;
   final ActivityKind kind;
   final String category;
+  final String? categoryId;
+  final DateTime? startedAt;
   final String? targetTitle;
   final String? targetSessionId;
   final String? parentTitle;
@@ -58,6 +62,8 @@ class ActivityVoiceIntent {
     ActivityVoiceStatus? status,
     ActivityKind? kind,
     String? category,
+    String? categoryId,
+    DateTime? startedAt,
     String? targetTitle,
     String? targetSessionId,
     String? parentTitle,
@@ -74,6 +80,8 @@ class ActivityVoiceIntent {
     status: status ?? this.status,
     kind: kind ?? this.kind,
     category: category ?? this.category,
+    categoryId: categoryId ?? this.categoryId,
+    startedAt: startedAt ?? this.startedAt,
     targetTitle: targetTitle ?? this.targetTitle,
     targetSessionId: targetSessionId ?? this.targetSessionId,
     parentTitle: parentTitle ?? this.parentTitle,
@@ -105,6 +113,104 @@ class ActivityVoiceIntent {
   };
 }
 
+/// In-memory proposal for a voice interaction. It is deliberately separate
+/// from [ActivitySessionEntity] so speech recognition can never persist data
+/// before the user explicitly confirms it.
+class VoiceActivityDraft {
+  VoiceActivityDraft({
+    required this.title,
+    this.categoryId,
+    this.categoryName = '',
+    this.notes,
+    DateTime? startedAt,
+  }) : draftId = 'voice-${DateTime.now().microsecondsSinceEpoch}',
+       startedAt = startedAt ?? DateTime.now();
+
+  final String draftId;
+  String title;
+  String? categoryId;
+  String categoryName;
+  String? notes;
+  DateTime startedAt;
+  String? parentActivityId;
+  String? parentTitle;
+  String? subject;
+  String? location;
+  DateTime? scheduledAt;
+  final List<String> conversationHistory = [];
+  final List<String> validationErrors = [];
+  bool confirmed = false;
+
+  List<String> get missingFields => [
+    if (title.trim().isEmpty) 'nama aktivitas',
+    if (categoryId == null || categoryName.trim().isEmpty) 'kategori',
+  ];
+
+  bool get canConfirm => missingFields.isEmpty && validationErrors.isEmpty;
+
+  /// Applies a pure text correction (title / note / time) onto the draft.
+  ///
+  /// Returns `true` if the transcript described a correction that was applied
+  /// to this draft, `false` if it was not a recognized correction. Category
+  /// corrections are NOT handled here because they must resolve against the
+  /// master category repository (async, validated in the presentation layer).
+  bool applyTextCorrection(String transcript) {
+    final text = transcript.trim();
+    final lower = text.toLowerCase();
+    final correction = RegExp(r'^bukan\s+(.+?),\s*(.+)$').firstMatch(text);
+    if (correction != null) {
+      final wrong = correction.group(1)!.trim();
+      final replacement = correction.group(2)!.trim();
+      title = title.replaceFirst(
+        RegExp(RegExp.escape(wrong), caseSensitive: false),
+        replacement,
+      );
+      return true;
+    }
+    if (lower == 'hapus catatan' || lower == 'hapus catatannya') {
+      notes = null;
+      return true;
+    }
+    final note = RegExp(r'^(?:tambah\s+)?catatan(?:nya)?\s+(.+)$')
+        .firstMatch(text);
+    if (note != null) {
+      final value = note.group(1)!.trim();
+      notes = notes == null || notes!.isEmpty ? value : '$notes; $value';
+      return true;
+    }
+    final hour =
+        RegExp(r'\bjam\s+(\d{1,2})(?:[.:](\d{2}))?').firstMatch(lower);
+    if (hour != null &&
+        (lower.contains('mulai') ||
+            lower.contains('waktu') ||
+            lower.contains('jam'))) {
+      final now = DateTime.now();
+      final parsedHour = int.parse(hour.group(1)!);
+      final minute = int.tryParse(hour.group(2) ?? '') ?? 0;
+      if (parsedHour > 23 || minute > 59) {
+        validationErrors
+          ..clear()
+          ..add('Waktu yang disebutkan tidak valid.');
+      } else {
+        var candidate = DateTime(
+          now.year,
+          now.month,
+          now.day,
+          parsedHour,
+          minute,
+        );
+        if (candidate.isAfter(now)) {
+          candidate = candidate.subtract(const Duration(days: 1));
+        }
+        startedAt = candidate;
+        validationErrors.clear();
+      }
+      return true;
+    }
+    return false;
+  }
+}
+
 class ActivityVoiceParser {
   const ActivityVoiceParser();
 
@@ -117,7 +223,7 @@ class ActivityVoiceParser {
     if (text.isEmpty) {
       return _unknown(raw, text, 'Teksnya masih kosong. Coba ngomong lagi ya.');
     }
-    final detectedCategory = _detectCategory(text) ?? 'Lainnya';
+    final detectedCategory = _detectCategory(text) ?? '';
     if (_isConfirm(text)) {
       return ActivityVoiceIntent(
         rawTranscript: raw,
@@ -195,8 +301,8 @@ class ActivityVoiceParser {
       final kind = isTask
           ? ActivityKind.task
           : isNote
-              ? ActivityKind.note
-              : ActivityKind.timer;
+          ? ActivityKind.note
+          : ActivityKind.timer;
       final intent = ActivityVoiceIntent(
         rawTranscript: raw,
         normalizedText: text,
@@ -248,13 +354,24 @@ class ActivityVoiceParser {
     if (_containsAny(text, const ['belanja', 'beli', 'shop', 'pasar'])) {
       return 'Belanja';
     }
-    if (_containsAny(text, const ['perjalanan', 'travel', 'jalan', 'bepergian'])) {
+    if (_containsAny(text, const [
+      'perjalanan',
+      'travel',
+      'jalan',
+      'bepergian',
+    ])) {
       return 'Perjalanan';
     }
     if (_containsAny(text, const ['kerja', 'pekerjaan', 'task', 'tugas'])) {
       return 'Pekerjaan';
     }
-    if (_containsAny(text, const ['keluarga', 'rumah', 'anak', 'suami', 'istri'])) {
+    if (_containsAny(text, const [
+      'keluarga',
+      'rumah',
+      'anak',
+      'suami',
+      'istri',
+    ])) {
       return 'Keluarga';
     }
     if (_containsAny(text, const ['kategori', 'kelas'])) {
@@ -266,7 +383,7 @@ class ActivityVoiceParser {
         }
       }
     }
-    return 'Lainnya';
+    return null;
   }
 
   ActivityVoiceIntent resolveEdited(
@@ -424,7 +541,9 @@ class ActivityVoiceParser {
 
     if (exactMatches.length > 1) {
       // If one is child and another is parent, prioritize child for finish
-      final childMatches = exactMatches.where((s) => s.parentSessionId != null).toList();
+      final childMatches = exactMatches
+          .where((s) => s.parentSessionId != null)
+          .toList();
       if (childMatches.length == 1) {
         final match = childMatches.single;
         return intent.copyWith(
@@ -443,7 +562,12 @@ class ActivityVoiceParser {
     // 3. Substring / Semantic Matches
     // Prioritize active child sessions first (e.g. "makan" matching "Makan Siang" sub-session)
     final childSemantic = sessions
-        .where((s) => s.parentSessionId != null && (_normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title))))
+        .where(
+          (s) =>
+              s.parentSessionId != null &&
+              (_normalize(s.title).contains(normalizedQuery) ||
+                  normalizedQuery.contains(_normalize(s.title))),
+        )
         .toList(growable: false);
 
     if (childSemantic.length == 1) {
@@ -456,7 +580,11 @@ class ActivityVoiceParser {
     }
 
     final allSemantic = sessions
-        .where((s) => _normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title)))
+        .where(
+          (s) =>
+              _normalize(s.title).contains(normalizedQuery) ||
+              normalizedQuery.contains(_normalize(s.title)),
+        )
         .toList(growable: false);
 
     if (allSemantic.length == 1) {
@@ -478,7 +606,8 @@ class ActivityVoiceParser {
 
     return intent.copyWith(
       confidence: .40,
-      ambiguityReason: 'Aktivitas "$title" belum ditemukan yang sedang berjalan.',
+      ambiguityReason:
+          'Aktivitas "$title" belum ditemukan yang sedang berjalan.',
     );
   }
 
@@ -504,7 +633,11 @@ class ActivityVoiceParser {
 
     // Semantic matches
     final semanticMatches = sessions
-        .where((s) => _normalize(s.title).contains(normalizedQuery) || normalizedQuery.contains(_normalize(s.title)))
+        .where(
+          (s) =>
+              _normalize(s.title).contains(normalizedQuery) ||
+              normalizedQuery.contains(_normalize(s.title)),
+        )
         .toList(growable: false);
     if (semanticMatches.length == 1) {
       return intent.copyWith(

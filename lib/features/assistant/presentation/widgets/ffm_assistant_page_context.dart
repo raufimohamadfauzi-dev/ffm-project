@@ -45,7 +45,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.backup,
     FfmAssistantDestination.diagnostics,
     FfmAssistantDestination.databaseStructure,
-    FfmAssistantDestination.assistantTraining,
+
     FfmAssistantDestination.assistantProfile,
     FfmAssistantDestination.masterData,
     FfmAssistantDestination.activityLog,
@@ -107,10 +107,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.reminders => 'Sedang melihat pengingat lokal.',
     FfmAssistantDestination.monthlyReport =>
       'Sedang melihat laporan periode bulanan.',
-    FfmAssistantDestination.offlineAdvanced =>
-      'Sedang melihat alat pemeriksaan offline.',
-    FfmAssistantDestination.offlineFeatures =>
-      'Sedang melihat panduan fitur tanpa internet.',
+
     FfmAssistantDestination.localModel =>
       'Pengaturan model lokal tidak tersedia; gunakan Gemini Cloud.',
     FfmAssistantDestination.intelligenceDashboard =>

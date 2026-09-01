@@ -10,6 +10,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/app_context.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
@@ -18,9 +19,11 @@ import '../../../activity/domain/services/activity_application_service.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
 import '../../../activity/presentation/widgets/activity_live_bar.dart';
 import '../../data/ffm_assistant_capability_adapters.dart';
+import '../../data/ffm_assistant_autonomy_repository.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
 import '../../data/ffm_assistant_chat_history_repository.dart';
 import '../../data/ffm_assistant_interpreter.dart';
+import '../../data/ffm_assistant_proposal_json_service.dart';
 import '../../data/ffm_assistant_proactive_cooldown.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
@@ -41,6 +44,7 @@ import '../../domain/ffm_assistant_proactive_service.dart';
 import '../../data/ffm_assistant_user_model_service.dart';
 import '../../data/ffm_personal_context_provider.dart';
 import '../../data/ffm_personal_memory_service.dart';
+import '../../data/ffm_assistant_intent_classification_service.dart';
 import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
@@ -121,6 +125,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     controller: _actionPlanController,
     handlers: getIt<FfmAssistantCapabilityAdapterRegistry>().handlers,
     readTransaction: <T>(action) => getIt<AppDatabase>().transaction(action),
+    onPlanRecorded: getIt<FfmAssistantAutonomyRepository>().recordPlan,
+    onToolExecution:
+        getIt<FfmAssistantAutonomyRepository>().recordToolExecution,
     onPlanProgress: (plan) {
       final running = plan.steps.where(
         (step) => step.status == FfmAssistantActionStepStatus.running,
@@ -189,9 +196,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   StreamSubscription<String>? _streamingSubscription;
 
   // Personal Memory Mode
-  late final _personalMemoryService = FfmPersonalMemoryService(
-    getIt<FfmAssistantMemoryRepository>(),
-  );
+  late final _personalMemoryService = getIt<FfmPersonalMemoryService>();
+  late final _intentClassificationService =
+      getIt<FfmAssistantIntentClassificationService>();
   var _memoryCount = 0;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
@@ -267,7 +274,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       events: [
         FfmAssistantProcessEvent(
           label: 'Memahami: $intentLabel',
-          detail: 'Confidence: ${(intent.confidence * 100).toStringAsFixed(0)}%',
+          detail:
+              'Confidence: ${(intent.confidence * 100).toStringAsFixed(0)}%',
           elapsed: Duration.zero,
         ),
         ..._activeProcessEvents,
@@ -332,7 +340,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       'read.transactions' => 'Daftar transaksi terbaru (max 8) untuk analisis.',
       'read.accounts' => 'Daftar rekening dan saldo untuk referensi.',
       'read.budget' => 'Posisi anggaran terkini untuk perbandingan.',
-      'read.categories' => 'Daftar kategori aktif untuk validasi draft $draftKind.',
+      'read.categories' =>
+        'Daftar kategori aktif untuk validasi draft $draftKind.',
       'read.goals' => 'Target keuangan untuk konteks perencanaan.',
       'read.activity' => 'Sesi aktivitas aktif untuk konteks.',
       _ => 'Data lokal terverifikasi untuk konteks jawaban.',
@@ -635,6 +644,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _historyRestoreFuture = _restoreChatHistory();
     _refreshCloudStatus();
     _loadRoutingMode();
+    unawaited(_loadAutonomyPolicy());
     _refreshMemoryCount();
     unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -697,6 +707,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     } on Object {
       // AGENT adalah default aman bila preference belum tersedia.
     }
+  }
+
+  Future<void> _loadAutonomyPolicy() async {
+    final policy = await getIt<FfmAssistantAutonomyRepository>().loadPolicy();
+    if (policy != null) _capabilityExecutor.setAutonomyPolicy(policy);
   }
 
   Future<void> _refreshCloudStatus() async {
@@ -962,6 +977,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
+
+    // Cek intent spesifik sebelum interpreter (tag vs draft confusion)
+    final specificIntent = _intentClassificationService.classifySpecificIntent(
+      text,
+    );
+    if (specificIntent != null) {
+      final explanation = _intentClassificationService.getIntentExplanation(
+        specificIntent,
+        text,
+      );
+      if (explanation != null) {
+        // Log atau gunakan penjelasan untuk debugging
+        debugPrint('Intent Classification: $explanation');
+      }
+    }
+
     final stopwatch = Stopwatch()..start();
     _setActiveProcess(
       _routingMode == FfmAssistantRoutingMode.geminiCloud
@@ -995,6 +1026,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   widget.currentPageContext?.capabilityIds ?? const [],
               activitySnapshot: activitySnapshot,
               routingMode: _routingMode,
+              activeDraft: widget.session.activeDraftIntent?.draft,
             )).intents)
           : await _interpreter.resolvePendingDialog(
               text,
@@ -1145,7 +1177,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       return true;
     }
     final active = await _activityRepository.getActiveSessions(
-      'local-household',
+      AppContext.householdId,
     );
     final activityIntent = _activityVoiceParser.parse(
       text,
@@ -1227,7 +1259,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _answerActivityDuration(String normalized) async {
-    final sessions = await _activityRepository.getSessions('local-household');
+    final sessions = await _activityRepository.getSessions(
+      AppContext.householdId,
+    );
     final query = normalized
         .replaceAll(RegExp(r'\b(berapa lama|durasi|aktivitas|kegiatan)\b'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -1255,7 +1289,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _answerActivityHistory(String normalized) async {
-    final sessions = await _activityRepository.getSessions('local-household');
+    final sessions = await _activityRepository.getSessions(
+      AppContext.householdId,
+    );
     final query = normalized
         .replaceAll(RegExp(r'\b(riwayat|cari|aktivitas|kegiatan)\b'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -1499,7 +1535,16 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (intent.draft != null && !directMutation) {
       final confirmed = await _confirmDraftInChat(intent.draft!);
       if (!confirmed) {
-        if (plan != null) _actionPlanController.cancel(plan.id);
+        if (plan != null) {
+          _actionPlanController.cancel(plan.id);
+          unawaited(
+            getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
+              runId: plan.id,
+              status: FfmAssistantApprovalStatus.rejected,
+              reason: 'Draft dibatalkan pengguna.',
+            ),
+          );
+        }
         if (mounted) setState(() => _queuedIntents.remove(intent));
         return;
       }
@@ -1516,6 +1561,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (plan != null) {
       if (intent.draft != null) {
         _actionPlanController.markAwaitingConfirmation(plan.id);
+        unawaited(
+          getIt<FfmAssistantAutonomyRepository>().recordApprovalRequest(plan),
+        );
       } else {
         _actionPlanController.complete(plan.id);
       }
@@ -1525,6 +1573,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final confirmed = await _confirmDirectMutation(intent.draft!);
       if (!confirmed) {
         _actionPlanController.cancel(plan.id);
+        unawaited(
+          getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
+            runId: plan.id,
+            status: FfmAssistantApprovalStatus.rejected,
+            reason: 'Mutasi dibatalkan pengguna.',
+          ),
+        );
         if (mounted) {
           setState(() => _queuedIntents.remove(intent));
         }
@@ -1545,6 +1600,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         }
         return;
       }
+      unawaited(
+        getIt<FfmAssistantAutonomyRepository>().recordApprovalDecision(
+          runId: plan.id,
+          status: FfmAssistantApprovalStatus.approved,
+        ),
+      );
       await _executeDirectMutationPlan(intent, plan.id);
       return;
     }
@@ -1607,10 +1668,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   bool get _activeDraftIsOpeningForm {
     final id = widget.session.activeDraftQueueId;
     if (id == null) return false;
-    return _draftQueue
-            .where((item) => item.id == id)
-            .firstOrNull
-            ?.status ==
+    return _draftQueue.where((item) => item.id == id).firstOrNull?.status ==
         FfmAssistantDraftQueueStatus.openingForm;
   }
 
@@ -1637,8 +1695,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         status: review.canContinue
             ? FfmAssistantDraftQueueStatus.ready
             : FfmAssistantDraftQueueStatus.needsClarification,
-        knownFieldCount: workItem?.knownFields.length ??
-            _knownDraftFieldCount(review.draft),
+        knownFieldCount:
+            workItem?.knownFields.length ?? _knownDraftFieldCount(review.draft),
         missingFields: <String>{
           ..._missingFieldsForReview(review),
           ...workItemMissing,
@@ -1900,12 +1958,58 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return fields.isEmpty ? const ['detail jawaban'] : fields;
   }
 
+  FfmAssistantDraftQueueItem? _matchReferencedDraft(String text) {
+    if (_draftQueue.length < 2) return null;
+    final normalized = text.toLowerCase();
+    final yangMatch = RegExp(
+      r'\byang\s+([^,.;!?]+?)(?=\s+(?:ubah|ganti|revisi|koreksi|jadi)\b|,|\.|$|;)',
+    ).firstMatch(normalized);
+    final reference = yangMatch?.group(1)?.trim() ?? '';
+    if (reference.isEmpty) return null;
+    FfmAssistantDraftQueueItem? best;
+    for (final item in _draftQueue) {
+      final draft = item.review.draft;
+      final candidates = <String?>[
+        draft.title,
+        draft.goalName,
+        draft.categoryName,
+        draft.partyName,
+        draft.merchantName,
+        draft.note,
+      ];
+      if (candidates.any(
+        (c) =>
+            c != null &&
+            c.trim().isNotEmpty &&
+            reference.length >= 3 &&
+            c.toLowerCase().contains(reference),
+      )) {
+        if (best != null) return null; // ambigu: lebih dari satu cocok
+        best = item;
+      }
+    }
+    return best;
+  }
+
   bool _tryReviseActiveDraft(String text) {
+    // Saat ada banyak draft sekaligus, deteksi draft mana yang dimaksud dari
+    // kalimat koreksi (mis. "yang beras ubah jadi 80rb" / "yang Dana Darurat").
+    final referenced = _matchReferencedDraft(text);
+    if (referenced != null) {
+      widget.session
+        ..activeDraftReview = referenced.review
+        ..activeDraftIntent = referenced.intent
+        ..activeDraftQueueId = referenced.id;
+    }
     final review = widget.session.activeDraftReview;
     final sourceIntent = widget.session.activeDraftIntent;
     if (review == null || sourceIntent == null) return false;
     final normalized = text.toLowerCase().trim();
-    if (!RegExp(r'\b(ubah|ganti|revisi|koreksi)\b').hasMatch(normalized)) {
+    final looksLikeProposalJson = text.contains(
+      FfmAssistantProposalJsonService.formatVersion,
+    );
+    if (!looksLikeProposalJson &&
+        !RegExp(r'\b(ubah|ganti|revisi|koreksi)\b').hasMatch(normalized)) {
       return false;
     }
     if (_activeDraftIsOpeningForm) {
@@ -1913,15 +2017,53 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         () => _appendEntry(
           const FfmAssistantChatEntry(
             isUser: false,
-            text:
-                'Draft ini sedang dibuka di form. Kembali tanpa menyimpan dulu, lalu koreksi draft agar versinya tidak tertukar.',
+            text: 'Draft ini sedang dibuka di form. Kembali tanpa menyimpan dulu, lalu koreksi draft agar versinya tidak tertukar.',
           ),
         ),
       );
       return true;
     }
-    final nextDraft = _draftFromTextRevision(review.draft, normalized);
+    FfmAssistantDraft? nextDraft;
+    String? jsonError;
+    if (looksLikeProposalJson) {
+      final parsed = FfmAssistantProposalJsonService.parse(
+        text,
+        createdAt: review.draft.createdAt,
+      );
+      jsonError = parsed.error;
+      nextDraft = parsed.draft;
+      if (nextDraft != null && nextDraft.kind != review.draft.kind) {
+        jsonError =
+            'Jenis JSON (${nextDraft.kind.name}) berbeda dari draft aktif (${review.draft.kind.name}).';
+        nextDraft = null;
+      }
+      if (nextDraft != null) {
+        nextDraft = nextDraft.copyWith(
+          linkedActivityId: review.draft.linkedActivityId,
+          formValues: {...review.draft.formValues, ...nextDraft.formValues},
+        );
+      }
+      if (nextDraft == null) {
+        setState(
+          () => _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text:
+                  '${jsonError ?? 'JSON tidak berisi draft yang dapat dipakai.'} Draft aktif belum berubah.',
+            ),
+          ),
+        );
+        return true;
+      }
+    } else {
+      nextDraft = _draftFromTextRevision(review.draft, normalized);
+    }
     if (nextDraft == null) return false;
+    _personalMemoryService.feedbackService.recordDraftEdit(
+      originalDraft: review.draft,
+      editedDraft: nextDraft,
+      timestamp: DateTime.now(),
+    );
     final nextReview = review.revise(
       nextDraft: nextDraft,
       nextIssues: FfmAssistantDraftValidator.validate(nextDraft),
@@ -1942,7 +2084,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           isUser: false,
           text: revisedIntent.response!,
           intent: revisedIntent,
-          understanding: 'Kamu meminta revisi untuk draft yang sedang aktif.',
+          understanding: looksLikeProposalJson
+              ? 'Kamu mengirim JSON koreksi untuk draft yang sedang aktif.'
+              : 'Kamu meminta revisi untuk draft yang sedang aktif.',
           review: nextReview,
         ),
       );
@@ -2025,7 +2169,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
     final nextDraft = await showDialog<FfmAssistantDraft>(
       context: context,
-      builder: (_) => FfmAssistantDraftEditDialog(draft: review.draft),
+      builder: (_) => FfmAssistantDraftEditDialog(
+        draft: review.draft,
+        feedbackService: _personalMemoryService.feedbackService,
+      ),
     );
     if (nextDraft == null || !mounted) return;
     final nextReview = review.revise(
@@ -2062,8 +2209,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         () => _appendEntry(
           const FfmAssistantChatEntry(
             isUser: false,
-            text:
-                'Draft sedang dibuka di form sehingga belum dapat dibatalkan. Kembali dari form tanpa menyimpan terlebih dahulu.',
+            text: 'Draft sedang dibuka di form sehingga belum dapat dibatalkan. Kembali dari form tanpa menyimpan terlebih dahulu.',
           ),
         ),
       );
@@ -2613,8 +2759,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ),
               ),
               if (_submitting) const LinearProgressIndicator(minHeight: 2),
-              if (_queuedDraftCount > 1)
-                _buildDraftQueueSummary(_queuedDraftCount),
               if (getIt.isRegistered<ActivityBloc>())
                 BlocBuilder<ActivityBloc, ActivityState>(
                   bloc: getIt<ActivityBloc>(),
@@ -2721,131 +2865,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  List<FfmAssistantDraftQueueItem> get _visibleDraftQueue => _draftQueue
-      .where(
-        (item) =>
-            item.status != FfmAssistantDraftQueueStatus.cancelled &&
-            item.status != FfmAssistantDraftQueueStatus.completed,
-      )
-      .toList();
-
-  int get _queuedDraftCount => _visibleDraftQueue.length;
-
-  Widget _buildDraftQueueSummary(int count) {
-    final activeItem = _visibleDraftQueue
-        .where((item) => item.id == widget.session.activeDraftQueueId)
-        .firstOrNull;
-    final activeNumber = activeItem == null
-        ? null
-        : _visibleDraftQueue.indexOf(activeItem) + 1;
-    final warningSummary = activeItem == null || activeItem.warningCount == 0
-        ? ''
-        : ' ${activeItem.warningCount} peringatan perlu dicek.';
-    final fieldSummary = activeItem == null
-        ? null
-        : activeItem.missingFields.isEmpty
-        ? 'Draft #$activeNumber: ${activeItem.knownFieldCount} field sudah terisi.$warningSummary'
-        : 'Draft #$activeNumber perlu dilengkapi: ${activeItem.missingFields.join(', ')}.$warningSummary';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      child: Semantics(
-        liveRegion: true,
-        label: '$count draft siap ditinjau di percakapan',
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.playlist_add_check_rounded, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '$count draft aktif. Pilih satu untuk ditinjau.',
-                        style: Theme.of(context).textTheme.labelLarge,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    for (
-                      var index = 0;
-                      index < _visibleDraftQueue.length;
-                      index++
-                    )
-                      _buildDraftQueueChip(
-                        _visibleDraftQueue[index],
-                        index + 1,
-                      ),
-                  ],
-                ),
-                if (fieldSummary != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    fieldSummary,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDraftQueueChip(FfmAssistantDraftQueueItem item, int number) {
-    final selected = widget.session.activeDraftQueueId == item.id;
-    final status = switch (item.status) {
-      FfmAssistantDraftQueueStatus.ready => 'siap',
-      FfmAssistantDraftQueueStatus.needsClarification => 'perlu info',
-      FfmAssistantDraftQueueStatus.openingForm => 'form dibuka',
-      FfmAssistantDraftQueueStatus.cancelled => 'dibatalkan',
-      FfmAssistantDraftQueueStatus.completed => 'selesai',
-    };
-    final label = FfmAssistantDraftPreview.draftLabel(item.review.draft.kind)
-        .replaceFirst('Draft ', '');
-    final fieldSummary = item.missingFields.isEmpty
-        ? '${item.knownFieldCount} field terisi'
-        : 'perlu ${item.missingFields.join(', ')}';
-    final warningSummary = item.warningCount == 0
-        ? ''
-        : ', ${item.warningCount} peringatan';
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: 'Draft $number, $label, $status, $fieldSummary$warningSummary',
-      child: TextButton(
-        style: TextButton.styleFrom(
-          minimumSize: const Size(44, 44),
-          backgroundColor: selected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.surface,
-        ),
-        onPressed: () {
-          setState(() {
-            widget.session
-              ..activeDraftReview = item.review
-              ..activeDraftIntent = item.intent
-              ..activeDraftQueueId = item.id;
-          });
-          _scrollToEnd(force: true);
-        },
-        child: Text('#$number $label · $status'),
       ),
     );
   }

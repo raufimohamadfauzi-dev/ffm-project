@@ -107,7 +107,7 @@ Before creating new infrastructure, inspect and reuse the existing implementatio
 - assistant query tools
 - assistant integration and test harnesses
 
-Do not create a parallel orchestrator, planner, capability system, or AI framework unless there is a clear architectural reason and the existing abstraction cannot support the requirement.
+Do not create a parallel orchestrator, planner, capability system, or AI framework unless there is a clear architectural reason and the existing abstraction cannot support the requirement. See section 26 for the standing rule when a clearly better tool/framework exists.
 
 ---
 
@@ -524,9 +524,9 @@ Before modifying code:
 7. run analyzer/tests,
 8. build the ARM64 release when the change is release-relevant.
 
-Do not rewrite functioning architecture without evidence that a rewrite is necessary.
+Do not rewrite functioning architecture without evidence that a rewrite is necessary. The existence of a genuinely better, proven tool/framework is valid evidence (see section 26).
 
-Prefer incremental changes that improve the current assistant system.
+Prefer incremental changes that improve the current assistant system, but replace a component when a clearly better option exists (see section 26).
 
 ---
 
@@ -570,3 +570,22 @@ The highest-level rule for all agents working on this repository is:
 > Use deterministic application logic for financial truth, Supabase for backend capabilities and data, and Gemini for strong cloud reasoning via orchestrator.
 >
 > Ship only the Android ARM64 release target unless the user explicitly requests another platform.
+
+---
+
+## 26. Tool & Framework Replacement Policy (Mandatory When Better)
+
+For the long-term health of the project, FFM must not remain locked to an inferior tool or framework merely because it already exists in the codebase.
+
+When deciding between the current implementation and an alternative framework, tool, library, or service, apply this rule:
+
+1. **Evaluate the alternative honestly.** If a proven framework/tool exists that is genuinely better than the current one for the task (better long-term maintainability, reliability, performance, cost, security, or fit for FFM's AI-assistant direction), it **must replace the current implementation**.
+2. **"Better" is judged for the whole project life**, not just the current task. Prefer options that reduce long-term burden, dependency risk, and architectural debt, even if the swap takes extra effort now.
+3. **Migration is expected, not avoided.** Do not keep a known-inferior component only because it is already wired up. Plan and execute a clean migration (data, tests, call sites) with the old implementation removed afterward.
+4. **Evidence required for the upgrade decision**: compare both options against maintainability, reliability, performance, cost, security, team/AI-agent ergonomics, and fit with the AI-assistant direction. Record the decision and the reason.
+5. **Still respect the guardrails.** Replacements must preserve: deterministic financial truth, the validation/confirmation/executor boundary, secrets handling, Android ARM64-only release build, and existing tests (migrated, not weakened).
+6. **Do not replace for its own sake.** If no clearly better option exists, keep the current implementation. Do not churn architecture without a genuine improvement.
+
+When this rule conflicts with an older "prefer/reuse existing" instruction, **this section wins** — the goal is the best long-term tool, not loyalty to whatever is already there.
+
+Proactively flag, in your final report to the user, any component where you believe a clearly better alternative exists, even if swapping it is not part of the current request.

@@ -219,7 +219,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
         ],
         if (intent?.draft != null) ...[
           const SizedBox(height: 7),
-          FfmAssistantDraftPreview(draft: intent!.draft!, review: review),
+          FfmAssistantDraftPreview(
+            draft: intent!.draft!,
+            review: review,
+            onEdit: onEditDraft,
+          ),
         ],
         if (!isUser && entry.feedbackType != null) ...[
           const SizedBox(height: 8),

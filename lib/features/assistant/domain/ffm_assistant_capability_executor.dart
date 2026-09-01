@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'ffm_assistant_action_plan.dart';
 import 'ffm_assistant_capabilities.dart';
+import 'ffm_assistant_circuit_breaker.dart';
+import 'ffm_assistant_autonomy_policy.dart';
 import 'ffm_assistant_execution_limits.dart';
+import 'ffm_assistant_tool_execution.dart';
 import '../data/ffm_error_logging_service.dart';
 
 /// Menjalankan rangkaian read-only pada transaction/snapshot yang sama.
@@ -29,6 +34,14 @@ typedef FfmAssistantPlanProgressListener = void Function(
   FfmAssistantActionPlan plan,
 );
 
+typedef FfmAssistantPlanRecordListener = Future<void> Function(
+  FfmAssistantActionPlan plan,
+);
+
+typedef FfmAssistantToolExecutionListener = Future<void> Function(
+  FfmAssistantToolExecution execution,
+);
+
 /// Menjalankan plan secara serial melalui handler yang di-allowlist aplikasi.
 /// SLM tidak pernah menjadi handler dan tidak dapat menulis database langsung.
 class FfmAssistantCapabilityExecutor {
@@ -38,6 +51,11 @@ class FfmAssistantCapabilityExecutor {
     FfmAssistantReadTransaction? readTransaction,
     Future<void> Function()? pageReadySignal,
     FfmAssistantPlanProgressListener? onPlanProgress,
+    FfmAssistantPlanRecordListener? onPlanRecorded,
+    FfmAssistantToolExecutionListener? onToolExecution,
+    FfmAssistantCircuitBreaker? circuitBreaker,
+    FfmAssistantAutonomyPolicy autonomyPolicy =
+        const FfmAssistantAutonomyPolicy(),
     Duration stepTimeout = const Duration(seconds: 10),
     int maxRetries = 2,
     FfmErrorLoggingService? errorLogger,
@@ -46,6 +64,10 @@ class FfmAssistantCapabilityExecutor {
     _readTransaction = readTransaction;
     _pageReadySignal = pageReadySignal;
     _onPlanProgress = onPlanProgress;
+    _onPlanRecorded = onPlanRecorded;
+    _onToolExecution = onToolExecution;
+    _circuitBreaker = circuitBreaker ?? FfmAssistantCircuitBreaker();
+    _autonomyPolicy = autonomyPolicy;
     _stepTimeout = stepTimeout;
     _maxRetries = maxRetries;
     _errorLogger = errorLogger;
@@ -57,13 +79,54 @@ class FfmAssistantCapabilityExecutor {
   FfmAssistantReadTransaction? _readTransaction;
   Future<void> Function()? _pageReadySignal;
   FfmAssistantPlanProgressListener? _onPlanProgress;
+  FfmAssistantPlanRecordListener? _onPlanRecorded;
+  FfmAssistantToolExecutionListener? _onToolExecution;
+  late final FfmAssistantCircuitBreaker _circuitBreaker;
+  late FfmAssistantAutonomyPolicy _autonomyPolicy;
   late final Duration _stepTimeout;
   late final int _maxRetries;
   FfmErrorLoggingService? _errorLogger;
 
   FfmAssistantActionPlan? _report(FfmAssistantActionPlan? plan) {
-    if (plan != null) _onPlanProgress?.call(plan);
+    if (plan != null) {
+      _onPlanProgress?.call(plan);
+      final onPlanRecorded = _onPlanRecorded;
+      if (onPlanRecorded != null) unawaited(_recordPlan(plan, onPlanRecorded));
+    }
     return plan;
+  }
+
+  void setAutonomyPolicy(FfmAssistantAutonomyPolicy policy) {
+    _autonomyPolicy = policy;
+  }
+
+  Future<void> _recordPlan(
+    FfmAssistantActionPlan plan,
+    FfmAssistantPlanRecordListener onPlanRecorded,
+  ) async {
+    try {
+      await onPlanRecorded(plan);
+    } on Object catch (error) {
+      await _errorLogger?.logError(
+        feature: 'capability-executor',
+        errorType: error.runtimeType.toString(),
+        message: 'Gagal menyimpan status plan ${plan.id}: $error',
+      );
+    }
+  }
+
+  Future<void> _recordToolExecution(FfmAssistantToolExecution execution) async {
+    final listener = _onToolExecution;
+    if (listener == null) return;
+    try {
+      await listener(execution);
+    } on Object catch (error) {
+      await _errorLogger?.logError(
+        feature: 'capability-executor',
+        errorType: error.runtimeType.toString(),
+        message: 'Gagal menyimpan audit tool ${execution.capabilityId}: $error',
+      );
+    }
   }
 
   Future<FfmAssistantActionPlan?> execute(String planId) async {
@@ -78,6 +141,39 @@ class FfmAssistantCapabilityExecutor {
   Future<FfmAssistantActionPlan?> _executeInternal(String planId) async {
     var plan = _controller.get(planId);
     if (plan == null || plan.isTerminal) return plan;
+    final policyReason = _autonomyPolicy.validatePlan(
+      plan,
+      approved: plan.status == FfmAssistantActionPlanStatus.executing,
+    );
+    if (policyReason != null &&
+        policyReason != FfmAssistantAutonomyBlockReason.approvalRequired) {
+      unawaited(
+        _recordToolExecution(
+          FfmAssistantToolExecution(
+            id: '$planId:plan',
+            runId: planId,
+            stepId: 'plan',
+            capabilityId: 'plan.policy',
+            status: FfmAssistantToolExecutionStatus.blocked,
+            attemptCount: 0,
+            startedAt: DateTime.now(),
+            finishedAt: DateTime.now(),
+            error: policyReason.name,
+          ),
+        ),
+      );
+      return _report(
+        _controller.blockByBudget(planId, switch (policyReason) {
+          FfmAssistantAutonomyBlockReason.tooManyActions =>
+            FfmAssistantBudgetBlockReason.tooManySteps,
+          FfmAssistantAutonomyBlockReason.tokenBudgetExceeded =>
+            FfmAssistantBudgetBlockReason.tokenBudgetExceeded,
+          FfmAssistantAutonomyBlockReason.costBudgetExceeded =>
+            FfmAssistantBudgetBlockReason.costBudgetExceeded,
+          _ => FfmAssistantBudgetBlockReason.tooManySteps,
+        }),
+      );
+    }
     if (plan.steps.length > FfmAssistantExecutionLimits.maxStepsPerPlan) {
       return _report(
         _controller.blockByBudget(
@@ -106,6 +202,61 @@ class FfmAssistantCapabilityExecutor {
       if (step.status == FfmAssistantActionStepStatus.completed ||
           step.status == FfmAssistantActionStepStatus.skipped) {
         continue;
+      }
+      final capability = FfmAssistantCapabilityRegistry.find(step.capabilityId);
+      if (capability == null) {
+        unawaited(
+          _recordToolExecution(
+            FfmAssistantToolExecution(
+              id: '$planId:${step.id}',
+              runId: planId,
+              stepId: step.id,
+              capabilityId: step.capabilityId,
+              status: FfmAssistantToolExecutionStatus.blocked,
+              attemptCount: 0,
+              startedAt: DateTime.now(),
+              finishedAt: DateTime.now(),
+              error: 'Capability tidak terdaftar di registry.',
+            ),
+          ),
+        );
+        return _report(
+          _controller.block(
+            planId,
+            'Capability ${step.capabilityId} tidak terdaftar di registry.',
+          ),
+        );
+      }
+      final resolvedCapability = capability;
+      if (!_autonomyPolicy.allowsCapability(
+        resolvedCapability,
+        approved: plan!.status == FfmAssistantActionPlanStatus.executing,
+      )) {
+        unawaited(
+          _recordToolExecution(
+            FfmAssistantToolExecution(
+              id: '$planId:${step.id}',
+              runId: planId,
+              stepId: step.id,
+              capabilityId: step.capabilityId,
+              status: FfmAssistantToolExecutionStatus.blocked,
+              attemptCount: 0,
+              startedAt: DateTime.now(),
+              finishedAt: DateTime.now(),
+              error: 'Capability diblokir policy autonomy.',
+            ),
+          ),
+        );
+        return _report(
+          _controller.block(
+            planId,
+            resolvedCapability.requiresConfirmation ||
+                    resolvedCapability.risk.index >=
+                        FfmAssistantCapabilityRisk.mutation.index
+                ? 'Capability ${step.capabilityId} membutuhkan konfirmasi eksplisit.'
+                : 'Capability ${step.capabilityId} tidak diizinkan policy autonomy.',
+          ),
+        );
       }
       if (step.capabilityId.startsWith('navigate.')) {
         plan = _report(
@@ -140,6 +291,21 @@ class FfmAssistantCapabilityExecutor {
       }
       final handler = _handlers[step.capabilityId];
       if (handler == null) {
+        unawaited(
+          _recordToolExecution(
+            FfmAssistantToolExecution(
+              id: executionKey,
+              runId: planId,
+              stepId: step.id,
+              capabilityId: step.capabilityId,
+              status: FfmAssistantToolExecutionStatus.blocked,
+              attemptCount: 0,
+              startedAt: DateTime.now(),
+              finishedAt: DateTime.now(),
+              error: 'Adapter capability tidak tersedia.',
+            ),
+          ),
+        );
         return _report(
           _controller.failPlan(
             planId,
@@ -147,10 +313,44 @@ class FfmAssistantCapabilityExecutor {
           ),
         );
       }
+      if (!_circuitBreaker.canExecute(step.capabilityId)) {
+        unawaited(
+          _recordToolExecution(
+            FfmAssistantToolExecution(
+              id: executionKey,
+              runId: planId,
+              stepId: step.id,
+              capabilityId: step.capabilityId,
+              status: FfmAssistantToolExecutionStatus.blocked,
+              attemptCount: 0,
+              startedAt: DateTime.now(),
+              finishedAt: DateTime.now(),
+              error: 'Circuit breaker capability masih terbuka.',
+            ),
+          ),
+        );
+        return _report(
+          _controller.block(
+            planId,
+            'Circuit breaker menghentikan capability ${step.capabilityId} sementara setelah beberapa kegagalan. Coba lagi nanti.',
+          ),
+        );
+      }
       _report(_controller.startStep(planId, step.id));
       _executedSteps.add(executionKey);
-      final capability = FfmAssistantCapabilityRegistry.find(step.capabilityId);
-      final isReadOnly = capability?.readOnly ?? false;
+      final startedAt = DateTime.now();
+      await _recordToolExecution(
+        FfmAssistantToolExecution(
+          id: executionKey,
+          runId: planId,
+          stepId: step.id,
+          capabilityId: step.capabilityId,
+          status: FfmAssistantToolExecutionStatus.started,
+          attemptCount: 0,
+          startedAt: startedAt,
+        ),
+      );
+      final isReadOnly = resolvedCapability.readOnly;
       var attempts = 0;
       var succeeded = false;
       final maxAttempts = isReadOnly ? _maxRetries + 1 : 1;
@@ -185,12 +385,40 @@ class FfmAssistantCapabilityExecutor {
         }
         if (result.isSuccess) {
           succeeded = true;
+          _circuitBreaker.recordSuccess(step.capabilityId);
         } else if (!isReadOnly || attempts >= maxAttempts) {
+          _circuitBreaker.recordFailure(step.capabilityId);
+          await _recordToolExecution(
+            FfmAssistantToolExecution(
+              id: executionKey,
+              runId: planId,
+              stepId: step.id,
+              capabilityId: step.capabilityId,
+              status: FfmAssistantToolExecutionStatus.failed,
+              attemptCount: attempts,
+              startedAt: startedAt,
+              finishedAt: DateTime.now(),
+              error: result.message,
+            ),
+          );
           return _report(
             _controller.failStepAndPlan(planId, step.id, result.message),
           );
         }
       }
+      await _recordToolExecution(
+        FfmAssistantToolExecution(
+          id: executionKey,
+          runId: planId,
+          stepId: step.id,
+          capabilityId: step.capabilityId,
+          status: FfmAssistantToolExecutionStatus.completed,
+          attemptCount: attempts,
+          startedAt: startedAt,
+          finishedAt: DateTime.now(),
+          resultSummary: result.message,
+        ),
+      );
       plan = _report(_controller.completeStep(planId, step.id, result.message));
       if (plan == null) return null;
     }
@@ -297,7 +525,12 @@ extension FfmAssistantActionPlanControllerExecution
   FfmAssistantActionPlan? block(String id, String message) {
     final plan = get(id);
     if (plan == null || plan.isTerminal) return plan;
-    return replace(plan.copyWith(status: FfmAssistantActionPlanStatus.blocked));
+    return replace(
+      plan.copyWith(
+        status: FfmAssistantActionPlanStatus.blocked,
+        blockedReason: message,
+      ),
+    );
   }
 
   FfmAssistantActionPlan replace(FfmAssistantActionPlan plan) {

@@ -78,12 +78,5 @@ void main() {
       expect(intent.type, FfmAssistantIntentType.help);
       expect(intent.response, anyOf(contains('Halo!'), contains('Hai!')));
     });
-
-    test('perintah "pindah ke halaman riwayat asisten" langsung membuka Pengetahuan Asisten secara instan', () async {
-      final intent = await interpreter.interpret('pindah ke halaman riwayat asisten');
-      expect(intent.type, FfmAssistantIntentType.openPage);
-      expect(intent.destination, FfmAssistantDestination.assistantTraining);
-      expect(intent.response, contains('Pengetahuan Asisten'));
-    });
   });
 }

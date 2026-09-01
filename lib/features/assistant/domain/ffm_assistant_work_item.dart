@@ -146,18 +146,15 @@ class FfmAssistantWorkItem {
         return 'Diagnostik';
       case FfmAssistantDestination.activityLog:
         return 'Log Aktivitas';
-      case FfmAssistantDestination.assistantTraining:
-        return 'Pelatihan Asisten';
+
       case FfmAssistantDestination.recurringTransaction:
         return 'Transaksi Berulang';
-      case FfmAssistantDestination.offlineAdvanced:
-        return 'Offline Lanjutan';
+
       case FfmAssistantDestination.privacyCenter:
         return 'Privasi';
       case FfmAssistantDestination.databaseStructure:
         return 'Struktur Database';
-      case FfmAssistantDestination.offlineFeatures:
-        return 'Fitur Offline';
+
       case FfmAssistantDestination.localModel:
         return 'Model Lokal';
       case FfmAssistantDestination.assistantProfile:

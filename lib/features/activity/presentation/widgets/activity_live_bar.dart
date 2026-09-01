@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/activity_entity.dart';
@@ -58,11 +59,17 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
         .toList();
 
     // If no root session with null parent, use all active
-    final displaySessions = rootSessions.isNotEmpty ? rootSessions : widget.snapshot.activeSessions;
+    final displaySessions = rootSessions.isNotEmpty
+        ? rootSessions
+        : widget.snapshot.activeSessions;
 
-    final primaryColor = isDark ? const Color(0xFF5BBFB5) : const Color(0xFF00727A);
+    final primaryColor = isDark
+        ? const Color(0xFF5BBFB5)
+        : const Color(0xFF00727A);
     final bgBar = isDark ? const Color(0xFF1E2829) : const Color(0xFFE6F3F1);
-    final borderColor = isDark ? const Color(0xFF2E3F40) : const Color(0xFFCCE4E1);
+    final borderColor = isDark
+        ? const Color(0xFF2E3F40)
+        : const Color(0xFFCCE4E1);
 
     return Container(
       width: double.infinity,
@@ -95,7 +102,11 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
                       color: primaryColor.withValues(alpha: .15),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.directions_run, size: 16, color: primaryColor),
+                    child: Icon(
+                      Icons.directions_run,
+                      size: 16,
+                      color: primaryColor,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -117,7 +128,10 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
                             ),
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
                                 color: primaryColor.withValues(alpha: .12),
                                 borderRadius: BorderRadius.circular(4),
@@ -150,25 +164,49 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
                     children: [
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 0,
+                          ),
                           minimumSize: const Size(0, 28),
-                          side: BorderSide(color: primaryColor.withValues(alpha: .5)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          side: BorderSide(
+                            color: primaryColor.withValues(alpha: .5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                         onPressed: () => widget.onUpdateCheckpoint(session),
-                        icon: const Icon(Icons.add_location_alt_outlined, size: 13),
-                        label: const Text('Update', style: TextStyle(fontSize: 11)),
+                        icon: const Icon(
+                          Icons.add_location_alt_outlined,
+                          size: 13,
+                        ),
+                        label: const Text(
+                          'Update',
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ),
                       const SizedBox(width: 6),
                       FilledButton(
                         style: FilledButton.styleFrom(
                           backgroundColor: primaryColor,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 0,
+                          ),
                           minimumSize: const Size(0, 28),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
                         onPressed: () => widget.onFinishSession(session),
-                        child: const Text('Selesai', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                        child: const Text(
+                          'Selesai',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -183,17 +221,27 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
                     spacing: 6,
                     runSpacing: 4,
                     children: activeChildren.map((child) {
-                      final childDur = _calculator.format(child.durationAt(now));
+                      final childDur = _calculator.format(
+                        child.durationAt(now),
+                      );
                       return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF162122) : Colors.white,
+                          color: isDark
+                              ? const Color(0xFF162122)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(color: borderColor),
                         ),
                         child: Text(
                           '└─ ${child.title} · $childDur',
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       );
                     }).toList(),
@@ -206,7 +254,11 @@ class _ActivityLiveBarState extends State<ActivityLiveBar> {
                   padding: const EdgeInsets.only(left: 28, top: 3),
                   child: Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 11, color: Colors.amber),
+                      const Icon(
+                        Icons.location_on_outlined,
+                        size: 11,
+                        color: Colors.amber,
+                      ),
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(

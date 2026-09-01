@@ -41,7 +41,7 @@ import '../domain/ffm_assistant_work_item.dart';
 import 'ffm_assistant_work_item_service.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../activity/domain/activity_mode_detector.dart';
-import 'ffm_assistant_knowledge_base.dart';
+
 import '../domain/ffm_agent_harness.dart';
 import 'ffm_agent_plugins.dart';
 
@@ -94,7 +94,10 @@ class FfmAssistantInterpreter {
     _modelGateway = modelGateway;
     _slmReadyCheck = slmReadyCheck;
     _answerComposer = answerComposer;
-    _financialSnapshot = FfmAssistantFinancialSnapshotService(_database);
+    _financialSnapshot = FfmAssistantFinancialSnapshotService(
+      _database,
+      HijriCalendarService(_database),
+    );
     _geminiReadCapabilities = FfmGeminiReadCapabilityService(
       _financialSnapshot,
     );
@@ -132,7 +135,7 @@ class FfmAssistantInterpreter {
   final FfmAssistantSelfDescriptionService _selfDescription;
   final bool _geminiContextFirstEnabled;
   final _financialEducation = const FfmAssistantFinancialEducationService();
-  final _knowledgeBase = const FfmAssistantKnowledgeBase();
+
   final _supabase = SupabaseService();
   final GeminiService _gemini;
   final SupabaseConfig _config;
@@ -156,7 +159,6 @@ class FfmAssistantInterpreter {
     FfmAssistantDestination.backup,
     FfmAssistantDestination.diagnostics,
     FfmAssistantDestination.databaseStructure,
-    FfmAssistantDestination.assistantTraining,
     FfmAssistantDestination.assistantProfile,
     FfmAssistantDestination.masterData,
     FfmAssistantDestination.activityLog,
@@ -324,6 +326,12 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
+    final hijriContext = evidenceScope.includeMasterData
+        ? await _financialSnapshot.buildHijriContext(
+            householdId: AppContext.householdId,
+            now: capturedAt,
+          )
+        : '';
     final harvestContext =
         _containsAny(normalized, const [
           'panen',
@@ -351,6 +359,7 @@ class FfmAssistantInterpreter {
         if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
         financialContext,
         masterDataContext,
+        hijriContext,
         harvestContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
@@ -542,6 +551,32 @@ class FfmAssistantInterpreter {
         accounts,
         categories,
       );
+
+      // Handle navigation proposals specially
+      if (draft.formValues['navigation'] == 'true') {
+        final destinationName = draft.formValues['destination'];
+        final destination = _destinationForName(destinationName);
+        if (destination != null) {
+          final page = FfmAssistantCatalog.findByDestination(destination);
+          final pageDescription = page?.description ?? '';
+          return _InterpretResult.single(
+            FfmAssistantIntent(
+              rawText: rawText,
+              normalizedText: normalized,
+              type: FfmAssistantIntentType.openPage,
+              destination: destination,
+              confidence: 1,
+              response:
+                  'Siap, aku arahkan ke halaman ${page?.name ?? destination.name}. Tekan Buka untuk $pageDescription',
+              responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+              pluginName: 'gemini_cloud',
+              pluginCategory: 'gemini_cloud',
+              pluginMetadata: geminiMetadata,
+            ),
+          );
+        }
+      }
+
       final draftIntent = _intentForDraft(rawText, normalized, draft);
       return _InterpretResult.single(
         draftIntent.copyWith(
@@ -1424,25 +1459,6 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final isHowToQuestion = _containsAny(normalized, const [
-      'cara',
-      'gimana',
-      'bagaimana',
-      'langkah',
-      'tutorial',
-      'petunjuk',
-    ]);
-    final kbEntry = _knowledgeBase.findAnswer(normalized);
-    if (kbEntry != null && (isHowToQuestion || normalized.contains('apa'))) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.help,
-        confidence: .97,
-        response: '**${kbEntry.title}**\n\n${kbEntry.answer}',
-      );
-    }
-
     final calendarAnswer = FfmAssistantLocalCalendar.answer(
       normalized,
       now: _clock(),
@@ -1454,6 +1470,39 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.calendarQuery,
         confidence: 1,
         response: calendarAnswer,
+      );
+    }
+
+    if (_isOtherMenuListRequest(normalized)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.listPages,
+        destination: FfmAssistantDestination.otherMenu,
+        confidence: 1,
+        response:
+            'Menu Lainnya memiliki ${FfmAssistantCatalog.otherMenuItems.length} menu berikut beserta fungsinya:\n${FfmAssistantCatalog.listOtherMenuForChat()}',
+      );
+    }
+
+    final earlyNavigationDestination = _parseDestination(normalized);
+    if (earlyNavigationDestination != null &&
+        (_isNavigationRequest(normalized) ||
+            _isExplicitPageNavigationRequest(normalized)) &&
+        !_containsAny(normalized, const [
+          'mulai aktivitas',
+          'mulai kegiatan',
+          'catat aktivitas',
+          'buat aktivitas',
+        ])) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.openPage,
+        destination: earlyNavigationDestination.destination,
+        confidence: .98,
+        response:
+            'Siap, aku pindahkan kamu ke ${earlyNavigationDestination.name}. Tekan “Buka & cek” kalau sudah siap.',
       );
     }
 
@@ -1615,7 +1664,8 @@ class FfmAssistantInterpreter {
     }
 
     // General navigation handler for any page
-    if (_isNavigationRequest(normalized)) {
+    if (_isNavigationRequest(normalized) &&
+        !_isOtherMenuListRequest(normalized)) {
       final targetPage = FfmAssistantCatalog.findByText(normalized);
       if (targetPage != null) {
         return FfmAssistantIntent(
@@ -1624,7 +1674,8 @@ class FfmAssistantInterpreter {
           type: FfmAssistantIntentType.openPage,
           destination: targetPage.destination,
           confidence: 1,
-          response: 'Siap, aku arahkan ke halaman ${targetPage.name}. Tekan Buka untuk ${targetPage.description.toLowerCase()}',
+          response:
+              'Siap, aku arahkan ke halaman ${targetPage.name}. Tekan Buka untuk ${targetPage.description.toLowerCase()}',
         );
       }
     }
@@ -1868,7 +1919,7 @@ class FfmAssistantInterpreter {
     }
 
     if (_isDatabaseStructureRequest(normalized) &&
-        !_isNavigationRequest(normalized)) {
+        !_isExplicitPageNavigationRequest(normalized)) {
       final queryAnswer = await _queryRegistry.tryAnswer(
         normalized,
         householdId: AppContext.householdId,
@@ -1985,6 +2036,12 @@ class FfmAssistantInterpreter {
 
     final directDestination = _parseDestination(normalized);
     if (directDestination != null &&
+        !_containsAny(normalized, const [
+          'mulai aktivitas',
+          'mulai kegiatan',
+          'catat aktivitas',
+          'buat aktivitas',
+        ]) &&
         _containsAny(normalized, const [
           'buka',
           'pindah',
@@ -2057,6 +2114,25 @@ class FfmAssistantInterpreter {
         date: _clock(),
       );
       return _intentForDraft(rawText, normalized, draft);
+    }
+
+    if (_containsAny(normalized, const [
+      'mulai aktivitas',
+      'mulai kegiatan',
+      'catat aktivitas',
+      'buat aktivitas',
+    ])) {
+      final activityDraft = _parseFinancialDraft(
+        rawText,
+        normalized,
+        accounts,
+        categories,
+        currentDestination: currentDestination,
+        activitySnapshot: activitySnapshot,
+      );
+      if (activityDraft != null) {
+        return _intentForDraft(rawText, normalized, activityDraft);
+      }
     }
 
     // ── ROUTING MODE GEMINI CLOUD ─────────────────────────────────────────────
@@ -3242,24 +3318,22 @@ class FfmAssistantInterpreter {
       ]);
 
   bool _isNavigationRequest(String text) => _containsAny(text, const [
-    'buka',
-    'pindah',
-    'ke halaman',
-    'ke bagian',
-    'arah ke',
-    'bawa ke',
-    'pergi ke halaman',
-    'pergi ke menu',
-    'masuk halaman',
-    'masuk menu',
-    'tampilkan',
-    'arahkan ke',
-    'pindahkan ke',
-    'pergi ke',
-    'masuk ke',
     'buka halaman',
     'buka menu',
+    'pindah ke halaman',
+    'pindah ke menu',
+    'ke halaman',
+    'ke bagian',
+    'arah ke halaman',
+    'arah ke menu',
+    'masuk halaman',
+    'masuk menu',
+    'tampilkan halaman',
+    'tampilkan menu',
   ]);
+
+  bool _isExplicitPageNavigationRequest(String text) =>
+      text.startsWith('buka') || text.startsWith('tampilkan');
 
   bool _isCurrentPageRequest(String text) =>
       _isCurrentPageLabelRequest(text) ||
@@ -3290,6 +3364,8 @@ class FfmAssistantInterpreter {
     final asksAppData =
         text.contains('ada data apa saja') &&
         (text.contains('aplikasi') || text.contains('ffm'));
+    // Don't treat navigation requests as database structure queries
+    if (_isExplicitPageNavigationRequest(text)) return false;
     return namesDatabase || asksAppData;
   }
 
@@ -3846,6 +3922,9 @@ class FfmAssistantInterpreter {
     final update = RegExp(
       r'^(?:update|tambah\s+(?:catatan|checkpoint))\s+aktivitas\s+(.+?)(?:\s*:\s*(.+))?$',
     ).firstMatch(normalized);
+    final categoryEdit = RegExp(
+      r'^(?:edit|ubah|ganti)\s+kategori\s+aktivitas\s+(.+?)\s+(?:jadi|ke)\s+(.+)$',
+    ).firstMatch(normalized);
     final edit = RegExp(
       r'^(?:edit|ubah|ganti)\s+aktivitas\s+(.+?)(?:\s+jadi\s+|\s+ke\s+)(.+)$',
     ).firstMatch(normalized);
@@ -3854,12 +3933,14 @@ class FfmAssistantInterpreter {
         delete == null &&
         finish == null &&
         update == null &&
+        categoryEdit == null &&
         edit == null) {
       return null;
     }
     String operation;
     String targetText;
     String? extraText;
+    var isCategoryEdit = false;
 
     if (finish != null) {
       operation = 'finish';
@@ -3869,10 +3950,19 @@ class FfmAssistantInterpreter {
       operation = 'update';
       targetText = update.group(1)!.trim();
       extraText = update.group(2)?.trim();
+    } else if (categoryEdit != null) {
+      operation = 'edit';
+      isCategoryEdit = true;
+      targetText = categoryEdit.group(1)!.trim();
+      extraText = categoryEdit.group(2)?.trim();
     } else if (edit != null) {
       operation = 'edit';
       targetText = edit.group(1)!.trim();
       extraText = edit.group(2)?.trim();
+      if (extraText?.startsWith('kategori ') == true) {
+        isCategoryEdit = true;
+        extraText = extraText!.substring('kategori '.length).trim();
+      }
     } else if (archive != null) {
       operation = 'archive';
       targetText = archive.group(1)!.trim();
@@ -3920,7 +4010,13 @@ class FfmAssistantInterpreter {
       formValues['label'] = extraText;
     }
     if (operation == 'edit' && extraText != null) {
-      formValues['newTitle'] = extraText;
+      formValues['beforeTitle'] = target.title;
+      formValues['beforeCategory'] = target.category;
+      if (isCategoryEdit) {
+        formValues['category'] = extraText;
+      } else {
+        formValues['title'] = extraText;
+      }
     }
     final draftKind = switch (operation) {
       'finish' => FfmAssistantDraftKind.activityFinish,
@@ -3932,9 +4028,10 @@ class FfmAssistantInterpreter {
     final draft = FfmAssistantDraft(
       kind: draftKind,
       createdAt: _clock(),
-      title: operation == 'edit' && extraText != null
-          ? extraText
+      title: operation == 'edit'
+          ? (isCategoryEdit ? target.title : extraText)
           : _activityCandidateLabel(target),
+      categoryName: operation == 'edit' && isCategoryEdit ? extraText : null,
       note: target.notes,
       date: target.startedAt,
       formValues: formValues,
@@ -6397,31 +6494,68 @@ class FfmAssistantInterpreter {
 
     final goalUsage = _containsAny(normalized, const [
       'pakai target',
+      'pakai uang target',
       'pakai dana target',
       'ambil dari target',
+      'tarik dari target',
+      'tarik dana target',
+      'tarik target',
+      'gunakan target',
+      'gunakan dana target',
     ]);
     if (goalUsage) {
+      final goalName = _draftTitle(normalized, const ['target', 'dana target']) ??
+          _extractAfter(normalized, const ['target', 'dana target']);
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.goalUsage,
         createdAt: now,
         amount: amount,
-        goalName: _extractAfter(normalized, const ['target', 'dana target']),
+        goalName: goalName,
         note: rawText.trim(),
         date: now,
       );
     }
     final goalDeposit = _containsAny(normalized, const [
+      'untuk target',
+      'ke target',
+      'buat target',
       'setor target',
+      'setor ke target',
       'isi target',
+      'isi ke target',
       'masukkan ke target',
+      'masukan ke target',
       'tambah target',
+      'tambah ke target',
+      'simpan target',
+      'tabung target',
+      'nabung target',
+      'menabung target',
+      'alokasi target',
+      'alokasikan target',
     ]);
     if (goalDeposit) {
+      final goalName = _draftTitle(normalized, const [
+            'untuk target',
+            'ke target',
+            'buat target',
+            'setor target',
+            'isi target',
+            'target',
+          ]) ??
+          _extractAfter(normalized, const [
+            'untuk target',
+            'ke target',
+            'buat target',
+            'setor target',
+            'isi target',
+            'target',
+          ]);
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.goalDeposit,
         createdAt: now,
         amount: amount,
-        goalName: _extractAfter(normalized, const ['target']),
+        goalName: goalName,
         note: rawText.trim(),
         date: now,
       );
@@ -7649,7 +7783,7 @@ class _InterpretResult {
 abstract final class FfmAssistantAmountParser {
   static int? parse(String text) {
     final numeric = RegExp(
-      r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|jt|juta|m|miliar))?',
+      r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|rb|k|jt|juta|m|miliar))?',
     ).allMatches(text);
     if (numeric.isNotEmpty) {
       final match = numeric.first;
@@ -7665,7 +7799,7 @@ abstract final class FfmAssistantAmountParser {
           : double.tryParse(rawNumber.replaceAll(RegExp(r'[^0-9]'), ''));
       if (base != null) {
         return switch (match.group(2)) {
-          'ribu' => (base * 1000).round(),
+          'ribu' || 'rb' || 'k' => (base * 1000).round(),
           'jt' || 'juta' => (base * 1000000).round(),
           'm' || 'miliar' => (base * 1000000000).round(),
           _ => base.round(),
@@ -7766,6 +7900,73 @@ abstract final class FfmAssistantAmountParser {
     if (!foundScale && !chunkHasNumeral) return null;
     return (total + tail).round();
   }
+}
+
+FfmAssistantDestination? _destinationForName(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  final target = raw.trim().toLowerCase();
+  return switch (target) {
+    'summary' ||
+    'ringkasan' ||
+    'beranda' ||
+    'home' => FfmAssistantDestination.summary,
+    'transactions' ||
+    'transaksi' ||
+    'uang masuk' ||
+    'uang keluar' => FfmAssistantDestination.transactions,
+    'budget' || 'anggaran' => FfmAssistantDestination.budget,
+    'analysis' || 'analisa' || 'analisis' => FfmAssistantDestination.analysis,
+    'othermenu' ||
+    'other_menu' ||
+    'lainnya' ||
+    'menu lainnya' ||
+    'menu lain' => FfmAssistantDestination.otherMenu,
+    'masterdata' ||
+    'master_data' ||
+    'data utama' ||
+    'datautama' => FfmAssistantDestination.masterData,
+    'assets' || 'aset' || 'kekayaan' => FfmAssistantDestination.assets,
+    'goals' || 'target' || 'tujuan keuangan' => FfmAssistantDestination.goals,
+    'liabilities' ||
+    'hutang' ||
+    'utang' ||
+    'piutang' => FfmAssistantDestination.liabilities,
+    'activity' || 'aktivitas' || 'jurnal' => FfmAssistantDestination.activity,
+    'reminders' ||
+    'pengingat' ||
+    'reminder' => FfmAssistantDestination.reminders,
+    'backup' || 'ekspor' || 'cadangan' => FfmAssistantDestination.backup,
+    'monthlyreport' ||
+    'monthly_report' ||
+    'laporan bulanan' => FfmAssistantDestination.monthlyReport,
+    'reconciliation' ||
+    'rekonsiliasi' => FfmAssistantDestination.reconciliation,
+    'appsecurity' ||
+    'kunci aplikasi' ||
+    'pin' => FfmAssistantDestination.appSecurity,
+    'diagnostics' || 'bantuan perbaikan' => FfmAssistantDestination.diagnostics,
+    'activitylog' || 'log aktivitas' => FfmAssistantDestination.activityLog,
+    'recurringtransaction' ||
+    'pemasukan berkala' => FfmAssistantDestination.recurringTransaction,
+    'privacycenter' ||
+    'pusat privasi' ||
+    'privasi aplikasi' => FfmAssistantDestination.privacyCenter,
+    'databasestructure' ||
+    'struktur database' ||
+    'tabel database' => FfmAssistantDestination.databaseStructure,
+    'localmodel' ||
+    'local_model' ||
+    'model lokal' ||
+    'model tanpa internet' ||
+    'fitur tanpa internet' => FfmAssistantDestination.localModel,
+    'assistantprofile' ||
+    'profil personalisasi' =>
+      FfmAssistantDestination.assistantProfile,
+    'intelligencedashboard' ||
+    'gemini' ||
+    'cloud brain' => FfmAssistantDestination.intelligenceDashboard,
+    _ => null,
+  };
 }
 
 // ── PILAR 2: Coreference Memory ─────────────────────────────────────────────

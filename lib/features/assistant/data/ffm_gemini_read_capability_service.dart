@@ -31,22 +31,10 @@ class FfmGeminiReadCapabilityService {
           startDate: request.startDate,
           endDate: request.endDate,
         );
-      case 'read.accounts':
-        return _financialSnapshot.buildAccountsDigest(
-          householdId: householdId,
-        );
-      case 'read.budget':
-        return _financialSnapshot.buildBudgetDigest(
+      case 'read.hijriDate':
+        return await _financialSnapshot.buildHijriContext(
           householdId: householdId,
           now: now,
-        );
-      case 'read.categories':
-        return _financialSnapshot.buildCategoriesDigest(
-          householdId: householdId,
-        );
-      case 'read.goals':
-        return _financialSnapshot.buildGoalsDigest(
-          householdId: householdId,
         );
       default:
         throw StateError('Capability baca tidak diizinkan.');
