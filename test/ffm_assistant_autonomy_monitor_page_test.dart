@@ -33,16 +33,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Monitoring Agent'), findsOneWidget);
-    expect(find.text('Kebijakan Autonomy'), findsOneWidget);
+    expect(find.text('Batas kerja Agent'), findsOneWidget);
     await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
     await tester.pump();
     expect(find.text('Run monitoring'), findsOneWidget);
     expect(find.textContaining('completed'), findsOneWidget);
   });
 
-  testWidgets('monitor dapat menyimpan policy autonomy default yang aman', (
-    tester,
-  ) async {
+  testWidgets('monitor menerapkan batas Agent yang dipilih', (tester) async {
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final repository = FfmAssistantAutonomyRepository(database);
@@ -53,13 +51,23 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Simpan kebijakan'));
+
+    expect(find.text('Batas tersimpan'), findsOneWidget);
+    await tester.tap(
+      find.byType(DropdownButtonFormField<FfmAssistantAutonomyLevel>),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Siapkan draft untuk dicek').last);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Terapkan batas'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Terapkan batas'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Kebijakan autonomy tersimpan.'), findsOneWidget);
+    expect(find.text('Batas kerja Agent diterapkan.'), findsOneWidget);
     expect(
       (await repository.loadPolicy())?.level,
-      FfmAssistantAutonomyLevel.explicitApproval,
+      FfmAssistantAutonomyLevel.createDraft,
     );
   });
 }

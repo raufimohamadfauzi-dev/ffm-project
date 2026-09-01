@@ -26,9 +26,35 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   String? _error;
 
   static const _actions = <String, String>{
-    'tambah': 'Penambahan',
-    'ubah': 'Perubahan',
-    'hapus': 'Pengarsipan atau penghapusan',
+    'tambah': 'Tambah transaksi/transfer',
+    'create': 'Tambah data utama',
+    'simpan target': 'Tambah target keuangan',
+    'simpan aset': 'Tambah aset',
+    'simpan hutang': 'Tambah hutang',
+    'simpan piutang': 'Tambah piutang',
+    'simpan pengingat': 'Tambah pengingat',
+    'simpan aturan berkala': 'Tambah transaksi berkala',
+    'buat transaksi berkala': 'Buat transaksi dari jadwal',
+    'ubah': 'Ubah transaksi',
+    'update': 'Ubah data utama/anggaran',
+    'ubah aturan berkala': 'Ubah transaksi berkala',
+    'ubah status pengingat': 'Ubah status pengingat',
+    'hapus': 'Hapus transaksi/transfer',
+    'archive': 'Arsip data utama/anggaran',
+    'arsip target': 'Arsip target keuangan',
+    'arsip aset': 'Arsip aset',
+    'arsip hutang': 'Arsip hutang',
+    'arsip piutang': 'Arsip piutang',
+    'arsip aturan berkala': 'Arsip transaksi berkala',
+    'hapus pengingat': 'Hapus pengingat',
+    'delete_permanently': 'Hapus permanen',
+    'recover_active_sessions': 'Pulihkan aktivitas aktif',
+    'start_session': 'Mulai aktivitas',
+    'finish_session': 'Selesai aktivitas',
+    'add_checkpoint': 'Tambah checkpoint aktivitas',
+    'add_quick_note': 'Tambah catatan cepat',
+    'update_settings': 'Ubah pengaturan',
+    'delete_override': 'Hapus koreksi kalender',
     'impor': 'Impor data',
     'rekonsiliasi': 'Rekonsiliasi saldo',
   };
@@ -108,7 +134,13 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     _load();
   }
 
-  String _actionLabel(String action) => _actions[action] ?? 'Aktivitas penting';
+  String _actionLabel(String action) => _actions[action] ?? _fallbackActionLabel(action);
+
+  String _fallbackActionLabel(String action) {
+    final normalized = action.replaceAll('_', ' ').trim();
+    if (normalized.isEmpty) return 'Aktivitas penting';
+    return normalized[0].toUpperCase() + normalized.substring(1);
+  }
 
   String _entityLabel(String entity) {
     const labels = {
@@ -231,7 +263,8 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
           DropdownButtonFormField<String>(
             initialValue: _action,
             decoration: const InputDecoration(
-              labelText: 'Jenis aksi',
+              labelText: 'Jenis aksi / perubahan',
+              helperText: 'Filter berdasarkan aksi yang tercatat di log audit.',
               prefixIcon: Icon(Icons.category_outlined),
             ),
             items: [

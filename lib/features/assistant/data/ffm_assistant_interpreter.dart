@@ -2130,11 +2130,39 @@ class FfmAssistantInterpreter {
     // agar tidak tertangkap oleh harness atau SLM sebelum sampai ke _parseFinancialDraft.
     final earlyMasterData = _masterDataRequest(normalized);
     if (earlyMasterData != null) {
+      final names = _masterDataDraftNames(normalized, earlyMasterData.$2);
+      final target = earlyMasterData.$1;
+      if ((target == 'tag' || target == 'sumber_pemasukan') &&
+          names.length > 1) {
+        final intents = names
+            .map(
+              (name) => _intentForDraft(
+                rawText,
+                normalized,
+                FfmAssistantDraft(
+                  kind: FfmAssistantDraftKind.masterData,
+                  createdAt: _clock(),
+                  title: name,
+                  categoryName: target,
+                  note: rawText.trim(),
+                  date: _clock(),
+                ),
+              ),
+            )
+            .toList(growable: false);
+        _pendingGeminiExtraIntents = intents.length > 1
+            ? intents.sublist(1)
+            : const [];
+        return intents.first.copyWith(
+          response:
+              'Aku menyiapkan ${intents.length} draft ${_masterDataTargetName(target).toLowerCase()}. Cek semuanya dulu, lalu konfirmasi yang sudah benar.',
+        );
+      }
       final draft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.masterData,
         createdAt: _clock(),
-        title: _draftTitle(normalized, earlyMasterData.$2),
-        categoryName: earlyMasterData.$1,
+        title: names.firstOrNull,
+        categoryName: target,
         note: rawText.trim(),
         date: _clock(),
       );
@@ -5914,13 +5942,45 @@ class FfmAssistantInterpreter {
         .hasMatch(normalized);
     if (update == null && archive == null) {
       if (!create) return null;
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.createBudget,
-        confidence: .9,
-        destination: FfmAssistantDestination.budget,
-        response: 'Pembuatan pos Anggaran oleh Agent belum diizinkan. Aku bisa membuka halaman Anggaran untuk kamu isi manual, atau menyiapkan draft aman untuk mengubah batas satu pos yang sudah ada.',
+      final amount = FfmAssistantAmountParser.parse(normalized);
+      if (amount == null || amount <= 0) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.createBudget,
+          confidence: .7,
+          destination: FfmAssistantDestination.budget,
+          clarification:
+              'Sebut batas Anggaran yang ingin dibuat, misalnya: “atur anggaran makan 350 ribu”. Belum ada data yang diubah.',
+        );
+      }
+      final categories =
+          await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isActive.equals(true) &
+                    row.type.equals('expense'),
+              ))
+              .get();
+      final categoryCandidates = categories
+          .where((row) => normalized.contains(row.name.trim().toLowerCase()))
+          .toList(growable: false);
+      final category = categoryCandidates.length == 1
+          ? categoryCandidates.single
+          : null;
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.budget,
+        createdAt: _clock(),
+        amount: amount,
+        title: category?.name ?? 'Anggaran keseluruhan',
+        categoryName: category?.name,
+        note: rawText.trim(),
+        date: _clock(),
+      );
+      return _intentForDraft(rawText, normalized, draft).copyWith(
+        response: category == null
+            ? 'Aku menyiapkan batas Anggaran keseluruhan ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.'
+            : 'Aku menyiapkan batas Anggaran ${category.name} sebesar ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.',
       );
     }
 
@@ -7352,6 +7412,23 @@ class FfmAssistantInterpreter {
         .replaceFirst(RegExp(r'\b\d[\d.,]*(?:\s*(?:ribu|juta|jt))?.*$'), '')
         .trim();
     return title.isEmpty ? null : title.split(' ').map(_capitalize).join(' ');
+  }
+
+  List<String> _masterDataDraftNames(String text, List<String> markers) {
+    final extracted = _extractAfter(text, markers);
+    if (extracted == null) return const [];
+    final cleaned = extracted
+        .replaceFirst(RegExp(r'\b(?:senilai|sebesar|harga|nilai|rp)\b.*$'), '')
+        .replaceFirst(RegExp(r'\b\d[\d.,]*(?:\s*(?:ribu|juta|jt))?.*$'), '')
+        .trim();
+    if (cleaned.isEmpty) return const [];
+    return cleaned
+        .split(RegExp(r'\s*(?:,|;|\bdan\b|\bserta\b)\s*'))
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .map((item) => item.split(' ').map(_capitalize).join(' '))
+        .toSet()
+        .toList(growable: false);
   }
 
   (String, List<String>)? _masterDataRequest(String text) {

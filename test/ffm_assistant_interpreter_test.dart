@@ -658,7 +658,7 @@ void main() {
     expect(await database.select(database.goals).get(), isEmpty);
   });
 
-  test('membuat draft Data Utama, mengarahkan Anggaran manual, pengingat, dan aktivitas', () async {
+  test('membuat draft Data Utama, Anggaran, pengingat, dan aktivitas', () async {
     final category = await interpreter.interpret(
       'Tambah kategori Belanja Kebun',
     );
@@ -675,8 +675,9 @@ void main() {
     expect(category.draft?.categoryName, 'kategori');
     expect(budget.type, FfmAssistantIntentType.createBudget);
     expect(budget.destination, FfmAssistantDestination.budget);
-    expect(budget.draft, isNull);
-    expect(budget.response, contains('belum diizinkan'));
+    expect(budget.draft?.kind, FfmAssistantDraftKind.budget);
+    expect(budget.draft?.amount, 350000);
+    expect(budget.needsConfirmation, isTrue);
     expect(reminder.type, FfmAssistantIntentType.createReminder);
     expect(reminder.destination, FfmAssistantDestination.reminders);
     expect(activity.type, FfmAssistantIntentType.createActivity);

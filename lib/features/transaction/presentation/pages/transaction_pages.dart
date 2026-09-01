@@ -131,6 +131,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
     switch (draft.kind) {
       case FfmAssistantDraftKind.income:
       case FfmAssistantDraftKind.expense:
+        if (_canSaveAssistantTransactionDirectly(draft)) {
+          await _saveAssistantTransactionDirectly(draft);
+          await widget.onAssistantDraftSaved?.call();
+          return;
+        }
         final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
         final drafts = await Navigator.of(context).push<List<TransactionDraft>>(
           MaterialPageRoute(
@@ -177,6 +182,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
           await widget.onAssistantDraftReturnedWithoutSave?.call();
         }
       case FfmAssistantDraftKind.transfer:
+        if (_canSaveAssistantTransferDirectly(draft)) {
+          final saved = await _saveAssistantTransferDirectly(draft);
+          if (!mounted) return;
+          if (saved) {
+            await widget.onAssistantDraftSaved?.call();
+          } else {
+            await widget.onAssistantDraftReturnedWithoutSave?.call();
+          }
+          return;
+        }
         final saved = await _openTransfer(assistantDraft: draft);
         if (!mounted) return;
         if (saved) {
@@ -258,6 +273,191 @@ class _TransactionListPageState extends State<TransactionListPage> {
         }
         return;
     }
+  }
+
+  bool _canSaveAssistantTransactionDirectly(FfmAssistantDraft draft) {
+    final amount = draft.amount;
+    final date = draft.date;
+    final title = draft.title?.trim();
+    if (amount == null || amount <= 0 || date == null || title == null || title.isEmpty) {
+      return false;
+    }
+    final categoryId = _assistantCategoryIdForDraft(draft);
+    return categoryId != null && _assistantAccountIdForDraft(draft) != null;
+  }
+
+  String? _assistantCategoryIdForDraft(FfmAssistantDraft draft) {
+    final targetName = draft.categoryName?.trim().toLowerCase();
+    if (targetName == null || targetName.isEmpty) return null;
+    final targetType = draft.kind == FfmAssistantDraftKind.income ? 'income' : 'expense';
+    return _categories
+        .where(
+          (category) =>
+              category.type == targetType &&
+              category.name.trim().toLowerCase() == targetName,
+        )
+        .firstOrNull
+        ?.id;
+  }
+
+  String? _assistantAccountIdForDraft(FfmAssistantDraft draft) {
+    return _assistantAccountIdByName(draft.toAccountName);
+  }
+
+  String? _assistantAccountIdByName(String? name) {
+    final targetName = name?.trim().toLowerCase();
+    if (targetName == null || targetName.isEmpty) return null;
+    return _accounts
+        .where((account) => account.name.trim().toLowerCase() == targetName)
+        .firstOrNull
+        ?.id;
+  }
+
+  Future<void> _saveAssistantTransactionDirectly(FfmAssistantDraft draft) async {
+    final categoryId = _assistantCategoryIdForDraft(draft);
+    final accountId = _assistantAccountIdForDraft(draft);
+    if (categoryId == null || accountId == null || draft.amount == null || draft.date == null) {
+      return;
+    }
+    final transactionDraft = TransactionDraft(
+      type: draft.kind == FfmAssistantDraftKind.income
+          ? TransactionType.income
+          : TransactionType.expense,
+      categoryId: categoryId,
+      owner: OwnerLabels.family,
+      date: draft.date!,
+      amount: draft.amount!,
+      note: draft.note ?? '',
+      source: 'assistant',
+      accountId: accountId,
+      merchantId: null,
+      goalId: null,
+      partyName: null,
+      receiptRawText: null,
+      receiptNumber: null,
+      receiptPaidAmount: null,
+      receiptChangeAmount: null,
+      items: const [],
+      assistantMerchantName: draft.merchantName,
+      assistantSlmFieldValues: draft.slmFieldValues,
+    );
+    await _saveDrafts([transactionDraft]);
+  }
+
+  bool _canSaveAssistantTransferDirectly(FfmAssistantDraft draft) {
+    final amount = draft.amount;
+    final date = draft.date;
+    final fromAccountId = _assistantAccountIdByName(draft.fromAccountName);
+    final toAccountId = _assistantAccountIdByName(draft.toAccountName);
+    return amount != null &&
+        amount > 0 &&
+        date != null &&
+        fromAccountId != null &&
+        toAccountId != null;
+  }
+
+  Future<bool> _saveAssistantTransferDirectly(FfmAssistantDraft draft) async {
+    final fromAccountId = _assistantAccountIdByName(draft.fromAccountName);
+    final toAccountId = _assistantAccountIdByName(draft.toAccountName);
+    final amount = draft.amount;
+    final date = draft.date;
+    if (fromAccountId == null || toAccountId == null || amount == null || amount <= 0 || date == null) {
+      return false;
+    }
+    final transfer = _TransferDraft(
+      fromAccountId: fromAccountId,
+      toAccountId: toAccountId,
+      amount: amount,
+      adminFee: draft.adminFee ?? 0,
+      date: date,
+      note: draft.note ?? '',
+    );
+    final now = DateTime.now();
+    final transferDate = DateTime(
+      transfer.date.year,
+      transfer.date.month,
+      transfer.date.day,
+      now.hour,
+      now.minute,
+      now.second,
+      now.millisecond,
+      now.microsecond,
+    );
+    final id = const Uuid().v4();
+    final feeTransactionId = transfer.adminFee > 0 ? const Uuid().v4() : null;
+    final database = getIt<AppDatabase>();
+    Category? feeCategory;
+    if (transfer.adminFee > 0) {
+      feeCategory = await (database.select(database.categories)..where(
+            (row) =>
+                row.householdId.equals(AppContext.householdId) &
+                row.type.equals('expense') &
+                row.name.equals('Biaya admin') &
+                row.isActive.equals(true),
+          )).getSingleOrNull();
+      if (feeCategory == null) return false;
+    }
+    await database.transaction(() async {
+      if (transfer.adminFee > 0) {
+        await database.into(database.transactions).insert(
+              TransactionsCompanion.insert(
+                id: feeTransactionId!,
+                householdId: AppContext.householdId,
+                type: 'expense',
+                date: transferDate,
+                recordedAt: now,
+                amount: -transfer.adminFee,
+                owner: const Value('Keluarga'),
+                categoryId: Value(feeCategory!.id),
+                note: Value(
+                  'Biaya admin transfer ${_accountLabel(transfer.fromAccountId)} ke ${_accountLabel(transfer.toAccountId)}',
+                ),
+                source: const Value('transfer_fee'),
+                accountId: Value(transfer.fromAccountId),
+                merchantId: const Value(null),
+                goalId: const Value(null),
+                createdAt: now,
+                updatedAt: Value(now),
+                isDeleted: const Value(false),
+              ),
+            );
+      }
+      await database.into(database.transfers).insert(
+            TransfersCompanion.insert(
+              id: id,
+              householdId: AppContext.householdId,
+              date: transferDate,
+              recordedAt: now,
+              amount: transfer.amount,
+              adminFee: Value(transfer.adminFee),
+              feeTransactionId: Value(feeTransactionId),
+              fromAccountId: transfer.fromAccountId,
+              toAccountId: transfer.toAccountId,
+              note: Value(transfer.note.isEmpty ? null : transfer.note),
+              source: const Value('assistant'),
+              updatedAt: Value(now),
+            ),
+          );
+    });
+    await AuditLogger(database).record(
+      action: 'tambah',
+      entity: 'transfer',
+      newValue: {
+        'id': id,
+        'amount': transfer.amount,
+        'from_account_id': transfer.fromAccountId,
+        'to_account_id': transfer.toAccountId,
+        'admin_fee': transfer.adminFee,
+        'source': 'assistant',
+      },
+    );
+    await _loadTransactions();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Transfer berhasil dicatat.')),
+      );
+    }
+    return true;
   }
 
   Future<void> _loadTransactions() async {

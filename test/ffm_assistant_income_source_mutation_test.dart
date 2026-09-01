@@ -168,4 +168,24 @@ void main() {
       );
     },
   );
+
+  test('buat beberapa sumber pemasukan menghasilkan beberapa draft', () async {
+    final result = await interpreter.interpretMany(
+      'buat sumber pemasukan gaji freelance dan usaha toko',
+    );
+
+    expect(result.intents, hasLength(2));
+    expect(
+      result.intents.map((intent) => intent.draft?.kind),
+      everyElement(FfmAssistantDraftKind.masterData),
+    );
+    expect(
+      result.intents.map((intent) => intent.draft?.categoryName),
+      everyElement('sumber_pemasukan'),
+    );
+    expect(
+      result.intents.map((intent) => intent.draft?.title),
+      containsAll(<String>['Gaji Freelance', 'Usaha Toko']),
+    );
+  });
 }

@@ -91,6 +91,12 @@ class FfmAssistantDraftFeedbackService {
     if (original.categoryName != edited.categoryName) changed.add('category');
     if (original.date != edited.date) changed.add('date');
     if (original.note != edited.note) changed.add('note');
+    if (original.formValues['tags'] != edited.formValues['tags']) {
+      changed.add('tags');
+    }
+    if (original.formValues['incomeSource'] != edited.formValues['incomeSource']) {
+      changed.add('incomeSource');
+    }
     if (original.fromAccountName != edited.fromAccountName) changed.add('fromAccount');
     if (original.toAccountName != edited.toAccountName) changed.add('toAccount');
     

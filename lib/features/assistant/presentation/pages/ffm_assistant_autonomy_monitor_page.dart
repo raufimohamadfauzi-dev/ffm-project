@@ -26,6 +26,7 @@ class _FfmAssistantAutonomyMonitorPageState
   FfmAssistantAutonomyPolicy _policy = const FfmAssistantAutonomyPolicy();
   bool _loading = true;
   bool _savingPolicy = false;
+  bool _policyChanged = false;
   String? _error;
 
   FfmAssistantAutonomyRepository get _repository =>
@@ -55,6 +56,7 @@ class _FfmAssistantAutonomyMonitorPageState
       setState(() {
         _runs = runs;
         _policy = policy;
+        _policyChanged = false;
         _loading = false;
       });
     } on Object {
@@ -119,25 +121,31 @@ class _FfmAssistantAutonomyMonitorPageState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Kebijakan Autonomy',
+              'Batas kerja Agent',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
             const Text(
-              'Atur batas Agent. Perubahan hanya berlaku untuk household ini dan tetap melewati approval untuk mutasi sensitif.',
+              'Pilih izin maksimum Agent saat menjalankan tugas di latar belakang. Agent tidak pernah mengubah data keuangan tanpa persetujuan kamu.',
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<FfmAssistantAutonomyLevel>(
               initialValue: _policy.level,
+              isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Level autonomy',
+                labelText: 'Izin maksimum Agent',
+                helperText: 'Ini adalah batas, bukan perintah agar Agent berjalan sendiri.',
                 border: OutlineInputBorder(),
               ),
               items: levels
                   .map(
                     (level) => DropdownMenuItem(
                       value: level,
-                      child: Text(_levelLabel(level)),
+                      child: Text(
+                        _levelLabel(level),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   )
                   .toList(),
@@ -147,11 +155,18 @@ class _FfmAssistantAutonomyMonitorPageState
                       if (level == null) return;
                       setState(() {
                         _policy = _withPolicy(level: level);
+                        _policyChanged = true;
                       });
                     },
             ),
+            const SizedBox(height: 12),
+            _PolicyExplanation(level: _policy.level),
             const SizedBox(height: 8),
-            Text('Maksimal action per run: ${_policy.maxActionsPerRun}'),
+            Text('Batas langkah per tugas: ${_policy.maxActionsPerRun}'),
+            const SizedBox(height: 2),
+            const Text(
+              'Satu tugas adalah satu rencana kerja Agent. Batas ini menghentikan rencana yang terlalu panjang.',
+            ),
             Slider(
               value: _policy.maxActionsPerRun.toDouble(),
               min: 1,
@@ -163,13 +178,17 @@ class _FfmAssistantAutonomyMonitorPageState
                   : (value) {
                       setState(() {
                         _policy = _withPolicy(maxActions: value.round());
+                        _policyChanged = true;
                       });
                     },
             ),
+            const _AutonomyLevelGuide(),
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
-                onPressed: _savingPolicy ? null : _savePolicy,
+                onPressed: _savingPolicy || !_policyChanged
+                    ? null
+                    : _savePolicy,
                 icon: _savingPolicy
                     ? const SizedBox(
                         width: 16,
@@ -178,7 +197,11 @@ class _FfmAssistantAutonomyMonitorPageState
                       )
                     : const Icon(Icons.save_outlined),
                 label: Text(
-                  _savingPolicy ? 'Menyimpan...' : 'Simpan kebijakan',
+                  _savingPolicy
+                      ? 'Menerapkan...'
+                      : _policyChanged
+                      ? 'Terapkan batas'
+                      : 'Batas tersimpan',
                 ),
               ),
             ),
@@ -211,8 +234,9 @@ class _FfmAssistantAutonomyMonitorPageState
         householdId: widget.householdId,
       );
       if (!mounted) return;
+      setState(() => _policyChanged = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kebijakan autonomy tersimpan.')),
+        const SnackBar(content: Text('Batas kerja Agent diterapkan.')),
       );
     } on Object {
       if (!mounted) return;
@@ -225,12 +249,14 @@ class _FfmAssistantAutonomyMonitorPageState
   }
 
   String _levelLabel(FfmAssistantAutonomyLevel level) => switch (level) {
-    FfmAssistantAutonomyLevel.readOnly => 'Read only',
-    FfmAssistantAutonomyLevel.analyze => 'Analisis',
-    FfmAssistantAutonomyLevel.suggest => 'Rekomendasi',
-    FfmAssistantAutonomyLevel.createDraft => 'Buat draft',
-    FfmAssistantAutonomyLevel.executeLowRisk => 'Eksekusi risiko rendah',
-    FfmAssistantAutonomyLevel.explicitApproval => 'Approval eksplisit',
+    FfmAssistantAutonomyLevel.readOnly => 'Hanya baca data',
+    FfmAssistantAutonomyLevel.analyze => 'Baca dan analisis',
+    FfmAssistantAutonomyLevel.suggest => 'Beri rekomendasi',
+    FfmAssistantAutonomyLevel.createDraft => 'Siapkan draft untuk dicek',
+    FfmAssistantAutonomyLevel.executeLowRisk =>
+      'Aksi risiko rendah setelah persetujuan',
+    FfmAssistantAutonomyLevel.explicitApproval =>
+      'Aksi sensitif setelah persetujuan eksplisit',
   };
 
   Widget _buildIntro(BuildContext context) {
@@ -245,7 +271,7 @@ class _FfmAssistantAutonomyMonitorPageState
             SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Riwayat eksekusi Agent di perangkat ini. Yang ditampilkan hanya metadata aman dan ringkasan hasil, bukan isi percakapan atau parameter tool.',
+                'Riwayat tugas Agent di perangkat ini. Gunakan halaman ini bila ingin mengecek apa yang dicoba Agent dan membatasi izin kerjanya. Isi percakapan dan parameter tool tidak ditampilkan.',
               ),
             ),
           ],
@@ -298,6 +324,83 @@ class _FfmAssistantAutonomyMonitorPageState
       ),
     );
   }
+}
+
+class _PolicyExplanation extends StatelessWidget {
+  const _PolicyExplanation({required this.level});
+
+  final FfmAssistantAutonomyLevel level;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.shield_outlined, color: scheme.onSecondaryContainer),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _description(level),
+              style: TextStyle(color: scheme.onSecondaryContainer),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _description(FfmAssistantAutonomyLevel level) =>
+      switch (level) {
+        FfmAssistantAutonomyLevel.readOnly => 'Agent hanya boleh membaca informasi yang diizinkan. Tidak membuat draft atau perubahan.',
+        FfmAssistantAutonomyLevel.analyze => 'Agent dapat membaca data yang diizinkan untuk membuat analisis. Tidak membuat draft atau perubahan.',
+        FfmAssistantAutonomyLevel.suggest => 'Agent dapat membaca dan memberi saran. Tidak membuat draft atau perubahan data.',
+        FfmAssistantAutonomyLevel.createDraft => 'Agent dapat menyiapkan draft agar kamu periksa. Draft belum menyimpan atau mengubah data.',
+        FfmAssistantAutonomyLevel.executeLowRisk => 'Agent dapat menyiapkan aksi risiko rendah, tetapi tetap membutuhkan persetujuan kamu sebelum data berubah.',
+        FfmAssistantAutonomyLevel.explicitApproval => 'Agent dapat menyiapkan aksi termasuk yang sensitif. Semua perubahan tetap membutuhkan persetujuan eksplisit kamu.',
+      };
+}
+
+class _AutonomyLevelGuide extends StatelessWidget {
+  const _AutonomyLevelGuide();
+
+  @override
+  Widget build(BuildContext context) {
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(bottom: 8),
+      leading: const Icon(Icons.help_outline),
+      title: const Text('Arti setiap izin'),
+      subtitle: const Text('Perubahan data selalu butuh persetujuan'),
+      children: FfmAssistantAutonomyLevel.values
+          .map(
+            (level) => ListTile(
+              dense: true,
+              title: Text(_label(level)),
+              subtitle: Text(_PolicyExplanation._description(level)),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  String _label(FfmAssistantAutonomyLevel level) => switch (level) {
+    FfmAssistantAutonomyLevel.readOnly => 'Hanya baca data',
+    FfmAssistantAutonomyLevel.analyze => 'Baca dan analisis',
+    FfmAssistantAutonomyLevel.suggest => 'Beri rekomendasi',
+    FfmAssistantAutonomyLevel.createDraft => 'Siapkan draft untuk dicek',
+    FfmAssistantAutonomyLevel.executeLowRisk =>
+      'Aksi risiko rendah setelah persetujuan',
+    FfmAssistantAutonomyLevel.explicitApproval =>
+      'Aksi sensitif setelah persetujuan eksplisit',
+  };
 }
 
 class _MetricCard extends StatelessWidget {

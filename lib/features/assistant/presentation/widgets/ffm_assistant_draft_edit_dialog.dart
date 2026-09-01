@@ -35,6 +35,8 @@ class _FfmAssistantDraftEditDialogState
   late final TextEditingController _noteController;
   late final TextEditingController _incomeSourceController;
   late final TextEditingController _tagsController;
+  late final List<String> _incomeSources;
+  late final List<String> _tags;
   late String? _fromAccount;
   late String? _toAccount;
   late ActivityMode _activityMode;
@@ -57,6 +59,8 @@ class _FfmAssistantDraftEditDialogState
     _tagsController = TextEditingController(
       text: widget.draft.formValues['tags'] ?? '',
     );
+    _incomeSources = _csvValues(_incomeSourceController);
+    _tags = _csvValues(_tagsController);
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
     _activityMode =
@@ -82,6 +86,59 @@ class _FfmAssistantDraftEditDialogState
   String? _textOrNull(TextEditingController controller) {
     final text = controller.text.trim();
     return text.isEmpty ? null : text;
+  }
+
+  List<String> _csvValues(TextEditingController controller) {
+    return controller.text
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  void _syncIncomeSourceText() {
+    _incomeSourceController.text = _incomeSources.join(', ');
+  }
+
+  void _syncTagsText() {
+    _tagsController.text = _tags.join(', ');
+  }
+
+  void _addIncomeSource(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return;
+    final normalized = value.toLowerCase();
+    if (_incomeSources.any((item) => item.toLowerCase() == normalized)) return;
+    setState(() {
+      _incomeSources.add(value);
+      _syncIncomeSourceText();
+    });
+  }
+
+  void _removeIncomeSource(String value) {
+    setState(() {
+      _incomeSources.removeWhere((item) => item.toLowerCase() == value.toLowerCase());
+      _syncIncomeSourceText();
+    });
+  }
+
+  void _addTag(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) return;
+    final normalized = value.toLowerCase();
+    if (_tags.any((item) => item.toLowerCase() == normalized)) return;
+    setState(() {
+      _tags.add(value);
+      _syncTagsText();
+    });
+  }
+
+  void _removeTag(String value) {
+    setState(() {
+      _tags.removeWhere((item) => item.toLowerCase() == value.toLowerCase());
+      _syncTagsText();
+    });
   }
 
   void _save() {
@@ -118,10 +175,10 @@ class _FfmAssistantDraftEditDialogState
         if (widget.draft.kind == FfmAssistantDraftKind.activity)
           'modeNeedsConfirmation': 'false',
         if (widget.draft.kind == FfmAssistantDraftKind.income)
-          'incomeSource': _textOrNull(_incomeSourceController) ?? '',
+          'incomeSource': _incomeSources.join(', '),
         if (widget.draft.kind == FfmAssistantDraftKind.income ||
             widget.draft.kind == FfmAssistantDraftKind.expense)
-          'tags': _textOrNull(_tagsController) ?? '',
+          'tags': _tags.join(', '),
       },
       merchantName: widget.draft.merchantName,
       slmFieldValues: widget.draft.slmFieldValues,
@@ -365,21 +422,23 @@ class _FfmAssistantDraftEditDialogState
               ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income)
-            TextField(
+            _MultiValueEditor(
+              label: 'Sumber pemasukan (gaji, usaha, dll)',
+              hint: 'Tambah sumber pemasukan',
+              values: _incomeSources,
+              onAdd: _addIncomeSource,
+              onRemove: _removeIncomeSource,
               controller: _incomeSourceController,
-              decoration: const InputDecoration(
-                labelText: 'Sumber pemasukan (gaji, usaha, dll)',
-                hintText: 'Contoh: Gaji bulanan, Usaha toko, dll',
-              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
               widget.draft.kind == FfmAssistantDraftKind.expense)
-            TextField(
+            _MultiValueEditor(
+              label: 'Tags (opsional)',
+              hint: 'Tambah tag',
+              values: _tags,
+              onAdd: _addTag,
+              onRemove: _removeTag,
               controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: 'Tags (opsional)',
-                hintText: 'Contoh: penting, rutin, dll',
-              ),
             ),
           TextField(
             controller: _noteController,
@@ -400,4 +459,63 @@ class _FfmAssistantDraftEditDialogState
       FilledButton(onPressed: _save, child: const Text('Pakai perubahan')),
     ],
   );
+}
+
+class _MultiValueEditor extends StatelessWidget {
+  const _MultiValueEditor({
+    required this.label,
+    required this.hint,
+    required this.values,
+    required this.onAdd,
+    required this.onRemove,
+    required this.controller,
+  });
+
+  final String label;
+  final String hint;
+  final List<String> values;
+  final ValueChanged<String> onAdd;
+  final ValueChanged<String> onRemove;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        TextField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: hint,
+            suffixIcon: IconButton(
+              onPressed: () {
+                onAdd(controller.text);
+                controller.clear();
+              },
+              icon: const Icon(Icons.add_circle_outline),
+            ),
+          ),
+          onSubmitted: (value) {
+            onAdd(value);
+            controller.clear();
+          },
+        ),
+        if (values.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: values
+                .map(
+                  (value) => Chip(
+                    label: Text(value),
+                    onDeleted: () => onRemove(value),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+        ],
+      ],
+    );
+  }
 }

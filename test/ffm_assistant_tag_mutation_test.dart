@@ -156,4 +156,24 @@ void main() {
       );
     },
   );
+
+  test('buat beberapa tag menghasilkan beberapa draft', () async {
+    final result = await interpreter.interpretMany(
+      'buat tag wajib dan sekolah',
+    );
+
+    expect(result.intents, hasLength(2));
+    expect(
+      result.intents.map((intent) => intent.draft?.kind),
+      everyElement(FfmAssistantDraftKind.masterData),
+    );
+    expect(
+      result.intents.map((intent) => intent.draft?.categoryName),
+      everyElement('tag'),
+    );
+    expect(
+      result.intents.map((intent) => intent.draft?.title),
+      containsAll(<String>['Wajib', 'Sekolah']),
+    );
+  });
 }

@@ -183,21 +183,10 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
         .toList();
     final transactions = await getIt<GetTransactions>()(AppContext.householdId);
     final transactionList = transactions.toList(growable: false);
-    final activeCategoryIds = isNonRecurring
-        ? categories
-              .where((category) => category.defaultBudgetPeriod == 'none')
-              .map((category) => category.id)
-              .toSet()
-        : transactionList
-              .where(
-                (item) =>
-                    item.transaction.amount < 0 &&
-                    item.transaction.source != 'transfer' &&
-                    _isInActivePeriod(item.transaction.date),
-              )
-              .map((item) => item.transaction.categoryId)
-              .whereType<String>()
-              .toSet();
+    // Anggaran harus dapat dibuat sebelum transaksi pertama dicatat. Semua
+    // kategori pengeluaran aktif menjadi pos yang dapat diatur pada periode
+    // yang sedang dibuka, bukan hanya kategori yang sudah punya transaksi.
+    final activeCategoryIds = categories.map((category) => category.id).toSet();
     final configuredIds = rows.expand((row) => row.categoryIds).toSet();
     if (!isNonRecurring && !rows.any((row) => row.isOverall)) {
       rows.insert(

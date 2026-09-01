@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/database/app_database.dart';
+import 'core/database/app_context.dart';
 import 'core/diagnostics/app_diagnostics_service.dart';
 import 'core/di/injection.dart';
 import 'core/security/app_pin_service.dart';
@@ -30,6 +31,8 @@ import 'features/audit/presentation/pages/activity_log_page.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
 import 'features/backup/presentation/pages/monthly_report_page.dart';
 import 'features/goal/presentation/pages/goal_pages.dart';
+import 'features/goal/domain/entities/goal_entity.dart';
+import 'features/goal/domain/usecases/goal_crud_usecases.dart';
 import 'features/liability/presentation/pages/liability_pages.dart';
 import 'features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import 'features/receivable/presentation/pages/receivable_pages.dart';
@@ -618,6 +621,26 @@ class _AppShellState extends State<AppShell> {
       ? _markActiveAssistantDraftCompleted()
       : _markActiveAssistantDraftReady();
 
+  Future<bool> _saveGoalDraft(FfmAssistantDraft draft) async {
+    final name = draft.title?.trim();
+    final amount = draft.amount;
+    final targetDate = draft.date;
+    if (name == null || name.isEmpty || amount == null || amount <= 0 || targetDate == null) {
+      return false;
+    }
+    await getIt<SaveGoal>()(
+      GoalEntity(
+        id: draft.formValues['targetId'] ?? draft.createdAt.microsecondsSinceEpoch.toString(),
+        householdId: AppContext.householdId,
+        name: name,
+        targetAmount: amount,
+        currentAmount: 0,
+        targetDate: targetDate,
+      ),
+    );
+    return true;
+  }
+
   Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
     final destination = intent.destination;
     if (destination == null) return;
@@ -715,19 +738,28 @@ class _AppShellState extends State<AppShell> {
         }
       case FfmAssistantDestination.goals:
         final draft = intent.draft;
-        final saved = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(
-            builder: (_) => draft?.kind == FfmAssistantDraftKind.goal
-                ? GoalFormPage(
-                    initialName: draft?.title,
-                    initialTargetAmount: draft?.amount,
-                    initialTargetDate: draft?.date,
-                  )
-                : const GoalListPage(),
-          ),
-        );
-        if (draft?.kind == FfmAssistantDraftKind.goal) {
+        if (draft?.kind == FfmAssistantDraftKind.goal &&
+            draft?.title != null &&
+            draft!.amount != null &&
+            draft.amount! > 0 &&
+            draft.date != null) {
+          final saved = await _saveGoalDraft(draft);
           await _syncAssistantDraftAfterForm(saved);
+        } else {
+          final saved = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(
+              builder: (_) => draft?.kind == FfmAssistantDraftKind.goal
+                  ? GoalFormPage(
+                      initialName: draft?.title,
+                      initialTargetAmount: draft?.amount,
+                      initialTargetDate: draft?.date,
+                    )
+                  : const GoalListPage(),
+            ),
+          );
+          if (draft?.kind == FfmAssistantDraftKind.goal) {
+            await _syncAssistantDraftAfterForm(saved);
+          }
         }
       case FfmAssistantDestination.liabilities:
         final draft = intent.draft;
