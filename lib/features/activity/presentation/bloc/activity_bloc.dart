@@ -93,6 +93,14 @@ class ActivityBloc extends Cubit<ActivityState> {
   final ActivityRepository repository;
   static const _uuid = Uuid();
 
+  // ActivityBloc is registered as a GetIt LazySingleton and is shared with
+  // ActivityApplicationService. A page-scoped BlocProvider must not dispose
+  // this app-scoped instance when ActivityPage leaves the widget tree.
+  @override
+  Future<void> close() async {
+    // Intentionally keep the shared bloc alive for the lifetime of the app.
+  }
+
   Future<void> load() async {
     emit(state.copyWith(loading: true, clearError: true));
     try {
