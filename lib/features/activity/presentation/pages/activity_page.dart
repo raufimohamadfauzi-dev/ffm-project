@@ -538,6 +538,7 @@ class _ActivityViewState extends State<_ActivityView>
       final interpretation = await _interpreter.interpret(
         transcript,
         currentDestination: FfmAssistantDestination.activity,
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
         activitySnapshot: ActivityLiveSnapshot(
           activeSessions: state.activeSessions,
         ),
@@ -866,6 +867,7 @@ class _ActivityViewState extends State<_ActivityView>
       final intent = await _interpreter.interpret(
         transcript,
         currentDestination: FfmAssistantDestination.activity,
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
         activitySnapshot: ActivityLiveSnapshot(
           activeSessions: state.activeSessions,
         ),
