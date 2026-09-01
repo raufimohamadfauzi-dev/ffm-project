@@ -175,7 +175,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _isFullScreen = true;
   String? _cloudStatusError;
   String? _cloudModel;
-  FfmAssistantRoutingMode _routingMode = FfmAssistantRoutingMode.agent;
+  // Percakapan FFM selalu memakai Gemini sebagai lapisan pemahaman dan
+  // pembuat respons. Agent lokal tetap berada di belakang sebagai validator
+  // dan capability executor, bukan sebagai pembuat jawaban pengguna.
+  FfmAssistantRoutingMode _routingMode = FfmAssistantRoutingMode.geminiCloud;
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
@@ -699,15 +702,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _loadRoutingMode() async {
     try {
-      final mode = await _supabaseConfig.getLlmMode();
+      // Migrasikan preferensi lama (agent/auto) ke kebijakan full-LLM.
+      await _supabaseConfig.setLlmMode('gemini_cloud');
       if (!mounted) return;
       setState(() {
-        _routingMode = mode == 'gemini' || mode == 'gemini_cloud'
-            ? FfmAssistantRoutingMode.geminiCloud
-            : FfmAssistantRoutingMode.agent;
+        _routingMode = FfmAssistantRoutingMode.geminiCloud;
       });
     } on Object {
-      // AGENT adalah default aman bila preference belum tersedia.
+      // Kegagalan membaca/menulis preference tidak boleh menurunkan percakapan
+      // diam-diam ke jawaban lokal.
+      if (mounted) {
+        setState(() {
+          _routingMode = FfmAssistantRoutingMode.geminiCloud;
+        });
+      }
     }
   }
 
@@ -1002,8 +1010,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : 'Tahap 1/2: Menyiapkan konteks Agent...',
     );
     try {
-      if (_tryReviseActiveDraft(text)) return;
-      if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
       if (pending != null) {
         _setActiveProcess('Tahap 1/2: Menyiapkan jawaban dialog tertunda...');
@@ -1014,33 +1020,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? getIt<ActivityBloc>().state.toSnapshot()
           : null;
       FfmAssistantUnderstandingResult? understanding;
-      final intents = pending == null
-          ? ((understanding = await _interpreter.interpretMany(
-              text,
-              currentDestination: widget.currentDestination,
-              pageContext: FfmAssistantScreenContextPolicy.forPrompt(
-                destination: widget.currentDestination,
-                snapshot: widget.currentPageContext,
-              ),
-              lastAssistantMessage: lastAssistant,
-              conversationHistory: conversationHistory,
-              capabilityIds:
-                  widget.currentPageContext?.capabilityIds ?? const [],
-              activitySnapshot: activitySnapshot,
-              routingMode: _routingMode,
-              activeDraft: widget.session.activeDraftIntent?.draft,
-            )).intents)
-          : await _interpreter.resolvePendingDialog(
-              text,
-              pending,
-              currentDestination: widget.currentDestination,
-              pageContext: FfmAssistantScreenContextPolicy.forPrompt(
-                destination: widget.currentDestination,
-                snapshot: widget.currentPageContext,
-              ),
-              capabilityIds:
-                  widget.currentPageContext?.capabilityIds ?? const [],
-            );
+      // Semua turn, termasuk koreksi draft dan jawaban klarifikasi, wajib
+      // melewati Gemini. Pending dialog dan draft aktif ikut dikirim sebagai
+      // konteks; aplikasi hanya memvalidasi/mengeksekusi hasil terstruktur.
+      final intents = ((understanding = await _interpreter.interpretMany(
+        text,
+        currentDestination: widget.currentDestination,
+        pageContext: FfmAssistantScreenContextPolicy.forPrompt(
+          destination: widget.currentDestination,
+          snapshot: widget.currentPageContext,
+        ),
+        lastAssistantMessage: lastAssistant,
+        conversationHistory: conversationHistory,
+        capabilityIds: widget.currentPageContext?.capabilityIds ?? const [],
+        activitySnapshot: activitySnapshot,
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+        activeDraft: widget.session.activeDraftIntent?.draft ?? pending?.draft,
+      )).intents);
       stopwatch.stop();
       _setActiveProcess('Tahap 2/2: Memvalidasi hasil & menyusun respons...');
 
