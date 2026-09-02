@@ -67,22 +67,37 @@ void main() {
     expect(imported.itemsTotal, 7000);
   });
 
-  test('prompt Gemini meminta JSON tanpa mengaktifkan koneksi aplikasi', () {
-    final prompt = ReceiptImportService.buildGeminiPrompt(
-      rawText: 'Mie Sakura 3 PCS 2.000 6.000',
-    );
+  test(
+    'prompt LLM eksternal mendukung foto dan satu atau banyak transaksi',
+    () {
+      final prompt = ReceiptImportService.buildExternalLlmBatchPrompt();
 
-    expect(prompt, contains('ffm-receipt-draft-v1'));
-    expect(prompt, contains('Balas HANYA dengan JSON valid'));
-    expect(prompt, contains('Mie Sakura'));
-  });
+      expect(prompt, contains('ffm-transaction-batch-v1'));
+      expect(prompt, contains('Balas HANYA dengan JSON valid'));
+      expect(prompt, contains('foto nota'));
+      expect(prompt, contains('Satu nota berarti satu transaksi'));
+      expect(prompt, contains('transfer'));
+      expect(prompt, contains('items'));
+      expect(prompt, contains('unit_price'));
+    },
+  );
 
-  test('template prompt Gemini tetap tersedia sebelum nota diproses', () {
-    final prompt = ReceiptImportService.buildGeminiPrompt(rawText: '');
+  test('JSON nota di dalam code fence tetap bisa diimpor', () {
+    final result = ReceiptImportService.parseJson('''
+```json
+{
+  "format": "ffm-receipt-draft-v1",
+  "receipt": {
+    "merchant": "Warung",
+    "total": 12000,
+    "items": [{"name": "Nasi", "quantity": 1, "amount": 12000}]
+  }
+}
+```
+''');
 
-    expect(prompt, contains('ffm-receipt-draft-v1'));
-    expect(prompt, contains('items'));
-    expect(prompt, contains('unit_price'));
+    expect(result.merchant, 'Warung');
+    expect(result.items.single.name, 'Nasi');
   });
 
   test('template JSON kosong memakai schema FFM dan bisa diimpor', () {
@@ -206,8 +221,9 @@ void main() {
     expect(result.warnings, isEmpty);
   });
 
-  test('JSON nota lama tetap bisa dimuat sebagai satu transaksi batch', () {
+  test('importer terpadu mendeteksi JSON nota berpagar sebagai satu transaksi', () {
     final result = ReceiptImportService.parseBatchJson('''
+    ```json
     {
       "format": "ffm-receipt-draft-v1",
       "receipt": {
@@ -216,6 +232,7 @@ void main() {
         "items": [{"name": "Nasi", "quantity": 1, "amount": 12000}]
       }
     }
+    ```
     ''');
 
     expect(result.entries, hasLength(1));

@@ -30,6 +30,7 @@ class _CapturingGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     this.systemInstruction = systemInstruction;
     return const GeminiResult(

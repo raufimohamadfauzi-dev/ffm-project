@@ -17,6 +17,19 @@ class FfmAssistantProposalJsonService {
     'read.summary',
     'read.transactions',
     'read.hijriDate',
+    'read.goals',
+    'read.liabilities',
+    'read.debts',
+    'read.receivables',
+    'read.receivable',
+    'read.activity',
+    'read.activities',
+    'read.reminders',
+    'read.reminder',
+    'read.assets',
+    'read.asset',
+    'read.budget',
+    'read.budgets',
   };
 
   /// Membaca permintaan capability Gemini yang sangat sempit. Kontrak ini
@@ -161,14 +174,16 @@ class FfmAssistantProposalJsonService {
         'master_data' => _parseMasterData(proposal, createdAt),
         'transaction' => _parseTransaction(proposal, createdAt),
         'activity' => _parseActivity(proposal, createdAt),
+        'reminder' => _parseReminder(proposal, createdAt),
         'goal' => _parseGoal(proposal, createdAt),
-        'goal_deposit' || 'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
+        'goal_deposit' ||
+        'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
         'goal_usage' || 'goalUsage' => _parseGoalUsage(proposal, createdAt),
         'budget' => _parseBudget(proposal, createdAt),
         'memory' => _parseMemory(proposal),
         'navigation' => _parseNavigation(proposal),
         _ => const FfmAssistantProposalParseResult.invalid(
-          'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, goal, goal_deposit, goal_usage, budget, memory, atau navigation.',
+          'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, reminder, goal, goal_deposit, goal_usage, budget, memory, atau navigation.',
         ),
       };
     } on FormatException {
@@ -211,8 +226,10 @@ class FfmAssistantProposalJsonService {
             'master_data' => _parseMasterData(proposal, createdAt),
             'transaction' => _parseTransaction(proposal, createdAt),
             'activity' => _parseActivity(proposal, createdAt),
+            'reminder' => _parseReminder(proposal, createdAt),
             'goal' => _parseGoal(proposal, createdAt),
-            'goal_deposit' || 'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
+            'goal_deposit' ||
+            'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
             'goal_usage' || 'goalUsage' => _parseGoalUsage(proposal, createdAt),
             'budget' => _parseBudget(proposal, createdAt),
             'memory' => _parseMemory(proposal),
@@ -315,20 +332,27 @@ class FfmAssistantProposalJsonService {
         'Jenis transaksi dan nominal lebih dari nol wajib diisi.',
       );
     }
-    
+
     // Parse hijriDate if provided
     final hijriDate = proposal['hijriDate']?.toString().trim();
+    final tags = _csvValue(proposal['tags']);
+    final newTags = _csvValue(proposal['newTags']);
+    final newMerchant = _boundedText(proposal['newMerchant'], 120);
     final formValues = <String, String>{
       'source': 'gemini_proposal',
       if (hijriDate != null && hijriDate.isNotEmpty) 'hijriDate': hijriDate,
     };
-    
+    if (tags != null) formValues['tags'] = tags;
+    if (newTags != null) formValues['newTags'] = newTags;
+    if (newMerchant != null) formValues['newMerchant'] = newMerchant;
+
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: kind,
         createdAt: createdAt,
         amount: amount,
         title: _boundedText(proposal['title'] ?? proposal['merchant'], 120),
+        merchantName: _boundedText(proposal['merchant'], 120),
         partyName: _boundedText(proposal['party'], 120),
         fromAccountName: _boundedText(proposal['fromAccount'], 100),
         toAccountName: _boundedText(proposal['toAccount'], 100),
@@ -338,6 +362,20 @@ class FfmAssistantProposalJsonService {
         formValues: formValues,
       ),
     );
+  }
+
+  static String? _csvValue(Object? value) {
+    final values = switch (value) {
+      String text => text.split(','),
+      List list => list.map((item) => item.toString()),
+      _ => const <String>[],
+    };
+    final normalized = values
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .join(',');
+    return normalized.isEmpty ? null : _boundedText(normalized, 300);
   }
 
   static FfmAssistantProposalParseResult _parseActivity(
@@ -380,6 +418,32 @@ class FfmAssistantProposalJsonService {
           ...?(subjectType == null ? null : {'subjectType': subjectType}),
           ...?(subjectId == null ? null : {'subjectId': subjectId}),
         },
+      ),
+    );
+  }
+
+  static FfmAssistantProposalParseResult _parseReminder(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(proposal['title'] ?? proposal['name'], 120);
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Judul pengingat wajib diisi.',
+      );
+    }
+    final note = _boundedText(proposal['note'], 300);
+    final targetDate = _dateOr(
+      proposal['scheduledAt'] ?? proposal['targetDate'] ?? proposal['date'],
+      createdAt.add(const Duration(hours: 1)),
+    );
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: createdAt,
+        title: title,
+        note: note,
+        date: targetDate,
       ),
     );
   }
@@ -586,18 +650,16 @@ class FfmAssistantProposalJsonService {
         'Target navigasi wajib diisi.',
       );
     }
-    
+
     // Return as a special draft with navigation info in formValues
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.masterData, // Use existing kind as placeholder
+        kind: FfmAssistantDraftKind
+            .masterData, // Use existing kind as placeholder
         createdAt: DateTime.now(),
         title: 'Navigasi ke $navigationTarget',
         categoryName: navigationTarget,
-        formValues: {
-          'navigation': 'true',
-          'destination': navigationTarget,
-        },
+        formValues: {'navigation': 'true', 'destination': navigationTarget},
       ),
     );
   }

@@ -1036,6 +1036,32 @@ class _ActivityViewState extends State<_ActivityView>
     if (updated != null) _speakVoicePreview(updated);
   }
 
+  Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Arsipkan aktivitas?'),
+        content: Text(
+          '“${session.title}” akan disembunyikan dari daftar aktif/tersimpan di halaman ini. '
+          'Data tidak dihapus, namun saat ini tidak ada tampilan khusus untuk membuka kembali aktivitas yang diarsipkan. '
+          'Gunakan “Hapus permanen” jika kamu yakin tidak membutuhkannya lagi.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Arsipkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<ActivityBloc>().archiveSession(session.id);
+  }
+
   Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1066,6 +1092,28 @@ class _ActivityViewState extends State<_ActivityView>
     );
   }
 
+  Future<void> _editSession(ActivitySessionEntity session) async {
+    final result = await showModalBottomSheet<_SessionDraft>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _SessionForm(
+        initialTitle: session.title,
+        initialCategory: session.category,
+        initialNotes: session.notes,
+      ),
+    );
+    if (result == null || !mounted) return;
+    final updated = session.copyWith(
+      title: result.title,
+      category: result.category,
+      categoryId: result.categoryId,
+      kind: result.kind,
+      notes: result.notes,
+      updatedAt: DateTime.now(),
+    );
+    await context.read<ActivityBloc>().saveSession(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocListener<ActivityBloc, ActivityState>(
@@ -1078,7 +1126,7 @@ class _ActivityViewState extends State<_ActivityView>
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Aktivitas & Jurnal'),
+          title: const Text('Catat Aktivitas'),
           actions: [
             IconButton(
               tooltip: 'Cara kerja aktivitas',
@@ -1102,7 +1150,7 @@ class _ActivityViewState extends State<_ActivityView>
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Theme.of(context).colorScheme.onPrimary,
           icon: const Icon(Icons.add),
-          label: const Text('Tambah'),
+          label: const Text('Catat aktivitas'),
         ),
         body: BlocBuilder<ActivityBloc, ActivityState>(
           builder: (context, state) {
@@ -1238,6 +1286,12 @@ class _ActivityViewState extends State<_ActivityView>
                       ],
                     ),
                   ),
+                  if (state.habitSuggestions.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _HabitSuggestionsCard(
+                      suggestions: state.habitSuggestions,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Builder(
                     builder: (context) {
@@ -1266,28 +1320,42 @@ class _ActivityViewState extends State<_ActivityView>
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (visibleActiveSessions.isNotEmpty) ...[
-                            _SectionTitle(
-                              title: 'Sedang berjalan',
-                              count: visibleActiveSessions.length,
-                            ),
-                            for (final session in visibleActiveSessions)
+                          if (state.activeSessions.isNotEmpty) ...[
+                            if (visibleActiveSessions.isNotEmpty) ...[
+                              _SectionTitle(
+                                title: 'Sedang berjalan',
+                                count: visibleActiveSessions.length,
+                              ),
+                              for (final session in visibleActiveSessions)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: _ActiveSessionCard(
+                                    session: session,
+                                    checkpoints:
+                                        state.checkpoints[session.id] ??
+                                        const [],
+                                    calculator: _calculator,
+                                    onCheckpoint: () =>
+                                        _addCheckpoint(sessionId: session.id),
+                                    onFinish: () => context
+                                        .read<ActivityBloc>()
+                                        .finishSession(sessionId: session.id),
+                                    onStartChild: () => _startSession(
+                                      parentSessionId: session.id,
+                                      parentTitle: session.title,
+                                    ),
+                                    onTogglePriority: () => context
+                                        .read<ActivityBloc>()
+                                        .togglePriority(session.id),
+                                    onEdit: () => _editSession(session),
+                                  ),
+                                ),
+                            ] else
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: _ActiveSessionCard(
-                                  session: session,
-                                  checkpoints:
-                                      state.checkpoints[session.id] ?? const [],
-                                  calculator: _calculator,
-                                  onCheckpoint: () =>
-                                      _addCheckpoint(sessionId: session.id),
-                                  onFinish: () => context
-                                      .read<ActivityBloc>()
-                                      .finishSession(sessionId: session.id),
-                                  onStartChild: () => _startSession(
-                                    parentSessionId: session.id,
-                                    parentTitle: session.title,
-                                  ),
+                                child: _FilteredEmptyHint(
+                                  message:
+                                      'Ada aktivitas yang sedang berjalan, tapi tidak cocok dengan filter yang dipilih.',
                                 ),
                               ),
                             const SizedBox(height: 8),
@@ -1319,10 +1387,13 @@ class _ActivityViewState extends State<_ActivityView>
                                       )
                                       .toList(),
                                 ),
-                                onArchive: () => context
-                                    .read<ActivityBloc>()
-                                    .archiveSession(session.id),
+                                onArchive: () =>
+                                    _confirmArchiveSession(session),
                                 onDelete: () => _confirmDeleteSession(session),
+                                onEdit: () => _editSession(session),
+                                onTogglePriority: () => context
+                                    .read<ActivityBloc>()
+                                    .togglePriority(session.id),
                               ),
                         ],
                       );
@@ -1359,6 +1430,98 @@ class _SectionTitle extends StatelessWidget {
   );
 }
 
+class _FilteredEmptyHint extends StatelessWidget {
+  const _FilteredEmptyHint({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => AppCard(
+    child: Row(
+      children: [
+        Icon(
+          Icons.filter_alt_outlined,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            message,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _HabitSuggestionsCard extends StatelessWidget {
+  const _HabitSuggestionsCard({required this.suggestions});
+  final List<String> suggestions;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      color: scheme.tertiaryContainer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.psychology_outlined, color: scheme.onTertiaryContainer),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Kebiasaan yang kuterbaca',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Cara asisten mengenali kebiasaan',
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: const Text('Kebiasaan yang kuterbaca'),
+                    content: const Text(
+                      'Asisten merangkum pola dari aktivitas yang kamu catat berulang kali dan menyimpannya sebagai ingatan rutinitas. '
+                      'Ingatan ini bisa kamu tinjau, setujui, atau hapus lewat ikon Memori Pribadi di halaman asisten. '
+                      'Asisten hanya menebak pola; tidak ada klaim finansial yang dibuat dari data ini.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Mengerti'),
+                      ),
+                    ],
+                  ),
+                ),
+                icon: const Icon(Icons.info_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          for (final suggestion in suggestions)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: scheme.onTertiaryContainer,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(suggestion)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ActiveSessionCard extends StatelessWidget {
   const _ActiveSessionCard({
     required this.session,
@@ -1367,6 +1530,8 @@ class _ActiveSessionCard extends StatelessWidget {
     required this.onCheckpoint,
     required this.onFinish,
     required this.onStartChild,
+    this.onTogglePriority,
+    this.onEdit,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
@@ -1374,6 +1539,8 @@ class _ActiveSessionCard extends StatelessWidget {
   final VoidCallback onCheckpoint;
   final VoidCallback onFinish;
   final VoidCallback onStartChild;
+  final VoidCallback? onTogglePriority;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1408,6 +1575,21 @@ class _ActiveSessionCard extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                 ),
               ),
+              if (onTogglePriority != null) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    session.priority > 0
+                        ? Icons.star_rounded
+                        : Icons.star_outline_rounded,
+                    color: session.priority > 0 ? Colors.amber : scheme.onPrimaryContainer,
+                  ),
+                  tooltip: session.priority > 0
+                      ? 'Prioritas aktif (klik untuk lepas)'
+                      : 'Tandai sebagai prioritas',
+                  onPressed: onTogglePriority,
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 8),
@@ -1430,7 +1612,7 @@ class _ActiveSessionCard extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onCheckpoint,
                 icon: const Icon(Icons.flag_outlined),
-                label: const Text('Update posisi'),
+                label: const Text('Update aktivitas'),
               ),
               OutlinedButton.icon(
                 onPressed: onStartChild,
@@ -1442,6 +1624,12 @@ class _ActiveSessionCard extends StatelessWidget {
                 icon: const Icon(Icons.stop_circle_outlined),
                 label: const Text('Selesai'),
               ),
+              if (onEdit != null)
+                IconButton.outlined(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined),
+                  tooltip: 'Edit aktivitas',
+                ),
             ],
           ),
         ],
@@ -1514,6 +1702,8 @@ class _SessionCard extends StatelessWidget {
     required this.onOpen,
     required this.onArchive,
     required this.onDelete,
+    this.onEdit,
+    this.onTogglePriority,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
@@ -1521,56 +1711,123 @@ class _SessionCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onArchive;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onTogglePriority;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: AppCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: CircleAvatar(
-          child: Icon(
-            session.status == ActivitySessionStatus.completed
-                ? Icons.check
-                : Icons.timer_outlined,
+  Widget build(BuildContext context) {
+    final isPriority = session.priority > 0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            backgroundColor: isPriority ? Colors.amber.withValues(alpha: 0.2) : null,
+            foregroundColor: isPriority ? Colors.amber.shade900 : null,
+            child: Icon(
+              session.status == ActivitySessionStatus.completed
+                  ? Icons.check
+                  : (isPriority ? Icons.star_rounded : Icons.timer_outlined),
+            ),
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  session.title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              if (isPriority) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.amber.shade700, width: 0.8),
+                  ),
+                  child: Text(
+                    '⭐ Prioritas',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.amber.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          subtitle: Text(
+            '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
+          ),
+          onTap: onOpen,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onTogglePriority != null)
+                IconButton(
+                  icon: Icon(
+                    isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: isPriority ? Colors.amber : null,
+                  ),
+                  tooltip: isPriority
+                      ? 'Prioritas aktif (klik untuk lepas)'
+                      : 'Tandai sebagai prioritas',
+                  onPressed: onTogglePriority,
+                ),
+              PopupMenuButton<String>(
+                tooltip: 'Kelola aktivitas',
+                onSelected: (value) {
+                  if (value == 'edit') onEdit?.call();
+                  if (value == 'priority') onTogglePriority?.call();
+                  if (value == 'archive') onArchive();
+                  if (value == 'delete') onDelete();
+                },
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit aktivitas'),
+                      ),
+                    ),
+                  PopupMenuItem(
+                    value: 'priority',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(isPriority ? Icons.star_outline : Icons.star),
+                      title: Text(isPriority ? 'Lepas prioritas' : 'Jadikan prioritas'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'archive',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.archive_outlined),
+                      title: Text('Arsipkan'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.delete_forever_outlined),
+                      title: Text('Hapus permanen'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        title: Text(
-          session.title,
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        subtitle: Text(
-          '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
-        ),
-        onTap: onOpen,
-        trailing: PopupMenuButton<String>(
-          tooltip: 'Kelola aktivitas',
-          onSelected: (value) {
-            if (value == 'archive') onArchive();
-            if (value == 'delete') onDelete();
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
-              value: 'archive',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.archive_outlined),
-                title: Text('Arsipkan'),
-              ),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.delete_forever_outlined),
-                title: Text('Hapus permanen'),
-              ),
-            ),
-          ],
-        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SessionDraft {
@@ -1651,9 +1908,19 @@ class _SessionFormState extends State<_SessionForm> {
         };
         _loadingCategories = false;
 
-        if (_selectedCategory == null && _activityCategories.isNotEmpty) {
-          _selectedCategory = _activityCategories.first;
-          _category.text = _selectedCategory!;
+        // Saat dibuka dari draft asisten, initialCategory bisa jadi tidak lagi
+        // valid di Data Utama. Jika tidak cocok, jangan biarkan pilihan basi,
+        // kembalikan ke kategori aktif pertama (atau kosong bila memang tidak ada).
+        final selectedStillValid = _selectedCategory != null &&
+            _activityCategories.contains(_selectedCategory);
+        if (_selectedCategory == null || !selectedStillValid) {
+          if (_activityCategories.isNotEmpty) {
+            _selectedCategory = _activityCategories.first;
+            _category.text = _selectedCategory!;
+          } else {
+            _selectedCategory = null;
+            _category.clear();
+          }
         }
       });
     } catch (e) {

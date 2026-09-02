@@ -32,13 +32,6 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    externalNativeBuild {
-        cmake {
-            path("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
-
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.ffm_manager"
@@ -59,13 +52,6 @@ android {
             abiFilters.addAll(ffmAbis)
         }
 
-        externalNativeBuild {
-            cmake {
-                arguments += "-DANDROID_STL=c++_shared"
-                arguments += "-DCMAKE_BUILD_TYPE=Release"
-                ffmAbis.forEach { abiFilters += it }
-            }
-        }
     }
 
     signingConfigs {

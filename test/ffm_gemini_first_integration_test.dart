@@ -40,6 +40,7 @@ class _TwoCallFakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     if (calls == 2) finalInstruction = systemInstruction;
@@ -60,6 +61,7 @@ class _SingleFakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return result;
@@ -76,6 +78,7 @@ class _ThrowingFakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return const GeminiResult(

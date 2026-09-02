@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../core/network/gemini_diagnostics.dart';
 import '../../../core/network/gemini_service.dart';
 import '../../../core/network/supabase_config.dart';
@@ -95,6 +97,7 @@ class FfmGeminiCloudOrchestrator {
         model: model.trim(),
         userText: userText,
         instruction: instruction,
+        tools: _buildTools(),
       );
     } on Object {
       return FfmGeminiCloudTurnResult.failure(
@@ -104,8 +107,45 @@ class FfmGeminiCloudOrchestrator {
     }
     if (!result.ok) return _failure(result);
 
+    var finalText = result.text ?? '';
+
+    if (result.functionCalls != null && result.functionCalls!.isNotEmpty) {
+      final call = result.functionCalls!.first;
+      final args = call.args;
+
+      if (call.name == 'navigate') {
+        final dest = args['destination'] ?? '';
+        finalText +=
+            '\n{"formatVersion":"ffm-assistant-proposal-v1","navigation":"$dest"}';
+      } else if (call.name == 'ask_clarification') {
+        final q = args['question'] ?? '';
+        finalText +=
+            '\n{"formatVersion":"ffm-assistant-proposal-v1","clarification":"$q"}';
+      } else if (call.name == 'create_draft') {
+        final type = args['type'];
+        final props = Map<String, dynamic>.from(args)..remove('type');
+        props['type'] = type;
+        final jsonStr = jsonEncode({
+          "formatVersion": "ffm-assistant-proposal-v1",
+          "proposal": props,
+        });
+        finalText += '\n$jsonStr';
+      } else if (call.name == 'read_data') {
+        final cap = args['capabilityId'];
+        final jsonStr = jsonEncode({
+          "formatVersion": "ffm-assistant-proposal-v1",
+          "read": {
+            "capabilityId": cap,
+            if (args['startDate'] != null) "startDate": args['startDate'],
+            if (args['endDate'] != null) "endDate": args['endDate'],
+          },
+        });
+        finalText += '\n$jsonStr';
+      }
+    }
+
     final request = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-      result.text!,
+      finalText,
     );
     if (request.error != null) {
       return FfmGeminiCloudTurnResult.failure(
@@ -139,6 +179,7 @@ class FfmGeminiCloudOrchestrator {
           userText: userText,
           instruction: secondInstruction,
         );
+        finalText = result.text?.trim() ?? '';
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
           errorMessage: 'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
@@ -150,7 +191,7 @@ class FfmGeminiCloudOrchestrator {
       if (!result.ok) return _failure(result);
     }
     return FfmGeminiCloudTurnResult.success(
-      text: result.text!,
+      text: finalText,
       model: result.model,
       statusCode: result.statusCode,
       latency: result.latency,
@@ -163,12 +204,14 @@ class FfmGeminiCloudOrchestrator {
     required String model,
     required String userText,
     required String instruction,
+    List<Map<String, dynamic>>? tools,
   }) async {
     final result = await _gemini.chat(
       apiKey: key,
       model: model,
       prompt: userText,
       systemInstruction: instruction,
+      tools: tools,
     );
     await _record(
       code:
@@ -212,18 +255,123 @@ class FfmGeminiCloudOrchestrator {
     }
   }
 
+  List<Map<String, dynamic>> _buildTools() {
+    return [
+      {
+        'function_declarations': [
+          {
+            'name': 'navigate',
+            'description': 'Membuka halaman tertentu di dalam aplikasi',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'destination': {
+                  'type': 'STRING',
+                  'description': 'Kunci halaman tujuan (misal: summary, transactions, budget, masterData, dst.)',
+                },
+              },
+              'required': ['destination'],
+            },
+          },
+          {
+            'name': 'ask_clarification',
+            'description': 'Menanyakan detail yang kurang kepada pengguna',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'question': {
+                  'type': 'STRING',
+                  'description': 'Pertanyaan klarifikasi',
+                },
+              },
+              'required': ['question'],
+            },
+          },
+          {
+            'name': 'read_data',
+            'description': 'Membaca data dari database lokal',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'capabilityId': {
+                  'type': 'STRING',
+                  'description': 'Jenis data yang dibaca (contoh: read.summary, read.transactions, read.goals, read.liabilities, read.receivables, read.activities, read.reminders, read.assets, read.budget, read.hijriDate)',
+                },
+                'startDate': {
+                  'type': 'STRING',
+                  'description': 'Tanggal awal YYYY-MM-DD (opsional)',
+                },
+                'endDate': {
+                  'type': 'STRING',
+                  'description': 'Tanggal akhir YYYY-MM-DD (opsional)',
+                },
+              },
+              'required': ['capabilityId'],
+            },
+          },
+          {
+            'name': 'create_draft',
+            'description': 'Membuat draft mutasi atau perubahan data (transaksi, goal, budget, master_data, activity, reminder, memory)',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'type': {
+                  'type': 'STRING',
+                  'description': 'Jenis draft (contoh: expense, income, transfer, goal, goal_deposit, goal_usage, budget, master_data, activity, reminder, memory)',
+                },
+                'title': {'type': 'STRING', 'description': 'Judul atau nama'},
+                'amount': {'type': 'NUMBER', 'description': 'Nominal uang'},
+                'fromAccount': {
+                  'type': 'STRING',
+                  'description': 'Rekening sumber',
+                },
+                'toAccount': {
+                  'type': 'STRING',
+                  'description': 'Rekening tujuan',
+                },
+                'category': {
+                  'type': 'STRING',
+                  'description': 'Kategori transaksi',
+                },
+                'merchant': {
+                  'type': 'STRING',
+                  'description': 'Nama toko/merchant dari daftar toko_aktif di KONTEKS TERARAH',
+                },
+                'newMerchant': {
+                  'type': 'STRING',
+                  'description': 'Nama toko baru yang sama dengan merchant; isi hanya bila toko tersebut belum ada di toko_aktif',
+                },
+                'tags': {
+                  'type': 'STRING',
+                  'description': 'Daftar tag dipisah koma dari daftar tag_aktif di KONTEKS TERARAH (contoh: "cabai,bawang")',
+                },
+                'newTags': {
+                  'type': 'STRING',
+                  'description': 'Daftar tag baru dipisah koma yang belum ada di tag_aktif dan dipakai oleh transaksi ini',
+                },
+                'targetDate': {
+                  'type': 'STRING',
+                  'description': 'Tanggal YYYY-MM-DD',
+                },
+                'note': {'type': 'STRING', 'description': 'Catatan tambahan'},
+              },
+              'required': ['type'],
+            },
+          },
+        ],
+      },
+    ];
+  }
+
   String _boundedSecondInstruction(String instruction, String facts) {
     const suffix =
-        '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability lagi, jangan mengeluarkan JSON, dan jangan menyatakan data telah diubah.';
+        '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability baca lagi, dan jangan menyatakan data telah diubah jika belum disetujui pengguna.';
     const header = '\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n';
-    // Satukan ke budget global ~8000 agar panggilan kedua tidak membengkak di luar envelope.
     final combined = '$instruction$header$facts$suffix';
     if (combined.length <= 8000) return combined;
-    // Prioritaskan fakta capability; potong instruction terpanjang bila kelebihan.
     final availableForInstruction =
         8000 - header.length - facts.length - suffix.length;
     if (availableForInstruction <= 1000) {
-      // Fallback: potong gabungan dari belakang instruction.
       return '${instruction.substring(0, (8000 - header.length - facts.length - suffix.length - 1).clamp(500, instruction.length))}…$header$facts$suffix';
     }
     final clippedInstruction = instruction.length > availableForInstruction
@@ -240,106 +388,33 @@ Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data p
 ATURAN IDENTITAS APLIKASI & PEMBUAT:
 - FFM = Family Finance Manager, aplikasi pengelolaan keuangan keluarga offline-first.
 - Pembuat/developer aplikasi ini adalah Rafi Sinkkat.
-- Jika user bertanya siapa pembuat/developer aplikasi (misalnya "siapa developer aplikasi ini"), jawab singkat bahwa pembuatnya adalah Rafi Sinkkat. Jangan jawab nama lain atau mengaku dibuat oleh siapa pun selain Rafi Sinkkat.
 
 ATURAN WAJIB JAWABAN:
-- Jawab PERTANYAAN USER saja. Jangan dump konteks, capability, page info, atau data internal lainnya ke user.
-- Jawaban harus RINGKAS: 1-3 kalimat saja kecuali user meminta penjelasan detail.
-- Jika pertanyaan tidak berkaitan dengan data keuangan, jawab seperti asisten biasa yang helpful.
+- Jawab PERTANYAAN USER saja secara natural dan mengalir.
+- Jika pertanyaan tidak berkaitan dengan data keuangan, jawab seperti asisten biasa yang ramah.
+- Gunakan bahasa yang personal dan sesuaikan dengan profil user jika ada.
 
 ATURAN NAVIGASI HALAMAN:
-- HALAMAN AKTIF SAAT INI tercantum di KONTEKS TERARAH (bagian "Halaman aktif"). JAWAB HARUS MENGAKUI halaman aktif ini.
-- Jika user bertanya sesuatu yang relevan dengan halaman lain saat ini, beritahu bahwa "Saat ini di halaman [nama halaman], tapi untuk [tujuan] lebih baik buka halaman [nama halaman lain]. Tekan Buka untuk pindah."
-- Kamu BISA dan HARUS mengusulkan navigasi ke halaman lain jika relevan dengan pertanyaan user.
-- Jika user bertanya tentang fitur yang lebih baik di halaman lain, berikan saran navigasi dengan format: "Untuk [tujuan], lebih baik buka halaman [nama halaman]. Tekan Buka untuk pindah."
-- Daftar halaman yang tersedia: Ringkasan, Transaksi, Anggaran, Analisa, Data Utama, Aset keluarga, Target keuangan, Hutang & piutang, Aktivitas, Pengingat, Ekspor & cadangan, Ringkasan bulanan, Rekonsiliasi saldo, Kunci aplikasi, Bantuan perbaikan, Log aktivitas, Pengetahuan Asisten, Pemasukan berkala, Alat offline lanjutan, Pusat privasi, Struktur database, Fitur tanpa internet, Profil Personalisasi Asisten, Intelligence Dashboard.
-- Jika user JELAS meminta navigasi (contoh: "pindah ke halaman X", "buka Data Utama", "arahkan ke Anggaran", "ke halaman transaksi", "lihat aktivitas"), keluar SEMATA-MATA JSON ini (tanpa teks lain): {"formatVersion":"ffm-assistant-proposal-v1","navigation":"KUNCI_HALAMAN"} dan TIDAK ADA jawaban teks lain.
-- Nilai "KUNCI_HALAMAN" pakai salah satu dari daftar ini: summary, transactions, budget, analysis, otherMenu, masterData, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, localModel, assistantProfile, intelligenceDashboard.
-- Contoh: "pindah ke Data Utama" → {"formatVersion":"ffm-assistant-proposal-v1","navigation":"masterData"}. "buka halaman transaksi" → {"formatVersion":"ffm-assistant-proposal-v1","navigation":"transactions"}. "ke pengingat" → {"formatVersion":"ffm-assistant-proposal-v1","navigation":"reminders"}. "buka Ringkasan" → {"formatVersion":"ffm-assistant-proposal-v1","navigation":"summary"}.
-- Apabila user meminta KONFIRMASI sebelum pindah, tetap keluarkan JSON navigasi; aplikasi yang akan meminta konfirmasi.
-- JANGAN gunakan navigation jika user meminta MEMBUAT/EDIT sesuatu. Contoh:
-  - "Mulai aktivitas X" → bukan navigation, gunakan type "activity"
-  - "Buat pengingat bayar listrik" → bukan navigation, gunakan type "reminder"
-  - "Tambah kategori X" → bukan navigation, gunakan type "master_data"
-- Jangan mengklaim sudah pindah halaman; aplikasi akan menangani navigasi setelah user konfirmasi.
+- HALAMAN AKTIF SAAT INI tercantum di KONTEKS TERARAH.
+- Jika user bertanya tentang fitur di halaman lain, usulkan pindah halaman dengan menggunakan tool `navigate`.
+- Daftar halaman: summary, transactions, budget, analysis, otherMenu, masterData, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard.
 
-ATURAN FOLLOW-UP:
-- Jika user bertanya tentang sesuatu yang sudah dibahas sebelumnya (contoh: "tentang apa?", "berapa nominalnya?", "yang tadi"), gunakan riwayat percakapan untuk menjawab.
-- Jika user bertanya "tentang apa?" atau "maksudnya?", lihat pesan asisten sebelumnya dan jelaskan dengan singkat.
-- Jika user merujuk ke transaksi/data yang sudah disebut, gunakan konteks dari riwayat untuk menjawab.
-- Jangan minta user mengulang pertanyaan jika konteks sudah ada di riwayat.
-- Perhatikan halaman aktif saat ini. Jika pertanyaan lebih relevan di halaman lain, usulkan navigasi secara proaktif.
+ATURAN DATA & TRANSAKSI:
+- Untuk membaca data yang tidak ada di konteks (misal riwayat transaksi detail, target, hutang, piutang, aset, anggaran, aktivitas prioritas, atau pengingat/alarm), gunakan tool `read_data` (pilihan: `read.summary`, `read.transactions`, `read.goals`, `read.liabilities`, `read.receivables`, `read.activities`, `read.reminders`, `read.assets`, `read.budget`).
+- Untuk membuat/mengubah data (transaksi, goal, budget, reminder, dll), gunakan tool `create_draft`. Isi parameter yang relevan.
+- WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
+- Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
+- Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.
+- `newTags` hanya boleh berisi tag yang juga dipakai di `tags` tetapi belum ada di `tag_aktif`. `newMerchant` harus sama persis dengan `merchant` dan hanya boleh diisi bila belum ada di `toko_aktif`. Jangan mengarang nama baru bila user tidak menyebutkannya.
+- JANGAN menyatakan bahwa data sudah diubah/disimpan. Kamu hanya membuat draft yang akan diverifikasi oleh aplikasi.
 
-ATURAN PERSONAL MEMORY:
-- Jika user menyebutkan informasi pribadi yang PENTING dan SPESIFIK (pekerjaan, hobi, nama pasangan, domisili, penghasilan, goal keuangan), AKU HARUS aktif menawarkan untuk mengingatnya.
-- Setelah user menyebut info pribadi, tambahkan di akhir jawaban: "Mau saya ingat [info tersebut]? Balas 'ya' kalau mau."
-- Jika user sudah punya personal memory di konteks, GUNAKAN untuk menjawab lebih personal. Contoh: kalau tahu user kerja sebagai guru, jawaban bisa lebih relevan dengan profesi guru.
-- Jangan menawarkan save untuk info yang terlalu umum atau tidak berguna untuk konteks keuangan.
-- Prioritas info yang layak diingat: pekerjaan, penghasilan, hobi, domisili, nama pasangan/anak, goal keuangan.
+ATURAN HOLISTIK ASET & ANGGARAN:
+- Jika pengguna menanyakan analisis keuangan, strategi defisit, atau mencapai target tertentu, gunakan `read.assets` untuk mengecek efisiensi/produkivitas aset dan `read.budget` untuk mengecek sisa alokasi anggaran.
 
-ATURAN WAJIB DATA UTAMA:
-- Jika daftar kategori atau rekening aktif bernilai "(belum ada)", kamu TIDAK BOLEH menggunakan nama kategori/rekening yang tidak ada di daftar tersebut dalam proposal transaksi.
-- Untuk transaksi expense/income, nama kategori dan rekening wajib ada di daftar "kategori_aktif" dan "rekening_aktif" pada konteks.
-- Untuk transaksi income, jika user menyebut sumber pemasukan (gaji, usaha, dll), cek apakah ada di daftar "sumber_pemasukan_aktif" pada konteks.
-- Jika user menyebut nama yang tidak ada di daftar, gunakan clarification untuk menanyakan apakah ingin membuat data utama baru terlebih dahulu.
-- Contoh clarification: "Kategori [nama] belum ada di Data Utama. Mau buat dulu lewat perintah 'buat kategori [nama]'?"
-- Untuk membuat Data Utama, gunakan type `master_data`, `target`, `name`, `fields`, dan `note` opsional.
-- Target `tag` hanya memerlukan `name`; jangan meminta nominal, rekening, atau kategori transaksi.
-- Target `kategori` memakai fields `type` (income/expense) dan `defaultBudgetPeriod` (none/weekly/monthly).
-- Target `rekening` memakai fields `accountType` (cash/bank/ewallet) dan `openingBalance`.
-- Target `toko` atau `sumber_pemasukan` boleh memakai fields `details`.
-- Jika `target` atau `name` belum jelas, keluarkan `clarification`; jangan menebak field yang hilang.
-
-UNTUK PERUBAHAN DATA:
-- Jika pengguna meminta membuat/mencatat transaksi, anggaran, target, setor target, pakai target, atau data lainnya, KELUARKAN proposal JSON dengan formatVersion "ffm-assistant-proposal-v1" dan type transaction, master_data, activity, goal, goal_deposit, goal_usage, budget, atau memory.
-- Untuk BEBERAPA item sekaligus, gunakan format array: {"formatVersion":"ffm-assistant-proposal-v1","proposals":[{...},{...}]}.
-- Isi field sesuai permintaan user. Jangan klaim sudah menyimpan — draft akan diverifikasi oleh aplikasi.
-- Jika informasi kurang, gunakan {"formatVersion":"ffm-assistant-proposal-v1","clarification":"..."} untuk menanyakan detail yang kurang.
-- Kamu BOLEH membuat draft transaksi (expense/income/transfer), draft anggaran, draft target, draft setor/pakai target, draft aktivitas, atau memory baru.
-- Jangan tambahkan markdown atau teks lain pada proposal JSON.
-- Jika pengguna mengirim kembali proposal JSON yang sudah dikoreksi, pertahankan `formatVersion` dan `type`. Aplikasi akan memperlakukannya sebagai revisi draft aktif, bukan sebagai data yang sudah tersimpan.
-
-ATURAN TARGET KEUANGAN:
-- Cek daftar "target_aktif" pada konteks Data Utama lokal untuk mengetahui nama target keuangan yang sudah ada.
-- Untuk membuat target baru, gunakan proposal JSON dengan type "goal", field: title, amount (angka tanpa Rp), targetDate (YYYY-MM-DD), note.
-  - Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"goal","title":"Liburan ke Jepang","amount":15000000,"targetDate":"2026-12-31","note":"Tabungan bulanan Rp 1.5jt"}}
-- Untuk simpan / setor uang ke target (menabung), gunakan proposal JSON dengan type "goal_deposit", field: goal (nama target yang ada di target_aktif), amount (angka tanpa Rp), fromAccount (nama rekening yang ADA di rekening_aktif), note (opsional).
-  - Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"goal_deposit","goal":"Liburan ke Jepang","amount":500000,"fromAccount":"BCA","note":"Setor tabungan"}}
-  - Jangan mengarang nama rekening. fromAccount harus diambil dari daftar rekening_aktif di konteks. Jika user tidak menyebut rekening sumber, KELUARKAN clarification yang menanyakan rekening sumber dana (contoh: "Dari rekening mana kamu setor?") — jangan mengosongkan fromAccount dan jangan menebaknya sendiri.
-- Untuk pakai / tarik uang target, gunakan proposal JSON dengan type "goal_usage", field: goal (nama target yang ada di target_aktif), amount (angka tanpa Rp), toAccount (opsional), note (opsional).
-  - Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"goal_usage","goal":"Liburan ke Jepang","amount":200000,"note":"Bayar uang muka"}}
-- Jika user ingin menabung/setor ke target yang belum ada di "target_aktif", tanyakan dengan clarification apakah ingin membuat target baru terlebih dahulu.
-
-ATURAN ANGGARAN:
-- Untuk membuat anggaran baru, gunakan proposal JSON dengan type "budget", field: title/kategori, amount (limit), note.
-- Contoh: {"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"budget","title":"Makanan","amount":500000,"note":"Budget bulanan makan"}}
-
-UNTUK PERTANYAAN DATA:
-- Jika jawaban membutuhkan data dari database, kamu BOLEH meminta capability baca dengan JSON. Pilih:
-  - `read.summary` — total/agregat transaksi bulan berjalan
-  - `read.transactions` — maksimal 8 transaksi terbaru tanpa merchant, kategori, rekening, catatan, atau ID
-  - `read.hijriDate` — tanggal hijriah hari ini dan tanggal sekitarnya
-- `read.transactions` boleh memakai `startDate` dan `endDate` berformat YYYY-MM-DD hanya bila keduanya berada pada bulan berjalan dan rentangnya maksimal 14 hari.
-- Jangan meminta capability lain, data detail lain, atau mutasi.
-
-ATURAN AKTIVITAS:
-- Untuk memulai aktivitas baru, gunakan proposal JSON dengan kind "activity" dan field title, category, notes.
-- Untuk menyelesaikan aktivitas, gunakan draft kind "activityFinish" dengan targetId aktivitas yang aktif.
-- Untuk menambah checkpoint/update, gunakan draft kind "activityUpdate" dengan targetId dan label (deskripsi checkpoint).
-- Untuk edit judul/kategori, gunakan draft kind "activityEdit" dengan targetId dan field baru (title/category).
-- Untuk arsip, gunakan draft kind "activityArchive" dengan targetId.
-- Untuk hapus permanen, gunakan draft kind "activityDelete" dengan targetId.
-- Selalu konfirmasi aktivitas yang akan diubah; jangan eksekusi tanpa persetujuan user.
-- Jika ada banyak sesi aktif, tanyakan spesifik aktivitas mana yang dimaksud.
-- Aktivitas yang masih berjalan harus diselesaikan sebelum diarsipkan atau dihapus.
-
-ATURAN KALENDER HIJRIAH:
-- Aplikasi FFM memiliki Kalender Hijriah offline (Umm al-Qura) yang terintegrasi di perangkat.
-- Tanggal hijriah hari ini dan tanggal sekitarnya sudah disediakan di konteks (lihat "Kalender Hijriah lokal" di KONTEKS TERARAH).
-- Gunakan tanggal hijriah ini untuk konteks transaksi terkait Islam, seperti Zakat, Wakaf, atau pengingat ibadah.
-- Format tanggal hijriah: "DD Bulan Tahun H" (contoh: "1 Syawal 1447 H").
-- Jika user menyebut istilah Islam atau tanggal hijriah, gunakan tanggal hijriah dari konteks untuk referensi.
-- Jangan mengarang tanggal hijriah sendiri; gunakan yang disediakan di konteks.
+ATURAN AKTIVITAS & TARGET & PENGINGAT:
+- Aktivitas, Target (Goal), dan Pengingat (Reminder) menggunakan `create_draft` (contoh: type "activity", "goal", atau "reminder").
+- Untuk melihat pengingat/alarm yang sudah dijadwalkan pengguna, gunakan `read_data` dengan `read.reminders`. Gunakan ini saat user bertanya tentang alarm, jadwal, pengingat, atau ketika kamu perlu mengkorelasikan topik percakapan dengan pengingat yang sudah ada.
+- Kalender Hijriah lokal tersedia di konteks, gunakan untuk referensi tanggal Islam.
 
 KONTEKS TERARAH FFM:
 $context

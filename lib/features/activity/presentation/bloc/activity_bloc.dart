@@ -448,6 +448,38 @@ class ActivityBloc extends Cubit<ActivityState> {
     await _save(() => repository.archiveEntry(AppContext.householdId, id));
   }
 
+  Future<void> saveSession(ActivitySessionEntity entity) async {
+    await _save(() => repository.saveSession(entity));
+  }
+
+  Future<bool> togglePriority(String id) async {
+    final session = state.sessions.where((s) => s.id == id).firstOrNull;
+    if (session == null) return false;
+
+    final currentPriority = session.priority;
+    final newPriority = currentPriority > 0 ? 0 : 1;
+
+    // Proteksi batas maksimal 10 aktivitas prioritas aktif
+    if (newPriority > 0) {
+      final activePriorityCount = state.sessions
+          .where((s) => s.priority > 0 && !s.isArchived && s.status != ActivitySessionStatus.completed)
+          .length;
+      if (activePriorityCount >= 10) {
+        emit(state.copyWith(
+          error: 'Maksimal 10 aktivitas prioritas aktif yang diizinkan.',
+        ));
+        return false;
+      }
+    }
+
+    final updated = session.copyWith(
+      priority: newPriority,
+      updatedAt: DateTime.now(),
+    );
+    await _save(() => repository.saveSession(updated));
+    return true;
+  }
+
   Future<void> _save(Future<void> Function() operation) async {
     emit(state.copyWith(saving: true, clearError: true));
     try {

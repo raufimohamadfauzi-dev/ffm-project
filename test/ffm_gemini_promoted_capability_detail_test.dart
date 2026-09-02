@@ -38,19 +38,20 @@ void main() {
       );
       expect(
         FfmAssistantProposalJsonService.geminiReadCapabilityIds,
-        isNot(contains('read.accounts')),
+        contains('read.assets'),
       );
       expect(
         FfmAssistantProposalJsonService.geminiReadCapabilityIds,
-        isNot(contains('read.activity')),
+        contains('read.budget'),
+      );
+      expect(
+        FfmAssistantProposalJsonService.geminiReadCapabilityIds,
+        isNot(contains('read.accounts')),
       );
 
       const blocked = [
         'read.accounts',
-        'read.budget',
         'read.categories',
-        'read.goals',
-        'read.activity',
       ];
       for (final id in blocked) {
         final parsed = FfmAssistantProposalJsonService.parseReadCapabilityRequest(

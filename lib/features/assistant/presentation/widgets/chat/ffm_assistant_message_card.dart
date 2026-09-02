@@ -10,6 +10,7 @@ import 'ffm_assistant_process_disclosure.dart';
 import 'ffm_verified_facts_card.dart';
 import 'ffm_analysis_results_card.dart';
 import 'ffm_assistant_feedback_toolbar.dart';
+import 'ffm_json_expandable.dart';
 
 class FfmAssistantMessageCard extends StatelessWidget {
   const FfmAssistantMessageCard({
@@ -29,7 +30,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onShareFile,
     this.onCorrectMessage,
     this.onConfirmActivity,
-    this.onShowTechnical,
+    this.showTechnicalDetails = false,
+    this.onToggleTechnicalDetails,
     this.onRetryGemini,
     required this.activityConfirmed,
     this.actionPlan,
@@ -64,7 +66,8 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onShareFile;
   final VoidCallback? onCorrectMessage;
   final VoidCallback? onConfirmActivity;
-  final VoidCallback? onShowTechnical;
+  final bool showTechnicalDetails;
+  final VoidCallback? onToggleTechnicalDetails;
   final VoidCallback? onRetryGemini;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
@@ -248,7 +251,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onSpeak != null ||
             onIntent != null ||
             onConfirmActivity != null ||
-            onShowTechnical != null) ...[
+            onToggleTechnicalDetails != null) ...[
           const SizedBox(height: 6),
           FfmAssistantMessageToolbar(
             isUser: isUser,
@@ -268,7 +271,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 (intent?.destination != null ? 'Buka' : 'Lanjut'),
             onPrimaryAction: onIntent,
             onConfirmActivity: onConfirmActivity,
-            onShowTechnical: onShowTechnical,
+            onShowTechnical: onToggleTechnicalDetails,
             onRetryGemini: intent?.responseOrigin ==
                     FfmAssistantResponseOrigin.cloudError
                 ? onRetryGemini
@@ -285,6 +288,13 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onApproveTeaching: onApproveTeaching,
             teachingSaved: teachingSaved,
             foregroundColor: textColor,
+          ),
+        ],
+        if (showTechnicalDetails && intent != null) ...[
+          const SizedBox(height: 8),
+          FfmJsonExpandable(
+            intent: intent,
+            initiallyExpanded: true,
           ),
         ],
       ],

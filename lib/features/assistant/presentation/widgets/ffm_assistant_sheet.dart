@@ -50,7 +50,7 @@ import '../../data/ffm_assistant_intent_classification_service.dart';
 import '../../../../core/network/supabase_config.dart';
 import '../../../../core/network/supabase_service.dart';
 import 'chat/ffm_assistant_draft_preview.dart';
-import 'chat/ffm_json_expandable.dart';
+
 import 'chat/ffm_assistant_message_card.dart';
 import 'chat/ffm_streaming_text_controller.dart';
 import 'gemini_header.dart';
@@ -179,6 +179,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
+  final _technicalDetailsExpanded = <int>{};
   FfmAssistantProactiveSuggestion? _proactiveSuggestion;
   var _proactiveSuggestionGeneration = 0;
   String? _speakingEntryKey;
@@ -193,7 +194,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   // Streaming state
   final _streamingController = FfmStreamingTextController();
 
-  String? _streamingEntryKey;
+  FfmAssistantChatEntry? _streamingEntry;
   String _streamingVisibleText = '';
   StreamSubscription<String>? _streamingSubscription;
 
@@ -394,55 +395,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _ => pluginName,
   };
 
-  Future<void> _showActiveProcessDetails() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      builder: (sheetContext) {
-        final theme = Theme.of(sheetContext);
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Detail proses Asisten',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: _activeProcessEvents.length,
-                  itemBuilder: (context, index) {
-                    final event = _activeProcessEvents[index];
-                    final isActive = index == _activeProcessEvents.length - 1;
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        isActive
-                            ? Icons.hourglass_top_rounded
-                            : Icons.check_circle_outline,
-                        color: isActive
-                            ? theme.colorScheme.primary
-                            : Colors.green.shade700,
-                      ),
-                      title: Text(event.label),
-                      subtitle: Text('T+${event.elapsed.inMilliseconds} ms'),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   void _appendProcessEventsToTrace(
     FfmAssistantProcessTrace trace,
@@ -453,19 +405,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         .toList(growable: false);
     if (newEvents.isEmpty) return;
     trace.events.insertAll(trace.events.length - 1, newEvents);
-  }
-
-  void _showTechnicalDetails(FfmAssistantIntent intent) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (dialogContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FfmJsonExpandable(intent: intent, initiallyExpanded: true),
-        ),
-      ),
-    );
   }
 
   void _appendEntry(FfmAssistantChatEntry entry) {
@@ -481,7 +420,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   void _startStreaming(FfmAssistantChatEntry entry) {
     _streamingSubscription?.cancel();
-    _streamingEntryKey = '${_entries.length - 1}';
+    _streamingEntry = entry;
     _streamingVisibleText = '';
     _streamingController.startStreaming(entry.text);
     _streamingSubscription = _streamingController.textStream.listen((text) {
@@ -492,7 +431,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         // Clean up when streaming completes
         if (_streamingController.isComplete) {
           setState(() {
-            _streamingEntryKey = null;
+            _streamingEntry = null;
             _streamingVisibleText = '';
           });
         }
@@ -2632,7 +2571,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         if (_submitting && index == _entries.length) {
                           return GeminiTypingIndicator(
                             message: _activeProcessLabel,
-                            onTap: _showActiveProcessDetails,
+                            steps: _activeProcessEvents
+                                .map((e) => '${e.label} (T+${e.elapsed.inMilliseconds} ms)')
+                                .toList(),
+                            currentStepIndex: _activeProcessEvents.isNotEmpty
+                                ? _activeProcessEvents.length - 1
+                                : 0,
                           );
                         }
                         final entry = _entries[index];
@@ -2642,7 +2586,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                 widget.currentDestination &&
                             entry.intent!.draft == null;
                         final isStreamingThis =
-                            _streamingEntryKey == '$index' &&
+                            identical(_streamingEntry, entry) &&
                             _streamingController.isStreaming;
                         return FfmAssistantMessageCard(
                           entry: entry,
@@ -2707,9 +2651,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           onCopyFeedback: entry.isUser
                               ? null
                               : () => _showFeedbackActions(entry),
-                          onShowTechnical: entry.intent == null
+                          onToggleTechnicalDetails: entry.intent == null
                               ? null
-                              : () => _showTechnicalDetails(entry.intent!),
+                              : () {
+                                  setState(() {
+                                    if (_technicalDetailsExpanded.contains(index)) {
+                                      _technicalDetailsExpanded.remove(index);
+                                    } else {
+                                      _technicalDetailsExpanded.add(index);
+                                    }
+                                  });
+                                },
+                          showTechnicalDetails: _technicalDetailsExpanded.contains(index),
                           onRetryGemini:
                               entry.intent?.responseOrigin ==
                                   FfmAssistantResponseOrigin.cloudError

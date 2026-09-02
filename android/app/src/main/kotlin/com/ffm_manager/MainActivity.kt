@@ -14,7 +14,6 @@ import java.util.Locale
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
-import com.ffm_manager.FfmLocalModelBridgePlugin
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
@@ -31,7 +30,6 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        flutterEngine.plugins.add(FfmLocalModelBridgePlugin())
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale("id", "ID")

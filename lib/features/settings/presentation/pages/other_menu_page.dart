@@ -11,6 +11,7 @@ import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../backup/presentation/pages/backup_page.dart';
 import '../../../backup/presentation/pages/monthly_report_page.dart';
 import '../../../goal/presentation/pages/goal_pages.dart';
+import '../../../hijri/presentation/pages/hijri_settings_page.dart';
 import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
 import 'app_diagnostics_page.dart';
@@ -266,6 +267,16 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Pengingat',
                 'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.nights_stay_outlined,
+              title: 'Kalender Hijriah & Hilal',
+              subtitle: 'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
+              onTap: () => _open(context, const HijriSettingsPage()),
+              visible: _matches(
+                'Kalender Hijriah Hilal rukyat isbat puasa ramadan',
+                'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
               ),
             ),
             _MenuCard(

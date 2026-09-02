@@ -79,12 +79,7 @@ class ReceiptImportService {
   static const bankStatementFormat = 'ffm-bank-statement-v1';
 
   static ReceiptOcrResult parseJson(String rawJson, {String? imagePath}) {
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(rawJson);
-    } on FormatException catch (error) {
-      throw ReceiptImportException('JSON tidak valid: ${error.message}');
-    }
+    final decoded = _decodeJson(rawJson);
     if (decoded is! Map) {
       throw const ReceiptImportException('Format JSON harus berupa objek.');
     }
@@ -148,12 +143,7 @@ class ReceiptImportService {
   }
 
   static ReceiptBatchImport parseBatchJson(String rawJson) {
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(rawJson);
-    } on FormatException catch (error) {
-      throw ReceiptImportException('JSON tidak valid: ${error.message}');
-    }
+    final decoded = _decodeJson(rawJson);
     if (decoded is! Map) {
       throw const ReceiptImportException('JSON batch harus berupa objek.');
     }
@@ -448,7 +438,7 @@ class ReceiptImportService {
   static String templateBankStatementJson() =>
       const JsonEncoder.withIndent('  ').convert(templateBankStatementMap());
 
-  static String buildGeminiBankStatementPrompt() =>
+  static String buildExternalLlmBankStatementPrompt() =>
       '''Kamu membantu membaca screenshot mutasi rekening untuk aplikasi Family Finance Manager (FFM).
 
 Balas HANYA dengan JSON valid tanpa markdown atau komentar. Gunakan format persis:
@@ -479,6 +469,9 @@ Aturan:
         'budget_id': null,
         'budget_name': null,
         'party_name': null,
+        'from_account_id': null,
+        'to_account_id': null,
+        'admin_fee': 0,
         'note': '',
         'amount': 0,
         'items': [
@@ -497,23 +490,26 @@ Aturan:
   static String templateBatchJson() =>
       const JsonEncoder.withIndent('  ').convert(templateBatchMap());
 
-  static String buildGeminiBatchPrompt() =>
-      '''Kamu membantu menyiapkan batch transaksi untuk aplikasi Family Finance Manager (FFM).
+  static String buildExternalLlmBatchPrompt() =>
+      '''Kamu membantu menyiapkan data transaksi untuk aplikasi Family Finance Manager (FFM).
+
+Baca informasi yang saya berikan setelah instruksi ini. Informasi dapat berupa foto nota, screenshot mutasi rekening, teks, atau beberapa transaksi sekaligus.
 
 Balas HANYA dengan JSON valid tanpa markdown atau komentar. Gunakan format persis:
 ${templateBatchJson()}
 
 Aturan:
-- `transactions` berisi satu objek untuk setiap transaksi atau nota yang ingin dicatat.
-- `type` hanya boleh `income` atau `expense`.
+- `transactions` berisi satu objek untuk setiap transaksi. Satu nota berarti satu transaksi dengan rincian barang di `items`.
+- `type` hanya boleh `income`, `expense`, atau `transfer`.
 - `amount`, `unit_price`, dan `items.amount` harus berupa angka integer rupiah tanpa titik, koma, atau simbol Rp.
 - Satu transaksi boleh memiliki banyak item pada `items`.
+- Untuk `transfer`, isi `from_account_id` dan `to_account_id` hanya jika ID rekening diberikan; jika tidak, gunakan null agar dipilih di FFM.
 - Untuk pengeluaran, isi `budget_name` dengan nama pos anggaran yang paling cocok berdasarkan keterangan. Jika tidak yakin, gunakan null; jangan menebak.
 - `budget_id` hanya diisi jika ID pos diberikan secara eksplisit oleh aplikasi; jangan membuat ID sendiri.
 - Untuk pemasukan, `budget_id` dan `budget_name` biasanya null karena anggaran adalah batas pengeluaran.
 - Jangan menggabungkan beberapa transaksi berbeda menjadi satu objek.
-- Jika data tidak terbaca, gunakan null; jangan menebak.
-- FFM akan menampilkan semua hasil sebagai draft yang wajib diedit dan dikonfirmasi.''';
+- Jika gambar atau teks tidak terbaca, gunakan null; jangan menebak.
+- FFM akan menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.''';
 
   static Map<String, dynamic> toMap(ReceiptOcrResult result) => {
     'format': format,
@@ -569,41 +565,18 @@ Aturan:
   static String templateJson() =>
       const JsonEncoder.withIndent('  ').convert(templateMap());
 
-  static String buildGeminiPrompt({required String rawText}) {
-    final source = rawText.trim();
-    return '''Kamu membantu menyiapkan draft nota untuk aplikasi Family Finance Manager (FFM).
-
-Baca teks nota di bawah ini. Balas HANYA dengan JSON valid, tanpa markdown, tanpa komentar, dan gunakan format persis berikut:
-{
-  "format": "ffm-receipt-draft-v1",
-  "receipt": {
-    "merchant": "nama toko atau null",
-    "receipt_number": "nomor nota atau null",
-    "date": "YYYY-MM-DD atau null",
-    "time": "HH:mm:ss atau null",
-    "total": 0,
-    "paid_amount": 0,
-    "change_amount": 0,
-    "raw_text": "teks nota asli",
-    "items": [
-      {"name": "nama barang", "quantity": 1, "unit": "PCS", "unit_price": 0, "amount": 0}
-    ]
-  }
-}
-
-Aturan penting:
-- Nominal harus berupa angka integer rupiah tanpa titik, koma, atau simbol Rp.
-- Jika data tidak terbaca, gunakan null; jangan menebak.
-- `amount` adalah jumlah baris, sedangkan `unit_price` adalah harga satuan.
-- Pertahankan kuantitas pecahan, misalnya 0.5.
-- Jangan memasukkan total, bayar, atau kembalian sebagai item.
-- Jangan mengubah nama barang yang terbaca.
-- Aplikasi akan memvalidasi ulang jumlah item dan meminta pengguna mengedit sebelum menyimpan.
-
-Teks nota:
----
-$source
----''';
+  static dynamic _decodeJson(String rawJson) {
+    var source = rawJson.trim();
+    final fenced = RegExp(
+      r'^```(?:json)?\s*([\s\S]*?)\s*```$',
+      caseSensitive: false,
+    ).firstMatch(source);
+    if (fenced != null) source = fenced.group(1)!.trim();
+    try {
+      return jsonDecode(source);
+    } on FormatException catch (error) {
+      throw ReceiptImportException('JSON tidak valid: ${error.message}');
+    }
   }
 
   static ReceiptOcrItem? _parseItem(

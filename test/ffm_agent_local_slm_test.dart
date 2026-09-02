@@ -112,6 +112,7 @@ class _FakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return const GeminiResult(
@@ -134,6 +135,7 @@ class _ReadRequestGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     if (calls == 1) {
@@ -164,6 +166,7 @@ class _ForbiddenReadRequestGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return const GeminiResult(
@@ -186,6 +189,7 @@ class _TransactionReadRequestGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     if (calls == 1) {
@@ -217,6 +221,7 @@ class _DateRangeReadRequestGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     if (calls == 1) {
@@ -525,20 +530,31 @@ void main() {
     expect(tooLong.error, contains('maksimal 14 hari'));
   });
 
-  test('Gemini hanya boleh meminta summary atau transaksi bounded', () {
+  test('Gemini hanya boleh meminta capability baca yang ada di allowlist bounded', () {
     expect(FfmAssistantProposalJsonService.geminiReadCapabilityIds, {
       'read.summary',
       'read.transactions',
       'read.hijriDate',
+      'read.goals',
+      'read.liabilities',
+      'read.debts',
+      'read.receivables',
+      'read.receivable',
+      'read.activity',
+      'read.activities',
+      'read.reminders',
+      'read.reminder',
+      'read.assets',
+      'read.asset',
+      'read.budget',
+      'read.budgets',
     });
 
     for (final capabilityId in const [
       'read.accounts',
-      'read.budget',
       'read.categories',
-      'read.goals',
-      'read.activity',
       'mutate.transaction',
+      'mutate.save_draft',
     ]) {
       final result = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
         '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"$capabilityId","arguments":{}}',
@@ -547,6 +563,59 @@ void main() {
       expect(result.request, isNull, reason: capabilityId);
       expect(result.error, contains('tidak diizinkan'), reason: capabilityId);
     }
+  });
+
+  test('FfmGeminiReadCapabilityService dapat mengeksekusi digest target, hutang, piutang, dan aktivitas', () async {
+    final service = FfmGeminiReadCapabilityService(
+      FfmAssistantFinancialSnapshotService(
+        database,
+        HijriCalendarService(database),
+      ),
+    );
+
+    final goalsReq = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.goals","arguments":{}}',
+    );
+    expect(goalsReq.request, isNotNull);
+    final goalsDigest = await service.execute(
+      goalsReq.request!,
+      householdId: 'test-household',
+      now: DateTime(2026, 8, 28),
+    );
+    expect(goalsDigest, contains('Goals digest'));
+
+    final debtsReq = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.liabilities","arguments":{}}',
+    );
+    expect(debtsReq.request, isNotNull);
+    final debtsDigest = await service.execute(
+      debtsReq.request!,
+      householdId: 'test-household',
+      now: DateTime(2026, 8, 28),
+    );
+    expect(debtsDigest, contains('Liabilities digest'));
+
+    final recReq = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.receivables","arguments":{}}',
+    );
+    expect(recReq.request, isNotNull);
+    final recDigest = await service.execute(
+      recReq.request!,
+      householdId: 'test-household',
+      now: DateTime(2026, 8, 28),
+    );
+    expect(recDigest, contains('Receivables digest'));
+
+    final actReq = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+      '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.activities","arguments":{}}',
+    );
+    expect(actReq.request, isNotNull);
+    final actDigest = await service.execute(
+      actReq.request!,
+      householdId: 'test-household',
+      now: DateTime(2026, 8, 28),
+    );
+    expect(actDigest, contains('Activities digest'));
   });
 
   test(

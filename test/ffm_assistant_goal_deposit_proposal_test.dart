@@ -124,28 +124,55 @@ void main() {
   });
 
   group('FfmAssistantFinancialSnapshotService Master Data Context', () {
-    test('buildMasterDataContext includes target_aktif', () async {
-      final database = createInMemoryDatabaseForTests();
-      final snapshotService = FfmAssistantFinancialSnapshotService(database);
+    test(
+      'buildMasterDataContext includes target, tag, and toko aktif',
+      () async {
+        final database = createInMemoryDatabaseForTests();
+        final snapshotService = FfmAssistantFinancialSnapshotService(database);
 
-      await database.into(database.goals).insert(
-            GoalsCompanion.insert(
-              id: 'g-1',
-              householdId: 'test-household',
-              name: 'Dana Darurat',
-              targetAmount: 10000000,
-              targetDate: Value(DateTime(2026, 12, 31)),
-              createdAt: DateTime(2026, 8, 1),
-            ),
-          );
+        await database
+            .into(database.goals)
+            .insert(
+              GoalsCompanion.insert(
+                id: 'g-1',
+                householdId: 'test-household',
+                name: 'Dana Darurat',
+                targetAmount: 10000000,
+                targetDate: Value(DateTime(2026, 12, 31)),
+                createdAt: DateTime(2026, 8, 1),
+              ),
+            );
+        await database
+            .into(database.tags)
+            .insert(
+              TagsCompanion.insert(
+                id: 'tag-1',
+                householdId: 'test-household',
+                name: 'Pertanian',
+                createdAt: DateTime(2026, 8, 1),
+              ),
+            );
+        await database
+            .into(database.merchants)
+            .insert(
+              MerchantsCompanion.insert(
+                id: 'merchant-1',
+                householdId: 'test-household',
+                name: 'Toko Tani',
+                createdAt: DateTime(2026, 8, 1),
+              ),
+            );
 
-      final context = await snapshotService.buildMasterDataContext(
-        householdId: 'test-household',
-      );
+        final context = await snapshotService.buildMasterDataContext(
+          householdId: 'test-household',
+        );
 
-      expect(context, contains('target_aktif=Dana Darurat'));
-      await database.close();
-    });
+        expect(context, contains('target_aktif=Dana Darurat'));
+        expect(context, contains('tag_aktif=Pertanian'));
+        expect(context, contains('toko_aktif=Toko Tani'));
+        await database.close();
+      },
+    );
   });
 
   group('FfmAssistantInterpreter Deterministic Goal Intent', () {
@@ -167,8 +194,7 @@ void main() {
   });
 
   group('Gemini navigation JSON parsing', () {
-    test('top-level navigation field (instruksi Gemini) creates navigation draft',
-        () {
+    test('top-level navigation field (instruksi Gemini) creates navigation draft', () {
       final json =
           '{"formatVersion":"ffm-assistant-proposal-v1","navigation":"masterData"}';
 
@@ -196,19 +222,21 @@ void main() {
       expect(result.drafts.single.formValues['destination'], 'transactions');
     });
 
-    test('interpreter menerjemahkan navigation top-level jadi openPage intent',
-        () async {
-      final database = createInMemoryDatabaseForTests();
-      final interpreter = FfmAssistantInterpreter(database);
+    test(
+      'interpreter menerjemahkan navigation top-level jadi openPage intent',
+      () async {
+        final database = createInMemoryDatabaseForTests();
+        final interpreter = FfmAssistantInterpreter(database);
 
-      final intent = await interpreter.interpret(
-        'pindah ke data utama',
-        currentDestination: FfmAssistantDestination.summary,
-      );
+        final intent = await interpreter.interpret(
+          'pindah ke data utama',
+          currentDestination: FfmAssistantDestination.summary,
+        );
 
-      expect(intent.type, FfmAssistantIntentType.openPage);
-      expect(intent.destination, FfmAssistantDestination.masterData);
-      await database.close();
-    });
+        expect(intent.type, FfmAssistantIntentType.openPage);
+        expect(intent.destination, FfmAssistantDestination.masterData);
+        await database.close();
+      },
+    );
   });
 }

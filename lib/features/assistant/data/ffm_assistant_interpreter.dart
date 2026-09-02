@@ -8074,7 +8074,6 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'local_model' ||
     'model lokal' ||
     'model tanpa internet' ||
-    'fitur tanpa internet' => FfmAssistantDestination.localModel,
     'assistantprofile' ||
     'profil personalisasi' =>
       FfmAssistantDestination.assistantProfile,

@@ -31,6 +31,7 @@ class _FakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async =>
       result;
 }

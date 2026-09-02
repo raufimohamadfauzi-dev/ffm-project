@@ -6,10 +6,8 @@ import '../../../core/database/app_database.dart';
 import '../domain/ffm_assistant_models.dart';
 import 'ffm_assistant_personalization_repository.dart';
 
-/// Kontrak lapis SLM untuk menebak kategori transaksi.
-///
-/// Implementasi harus memilih SATU nama dari [allowedCategories] atau
-/// mengembalikan null. Dilarang mengarang kategori di luar daftar.
+/// Legacy extension point kept for migrated callers. It is not registered in
+/// production; category suggestions use verified user patterns only.
 abstract interface class FfmAssistantCategoryAdvisor {
   Future<String?> suggestCategory({
     required String description,
@@ -17,8 +15,6 @@ abstract interface class FfmAssistantCategoryAdvisor {
   });
 }
 
-/// Validator keluaran SLM: hasil hanya diterima bila persis salah satu
-/// kategori resmi (case-insensitive).
 class FfmAssistantCategoryAdviceContract {
   const FfmAssistantCategoryAdviceContract._();
 
@@ -27,20 +23,17 @@ class FfmAssistantCategoryAdviceContract {
     var value = raw.trim();
     try {
       final decoded = jsonDecode(value);
-      if (decoded is Map<String, dynamic>) {
-        final category = decoded['category'];
-        if (category is String && category.trim().isNotEmpty) {
-          value = category.trim();
-        }
+      if (decoded is Map<String, dynamic> && decoded['category'] is String) {
+        value = (decoded['category'] as String).trim();
       }
     } on FormatException {
-      // Bukan JSON — perlakukan sebagai teks biasa.
+      // Treat non-JSON output as plain text.
     }
     if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
       value = value.substring(1, value.length - 1).trim();
     }
-    for (final candidate in allowed) {
-      if (candidate.toLowerCase() == value.toLowerCase()) return candidate;
+    for (final item in allowed) {
+      if (item.toLowerCase() == value.toLowerCase()) return item;
     }
     return null;
   }
@@ -55,7 +48,7 @@ class FfmCategorySuggestion {
 
   final String categoryName;
 
-  /// 'pola penggunaanmu' (Agent) atau 'AI lokal' (SLM).
+  /// Sumber saran kategori yang terverifikasi dari pola penggunaan.
   final String sourceLabel;
 }
 
@@ -65,8 +58,6 @@ class FfmCategorySuggestion {
 /// 1. Lapis Agent (deterministik): pakai pola historis per merchant dari
 ///    koreksi pengguna sebelumnya (`InteractionPatterns`), divalidasi ulang
 ///    terhadap daftar kategori aktif.
-/// 2. Lapis SLM: kalau tidak ada pola kuat, model lokal diminta memilih dari
-///    daftar kategori resmi; jawaban di luar daftar dibuang.
 class FfmCategorySuggestionService {
   FfmCategorySuggestionService({
     required this.database,
@@ -114,27 +105,10 @@ class FfmCategorySuggestionService {
           );
         }
       } on Object {
-        // Pola gagal dibaca → lanjut ke lapis SLM.
+        // Pola gagal dibaca → tidak memberi tebakan kategori.
       }
     }
-
-    // 2. Tebakan SLM dari deskripsi bebas.
-    final categoryAdvisor = advisor;
-    if (categoryAdvisor == null) return null;
-    final description = queryText.trim();
-    if (description.length < 3) return null;
-    try {
-      final raw = await categoryAdvisor.suggestCategory(
-        description: description,
-        allowedCategories: allowed,
-      );
-      if (raw == null) return null;
-      final parsed = FfmAssistantCategoryAdviceContract.parse(raw, allowed);
-      if (parsed == null) return null;
-      return FfmCategorySuggestion(categoryName: parsed, sourceLabel: 'AI lokal');
-    } on Object {
-      return null;
-    }
+    return null;
   }
 
   Future<List<String>> _activeCategoryNames(String type) async {

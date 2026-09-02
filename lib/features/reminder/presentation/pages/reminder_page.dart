@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/services/reminder_sound_picker.dart';
@@ -209,45 +210,92 @@ class _ReminderViewState extends State<_ReminderView> {
               const SizedBox(height: 8),
               ...state.reminders.map(
                 (reminder) => AppCard(
-                  child: ListTile(
-                    onTap: () => _openDialog(context, initial: reminder),
-                    leading: Icon(
-                      reminder.isActive
-                          ? Icons.notifications_active
-                          : Icons.notifications_off,
-                      color: reminder.isActive
-                          ? Theme.of(context).colorScheme.primary
-                          : null,
-                    ),
-                    title: Text(reminder.title),
-                    subtitle: Text(
-                      '${_formatDateTime(reminder.scheduledAt)} · ${reminder.recurrenceType.label}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: reminder.isActive,
-                          onChanged: (value) => context
-                              .read<ReminderBloc>()
-                              .add(ReminderActiveChanged(reminder, value)),
-                        ),
-                        PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _openDialog(context, initial: reminder);
-                            } else if (value == 'hapus') {
-                              context.read<ReminderBloc>().add(
-                                ReminderDeleted(reminder),
-                              );
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(value: 'edit', child: Text('Edit')),
-                            PopupMenuItem(value: 'hapus', child: Text('Hapus')),
-                          ],
-                        ),
-                      ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListTile(
+                      onTap: () => _openDialog(context, initial: reminder),
+                      leading: Icon(
+                        reminder.isActive
+                            ? Icons.notifications_active
+                            : Icons.notifications_off,
+                        color: reminder.isActive
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              reminder.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          _buildCountdownChip(context, reminder),
+                        ],
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_formatDateTime(reminder.scheduledAt)} · ${reminder.recurrenceType.label}',
+                          ),
+                          HijriDateLabel(date: reminder.scheduledAt),
+                          if (reminder.soundName != null &&
+                              reminder.soundName!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.music_note_outlined,
+                                    size: 14,
+                                    color: Theme.of(context).colorScheme.outline,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      reminder.soundName!,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch(
+                            value: reminder.isActive,
+                            onChanged: (value) => context
+                                .read<ReminderBloc>()
+                                .add(ReminderActiveChanged(reminder, value)),
+                          ),
+                          PopupMenuButton<String>(
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                _openDialog(context, initial: reminder);
+                              } else if (value == 'hapus') {
+                                context.read<ReminderBloc>().add(
+                                  ReminderDeleted(reminder),
+                                );
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'edit', child: Text('Edit')),
+                              PopupMenuItem(value: 'hapus', child: Text('Hapus')),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -423,6 +471,63 @@ class _ReminderViewState extends State<_ReminderView> {
     String two(int number) => number.toString().padLeft(2, '0');
     return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
   }
+
+  static String _buildCountdownText(DateTime scheduledAt, bool isActive) {
+    if (!isActive) return 'Nonaktif';
+    final now = DateTime.now();
+    final diff = scheduledAt.difference(now);
+    if (diff.isNegative) {
+      return 'Menunggu giliran / Ditunda';
+    }
+    if (diff.inDays >= 1) {
+      final days = diff.inDays;
+      final hours = diff.inHours % 24;
+      if (hours > 0) {
+        return '$days hr $hours jam lagi';
+      }
+      return '$days hari lagi';
+    }
+    if (diff.inHours >= 1) {
+      final hours = diff.inHours;
+      final mins = diff.inMinutes % 60;
+      if (mins > 0) {
+        return '$hours jam $mins mnt lagi';
+      }
+      return '$hours jam lagi';
+    }
+    if (diff.inMinutes >= 1) {
+      return '${diff.inMinutes} mnt lagi';
+    }
+    return 'Beberapa detik lagi';
+  }
+
+  static Widget _buildCountdownChip(
+    BuildContext context,
+    ReminderEntity reminder,
+  ) {
+    final text = _buildCountdownText(reminder.scheduledAt, reminder.isActive);
+    final isPending =
+        reminder.isActive && !reminder.scheduledAt.isBefore(DateTime.now());
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: isPending
+            ? colorScheme.primaryContainer
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: isPending
+              ? colorScheme.onPrimaryContainer
+              : colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
 }
 
 class _ReminderDialog extends StatefulWidget {
@@ -589,7 +694,13 @@ class _ReminderDialogState extends State<_ReminderDialog> {
           ListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Waktu mulai'),
-            subtitle: Text(_ReminderViewState._formatDateTime(_scheduledAt)),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_ReminderViewState._formatDateTime(_scheduledAt)),
+                HijriDateLabel(date: _scheduledAt),
+              ],
+            ),
             trailing: IconButton(
               icon: const Icon(Icons.edit_calendar),
               onPressed: _pickDateTime,
@@ -608,28 +719,66 @@ class _ReminderDialogState extends State<_ReminderDialog> {
               () => _recurrence = value ?? ReminderRecurrenceType.once,
             ),
           ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.music_note_outlined),
-            title: const Text('Nada notifikasi'),
-            subtitle: Text(_soundName ?? 'Bawaan FFM'),
-            trailing: Wrap(
-              spacing: 4,
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLowest,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_soundUri != null)
-                  IconButton(
-                    tooltip: 'Kembalikan ke nada bawaan',
-                    onPressed: _clearSound,
-                    icon: const Icon(Icons.restart_alt_rounded),
-                  ),
-                OutlinedButton(
-                  onPressed: _pickSound,
-                  child: const Text('Pilih nada'),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.music_note_outlined,
+                      size: 20,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Nada notifikasi',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _soundName ?? 'Bawaan FFM',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _pickSound,
+                        icon: const Icon(Icons.folder_open_outlined, size: 18),
+                        label: const Text('Pilih nada'),
+                      ),
+                    ),
+                    if (_soundUri != null) ...[
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        tooltip: 'Kembalikan ke nada bawaan',
+                        onPressed: _clearSound,
+                        icon: const Icon(Icons.restart_alt_rounded),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
           if (_recurrence == ReminderRecurrenceType.weekly)
             Wrap(
               spacing: 4,

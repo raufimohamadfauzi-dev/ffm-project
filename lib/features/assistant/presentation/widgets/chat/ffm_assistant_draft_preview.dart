@@ -105,6 +105,9 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     'targetSummary' => 'Aktivitas target',
     'beforeTitle' => 'Judul sebelumnya',
     'beforeCategory' => 'Kategori sebelumnya',
+    'newMerchant' => 'Toko baru yang akan dibuat',
+    'newTags' => 'Tag baru yang akan dibuat',
+    'tags' => 'Tag transaksi',
     _ => field,
   };
 
@@ -149,6 +152,7 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
       if (draft.toAccountName != null)
         MapEntry('Tujuan Dana', draft.toAccountName!),
       if (draft.categoryName != null) MapEntry('Kategori', draft.categoryName!),
+      if (draft.merchantName != null) MapEntry('Toko', draft.merchantName!),
       ...draft.formValues.entries.map(
         (field) => MapEntry(
           FfmAssistantDraftPreview.formFieldLabel(field.key),

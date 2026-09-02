@@ -47,6 +47,7 @@ class _FakeGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     receivedModel = model;
@@ -85,6 +86,7 @@ class _SecondCallFailsGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return calls == 1
@@ -112,6 +114,7 @@ class _OutsideMonthReadGemini extends GeminiService {
     List<Map<String, String>> history = const [],
     String? apiKey,
     String? model,
+    List<Map<String, dynamic>>? tools,
   }) async {
     calls++;
     return const GeminiResult(

@@ -72,7 +72,9 @@ class SupabaseConfig {
   }
 
   Future<String> getLlmMode() async {
-    return await _storage.read(key: _llmModeKey) ?? 'auto';
+    // Gemini Cloud is the sole conversational provider. Keep this accessor
+    // for persisted settings migration and diagnostics.
+    return await _storage.read(key: _llmModeKey) ?? 'gemini_cloud';
   }
 
   Future<void> setLlmMode(String mode) async {

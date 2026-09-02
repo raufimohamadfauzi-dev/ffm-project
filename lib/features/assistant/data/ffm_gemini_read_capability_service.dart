@@ -36,6 +36,41 @@ class FfmGeminiReadCapabilityService {
           householdId: householdId,
           now: now,
         );
+      case 'read.goals':
+        return await _financialSnapshot.buildGoalsDigest(
+          householdId: householdId,
+        );
+      case 'read.liabilities':
+      case 'read.debts':
+        return await _financialSnapshot.buildLiabilitiesDigest(
+          householdId: householdId,
+        );
+      case 'read.receivables':
+      case 'read.receivable':
+        return await _financialSnapshot.buildReceivablesDigest(
+          householdId: householdId,
+        );
+      case 'read.activity':
+      case 'read.activities':
+        return await _financialSnapshot.buildActivitiesDigest(
+          householdId: householdId,
+        );
+      case 'read.reminders':
+      case 'read.reminder':
+        return await _financialSnapshot.buildRemindersDigest(
+          householdId: householdId,
+        );
+      case 'read.assets':
+      case 'read.asset':
+        return await _financialSnapshot.buildAssetsDigest(
+          householdId: householdId,
+        );
+      case 'read.budget':
+      case 'read.budgets':
+        return await _financialSnapshot.buildBudgetDigest(
+          householdId: householdId,
+          now: now,
+        );
       default:
         throw StateError('Capability baca tidak diizinkan.');
     }

@@ -125,6 +125,7 @@ void main() {
       expect(
         completed?.steps.map((step) => step.capabilityId),
         equals([
+          'read.reminders',
           'navigate.reminders',
           'draft.reminder_archive',
           'mutate.archive',
@@ -171,6 +172,7 @@ void main() {
     expect(
       completed?.steps.map((step) => step.capabilityId),
       equals([
+        'read.reminders',
         'navigate.reminders',
         'draft.reminder_update',
         'mutate.update',

@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'core/database/app_database.dart';
 import 'core/database/app_context.dart';
+import 'core/database/database_seed.dart';
 import 'core/diagnostics/app_diagnostics_service.dart';
 import 'core/di/injection.dart';
 import 'core/security/app_pin_service.dart';
@@ -53,7 +54,6 @@ import 'features/settings/presentation/pages/pin_security_page.dart';
 import 'features/settings/presentation/pages/supabase_setup_page.dart';
 import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
-import 'features/transaction/presentation/pages/receipt_json_import_page.dart';
 import 'features/assistant/data/ffm_memory_maintenance_service.dart';
 import 'features/assistant/data/ffm_assistant_proactive_monitor.dart';
 import 'features/assistant/data/ffm_assistant_autonomy_background_dispatcher.dart';
@@ -71,6 +71,7 @@ Future<void> main() async {
   await bootstrapDiagnostics.recordInterruptedStartupIfNeeded();
   await bootstrapDiagnostics.markStartupStarted(phase: 'bindings_ready');
   await configureDependencies();
+  await DatabaseSeed.ensure(getIt<AppDatabase>());
   final diagnostics = getIt<AppDiagnosticsService>();
   await diagnostics.markStartupPhase('dependencies_ready');
   await _scheduleAutonomyBackgroundWork(diagnostics);
@@ -533,13 +534,6 @@ class _AppShellState extends State<AppShell> {
         });
       case FfmAssistantWidgetAction.openScan:
         setState(() => _index = 1);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ReceiptJsonImportPage()),
-            );
-          }
-        });
       case null:
         return;
     }
@@ -850,8 +844,9 @@ class _AppShellState extends State<AppShell> {
         );
 
       case FfmAssistantDestination.localModel:
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
+        // Legacy route retained only for persisted intents. The local model
+        // feature was removed; navigation requests must target real pages.
+        return;
       case FfmAssistantDestination.assistantProfile:
         await Navigator.of(
           context,

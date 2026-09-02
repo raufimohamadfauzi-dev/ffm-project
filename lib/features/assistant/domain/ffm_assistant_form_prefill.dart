@@ -41,6 +41,10 @@ abstract final class FfmAssistantFormPrefillMapper {
       'kind': draft.kind.name,
       if (draft.amount != null) 'amount': draft.amount.toString(),
       if (draft.title?.trim().isNotEmpty ?? false) 'title': draft.title!.trim(),
+      if (draft.partyName?.trim().isNotEmpty ?? false)
+        'partyName': draft.partyName!.trim(),
+      if (draft.merchantName?.trim().isNotEmpty ?? false)
+        'merchantName': draft.merchantName!.trim(),
       if (draft.fromAccountName?.trim().isNotEmpty ?? false)
         'fromAccountName': draft.fromAccountName!.trim(),
       if (draft.toAccountName?.trim().isNotEmpty ?? false)
@@ -52,6 +56,7 @@ abstract final class FfmAssistantFormPrefillMapper {
       if (draft.adminFee != null) 'adminFee': draft.adminFee.toString(),
       if (draft.goalName?.trim().isNotEmpty ?? false)
         'goalName': draft.goalName!.trim(),
+      ...draft.formValues,
     };
     final issues = FfmAssistantDraftValidator.validate(draft);
     return FfmAssistantFormPrefill(

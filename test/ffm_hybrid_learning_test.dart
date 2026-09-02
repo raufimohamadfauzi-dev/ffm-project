@@ -141,7 +141,7 @@ void main() {
       expect(suggestion?.sourceLabel, 'pola penggunaanmu');
     });
 
-    test('tanpa pola kuat jatuh ke SLM dan hasilnya divalidasi', () async {
+    test('tanpa pola kuat tidak membuat tebakan kategori lokal', () async {
       await seedExpenseCategory('Transportasi');
       final advisor = _FakeAdvisor('TRANSPORTASI');
       final service = FfmCategorySuggestionService(
@@ -155,9 +155,8 @@ void main() {
         queryText: 'bayar ojek online 15000',
       );
 
-      expect(advisor.callCount, 1);
-      expect(suggestion?.categoryName, 'Transportasi');
-      expect(suggestion?.sourceLabel, 'AI lokal');
+      expect(advisor.callCount, 0);
+      expect(suggestion, isNull);
     });
 
     test('jawaban SLM di luar daftar resmi dibuang', () async {

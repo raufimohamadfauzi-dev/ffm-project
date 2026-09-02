@@ -9,6 +9,8 @@ import 'ffm_assistant_autonomy_background_handler.dart';
 import 'ffm_assistant_autonomy_background_scheduler.dart';
 import 'ffm_assistant_autonomy_worker.dart';
 
+import 'ffm_assistant_proactive_evaluation_task.dart';
+
 @pragma('vm:entry-point')
 void ffmAssistantAutonomyCallbackDispatcher() {
   Workmanager().executeTask((taskName, _) async {
@@ -22,6 +24,9 @@ void ffmAssistantAutonomyCallbackDispatcher() {
       final result = await getIt<FfmAssistantAutonomyWorker>().runOnce(
         getIt<FfmAssistantAutonomyBackgroundEventHandler>().handle,
       );
+      if (getIt.isRegistered<FfmAssistantProactiveEvaluationTask>()) {
+        await getIt<FfmAssistantProactiveEvaluationTask>().evaluateAndPush();
+      }
       return result.failed == 0;
     } on Object {
       return false;

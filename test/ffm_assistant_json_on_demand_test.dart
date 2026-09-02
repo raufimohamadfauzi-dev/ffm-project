@@ -28,6 +28,33 @@ void main() {
     expect(result.error, contains('nama wajib'));
   });
 
+  test('JSON transaksi membawa toko dan tag ke draft', () {
+    final result = FfmAssistantProposalJsonService.parse(
+      '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"title":"Belanja pupuk","fromAccount":"Tunai","category":"Pertanian","merchant":"Toko Tani","tags":"cabai, pupuk"}}',
+      createdAt: DateTime(2026, 8, 31),
+    );
+
+    expect(result.error, isNull);
+    expect(result.draft?.kind, FfmAssistantDraftKind.expense);
+    expect(result.draft?.merchantName, 'Toko Tani');
+    expect(result.draft?.formValues['tags'], 'cabai,pupuk');
+  });
+
+  test('JSON transaksi membawa Data Utama baru ke preview yang sama', () {
+    final result = FfmAssistantProposalJsonService.parse(
+      '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"fromAccount":"Tunai","merchant":"Toko Tani Baru","newMerchant":"Toko Tani Baru","tags":"pupuk","newTags":"pupuk"}}',
+      createdAt: DateTime(2026, 8, 31),
+    );
+
+    expect(result.error, isNull);
+    expect(result.draft?.merchantName, 'Toko Tani Baru');
+    expect(
+      result.draft?.formValues,
+      containsPair('newMerchant', 'Toko Tani Baru'),
+    );
+    expect(result.draft?.formValues, containsPair('newTags', 'pupuk'));
+  });
+
   testWidgets(
     'detail JSON tidak tampil otomatis dan tersedia dari menu eksplisit',
     (tester) async {
@@ -50,7 +77,7 @@ void main() {
               isSpeaking: false,
               teachingSaved: false,
               activityConfirmed: false,
-              onShowTechnical: () {},
+              onToggleTechnicalDetails: () {},
             ),
           ),
         ),

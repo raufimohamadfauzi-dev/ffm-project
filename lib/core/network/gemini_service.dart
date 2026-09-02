@@ -11,15 +11,22 @@ class GeminiModelOption {
   final String displayName;
 }
 
+class GeminiFunctionCall {
+  const GeminiFunctionCall({required this.name, required this.args});
+  final String name;
+  final Map<String, dynamic> args;
+}
+
 class GeminiResult {
-  const GeminiResult({required this.model, required this.statusCode, required this.message, this.text, this.latency, this.diagnosticCode});
+  const GeminiResult({required this.model, required this.statusCode, required this.message, this.text, this.functionCalls, this.latency, this.diagnosticCode});
   final String model;
   final int? statusCode;
   final String message;
   final String? text;
+  final List<GeminiFunctionCall>? functionCalls;
   final Duration? latency;
   final String? diagnosticCode;
-  bool get ok => text != null && text!.trim().isNotEmpty;
+  bool get ok => (text != null && text!.trim().isNotEmpty) || (functionCalls != null && functionCalls!.isNotEmpty);
 }
 
 class GeminiModelsResult {
@@ -36,12 +43,12 @@ class GeminiService {
   final http.Client _client;
   final SupabaseConfig _config;
 
-  Future<GeminiResult> chat({required String prompt, String? systemInstruction, List<Map<String, String>> history = const [], String? apiKey, String? model}) async {
+  Future<GeminiResult> chat({required String prompt, String? systemInstruction, List<Map<String, String>> history = const [], List<Map<String, dynamic>>? tools, String? apiKey, String? model}) async {
     final key = apiKey ?? await _config.getGeminiKey();
     final selectedModel = (model ?? await _config.getGeminiModel())?.trim() ?? '';
     if (key == null || key.trim().isEmpty) return GeminiResult(model: selectedModel, statusCode: null, message: 'API key Gemini belum diisi.', diagnosticCode: GeminiDiagnosticCodes.keyEmpty);
     if (selectedModel.isEmpty) return const GeminiResult(model: '', statusCode: null, message: 'Model Gemini belum dipilih.', diagnosticCode: GeminiDiagnosticCodes.modelEmpty);
-    return _generate(apiKey: key.trim(), model: selectedModel, prompt: prompt, systemInstruction: _hardenSystemInstruction(prompt, systemInstruction), history: history);
+    return _generate(apiKey: key.trim(), model: selectedModel, prompt: prompt, systemInstruction: _hardenSystemInstruction(prompt, systemInstruction), history: history, tools: tools);
   }
 
   String? _hardenSystemInstruction(String prompt, String? systemInstruction) {
@@ -84,12 +91,13 @@ class GeminiService {
 
   Future<List<GeminiModelOption>> listModels({required String apiKey}) async => (await fetchModels(apiKey: apiKey)).models;
 
-  Future<GeminiResult> _generate({required String apiKey, required String model, required String prompt, required String? systemInstruction, required List<Map<String, String>> history}) async {
+  Future<GeminiResult> _generate({required String apiKey, required String model, required String prompt, required String? systemInstruction, required List<Map<String, String>> history, List<Map<String, dynamic>>? tools}) async {
     final url = Uri.https('generativelanguage.googleapis.com', '/v1beta/models/$model:generateContent');
     final stopwatch = Stopwatch()..start();
     try {
       final response = await _client.post(url, headers: {'Content-Type': 'application/json', 'x-goog-api-key': apiKey}, body: jsonEncode({
         if (systemInstruction != null) 'system_instruction': {'parts': [{'text': systemInstruction}]},
+        if (tools != null && tools.isNotEmpty) 'tools': tools,
         'contents': [
           ...history.map((item) => {'role': item['role'] == 'user' ? 'user' : 'model', 'parts': [{'text': item['text'] ?? ''}]}),
           {'role': 'user', 'parts': [{'text': prompt}]},
@@ -98,12 +106,15 @@ class GeminiService {
       })).timeout(const Duration(seconds: 15));
       stopwatch.stop();
       if (response.statusCode != 200) return GeminiResult(model: model, statusCode: response.statusCode, message: _statusMessage(response.statusCode, response.body), latency: stopwatch.elapsed, diagnosticCode: _diagnosticCodeFor(response.statusCode));
-      var text = _extractText(response.body);
-      if (text == null) return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.responseEmpty);
-      if (_proposalGateDenied(systemInstruction) && _containsStructuredProposal(text)) {
-        text = 'Aku bisa membantu menjelaskan atau menganalisisnya, tetapi aku tidak membuat rancangan perubahan data dari kalimat ini. Jika memang ingin mengubah data FFM, sebutkan tindakan secara eksplisit, misalnya “catat…”, “tambahkan…”, atau “ubah…”.';
+      
+      final (text, functionCalls) = _extractContent(response.body);
+      if (text == null && functionCalls == null) return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.responseEmpty);
+      
+      var finalText = text;
+      if (finalText != null && _proposalGateDenied(systemInstruction) && _containsStructuredProposal(finalText)) {
+        finalText = 'Aku bisa membantu menjelaskan atau menganalisisnya, tetapi aku tidak membuat rancangan perubahan data dari kalimat ini. Jika memang ingin mengubah data FFM, sebutkan tindakan secara eksplisit, misalnya “catat…”, “tambahkan…”, atau “ubah…”.';
       }
-      return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).', text: text, latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.chatSuccess);
+      return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).', text: finalText, functionCalls: functionCalls, latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.chatSuccess);
     } on http.ClientException {
       stopwatch.stop();
       return GeminiResult(model: model, statusCode: null, message: 'Koneksi ke Gemini gagal. Periksa internet atau endpoint API.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.network);
@@ -120,19 +131,41 @@ class GeminiService {
   bool _proposalGateDenied(String? instruction) => instruction?.contains('MUTATION_PROPOSAL_GATE: DENY') ?? false;
   bool _containsStructuredProposal(String text) => text.contains('ffm-assistant-proposal-v1') || RegExp(r'"(?:proposal|clarification)"\s*:').hasMatch(text);
 
-  String? _extractText(String body) {
+  (String?, List<GeminiFunctionCall>?) _extractContent(String body) {
     final decoded = jsonDecode(body);
-    if (decoded is! Map<String, dynamic>) return null;
+    if (decoded is! Map<String, dynamic>) return (null, null);
     final candidates = decoded['candidates'];
-    if (candidates is! List || candidates.isEmpty) return null;
+    if (candidates is! List || candidates.isEmpty) return (null, null);
     final first = candidates.first;
-    if (first is! Map<String, dynamic>) return null;
+    if (first is! Map<String, dynamic>) return (null, null);
     final content = first['content'];
-    if (content is! Map<String, dynamic>) return null;
+    if (content is! Map<String, dynamic>) return (null, null);
     final parts = content['parts'];
-    if (parts is! List) return null;
-    final text = parts.whereType<Map<String, dynamic>>().map((part) => part['text']).whereType<String>().join();
-    return text.trim().isEmpty ? null : text.trim();
+    if (parts is! List) return (null, null);
+    
+    final texts = <String>[];
+    final functionCalls = <GeminiFunctionCall>[];
+    
+    for (final part in parts.whereType<Map<String, dynamic>>()) {
+      if (part.containsKey('text')) {
+        texts.add(part['text']);
+      } else if (part.containsKey('functionCall')) {
+        final call = part['functionCall'];
+        if (call is Map<String, dynamic>) {
+          final name = call['name'] as String?;
+          final args = call['args'] as Map<String, dynamic>?;
+          if (name != null) {
+            functionCalls.add(GeminiFunctionCall(name: name, args: args ?? {}));
+          }
+        }
+      }
+    }
+    
+    final finalString = texts.join().trim();
+    return (
+      finalString.isEmpty ? null : finalString, 
+      functionCalls.isEmpty ? null : functionCalls
+    );
   }
 
   String _statusMessage(int statusCode, [String? body]) {

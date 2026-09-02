@@ -153,7 +153,9 @@ class FfmAssistantFinancialSnapshotService {
     int maxCategories = 16,
     int maxIncomeSources = 8,
     int maxGoals = 8,
-    int maxCharacters = 620,
+    int maxTags = 12,
+    int maxMerchants = 12,
+    int maxCharacters = 900,
   }) async {
     final accounts =
         await (_database.select(_database.accounts)..where(
@@ -185,18 +187,36 @@ class FfmAssistantFinancialSnapshotService {
                   row.isActive.equals(true),
             ))
             .get();
+    final tags =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final merchants =
+        await (_database.select(_database.merchants)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
 
     final accountNames = accounts.map((row) => row.name).toList()..sort();
     final categoryNames = categories.map((row) => row.name).toList()..sort();
     final incomeSourceNames = incomeSources.map((row) => row.name).toList()
       ..sort();
     final goalNames = goals.map((row) => row.name).toList()..sort();
+    final tagNames = tags.map((row) => row.name).toList()..sort();
+    final merchantNames = merchants.map((row) => row.name).toList()..sort();
     final context =
         'Data Utama lokal (nama saja; tanpa saldo, ID, atau detail): '
         'rekening_aktif=${_nameList(accountNames, maxAccounts)}; '
         'kategori_aktif=${_nameList(categoryNames, maxCategories)}; '
         'sumber_pemasukan_aktif=${_nameList(incomeSourceNames, maxIncomeSources)}; '
-        'target_aktif=${_nameList(goalNames, maxGoals)}. '
+        'target_aktif=${_nameList(goalNames, maxGoals)}; '
+        'tag_aktif=${_nameList(tagNames, maxTags)}; '
+        'toko_aktif=${_nameList(merchantNames, maxMerchants)}. '
         'Gunakan hanya nama yang tercantum sebagai evidence; jangan membuat nama baru.';
     return _clip(context, maxCharacters);
   }
@@ -405,6 +425,36 @@ class FfmAssistantFinancialSnapshotService {
     );
   }
 
+  /// Digest aset untuk capability cloud.
+  Future<String> buildAssetsDigest({
+    required String householdId,
+    int maxItems = 10,
+    int maxCharacters = 700,
+  }) async {
+    final assets =
+        await (_database.select(_database.assets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    if (assets.isEmpty) {
+      return 'Assets digest: belum ada aset.';
+    }
+    assets.sort((a, b) => b.value.compareTo(a.value));
+    final visible = assets.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|type=${row.assetType}|value=${row.value}';
+        })
+        .toList(growable: false);
+    final suffix = assets.length > maxItems
+        ? '; … (+${assets.length - maxItems} lebih)'
+        : '';
+    return _clip('Assets digest: ${lines.join('; ')}$suffix.', maxCharacters);
+  }
+
   /// Digest kategori untuk capability cloud.
   Future<String> buildCategoriesDigest({
     required String householdId,
@@ -466,6 +516,200 @@ class FfmAssistantFinancialSnapshotService {
         : '';
     return _clip(
       'Goals digest (hanya target aktif): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest hutang untuk capability cloud.
+  Future<String> buildLiabilitiesDigest({
+    required String householdId,
+    int maxItems = 8,
+    int maxCharacters = 700,
+  }) async {
+    final liabilities =
+        await (_database.select(_database.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    if (liabilities.isEmpty) {
+      return 'Liabilities digest: tidak ada hutang aktif.';
+    }
+    liabilities.sort((a, b) => a.name.compareTo(b.name));
+    final visible = liabilities.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|sisa=${row.remainingBalance}|cicilan_bulanan=${row.monthlyInstallment}';
+        })
+        .toList(growable: false);
+    final suffix = liabilities.length > maxItems
+        ? '; … (+${liabilities.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Liabilities digest (hanya hutang aktif): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest piutang untuk capability cloud.
+  Future<String> buildReceivablesDigest({
+    required String householdId,
+    int maxItems = 8,
+    int maxCharacters = 700,
+  }) async {
+    final receivables =
+        await (_database.select(_database.receivables)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    if (receivables.isEmpty) {
+      return 'Receivables digest: tidak ada piutang aktif.';
+    }
+    receivables.sort((a, b) => a.name.compareTo(b.name));
+    final visible = receivables.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return '$name|sisa_tertagih=${row.remainingBalance}';
+        })
+        .toList(growable: false);
+    final suffix = receivables.length > maxItems
+        ? '; … (+${receivables.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Receivables digest (hanya piutang aktif): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest aktivitas prioritas untuk capability cloud.
+  Future<String> buildActivitiesDigest({
+    required String householdId,
+    int maxItems = 10,
+    int maxCharacters = 800,
+  }) async {
+    final sessions =
+        await (_database.select(_database.activitySessions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.status.equals('active'),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.priority)]))
+            .get();
+    if (sessions.isEmpty) {
+      return 'Activities digest: tidak ada aktivitas aktif.';
+    }
+    final visible = sessions.take(maxItems).toList(growable: false);
+    final lines = visible
+        .map((row) {
+          final name = row.title.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          final priorityLabel = row.priority > 0 ? '[PRIORITAS] ' : '';
+          final note = (row.notes != null && row.notes!.trim().isNotEmpty)
+              ? '|catatan=${row.notes!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim()}'
+              : '';
+          return '$priorityLabel$name|kategori=${row.category}$note';
+        })
+        .toList(growable: false);
+    final suffix = sessions.length > maxItems
+        ? '; … (+${sessions.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Activities digest (aktivitas & prioritas berjalan): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
+  /// Digest pengingat aktif untuk capability cloud.
+  Future<String> buildRemindersDigest({
+    required String householdId,
+    int maxItems = 10,
+    int maxCharacters = 800,
+  }) async {
+    final reminders =
+        await (_database.select(_database.reminders)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    if (reminders.isEmpty) {
+      return 'Reminders digest: belum ada pengingat aktif.';
+    }
+    reminders.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+
+    // Ambil riwayat pending/snoozed terbaru untuk konteks.
+    final pendingHistories =
+        await (_database.select(_database.reminderHistories)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  (row.status.equals('pending') | row.status.equals('snoozed')),
+            ))
+            .get();
+    final pendingByReminderId = <String, String>{};
+    for (final h in pendingHistories) {
+      pendingByReminderId[h.reminderId] = h.status;
+    }
+
+    final visible = reminders.take(maxItems).toList(growable: false);
+    final dayNames = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final lines = visible
+        .map((row) {
+          final title = row.title.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          final local = row.scheduledAt.toLocal();
+          final dateStr =
+              '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
+          final timeStr =
+              '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+          final recurrence = row.recurrenceType;
+          final recurrenceLabel = switch (recurrence) {
+            'daily' => 'harian',
+            'weekly' => 'mingguan',
+            _ => 'sekali',
+          };
+          var info = '$title|waktu=$dateStr $timeStr|ulang=$recurrenceLabel';
+          if (recurrence == 'weekly') {
+            try {
+              final weekdays = row.weekdaysJson;
+              if (weekdays.isNotEmpty && weekdays != '[]') {
+                final decoded = (weekdays.startsWith('['))
+                    ? weekdays
+                          .replaceAll('[', '')
+                          .replaceAll(']', '')
+                          .split(',')
+                          .map((s) => int.tryParse(s.trim()))
+                          .whereType<int>()
+                          .map((d) => (d >= 1 && d <= 7) ? dayNames[d] : '$d')
+                          .join(',')
+                    : weekdays;
+                info += '|hari=$decoded';
+              }
+            } on Object {
+              // Abaikan parse error weekdays.
+            }
+          }
+          if (row.note != null && row.note!.trim().isNotEmpty) {
+            final note = row.note!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+            info += '|catatan=$note';
+          }
+          final pendingStatus = pendingByReminderId[row.id];
+          if (pendingStatus != null) {
+            info +=
+                '|riwayat=${pendingStatus == 'snoozed' ? 'ditunda' : 'menunggu'}';
+          }
+          return info;
+        })
+        .toList(growable: false);
+    final suffix = reminders.length > maxItems
+        ? '; … (+${reminders.length - maxItems} lebih)'
+        : '';
+    return _clip(
+      'Reminders digest (pengingat aktif): ${lines.join('; ')}$suffix.',
       maxCharacters,
     );
   }

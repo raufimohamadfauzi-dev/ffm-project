@@ -2913,26 +2913,101 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Idempotency key sudah dipakai oleh transaksi dengan isi berbeda.',
       );
     }
+    final merchantName = step.parameters['assistantMerchantName']
+        ?.toString()
+        .trim();
+    final merchant = await _findMerchant(merchantName);
+    final newMerchantName = _singleName(step.parameters['newMerchant']);
+    if (merchant != null && newMerchantName != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Toko "$merchantName" sudah ada; draft tidak perlu membuat toko baru.',
+      );
+    }
+    if (merchant == null && merchantName != null && merchantName.isNotEmpty) {
+      if (newMerchantName != merchantName) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Toko "$merchantName" belum ada. Draft harus menandainya sebagai toko baru yang sama persis.',
+        );
+      }
+    } else if (newMerchantName != null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Draft toko baru tidak cocok dengan toko transaksi.',
+      );
+    }
+    final tagNames = _csvValues(step.parameters['tags']);
+    final tags = await _findTags(tagNames);
+    final existingTagNames = tags.map((tag) => tag.name as String).toSet();
+    final missingTagNames = tagNames
+        .where((name) => !existingTagNames.contains(name))
+        .toSet();
+    final newTagNames = _csvValues(step.parameters['newTags']).toSet();
+    if (!_sameNames(missingTagNames, newTagNames)) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Tag baru pada draft harus sama persis dengan tag transaksi yang belum ada.',
+      );
+    }
     final date = _dateParameter(step.parameters['date']) ?? _clock();
     final note = step.parameters['note']?.toString().trim();
     final party = step.parameters['party']?.toString().trim();
     final linkedActivityId = step.parameters['linkedActivityId']?.toString();
-    final entity = TransactionEntity(
-      id: id,
-      householdId: _householdId,
-      date: date,
-      amount: kind == 'income' ? amount : -amount,
-      owner: 'Keluarga',
-      categoryId: category?.id,
-      note: note == null || note.isEmpty ? null : note,
-      source: 'assistant_orchestrator',
-      accountId: account.id,
-      partyName: party == null || party.isEmpty ? null : party,
-      linkedActivityId: linkedActivityId,
-      recordedAt: _clock(),
-      updatedAt: _clock(),
-    );
-    await SaveTransaction(_database)(entity);
+    String? merchantId = merchant?.id;
+    final tagIds = <String>{for (final tag in tags) tag.id};
+    await _database.transaction(() async {
+      if (newMerchantName != null) {
+        merchantId = _stableId('$idempotencyKey:merchant:$newMerchantName');
+        await _database
+            .into(_database.merchants)
+            .insert(
+              MerchantsCompanion.insert(
+                id: merchantId!,
+                householdId: _householdId,
+                name: newMerchantName,
+                createdAt: _clock(),
+              ),
+            );
+      }
+      for (final tagName in missingTagNames) {
+        final tagId = _stableId('$idempotencyKey:tag:$tagName');
+        await _database
+            .into(_database.tags)
+            .insert(
+              TagsCompanion.insert(
+                id: tagId,
+                householdId: _householdId,
+                name: tagName,
+                createdAt: _clock(),
+              ),
+            );
+        tagIds.add(tagId);
+      }
+      final entity = TransactionEntity(
+        id: id,
+        householdId: _householdId,
+        date: date,
+        amount: kind == 'income' ? amount : -amount,
+        owner: 'Keluarga',
+        categoryId: category?.id,
+        note: note == null || note.isEmpty ? null : note,
+        source: 'assistant_orchestrator',
+        accountId: account.id,
+        merchantId: merchantId,
+        partyName: party == null || party.isEmpty ? null : party,
+        linkedActivityId: linkedActivityId,
+        recordedAt: _clock(),
+        updatedAt: _clock(),
+      );
+      await SaveTransaction(_database)(entity);
+      await (_database.delete(
+        _database.transactionTags,
+      )..where((row) => row.transactionId.equals(id))).go();
+      for (final tagId in tagIds) {
+        await _database
+            .into(_database.transactionTags)
+            .insert(
+              TransactionTagsCompanion.insert(transactionId: id, tagId: tagId),
+            );
+      }
+    });
     await _recordDraftCorrections(
       parameters: step.parameters,
       finalCategory: categoryName,
@@ -3398,6 +3473,50 @@ class FfmAssistantCapabilityAdapterRegistry {
     return rows.length == 1 ? rows.single : null;
   }
 
+  Future<dynamic> _findMerchant(String? name) async {
+    if (name == null || name.isEmpty) return null;
+    final rows =
+        await (_database.select(_database.merchants)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.isActive.equals(true) &
+                  row.name.equals(name),
+            ))
+            .get();
+    return rows.length == 1 ? rows.single : null;
+  }
+
+  Future<List<dynamic>> _findTags(List<String> names) async {
+    if (names.isEmpty) return const [];
+    final rows =
+        await (_database.select(_database.tags)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.isArchived.equals(false) &
+                  row.name.isIn(names),
+            ))
+            .get();
+    return rows;
+  }
+
+  List<String> _csvValues(Object? value) {
+    if (value is! String) return const [];
+    return value
+        .split(',')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+  }
+
+  String? _singleName(Object? value) {
+    final names = _csvValues(value);
+    return names.length == 1 ? names.single : null;
+  }
+
+  bool _sameNames(Set<String> left, Set<String> right) =>
+      left.length == right.length && left.containsAll(right);
+
   int? _positiveInt(Object? value) {
     if (value is int) return value;
     if (value is num) return value.round();
@@ -3651,9 +3770,42 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Belum ada pengingat aktif.',
       );
     }
+    rows.sort((a, b) => a.scheduledAt.compareTo(b.scheduledAt));
+    final dayNames = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
     final lines = rows.take(10).map((row) {
-      final date = row.scheduledAt.toIso8601String().substring(0, 10);
-      return '${row.title} pada $date';
+      final local = row.scheduledAt.toLocal();
+      final date =
+          '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
+      final time =
+          '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+      final recurrence = switch (row.recurrenceType) {
+        'daily' => ' (harian)',
+        'weekly' => ' (mingguan)',
+        _ => '',
+      };
+      var info = '${row.title} pada $date $time$recurrence';
+      if (row.recurrenceType == 'weekly') {
+        try {
+          final wj = row.weekdaysJson;
+          if (wj.isNotEmpty && wj != '[]') {
+            final days = wj
+                .replaceAll('[', '')
+                .replaceAll(']', '')
+                .split(',')
+                .map((s) => int.tryParse(s.trim()))
+                .whereType<int>()
+                .map((d) => (d >= 1 && d <= 7) ? dayNames[d] : '$d')
+                .join(',');
+            if (days.isNotEmpty) info += ' hari=$days';
+          }
+        } on Object {
+          // Abaikan.
+        }
+      }
+      if (row.note != null && row.note!.trim().isNotEmpty) {
+        info += ' catatan=${row.note!.trim()}';
+      }
+      return info;
     });
     return FfmAssistantCapabilityExecutionResult.success(
       'Pengingat aktif (${rows.length}): ${lines.join('; ')}.',

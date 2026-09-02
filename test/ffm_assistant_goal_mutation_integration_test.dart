@@ -109,6 +109,7 @@ void main() {
       expect(
         completed?.steps.map((step) => step.capabilityId),
         equals([
+          'read.goals',
           'navigate.goals',
           'draft.goal_update',
           'mutate.update',

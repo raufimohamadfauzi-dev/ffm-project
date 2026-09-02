@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/database/app_context.dart';
 import '../../core/di/injection.dart';
 import '../../features/hijri/domain/hijri_calendar_service.dart';
+import '../../features/hijri/presentation/pages/hijri_settings_page.dart';
 import 'date_time_components.dart';
 
 const _hijriMonths = <String>[
@@ -34,6 +35,7 @@ class HijriDateText extends StatelessWidget {
     this.includeSeconds = false,
     this.compact = false,
     this.color,
+    this.interactive = true,
   });
 
   final DateTime date;
@@ -41,13 +43,20 @@ class HijriDateText extends StatelessWidget {
   final bool includeSeconds;
   final bool compact;
   final Color? color;
+  final bool interactive;
+
+  void _openSettings(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const HijriSettingsPage()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final textStyle = compact
         ? Theme.of(context).textTheme.bodySmall
         : Theme.of(context).textTheme.bodyMedium;
-    return FutureBuilder<HijriDisplayDate>(
+    final child = FutureBuilder<HijriDisplayDate>(
       future: getIt<HijriCalendarService>().convert(
         AppContext.householdId,
         date,
@@ -75,6 +84,13 @@ class HijriDateText extends StatelessWidget {
           ],
         );
       },
+    );
+
+    if (!interactive) return child;
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: () => _openSettings(context),
+      child: child,
     );
   }
 }

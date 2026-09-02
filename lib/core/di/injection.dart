@@ -28,10 +28,6 @@ import '../../features/assistant/data/ffm_assistant_intent_classification_servic
 import '../../features/assistant/data/ffm_personal_memory_service.dart';
 import '../../features/assistant/data/ffm_memory_learning_service.dart';
 import '../../features/assistant/data/ffm_memory_maintenance_service.dart';
-import '../../features/assistant/data/ffm_local_model_service.dart';
-import '../../features/assistant/data/ffm_local_inference_queue.dart';
-import '../../features/assistant/data/ffm_qwen2vl_inference_service.dart';
-import '../../features/assistant/data/ffm_qwen2vl_gateway.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_repository.dart';
@@ -42,6 +38,7 @@ import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
+import '../../features/assistant/data/ffm_assistant_proactive_evaluation_task.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
@@ -229,6 +226,15 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       getIt<FfmAssistantAutonomyRepository>(),
     ),
   );
+  getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
+    FfmAssistantChatHistoryRepository.new,
+  );
+  getIt.registerLazySingleton<FfmAssistantProactiveEvaluationTask>(
+    () => FfmAssistantProactiveEvaluationTask(
+      db,
+      getIt<FfmAssistantChatHistoryRepository>(),
+    ),
+  );
   getIt.registerLazySingleton<FfmAssistantAutonomyWorker>(
     () => FfmAssistantAutonomyWorker(
       repository: getIt<FfmAssistantAutonomyRepository>(),
@@ -304,35 +310,16 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmCategorySuggestionService(
       database: db,
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
-      advisor: getIt<FfmQwen2VlGateway>(),
-    ),
-  );
-  getIt.registerLazySingleton<FfmLocalModelService>(FfmLocalModelService.new);
-  getIt.registerLazySingleton<FfmQwen2VlInferenceService>(
-    () => FfmQwen2VlInferenceService(
-      FfmSingleInferenceQueue(),
-      healthMonitor: null,
-    ),
-  );
-  getIt.registerLazySingleton<FfmQwen2VlGateway>(
-    () => FfmQwen2VlGateway(
-      getIt<FfmLocalModelService>(),
-      getIt<FfmQwen2VlInferenceService>(),
-      errorLogger: getIt<FfmErrorLoggingService>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantInterpreter>(
     () => FfmAssistantInterpreter(
       db,
       memory: getIt<FfmAssistantLocalMemory>(),
-      modelGateway: getIt<FfmQwen2VlGateway>(),
       diagnostics: getIt<AppDiagnosticsService>(),
       taughtMemory: getIt<FfmAssistantMemoryRepository>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
-      slmReadyCheck: () async =>
-          await getIt<FfmLocalModelService>().getInstalled() != null,
-      answerComposer: getIt<FfmQwen2VlGateway>(),
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
     ),
   );

@@ -39,6 +39,8 @@ void main() {
 
     expect(plan, isNotNull);
     expect(plan!.steps.map((step) => step.capabilityId), [
+      'read.accounts',
+      'read.categories',
       'navigate.transactions',
       'draft.expense',
       'mutate.save_draft',

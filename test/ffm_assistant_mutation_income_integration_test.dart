@@ -82,7 +82,7 @@ void main() {
         completed?.steps.where(
           (step) => step.status == FfmAssistantActionStepStatus.completed,
         ),
-        hasLength(3),
+        hasLength(5),
       );
       final rows = await (database.select(
         database.transactions,

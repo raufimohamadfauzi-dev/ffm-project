@@ -94,6 +94,150 @@ void main() {
     expect(verified.message, contains('aset “Dana darurat”'));
   });
 
+  test('simpan draft transaksi menghubungkan toko dan tag resmi', () async {
+    final now = DateTime(2026, 8, 23);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'cash',
+            householdId: 'local-household',
+            name: 'Tunai',
+            type: 'cash',
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.merchants)
+        .insert(
+          MerchantsCompanion.insert(
+            id: 'toko-tani',
+            householdId: 'local-household',
+            name: 'Toko Tani',
+            createdAt: now,
+          ),
+        );
+    for (final tag in ['Cabai', 'Pupuk']) {
+      await database
+          .into(database.tags)
+          .insert(
+            TagsCompanion.insert(
+              id: tag.toLowerCase(),
+              householdId: 'local-household',
+              name: tag,
+              createdAt: now,
+            ),
+          );
+    }
+
+    final result = await adapters.handlers['mutate.save_draft']!(
+      const FfmAssistantActionStep(
+        id: 'save-transaction-tags',
+        capabilityId: 'mutate.save_draft',
+        parameters: {
+          'kind': 'expense',
+          'amount': 25000,
+          'fromAccount': 'Tunai',
+          'assistantMerchantName': 'Toko Tani',
+          'tags': 'Cabai,Pupuk',
+          '_idempotencyKey': 'transaction-tags',
+        },
+      ),
+    );
+
+    expect(result.isSuccess, isTrue, reason: result.message);
+    expect(
+      (await database.select(database.transactions).getSingle()).merchantId,
+      'toko-tani',
+    );
+    final links = await database.select(database.transactionTags).get();
+    expect(links.map((row) => row.tagId).toSet(), {'cabai', 'pupuk'});
+  });
+
+  test('simpan draft atomik membuat toko, tag, dan transaksi baru', () async {
+    final now = DateTime(2026, 8, 23);
+    await database
+        .into(database.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            id: 'cash',
+            householdId: 'local-household',
+            name: 'Tunai',
+            type: 'cash',
+            createdAt: now,
+          ),
+        );
+
+    const step = FfmAssistantActionStep(
+      id: 'save-transaction-new-master-data',
+      capabilityId: 'mutate.save_draft',
+      parameters: {
+        'kind': 'expense',
+        'amount': 25000,
+        'fromAccount': 'Tunai',
+        'assistantMerchantName': 'Toko Tani Baru',
+        'newMerchant': 'Toko Tani Baru',
+        'tags': 'Pupuk',
+        'newTags': 'Pupuk',
+        '_idempotencyKey': 'transaction-new-master-data',
+      },
+    );
+    final result = await adapters.handlers['mutate.save_draft']!(step);
+
+    expect(result.isSuccess, isTrue, reason: result.message);
+    expect(
+      (await database.select(database.merchants).getSingle()).name,
+      'Toko Tani Baru',
+    );
+    expect((await database.select(database.tags).getSingle()).name, 'Pupuk');
+    expect(await database.select(database.transactions).get(), hasLength(1));
+    expect(await database.select(database.transactionTags).get(), hasLength(1));
+
+    final retried = await adapters.handlers['mutate.save_draft']!(step);
+    expect(retried.isSuccess, isTrue, reason: retried.message);
+    expect(retried.message, contains('alreadyApplied'));
+    expect(await database.select(database.merchants).get(), hasLength(1));
+    expect(await database.select(database.tags).get(), hasLength(1));
+    expect(await database.select(database.transactions).get(), hasLength(1));
+  });
+
+  test(
+    'draft master data baru yang tidak konsisten ditolak tanpa menyimpan',
+    () async {
+      final now = DateTime(2026, 8, 23);
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'cash',
+              householdId: 'local-household',
+              name: 'Tunai',
+              type: 'cash',
+              createdAt: now,
+            ),
+          );
+
+      final result = await adapters.handlers['mutate.save_draft']!(
+        const FfmAssistantActionStep(
+          id: 'reject-transaction-new-master-data',
+          capabilityId: 'mutate.save_draft',
+          parameters: {
+            'kind': 'expense',
+            'amount': 25000,
+            'fromAccount': 'Tunai',
+            'tags': 'Pupuk',
+            'newTags': 'Bukan Pupuk',
+            '_idempotencyKey': 'reject-transaction-new-master-data',
+          },
+        ),
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(await database.select(database.tags).get(), isEmpty);
+      expect(await database.select(database.transactions).get(), isEmpty);
+    },
+  );
+
   test(
     'verifikasi pengingat gagal bila data belum benar-benar tersimpan',
     () async {

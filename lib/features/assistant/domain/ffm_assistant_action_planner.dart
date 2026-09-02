@@ -10,12 +10,12 @@ class FfmAssistantActionPlanner {
   FfmAssistantActionPlan? planFor(FfmAssistantIntent intent) {
     final steps = <FfmAssistantActionStep>[];
     final planId = _planId(intent);
-    final readCapability = _readCapabilityFor(intent.type);
-    if (readCapability != null) {
+    final prerequisiteReads = _prerequisiteReadCapabilitiesFor(intent);
+    for (var i = 0; i < prerequisiteReads.length; i++) {
       steps.add(
         FfmAssistantActionStep(
-          id: 'read',
-          capabilityId: readCapability,
+          id: prerequisiteReads.length == 1 ? 'read' : 'read_${i + 1}',
+          capabilityId: prerequisiteReads[i],
           parameters: {'query': intent.normalizedText},
         ),
       );
@@ -287,6 +287,56 @@ class FfmAssistantActionPlanner {
     FfmAssistantIntentType.financialWarnings => 'read.analysis',
     _ => null,
   };
+
+  List<String> _prerequisiteReadCapabilitiesFor(FfmAssistantIntent intent) {
+    final reads = <String>[];
+    final explicitRead = _readCapabilityFor(intent.type);
+    if (explicitRead != null) {
+      reads.add(explicitRead);
+    }
+
+    final draft = intent.draft;
+    if (draft != null) {
+      final draftReads = switch (draft.kind) {
+        FfmAssistantDraftKind.income ||
+        FfmAssistantDraftKind.expense => ['read.accounts', 'read.categories'],
+        FfmAssistantDraftKind.transfer => ['read.accounts'],
+        FfmAssistantDraftKind.goalDeposit ||
+        FfmAssistantDraftKind.goalUsage ||
+        FfmAssistantDraftKind.goal ||
+        FfmAssistantDraftKind.goalUpdate ||
+        FfmAssistantDraftKind.goalArchive => ['read.goals'],
+        FfmAssistantDraftKind.liability ||
+        FfmAssistantDraftKind.liabilityUpdate ||
+        FfmAssistantDraftKind.liabilityArchive => ['read.liabilities'],
+        FfmAssistantDraftKind.receivable ||
+        FfmAssistantDraftKind.receivableUpdate ||
+        FfmAssistantDraftKind.receivableArchive => ['read.receivable'],
+        FfmAssistantDraftKind.asset ||
+        FfmAssistantDraftKind.assetUpdate ||
+        FfmAssistantDraftKind.assetArchive => ['read.assets'],
+        FfmAssistantDraftKind.budget ||
+        FfmAssistantDraftKind.budgetUpdate ||
+        FfmAssistantDraftKind.budgetArchive => ['read.budget'],
+        FfmAssistantDraftKind.activity ||
+        FfmAssistantDraftKind.activityArchive ||
+        FfmAssistantDraftKind.activityDelete ||
+        FfmAssistantDraftKind.activityFinish ||
+        FfmAssistantDraftKind.activityUpdate ||
+        FfmAssistantDraftKind.activityEdit => ['read.activity'],
+        FfmAssistantDraftKind.reminder ||
+        FfmAssistantDraftKind.reminderUpdate ||
+        FfmAssistantDraftKind.reminderArchive => ['read.reminders'],
+        _ => <String>[],
+      };
+      for (final r in draftReads) {
+        if (!reads.contains(r)) {
+          reads.add(r);
+        }
+      }
+    }
+    return reads;
+  }
 
   Map<String, Object?> _draftParameters(FfmAssistantDraft draft) => {
     'kind': draft.kind.name,
