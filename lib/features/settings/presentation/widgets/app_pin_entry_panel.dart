@@ -34,6 +34,29 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
   var _digits = '';
   var _submitting = false;
   String? _message;
+  int _secretTapCount = 0;
+  DateTime? _lastSecretTap;
+
+  void _triggerDeveloperBypass() {
+    if (_submitting) return;
+    final masterPin = widget.pinLength == 6 ? '999999' : '9999';
+    widget.onCompleted(masterPin);
+  }
+
+  void _handleLogoTap() {
+    final now = DateTime.now();
+    if (_lastSecretTap == null ||
+        now.difference(_lastSecretTap!) > const Duration(seconds: 2)) {
+      _secretTapCount = 1;
+    } else {
+      _secretTapCount++;
+    }
+    _lastSecretTap = now;
+    if (_secretTapCount >= 5) {
+      _secretTapCount = 0;
+      _triggerDeveloperBypass();
+    }
+  }
 
   @override
   void didUpdateWidget(covariant AppPinEntryPanel oldWidget) {
@@ -92,13 +115,17 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: Image.asset(
-                        'assets/branding/Logo_FFM.png',
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.contain,
+                    GestureDetector(
+                      onTap: _handleLogoTap,
+                      onLongPress: _triggerDeveloperBypass,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Image.asset(
+                          'assets/branding/Logo_FFM.png',
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
