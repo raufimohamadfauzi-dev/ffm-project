@@ -113,4 +113,46 @@ void main() {
       );
     },
   );
+
+  test(
+    'resolver menolak capability mutasi atau yang butuh konfirmasi pada background task',
+    () async {
+      const householdId = 'household-a';
+      final goal = FfmAssistantAgentGoal(
+        id: 'mutation-goal',
+        householdId: householdId,
+        domain: 'finance',
+        title: 'Goal mutasi',
+        objective: 'Uji tolak mutasi background.',
+        createdAt: DateTime(2026, 9, 1),
+        updatedAt: DateTime(2026, 9, 1),
+      );
+      await repository.createGoal(goal);
+      final task = FfmAssistantAgentTask(
+        id: 'mutation-task',
+        goalId: goal.id,
+        householdId: householdId,
+        title: 'Eksekusi mutasi langsung',
+        capabilityId: 'mutate.save_draft',
+        parameters: const {'draftId': '123'},
+        createdAt: DateTime(2026, 9, 1),
+        updatedAt: DateTime(2026, 9, 1),
+      );
+      await repository.createTask(task);
+
+      final resolver = FfmAssistantAgentTaskPlanResolver(repository);
+      final plan = await resolver.resolve(
+        FfmAssistantAutonomyEvent(
+          id: 'mutation-event',
+          type: 'agent.task.due',
+          householdId: householdId,
+          occurredAt: DateTime(2026, 9, 1),
+          payload: {'taskId': task.id},
+        ),
+      );
+
+      // Mutasi dilarang dieksekusi secara otomatis dari background event
+      expect(plan, isNull);
+    },
+  );
 }

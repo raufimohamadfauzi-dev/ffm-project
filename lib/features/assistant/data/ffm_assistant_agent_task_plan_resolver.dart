@@ -31,6 +31,13 @@ class FfmAssistantAgentTaskPlanResolver {
     final capability = FfmAssistantCapabilityRegistry.find(capabilityId);
     if (capability == null) return null;
 
+    // Background autonomous tasks must never silently execute financial mutations.
+    // They are strictly restricted to readOnly and safe prepare work.
+    if (capability.risk.index >= FfmAssistantCapabilityRisk.mutation.index ||
+        capability.requiresConfirmation) {
+      return null;
+    }
+
     final parameters = _decodeParameters(task.parametersJson);
     if (parameters == null) return null;
     final runId = 'agent-task:${task.id}:${event.id}';
@@ -38,9 +45,7 @@ class FfmAssistantAgentTaskPlanResolver {
       id: runId,
       summary: task.title,
       createdAt: _now(),
-      requiresConfirmation:
-          capability.requiresConfirmation ||
-          capability.risk.index >= FfmAssistantCapabilityRisk.mutation.index,
+      requiresConfirmation: false,
       steps: [
         FfmAssistantActionStep(
           id: '${task.id}:execute',

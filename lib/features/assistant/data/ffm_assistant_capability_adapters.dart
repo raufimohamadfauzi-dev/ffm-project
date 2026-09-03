@@ -19,6 +19,7 @@ import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../liability/domain/entities/liability_entity.dart';
 import '../../liability/domain/usecases/liability_crud_usecases.dart';
+import '../../liability/domain/usecases/process_debt_payment.dart';
 import '../../receivable/domain/entities/receivable_entity.dart';
 import '../../receivable/domain/usecases/receivable_crud_usecases.dart';
 import '../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
@@ -33,13 +34,18 @@ import 'ffm_assistant_personalization_repository.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
-    required this._database,
-    required this._householdId,
+    required AppDatabase database,
+    required String householdId,
     DateTime Function()? clock,
-    this._reminderMutations,
-    this._habitLearner,
-    this._personalization,
-  }) : _clock = clock ?? DateTime.now;
+    FfmAssistantReminderMutationService? reminderMutations,
+    FfmActivityHabitLearner? habitLearner,
+    FfmAssistantPersonalizationRepository? personalization,
+  })  : _database = database, // ignore: prefer_initializing_formals
+        _householdId = householdId, // ignore: prefer_initializing_formals
+        _clock = clock ?? DateTime.now,
+        _reminderMutations = reminderMutations, // ignore: prefer_initializing_formals
+        _habitLearner = habitLearner, // ignore: prefer_initializing_formals
+        _personalization = personalization; // ignore: prefer_initializing_formals
 
   final AppDatabase _database;
   final String _householdId;
@@ -114,9 +120,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.asset_update': _prepareAssetMutation,
     'draft.asset_archive': _prepareAssetMutation,
     'draft.liability': _prepareDraft,
+    'draft.liability_payment': _prepareDebtPayment,
     'draft.liability_update': _prepareLiabilityMutation,
     'draft.liability_archive': _prepareLiabilityMutation,
     'draft.receivable': _prepareDraft,
+    'draft.receivable_payment': _prepareDebtPayment,
     'draft.receivable_update': _prepareReceivableMutation,
     'draft.receivable_archive': _prepareReceivableMutation,
     'draft.recurring_transaction_update': _prepareRecurringTransactionMutation,
@@ -131,10 +139,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     'draft.reminder_update': _prepareReminderMutation,
     'draft.reminder_archive': _prepareReminderMutation,
     'mutate.save_draft': _saveDraft,
+    'mutate.debt_payment': _processDebtPaymentMutation,
     'mutate.update': _updateTransaction,
     'mutate.archive': _archiveMutation,
     'sensitive.delete': _deleteMutation,
     'verify.saved_draft': _verifySavedDraft,
+    'verify.debt_payment': _verifyDebtPayment,
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
     'verify.daily_note_mutation': _verifyActivityMutation,
@@ -506,6 +516,39 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
   ) => _setTransactionVisibility(step, archive: true);
 
+  Future<FfmAssistantCapabilityExecutionResult> _prepareDebtPayment(
+    FfmAssistantActionStep step,
+  ) async {
+    final targetId = _targetId(step);
+    final entity = step.parameters['entity']?.toString();
+    final amount = _positiveInt(step.parameters['amount']);
+    if (entity == 'liability') {
+      final target = await _liabilityById(targetId);
+      if (target == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Hutang target tidak ditemukan atau sudah diarsipkan.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview pembayaran Hutang “${target.name}” sebesar ${_money(amount ?? target.remainingBalance)}. Setelah disetujui, saldo Hutang akan berkurang dan transaksi kas akan dicatat bila rekening tersedia.',
+      );
+    }
+    if (entity == 'receivable') {
+      final target = await _receivableById(targetId);
+      if (target == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Piutang target tidak ditemukan atau sudah diarsipkan.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Preview penerimaan Piutang “${target.name}” sebesar ${_money(amount ?? target.remainingBalance)}. Setelah disetujui, saldo Piutang akan berkurang dan transaksi kas akan dicatat bila rekening tersedia.',
+      );
+    }
+    return const FfmAssistantCapabilityExecutionResult.failure(
+      'Jenis target pembayaran hutang/piutang belum valid.',
+    );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _prepareLiabilityMutation(
     FfmAssistantActionStep step,
   ) async {
@@ -580,6 +623,58 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _processDebtPaymentMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final entity = step.parameters['entity']?.toString();
+    final targetId = _targetId(step);
+    final amount = _positiveInt(step.parameters['amount']);
+    if (entity == null || targetId == null || amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Payload pembayaran hutang/piutang tidak lengkap atau nominalnya tidak valid.',
+      );
+    }
+    final accountId = step.parameters['accountId']?.toString().trim();
+    final date = _dateParameter(step.parameters['date']) ?? _clock();
+    final note = step.parameters['note']?.toString().trim();
+    final isLiability = entity == 'liability';
+    final String targetIdVal;
+    final String targetNameVal;
+    if (isLiability) {
+      final item = await _liabilityById(targetId);
+      if (item == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Target hutang tidak ditemukan atau sudah tidak aktif.',
+        );
+      }
+      targetIdVal = item.id;
+      targetNameVal = item.name;
+    } else {
+      final item = await _receivableById(targetId);
+      if (item == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Target piutang tidak ditemukan atau sudah tidak aktif.',
+        );
+      }
+      targetIdVal = item.id;
+      targetNameVal = item.name;
+    }
+    final result = await ProcessDebtPayment(_database).call(
+      householdId: _householdId,
+      targetId: targetIdVal,
+      targetName: targetNameVal,
+      isLiability: isLiability,
+      amount: amount,
+      date: date,
+      accountId: accountId == null || accountId.isEmpty ? null : accountId,
+      note: note,
+      recordCashTransaction: accountId != null && accountId.isNotEmpty,
+    );
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tersimpan satu kali: ${isLiability ? 'pembayaran hutang' : 'penerimaan piutang'} ${_money(amount)} untuk $targetNameVal. Saldo baru: ${_money(result)}.',
+    );
+  }
+
   Future<FfmAssistantCapabilityExecutionResult> _verifyLiabilityMutation(
     FfmAssistantActionStep step,
   ) async {
@@ -610,6 +705,57 @@ class FfmAssistantCapabilityAdapterRegistry {
           )
         : const FfmAssistantCapabilityExecutionResult.failure(
             'Verifikasi gagal: metadata Hutang belum sesuai draft.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyDebtPayment(
+    FfmAssistantActionStep step,
+  ) async {
+    final entity = step.parameters['entity']?.toString();
+    final targetId = _targetId(step);
+    if (entity == null || targetId == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Target pembayaran hutang/piutang belum valid untuk verifikasi.',
+      );
+    }
+    final source = entity == 'liability' ? 'liability_payment' : 'receivable_payment';
+    final tx = await (_database.select(_database.transactions)
+          ..where(
+            (row) =>
+                row.householdId.equals(_householdId) &
+                row.source.equals(source) &
+                row.sourceId.equals(targetId),
+          )
+          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]))
+        .getSingleOrNull();
+    if (tx == null) {
+      final row = entity == 'liability'
+          ? await (_database.select(_database.liabilities)
+                ..where(
+                  (r) => r.householdId.equals(_householdId) & r.id.equals(targetId),
+                ))
+                .getSingleOrNull()
+          : await (_database.select(_database.receivables)
+                ..where(
+                  (r) => r.householdId.equals(_householdId) & r.id.equals(targetId),
+                ))
+                .getSingleOrNull();
+      return row != null && row is Liability || row is Receivable
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: target hutang/piutang masih ada dan siap untuk ditinjau ulang.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: pembayaran tidak terlihat di transaksi atau target tidak valid.',
+            );
+    }
+    final expectedAmount = _positiveInt(step.parameters['amount']);
+    final payloadMatches = expectedAmount == null || tx.amount.abs() == expectedAmount;
+    return payloadMatches
+        ? FfmAssistantCapabilityExecutionResult.success(
+            'verified: ${entity == 'liability' ? 'pembayaran hutang' : 'penerimaan piutang'} sudah dibaca kembali dari transaksi lokal.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: nominal transaksi pembayaran tidak sesuai draft.',
           );
   }
 
@@ -2913,27 +3059,35 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Idempotency key sudah dipakai oleh transaksi dengan isi berbeda.',
       );
     }
-    final merchantName = step.parameters['assistantMerchantName']
-        ?.toString()
-        .trim();
+    // merchantName = nama merchant untuk lookup dan transaksi. Didukung dari
+    // tiga sumber: field eksplisit 'merchant'/'merchantName', atau field
+    // metadata learning 'assistantMerchantName' (diisi oleh planner).
+    // Jika merchant tidak ditemukan di DB dan 'newMerchant' tidak disebutkan,
+    // transaksi disimpan tanpa merchant (assistantMerchantName tetap dipakai
+    // untuk merekam koreksi user via _recordDraftCorrections).
+    final merchantName =
+        step.parameters['merchant']?.toString().trim() ??
+        step.parameters['merchantName']?.toString().trim() ??
+        step.parameters['assistantMerchantName']?.toString().trim();
     final merchant = await _findMerchant(merchantName);
     final newMerchantName = _singleName(step.parameters['newMerchant']);
     if (merchant != null && newMerchantName != null) {
       return FfmAssistantCapabilityExecutionResult.failure(
-        'Toko "$merchantName" sudah ada; draft tidak perlu membuat toko baru.',
+        'Toko sudah ada; draft tidak perlu membuat toko baru.',
       );
     }
-    if (merchant == null && merchantName != null && merchantName.isNotEmpty) {
-      if (newMerchantName != merchantName) {
+    if (merchant == null && newMerchantName != null) {
+      // newMerchant disebutkan: nama HARUS cocok dengan merchantName
+      if (merchantName == null ||
+          merchantName.isEmpty ||
+          newMerchantName != merchantName) {
         return FfmAssistantCapabilityExecutionResult.failure(
-          'Toko "$merchantName" belum ada. Draft harus menandainya sebagai toko baru yang sama persis.',
+          'Nama toko baru pada draft harus sama persis dengan nama toko transaksi.',
         );
       }
-    } else if (newMerchantName != null) {
-      return const FfmAssistantCapabilityExecutionResult.failure(
-        'Draft toko baru tidak cocok dengan toko transaksi.',
-      );
     }
+    // Jika merchant == null dan newMerchantName == null:
+    // merchantName hanya dipakai sebagai metadata learning, tidak membatalkan save.
     final tagNames = _csvValues(step.parameters['tags']);
     final tags = await _findTags(tagNames);
     final existingTagNames = tags.map((tag) => tag.name as String).toSet();
@@ -4343,17 +4497,26 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
     String idempotencyKey,
   ) async {
-    final title = step.parameters['title']?.toString() ?? 'Hutang';
-    final party = step.parameters['party']?.toString();
+    final rawTitle = step.parameters['title']?.toString().trim();
+    final rawParty = step.parameters['party']?.toString().trim();
     final amount = _positiveInt(step.parameters['amount']);
-    if (party == null ||
-        party.trim().isEmpty ||
-        amount == null ||
-        amount <= 0) {
+    if ((rawTitle == null || rawTitle.isEmpty) &&
+        (rawParty == null || rawParty.isEmpty)) {
       return const FfmAssistantCapabilityExecutionResult.failure(
-        'Nama pihak atau nominal hutang belum diisi dengan benar.',
+        'Nama pihak atau nama hutang belum diisi dengan benar.',
       );
     }
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nominal hutang harus lebih besar dari nol.',
+      );
+    }
+    final title = rawTitle?.isNotEmpty == true ? rawTitle! : 'Hutang';
+    final party = rawParty?.isNotEmpty == true ? rawParty! : title;
+    final name = (rawTitle != null && rawParty != null && rawTitle != rawParty && rawTitle != 'Hutang')
+        ? '$title - $party'
+        : (rawParty != null && rawParty.isNotEmpty ? rawParty : title);
+
     final now = _clock();
     final id = _stableId(idempotencyKey);
     final previous =
@@ -4362,8 +4525,7 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      final expectedName = '${title.trim()} - ${party.trim()}';
-      return previous.name == expectedName && previous.originalAmount == amount
+      return previous.originalAmount == amount
           ? const FfmAssistantCapabilityExecutionResult.success(
               'alreadyApplied: hutang sudah tersimpan.',
             )
@@ -4371,16 +4533,23 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Idempotency key sudah dipakai oleh hutang dengan isi berbeda.',
             );
     }
+    final dueDateRaw = step.parameters['dueDate']?.toString() ??
+        step.parameters['targetDate']?.toString();
+    final dueDate = dueDateRaw != null ? DateTime.tryParse(dueDateRaw) : null;
+    final note = step.parameters['note']?.toString().trim();
+
     await _database
         .into(_database.liabilities)
         .insert(
           LiabilitiesCompanion.insert(
             id: id,
             householdId: _householdId,
-            name: '${title.trim()} - ${party.trim()}',
+            name: name,
             originalAmount: amount,
             remainingBalance: amount,
             startDate: now,
+            dueDate: Value(dueDate),
+            note: Value(note == null || note.isEmpty ? null : note),
             createdAt: now,
           ),
         );
@@ -4393,17 +4562,26 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantActionStep step,
     String idempotencyKey,
   ) async {
-    final title = step.parameters['title']?.toString() ?? 'Piutang';
-    final party = step.parameters['party']?.toString();
+    final rawTitle = step.parameters['title']?.toString().trim();
+    final rawParty = step.parameters['party']?.toString().trim();
     final amount = _positiveInt(step.parameters['amount']);
-    if (party == null ||
-        party.trim().isEmpty ||
-        amount == null ||
-        amount <= 0) {
+    if ((rawTitle == null || rawTitle.isEmpty) &&
+        (rawParty == null || rawParty.isEmpty)) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Nama pihak atau nominal piutang belum diisi dengan benar.',
       );
     }
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nominal piutang harus lebih besar dari nol.',
+      );
+    }
+    final title = rawTitle?.isNotEmpty == true ? rawTitle! : 'Piutang';
+    final party = rawParty?.isNotEmpty == true ? rawParty! : title;
+    final name = (rawTitle != null && rawParty != null && rawTitle != rawParty && rawTitle != 'Piutang')
+        ? '$title - $party'
+        : (rawParty != null && rawParty.isNotEmpty ? rawParty : title);
+
     final now = _clock();
     final id = _stableId(idempotencyKey);
     final previous =
@@ -4412,8 +4590,7 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (previous != null) {
-      final expectedName = '${title.trim()} - ${party.trim()}';
-      return previous.name == expectedName && previous.originalAmount == amount
+      return previous.originalAmount == amount
           ? const FfmAssistantCapabilityExecutionResult.success(
               'alreadyApplied: piutang sudah tersimpan.',
             )
@@ -4421,16 +4598,23 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Idempotency key sudah dipakai oleh piutang dengan isi berbeda.',
             );
     }
+    final dueDateRaw = step.parameters['dueDate']?.toString() ??
+        step.parameters['targetDate']?.toString();
+    final dueDate = dueDateRaw != null ? DateTime.tryParse(dueDateRaw) : null;
+    final note = step.parameters['note']?.toString().trim();
+
     await _database
         .into(_database.receivables)
         .insert(
           ReceivablesCompanion.insert(
             id: id,
             householdId: _householdId,
-            name: '${title.trim()} - ${party.trim()}',
+            name: name,
             originalAmount: amount,
             remainingBalance: amount,
             startDate: now,
+            dueDate: Value(dueDate),
+            note: Value(note == null || note.isEmpty ? null : note),
             createdAt: now,
           ),
         );

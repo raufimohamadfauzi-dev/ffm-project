@@ -252,6 +252,14 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['name', 'amount', 'date', 'note'],
     ),
     const FfmAssistantCapability(
+      id: 'draft.liability_payment',
+      label: 'Siapkan pembayaran hutang',
+      description: 'Menyiapkan pembayaran hutang tanpa menyimpan transaksi kas atau mengubah saldo terlebih dahulu.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: ['targetId', 'amount', 'accountId', 'date', 'note'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.liability_update',
       label: 'Siapkan perubahan Hutang',
       description: 'Menampilkan perubahan metadata satu Hutang tanpa pembayaran atau perubahan sisa hutang.',
@@ -282,6 +290,14 @@ class FfmAssistantCapabilityRegistry {
       risk: FfmAssistantCapabilityRisk.prepare,
       destination: FfmAssistantDestination.liabilities,
       parameterNames: ['name', 'amount', 'date', 'note'],
+    ),
+    const FfmAssistantCapability(
+      id: 'draft.receivable_payment',
+      label: 'Siapkan penerimaan piutang',
+      description: 'Menyiapkan penerimaan piutang tanpa menyimpan transaksi kas atau mengubah saldo terlebih dahulu.',
+      risk: FfmAssistantCapabilityRisk.prepare,
+      destination: FfmAssistantDestination.liabilities,
+      parameterNames: ['targetId', 'amount', 'accountId', 'date', 'note'],
     ),
     const FfmAssistantCapability(
       id: 'draft.receivable_update',
@@ -690,6 +706,13 @@ class FfmAssistantCapabilityRegistry {
       requiresConfirmation: true,
     ),
     const FfmAssistantCapability(
+      id: 'mutate.debt_payment',
+      label: 'Catat pembayaran hutang/piutang',
+      description: 'Memproses pembayaran hutang atau penerimaan piutang dengan validasi saldo dan kontrol idempotensi.',
+      risk: FfmAssistantCapabilityRisk.mutation,
+      requiresConfirmation: true,
+    ),
+    const FfmAssistantCapability(
       id: 'draft.transaction_update',
       label: 'Siapkan perubahan transaksi',
       description:
@@ -781,6 +804,13 @@ class FfmAssistantCapabilityRegistry {
       id: 'verify.asset_mutation',
       label: 'Verifikasi perubahan aset',
       description: 'Membaca kembali aset setelah perubahan atau arsip lunak.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
+      id: 'verify.debt_payment',
+      label: 'Verifikasi pembayaran hutang/piutang',
+      description: 'Membaca kembali sisa hutang atau piutang setelah pembayaran/penagihan tersimpan.',
       risk: FfmAssistantCapabilityRisk.readOnly,
       readOnly: true,
     ),

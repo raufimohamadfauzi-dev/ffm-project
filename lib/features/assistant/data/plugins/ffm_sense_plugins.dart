@@ -317,12 +317,17 @@ class FfmDebtSensePlugin extends FfmAgentPlugin {
     'cicilan hutang',
     'total hutang',
     'rekap hutang',
-    'piutang',
+    'cek hutang',
     'yang minjam',
   ];
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    // Jangan mencegat perintah mutasi (catat hutang baru atau bayar cicilan)
+    if (RegExp(r'\b(catat|buat|tambah|bayar|cicil|lunasi)\b').hasMatch(context.normalizedText) &&
+        RegExp(r'\d+').hasMatch(context.normalizedText)) {
+      return null;
+    }
     final liabilities =
         await (_db.select(_db.liabilities)..where(
               (row) =>
@@ -662,19 +667,26 @@ class FfmReceivableSensePlugin extends FfmAgentPlugin {
   int get priority => 7;
   @override
   List<String> get triggers => [
-    'piutang',
+    'daftar piutang',
+    'sisa piutang',
+    'total piutang',
+    'rekap piutang',
+    'tagihan piutang',
+    'cek piutang',
     'utang ke saya',
     'orang pinjam',
     'dipinjam',
-    'tagihan piutang',
     'yang belum bayar ke saya',
     'siapa yang pinjam',
-    'cek piutang',
-    'daftar piutang',
   ];
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
+    // Jangan mencegat perintah mutasi (catat piutang baru atau terima pembayaran)
+    if (RegExp(r'\b(catat|buat|tambah|terima|bayar)\b').hasMatch(context.normalizedText) &&
+        RegExp(r'\d+').hasMatch(context.normalizedText)) {
+      return null;
+    }
     final householdId = _householdId();
     final receivables = await (_db.select(_db.receivables)
           ..where(

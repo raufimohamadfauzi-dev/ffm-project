@@ -28,6 +28,22 @@ enum _BudgetSort {
 
 enum _BudgetMenuAction { transferFunds, weekStart }
 
+/// Progres pemakaian anggaran dari **dana tersedia** (batas − transfer
+/// keluar), konsisten dengan sisa dana (`allocated + rollover + masuk −
+/// keluar − spent`). Transfer keluar mengurangi daya belanja pos sehingga
+/// progres/status tidak boleh dihitung dari batas kotor.
+double budgetProgressFor({
+  required int allocated,
+  required int rollover,
+  required int transferredIn,
+  required int transferredOut,
+  required int spent,
+}) {
+  final base = allocated + rollover + transferredIn - transferredOut;
+  if (base <= 0) return spent > 0 ? 1 : 0;
+  return spent / base;
+}
+
 class BudgetPage extends EnvelopeBudgetPage {
   const BudgetPage({super.key});
 }
@@ -37,11 +53,17 @@ class EnvelopeBudgetPage extends StatefulWidget {
     super.key,
     this.assistantAmount,
     this.assistantCategoryName,
+    this.assistantPeriodType,
     this.onAssistantDraftResult,
   });
 
   final int? assistantAmount;
   final String? assistantCategoryName;
+
+  /// Periode dari draft asisten (weekly/monthly/nonrecurring/dll).
+  /// Bila diisi, filter periode halaman mengikuti draft tersebut agar
+  /// placeholder dan form langsung tepat sasaran.
+  final String? assistantPeriodType;
   final Future<void> Function(bool saved)? onAssistantDraftResult;
 
   @override
@@ -126,9 +148,27 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
     return '$_periodTypeFilter-${start.year}-${start.month.toString().padLeft(2, '0')}-${start.day.toString().padLeft(2, '0')}';
   }
 
+  static const _knownPeriodTypes = <String>{
+    'weekly',
+    'biweekly',
+    'monthly',
+    'bimonthly',
+    'fourmonthly',
+    'fivemonthly',
+    'nonrecurring',
+  };
+
   @override
   void initState() {
     super.initState();
+    // Draft asisten boleh menentukan periode (mis. "per bulan"): filter
+    // halaman mengikutinya sebelum data dimuat agar placeholder dan form
+    // langsung tepat sasaran. Nilai tak dikenal diabaikan dengan aman.
+    final assistantPeriod = widget.assistantPeriodType?.trim().toLowerCase();
+    if (assistantPeriod != null &&
+        _knownPeriodTypes.contains(assistantPeriod)) {
+      _periodTypeFilter = assistantPeriod;
+    }
     _load();
   }
 
@@ -267,7 +307,12 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
                 _periodTypeFilter,
                 weekStartDay: _weekStartDay,
               );
-    if (envelope == null) return;
+    if (envelope == null) {
+      // Tanpa pos yang bisa dibuka, beri tahu sheet agar status antrean
+      // draft tidak basi (ditandai ready, bukan completed).
+      await widget.onAssistantDraftResult?.call(false);
+      return;
+    }
 
     // Create prefill from draft values
     FfmAssistantFormPrefill? prefill;
@@ -359,10 +404,17 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
   double? _progressFor(EnvelopeBudgetRow envelope) {
     if (!envelope.isOverall && envelope.allocated <= 0) return null;
-    final base =
-        envelope.allocated + envelope.rollover + _transferredIn(envelope);
-    if (base <= 0) return 0;
-    return _spentFor(envelope) / base;
+    // Kartu total ("Total pengeluaran …") tidak punya batas: pertahankan
+    // perilaku lama (bar 0 + status Aman) agar tidak tiba-tiba merah penuh
+    // hanya karena ada belanja tercatat.
+    if (envelope.isOverall) return 0;
+    return budgetProgressFor(
+      allocated: envelope.allocated,
+      rollover: envelope.rollover,
+      transferredIn: _transferredIn(envelope),
+      transferredOut: _transferredOut(envelope),
+      spent: _spentFor(envelope),
+    );
   }
 
   double _elapsedFor(EnvelopeBudgetRow envelope) {
@@ -1919,12 +1971,17 @@ class _EnvelopeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = envelope.allocated + envelope.rollover + transferredIn;
     final progress = !envelope.isOverall && envelope.allocated <= 0
         ? null
-        : base <= 0
+        : envelope.isOverall
         ? 0.0
-        : spent / base;
+        : budgetProgressFor(
+            allocated: envelope.allocated,
+            rollover: envelope.rollover,
+            transferredIn: transferredIn,
+            transferredOut: transferredOut,
+            spent: spent,
+          );
     final progressValue = (progress ?? 0).clamp(0.0, 1.0);
     final statusBackground = switch (status) {
       'Aman' => AppColors.positiveSoft,
@@ -1963,7 +2020,7 @@ class _EnvelopeCard extends StatelessWidget {
           Text(
             progress == null
                 ? '${_money(spent)} terpakai • target kategori belum diisi'
-                : '${_money(spent)} terpakai dari ${_money(base)}',
+                : '${_money(spent)} terpakai dari ${_money(envelope.allocated + envelope.rollover + transferredIn - transferredOut)}',
           ),
           if (progress != null) ...[
             const SizedBox(height: 4),

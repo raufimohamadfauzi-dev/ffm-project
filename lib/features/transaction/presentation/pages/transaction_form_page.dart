@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
@@ -156,6 +157,48 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     }
     if (existing == null && (widget.initialPartyName != null || widget.assistantPrefill?.values['partyName'] != null)) {
       _partyName = widget.initialPartyName ?? widget.assistantPrefill?.values['partyName'] ?? '';
+    }
+    if (existing == null && widget.assistantPrefill != null) {
+      final prefillValues = widget.assistantPrefill!.values;
+      if (_receiptNumber == null && prefillValues['receiptNumber']?.isNotEmpty == true) {
+        _receiptNumber = prefillValues['receiptNumber'];
+      }
+      if (_receiptPaidAmount == null && prefillValues['receiptPaidAmount'] != null) {
+        _receiptPaidAmount = int.tryParse(prefillValues['receiptPaidAmount']!);
+      }
+      if (_receiptChangeAmount == null && prefillValues['receiptChangeAmount'] != null) {
+        _receiptChangeAmount = int.tryParse(prefillValues['receiptChangeAmount']!);
+      }
+      if (_receiptRawText == null && prefillValues['receiptRawText']?.isNotEmpty == true) {
+        _receiptRawText = prefillValues['receiptRawText'];
+      }
+      if (_items.isEmpty && prefillValues['itemsJson']?.isNotEmpty == true) {
+        try {
+          final decoded = jsonDecode(prefillValues['itemsJson']!);
+          if (decoded is List) {
+            _items = decoded
+                .map((item) {
+                  if (item is Map) {
+                    final name = item['name']?.toString() ??
+                        item['itemName']?.toString() ??
+                        '';
+                    final price =
+                        int.tryParse(item['price']?.toString() ?? '0') ?? 0;
+                    final qty =
+                        double.tryParse(item['qty']?.toString() ??
+                            item['quantity']?.toString() ??
+                            '1') ??
+                        1.0;
+                    return ReceiptItemDraft(name: name, price: price, qty: qty);
+                  }
+                  return null;
+                })
+                .whereType<ReceiptItemDraft>()
+                .where((item) => item.name.isNotEmpty)
+                .toList();
+          }
+        } catch (_) {}
+      }
     }
     _loadCategories();
     _loadMerchants();

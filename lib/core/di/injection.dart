@@ -51,6 +51,7 @@ import '../../features/goal/domain/usecases/goal_balance_usecases.dart';
 import '../../features/goal/domain/usecases/goal_crud_usecases.dart';
 import '../../features/hijri/domain/hijri_calendar_service.dart';
 import '../../features/liability/domain/usecases/liability_crud_usecases.dart';
+import '../../features/liability/domain/usecases/process_debt_payment.dart';
 import '../../features/receivable/domain/usecases/receivable_crud_usecases.dart';
 import '../../features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../features/reminder/data/repositories/reminder_repository.dart';
@@ -107,6 +108,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<SyncGoalBalance>(() => SyncGoalBalance(db));
   getIt.registerLazySingleton<GetLiabilities>(() => GetLiabilities(db));
   getIt.registerLazySingleton<SaveLiability>(() => SaveLiability(db));
+  getIt.registerLazySingleton<DeleteLiability>(() => DeleteLiability(db));
+  getIt.registerLazySingleton<ProcessDebtPayment>(() => ProcessDebtPayment(db));
   getIt.registerLazySingleton<GetReceivables>(() => GetReceivables(db));
   getIt.registerLazySingleton<SaveReceivable>(() => SaveReceivable(db));
   getIt.registerLazySingleton<DeleteReceivable>(() => DeleteReceivable(db));
@@ -210,9 +213,11 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       repository: getIt<FfmAssistantMemoryRepository>(),
     ),
   );
-  getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
-    FfmAssistantChatHistoryRepository.new,
-  );
+  if (!getIt.isRegistered<FfmAssistantChatHistoryRepository>()) {
+    getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
+      FfmAssistantChatHistoryRepository.new,
+    );
+  }
   getIt.registerLazySingleton<FfmAssistantAutonomyRepository>(
     () => FfmAssistantAutonomyRepository(db),
   );
@@ -225,9 +230,6 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmAssistantAgentTaskPlanResolver(
       getIt<FfmAssistantAutonomyRepository>(),
     ),
-  );
-  getIt.registerLazySingleton<FfmAssistantChatHistoryRepository>(
-    FfmAssistantChatHistoryRepository.new,
   );
   getIt.registerLazySingleton<FfmAssistantProactiveEvaluationTask>(
     () => FfmAssistantProactiveEvaluationTask(

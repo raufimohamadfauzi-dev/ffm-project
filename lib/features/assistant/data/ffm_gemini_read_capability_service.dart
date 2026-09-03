@@ -1,6 +1,55 @@
 import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_proposal_json_service.dart';
 
+/// Kebijakan resmi dan tersentralisasi untuk seluruh capability baca Gemini Cloud.
+/// Menyatukan allowlist, validasi rentang tanggal, penjelasan privasi, dan kontrak bounded.
+class FfmGeminiReadCapabilityPolicy {
+  const FfmGeminiReadCapabilityPolicy._();
+
+  static const String policyName = 'ffm-gemini-bounded-read-v1';
+
+  static const Set<String> allowedCapabilityIds = <String>{
+    'read.summary',
+    'read.transactions',
+    'read.hijriDate',
+    'read.goals',
+    'read.liabilities',
+    'read.debts',
+    'read.receivables',
+    'read.receivable',
+    'read.activity',
+    'read.activities',
+    'read.reminders',
+    'read.reminder',
+    'read.assets',
+    'read.asset',
+    'read.budget',
+    'read.budgets',
+  };
+
+  static const List<String> canonicalToolChoices = <String>[
+    'read.summary',
+    'read.transactions',
+    'read.goals',
+    'read.liabilities',
+    'read.receivables',
+    'read.activities',
+    'read.reminders',
+    'read.assets',
+    'read.budget',
+    'read.hijriDate',
+  ];
+
+  static String get formattedToolChoices =>
+      canonicalToolChoices.map((c) => '`$c`').join(', ');
+
+  static const String privacyContractExplanation =
+      'Data yang dibaca Gemini dibatasi ketat: hanya agregat ringkas bulan berjalan atau maksimal 8 transaksi bertanggal tanpa nomor rekening, nama merchant sensitif, catatan pribadi, atau pengenal unik database.';
+
+  static bool isAllowed(String capabilityId) =>
+      allowedCapabilityIds.contains(capabilityId.trim());
+}
+
 /// Menjalankan capability Gemini yang telah tervalidasi dan bersifat read-only.
 ///
 /// Service ini sengaja kecil: ia tidak mengetahui chat, Gemini API, repository

@@ -43,6 +43,13 @@ class SaveLiability {
   final AppDatabase database;
 
   Future<void> call(LiabilityEntity entity) async {
+    final existing =
+        await (database.select(database.liabilities)..where(
+              (row) =>
+                  row.householdId.equals(entity.householdId) &
+                  row.id.equals(entity.id),
+            ))
+            .getSingleOrNull();
     await database
         .into(database.liabilities)
         .insertOnConflictUpdate(
@@ -61,7 +68,7 @@ class SaveLiability {
           ),
         );
     await AuditLogger(database).record(
-      action: 'simpan hutang',
+      action: existing == null ? 'simpan hutang' : 'ubah hutang',
       entity: 'liability',
       householdId: entity.householdId,
       newValue: {

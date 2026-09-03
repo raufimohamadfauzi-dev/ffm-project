@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:uuid/uuid.dart';
@@ -63,9 +64,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
   var _transfers = <Transfer>[];
   Set<String>? _ftsTransactionIds;
   var _loading = true;
+  String? _errorMessage;
   var _query = '';
   var _typeFilter = 'Semua';
   var _currentMonthOnly = false;
+  String? _accountFilter;
+  String? _categoryFilter;
+  String? _merchantFilter;
+  String? _ownerFilter;
+  DateTime? _startDateFilter;
+  DateTime? _endDateFilter;
   var _isSearchOpen = false;
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
@@ -179,7 +187,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
     final amount = draft.amount;
     final date = draft.date;
     final title = draft.title?.trim();
-    if (amount == null || amount <= 0 || date == null || title == null || title.isEmpty) {
+    if (amount == null ||
+        amount <= 0 ||
+        date == null ||
+        title == null ||
+        title.isEmpty) {
       return false;
     }
     final categoryId = assistantCategoryIdForDraft(draft);
@@ -189,7 +201,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
   String? assistantCategoryIdForDraft(FfmAssistantDraft draft) {
     final targetName = draft.categoryName?.trim().toLowerCase();
     if (targetName == null || targetName.isEmpty) return null;
-    final targetType = draft.kind == FfmAssistantDraftKind.income ? 'income' : 'expense';
+    final targetType = draft.kind == FfmAssistantDraftKind.income
+        ? 'income'
+        : 'expense';
     return _categories
         .where(
           (category) =>
@@ -213,12 +227,59 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ?.id;
   }
 
-  Future<void> _saveAssistantTransactionDirectly(FfmAssistantDraft draft) async {
+  Future<void> _saveAssistantTransactionDirectly(
+    FfmAssistantDraft draft,
+  ) async {
     final categoryId = assistantCategoryIdForDraft(draft);
     final accountId = assistantAccountIdForDraft(draft);
-    if (categoryId == null || accountId == null || draft.amount == null || draft.date == null) {
+    if (categoryId == null ||
+        accountId == null ||
+        draft.amount == null ||
+        draft.date == null) {
       return;
     }
+    final merchantId = draft.merchantName != null
+        ? _merchants
+            .where((m) =>
+                m.name.trim().toLowerCase() ==
+                draft.merchantName!.trim().toLowerCase())
+            .firstOrNull
+            ?.id
+        : null;
+
+    final receiptNumber = draft.formValues['receiptNumber'];
+    final receiptPaidAmount = int.tryParse(draft.formValues['receiptPaidAmount'] ?? '');
+    final receiptChangeAmount = int.tryParse(draft.formValues['receiptChangeAmount'] ?? '');
+    final receiptRawText = draft.formValues['receiptRawText'];
+    var items = const <ReceiptItemDraft>[];
+    if (draft.formValues['itemsJson']?.isNotEmpty == true) {
+      try {
+        final decoded = jsonDecode(draft.formValues['itemsJson']!);
+        if (decoded is List) {
+          items = decoded
+              .map((item) {
+                if (item is Map) {
+                  final name = item['name']?.toString() ??
+                      item['itemName']?.toString() ??
+                      '';
+                  final price =
+                      int.tryParse(item['price']?.toString() ?? '0') ?? 0;
+                  final qty =
+                      double.tryParse(item['qty']?.toString() ??
+                          item['quantity']?.toString() ??
+                          '1') ??
+                      1.0;
+                  return ReceiptItemDraft(name: name, price: price, qty: qty);
+                }
+                return null;
+              })
+              .whereType<ReceiptItemDraft>()
+              .where((item) => item.name.isNotEmpty)
+              .toList();
+        }
+      } catch (_) {}
+    }
+
     final transactionDraft = TransactionDraft(
       type: draft.kind == FfmAssistantDraftKind.income
           ? TransactionType.income
@@ -230,14 +291,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
       note: draft.note ?? '',
       source: 'assistant',
       accountId: accountId,
-      merchantId: null,
+      merchantId: merchantId,
       goalId: null,
       partyName: draft.partyName,
-      receiptRawText: null,
-      receiptNumber: null,
-      receiptPaidAmount: null,
-      receiptChangeAmount: null,
-      items: const [],
+      receiptRawText: receiptRawText,
+      receiptNumber: receiptNumber,
+      receiptPaidAmount: receiptPaidAmount,
+      receiptChangeAmount: receiptChangeAmount,
+      items: items,
       assistantMerchantName: draft.merchantName,
       assistantSlmFieldValues: draft.slmFieldValues,
     );
@@ -261,7 +322,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
     final toAccountId = _assistantAccountIdByName(draft.toAccountName);
     final amount = draft.amount;
     final date = draft.date;
-    if (fromAccountId == null || toAccountId == null || amount == null || amount <= 0 || date == null) {
+    if (fromAccountId == null ||
+        toAccountId == null ||
+        amount == null ||
+        amount <= 0 ||
+        date == null) {
       return false;
     }
     final transfer = TransferDraft(
@@ -288,18 +353,22 @@ class _TransactionListPageState extends State<TransactionListPage> {
     final database = getIt<AppDatabase>();
     Category? feeCategory;
     if (transfer.adminFee > 0) {
-      feeCategory = await (database.select(database.categories)..where(
-            (row) =>
-                row.householdId.equals(AppContext.householdId) &
-                row.type.equals('expense') &
-                row.name.equals('Biaya admin') &
-                row.isActive.equals(true),
-          )).getSingleOrNull();
+      feeCategory =
+          await (database.select(database.categories)..where(
+                (row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.type.equals('expense') &
+                    row.name.equals('Biaya admin') &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
       if (feeCategory == null) return false;
     }
     await database.transaction(() async {
       if (transfer.adminFee > 0) {
-        await database.into(database.transactions).insert(
+        await database
+            .into(database.transactions)
+            .insert(
               TransactionsCompanion.insert(
                 id: feeTransactionId!,
                 householdId: AppContext.householdId,
@@ -322,7 +391,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
               ),
             );
       }
-      await database.into(database.transfers).insert(
+      await database
+          .into(database.transfers)
+          .insert(
             TransfersCompanion.insert(
               id: id,
               householdId: AppContext.householdId,
@@ -361,58 +432,74 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _loadTransactions() async {
-    final transactions = await getIt<GetTransactions>()(AppContext.householdId);
-    final database = getIt<AppDatabase>();
-    final categories =
-        await (database.select(database.categories)
-              ..where(
-                (table) =>
-                    table.householdId.equals(AppContext.householdId) &
-                    table.isActive.equals(true),
-              )
-              ..orderBy([(table) => OrderingTerm.asc(table.name)]))
-            .get();
-    final merchants =
-        await (database.select(database.merchants)
-              ..where(
-                (table) =>
-                    table.householdId.equals(AppContext.householdId) &
-                    table.isActive.equals(true),
-              )
-              ..orderBy([(table) => OrderingTerm.asc(table.name)]))
-            .get();
-    final accounts =
-        await (database.select(database.accounts)
-              ..where(
-                (table) =>
-                    table.householdId.equals(AppContext.householdId) &
-                    table.isArchived.equals(false),
-              )
-              ..orderBy([(table) => OrderingTerm.asc(table.name)]))
-            .get();
-    final transfers =
-        await (database.select(database.transfers)
-              ..where(
-                (table) =>
-                    table.householdId.equals(AppContext.householdId) &
-                    table.isDeleted.equals(false),
-              )
-              ..orderBy([(table) => OrderingTerm.desc(table.date)]))
-            .get();
-    if (!mounted) return;
-    setState(() {
-      _transactions
-        ..clear()
-        ..addAll(transactions);
-      _categories = categories;
-      _merchants = merchants;
-      _accounts = accounts;
-      _transfers = transfers;
-      _loading = false;
-    });
+    try {
+      setState(() {
+        _loading = true;
+        _errorMessage = null;
+      });
+      final transactions = await getIt<GetTransactions>()(AppContext.householdId);
+      final database = getIt<AppDatabase>();
+      final categories =
+          await (database.select(database.categories)
+                ..where(
+                  (table) =>
+                      table.householdId.equals(AppContext.householdId) &
+                      table.isActive.equals(true),
+                )
+                ..orderBy([(table) => OrderingTerm.asc(table.name)]))
+              .get();
+      final merchants =
+          await (database.select(database.merchants)
+                ..where(
+                  (table) =>
+                      table.householdId.equals(AppContext.householdId) &
+                      table.isActive.equals(true),
+                )
+                ..orderBy([(table) => OrderingTerm.asc(table.name)]))
+              .get();
+      final accounts =
+          await (database.select(database.accounts)
+                ..where(
+                  (table) =>
+                      table.householdId.equals(AppContext.householdId) &
+                      table.isArchived.equals(false),
+                )
+                ..orderBy([(table) => OrderingTerm.asc(table.name)]))
+              .get();
+      final transfers =
+          await (database.select(database.transfers)
+                ..where(
+                  (table) =>
+                      table.householdId.equals(AppContext.householdId) &
+                      table.isDeleted.equals(false),
+                )
+                ..orderBy([(table) => OrderingTerm.desc(table.date)]))
+              .get();
+      if (!mounted) return;
+      setState(() {
+        _transactions
+          ..clear()
+          ..addAll(transactions);
+        _categories = categories;
+        _merchants = merchants;
+        _accounts = accounts;
+        _transfers = transfers;
+        _loading = false;
+        _errorMessage = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _errorMessage = 'Gagal memuat transaksi: $e';
+      });
+    }
   }
 
-  Future<bool> _openTransfer({FfmAssistantDraft? assistantDraft}) async {
+  Future<bool> _openTransfer({
+    FfmAssistantDraft? assistantDraft,
+    Transfer? existingTransfer,
+  }) async {
     if (_accounts.length < 2) {
       if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -427,6 +514,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       builder: (_) => TransferFormDialog(
         accounts: _accounts,
         assistantDraft: assistantDraft,
+        existingTransfer: existingTransfer,
       ),
     );
     if (!mounted || draft == null) return false;
@@ -441,8 +529,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
       now.millisecond,
       now.microsecond,
     );
-    final id = const Uuid().v4();
-    final feeTransactionId = draft.adminFee > 0 ? const Uuid().v4() : null;
+    final isEditing = existingTransfer != null;
+    final id = existingTransfer?.id ?? const Uuid().v4();
+    String? feeTransactionId = existingTransfer?.feeTransactionId;
+    if (draft.adminFee > 0 && feeTransactionId == null) {
+      feeTransactionId = const Uuid().v4();
+    }
     final database = getIt<AppDatabase>();
     Category? feeCategory;
     if (draft.adminFee > 0) {
@@ -467,66 +559,137 @@ class _TransactionListPageState extends State<TransactionListPage> {
     }
     await database.transaction(() async {
       if (draft.adminFee > 0) {
-        await database
-            .into(database.transactions)
-            .insert(
-              TransactionsCompanion.insert(
-                id: feeTransactionId!,
+        if (isEditing && existingTransfer.feeTransactionId != null) {
+          await (database.update(database.transactions)
+                ..where((t) => t.id.equals(existingTransfer.feeTransactionId!)))
+              .write(
+                TransactionsCompanion(
+                  date: Value(transferDate),
+                  amount: Value(-draft.adminFee),
+                  accountId: Value(draft.fromAccountId),
+                  categoryId: Value(feeCategory!.id),
+                  note: Value(
+                    'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
+                  ),
+                  updatedAt: Value(now),
+                  isDeleted: const Value(false),
+                ),
+              );
+        } else {
+          await database.into(database.transactions).insert(
+                TransactionsCompanion.insert(
+                  id: feeTransactionId!,
+                  householdId: AppContext.householdId,
+                  type: 'expense',
+                  date: transferDate,
+                  recordedAt: now,
+                  amount: -draft.adminFee,
+                  owner: const Value('Keluarga'),
+                  categoryId: Value(feeCategory!.id),
+                  note: Value(
+                    'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
+                  ),
+                  source: const Value('transfer_fee'),
+                  accountId: Value(draft.fromAccountId),
+                  merchantId: const Value(null),
+                  goalId: const Value(null),
+                  createdAt: now,
+                  updatedAt: Value(now),
+                  isDeleted: const Value(false),
+                ),
+              );
+        }
+      } else if (isEditing && existingTransfer.feeTransactionId != null) {
+        await (database.update(database.transactions)
+              ..where((t) => t.id.equals(existingTransfer.feeTransactionId!)))
+            .write(
+              TransactionsCompanion(
+                isDeleted: const Value(true),
+                updatedAt: Value(now),
+              ),
+            );
+        feeTransactionId = null;
+      }
+
+      if (isEditing) {
+        await (database.update(database.transfers)
+              ..where((t) => t.id.equals(existingTransfer.id)))
+            .write(
+              TransfersCompanion(
+                date: Value(transferDate),
+                amount: Value(draft.amount),
+                adminFee: Value(draft.adminFee),
+                feeTransactionId: Value(feeTransactionId),
+                fromAccountId: Value(draft.fromAccountId),
+                toAccountId: Value(draft.toAccountId),
+                note: Value(draft.note.isEmpty ? null : draft.note),
+                updatedAt: Value(now),
+              ),
+            );
+      } else {
+        await database.into(database.transfers).insert(
+              TransfersCompanion.insert(
+                id: id,
                 householdId: AppContext.householdId,
-                type: 'expense',
                 date: transferDate,
                 recordedAt: now,
-                amount: -draft.adminFee,
-                owner: const Value('Keluarga'),
-                categoryId: Value(feeCategory!.id),
-                note: Value(
-                  'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
-                ),
-                source: const Value('transfer_fee'),
-                accountId: Value(draft.fromAccountId),
-                merchantId: const Value(null),
-                goalId: const Value(null),
-                createdAt: now,
+                amount: draft.amount,
+                adminFee: Value(draft.adminFee),
+                feeTransactionId: Value(feeTransactionId),
+                fromAccountId: draft.fromAccountId,
+                toAccountId: draft.toAccountId,
+                note: Value(draft.note.isEmpty ? null : draft.note),
+                source: const Value('manual'),
                 updatedAt: Value(now),
-                isDeleted: const Value(false),
               ),
             );
       }
-      await database
-          .into(database.transfers)
-          .insert(
-            TransfersCompanion.insert(
-              id: id,
-              householdId: AppContext.householdId,
-              date: transferDate,
-              recordedAt: now,
-              amount: draft.amount,
-              adminFee: Value(draft.adminFee),
-              feeTransactionId: Value(feeTransactionId),
-              fromAccountId: draft.fromAccountId,
-              toAccountId: draft.toAccountId,
-              note: Value(draft.note.isEmpty ? null : draft.note),
-              source: const Value('manual'),
-              updatedAt: Value(now),
-            ),
-          );
     });
-    await AuditLogger(database).record(
-      action: 'tambah',
-      entity: 'transfer',
-      newValue: {
-        'id': id,
-        'amount': draft.amount,
-        'admin_fee': draft.adminFee,
-        'from_account_id': draft.fromAccountId,
-        'to_account_id': draft.toAccountId,
-      },
-    );
+
+    if (isEditing) {
+      await AuditLogger(database).record(
+        action: 'ubah',
+        entity: 'transfer',
+        oldValue: {
+          'id': existingTransfer.id,
+          'amount': existingTransfer.amount,
+          'admin_fee': existingTransfer.adminFee,
+          'from_account_id': existingTransfer.fromAccountId,
+          'to_account_id': existingTransfer.toAccountId,
+        },
+        newValue: {
+          'id': id,
+          'amount': draft.amount,
+          'admin_fee': draft.adminFee,
+          'from_account_id': draft.fromAccountId,
+          'to_account_id': draft.toAccountId,
+        },
+      );
+    } else {
+      await AuditLogger(database).record(
+        action: 'tambah',
+        entity: 'transfer',
+        newValue: {
+          'id': id,
+          'amount': draft.amount,
+          'admin_fee': draft.adminFee,
+          'from_account_id': draft.fromAccountId,
+          'to_account_id': draft.toAccountId,
+        },
+      );
+    }
+
     await _loadTransactions();
     if (!mounted) return true;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Transfer berhasil dicatat.')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isEditing
+              ? 'Transfer berhasil diperbarui.'
+              : 'Transfer berhasil dicatat.',
+        ),
+      ),
+    );
     return true;
   }
 
@@ -536,7 +699,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Hapus transfer?'),
         content: const Text(
-          'Transfer ini akan disembunyikan dari riwayat dan saldo rekening akan dihitung ulang.',
+          'Transfer ini akan disembunyikan dari riwayat dan saldo rekening akan dihitung ulang. Anda dapat membatalkannya melalui tombol Urungkan di notifikasi bawah.',
         ),
         actions: [
           TextButton(
@@ -584,8 +747,45 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     await _loadTransactions();
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Transfer dihapus.')));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Transfer dihapus.'),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Urungkan',
+          onPressed: () async {
+            await (database.update(
+              database.transfers,
+            )..where((row) => row.id.equals(transfer.id))).write(
+              const TransfersCompanion(
+                isDeleted: Value(false),
+              ),
+            );
+            if (feeTransactionId != null && feeTransactionId.isNotEmpty) {
+              await (database.update(
+                database.transactions,
+              )..where((row) => row.id.equals(feeTransactionId))).write(
+                const TransactionsCompanion(
+                  isDeleted: Value(false),
+                ),
+              );
+            }
+            await AuditLogger(database).record(
+              action: 'pulihkan',
+              entity: 'transfer',
+              newValue: {
+                'id': transfer.id,
+                'amount': transfer.amount,
+                'from_account_id': transfer.fromAccountId,
+                'to_account_id': transfer.toAccountId,
+              },
+            );
+            await _loadTransactions();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _openForm() async {
@@ -723,10 +923,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ),
       );
     }
-    for (final category in transactionCategoryOptions(
-      _categories,
-      'expense',
-    )) {
+    for (final category in transactionCategoryOptions(_categories, 'expense')) {
       if (configuredCategoryIds.contains(category.id)) continue;
       options.add(
         JsonBudgetOption(
@@ -994,7 +1191,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
 
   Future<void> _openDetail(TransactionWithItems entry) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => TransactionDetailPage(entry: entry)),
+      MaterialPageRoute(
+        builder: (_) => TransactionDetailPage(
+          entry: entry,
+          categoryLabel: _categoryLabel(entry.transaction.categoryId),
+          accountLabel: _accountLabel(entry.transaction.accountId),
+          merchantLabel: _merchantLabel(entry.transaction.merchantId),
+        ),
+      ),
     );
   }
 
@@ -1004,7 +1208,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Hapus transaksi?'),
         content: const Text(
-          'Transaksi ini akan disembunyikan dari daftar. Tindakan ini tidak bisa dibatalkan dari aplikasi.',
+          'Transaksi ini akan disembunyikan dari riwayat. Anda dapat membatalkannya melalui tombol Urungkan di notifikasi bawah.',
         ),
         actions: [
           TextButton(
@@ -1036,8 +1240,41 @@ class _TransactionListPageState extends State<TransactionListPage> {
     );
     await _loadTransactions();
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Transaksi dihapus.')));
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Transaksi dihapus.'),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'Urungkan',
+          onPressed: () async {
+            final database = getIt<AppDatabase>();
+            await (database.update(database.transactions)
+                  ..where((row) =>
+                      row.householdId.equals(AppContext.householdId) &
+                      row.id.equals(entry.transaction.id)))
+                .write(
+              const TransactionsCompanion(
+                isArchived: Value(false),
+                isDeleted: Value(false),
+              ),
+            );
+            await _syncGoalContribution(
+              previous: null,
+              nextGoalId: entry.transaction.goalId,
+              nextAmount: entry.transaction.amount,
+              nextSource: entry.transaction.source,
+            );
+            await AuditLogger(database).record(
+              action: 'pulihkan',
+              entity: 'transaksi',
+              newValue: _auditTransactionValue(_entityFromRow(entry.transaction)),
+            );
+            await _loadTransactions();
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _refreshFts(String rawQuery) async {
@@ -1085,6 +1322,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
               !_currentMonthOnly ||
               (transaction.date.year == now.year &&
                   transaction.date.month == now.month);
+          final matchesDateRange = _matchesDateRange(transaction.date);
+          final matchesAccount =
+              _accountFilter == null || transaction.accountId == _accountFilter;
+          final matchesCategory =
+              _categoryFilter == null ||
+              transaction.categoryId == _categoryFilter;
+          final matchesMerchant =
+              _merchantFilter == null ||
+              transaction.merchantId == _merchantFilter;
+          final matchesOwner =
+              _ownerFilter == null || transaction.owner == _ownerFilter;
           final searchText = [
             _categoryLabel(transaction.categoryId),
             transaction.owner ?? '',
@@ -1100,13 +1348,21 @@ class _TransactionListPageState extends State<TransactionListPage> {
           if (transaction.source == 'transfer') return false;
           return matchesType &&
               matchesMonth &&
+              matchesDateRange &&
+              matchesAccount &&
+              matchesCategory &&
+              matchesMerchant &&
+              matchesOwner &&
               (query.isEmpty || matchesFts || searchText.contains(query));
         })
         .toList(growable: false);
   }
 
   List<Transfer> get _visibleTransfers {
-    if (_typeFilter == 'Pemasukan' || _typeFilter == 'Pengeluaran') {
+    if (_typeFilter == 'Pemasukan' ||
+        _typeFilter == 'Pengeluaran' ||
+        _merchantFilter != null ||
+        _ownerFilter != null) {
       return const [];
     }
     final query = _query.trim().toLowerCase();
@@ -1119,6 +1375,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
               !_currentMonthOnly ||
               (transfer.date.year == now.year &&
                   transfer.date.month == now.month);
+          final matchesDateRange = _matchesDateRange(transfer.date);
+          final matchesAccount =
+              _accountFilter == null ||
+              transfer.fromAccountId == _accountFilter ||
+              transfer.toAccountId == _accountFilter;
           final searchText = [
             _accountLabel(transfer.fromAccountId),
             _accountLabel(transfer.toAccountId),
@@ -1128,9 +1389,28 @@ class _TransactionListPageState extends State<TransactionListPage> {
           ].join(' ').toLowerCase();
           return matchesType &&
               matchesMonth &&
+              matchesDateRange &&
+              matchesAccount &&
               (query.isEmpty || searchText.contains(query));
         })
         .toList(growable: false);
+  }
+
+  bool _matchesDateRange(DateTime date) {
+    if (_startDateFilter != null && date.isBefore(_startDateFilter!)) {
+      return false;
+    }
+    if (_endDateFilter == null) return true;
+    final endOfDay = DateTime(
+      _endDateFilter!.year,
+      _endDateFilter!.month,
+      _endDateFilter!.day,
+      23,
+      59,
+      59,
+      999,
+    );
+    return !date.isAfter(endOfDay);
   }
 
   void _onSearchChanged(String value) {
@@ -1153,18 +1433,42 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _showFilterSheet() async {
+    final owners = _transactions
+        .map((t) => t.transaction.owner)
+        .whereType<String>()
+        .where((o) => o.trim().isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
     final result = await showModalBottomSheet<TransactionFilter>(
       context: context,
       showDragHandle: true,
       builder: (context) => TransactionFilterSheet(
         typeFilter: _typeFilter,
         currentMonthOnly: _currentMonthOnly,
+        accounts: _accounts,
+        categories: _categories,
+        merchants: _merchants,
+        owners: owners,
+        accountId: _accountFilter,
+        categoryId: _categoryFilter,
+        merchantId: _merchantFilter,
+        owner: _ownerFilter,
+        startDate: _startDateFilter,
+        endDate: _endDateFilter,
       ),
     );
     if (result == null || !mounted) return;
     setState(() {
       _typeFilter = result.typeFilter;
       _currentMonthOnly = result.currentMonthOnly;
+      _accountFilter = result.accountId;
+      _categoryFilter = result.categoryId;
+      _merchantFilter = result.merchantId;
+      _ownerFilter = result.owner;
+      _startDateFilter = result.startDate;
+      _endDateFilter = result.endDate;
     });
   }
 
@@ -1477,10 +1781,141 @@ class _TransactionListPageState extends State<TransactionListPage> {
 
   String _money(int value) => 'Rp ${formatRupiahInput(value.toString())}';
 
+  int get _activeFilterCount {
+    var count = 0;
+    if (_typeFilter != 'Semua') count++;
+    if (_currentMonthOnly) count++;
+    if (_accountFilter != null) count++;
+    if (_categoryFilter != null) count++;
+    if (_merchantFilter != null) count++;
+    if (_ownerFilter != null) count++;
+    if (_startDateFilter != null && _endDateFilter != null) count++;
+    return count;
+  }
+
+  Widget _buildActiveFilterChips() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        border: Border(
+          bottom: BorderSide(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            if (_typeFilter != 'Semua')
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Jenis: $_typeFilter'),
+                  onDeleted: () => setState(() => _typeFilter = 'Semua'),
+                ),
+              ),
+            if (_currentMonthOnly)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: const Text('Bulan ini'),
+                  onDeleted: () => setState(() => _currentMonthOnly = false),
+                ),
+              ),
+            if (_startDateFilter != null && _endDateFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text(
+                    '${_dateLabel(_startDateFilter!)} - ${_dateLabel(_endDateFilter!)}',
+                  ),
+                  onDeleted: () => setState(() {
+                    _startDateFilter = null;
+                    _endDateFilter = null;
+                  }),
+                ),
+              ),
+            if (_accountFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Rekening: ${_accountLabel(_accountFilter)}'),
+                  onDeleted: () => setState(() => _accountFilter = null),
+                ),
+              ),
+            if (_categoryFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Kategori: ${_categoryLabel(_categoryFilter)}'),
+                  onDeleted: () => setState(() => _categoryFilter = null),
+                ),
+              ),
+            if (_merchantFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Toko: ${_merchantLabel(_merchantFilter)}'),
+                  onDeleted: () => setState(() => _merchantFilter = null),
+                ),
+              ),
+            if (_ownerFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Pemilik: $_ownerFilter'),
+                  onDeleted: () => setState(() => _ownerFilter = null),
+                ),
+              ),
+            TextButton.icon(
+              onPressed: () => setState(() {
+                _typeFilter = 'Semua';
+                _currentMonthOnly = false;
+                _accountFilter = null;
+                _categoryFilter = null;
+                _merchantFilter = null;
+                _ownerFilter = null;
+                _startDateFilter = null;
+                _endDateFilter = null;
+              }),
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('Reset'),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleTransactions = _visibleTransactions;
     final visibleTransfers = _visibleTransfers;
+    final timeline =
+        <
+            ({
+              TransactionWithItems? transaction,
+              Transfer? transfer,
+              DateTime date,
+            })
+          >[
+            ...visibleTransactions.map(
+              (entry) => (
+                transaction: entry,
+                transfer: null,
+                date: entry.transaction.date,
+              ),
+            ),
+            ...visibleTransfers.map(
+              (transfer) =>
+                  (transaction: null, transfer: transfer, date: transfer.date),
+            ),
+          ]
+          ..sort((left, right) => right.date.compareTo(left.date));
     final incomeTotal = visibleTransactions
         .where(
           (entry) =>
@@ -1534,12 +1969,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
           actions: _isSearchOpen
               ? const [SizedBox(width: 8)]
               : [
-                  if (widget.onOpenAssistant != null)
-                    IconButton(
-                      tooltip: 'Buka Asisten FFM',
-                      onPressed: widget.onOpenAssistant,
-                      icon: const Icon(Icons.auto_awesome_outlined),
-                    ),
                   IconButton(
                     tooltip: 'Cari transaksi',
                     onPressed: _openSearch,
@@ -1559,7 +1988,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   IconButton(
                     tooltip: 'Saring transaksi',
                     onPressed: _showFilterSheet,
-                    icon: const Icon(Icons.tune),
+                    icon: Badge(
+                      isLabelVisible: _activeFilterCount > 0,
+                      label: Text('$_activeFilterCount'),
+                      child: const Icon(Icons.tune),
+                    ),
                   ),
                   PopupMenuButton<String>(
                     tooltip: 'Aksi transaksi lainnya',
@@ -1599,10 +2032,30 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   ),
                 ],
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _transactions.isEmpty && _transfers.isEmpty
-            ? ListView(
+        body: Column(
+          children: [
+            if (_activeFilterCount > 0) _buildActiveFilterChips(),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errorMessage != null
+                  ? ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+                      children: [
+                        AppEmptyState(
+                          icon: Icons.error_outline,
+                          title: 'Gagal memuat transaksi',
+                          message: _errorMessage!,
+                          action: FilledButton.icon(
+                            onPressed: _loadTransactions,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Coba Lagi'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : _transactions.isEmpty && _transfers.isEmpty
+                  ? ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
                 children: [
                   AppEmptyState(
@@ -1651,8 +2104,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               )
             : ListView.separated(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
-                itemCount:
-                    visibleTransactions.length + visibleTransfers.length + 2,
+                itemCount: timeline.length + 2,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   if (index == 0) {
@@ -1671,21 +2123,19 @@ class _TransactionListPageState extends State<TransactionListPage> {
                       accountTypeLabel: _accountTypeLabel,
                     );
                   }
-                  final transferIndex = index - 2;
-                  if (transferIndex >= 0 &&
-                      transferIndex < visibleTransfers.length) {
-                    final transfer = visibleTransfers[transferIndex];
+                  final timelineItem = timeline[index - 2];
+                  final transfer = timelineItem.transfer;
+                  if (transfer != null) {
                     return TransferHistoryCard(
                       transfer: transfer,
                       fromLabel: _accountLabel(transfer.fromAccountId),
                       toLabel: _accountLabel(transfer.toAccountId),
                       dateLabel: _dateLabel,
+                      onEdit: () => _openTransfer(existingTransfer: transfer),
                       onDelete: () => _deleteTransfer(transfer),
                     );
                   }
-                  final entry =
-                      visibleTransactions[transferIndex -
-                          visibleTransfers.length];
+                  final entry = timelineItem.transaction!;
                   final item = entry.transaction;
                   final isIncome = item.amount >= 0;
                   final isGoalUsage =
@@ -1693,11 +2143,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   final isGoalContribution =
                       item.goalId != null && !isGoalUsage;
                   final merchantName = _merchantLabel(item.merchantId);
-                  final itemSummary = entry.items.isEmpty
-                      ? null
-                      : entry.items
-                            .map((receiptItem) => receiptItem.itemName)
-                            .join(', ');
                   final color = isGoalContribution
                       ? AppColors.primary
                       : isGoalUsage
@@ -1762,72 +2207,32 @@ class _TransactionListPageState extends State<TransactionListPage> {
                               ),
                               const SizedBox(height: 7),
                               Text(
-                                isGoalContribution
+                                merchantName.isNotEmpty
+                                    ? merchantName
+                                    : isGoalContribution
                                     ? 'Uang terkumpul untuk target'
                                     : isGoalUsage
                                     ? 'Penggunaan dana target'
                                     : _categoryLabel(item.categoryId),
-
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: Theme.of(context).textTheme.titleSmall,
                               ),
-                              if (merchantName.isNotEmpty) ...[
-                                const SizedBox(height: 3),
+                              if (merchantName.isNotEmpty &&
+                                  !isGoalContribution &&
+                                  !isGoalUsage) ...[
                                 Text(
-                                  merchantName,
+                                  _categoryLabel(item.categoryId),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppColors.inkMuted),
                                 ),
                               ],
-                              if (_accountLabel(item.accountId).isNotEmpty) ...[
-                                const SizedBox(height: 3),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.account_balance_wallet_outlined,
-                                      size: 14,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .primary,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        _accountLabel(item.accountId),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              if (itemSummary != null) ...[
-                                const SizedBox(height: 3),
-                                Text(
-                                  itemSummary,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.w700),
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              Text(
-                                'Dipakai oleh: ${item.owner}',
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: AppColors.inkMuted),
-                              ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 5),
                               HijriDateText(
                                 date: item.date,
-                                includeSeconds: true,
+                                includeSeconds: false,
                                 compact: true,
                                 color: AppColors.inkMuted,
                               ),
@@ -1884,6 +2289,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   );
                 },
               ),
+            ),
+          ],
+        ),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: 'transaction_add_fab',
           onPressed: _openForm,

@@ -38,9 +38,9 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.categories)
-          ..where((row) => row.householdId.equals(householdId)))
-        .get();
+    final existing = await (database.select(
+      database.categories,
+    )..where((row) => row.householdId.equals(householdId))).get();
     final existingKeys = existing
         .map((row) => '${row.type}:${row.name.trim().toLowerCase()}')
         .toSet();
@@ -64,8 +64,28 @@ class DatabaseSeed {
         'weekly',
       ),
       ('seed-expense-listrik-air', 'Listrik & air', 'expense', 'monthly'),
-      ('seed-expense-kesehatan', 'Kesehatan', 'expense', 'none'),
+      ('seed-expense-kesehatan', 'Kesehatan', 'expense', 'monthly'),
       ('seed-expense-pendidikan', 'Pendidikan', 'expense', 'none'),
+      // --- Cadence warisan: ID sama dengan seed AppDatabase agar
+      // ensure() dapat memperbaiki periode 'none' peninggalan versi lama.
+      ('seed-expense-makan-minum', 'Makan & minum', 'expense', 'weekly'),
+      ('seed-expense-belanja-rumah', 'Belanja rumah', 'expense', 'monthly'),
+      ('seed-expense-belanja-pasar', 'Belanja pasar', 'expense', 'weekly'),
+      ('seed-expense-transportasi', 'Transportasi', 'expense', 'weekly'),
+      ('seed-expense-bbm-motor', 'BBM motor', 'expense', 'weekly'),
+      ('seed-expense-bbm-mobil', 'BBM mobil', 'expense', 'weekly'),
+      ('seed-expense-tagihan', 'Tagihan', 'expense', 'monthly'),
+      ('seed-expense-tagihan-rumah', 'Tagihan rumah', 'expense', 'monthly'),
+      ('seed-expense-gas-lpg', 'Gas LPG', 'expense', 'monthly'),
+      ('seed-expense-pulsa-internet', 'Pulsa & internet', 'expense', 'monthly'),
+      ('seed-expense-beras', 'Beras', 'expense', 'monthly'),
+      (
+        'seed-expense-sabun-kebersihan',
+        'Sabun & kebersihan',
+        'expense',
+        'monthly',
+      ),
+      ('seed-expense-kebutuhan-dapur', 'Kebutuhan dapur', 'expense', 'monthly'),
       // --- Pemasukan ---
       ('seed-income-hasil-panen', 'Hasil panen', 'income', 'none'),
       ('seed-income-cabe', 'Cabe', 'income', 'none'),
@@ -129,15 +149,16 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.merchants)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
-    final existingNames =
-        existing.map((row) => row.name.trim().toLowerCase()).toSet();
+    final existing =
+        await (database.select(database.merchants)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final existingNames = existing
+        .map((row) => row.name.trim().toLowerCase())
+        .toSet();
 
     const defaults = <(String, String)>[
       ('seed-merchant-sayur-segar', 'Sayur segar'),
@@ -180,15 +201,16 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.tags)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false),
-          ))
-        .get();
-    final existingNames =
-        existing.map((row) => row.name.trim().toLowerCase()).toSet();
+    final existing =
+        await (database.select(database.tags)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final existingNames = existing
+        .map((row) => row.name.trim().toLowerCase())
+        .toSet();
 
     const defaults = <(String, String)>[
       ('seed-tag-wajib', 'wajib'),
@@ -232,15 +254,16 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.accounts)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false),
-          ))
-        .get();
-    final existingNames =
-        existing.map((row) => row.name.trim().toLowerCase()).toSet();
+    final existing =
+        await (database.select(database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final existingNames = existing
+        .map((row) => row.name.trim().toLowerCase())
+        .toSet();
 
     const defaults = <(String, String, String)>[
       ('seed-account-cash-rumah', 'Cash Rumah', 'cash'),
@@ -281,16 +304,17 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.transactionParties)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.kind.equals('income_source') &
-                row.isArchived.equals(false),
-          ))
-        .get();
-    final existingNames =
-        existing.map((row) => row.name.trim().toLowerCase()).toSet();
+    final existing =
+        await (database.select(database.transactionParties)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.kind.equals('income_source') &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final existingNames = existing
+        .map((row) => row.name.trim().toLowerCase())
+        .toSet();
 
     const defaults = <(String, String)>[
       ('seed-income-source-cabe', 'Cabe'),
@@ -335,15 +359,16 @@ class DatabaseSeed {
     String householdId,
     DateTime now,
   ) async {
-    final existing = await (database.select(database.goals)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
-    final existingNames =
-        existing.map((row) => row.name.trim().toLowerCase()).toSet();
+    final existing =
+        await (database.select(database.goals)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isActive.equals(true),
+            ))
+            .get();
+    final existingNames = existing
+        .map((row) => row.name.trim().toLowerCase())
+        .toSet();
 
     final targetDate = DateTime(now.year + 1, now.month, now.day);
 

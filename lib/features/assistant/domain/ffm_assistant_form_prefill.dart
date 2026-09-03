@@ -106,9 +106,11 @@ abstract final class FfmAssistantFormPrefillMapper {
     FfmAssistantDraftKind.liability ||
     FfmAssistantDraftKind.liabilityUpdate ||
     FfmAssistantDraftKind.liabilityArchive ||
+    FfmAssistantDraftKind.liabilityPayment ||
     FfmAssistantDraftKind.receivable ||
     FfmAssistantDraftKind.receivableUpdate ||
-    FfmAssistantDraftKind.receivableArchive =>
+    FfmAssistantDraftKind.receivableArchive ||
+    FfmAssistantDraftKind.receivablePayment =>
       FfmAssistantDestination.liabilities,
     FfmAssistantDraftKind.reminder ||
     FfmAssistantDraftKind.reminderUpdate ||

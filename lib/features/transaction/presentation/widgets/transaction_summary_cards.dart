@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
@@ -13,6 +14,7 @@ class TransferHistoryCard extends StatelessWidget {
     required this.toLabel,
     required this.dateLabel,
     required this.onDelete,
+    this.onEdit,
   });
 
   final Transfer transfer;
@@ -20,6 +22,7 @@ class TransferHistoryCard extends StatelessWidget {
   final String toLabel;
   final String Function(DateTime) dateLabel;
   final VoidCallback onDelete;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -101,10 +104,16 @@ class TransferHistoryCard extends StatelessWidget {
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
                 onSelected: (value) {
+                  if (value == 'edit') onEdit?.call();
                   if (value == 'delete') onDelete();
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'delete', child: Text('Hapus transfer')),
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit transfer'),
+                    ),
+                  const PopupMenuItem(value: 'delete', child: Text('Hapus transfer')),
                 ],
                 icon: const Icon(Icons.more_vert),
               ),
@@ -162,7 +171,7 @@ class AccountBalancesCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Transfer ikut dihitung',
+                'Saldo saat ini · transfer ikut dihitung',
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: AppColors.inkMuted),
               ),

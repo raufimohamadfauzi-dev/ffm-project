@@ -41,9 +41,11 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.liability => 'draft.liability',
         FfmAssistantDraftKind.liabilityUpdate => 'draft.liability_update',
         FfmAssistantDraftKind.liabilityArchive => 'draft.liability_archive',
+        FfmAssistantDraftKind.liabilityPayment => 'draft.liability_payment',
         FfmAssistantDraftKind.receivable => 'draft.receivable',
         FfmAssistantDraftKind.receivableUpdate => 'draft.receivable_update',
         FfmAssistantDraftKind.receivableArchive => 'draft.receivable_archive',
+        FfmAssistantDraftKind.receivablePayment => 'draft.receivable_payment',
         FfmAssistantDraftKind.asset => 'draft.asset',
         FfmAssistantDraftKind.assetUpdate => 'draft.asset_update',
         FfmAssistantDraftKind.assetArchive => 'draft.asset_archive',
@@ -123,8 +125,10 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.assetArchive => 'mutate.archive',
         FfmAssistantDraftKind.liabilityUpdate => 'mutate.update',
         FfmAssistantDraftKind.liabilityArchive => 'mutate.archive',
+        FfmAssistantDraftKind.liabilityPayment => 'mutate.debt_payment',
         FfmAssistantDraftKind.receivableUpdate => 'mutate.update',
         FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
+        FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
         FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
         FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
         FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
@@ -234,11 +238,13 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.assetUpdate ||
             FfmAssistantDraftKind.assetArchive => 'verify.asset_mutation',
             FfmAssistantDraftKind.liabilityUpdate ||
-            FfmAssistantDraftKind.liabilityArchive =>
-              'verify.liability_mutation',
+            FfmAssistantDraftKind.liabilityArchive ||
+            FfmAssistantDraftKind.liabilityPayment =>
+              'verify.debt_payment',
             FfmAssistantDraftKind.receivableUpdate ||
-            FfmAssistantDraftKind.receivableArchive =>
-              'verify.receivable_mutation',
+            FfmAssistantDraftKind.receivableArchive ||
+            FfmAssistantDraftKind.receivablePayment =>
+              'verify.debt_payment',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
             FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
             _ => 'verify.saved_draft',
@@ -308,10 +314,12 @@ class FfmAssistantActionPlanner {
         FfmAssistantDraftKind.goalArchive => ['read.goals'],
         FfmAssistantDraftKind.liability ||
         FfmAssistantDraftKind.liabilityUpdate ||
-        FfmAssistantDraftKind.liabilityArchive => ['read.liabilities'],
+        FfmAssistantDraftKind.liabilityArchive ||
+        FfmAssistantDraftKind.liabilityPayment => ['read.liabilities'],
         FfmAssistantDraftKind.receivable ||
         FfmAssistantDraftKind.receivableUpdate ||
-        FfmAssistantDraftKind.receivableArchive => ['read.receivable'],
+        FfmAssistantDraftKind.receivableArchive ||
+        FfmAssistantDraftKind.receivablePayment => ['read.receivable'],
         FfmAssistantDraftKind.asset ||
         FfmAssistantDraftKind.assetUpdate ||
         FfmAssistantDraftKind.assetArchive => ['read.assets'],

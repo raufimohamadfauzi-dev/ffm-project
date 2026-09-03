@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../../activity/domain/activity_mode_detector.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../domain/ffm_assistant_models.dart';
+import 'ffm_gemini_read_capability_service.dart';
 
 /// Membaca proposal terstruktur dari LLM eksternal maupun Gemini Cloud.
 ///
@@ -13,24 +14,10 @@ class FfmAssistantProposalJsonService {
   static const formatVersion = 'ffm-assistant-proposal-v1';
   static const capabilityRequestFormatVersion =
       'ffm-assistant-capability-request-v1';
-  static const geminiReadCapabilityIds = <String>{
-    'read.summary',
-    'read.transactions',
-    'read.hijriDate',
-    'read.goals',
-    'read.liabilities',
-    'read.debts',
-    'read.receivables',
-    'read.receivable',
-    'read.activity',
-    'read.activities',
-    'read.reminders',
-    'read.reminder',
-    'read.assets',
-    'read.asset',
-    'read.budget',
-    'read.budgets',
-  };
+  static const _userFriendlyError =
+      'Maaf, saya belum bisa memproses permintaan ini. Coba gunakan kata kunci lain atau jelaskan dengan cara berbeda.';
+  static Set<String> get geminiReadCapabilityIds =>
+      FfmGeminiReadCapabilityPolicy.allowedCapabilityIds;
 
   /// Membaca permintaan capability Gemini yang sangat sempit. Kontrak ini
   /// sengaja hanya mengenali capability read-only yang di-allowlist; JSON ini
@@ -180,16 +167,14 @@ class FfmAssistantProposalJsonService {
         'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
         'goal_usage' || 'goalUsage' => _parseGoalUsage(proposal, createdAt),
         'budget' => _parseBudget(proposal, createdAt),
+        'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
+        'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
         'memory' => _parseMemory(proposal),
         'navigation' => _parseNavigation(proposal),
-        _ => const FfmAssistantProposalParseResult.invalid(
-          'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, reminder, goal, goal_deposit, goal_usage, budget, memory, atau navigation.',
-        ),
+        _ => const FfmAssistantProposalParseResult.invalid(_userFriendlyError),
       };
     } on FormatException {
-      return const FfmAssistantProposalParseResult.invalid(
-        'JSON proposal belum valid. Salin ulang hasil LLM tanpa Markdown atau teks tambahan.',
-      );
+      return const FfmAssistantProposalParseResult.invalid(_userFriendlyError);
     }
   }
 
@@ -232,10 +217,12 @@ class FfmAssistantProposalJsonService {
             'goalDeposit' => _parseGoalDeposit(proposal, createdAt),
             'goal_usage' || 'goalUsage' => _parseGoalUsage(proposal, createdAt),
             'budget' => _parseBudget(proposal, createdAt),
+            'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
+            'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
             'memory' => _parseMemory(proposal),
             'navigation' => _parseNavigation(proposal),
             _ => const FfmAssistantProposalParseResult.invalid(
-              'Jenis proposal belum didukung.',
+              _userFriendlyError,
             ),
           };
           if (result.error != null && firstError == null) {
@@ -273,7 +260,7 @@ class FfmAssistantProposalJsonService {
       return const FfmAssistantMultiProposalParseResult.notProposal();
     } on FormatException {
       return const FfmAssistantMultiProposalParseResult.error(
-        'JSON proposal belum valid.',
+        _userFriendlyError,
       );
     }
   }
@@ -333,14 +320,41 @@ class FfmAssistantProposalJsonService {
       );
     }
 
-    // Parse hijriDate if provided
+    final adminFee = _positiveInt(proposal['adminFee']);
     final hijriDate = proposal['hijriDate']?.toString().trim();
     final tags = _csvValue(proposal['tags']);
     final newTags = _csvValue(proposal['newTags']);
     final newMerchant = _boundedText(proposal['newMerchant'], 120);
+    final receiptNumber = _boundedText(
+      proposal['receiptNumber'] ?? proposal['nomorNota'],
+      100,
+    );
+    final receiptPaidAmount = _positiveInt(
+      proposal['paidAmount'] ?? proposal['receiptPaidAmount'],
+    );
+    final receiptChangeAmount = _positiveInt(
+      proposal['changeAmount'] ?? proposal['receiptChangeAmount'],
+    );
+    final receiptRawText = _boundedText(proposal['receiptRawText'], 1000);
+
+    String? itemsJson;
+    final rawItems = proposal['items'];
+    if (rawItems is List && rawItems.isNotEmpty) {
+      itemsJson = jsonEncode(rawItems);
+    } else if (rawItems is String && rawItems.trim().startsWith('[')) {
+      itemsJson = rawItems.trim();
+    }
+
     final formValues = <String, String>{
       'source': 'gemini_proposal',
       if (hijriDate != null && hijriDate.isNotEmpty) 'hijriDate': hijriDate,
+      if (receiptNumber?.isNotEmpty == true) 'receiptNumber': receiptNumber!,
+      if (receiptPaidAmount != null)
+        'receiptPaidAmount': receiptPaidAmount.toString(),
+      if (receiptChangeAmount != null)
+        'receiptChangeAmount': receiptChangeAmount.toString(),
+      if (receiptRawText?.isNotEmpty == true) 'receiptRawText': receiptRawText!,
+      if (itemsJson?.isNotEmpty == true) 'itemsJson': itemsJson!,
     };
     if (tags != null) formValues['tags'] = tags;
     if (newTags != null) formValues['newTags'] = newTags;
@@ -357,6 +371,7 @@ class FfmAssistantProposalJsonService {
         fromAccountName: _boundedText(proposal['fromAccount'], 100),
         toAccountName: _boundedText(proposal['toAccount'], 100),
         categoryName: _boundedText(proposal['category'], 100),
+        adminFee: adminFee,
         note: _boundedText(proposal['note'], 300),
         date: _dateOr(proposal['date'], createdAt),
         formValues: formValues,
@@ -627,6 +642,9 @@ class FfmAssistantProposalJsonService {
       proposal['amount'] ?? proposal['limit'] ?? proposal['budgetAmount'],
     );
     final note = _boundedText(proposal['note'], 200);
+    final periodType = _canonicalBudgetPeriod(
+      proposal['period'] ?? proposal['periodType'],
+    );
 
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
@@ -637,6 +655,110 @@ class FfmAssistantProposalJsonService {
         categoryName: title,
         note: note,
         date: createdAt,
+        formValues: {if (periodType case final String p) 'periodType': p},
+      ),
+    );
+  }
+
+  /// Normalisasi periode anggaran dari LLM/JSON ke kode kanonis.
+  /// Mengembalikan null bila tidak dikenali agar form memakai default
+  /// (filter halaman atau default kategori), bukan menebak.
+  static String? _canonicalBudgetPeriod(Object? raw) {
+    final value = raw?.toString().trim().toLowerCase();
+    if (value == null || value.isEmpty) return null;
+    return switch (value) {
+      'weekly' || 'mingguan' || 'per minggu' => 'weekly',
+      'biweekly' || 'per dua minggu' => 'biweekly',
+      'monthly' || 'bulanan' || 'per bulan' || 'perbulan' => 'monthly',
+      'bimonthly' => 'bimonthly',
+      'fourmonthly' => 'fourmonthly',
+      'fivemonthly' => 'fivemonthly',
+      'nonrecurring' ||
+      'tidak rutin' ||
+      'tak rutin' ||
+      'none' => 'nonrecurring',
+      _ => null,
+    };
+  }
+
+  static FfmAssistantProposalParseResult _parseLiability(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(
+      proposal['title'] ?? proposal['name'] ?? proposal['party'],
+      100,
+    );
+    final party = _boundedText(
+      proposal['party'] ?? proposal['partyName'] ?? proposal['title'] ?? proposal['name'],
+      100,
+    );
+    final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
+    if (amount == null) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Nominal hutang harus lebih dari nol.',
+      );
+    }
+    final note = _boundedText(proposal['note'] ?? proposal['catatan'], 300);
+    final date = _dateOr(
+      proposal['dueDate'] ?? proposal['targetDate'] ?? proposal['date'],
+      createdAt.add(const Duration(days: 30)),
+    );
+
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.liability,
+        createdAt: createdAt,
+        title: title ?? 'Hutang',
+        partyName: party ?? title ?? 'Hutang',
+        amount: amount,
+        note: note,
+        date: date,
+        formValues: {
+          'source': 'gemini_proposal',
+          if (proposal['dueDate'] != null) 'dueDate': proposal['dueDate'].toString(),
+        },
+      ),
+    );
+  }
+
+  static FfmAssistantProposalParseResult _parseReceivable(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(
+      proposal['title'] ?? proposal['name'] ?? proposal['party'],
+      100,
+    );
+    final party = _boundedText(
+      proposal['party'] ?? proposal['partyName'] ?? proposal['title'] ?? proposal['name'],
+      100,
+    );
+    final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
+    if (amount == null) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Nominal piutang harus lebih dari nol.',
+      );
+    }
+    final note = _boundedText(proposal['note'] ?? proposal['catatan'], 300);
+    final date = _dateOr(
+      proposal['dueDate'] ?? proposal['targetDate'] ?? proposal['date'],
+      createdAt.add(const Duration(days: 30)),
+    );
+
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.receivable,
+        createdAt: createdAt,
+        title: title ?? 'Piutang',
+        partyName: party ?? title ?? 'Piutang',
+        amount: amount,
+        note: note,
+        date: date,
+        formValues: {
+          'source': 'gemini_proposal',
+          if (proposal['dueDate'] != null) 'dueDate': proposal['dueDate'].toString(),
+        },
       ),
     );
   }

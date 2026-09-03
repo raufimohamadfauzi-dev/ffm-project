@@ -31,10 +31,10 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
       );
     }
     final needsFinancial = RegExp(
-      r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap)\b',
+      r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap|saran|rekomendasi|evaluasi|bulan lalu|bulan depan|3 bulan|tiga bulan|harus saya lakukan|harus lakukan)\b',
     ).hasMatch(normalized);
     final needsMasterData = RegExp(
-      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget)\b',
+      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi)\b',
     ).hasMatch(normalized);
     final needsRecentTransactions = RegExp(
       r'\b(terakhir|terbaru|riwayat|minggu ini|bulan ini|hari ini|kemarin)\b',

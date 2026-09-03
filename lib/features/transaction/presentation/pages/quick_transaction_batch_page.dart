@@ -334,7 +334,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
             ],
           ),
           DropdownButtonFormField<TransactionType>(
-            value: row.type,
+            initialValue: row.type,
             decoration: const InputDecoration(
               labelText: 'Jenis transaksi',
               prefixIcon: Icon(Icons.swap_vert_rounded),
@@ -387,7 +387,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: row.categoryId,
+            initialValue: row.categoryId,
             decoration: const InputDecoration(
               labelText: 'Kategori',
               prefixIcon: Icon(Icons.category_outlined),
@@ -407,7 +407,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: row.accountId,
+            initialValue: row.accountId,
             decoration: const InputDecoration(
               labelText: 'Rekening tempat uang',
               prefixIcon: Icon(Icons.account_balance_wallet_outlined),
@@ -437,7 +437,7 @@ class _QuickTransactionBatchPageState extends State<QuickTransactionBatchPage> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String?>(
-            value: row.merchantId,
+            initialValue: row.merchantId,
             decoration: const InputDecoration(
               labelText: 'Toko/tempat (opsional)',
               prefixIcon: Icon(Icons.storefront_outlined),

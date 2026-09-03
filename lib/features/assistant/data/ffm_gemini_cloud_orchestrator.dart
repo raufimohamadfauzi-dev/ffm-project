@@ -13,6 +13,7 @@ class FfmGeminiCloudTurnResult {
     this.statusCode,
     this.latency,
     this.usedReadCapability,
+    this.readEvidence,
   }) : errorMessage = null;
 
   const FfmGeminiCloudTurnResult.failure({
@@ -21,7 +22,8 @@ class FfmGeminiCloudTurnResult {
     this.statusCode,
     this.latency,
   }) : text = null,
-       usedReadCapability = null;
+       usedReadCapability = null,
+       readEvidence = null;
 
   final String? text;
   final String? errorMessage;
@@ -29,6 +31,7 @@ class FfmGeminiCloudTurnResult {
   final int? statusCode;
   final Duration? latency;
   final String? usedReadCapability;
+  final String? readEvidence;
 
   bool get ok => text != null;
 }
@@ -110,6 +113,15 @@ class FfmGeminiCloudOrchestrator {
     var finalText = result.text ?? '';
 
     if (result.functionCalls != null && result.functionCalls!.isNotEmpty) {
+      if (result.functionCalls!.length > 1) {
+        return FfmGeminiCloudTurnResult.failure(
+          errorMessage:
+              'Gemini memanggil ${result.functionCalls!.length} fungsi sekaligus (${result.functionCalls!.map((c) => c.name).join(', ')}). Untuk menjaga kepatuhan dan kebenaran data, hanya satu tindakan per putaran yang diizinkan.',
+          model: result.model,
+          statusCode: result.statusCode,
+          latency: result.latency,
+        );
+      }
       final call = result.functionCalls!.first;
       final args = call.args;
 
@@ -133,12 +145,11 @@ class FfmGeminiCloudOrchestrator {
       } else if (call.name == 'read_data') {
         final cap = args['capabilityId'];
         final jsonStr = jsonEncode({
-          "formatVersion": "ffm-assistant-proposal-v1",
-          "read": {
-            "capabilityId": cap,
-            if (args['startDate'] != null) "startDate": args['startDate'],
-            if (args['endDate'] != null) "endDate": args['endDate'],
-          },
+          "formatVersion": "ffm-assistant-capability-request-v1",
+          "kind": "read_capability_request",
+          "capabilityId": cap,
+          if (args['startDate'] != null) "startDate": args['startDate'],
+          if (args['endDate'] != null) "endDate": args['endDate'],
         });
         finalText += '\n$jsonStr';
       }
@@ -155,6 +166,7 @@ class FfmGeminiCloudOrchestrator {
         latency: result.latency,
       );
     }
+    String? readEvidence;
     if (request.request != null) {
       String facts;
       try {
@@ -163,6 +175,7 @@ class FfmGeminiCloudOrchestrator {
           householdId: householdId,
           now: clock(),
         );
+        readEvidence = facts;
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
           errorMessage: 'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
@@ -196,6 +209,7 @@ class FfmGeminiCloudOrchestrator {
       statusCode: result.statusCode,
       latency: result.latency,
       usedReadCapability: request.request?.capabilityId,
+      readEvidence: readEvidence,
     );
   }
 
@@ -295,7 +309,8 @@ class FfmGeminiCloudOrchestrator {
               'properties': {
                 'capabilityId': {
                   'type': 'STRING',
-                  'description': 'Jenis data yang dibaca (contoh: read.summary, read.transactions, read.goals, read.liabilities, read.receivables, read.activities, read.reminders, read.assets, read.budget, read.hijriDate)',
+                  'description':
+                      'Jenis data yang dibaca (${FfmGeminiReadCapabilityPolicy.canonicalToolChoices.join(', ')})',
                 },
                 'startDate': {
                   'type': 'STRING',
@@ -317,10 +332,19 @@ class FfmGeminiCloudOrchestrator {
               'properties': {
                 'type': {
                   'type': 'STRING',
-                  'description': 'Jenis draft (contoh: expense, income, transfer, goal, goal_deposit, goal_usage, budget, master_data, activity, reminder, memory)',
+                  'description': 'Jenis draft (contoh: expense, income, transfer, goal, goal_deposit, goal_usage, budget, master_data, activity, reminder, memory, liability, receivable)',
                 },
                 'title': {'type': 'STRING', 'description': 'Judul atau nama'},
+                'party': {
+                  'type': 'STRING',
+                  'description':
+                      'Nama pihak peminjam atau pemberi hutang (untuk type liability atau receivable)',
+                },
                 'amount': {'type': 'NUMBER', 'description': 'Nominal uang'},
+                'adminFee': {
+                  'type': 'NUMBER',
+                  'description': 'Biaya admin transfer jika ada (angka)',
+                },
                 'fromAccount': {
                   'type': 'STRING',
                   'description': 'Rekening sumber',
@@ -341,6 +365,24 @@ class FfmGeminiCloudOrchestrator {
                   'type': 'STRING',
                   'description': 'Nama toko baru yang sama dengan merchant; isi hanya bila toko tersebut belum ada di toko_aktif',
                 },
+                'receiptNumber': {
+                  'type': 'STRING',
+                  'description':
+                      'Nomor nota / struk / invoice belanja jika ada',
+                },
+                'paidAmount': {
+                  'type': 'NUMBER',
+                  'description':
+                      'Nominal uang yang dibayarkan jika tercantum di nota',
+                },
+                'changeAmount': {
+                  'type': 'NUMBER',
+                  'description': 'Nominal kembalian jika tercantum di nota',
+                },
+                'items': {
+                  'type': 'STRING',
+                  'description': 'Daftar rincian item belanjaan (JSON string array of objects {"name": string, "price": number, "qty": number}) jika pengguna menyebutkan detail barang',
+                },
                 'tags': {
                   'type': 'STRING',
                   'description': 'Daftar tag dipisah koma dari daftar tag_aktif di KONTEKS TERARAH (contoh: "cabai,bawang")',
@@ -352,6 +394,15 @@ class FfmGeminiCloudOrchestrator {
                 'targetDate': {
                   'type': 'STRING',
                   'description': 'Tanggal YYYY-MM-DD',
+                },
+                'dueDate': {
+                  'type': 'STRING',
+                  'description':
+                      'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',
+                },
+                'period': {
+                  'type': 'STRING',
+                  'description': 'Periode anggaran untuk type budget: weekly (mingguan), monthly (bulanan), atau nonrecurring (tidak rutin). Wajib diisi bila user menyebut periode; bila user tidak menyebut, kosongkan agar form memakai default.',
                 },
                 'note': {'type': 'STRING', 'description': 'Catatan tambahan'},
               },
@@ -400,8 +451,11 @@ ATURAN NAVIGASI HALAMAN:
 - Daftar halaman: summary, transactions, budget, analysis, otherMenu, masterData, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard.
 
 ATURAN DATA & TRANSAKSI:
-- Untuk membaca data yang tidak ada di konteks (misal riwayat transaksi detail, target, hutang, piutang, aset, anggaran, aktivitas prioritas, atau pengingat/alarm), gunakan tool `read_data` (pilihan: `read.summary`, `read.transactions`, `read.goals`, `read.liabilities`, `read.receivables`, `read.activities`, `read.reminders`, `read.assets`, `read.budget`).
-- Untuk membuat/mengubah data (transaksi, goal, budget, reminder, dll), gunakan tool `create_draft`. Isi parameter yang relevan.
+- Untuk membaca data yang tidak ada di konteks (misal riwayat transaksi detail, target, hutang, piutang, aset, anggaran, aktivitas prioritas, atau pengingat/alarm), gunakan tool `read_data` (pilihan: ${FfmGeminiReadCapabilityPolicy.formattedToolChoices}).
+- Kontrak privasi bounded: ${FfmGeminiReadCapabilityPolicy.privacyContractExplanation}
+- Untuk membuat/mengubah data (transaksi, transfer, goal, budget, reminder, dll), gunakan tool `create_draft`. Isi parameter yang relevan.
+- Fitur transaksi mendukung: pengeluaran/pemasukan dengan rincian belanja (`items`), toko/merchant (`merchant`), nomor nota (`receiptNumber`), nominal dibayar (`paidAmount`), dan kembalian (`changeAmount`); serta transfer saldo antar-rekening (`fromAccount`, `toAccount`, `amount`, dan `adminFee` jika ada biaya admin).
+- Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`), bayar cicilan/pelunasan hutang (`type: "expense"`, `category: "Hutang"`, `note: "Bayar hutang ..."`), dan penerimaan piutang (`type: "income"`, `note: "Penerimaan piutang ..."`).
 - WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
 - Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.
@@ -410,11 +464,34 @@ ATURAN DATA & TRANSAKSI:
 
 ATURAN HOLISTIK ASET & ANGGARAN:
 - Jika pengguna menanyakan analisis keuangan, strategi defisit, atau mencapai target tertentu, gunakan `read.assets` untuk mengecek efisiensi/produkivitas aset dan `read.budget` untuk mengecek sisa alokasi anggaran.
+- SEMANTIK ANGGARAN (sama dengan halaman Anggaran; jangan mengarang angka lain): daya tersedia pos = batas + rollover + transferMasuk − transferKeluar; progres = pakai / daya tersedia; sisa = daya tersedia − pakai. Transfer keluar mengurangi daya belanja sehingga progres tidak boleh dihitung dari batas kotor. Setiap baris digest adalah satu pos; jangan menjumlahkan baris pos dengan baris total.
+- PERIODE ANGGARAN: pos periodik (mingguan/bulanan/dll.) berganti tiap periode — periode baru memakai pos baru, riwayat periode lalu tetap tersimpan dan tidak dihapus, rollover diisi manual lewat form. Tipe "tidak rutin" tidak pernah reset otomatis sampai diarsipkan.
 
 ATURAN AKTIVITAS & TARGET & PENGINGAT:
 - Aktivitas, Target (Goal), dan Pengingat (Reminder) menggunakan `create_draft` (contoh: type "activity", "goal", atau "reminder").
 - Untuk melihat pengingat/alarm yang sudah dijadwalkan pengguna, gunakan `read_data` dengan `read.reminders`. Gunakan ini saat user bertanya tentang alarm, jadwal, pengingat, atau ketika kamu perlu mengkorelasikan topik percakapan dengan pengingat yang sudah ada.
 - Kalender Hijriah lokal tersedia di konteks, gunakan untuk referensi tanggal Islam.
+
+ATURAN EVALUASI HISTORIS & SARAN PERENCANAAN BULAN DEPAN:
+- Jika pengguna meminta evaluasi data masa lalu (misal 3 bulan ke belakang atau bulan lalu) dan menanyakan apa yang harus dilakukan di bulan depan:
+  1. Rujuk fakta terverifikasi di ANALYSIS FACTS (rata-rata pengeluaran bulanan, kategori paling boros, tren, dan surplus/defisit).
+  2. Berikan 2-3 saran finansial yang konkret, terukur, dan realistis untuk bulan depan (misalnya: menetapkan batas anggaran pada pos terbesar, menabung dana darurat di awal gajian, atau menjaga cicilan tetap aman).
+  3. Tawarkan pembuatan draft anggaran (`create_draft` tipe `budget`) atau pengingat (`create_draft` tipe `reminder`) yang relevan untuk membantu pengguna mengeksekusi rencananya.
+
+CAKUPAN LENGKAP PENGELOLA FINANSIAL & OPERASIONAL KELUARGA (FFM):
+Asisten FFM adalah pusat kecerdasan holistik keluarga, bukan sekadar chatbot transaksi:
+1. Pertanian & Perkebunan: Pahami pengeluaran pembelian pupuk, bibit, pakan ternak, dan pestisida/obat hama sebagai modal kerja tani/kebun. Hubungkan modal ini dengan data panen (bobot, harga jual, dan komoditas) untuk menganalisis laba-rugi riil.
+2. Kesehatan & Medis: Tangani pembelian obat, apotek, biaya periksa klinik/dokter, vitamin, dan iuran BPJS/asuransi. Bantu ingatkan pembelian obat rutin bila diperlukan.
+3. Belanja Online & Merchant: Kenali belanja di platform e-commerce (Shopee, Tokopedia, TikTok Shop, Lazada), toko fisik, atau pasar lokal. Perhatikan merchant, tag, dan ongkir untuk analisis pos konsumtif vs produktif.
+4. Aktivitas & Rutinitas: Kelola sesi kegiatan/tugas keluarga (jadwal pemupukan, ronda, pemeliharaan aset) dan pengingat jatuh tempo komitmen finansial.
+Gunakan pemahaman lintas sektor ini untuk memberikan analisis dan saran yang utuh serta relevan dengan kehidupan nyata pengguna.
+
+ATURAN ANALISIS LAPORAN KEUANGAN & PEMBELAJARAN:
+- Jika pengguna meminta evaluasi dari halaman laporan ("analisis laporan ini", "evaluasi laporan", "cari kebocoran uang", "rekomendasi anggaran", dll.):
+  1. Rujuk fakta di Konteks Layar / Analysis Facts (pemasukan, pengeluaran, surplus/defisit, rasio tabungan, rasio cicilan, dan pos terbesar).
+  2. Jelaskan makna angka secara mendidik (kondisi rasio tabungan apakah sudah sehat ≥20%, beban cicilan apakah aman ≤30%, dan pos pendorong terbesar).
+  3. Berikan 2-3 langkah perbaikan yang realistis untuk pembelajaran bulan depan (cara memangkas pos boros, mengunci batas belanja, atau mengalihkan surplus ke target tabungan).
+  4. Tawarkan pembuatan draft anggaran (`create_draft` tipe `budget`) atau pengingat jika relevan untuk membantu pengguna mengeksekusi rencananya.
 
 KONTEKS TERARAH FFM:
 $context

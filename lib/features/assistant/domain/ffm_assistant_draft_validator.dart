@@ -130,14 +130,14 @@ abstract final class FfmAssistantDraftValidator {
         }
       case FfmAssistantDraftKind.liability:
       case FfmAssistantDraftKind.receivable:
-        if (_isBlank(draft.partyName)) {
+        if (_isBlank(draft.partyName) && _isBlank(draft.title)) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'party_required',
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'nama orang',
               message:
-                  'Sebut nama orangnya dulu supaya catatan tidak tertukar.',
+                  'Sebut nama orang atau nama hutang/piutang dulu supaya catatan tidak tertukar.',
             ),
           );
         }
@@ -163,6 +163,27 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.liabilityPayment:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'liability_payment_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Hutang',
+              message: 'Hutang target belum dipilih secara unik.',
+            ),
+          );
+        }
+        if (!draft.hasAmount) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'liability_payment_amount_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'nominal',
+              message: 'Nominal pembayaran hutang belum ada.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.receivableUpdate:
         if (_isBlank(draft.formValues['targetId']) || _isBlank(draft.title)) {
           issues.add(
@@ -182,6 +203,27 @@ abstract final class FfmAssistantDraftValidator {
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'Piutang',
               message: 'Piutang target belum ditemukan secara unik.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.receivablePayment:
+        if (_isBlank(draft.formValues['targetId'])) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'receivable_payment_target_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'Piutang',
+              message: 'Piutang target belum dipilih secara unik.',
+            ),
+          );
+        }
+        if (!draft.hasAmount) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'receivable_payment_amount_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'nominal',
+              message: 'Nominal penerimaan piutang belum ada.',
             ),
           );
         }

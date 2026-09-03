@@ -29,10 +29,12 @@ class TransferFormDialog extends StatefulWidget {
     super.key,
     required this.accounts,
     this.assistantDraft,
+    this.existingTransfer,
   });
 
   final List<Account> accounts;
   final FfmAssistantDraft? assistantDraft;
+  final Transfer? existingTransfer;
 
   @override
   State<TransferFormDialog> createState() => _TransferFormDialogState();
@@ -52,6 +54,19 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
   @override
   void initState() {
     super.initState();
+    final existing = widget.existingTransfer;
+    if (existing != null) {
+      _fromAccountId = existing.fromAccountId;
+      _toAccountId = existing.toAccountId;
+      _amountController.text = existing.amount.toString();
+      if (existing.adminFee > 0) {
+        _adminFeeController.text = existing.adminFee.toString();
+      }
+      _noteController.text = existing.note ?? '';
+      _date = existing.date;
+      return;
+    }
+
     _fromAccountId = widget.accounts.firstOrNull?.id;
     _toAccountId = widget.accounts.length > 1 ? widget.accounts[1].id : null;
     final draft = widget.assistantDraft;
@@ -171,11 +186,17 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Row(
+      title: Row(
         children: [
-          Icon(Icons.swap_horiz_rounded),
-          SizedBox(width: 8),
-          Text('Transfer saldo antar tempat'),
+          const Icon(Icons.swap_horiz_rounded),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.existingTransfer != null
+                  ? 'Edit transfer saldo'
+                  : 'Transfer saldo antar tempat',
+            ),
+          ),
         ],
       ),
       content: SizedBox(
@@ -468,7 +489,11 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
         FilledButton.icon(
           onPressed: _submit,
           icon: const Icon(Icons.swap_horiz_rounded),
-          label: const Text('Simpan transfer'),
+          label: Text(
+            widget.existingTransfer != null
+                ? 'Perbarui transfer'
+                : 'Simpan transfer',
+          ),
         ),
       ],
     );

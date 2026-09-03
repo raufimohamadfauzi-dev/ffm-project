@@ -260,7 +260,9 @@ class _FfmAssistantDraftEditDialogState
         FfmAssistantDraftKind.budget ||
         FfmAssistantDraftKind.asset ||
         FfmAssistantDraftKind.liability ||
-        FfmAssistantDraftKind.receivable => true,
+        FfmAssistantDraftKind.liabilityPayment ||
+        FfmAssistantDraftKind.receivable ||
+        FfmAssistantDraftKind.receivablePayment => true,
         _ => false,
       };
 
@@ -277,7 +279,9 @@ class _FfmAssistantDraftEditDialogState
     FfmAssistantDraftKind.budget => 'Anggaran',
     FfmAssistantDraftKind.asset => 'Aset',
     FfmAssistantDraftKind.liability => 'Hutang',
+    FfmAssistantDraftKind.liabilityPayment => 'Pembayaran Hutang',
     FfmAssistantDraftKind.receivable => 'Piutang',
+    FfmAssistantDraftKind.receivablePayment => 'Penerimaan Piutang',
     _ => 'Draft',
   };
 

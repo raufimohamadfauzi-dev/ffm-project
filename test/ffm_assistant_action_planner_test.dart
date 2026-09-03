@@ -52,6 +52,68 @@ void main() {
     expect(const FfmAssistantActionPlanner().planFor(intent)!.id, plan.id);
   });
 
+  test('planner menyiapkan alur payment Hutang dan Piutang dengan satu mutasi dan verifikasi', () {
+    final liabilityIntent = FfmAssistantIntent(
+      rawText: 'bayar hutang andi 500000',
+      normalizedText: 'bayar hutang andi 500000',
+      type: FfmAssistantIntentType.createLiabilityPayment,
+      destination: FfmAssistantDestination.liabilities,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.liabilityPayment,
+        amount: 500000,
+        title: 'Hutang Andi',
+        partyName: 'Andi',
+        createdAt: DateTime(2026, 8, 23),
+        formValues: {
+          'entity': 'liability',
+          'targetId': 'liab-1',
+          'accountId': 'acct-1',
+        },
+      ),
+    );
+
+    final liabilityPlan = const FfmAssistantActionPlanner().planFor(liabilityIntent)!;
+    expect(liabilityPlan.steps.map((step) => step.capabilityId), [
+      'read.liabilities',
+      'navigate.liabilities',
+      'draft.liability_payment',
+      'mutate.debt_payment',
+      'verify.debt_payment',
+    ]);
+    expect(liabilityPlan.requiresConfirmation, isTrue);
+    expect(liabilityPlan.workflowSafetyIssue, isNull);
+
+    final receivableIntent = FfmAssistantIntent(
+      rawText: 'terima piutang andi 250000',
+      normalizedText: 'terima piutang andi 250000',
+      type: FfmAssistantIntentType.createReceivablePayment,
+      destination: FfmAssistantDestination.liabilities,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.receivablePayment,
+        amount: 250000,
+        title: 'Piutang Andi',
+        partyName: 'Andi',
+        createdAt: DateTime(2026, 8, 23),
+        formValues: {
+          'entity': 'receivable',
+          'targetId': 'recv-2',
+          'accountId': 'acct-2',
+        },
+      ),
+    );
+
+    final receivablePlan = const FfmAssistantActionPlanner().planFor(receivableIntent)!;
+    expect(receivablePlan.steps.map((step) => step.capabilityId), [
+      'read.receivable',
+      'navigate.liabilities',
+      'draft.receivable_payment',
+      'mutate.debt_payment',
+      'verify.debt_payment',
+    ]);
+    expect(receivablePlan.requiresConfirmation, isTrue);
+    expect(receivablePlan.workflowSafetyIssue, isNull);
+  });
+
   test('guard workflow memblokir multi-mutasi dan mutasi tanpa verifikasi', () {
     final multiMutation = FfmAssistantActionPlan(
       id: 'unsafe-multi',

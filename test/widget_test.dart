@@ -20,8 +20,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ringkasan'), findsWidgets);
-    expect(find.text('Lengkapi Data Utama dulu, ya'), findsOneWidget);
-    expect(find.text('Buka Data Utama'), findsOneWidget);
+    expect(find.text('Belum ada angka yang perlu dihitung'), findsOneWidget);
+    expect(find.text('Catat transaksi pertama'), findsOneWidget);
     expect(find.text('Saran buat kamu'), findsNothing);
   });
 }

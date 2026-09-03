@@ -67,9 +67,9 @@ class FfmAssistantGroundingValidator {
   }
 
   static List<String> _extractNumbers(String text) {
-    return RegExp(r'\d+')
+    return RegExp(r'\d+(?:[.,]\d{3})+|\d+')
         .allMatches(text)
-        .map((m) => m.group(0)!)
+        .map((m) => m.group(0)!.replaceAll(RegExp(r'[,.]'), ''))
         .where((n) => n.length >= 4)
         .map((n) => n.replaceAll(RegExp(r'^0+'), ''))
         .where((n) => n.isNotEmpty)
@@ -81,10 +81,13 @@ class FfmAssistantGroundingValidator {
   }
 
   static bool _hasLargeNumber(String text) {
-    return RegExp(r'\b\d{5,}\b').hasMatch(text) ||
-        RegExp(
-          r'\b\d+\s*(juta|miliar|ribu)\b',
-          caseSensitive: false,
-        ).hasMatch(text);
+    if (RegExp(
+      r'\b\d+\s*(juta|miliar|ribu)\b',
+      caseSensitive: false,
+    ).hasMatch(text)) {
+      return true;
+    }
+    final extracted = _extractNumbers(text);
+    return extracted.any((n) => n.length >= 5);
   }
 }

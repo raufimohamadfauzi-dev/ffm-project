@@ -43,6 +43,13 @@ class SaveReceivable {
   final AppDatabase database;
 
   Future<void> call(ReceivableEntity entity) async {
+    final existing =
+        await (database.select(database.receivables)..where(
+              (row) =>
+                  row.householdId.equals(entity.householdId) &
+                  row.id.equals(entity.id),
+            ))
+            .getSingleOrNull();
     await database
         .into(database.receivables)
         .insertOnConflictUpdate(
@@ -61,7 +68,7 @@ class SaveReceivable {
           ),
         );
     await AuditLogger(database).record(
-      action: 'simpan piutang',
+      action: existing == null ? 'simpan piutang' : 'ubah piutang',
       entity: 'receivable',
       householdId: entity.householdId,
       newValue: {

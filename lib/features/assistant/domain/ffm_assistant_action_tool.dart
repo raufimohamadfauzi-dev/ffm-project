@@ -71,6 +71,15 @@ class FfmAssistantContextualActionRegistry {
         'kategori',
         'data utama',
       ],
+      FfmAssistantDestination.transactions: [
+        'pemasukan',
+        'pengeluaran',
+        'uang masuk',
+        'uang keluar',
+        'transfer',
+        'transaksi',
+        'belanja',
+      ],
     };
     for (final entry in destinationWords.entries) {
       if (entry.key != activePage &&

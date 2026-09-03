@@ -1098,7 +1098,7 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
             ],
           ),
           DropdownButtonFormField<TransactionType>(
-            value: row.type,
+            initialValue: row.type,
             decoration: const InputDecoration(
               labelText: 'Jenis transaksi',
               prefixIcon: Icon(Icons.swap_vert_rounded),
@@ -1159,7 +1159,7 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: row.categoryId,
+            initialValue: row.categoryId,
             decoration: const InputDecoration(
               labelText: 'Kategori',
               prefixIcon: Icon(Icons.category_outlined),
@@ -1180,7 +1180,7 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
           const SizedBox(height: 10),
           if (row.type == TransactionType.expense) ...[
             DropdownButtonFormField<String>(
-              value: _selectedBudget(row)?.id,
+              initialValue: _selectedBudget(row)?.id,
               decoration: const InputDecoration(
                 labelText: 'Arahkan ke pos anggaran (opsional)',
                 prefixIcon: Icon(Icons.track_changes_outlined),
@@ -1227,7 +1227,7 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
             ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: row.accountId,
+            initialValue: row.accountId,
             decoration: const InputDecoration(
               labelText: 'Rekening/tempat uang',
               prefixIcon: Icon(Icons.account_balance_wallet_outlined),

@@ -428,6 +428,14 @@ class FfmAnalysisFacts {
     sections.add('- Income: ${_formatCurrency(income)}');
     sections.add('- Expense: ${_formatCurrency(expense)}');
     sections.add('- Net Cashflow: ${_formatCurrency(netCashflow)}');
+    if (period == FfmAnalysisPeriod.last90Days) {
+      final monthlyAvgIncome = income ~/ 3;
+      final monthlyAvgExpense = expense ~/ 3;
+      final monthlyAvgCashflow = netCashflow ~/ 3;
+      sections.add('- Monthly Average Income: ${_formatCurrency(monthlyAvgIncome)}');
+      sections.add('- Monthly Average Expense: ${_formatCurrency(monthlyAvgExpense)}');
+      sections.add('- Monthly Average Net Cashflow: ${_formatCurrency(monthlyAvgCashflow)}');
+    }
     sections.add('- Transaction Count: $transactionCount');
     sections.add('- Top Category: $topCategory');
     sections.add('- Most Frequent Category: $mostFrequentCategory');
@@ -438,7 +446,10 @@ class FfmAnalysisFacts {
       final sorted = categoryBreakdown.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
       for (final entry in sorted.take(5)) {
-        sections.add('  - ${entry.key}: ${_formatCurrency(entry.value)}');
+        final avgPart = period == FfmAnalysisPeriod.last90Days
+            ? ' (avg: ${_formatCurrency(entry.value ~/ 3)}/month)'
+            : '';
+        sections.add('  - ${entry.key}: ${_formatCurrency(entry.value)}$avgPart');
       }
     }
     

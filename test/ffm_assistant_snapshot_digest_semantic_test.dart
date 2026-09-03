@@ -58,7 +58,7 @@ void main() {
   );
 
   test(
-    'budget digest memakai allocated bukan pemakaian dan terbatas',
+    'budget digest terbatas dan memakai kontrak sisa deterministik',
     () async {
       final now = DateTime(2026, 8, 31);
       for (var i = 0; i < 9; i++) {
@@ -80,13 +80,62 @@ void main() {
       final digest = await FfmAssistantFinancialSnapshotService(database)
           .buildBudgetDigest(householdId: AppContext.householdId, now: now);
 
-      expect(digest, contains('allocated='));
-      expect(digest, contains('batas alokasi, bukan pemakaian'));
       expect(digest, contains('Budget digest'));
+      expect(digest, contains('batas='));
+      expect(digest, contains('sisa='));
+      expect(digest, contains('sisa = batas'));
       expect(digest, contains('… (+1 lebih)'));
       expect(digest, isNot(contains('posisi anggaran')));
     },
   );
+
+  test('budget digest membawa pakai dan sisa dari snapshot', () async {
+    final now = DateTime(2026, 8, 15);
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'cat-makan',
+            householdId: AppContext.householdId,
+            name: 'Makan',
+            type: 'expense',
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.envelopeBudgets)
+        .insert(
+          EnvelopeBudgetsCompanion.insert(
+            id: 'budget-makan',
+            householdId: AppContext.householdId,
+            categoryIdsJson: const Value('["cat-makan"]'),
+            name: 'Makan',
+            allocated: const Value(500000),
+            periodType: const Value('monthly'),
+            startDate: DateTime(2026, 8, 1),
+            endDate: DateTime(2026, 8, 31),
+            createdAt: now,
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'tx-makan',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -150000,
+            date: now,
+            recordedAt: now,
+            categoryId: const Value('cat-makan'),
+            createdAt: now,
+          ),
+        );
+    final digest = await FfmAssistantFinancialSnapshotService(database)
+        .buildBudgetDigest(householdId: AppContext.householdId, now: now);
+
+    expect(digest, contains('Makan|batas=500000|pakai=150000|sisa=350000'));
+  });
 
   test('categories digest terbatas 16 dan sanitize newline', () async {
     final now = DateTime(2026, 8, 31);

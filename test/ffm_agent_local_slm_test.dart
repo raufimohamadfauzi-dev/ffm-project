@@ -454,7 +454,9 @@ void main() {
       );
 
       expect(gemini.calls, 1);
-      expect(intent.response, contains('Capability Gemini tidak diizinkan'));
+      // Interpreter mengganti pesan kontrak internal dengan pesan ramah via
+      // _friendlyCloudError — user tidak melihat string teknis "Capability Gemini".
+      expect(intent.response, contains('gagal membaca data pendukung'));
       expect(intent.draft, isNull);
     },
   );

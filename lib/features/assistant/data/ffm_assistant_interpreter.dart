@@ -7,6 +7,7 @@ import '../domain/ffm_assistant_reasoning_context.dart';
 
 import 'package:drift/drift.dart' hide Column;
 
+import 'dart:async';
 import 'dart:convert';
 
 import '../../../core/database/app_context.dart';
@@ -234,11 +235,22 @@ class FfmAssistantInterpreter {
     required FfmAssistantReasoningEvidenceScope evidenceScope,
     required FfmAssistantDraft? activeDraft,
   }) {
+    // Mutasi eksplisit selalu menang atas pending draft. Dengan begitu perintah
+    // baru (misal "catat pemasukan 500 rb") tidak dikira revisi draft lama oleh
+    // Gemini meskipun ada activeDraft, sehingga intent tidak tertukar.
+    final isExplicitMutation =
+        RegExp(r'\b(buat|tambah|catat|beli|bayar)\b').hasMatch(normalized) &&
+        RegExp(
+          r'\b(kategori|rekening|toko|sumber|anggaran|target|tujuan|goal|transaksi|pemasukan|pengeluaran|belanja|transfer|aktivitas|pengingat|aset|hutang|piutang)\b',
+        ).hasMatch(normalized);
+    if (isExplicitMutation) {
+      return FfmAssistantCloudRequestClass.mutationProposal;
+    }
     if (activeDraft != null) {
       return FfmAssistantCloudRequestClass.draftReview;
     }
     if (RegExp(
-      r'\b(analisa|analisis|trend|tren|pola|frekuensi|perbandingan|bandingkan)\b',
+      r'\b(analisa|analisis|trend|tren|pola|frekuensi|perbandingan|bandingkan|saran|rekomendasi|evaluasi|apa yang harus saya lakukan|harus lakukan|langkah apa|tips|strategi|bulan depan|3 bulan|tiga bulan)\b',
     ).hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.analysis;
     }
@@ -249,7 +261,7 @@ class FfmAssistantInterpreter {
     // Mutation proposal eksplisit: buat/tambah/catat dengan target jelas.
     if (RegExp(r'\b(buat|tambah|catat)\b').hasMatch(normalized) &&
         RegExp(
-          r'\b(kategori|rekening|toko|sumber|anggaran|target|transaksi|pemasukan|pengeluaran|transfer)\b',
+          r'\b(kategori|rekening|toko|sumber|anggaran|target|transaksi|pemasukan|pengeluaran|transfer|hutang|piutang)\b',
         ).hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.mutationProposal;
     }
@@ -258,6 +270,13 @@ class FfmAssistantInterpreter {
     }
     if (RegExp(r'\b(ringkasan|rangkuman|rekap|laporan)\b')
         .hasMatch(normalized)) {
+      if (normalized.contains('bulan lalu') ||
+          normalized.contains('bulan kemarin') ||
+          normalized.contains('minggu lalu') ||
+          normalized.contains('3 bulan') ||
+          normalized.contains('tahun ini')) {
+        return FfmAssistantCloudRequestClass.analysis;
+      }
       return FfmAssistantCloudRequestClass.summary;
     }
     if (RegExp(r'\b(rekening|akun)\b').hasMatch(normalized)) {
@@ -285,11 +304,23 @@ class FfmAssistantInterpreter {
     if (_containsAny(normalized, const ['7 hari', 'seminggu'])) {
       return FfmAnalysisPeriod.last7Days;
     }
-    if (_containsAny(normalized, const ['90 hari', '3 bulan'])) {
+    if (_containsAny(normalized, const [
+      '90 hari',
+      '3 bulan',
+      'tiga bulan',
+      '3 bulan ke belakang',
+      '3 bulan terakhir',
+    ])) {
       return FfmAnalysisPeriod.last90Days;
     }
-    if (normalized.contains('bulan lalu')) return FfmAnalysisPeriod.lastMonth;
-    if (normalized.contains('bulan ini')) return FfmAnalysisPeriod.thisMonth;
+    if (normalized.contains('bulan lalu') ||
+        normalized.contains('bulan kemarin')) {
+      return FfmAnalysisPeriod.lastMonth;
+    }
+    if (normalized.contains('bulan ini') ||
+        normalized.contains('bulan depan')) {
+      return FfmAnalysisPeriod.thisMonth;
+    }
     if (normalized.contains('tahun ini')) return FfmAnalysisPeriod.thisYear;
     return FfmAnalysisPeriod.last30Days;
   }
@@ -338,8 +369,70 @@ class FfmAssistantInterpreter {
           'hasil kebun',
           'harga jual',
           'komoditas',
+          'pupuk',
+          'bibit',
+          'pestisida',
+          'tani',
+          'sawah',
+          'kebun',
+          'pakan',
+          'ternak',
         ])
         ? await _financialSnapshot.buildHarvestContext(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final activitiesContext =
+        _containsAny(normalized, const [
+          'aktivitas',
+          'kegiatan',
+          'jadwal',
+          'agenda',
+          'tugas',
+          'catatan harian',
+          'pekerjaan',
+        ])
+        ? await _financialSnapshot.buildActivitiesDigest(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final remindersContext =
+        _containsAny(normalized, const [
+          'pengingat',
+          'ingatkan',
+          'alarm',
+          'jatuh tempo',
+          'tagihan',
+          'jadwal bayar',
+        ])
+        ? await _financialSnapshot.buildRemindersDigest(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final assetsContext =
+        _containsAny(normalized, const [
+          'aset',
+          'harta',
+          'kekayaan',
+          'tanah',
+          'kendaraan',
+          'emas',
+        ])
+        ? await _financialSnapshot.buildAssetsDigest(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final liabilitiesContext =
+        _containsAny(normalized, const [
+          'hutang',
+          'utang',
+          'piutang',
+          'cicilan',
+          'pinjaman',
+          'kredit',
+          'pinjol',
+        ])
+        ? await _financialSnapshot.buildLiabilitiesDigest(
             householdId: AppContext.householdId,
           )
         : '';
@@ -361,6 +454,10 @@ class FfmAssistantInterpreter {
         masterDataContext,
         hijriContext,
         harvestContext,
+        activitiesContext,
+        remindersContext,
+        assetsContext,
+        liabilitiesContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -476,7 +573,7 @@ class FfmAssistantInterpreter {
         _cloudError(
           rawText,
           normalized,
-          turn.errorMessage!,
+          _friendlyCloudError(turn.errorMessage!),
           model: turn.model,
           statusCode: turn.statusCode,
         ),
@@ -501,6 +598,7 @@ class FfmAssistantInterpreter {
       'proposal':
           proposal.drafts.isNotEmpty || proposal.teachingProposals.isNotEmpty,
       'usedReadCapability': turn.usedReadCapability,
+      'hasReadEvidence': turn.readEvidence != null,
       'schemaVersion': FfmAssistantCloudContextEnvelope.schemaVersion,
       'requestClass': requestClassForMeta.name,
       'capturedAt': _clock().toIso8601String(),
@@ -511,14 +609,19 @@ class FfmAssistantInterpreter {
       },
     };
     if (proposal.error != null) {
+      _logAssistantFailure(
+        code: 'gemini-proposal-parse',
+        technical: proposal.error!,
+        impact: 'Output JSON Gemini tidak valid; fallback ramah tanpa draft.',
+      );
       return _InterpretResult.single(
         FfmAssistantIntent(
           rawText: rawText,
           normalizedText: normalized,
           type: FfmAssistantIntentType.unknown,
           confidence: .8,
-          response: proposal.error,
-          clarification: proposal.error,
+          response: _friendlyProposalError(proposal.error!),
+          clarification: _friendlyProposalError(proposal.error!),
           responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
           pluginName: 'gemini_cloud',
           pluginCategory: 'gemini_cloud',
@@ -623,9 +726,11 @@ class FfmAssistantInterpreter {
       geminiText: turn.text!,
       verifiedFacts: verifiedForIntent,
       analysisFacts: analysisForIntent,
-      capabilityEvidence: geminiMetadata['usedReadCapability'] != null
-          ? verifiedForIntent
-          : null,
+      capabilityEvidence:
+          turn.readEvidence ??
+          (geminiMetadata['usedReadCapability'] != null
+              ? verifiedForIntent
+              : null),
     );
     if (groundingError != null) {
       return _InterpretResult.single(
@@ -962,7 +1067,7 @@ class FfmAssistantInterpreter {
 
     if (explicit.length > 1) return explicit;
 
-    // Pemisah aditif: *dan*/*serta*/*juga* di antara dua kata kerja aksi.
+    // Pemisah aditif: *dan*/*serta*/*juga* di antara dua kata kerja aksi atau dua nominal.
     const actionVerbs = <String>[
       'catat',
       'tambah',
@@ -981,16 +1086,50 @@ class FfmAssistantInterpreter {
     final parts = rawText.split(conjPattern);
     if (parts.length < 2) return [rawText.trim()];
 
-    // Pastikan kedua sisi mengandung kata kerja aksi.
+    final hasAmountRegExp = RegExp(
+      r'\d+\s*(?:rb|ribu|jt|juta|k|ratus|000)?\b',
+      caseSensitive: false,
+    );
+
     final result = <String>[];
     var pending = parts[0].trim();
+    String? currentVerbPrefix;
+
     for (var i = 1; i < parts.length; i++) {
       final next = parts[i].trim();
       final pendingHasVerb = actionVerbs.any((v) => pending.contains(v));
       final nextHasVerb = actionVerbs.any((v) => next.contains(v));
-      if (pendingHasVerb && nextHasVerb) {
+      final pendingHasAmount = hasAmountRegExp.hasMatch(pending);
+      final nextHasAmount = hasAmountRegExp.hasMatch(next);
+
+      if (pendingHasVerb) {
+        final match = RegExp(
+          r'^(catat\s+(?:pemasukan|pengeluaran|belanja|transfer)?|tambah\s+(?:pemasukan|pengeluaran)?|buat\s+(?:target|anggaran)?|bayar)',
+          caseSensitive: false,
+        ).firstMatch(pending);
+        if (match != null) {
+          currentVerbPrefix = match.group(0);
+        } else {
+          for (final v in actionVerbs) {
+            if (pending.contains(v)) {
+              currentVerbPrefix = v;
+              break;
+            }
+          }
+        }
+      }
+
+      final isSeparateAction =
+          (pendingHasVerb && nextHasVerb) ||
+          (pendingHasAmount && nextHasAmount);
+
+      if (isSeparateAction) {
         result.add(pending);
-        pending = next;
+        if (!nextHasVerb && currentVerbPrefix != null) {
+          pending = '$currentVerbPrefix $next';
+        } else {
+          pending = next;
+        }
       } else {
         pending = '$pending ${parts[i]}'.trim();
       }
@@ -1017,6 +1156,20 @@ class FfmAssistantInterpreter {
           type: FfmAssistantIntentType.cancel,
           confidence: 1,
           response: 'Oke, draft ini dibatalkan. Belum ada data yang tersimpan.',
+        ),
+      ];
+    }
+    // Explicit new intent tidak boleh diserap pending draft yang belum
+    // lengkap. Misal pending goal kurang nominal + "catat pemasukan 500 rb"
+    // harus menjadi transaksi baru, bukan mengisi nominal goal lama.
+    // Follow-up tanpa intent baru ("500 ribu") tetap melengkapi draft lama.
+    if (_hasExplicitIntent(normalized)) {
+      return [
+        await interpret(
+          rawText,
+          currentDestination: currentDestination,
+          pageContext: pageContext,
+          capabilityIds: capabilityIds,
         ),
       ];
     }
@@ -1258,7 +1411,16 @@ class FfmAssistantInterpreter {
       return baseIntent;
     }
     if (proposal.error != null) {
-      return _unknown(rawText, normalized, proposal.error!);
+      _logAssistantFailure(
+        code: 'agent-proposal-parse',
+        technical: proposal.error!,
+        impact: 'Proposal tidak valid; fallback ramah tanpa draft.',
+      );
+      return _unknown(
+        rawText,
+        normalized,
+        _friendlyProposalError(proposal.error!),
+      );
     }
 
     // Gemini menyusun proposal memory pada mode Gemini; mode Agent tetap
@@ -1983,7 +2145,12 @@ class FfmAssistantInterpreter {
       return _financialWarnings(rawText, normalized);
     }
 
-    if (_isCurrentPageRequest(normalized) && currentDestination != null) {
+    // Explicit intent harus mengalahkan page context. Jika user memberikan perintah
+    // eksplisit seperti "catat pemasukan", jangan override dengan page context
+    // meskipun user sedang di halaman tertentu.
+    if (_isCurrentPageRequest(normalized) &&
+        currentDestination != null &&
+        !_hasExplicitIntent(normalized)) {
       return _currentPageContext(rawText, normalized, currentDestination);
     }
 
@@ -3424,6 +3591,25 @@ class FfmAssistantInterpreter {
     'nama halaman ini',
   ]);
 
+  bool _hasExplicitIntent(String text) {
+    final normalized = text.toLowerCase();
+    // Deteksi kata kerja aksi eksplisit
+    final hasActionVerb = RegExp(
+      r'\b(buat|tambah|catat|beli|bayar|transfer|pindahkan|ingatkan|simpan|hapus|ubah|update)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (!hasActionVerb) return false;
+
+    // Deteksi kata kunci domain spesifik untuk memastikan ini bukan request generik
+    final hasDomainKeyword = RegExp(
+      r'\b(kategori|rekening|toko|sumber|anggaran|target|tujuan|goal|transaksi|pemasukan|pengeluaran|belanja|transfer|aktivitas|pengingat|aset|hutang|piutang)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    return hasDomainKeyword;
+  }
+
   bool _isDatabaseStructureRequest(String text) {
     final namesDatabase = RegExp(
       r'\b(database|basis data|struktur database|struktur data|tabel)\b',
@@ -3502,6 +3688,11 @@ class FfmAssistantInterpreter {
         destination: FfmAssistantDestination.liabilities,
         action: 'hutang',
       ),
+      FfmAssistantDraftKind.liabilityPayment => (
+        type: FfmAssistantIntentType.createLiabilityPayment,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'pembayaran hutang',
+      ),
       FfmAssistantDraftKind.liabilityUpdate => (
         type: FfmAssistantIntentType.updateLiability,
         destination: FfmAssistantDestination.liabilities,
@@ -3516,6 +3707,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createReceivable,
         destination: FfmAssistantDestination.liabilities,
         action: 'piutang',
+      ),
+      FfmAssistantDraftKind.receivablePayment => (
+        type: FfmAssistantIntentType.createReceivablePayment,
+        destination: FfmAssistantDestination.liabilities,
+        action: 'penerimaan piutang',
       ),
       FfmAssistantDraftKind.receivableUpdate => (
         type: FfmAssistantIntentType.updateReceivable,
@@ -5929,6 +6125,26 @@ class FfmAssistantInterpreter {
     );
   }
 
+  /// Deteksi isyarat periode anggaran dari kalimat user. Hanya isyarat
+  /// eksplisit yang dipetakan (mingguan/bulanan/tidak rutin); tanpa isyarat,
+  /// periode mengikuti filter halaman atau default kategori di form.
+  String? _budgetPeriodType(String normalized) {
+    if (RegExp(r'\b(tidak rutin|tak rutin|sekali saja|non.?rutin)\b')
+        .hasMatch(normalized)) {
+      return 'nonrecurring';
+    }
+    if (RegExp(r'\b(mingguan|per minggu|tiap minggu|setiap minggu)\b')
+        .hasMatch(normalized)) {
+      return 'weekly';
+    }
+    if (RegExp(
+      r'\b(bulanan|per bulan|perbulan|tiap bulan|setiap bulan|sebulan)\b',
+    ).hasMatch(normalized)) {
+      return 'monthly';
+    }
+    return null;
+  }
+
   Future<FfmAssistantIntent?> _parseBudgetMutation(
     String rawText,
     String normalized,
@@ -5950,8 +6166,7 @@ class FfmAssistantInterpreter {
           type: FfmAssistantIntentType.createBudget,
           confidence: .7,
           destination: FfmAssistantDestination.budget,
-          clarification:
-              'Sebut batas Anggaran yang ingin dibuat, misalnya: “atur anggaran makan 350 ribu”. Belum ada data yang diubah.',
+          clarification: 'Sebut batas Anggaran yang ingin dibuat, misalnya: “atur anggaran makan 350 ribu”. Belum ada data yang diubah.',
         );
       }
       final categories =
@@ -5968,6 +6183,13 @@ class FfmAssistantInterpreter {
       final category = categoryCandidates.length == 1
           ? categoryCandidates.single
           : null;
+      final periodType = _budgetPeriodType(normalized);
+      final periodLabel = switch (periodType) {
+        'weekly' => ' mingguan',
+        'monthly' => ' bulanan',
+        'nonrecurring' => ' tidak rutin',
+        _ => '',
+      };
       final draft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.budget,
         createdAt: _clock(),
@@ -5976,11 +6198,12 @@ class FfmAssistantInterpreter {
         categoryName: category?.name,
         note: rawText.trim(),
         date: _clock(),
+        formValues: {if (periodType case final String p) 'periodType': p},
       );
       return _intentForDraft(rawText, normalized, draft).copyWith(
         response: category == null
-            ? 'Aku menyiapkan batas Anggaran keseluruhan ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.'
-            : 'Aku menyiapkan batas Anggaran ${category.name} sebesar ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.',
+            ? 'Aku menyiapkan batas Anggaran$periodLabel keseluruhan ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.'
+            : 'Aku menyiapkan batas Anggaran$periodLabel ${category.name} sebesar ${_money(amount)}. Cek preview dulu sebelum mengisi dan menyimpannya.',
       );
     }
 
@@ -6482,10 +6705,31 @@ class FfmAssistantInterpreter {
       'catat aktivitas',
       'buat aktivitas',
     ]);
+    // Intent finansial eksplisit (pemasukan/pengeluaran/transfer) tetap menang
+    // meskipun user berada di halaman Aktivitas. Page context hanya untuk
+    // tie-breaker ketika maksud benar-benar ambigu, bukan untuk mengubah
+    // intent eksplisit menjadi aktivitas.
+    final explicitTransactionIntent = _containsAny(normalized, const [
+      'pemasukan',
+      'uang masuk',
+      'pengeluaran',
+      'uang keluar',
+      'terima',
+      'menerima',
+      'gaji',
+      'pendapatan',
+      'beli',
+      'belanja',
+      'bayar',
+      'transfer',
+      'pindah uang',
+      'kirim uang',
+    ]);
     final modeDecision = const ActivityModeDetector().detect(rawText);
     final contextualCreateActivity =
         currentDestination == FfmAssistantDestination.activity &&
-        !modeDecision.requiresClarification;
+        !modeDecision.requiresClarification &&
+        !explicitTransactionIntent;
     final createActivity = explicitCreateActivity || contextualCreateActivity;
     if (createActivity) {
       final title = explicitCreateActivity
@@ -6603,7 +6847,8 @@ class FfmAssistantInterpreter {
       'gunakan dana target',
     ]);
     if (goalUsage) {
-      final goalName = _draftTitle(normalized, const ['target', 'dana target']) ??
+      final goalName =
+          _draftTitle(normalized, const ['target', 'dana target']) ??
           _extractAfter(normalized, const ['target', 'dana target']);
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.goalUsage,
@@ -6634,7 +6879,8 @@ class FfmAssistantInterpreter {
       'alokasikan target',
     ]);
     if (goalDeposit) {
-      final goalName = _draftTitle(normalized, const [
+      final goalName =
+          _draftTitle(normalized, const [
             'untuk target',
             'ke target',
             'buat target',
@@ -6660,7 +6906,51 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final isReceivable = _containsAny(normalized, const [
+    final isDebtPayment = _containsAny(normalized, const [
+      'bayar hutang',
+      'bayar utang',
+      'cicil hutang',
+      'cicil utang',
+      'bayar cicilan',
+      'lunasi hutang',
+      'lunasi utang',
+      'pelunasan hutang',
+      'pelunasan utang',
+    ]);
+    final isReceivableReceipt = _containsAny(normalized, const [
+      'terima piutang',
+      'terima pembayaran piutang',
+      'piutang dibayar',
+      'bayar piutang',
+    ]);
+    if (isDebtPayment) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.liabilityPayment,
+        createdAt: now,
+        amount: amount,
+        title: 'Pembayaran Hutang',
+        partyName: _extractParty(normalized, const ['hutang', 'utang']),
+        fromAccountName: _matchAccount(normalized, accounts)?.name,
+        note: rawText.trim(),
+        date: now,
+        formValues: {'entity': 'liability'},
+      );
+    }
+    if (isReceivableReceipt) {
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.receivablePayment,
+        createdAt: now,
+        amount: amount,
+        title: 'Penerimaan Piutang',
+        partyName: _extractParty(normalized, const ['piutang']),
+        toAccountName: _matchAccount(normalized, accounts)?.name,
+        note: rawText.trim(),
+        date: now,
+        formValues: {'entity': 'receivable'},
+      );
+    }
+
+    final isReceivable = !isReceivableReceipt && _containsAny(normalized, const [
       'piutang',
       'pinjam uang dari saya',
       'minjam uang dari saya',
@@ -6679,7 +6969,7 @@ class FfmAssistantInterpreter {
         date: now,
       );
     }
-    final isLiability = _containsAny(normalized, const [
+    final isLiability = !isDebtPayment && _containsAny(normalized, const [
       'hutang',
       'utang',
       'saya pinjam dari',
@@ -6700,7 +6990,7 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final income = _containsAny(normalized, const [
+    final income = isReceivableReceipt || _containsAny(normalized, const [
       'pemasukan',
       'uang masuk',
       'terima',
@@ -6713,7 +7003,7 @@ class FfmAssistantInterpreter {
       'dapet uang',
       'dikasih uang',
     ]);
-    final expense = _containsAny(normalized, const [
+    final expense = isDebtPayment || _containsAny(normalized, const [
       'pengeluaran',
       'uang keluar',
       'beli',
@@ -7589,6 +7879,58 @@ class FfmAssistantInterpreter {
     pluginMetadata: {'model': model, 'statusCode': statusCode},
   );
 
+  /// Ubah pesan error teknis dari parser proposal menjadi pesan yang ramah
+  /// untuk pengguna. Detail teknis asli tetap dipertahankan agar tidak
+  /// menghilangkan informasi, tetapi tidak pernah dibocorkan mentah ke UX.
+  String _friendlyProposalError(
+    String technicalError,
+  ) => switch (technicalError) {
+    'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, reminder, goal, goal_deposit, goal_usage, budget, memory, atau navigation.' ||
+    'Jenis proposal belum didukung.' => 'Aku belum paham jenis permintaan itu. Sebutkan dengan kalimat biasa, misalnya "catat pengeluaran 50 ribu untuk makan".',
+    'JSON proposal belum valid. Salin ulang hasil LLM tanpa Markdown atau teks tambahan.' ||
+    'JSON proposal belum valid.' => 'Aku menerima permintaan yang formatnya tidak bisa kubaca. Coba tulis ulang dengan kalimat biasa yang lebih sederhana.',
+    'Proposal JSON belum punya objek “proposal”.' => 'Aku belum bisa membaca isi permintaan itu. Silakan coba lagi dengan kalimat yang lebih jelas.',
+    _ => 'Aku belum bisa menangani permintaan itu dengan benar. Silakan urai ulang maksudmu dengan kalimat biasa, atau beri tahu apa yang ingin kamu lakukan dan nominalnya bila ada.',
+  };
+
+  /// Catat detail teknis kegagalan ke diagnostics tanpa memblokir alur chat.
+  /// Dipakai agar pesan ramah ke user tidak menghilangkan informasi debug.
+  void _logAssistantFailure({
+    required String code,
+    required String technical,
+    required String impact,
+  }) {
+    unawaited(
+      _diagnostics.recordException(
+        code: code,
+        feature: 'assistant',
+        error: technical,
+        impact: impact,
+      ),
+    );
+  }
+
+  /// Saring pesan error mentah dari Gemini Cloud sebelum tampil ke user.
+  /// Error kontrak capability internal (ID capability, format argumen JSON,
+  /// rentang tanggal) adalah urusan model-vs-aplikasi, bukan user, sehingga
+  /// diganti pesan ramah. Pesan yang memang sudah user-friendly diteruskan.
+  String _friendlyCloudError(String rawMessage) {
+    final lowered = rawMessage.toLowerCase();
+    final isCapabilityContract =
+        lowered.contains('capability') ||
+        lowered.contains('read.summary') ||
+        lowered.contains('read.transactions') ||
+        lowered.contains('argumen capability') ||
+        lowered.contains('json request capability');
+    if (!isCapabilityContract) return rawMessage;
+    _logAssistantFailure(
+      code: 'gemini-capability-contract',
+      technical: rawMessage,
+      impact: 'Gemini meminta capability baca di luar kontrak; diblokir aman.',
+    );
+    return 'Aku gagal membaca data pendukung untuk menjawab karena permintaan tidak diizinkan atau data tidak dapat dibaca dengan aman. Coba ulangi permintaanmu dengan kalimat yang lebih sederhana.';
+  }
+
   FfmAssistantIntent _unknown(
     String raw,
     String normalized,
@@ -7899,7 +8241,7 @@ class _InterpretResult {
 abstract final class FfmAssistantAmountParser {
   static int? parse(String text) {
     final numeric = RegExp(
-      r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|rb|k|jt|juta|m|miliar))?',
+      r'(?:rp\s*)?(\d[\d.,]*)(?:\s*(ribu|rb|k|jt|juta|m|miliar)\b)?',
     ).allMatches(text);
     if (numeric.isNotEmpty) {
       final match = numeric.first;
@@ -8075,8 +8417,7 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'model lokal' ||
     'model tanpa internet' ||
     'assistantprofile' ||
-    'profil personalisasi' =>
-      FfmAssistantDestination.assistantProfile,
+    'profil personalisasi' => FfmAssistantDestination.assistantProfile,
     'intelligencedashboard' ||
     'gemini' ||
     'cloud brain' => FfmAssistantDestination.intelligenceDashboard,

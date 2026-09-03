@@ -229,7 +229,7 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<TransactionType>(
-              value: row.type,
+              initialValue: row.type,
               decoration: const InputDecoration(labelText: 'Jenis transaksi'),
               items: const [
                 DropdownMenuItem(
@@ -261,7 +261,7 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
               const Text('Kategori belum ada. Tambahkan dulu di Data Utama.')
             else
               DropdownButtonFormField<String>(
-                value:
+                initialValue:
                     categories.any((category) => category.id == row.categoryId)
                     ? row.categoryId
                     : null,
@@ -286,7 +286,7 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
               )
             else
               DropdownButtonFormField<String>(
-                value:
+                initialValue:
                     widget.accounts.any(
                       (account) => account.id == row.accountId,
                     )
@@ -309,7 +309,7 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
             if (widget.merchants.isNotEmpty) ...[
               const SizedBox(height: 10),
               DropdownButtonFormField<String?>(
-                value:
+                initialValue:
                     widget.merchants.any(
                       (merchant) => merchant.id == row.merchantId,
                     )
@@ -726,7 +726,7 @@ class _VoiceReviewDialogState extends State<VoiceReviewDialog> {
               )
             else
               DropdownButtonFormField<String>(
-                value:
+                initialValue:
                     categoryItems.any((item) => item.id == _categoryId)
                     ? _categoryId
                     : null,
@@ -748,7 +748,7 @@ class _VoiceReviewDialogState extends State<VoiceReviewDialog> {
               ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String?>(
-              value: widget.accounts.any((item) => item.id == _accountId)
+              initialValue: widget.accounts.any((item) => item.id == _accountId)
                   ? _accountId
                   : null,
               decoration: const InputDecoration(
@@ -771,7 +771,7 @@ class _VoiceReviewDialogState extends State<VoiceReviewDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String?>(
-              value:
+              initialValue:
                   widget.merchants.any((item) => item.id == _merchantId)
                   ? _merchantId
                   : null,
@@ -803,7 +803,7 @@ class _VoiceReviewDialogState extends State<VoiceReviewDialog> {
               )
             else
               DropdownButtonFormField<String>(
-                value: partyItems.any((item) => item.name == _partyName)
+                initialValue: partyItems.any((item) => item.name == _partyName)
                     ? _partyName
                     : null,
                 decoration: InputDecoration(

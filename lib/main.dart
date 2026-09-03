@@ -68,22 +68,10 @@ Future<void> main() async {
   // LocaleDataException saat UI memformat tanggal.
   await initializeDateFormatting('id_ID', null);
   final bootstrapDiagnostics = AppDiagnosticsService();
-  await bootstrapDiagnostics.recordInterruptedStartupIfNeeded();
-  await bootstrapDiagnostics.markStartupStarted(phase: 'bindings_ready');
-  await configureDependencies();
-  await DatabaseSeed.ensure(getIt<AppDatabase>());
-  final diagnostics = getIt<AppDiagnosticsService>();
-  await diagnostics.markStartupPhase('dependencies_ready');
-  await _scheduleAutonomyBackgroundWork(diagnostics);
-  unawaited(_initializePersonalContext(diagnostics));
-  // Pemeliharaan memori: decay berkala tanpa memblok startup.
-  if (getIt.isRegistered<FfmMemoryMaintenanceService>()) {
-    getIt<FfmMemoryMaintenanceService>().start();
-  }
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
     unawaited(
-      diagnostics.recordException(
+      bootstrapDiagnostics.recordException(
         code: 'FLUTTER_UNHANDLED_ERROR',
         feature: 'Tampilan aplikasi',
         error: details.exception,
@@ -94,7 +82,7 @@ Future<void> main() async {
   };
   PlatformDispatcher.instance.onError = (error, stackTrace) {
     unawaited(
-      diagnostics.recordException(
+      bootstrapDiagnostics.recordException(
         code: 'ASYNC_UNHANDLED_ERROR',
         feature: 'Proses aplikasi',
         error: error,
@@ -104,11 +92,56 @@ Future<void> main() async {
     );
     return true;
   };
-  final reminderNotificationService = getIt<ReminderNotificationService>();
-  await reminderNotificationService.initialize();
-  await getIt<ReminderBloc>().recover();
-  await getIt<ProcessRecurringTransactions>()('local-household');
-  final isDark = await ThemePreference.isDark();
+  await bootstrapDiagnostics.recordInterruptedStartupIfNeeded();
+  await bootstrapDiagnostics.markStartupStarted(phase: 'bindings_ready');
+  await configureDependencies();
+  final diagnostics = getIt<AppDiagnosticsService>();
+  try {
+    await DatabaseSeed.ensure(getIt<AppDatabase>());
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'DATABASE_SEED_FAILED',
+      feature: 'Database Seed',
+      error: error,
+      stackTrace: stackTrace,
+      impact: 'Seed data dasar akan dicoba lagi pada siklus berikutnya.',
+    );
+  }
+  await diagnostics.markStartupPhase('dependencies_ready');
+  await _scheduleAutonomyBackgroundWork(diagnostics);
+  unawaited(_initializePersonalContext(diagnostics));
+  // Pemeliharaan memori: decay berkala tanpa memblok startup.
+  if (getIt.isRegistered<FfmMemoryMaintenanceService>()) {
+    getIt<FfmMemoryMaintenanceService>().start();
+  }
+  try {
+    final reminderNotificationService = getIt<ReminderNotificationService>();
+    await reminderNotificationService.initialize();
+    await getIt<ReminderBloc>().recover();
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'REMINDER_BOOTSTRAP_FAILED',
+      feature: 'Pengingat',
+      error: error,
+      stackTrace: stackTrace,
+      impact: 'Pengingat akan dipulihkan saat dibuka.',
+    );
+  }
+  try {
+    await getIt<ProcessRecurringTransactions>()('local-household');
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'RECURRING_TRANSACTION_BOOTSTRAP_FAILED',
+      feature: 'Transaksi Berulang',
+      error: error,
+      stackTrace: stackTrace,
+      impact: 'Transaksi berulang akan diproses pada siklus berikutnya.',
+    );
+  }
+  bool isDark = false;
+  try {
+    isDark = await ThemePreference.isDark();
+  } catch (_) {}
   runApp(FfmApp(initialDarkMode: isDark));
 }
 
@@ -223,7 +256,9 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
       return;
     }
     try {
-      final configuredLength = await _pinService.configuredPinLength();
+      final configuredLength = await _pinService.configuredPinLength().timeout(
+        const Duration(seconds: 4),
+      );
       if (!mounted) return;
       setState(() {
         _pinGateLoading = false;
@@ -327,6 +362,8 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
       if (!showAssistant || child == null) return child ?? const SizedBox();
       return FfmAssistantContextScope(
         controller: _assistantPageContext,
+        onOpenAssistant: ({String? initialPrompt}) async =>
+            _appShellKey.currentState?._openAssistant(),
         child: Stack(
           children: [
             child,
@@ -619,12 +656,18 @@ class _AppShellState extends State<AppShell> {
     final name = draft.title?.trim();
     final amount = draft.amount;
     final targetDate = draft.date;
-    if (name == null || name.isEmpty || amount == null || amount <= 0 || targetDate == null) {
+    if (name == null ||
+        name.isEmpty ||
+        amount == null ||
+        amount <= 0 ||
+        targetDate == null) {
       return false;
     }
     await getIt<SaveGoal>()(
       GoalEntity(
-        id: draft.formValues['targetId'] ?? draft.createdAt.microsecondsSinceEpoch.toString(),
+        id:
+            draft.formValues['targetId'] ??
+            draft.createdAt.microsecondsSinceEpoch.toString(),
         householdId: AppContext.householdId,
         name: name,
         targetAmount: amount,
@@ -671,6 +714,8 @@ class _AppShellState extends State<AppShell> {
               builder: (_) => EnvelopeBudgetPage(
                 assistantAmount: draft?.amount,
                 assistantCategoryName: draft?.categoryName,
+                assistantPeriodType: draft?.formValues['periodType']
+                    ?.toString(),
                 onAssistantDraftResult: (saved) =>
                     _syncAssistantDraftAfterForm(saved),
               ),

@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/database/audit_logger.dart';
+import '../../budget/data/budget_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 
@@ -395,12 +397,18 @@ class FfmAssistantFinancialSnapshotService {
 
   /// Digest anggaran untuk capability cloud.
   ///
-  /// Hanya `allocated` yang tersedia; pemakaian aktual tidak dihitung di sini.
+  /// Setiap pos membawa pemakaian (`pakai`) dan sisa (`sisa`) yang dihitung
+  /// deterministik via [BudgetRepository] — sama persis dengan halaman
+  /// Anggaran: sisa = allocated + rollover + transferMasuk − transferKeluar
+  /// − spent dalam periode; progres = spent / (allocated + rollover +
+  /// transferMasuk − transferKeluar). Baris total sistem (`overall-*`)
+  /// dilewati agar model tidak menjumlah ganda. Model hanya menjelaskan
+  /// angka ini, tidak boleh mengarang pemakaian sendiri.
   Future<String> buildBudgetDigest({
     required String householdId,
     required DateTime now,
     int maxItems = 8,
-    int maxCharacters = 700,
+    int maxCharacters = 1100,
   }) async {
     final budgets = await (_database.select(
       _database.envelopeBudgets,
@@ -409,18 +417,28 @@ class FfmAssistantFinancialSnapshotService {
       return 'Budget digest: belum ada anggaran.';
     }
     budgets.sort((a, b) => a.name.compareTo(b.name));
-    final visible = budgets.take(maxItems).toList(growable: false);
-    final lines = visible
-        .map((row) {
-          final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
-          return '$name|allocated=${row.allocated}|period=${row.periodType}';
-        })
+    final visible = budgets
+        .where((row) => !row.id.startsWith('overall-'))
+        .take(maxItems)
         .toList(growable: false);
+    final repository = BudgetRepository(_database, AuditLogger(_database));
+    final lines = <String>[];
+    for (final row in visible) {
+      final name = row.name.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      final snapshot = await repository.snapshot(
+        householdId: householdId,
+        id: row.id,
+      );
+      if (snapshot == null) continue;
+      lines.add(
+        '$name|batas=${row.allocated}|pakai=${snapshot.spent}|sisa=${snapshot.remaining}|periode=${row.periodType}',
+      );
+    }
     final suffix = budgets.length > maxItems
         ? '; … (+${budgets.length - maxItems} lebih)'
         : '';
     return _clip(
-      'Budget digest (allocated = batas alokasi, bukan pemakaian terhitung): ${lines.join('; ')}$suffix.',
+      'Budget digest (sisa = batas + rollover + transferMasuk − transferKeluar − pakai dalam periode; progres = pakai / (batas + rollover + transferMasuk − transferKeluar)): ${lines.join('; ')}$suffix.',
       maxCharacters,
     );
   }

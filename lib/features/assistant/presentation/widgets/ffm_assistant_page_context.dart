@@ -37,7 +37,7 @@ class FfmAssistantPageContextSnapshot {
 /// Detail yang tersedia pada snapshot sengaja tidak diteruskan sampai setiap
 /// halaman detail memiliki policy field aman yang ditinjau secara eksplisit.
 abstract final class FfmAssistantScreenContextPolicy {
-  static const maxCharacters = 280;
+  static const maxCharacters = 600;
 
   static const _nameOnlyDestinations = <FfmAssistantDestination>{
     FfmAssistantDestination.appSecurity,
@@ -52,6 +52,18 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.reconciliation,
     FfmAssistantDestination.recurringTransaction,
     FfmAssistantDestination.intelligenceDashboard,
+  };
+
+  /// Halaman yang menampilkan data keuangan mentah \u2014 gunakan ringkasan generik
+  /// agar nama merchant, nominal individual, dll. tidak bocor ke prompt model.
+  /// Halaman laporan/agregat (monthlyReport, budget, dsb.) aman meneruskan
+  /// dataSummary karena hanya berisi nilai agregat anonim.
+  static const _rawDataDestinations = <FfmAssistantDestination>{
+    FfmAssistantDestination.transactions,
+    FfmAssistantDestination.summary,
+    FfmAssistantDestination.liabilities,
+    FfmAssistantDestination.assets,
+    FfmAssistantDestination.goals,
   };
 
   static String forPrompt({
@@ -69,7 +81,12 @@ abstract final class FfmAssistantScreenContextPolicy {
     if (isNameOnly(activeDestination)) {
       return base;
     }
-    final summary = _genericSummary(activeDestination);
+    final useGeneric = _rawDataDestinations.contains(activeDestination);
+    final dataSummary = snapshot?.dataSummary;
+    final summary =
+        useGeneric || dataSummary == null || dataSummary.trim().isEmpty
+            ? _genericSummary(activeDestination)
+            : dataSummary.trim();
     final filters =
         snapshot?.activeFilters.entries
             .where(
@@ -178,8 +195,11 @@ class FfmAssistantContextScope
   const FfmAssistantContextScope({
     super.key,
     required FfmAssistantPageContextController controller,
+    this.onOpenAssistant,
     required super.child,
   }) : super(notifier: controller);
+
+  final Future<void> Function({String? initialPrompt})? onOpenAssistant;
 
   /// Lookup tanpa mendaftarkan dependency. Pembungkus halaman hanya perlu
   /// menemukan controller sekali; launcher global yang mendengarkan nilainya.
@@ -187,6 +207,15 @@ class FfmAssistantContextScope
     final element = context
         .getElementForInheritedWidgetOfExactType<FfmAssistantContextScope>();
     return (element?.widget as FfmAssistantContextScope?)?.notifier;
+  }
+
+  /// Membuka asisten global jika didukung oleh shell aplikasi induk.
+  static Future<void> Function({String? initialPrompt})? openAssistantOf(
+    BuildContext context,
+  ) {
+    final element = context
+        .getElementForInheritedWidgetOfExactType<FfmAssistantContextScope>();
+    return (element?.widget as FfmAssistantContextScope?)?.onOpenAssistant;
   }
 }
 

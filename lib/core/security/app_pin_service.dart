@@ -77,12 +77,11 @@ class AppPinService {
   /// Mengambil panjang PIN aktif. PIN lama v57 (4--12 angka) dimigrasi sekali
   /// ke hash lokal agar pengguna tidak kehilangan akses ketika memperbarui APK.
   Future<int?> configuredPinLength() async {
-    final values = await Future.wait([
-      _storage.read(_schemaKey),
-      _storage.read(_saltKey),
-      _storage.read(_hashKey),
-      _storage.read(_lengthKey),
-    ]);
+    final schema = await _storage.read(_schemaKey);
+    final salt = await _storage.read(_saltKey);
+    final hash = await _storage.read(_hashKey);
+    final lengthStr = await _storage.read(_lengthKey);
+    final values = [schema, salt, hash, lengthStr];
     final length = int.tryParse(values[3] ?? '');
     if (values[0] == _schemaVersion &&
         values[1] != null &&
@@ -157,13 +156,11 @@ class AppPinService {
   Future<FfmAppPinOperation> disablePin(String currentPin) async {
     final verification = await verifyPin(currentPin);
     if (verification != FfmAppPinOperation.success) return verification;
-    await Future.wait([
-      _storage.delete(_schemaKey),
-      _storage.delete(_saltKey),
-      _storage.delete(_hashKey),
-      _storage.delete(_lengthKey),
-      _storage.delete(_legacyPinKey),
-    ]);
+    await _storage.delete(_schemaKey);
+    await _storage.delete(_saltKey);
+    await _storage.delete(_hashKey);
+    await _storage.delete(_lengthKey);
+    await _storage.delete(_legacyPinKey);
     return FfmAppPinOperation.success;
   }
 

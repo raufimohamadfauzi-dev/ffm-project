@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
@@ -242,6 +243,7 @@ class _MasterDataPageState extends State<MasterDataPage>
               (row) => _MasterItem(
                 id: row.id,
                 name: row.name,
+                type: row.type,
                 subtitle:
                     '${row.type == 'income'
                         ? 'Pemasukan'
@@ -810,16 +812,31 @@ class _MasterDataPageState extends State<MasterDataPage>
   }
 }
 
+Color _categoryTypeColor(String? type) {
+  switch (type) {
+    case 'income':
+      return AppColors.positive;
+    case 'expense':
+      return AppColors.negative;
+    case 'activity':
+      return AppColors.primary;
+    default:
+      return AppColors.ink;
+  }
+}
+
 class _MasterItem {
   const _MasterItem({
     required this.id,
     required this.name,
     required this.subtitle,
+    this.type,
   });
 
   final String id;
   final String name;
   final String subtitle;
+  final String? type;
 }
 
 class _MasterList extends StatefulWidget {
@@ -943,6 +960,16 @@ class _MasterListState extends State<_MasterList> {
                     child: AppCard(
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
+                        leading: widget.tab == 0 && item.type != null
+                            ? Container(
+                                width: 4,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: _categoryTypeColor(item.type),
+                                  borderRadius: BorderRadius.circular(2),
+                                ),
+                              )
+                            : null,
                         title: Text(item.name),
                         subtitle: Text(item.subtitle),
                         trailing: PopupMenuButton<_MasterAction>(

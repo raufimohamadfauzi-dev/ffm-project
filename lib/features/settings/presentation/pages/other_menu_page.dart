@@ -4,6 +4,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../audit/presentation/pages/activity_log_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/assistant_profile_page.dart';
+import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
 
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
@@ -236,6 +237,16 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
 
+            _MenuCard(
+              icon: Icons.mark_email_unread_outlined,
+              title: 'Laporan & Kotak Masuk Asisten',
+              subtitle: 'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+              onTap: () => _open(context, const AgentInboxPage()),
+              visible: _matches(
+                'Laporan Kotak Masuk Asisten insight rekomendasi saran runway rebalance',
+                'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+              ),
+            ),
             _MenuCard(
               icon: Icons.monitor_heart_outlined,
               title: 'Monitoring Agent',
