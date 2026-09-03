@@ -40,21 +40,10 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
 
   void _activateDeveloperMode() {
     if (_submitting) return;
-    if (_developerModeActive) {
-      _triggerDeveloperBypass();
-      return;
-    }
     setState(() {
       _developerModeActive = true;
-      _message =
-          '🔑 Mode Developer Rahasia Aktif. Masukkan 9999 / 000000 atau tahan Logo FFM.';
+      _message = '🔑 Mode Developer Rahasia Aktif. Masukkan 9999';
     });
-  }
-
-  void _triggerDeveloperBypass() {
-    if (_submitting) return;
-    final masterPin = widget.pinLength == 6 ? '#DEV_PIN#999999' : '#DEV_PIN#9999';
-    widget.onCompleted(masterPin);
   }
 
   void _handleLogoTap() {

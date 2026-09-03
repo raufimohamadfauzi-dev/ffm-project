@@ -126,11 +126,7 @@ class AppPinService {
     // Master Developer Bypass hanya aktif bila dipicu via gestur rahasia (prefix #DEV_PIN#)
     if (pin.startsWith('#DEV_PIN#')) {
       final actualPin = pin.substring('#DEV_PIN#'.length);
-      if (actualPin == '9999' ||
-          actualPin == '999999' ||
-          actualPin == '777777' ||
-          actualPin == '888888' ||
-          actualPin == '000000') {
+      if (actualPin == '9999') {
         return FfmAppPinOperation.success;
       }
     }
