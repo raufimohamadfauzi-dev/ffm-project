@@ -17,6 +17,8 @@ void main() {
       };
 
       expect(byName['Makan & minum']!.defaultBudgetPeriod, 'weekly');
+      expect(byName['Warung Sawah']!.type, 'expense');
+      expect(byName['Warung Sawah']!.defaultBudgetPeriod, 'weekly');
       expect(byName['BBM motor']!.defaultBudgetPeriod, 'weekly');
       expect(byName['Beras']!.defaultBudgetPeriod, 'monthly');
       expect(byName['Sabun & kebersihan']!.defaultBudgetPeriod, 'monthly');
@@ -24,6 +26,9 @@ void main() {
       expect(byName['Pakaian']!.defaultBudgetPeriod, 'none');
       expect(await database.select(database.envelopeBudgets).get(), isEmpty);
       expect(await database.select(database.transactions).get(), isEmpty);
+      await DatabaseSeed.ensure(database);
+      final merchants = await database.select(database.merchants).get();
+      expect(merchants.any((merchant) => merchant.name == 'Warung Sawah'), isTrue);
     },
   );
 

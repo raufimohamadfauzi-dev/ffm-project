@@ -54,6 +54,11 @@ abstract final class FfmAssistantFormPrefillMapper {
       if (draft.note?.trim().isNotEmpty ?? false) 'note': draft.note!.trim(),
       if (draft.date != null) 'date': _date(draft.date!),
       if (draft.adminFee != null) 'adminFee': draft.adminFee.toString(),
+      if (draft.location?.trim().isNotEmpty ?? false)
+        'location': draft.location!.trim(),
+      if ((draft.formValues['location']?.trim().isNotEmpty ?? false) &&
+          (draft.location?.trim().isEmpty ?? true))
+        'location': draft.formValues['location']!.trim(),
       if (draft.goalName?.trim().isNotEmpty ?? false)
         'goalName': draft.goalName!.trim(),
       ...draft.formValues,

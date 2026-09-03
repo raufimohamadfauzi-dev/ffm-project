@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/network/gemini_diagnostics.dart';
 import '../../../../core/network/gemini_service.dart';
@@ -543,6 +544,50 @@ end; \$\$;
             labelText: 'Gemini API Key',
             hintText: 'Dapatkan di aistudio.google.com',
             border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: theme.colorScheme.primary.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Gratis di Google AI Studio. Login akun Google, klik "Get API key", buat dan salin key ke sini.',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () => launchUrl(
+                    Uri.parse('https://aistudio.google.com/'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                  icon: const Icon(Icons.open_in_new, size: 14),
+                  label: const Text('Buka aistudio.google.com'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 12),

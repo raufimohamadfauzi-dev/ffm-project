@@ -142,4 +142,26 @@ void main() {
       expect(intent.canConfirm, isFalse);
     },
   );
+
+  test('teks bebas tanpa kata kunci seperti berkebun otomatis menjadi mulai aktivitas', () {
+    final intent = parser.parse('berkebun');
+
+    expect(intent.type, ActivityVoiceIntentType.start);
+    expect(intent.targetTitle, 'Berkebun');
+    expect(intent.canConfirm, isTrue);
+  });
+
+  test('selesai tanpa spesifikasi nama saat ada 2 aktivitas aktif meminta pilihan', () {
+    final intent = parser.parse(
+      'selesai',
+      activeSessions: [
+        session('s-1', 'Aktivitas A'),
+        session('s-2', 'Aktivitas B'),
+      ],
+    );
+
+    expect(intent.targetSessionId, isNull);
+    expect(intent.ambiguityReason, contains('Ada 2 aktivitas'));
+    expect(intent.canConfirm, isFalse);
+  });
 }

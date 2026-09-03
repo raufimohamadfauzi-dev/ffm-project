@@ -45,6 +45,11 @@ class FfmBalanceSensePlugin extends FfmAgentPlugin {
   @override
   bool canHandle(String normalizedText) {
     final lower = normalizedText.toLowerCase();
+    // Jangan rebut perintah top-up/isi saldo: itu mutasi (transfer masuk
+    // ke e-wallet), bukan pertanyaan saldo — walau mengandung kata "saldo".
+    if (lower.contains('isi saldo') || RegExp(r'top\s?up').hasMatch(lower)) {
+      return false;
+    }
     // Jangan rebut perintah pencatatan/mutasi yang kebetulan menyebut
     // "rekening" (mis. "catat 1 juta ke rekening BRI baru").
     if (RegExp(

@@ -256,6 +256,11 @@ class ActivityBloc extends Cubit<ActivityState> {
   }
 
   Future<void> finishSession({String? sessionId, DateTime? endedAt}) async {
+    if (sessionId == null && state.activeSessions.length > 1) {
+      throw StateError(
+        'Ada ${state.activeSessions.length} aktivitas yang sedang berjalan. Sebutkan nama aktivitas yang ingin diselesaikan.',
+      );
+    }
     final current = sessionId == null
         ? state.activeSession ??
               await repository.getActiveSession(AppContext.householdId)
@@ -346,58 +351,102 @@ class ActivityBloc extends Cubit<ActivityState> {
     }
     switch (intent.type) {
       case ActivityVoiceIntentType.start:
-        final title = intent.targetTitle;
-        if (title == null || title.trim().isEmpty) {
+        final title = intent.targetTitle ?? intent.rawTranscript;
+        if (title.trim().isEmpty) {
           throw StateError('Nama aktivitasnya belum jelas.');
         }
+        final cleanNotes =
+            (intent.rawTranscript.trim().isNotEmpty &&
+                    intent.rawTranscript.trim().toLowerCase() !=
+                        title.trim().toLowerCase())
+                ? intent.rawTranscript.trim()
+                : null;
         await startSession(
-          title: title,
+          title: title.trim(),
           category: intent.category,
           categoryId: intent.categoryId,
           kind: intent.kind,
-          notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+          notes: cleanNotes,
           startedAt: intent.startedAt,
         );
       case ActivityVoiceIntentType.startChild:
-        final title = intent.targetTitle;
+        final title = intent.targetTitle ?? intent.rawTranscript;
         final parentId = intent.parentSessionId;
-        if (title == null || title.trim().isEmpty || parentId == null) {
+        if (title.trim().isEmpty || parentId == null) {
           throw StateError('Aktivitas atau induknya belum jelas.');
         }
+        final cleanNotes =
+            (intent.rawTranscript.trim().isNotEmpty &&
+                    intent.rawTranscript.trim().toLowerCase() !=
+                        title.trim().toLowerCase())
+                ? intent.rawTranscript.trim()
+                : null;
         await startSession(
-          title: title,
+          title: title.trim(),
           category: intent.category,
           categoryId: intent.categoryId,
           kind: intent.kind,
-          notes: 'Dimulai lewat voice: ${intent.rawTranscript}',
+          notes: cleanNotes,
           startedAt: intent.startedAt,
           parentSessionId: parentId,
         );
       case ActivityVoiceIntentType.finish:
         final sessionId = intent.targetSessionId;
-        if (sessionId == null) throw StateError('Sesi target belum dipilih.');
-        await finishSession(sessionId: sessionId);
+        if (sessionId == null) {
+          if (state.activeSessions.length > 1) {
+            throw StateError(
+              'Ada ${state.activeSessions.length} aktivitas yang sedang berjalan. Sebutkan nama aktivitas yang ingin diselesaikan.',
+            );
+          }
+          if (state.activeSessions.isEmpty) {
+            throw StateError('Tidak ada aktivitas aktif yang bisa diselesaikan.');
+          }
+        }
+        await finishSession(
+          sessionId: sessionId ?? state.activeSessions.first.id,
+        );
       case ActivityVoiceIntentType.checkpoint:
         final sessionId = intent.targetSessionId;
-        final label = intent.checkpointLabel;
-        if (sessionId == null || label == null || label.trim().isEmpty) {
-          throw StateError('Sesi atau update belum jelas.');
+        final label = intent.checkpointLabel ?? 'Update';
+        if (sessionId == null) {
+          throw StateError('Pilih aktivitas tujuan untuk update ini.');
         }
         await addCheckpoint(
           sessionId: sessionId,
           label: label,
-          note: 'Dicatat lewat voice: ${intent.rawTranscript}',
+          note: intent.rawTranscript,
         );
       case ActivityVoiceIntentType.note:
         final sessionId = intent.targetSessionId;
         if (sessionId == null) {
-          throw StateError('Pilih aktivitas tujuan untuk catatan voice ini.');
+          final title = intent.targetTitle ??
+              (intent.checkpointLabel?.isNotEmpty == true
+                  ? intent.checkpointLabel!
+                  : intent.rawTranscript);
+          if (title.trim().isEmpty) {
+            throw StateError('Nama aktivitas belum jelas.');
+          }
+          final cleanNotes =
+              (intent.rawTranscript.trim().isNotEmpty &&
+                      intent.rawTranscript.trim().toLowerCase() !=
+                          title.trim().toLowerCase())
+                  ? intent.rawTranscript.trim()
+                  : null;
+          await startSession(
+            title: title.trim(),
+            category: intent.category,
+            categoryId: intent.categoryId,
+            kind: intent.kind,
+            notes: cleanNotes,
+            startedAt: intent.startedAt,
+          );
+        } else {
+          await addCheckpoint(
+            sessionId: sessionId,
+            label: intent.checkpointLabel ?? 'Catatan',
+            note: intent.rawTranscript,
+          );
         }
-        await addCheckpoint(
-          sessionId: sessionId,
-          label: 'Catatan suara',
-          note: intent.rawTranscript,
-        );
       case ActivityVoiceIntentType.confirm:
       case ActivityVoiceIntentType.cancel:
       case ActivityVoiceIntentType.unknown:

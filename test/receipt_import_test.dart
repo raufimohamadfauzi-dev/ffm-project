@@ -164,6 +164,20 @@ void main() {
     expect(result.entries.single.categoryId, 'cat-belanja');
   });
 
+  test('JSON batch tidak membulatkan nominal desimal dari LLM', () {
+    final result = ReceiptImportService.parseBatchJson(
+      jsonEncode({
+        'format': 'ffm-transaction-batch-v1',
+        'transactions': [
+          {'type': 'expense', 'amount': 1.5, 'date': '2026-08-20'},
+        ],
+      }),
+    );
+
+    expect(result.entries.single.amount, isNull);
+    expect(result.warnings, contains('Transaksi ke-1 belum memiliki nominal valid.'));
+  });
+
   test('template JSON batch bisa disalin dan diimpor', () {
     final template = ReceiptImportService.templateBatchJson();
     final result = ReceiptImportService.parseBatchJson(template);
@@ -238,5 +252,64 @@ void main() {
     expect(result.entries, hasLength(1));
     expect(result.entries.single.amount, 12000);
     expect(result.entries.single.items.single.name, 'Nasi');
+  });
+
+  test('JSON batch array langsung membaca pemasukan dan pengeluaran serta lokasi & tag', () {
+    final result = ReceiptImportService.parseBatchJson('''
+    [
+      {
+        "type": "expense",
+        "amount": 75000,
+        "merchant": "Toko Berkah",
+        "location": "Pasar Baru",
+        "tags": "dapur, pokok",
+        "receipt_number": "INV-12345",
+        "note": "Belanja mingguan"
+      },
+      {
+        "type": "income",
+        "amount": 2500000,
+        "party_name": "Bonus Proyek",
+        "note": "Hasil freelance"
+      }
+    ]
+    ''');
+
+    expect(result.entries, hasLength(2));
+    expect(result.entries[0].type, 'expense');
+    expect(result.entries[0].amount, 75000);
+    expect(result.entries[0].merchant, 'Toko Berkah');
+    expect(result.entries[0].location, 'Pasar Baru');
+    expect(result.entries[0].tags, ['dapur', 'pokok']);
+    expect(result.entries[0].receiptNumber, 'INV-12345');
+
+    expect(result.entries[1].type, 'income');
+    expect(result.entries[1].amount, 2500000);
+    expect(result.entries[1].partyName, 'Bonus Proyek');
+  });
+
+  test('JSON format proposal Asisten AI ffm-assistant-proposal-v1 terbaca utuh', () {
+    final result = ReceiptImportService.parseBatchJson('''
+    {
+      "formatVersion": "ffm-assistant-proposal-v1",
+      "proposals": [
+        {
+          "kind": "expense",
+          "amount": 50000,
+          "title": "Makan Siang",
+          "merchant": "Warung Padang",
+          "location": "Bendungan Hilir",
+          "tags": ["kuliner", "makan"]
+        }
+      ]
+    }
+    ''');
+
+    expect(result.entries, hasLength(1));
+    expect(result.entries[0].type, 'expense');
+    expect(result.entries[0].amount, 50000);
+    expect(result.entries[0].merchant, 'Warung Padang');
+    expect(result.entries[0].location, 'Bendungan Hilir');
+    expect(result.entries[0].tags, ['kuliner', 'makan']);
   });
 }

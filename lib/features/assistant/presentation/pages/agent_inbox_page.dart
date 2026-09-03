@@ -7,6 +7,8 @@ import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/autonomous_evaluation_coordinator.dart';
 import '../../domain/ffm_assistant_insight.dart';
 import '../../domain/ffm_assistant_models.dart';
+import '../../domain/ffm_proactive_delivery_policy.dart';
+import '../widgets/proactive_settings_dialog.dart';
 
 class AgentInboxPage extends StatefulWidget {
   const AgentInboxPage({super.key});
@@ -16,16 +18,18 @@ class AgentInboxPage extends StatefulWidget {
 }
 
 class _AgentInboxPageState extends State<AgentInboxPage>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabController;
   late final FfmAssistantInsightRepository _repository;
   bool _loading = true;
+  String? _errorMessage;
   List<FfmAssistantInsight> _activeInsights = const [];
   List<FfmAssistantInsight> _historyInsights = const [];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 2, vsync: this);
     _repository = FfmAssistantInsightRepository(getIt<AppDatabase>());
     _loadInsights();
@@ -33,12 +37,24 @@ class _AgentInboxPageState extends State<AgentInboxPage>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Refresh data ringan saat user kembali ke aplikasi tanpa evaluasi berat berulang
+      _loadInsights(evaluate: false);
+    }
+  }
+
   Future<void> _loadInsights({bool evaluate = false}) async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
     try {
       if (evaluate) {
         final coordinator = AutonomousEvaluationCoordinator(
@@ -66,16 +82,67 @@ class _AgentInboxPageState extends State<AgentInboxPage>
         _activeInsights = active;
         _historyInsights = history;
         _loading = false;
+        _errorMessage = null;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _errorMessage = 'Gagal memuat insight: $error';
+      });
     }
   }
 
   void _handleNavigate(FfmAssistantDestination? destination) {
     if (destination == null) return;
     Navigator.of(context).pop(destination);
+  }
+
+  Future<void> _handleAction(FfmAssistantInsight insight) async {
+    // Jika insight memiliki usulan mutasi/payload, tampilkan preview dan konfirmasi eksplisit
+    if (insight.actionPayload != null && insight.actionPayload!.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          title: Text(insight.suggestedAction ?? 'Konfirmasi Tindakan Asisten'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(insight.summary),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(dialogCtx)
+                      .colorScheme
+                      .surfaceContainerHighest
+                      .withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  'Tindakan ini hanya akan dijalankan dengan persetujuan Anda. Tidak ada data yang diubah otomatis di background.',
+                  style: TextStyle(fontSize: 11.5),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(true),
+              child: const Text('Lanjutkan'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      await _markActed(insight.id);
+    }
+    _handleNavigate(insight.destination);
   }
 
   Future<void> _dismiss(String id) async {
@@ -111,6 +178,14 @@ class _AgentInboxPageState extends State<AgentInboxPage>
       appBar: AppBar(
         title: const Text('Laporan & Kotak Masuk Asisten'),
         actions: [
+          IconButton(
+            tooltip: 'Pengaturan Wawasan',
+            onPressed: () => ProactiveSettingsDialog.show(
+              context,
+              getIt<FfmProactiveDeliveryPolicy>(),
+            ),
+            icon: const Icon(Icons.tune_rounded),
+          ),
           IconButton(
             tooltip: 'Evaluasi Sekarang',
             onPressed: () => _loadInsights(evaluate: true),
@@ -154,6 +229,37 @@ class _AgentInboxPageState extends State<AgentInboxPage>
   }
 
   Widget _buildActiveList(ThemeData theme) {
+    if (_errorMessage != null && _activeInsights.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange),
+              const SizedBox(height: 12),
+              Text(
+                'Belum Berhasil Memuat Data',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                onPressed: () => _loadInsights(),
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Coba Lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (_activeInsights.isEmpty) {
       return RefreshIndicator(
         onRefresh: () => _loadInsights(evaluate: true),
@@ -182,7 +288,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
           final insight = _activeInsights[index];
           return _InsightCard(
             insight: insight,
-            onTapAction: () => _handleNavigate(insight.destination),
+            onTapAction: () => _handleAction(insight),
             onDismiss: () => _dismiss(insight.id),
             onSnooze: () => _snooze(insight.id),
             onMarkActed: () => _markActed(insight.id),

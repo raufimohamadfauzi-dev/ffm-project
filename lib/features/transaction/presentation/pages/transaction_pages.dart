@@ -289,20 +289,39 @@ class _TransactionListPageState extends State<TransactionListPage> {
       date: draft.date!,
       amount: draft.amount!,
       note: draft.note ?? '',
+      location: draft.location ?? draft.formValues['location'],
       source: 'assistant',
       accountId: accountId,
       merchantId: merchantId,
       goalId: null,
-      partyName: draft.partyName,
+      partyName:
+          draft.partyName ??
+          draft.formValues['incomeSource'] ??
+          draft.formValues['party'],
       receiptRawText: receiptRawText,
       receiptNumber: receiptNumber,
       receiptPaidAmount: receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount,
       items: items,
+      tags: _assistantTagNames(draft),
       assistantMerchantName: draft.merchantName,
       assistantSlmFieldValues: draft.slmFieldValues,
     );
     await _saveDrafts([transactionDraft]);
+  }
+
+  /// Tag draft asisten disamakan dengan kolom tag form + database.
+  /// Filter final terhadap Data Utama dilakukan di [_saveMetadata].
+  List<String> _assistantTagNames(FfmAssistantDraft draft) {
+    final raw =
+        draft.formValues['tags'] ?? draft.formValues['newTags'] ?? '';
+    if (raw.trim().isEmpty) return const [];
+    return raw
+        .split(',')
+        .map((item) => item.trim().toLowerCase())
+        .where((item) => item.isNotEmpty)
+        .toSet()
+        .toList();
   }
 
   bool _canSaveAssistantTransferDirectly(FfmAssistantDraft draft) {
@@ -1005,11 +1024,40 @@ class _TransactionListPageState extends State<TransactionListPage> {
     final now = DateTime.now();
     final entities = <TransactionEntity>[];
     final itemsByTransactionId = <String, List<TransactionItemEntity>>{};
+    final tagsByTransactionId = <String, List<String>>{};
     final transfers = <TransferEntity>[];
     final auditRows = <Map<String, dynamic>>[];
 
+    final merchantMap = <String, String>{};
+    for (final m in _merchants) {
+      merchantMap[m.name.toLowerCase()] = m.id;
+    }
+
     for (final draft in result.drafts) {
       final id = const Uuid().v4();
+      var merchantId = draft.merchantId;
+      final assistantMerchant = draft.assistantMerchantName?.trim();
+      if (merchantId == null &&
+          assistantMerchant != null &&
+          assistantMerchant.isNotEmpty) {
+        final existingId = merchantMap[assistantMerchant.toLowerCase()];
+        if (existingId != null) {
+          merchantId = existingId;
+        } else {
+          final created =
+              await database.into(database.merchants).insertReturning(
+                    MerchantsCompanion.insert(
+                      id: const Uuid().v4(),
+                      householdId: AppContext.householdId,
+                      name: assistantMerchant,
+                      createdAt: now,
+                    ),
+                  );
+          merchantId = created.id;
+          merchantMap[assistantMerchant.toLowerCase()] = merchantId;
+        }
+      }
+
       final entity = TransactionEntity(
         id: id,
         householdId: AppContext.householdId,
@@ -1020,7 +1068,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         note: draft.note.trim().isEmpty ? null : draft.note.trim(),
         source: draft.source,
         accountId: draft.accountId,
-        merchantId: draft.merchantId,
+        merchantId: merchantId,
         location: draft.location,
         goalId: draft.goalId,
         partyName: draft.partyName,
@@ -1043,6 +1091,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
             ),
           )
           .toList();
+      if (draft.tags.isNotEmpty) {
+        tagsByTransactionId[id] = draft.tags;
+      }
       auditRows.add({
         'id': id,
         'amount': draft.amount,
@@ -1066,18 +1117,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     row.isActive.equals(true),
               ))
               .getSingleOrNull();
-      if (feeCategory == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Kategori Biaya admin belum tersedia. Tambahkan di Data Utama dulu.',
-              ),
-            ),
-          );
-        }
-        return;
-      }
+      feeCategory ??=
+          await database.into(database.categories).insertReturning(
+                CategoriesCompanion.insert(
+                  id: const Uuid().v4(),
+                  householdId: AppContext.householdId,
+                  name: 'Biaya admin',
+                  type: 'expense',
+                  createdAt: now,
+                ),
+              );
     }
 
     for (final draft in result.transfers) {
@@ -1147,6 +1196,39 @@ class _TransactionListPageState extends State<TransactionListPage> {
       itemsByTransactionId: itemsByTransactionId,
       transfers: transfers,
     );
+
+    // Simpan tag transaksi
+    for (final entry in tagsByTransactionId.entries) {
+      final txId = entry.key;
+      for (final rawTag in entry.value) {
+        final tagName = rawTag.trim().toLowerCase();
+        if (tagName.isEmpty) continue;
+        var tag =
+            await (database.select(database.tags)..where(
+                  (t) =>
+                      t.householdId.equals(AppContext.householdId) &
+                      t.name.equals(tagName) &
+                      t.isArchived.equals(false),
+                ))
+                .getSingleOrNull();
+        tag ??= await database.into(database.tags).insertReturning(
+              TagsCompanion.insert(
+                id: const Uuid().v4(),
+                householdId: AppContext.householdId,
+                name: tagName,
+                createdAt: now,
+              ),
+            );
+        await database
+            .into(database.transactionTags)
+            .insert(
+              TransactionTagsCompanion.insert(
+                transactionId: txId,
+                tagId: tag.id,
+              ),
+            );
+      }
+    }
     final auditLogger = AuditLogger(database);
     for (final row in auditRows) {
       await auditLogger.record(
@@ -2040,7 +2122,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : _errorMessage != null
                   ? ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                       children: [
                         AppEmptyState(
                           icon: Icons.error_outline,
@@ -2056,7 +2138,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     )
                   : _transactions.isEmpty && _transfers.isEmpty
                   ? ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
                   AppEmptyState(
                     icon: _accounts.isEmpty
@@ -2093,7 +2175,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               )
             : visibleTransactions.isEmpty && visibleTransfers.isEmpty
             ? ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                 children: [
                   const AppHelpBanner(
                     title: 'Tidak ada yang cocok',
@@ -2103,9 +2185,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 ],
               )
             : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 160),
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 56),
                 itemCount: timeline.length + 2,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     return TransactionFlowSummary(
@@ -2152,8 +2234,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
                       : AppColors.negative;
                   return AppCard(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+                      horizontal: 14,
+                      vertical: 8,
                     ),
                     color: isIncome
                         ? AppColors.positiveSoft.withValues(alpha: .72)
@@ -2162,109 +2244,127 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          radius: 24,
+                          radius: 18,
                           backgroundColor: color.withValues(alpha: .14),
                           foregroundColor: color,
                           child: Icon(
                             isIncome
                                 ? Icons.south_west_rounded
                                 : Icons.north_east_rounded,
-                            size: 25,
+                            size: 18,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 4,
+                              Row(
                                 children: [
-                                  AppStatusChip(
-                                    label: isGoalContribution
-                                        ? 'Isi target'
-                                        : isGoalUsage
-                                        ? 'Pakai target'
-                                        : isIncome
-                                        ? 'Uang masuk'
-                                        : 'Uang keluar',
-                                    color: color,
-                                    backgroundColor: color.withValues(
-                                      alpha: .14,
+                                  Expanded(
+                                    child: Text(
+                                      merchantName.isNotEmpty
+                                          ? merchantName
+                                          : isGoalContribution
+                                          ? 'Uang terkumpul untuk target'
+                                          : isGoalUsage
+                                          ? 'Penggunaan dana target'
+                                          : _categoryLabel(item.categoryId),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13,
+                                          ),
                                     ),
                                   ),
                                   if (isDataSusulan(
                                     item.date,
                                     now: item.recordedAt,
                                   ))
-                                    AppStatusChip(
-                                      label: 'Data susulan',
-                                      color: AppColors.warning,
-                                      backgroundColor: AppColors.warningSoft,
+                                    const Padding(
+                                      padding: EdgeInsets.only(left: 4),
+                                      child: AppStatusChip(
+                                        label: 'Susulan',
+                                        color: AppColors.warning,
+                                        backgroundColor: AppColors.warningSoft,
+                                      ),
                                     ),
                                 ],
                               ),
-                              const SizedBox(height: 7),
-                              Text(
-                                merchantName.isNotEmpty
-                                    ? merchantName
-                                    : isGoalContribution
-                                    ? 'Uang terkumpul untuk target'
-                                    : isGoalUsage
-                                    ? 'Penggunaan dana target'
-                                    : _categoryLabel(item.categoryId),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                              if (merchantName.isNotEmpty &&
-                                  !isGoalContribution &&
-                                  !isGoalUsage) ...[
-                                Text(
-                                  _categoryLabel(item.categoryId),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: AppColors.inkMuted),
-                                ),
-                              ],
-                              const SizedBox(height: 5),
-                              HijriDateText(
-                                date: item.date,
-                                includeSeconds: false,
-                                compact: true,
-                                color: AppColors.inkMuted,
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  if (merchantName.isNotEmpty &&
+                                      !isGoalContribution &&
+                                      !isGoalUsage) ...[
+                                    Flexible(
+                                      child: Text(
+                                        _categoryLabel(item.categoryId),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppColors.inkMuted,
+                                              fontSize: 11,
+                                            ),
+                                      ),
+                                    ),
+                                    const Text(
+                                      ' · ',
+                                      style: TextStyle(
+                                        color: AppColors.inkMuted,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                  HijriDateText(
+                                    date: item.date,
+                                    includeSeconds: false,
+                                    compact: true,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 8),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text(
-                              isIncome ? '+' : '−',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  isIncome ? '+' : '−',
+                                  style: TextStyle(
                                     color: color,
                                     fontWeight: FontWeight.w800,
+                                    fontSize: 13,
                                   ),
-                            ),
-                            AppMoneyText(
-                              item.amount.abs(),
-                              compact: true,
-                              color: color,
+                                ),
+                                AppMoneyText(
+                                  item.amount.abs(),
+                                  compact: true,
+                                  color: color,
+                                ),
+                              ],
                             ),
                           ],
                         ),
                         PopupMenuButton<String>(
                           tooltip: 'Aksi transaksi',
-                          icon: const Icon(Icons.more_vert),
+                          icon: const Icon(Icons.more_vert, size: 18),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
+                            minWidth: 32,
+                            minHeight: 32,
                           ),
                           onSelected: (value) {
                             if (value == 'edit') {
@@ -2276,7 +2376,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                           itemBuilder: (_) => const [
                             PopupMenuItem(
                               value: 'edit',
-                              child: Text('Ubah transaksi'),
+                              child: Text('Edit transaksi'),
                             ),
                             PopupMenuItem(
                               value: 'delete',

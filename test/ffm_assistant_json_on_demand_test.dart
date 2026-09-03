@@ -40,6 +40,26 @@ void main() {
     expect(result.draft?.formValues['tags'], 'cabai,pupuk');
   });
 
+  test('JSON transaksi menolak nominal desimal yang ambigu', () {
+    final result = FfmAssistantProposalJsonService.parse(
+      '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":1.5,"fromAccount":"Tunai"}}',
+      createdAt: DateTime(2026, 8, 31),
+    );
+
+    expect(result.draft, isNull);
+    expect(result.error, contains('nominal'));
+  });
+
+  test('JSON proposal tetap terbaca saat LLM menambahkan teks pembuka', () {
+    final result = FfmAssistantProposalJsonService.parse(
+      'Berikut data transaksi:\n{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000}}\nSilakan cek kembali.',
+      createdAt: DateTime(2026, 8, 31),
+    );
+
+    expect(result.error, isNull);
+    expect(result.draft?.amount, 25000);
+  });
+
   test('JSON transaksi membawa Data Utama baru ke preview yang sama', () {
     final result = FfmAssistantProposalJsonService.parse(
       '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":25000,"fromAccount":"Tunai","merchant":"Toko Tani Baru","newMerchant":"Toko Tani Baru","tags":"pupuk","newTags":"pupuk"}}',

@@ -105,14 +105,23 @@ class ReminderNotificationService implements ReminderNotificationGateway {
   Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
   final ValueNotifier<ReminderNotificationOpenTarget?> _openTarget =
       ValueNotifier(null);
+  final ValueNotifier<String?> _inboxOpenTarget = ValueNotifier(null);
   bool _initialized = false;
 
   ValueListenable<ReminderNotificationOpenTarget?> get openTarget =>
       _openTarget;
 
+  ValueListenable<String?> get inboxOpenTarget => _inboxOpenTarget;
+
   ReminderNotificationOpenTarget? takeOpenTarget() {
     final target = _openTarget.value;
     _openTarget.value = null;
+    return target;
+  }
+
+  String? takeInboxOpenTarget() {
+    final target = _inboxOpenTarget.value;
+    _inboxOpenTarget.value = null;
     return target;
   }
 
@@ -344,13 +353,68 @@ class ReminderNotificationService implements ReminderNotificationGateway {
     return hash == 0 ? 1 : hash;
   }
 
+  static const _assistantInsightNotificationIdBase = 62000;
+  static const _assistantInsightChannelId = 'ffm_assistant_insights';
+
+  Future<void> showAssistantInsightNotification({
+    required String insightId,
+    required String title,
+    required String summary,
+  }) async {
+    await initialize();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _assistantInsightChannelId,
+        'Kotak Masuk Asisten',
+        description: 'Pemberitahuan wawasan dan rekomendasi penting Asisten AI',
+        importance: Importance.high,
+      ),
+    );
+
+    final notificationId = _assistantInsightNotificationIdBase +
+        (insightId.hashCode.abs() % 1000);
+    final payload = jsonEncode({
+      'type': 'assistant_insight',
+      'insightId': insightId,
+    });
+
+    await _plugin.show(
+      id: notificationId,
+      title: 'Wawasan Asisten AI',
+      body: 'Ada catatan keuangan baru untuk ditinjau: $title',
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          _assistantInsightChannelId,
+          'Kotak Masuk Asisten',
+          channelDescription:
+              'Pemberitahuan wawasan dan rekomendasi penting Asisten AI',
+          importance: Importance.high,
+          priority: Priority.high,
+          visibility: NotificationVisibility.private,
+          styleInformation: BigTextStyleInformation(
+            summary,
+            contentTitle: title,
+            summaryText: 'Asisten AI',
+          ),
+        ),
+      ),
+      payload: payload,
+    );
+  }
+
   Future<void> _dispatch(String? actionId, String? rawPayload) async {
     if (rawPayload == null || rawPayload.isEmpty) return;
     try {
       final decoded = jsonDecode(rawPayload);
-      if (decoded is Map<String, dynamic> && onAction != null) {
+      if (decoded is Map<String, dynamic>) {
         final action = actionId ?? 'open';
-        await onAction!(action, decoded);
+        if (onAction != null) {
+          await onAction!(action, decoded);
+        }
         _publishOpenTarget(action, decoded);
       }
     } on Object {
@@ -360,6 +424,12 @@ class ReminderNotificationService implements ReminderNotificationGateway {
 
   void _publishOpenTarget(String actionId, Map<String, dynamic> payload) {
     if (actionId != 'open') return;
+    final type = '${payload['type'] ?? ''}'.trim();
+    if (type == 'assistant_insight') {
+      final insightId = '${payload['insightId'] ?? ''}'.trim();
+      _inboxOpenTarget.value = insightId.isNotEmpty ? insightId : 'open';
+      return;
+    }
     final reminderId = '${payload['reminderId'] ?? ''}'.trim();
     final historyId = '${payload['historyId'] ?? ''}'.trim();
     if (reminderId.isEmpty || historyId.isEmpty) return;

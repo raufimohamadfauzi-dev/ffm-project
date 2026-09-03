@@ -29,93 +29,124 @@ class TransferHistoryCard extends StatelessWidget {
     final color = Theme.of(context).colorScheme.primary;
     return AppCard(
       color: AppColors.primarySoft.withValues(alpha: .48),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Row(
         children: [
           CircleAvatar(
-            radius: 24,
+            radius: 18,
             backgroundColor: color.withValues(alpha: .14),
             foregroundColor: color,
-            child: const Icon(Icons.swap_horiz_rounded, size: 25),
+            child: const Icon(Icons.swap_horiz_rounded, size: 18),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppStatusChip(
-                  label: 'Transfer',
-                  color: color,
-                  backgroundColor: color.withValues(alpha: .14),
+                Row(
+                  children: [
+                    AppStatusChip(
+                      label: 'Transfer',
+                      color: color,
+                      backgroundColor: color.withValues(alpha: .14),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        fromLabel.isEmpty ? 'Rekening asal' : fromLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: Icon(Icons.arrow_forward_rounded, size: 13),
+                    ),
+                    Flexible(
+                      child: Text(
+                        toLabel.isEmpty ? 'Rekening tujuan' : toLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 7),
-                Text(
-                  fromLabel.isEmpty ? 'Rekening asal' : fromLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 2),
-                  child: Icon(Icons.arrow_downward_rounded, size: 16),
-                ),
-                Text(
-                  toLabel.isEmpty ? 'Rekening tujuan' : toLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                if (transfer.note?.isNotEmpty == true) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    transfer.note!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                const SizedBox(height: 4),
-                HijriDateText(
-                  date: transfer.date,
-                  includeSeconds: true,
-                  compact: true,
-                  color: AppColors.inkMuted,
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (transfer.note?.isNotEmpty == true) ...[
+                      Flexible(
+                        child: Text(
+                          transfer.note!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.inkMuted,
+                                fontSize: 11,
+                              ),
+                        ),
+                      ),
+                      const Text(
+                        ' · ',
+                        style: TextStyle(color: AppColors.inkMuted, fontSize: 11),
+                      ),
+                    ],
+                    HijriDateText(
+                      date: transfer.date,
+                      includeSeconds: false,
+                      compact: true,
+                      color: AppColors.inkMuted,
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text(
-                'Pindah',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              AppMoneyText(
+                transfer.amount,
+                compact: true,
+                color: color,
               ),
-              AppMoneyText(transfer.amount, compact: true, color: color),
               if (transfer.adminFee > 0)
                 Text(
                   'Admin ${formatRupiahInput(transfer.adminFee.toString())}',
-                  style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: AppColors.inkMuted),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: AppColors.inkMuted,
+                        fontSize: 10,
+                      ),
                 ),
-              PopupMenuButton<String>(
-                tooltip: 'Aksi transfer',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                onSelected: (value) {
-                  if (value == 'edit') onEdit?.call();
-                  if (value == 'delete') onDelete();
-                },
-                itemBuilder: (_) => [
-                  if (onEdit != null)
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Edit transfer'),
-                    ),
-                  const PopupMenuItem(value: 'delete', child: Text('Hapus transfer')),
-                ],
-                icon: const Icon(Icons.more_vert),
+            ],
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Aksi transfer',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            icon: const Icon(Icons.more_vert, size: 18),
+            onSelected: (value) {
+              if (value == 'edit') onEdit?.call();
+              if (value == 'delete') onDelete();
+            },
+            itemBuilder: (_) => [
+              if (onEdit != null)
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Text('Edit transfer'),
+                ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Hapus transfer'),
               ),
             ],
           ),
@@ -156,64 +187,94 @@ class AccountBalancesCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppCard(
       color: Theme.of(context).colorScheme.surface,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_wallet_outlined),
-              const SizedBox(width: 8),
+              const Icon(Icons.account_balance_wallet_outlined, size: 17),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  'Saldo per rekening',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  'Saldo rekening',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ),
               Text(
-                'Saldo saat ini · transfer ikut dihitung',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: AppColors.inkMuted),
+                '${accounts.length} rekening aktif',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkMuted,
+                      fontSize: 11,
+                    ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           if (accounts.isEmpty)
-            const Text('Belum ada rekening. Tambahkan lewat Data Utama.')
+            const Text(
+              'Belum ada rekening. Tambahkan lewat Data Utama.',
+              style: TextStyle(fontSize: 12),
+            )
           else
-            ...accounts.map((account) {
-              final balance = _balance(account);
-              final color = balance >= 0
-                  ? AppColors.positive
-                  : AppColors.negative;
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.circle, size: 8, color: color),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            account.name,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                          Text(
-                            accountTypeLabel(account.type),
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: AppColors.inkMuted),
-                          ),
-                        ],
+            SizedBox(
+              height: 52,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: accounts.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final account = accounts[i];
+                  final balance = _balance(account);
+                  final color =
+                      balance >= 0 ? AppColors.positive : AppColors.negative;
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: .45),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .outlineVariant
+                            .withValues(alpha: .4),
                       ),
                     ),
-                    AppMoneyText(balance, compact: true, color: color),
-                  ],
-                ),
-              );
-            }),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.circle, size: 7, color: color),
+                        const SizedBox(width: 6),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              account.name,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            AppMoneyText(
+                              balance,
+                              compact: true,
+                              color: color,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -240,28 +301,32 @@ class TransactionFlowSummary extends StatelessWidget {
     final netColor = net >= 0 ? AppColors.positive : AppColors.negative;
     return AppCard(
       color: AppColors.primarySoft.withValues(alpha: .82),
-      padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.account_balance_wallet_outlined),
-              const SizedBox(width: 8),
+              const Icon(Icons.analytics_outlined, size: 18),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Ringkasan transaksi',
-                  style: Theme.of(context).textTheme.titleMedium,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
               ),
               Text(
                 '${transactionCount + transferCount} catatan',
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(color: AppColors.inkMuted),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkMuted,
+                      fontSize: 11,
+                    ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -273,7 +338,7 @@ class TransactionFlowSummary extends StatelessWidget {
                   icon: Icons.south_west_rounded,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: TransactionFlowTile(
                   label: 'Pengeluaran',
@@ -285,26 +350,34 @@ class TransactionFlowSummary extends StatelessWidget {
             ],
           ),
           if (transferCount > 0) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
               '$transferCount transfer tidak mengubah total pemasukan atau pengeluaran.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.inkMuted,
-                fontWeight: FontWeight.w600,
-              ),
+                    color: AppColors.inkMuted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Row(
             children: [
               Text(
                 'Selisih arus kas',
-                style: Theme.of(context).textTheme.bodySmall,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.inkMuted,
+                      fontSize: 11.5,
+                    ),
               ),
               const Spacer(),
               FittedBox(
                 fit: BoxFit.scaleDown,
-                child: AppMoneyText(net, compact: true, color: netColor),
+                child: AppMoneyText(
+                  net,
+                  compact: true,
+                  color: netColor,
+                ),
               ),
             ],
           ),
@@ -331,32 +404,40 @@ class TransactionFlowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 7),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .4,
-            ),
+          Row(
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: .3,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: AppMoneyText(amount, compact: true, color: color),
+            child: AppMoneyText(
+              amount,
+              compact: true,
+              color: color,
+            ),
           ),
         ],
       ),

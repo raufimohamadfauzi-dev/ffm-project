@@ -43,6 +43,9 @@ import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
+import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
+import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
+import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
@@ -259,9 +262,21 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundScheduler>(
     FfmAssistantAutonomyBackgroundScheduler.new,
   );
+  getIt.registerLazySingleton<FfmProactiveDeliveryPolicy>(
+    FfmProactiveDeliveryPolicy.new,
+  );
+  getIt.registerLazySingleton<AutonomousEvaluationCoordinator>(
+    () => AutonomousEvaluationCoordinator(
+      database: db,
+      insightRepository: FfmAssistantInsightRepository(db),
+      notificationService: getIt<ReminderNotificationService>(),
+      deliveryPolicy: getIt<FfmProactiveDeliveryPolicy>(),
+    ),
+  );
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundEventHandler>(
     () => FfmAssistantAutonomyBackgroundEventHandler(
       getIt<FfmAssistantAgentTaskEventHandler>(),
+      getIt<AutonomousEvaluationCoordinator>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantUserModelService>(

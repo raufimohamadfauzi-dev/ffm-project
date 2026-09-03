@@ -3,7 +3,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
+import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/ffm_assistant_autonomy_policy.dart';
+import '../../domain/ffm_assistant_insight.dart';
+import 'agent_inbox_page.dart';
 
 class FfmAssistantAutonomyMonitorPage extends StatefulWidget {
   const FfmAssistantAutonomyMonitorPage({
@@ -24,6 +27,9 @@ class _FfmAssistantAutonomyMonitorPageState
     extends State<FfmAssistantAutonomyMonitorPage> {
   List<AssistantAgentRun> _runs = const [];
   FfmAssistantAutonomyPolicy _policy = const FfmAssistantAutonomyPolicy();
+  int _activeInsightCount = 0;
+  int _actedInsightCount = 0;
+  int _dismissedInsightCount = 0;
   bool _loading = true;
   bool _savingPolicy = false;
   bool _policyChanged = false;
@@ -52,10 +58,37 @@ class _FfmAssistantAutonomyMonitorPageState
       final policy =
           await _repository.loadPolicy(householdId: widget.householdId) ??
           const FfmAssistantAutonomyPolicy();
+
+      var activeCount = 0;
+      var actedCount = 0;
+      var dismissedCount = 0;
+      try {
+        final insightRepo = FfmAssistantInsightRepository(getIt<AppDatabase>());
+        final allInsights = await insightRepo.getAllInsights(
+          householdId: widget.householdId,
+        );
+        activeCount = allInsights
+            .where((i) =>
+                i.status == FfmAssistantInsightStatus.newInsight ||
+                i.status == FfmAssistantInsightStatus.seen)
+            .length;
+        actedCount = allInsights
+            .where((i) => i.status == FfmAssistantInsightStatus.acted)
+            .length;
+        dismissedCount = allInsights
+            .where((i) =>
+                i.status == FfmAssistantInsightStatus.dismissed ||
+                i.status == FfmAssistantInsightStatus.expired)
+            .length;
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _runs = runs;
         _policy = policy;
+        _activeInsightCount = activeCount;
+        _actedInsightCount = actedCount;
+        _dismissedInsightCount = dismissedCount;
         _policyChanged = false;
         _loading = false;
       });
@@ -91,6 +124,8 @@ class _FfmAssistantAutonomyMonitorPageState
                 children: [
                   _buildIntro(context),
                   const SizedBox(height: 16),
+                  _buildInsightSummary(context),
+                  const SizedBox(height: 16),
                   _buildPolicyCard(context),
                   const SizedBox(height: 16),
                   if (_error != null) _buildError(context),
@@ -109,6 +144,133 @@ class _FfmAssistantAutonomyMonitorPageState
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _buildInsightSummary(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: isDark ? const Color(0xFF35302B) : const Color(0xFFE8E0D0),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.inbox_outlined,
+                  size: 20,
+                  color: isDark ? const Color(0xFFC49A6B) : const Color(0xFFB07A4A),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Wawasan & Notifikasi Proaktif',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AgentInboxPage()),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                  label: const Text('Buka Inbox'),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_activeInsightCount',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text('Aktif & Baru', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_actedInsightCount',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green.shade700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text('Ditindaklanjuti', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$_dismissedInsightCount',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text('Riwayat Selesai', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

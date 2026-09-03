@@ -93,7 +93,7 @@ class TransactionDetailPage extends StatelessWidget {
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
             AppCard(
               child: Padding(
@@ -206,8 +206,11 @@ class TransactionDetailPage extends StatelessWidget {
                       (item) {
                         final itemSubtotal = item.amount > 0 ? item.amount : (item.price * item.qty).round();
                         return ListTile(
+                          dense: true,
                           title: Text(item.itemName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text('${item.qty} ${item.unit ?? 'item'} @ Rp ${item.price}'),
+                          subtitle: Text(
+                            'Jumlah: ${item.qty} ${item.unit ?? 'item'} · Harga satuan: Rp ${item.price}',
+                          ),
                           trailing: AppMoneyText(
                             itemSubtotal,
                             compact: true,

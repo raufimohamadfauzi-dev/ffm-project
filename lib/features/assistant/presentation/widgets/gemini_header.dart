@@ -50,6 +50,8 @@ class GeminiHeader extends StatelessWidget {
     this.cloudModel,
     this.onOpenMemory,
     this.memoryCount = 0,
+    this.onOpenInbox,
+    this.inboxCount = 0,
   });
 
   final FfmAssistantPage? currentPage;
@@ -67,6 +69,8 @@ class GeminiHeader extends StatelessWidget {
   final String? cloudModel;
   final VoidCallback? onOpenMemory;
   final int memoryCount;
+  final VoidCallback? onOpenInbox;
+  final int inboxCount;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +97,7 @@ class GeminiHeader extends StatelessWidget {
     } else {
       statusColor = isDark ? const Color(0xFFC49A6B) : const Color(0xFFB07A4A);
       statusIcon = Icons.edit_note_outlined;
-      statusLabel = cloudStatusError ?? 'Gemini Cloud belum diverifikasi';
+      statusLabel = cloudStatusError ?? 'Gemini Cloud belum aktif (Perlu Key)';
       showSetupAction = onSetupGemini != null;
     }
 
@@ -211,18 +215,79 @@ class GeminiHeader extends StatelessWidget {
                       ),
                   ],
                 ),
+              if (onOpenInbox != null)
+                Stack(
+                  alignment: Alignment.topRight,
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Kotak Masuk Asisten ($inboxCount catatan)',
+                      onPressed: onOpenInbox,
+                      icon: Icon(
+                        inboxCount > 0
+                            ? Icons.inbox_rounded
+                            : Icons.inbox_outlined,
+                        size: 21,
+                        color: inboxCount > 0
+                            ? (isDark
+                                ? const Color(0xFFC49A6B)
+                                : const Color(0xFFB07A4A))
+                            : (isDark
+                                ? const Color(0xFF9A9590)
+                                : const Color(0xFF6B5E4F)),
+                      ),
+                    ),
+                    if (inboxCount > 0)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark
+                                ? const Color(0xFFC49A6B)
+                                : const Color(0xFFB07A4A),
+                          ),
+                          child: Center(
+                            child: Text(
+                              inboxCount > 9 ? '9+' : '$inboxCount',
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               PopupMenuButton<String>(
                 tooltip: 'Menu Asisten',
                 onSelected: (value) {
                   switch (value) {
+                    case 'inbox':
+                      onOpenInbox?.call();
                     case 'voice':
                       onOpenVoicePicker();
                     case 'reset':
                       onResetChat();
                   }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
+                itemBuilder: (_) => [
+                  if (onOpenInbox != null)
+                    const PopupMenuItem(
+                      value: 'inbox',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.inbox_outlined),
+                        title: Text('Kotak Masuk Asisten'),
+                      ),
+                    ),
+                  const PopupMenuItem(
                     value: 'voice',
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -230,7 +295,7 @@ class GeminiHeader extends StatelessWidget {
                       title: Text('Pilih suara bacaan'),
                     ),
                   ),
-                  PopupMenuItem(
+                  const PopupMenuItem(
                     value: 'reset',
                     child: ListTile(
                       contentPadding: EdgeInsets.zero,

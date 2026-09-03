@@ -155,11 +155,14 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     if (existing == null && widget.initialDate != null) {
       _date = widget.initialDate!;
     }
-    if (existing == null && (widget.initialPartyName != null || widget.assistantPrefill?.values['partyName'] != null)) {
-      _partyName = widget.initialPartyName ?? widget.assistantPrefill?.values['partyName'] ?? '';
+    if (existing == null && (widget.initialPartyName != null || widget.assistantPrefill?.values['partyName'] != null || widget.assistantPrefill?.values['incomeSource'] != null || widget.assistantPrefill?.values['party'] != null)) {
+      _partyName = widget.initialPartyName ?? widget.assistantPrefill?.values['partyName'] ?? widget.assistantPrefill?.values['party'] ?? widget.assistantPrefill?.values['incomeSource'] ?? '';
     }
     if (existing == null && widget.assistantPrefill != null) {
       final prefillValues = widget.assistantPrefill!.values;
+      if (_locationController.text.trim().isEmpty && prefillValues['location']?.isNotEmpty == true) {
+        _locationController.text = prefillValues['location']!;
+      }
       if (_receiptNumber == null && prefillValues['receiptNumber']?.isNotEmpty == true) {
         _receiptNumber = prefillValues['receiptNumber'];
       }
@@ -319,6 +322,16 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       if (rawMerchant != null && widget.existingTransaction == null) {
         _merchantId = _matchMerchant(rawMerchant);
       }
+      // Prefill draft asisten: samakan kolom Toko dengan database + preview.
+      if (_merchantId == null && widget.existingTransaction == null) {
+        final draftMerchant =
+            widget.assistantMerchantName ??
+            widget.assistantPrefill?.values['merchant'] ??
+            widget.assistantPrefill?.values['merchantName'];
+        if (draftMerchant?.trim().isNotEmpty == true) {
+          _merchantId = _matchMerchant(draftMerchant!.trim());
+        }
+      }
     });
   }
 
@@ -334,6 +347,19 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             .get();
     if (!mounted) return;
     setState(() => _masterTags = tags);
+    // Prefill tag draft asisten: samakan dengan kolom tag form + database.
+    if (widget.existingTransaction == null &&
+        widget.assistantPrefill != null &&
+        _tags.isEmpty) {
+      final rawTags =
+          widget.assistantPrefill!.values['tags'] ??
+          widget.assistantPrefill!.values['newTags'];
+      if (rawTags?.trim().isNotEmpty == true) {
+        for (final part in rawTags!.split(',')) {
+          _addTag(part);
+        }
+      }
+    }
   }
 
   String? _matchMerchant(String rawName) {
@@ -1642,11 +1668,10 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               const SizedBox(height: 16),
               AppSectionHeader(
                 title: isIncome
-                    ? '3. Waktu dan catatan pemasukan'
+                    ? '3. Rincian tambahan pemasukan'
                     : '3. Rincian tambahan',
-                helpText: isIncome
-                    ? 'Catat kapan uang diterima dan tambahkan keterangan bila perlu.'
-                    : 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
+                helpText:
+                    'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
               ),
               const SizedBox(height: 4),
               ExpansionTile(
@@ -1661,16 +1686,15 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   isIncome ? Icons.event_note_outlined : Icons.tune_outlined,
                 ),
                 title: Text(
-                  isIncome ? 'Atur waktu dan catatan' : 'Buka rincian tambahan',
+                  isIncome ? 'Buka rincian pemasukan' : 'Buka rincian tambahan',
                 ),
-                subtitle: Text(
-                  isIncome
-                      ? 'Tanggal, jam, sumber pemasukan, dan catatan'
-                      : 'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
+                subtitle: const Text(
+                  'Toko, lokasi, waktu, sumber/pemakai, dan catatan',
                 ),
                 children: [
-                  if (!isIncome) ...[
-                    if (_merchants.isNotEmpty)
+                  // Kolom disamakan untuk pemasukan + pengeluaran + draft
+                  // asisten + database: toko, lokasi, tanggal, pihak, catatan.
+                  if (_merchants.isNotEmpty)
                       SearchableDropdown(
                         items: _merchants,
                         selectedItem: _merchants
@@ -1710,7 +1734,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.calendar_today_outlined),
@@ -1874,11 +1897,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (!isIncome) ...[
-                const AppSectionHeader(
-                  title: '5. Rincian nota dan banyak item',
-                  helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
-                ),
+              // Rincian item disamakan untuk pemasukan + pengeluaran +
+              // draft asisten + database (transaction_items).
+              const AppSectionHeader(
+                title: '5. Rincian nota dan banyak item',
+                helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
+              ),
                 const SizedBox(height: 4),
                 AppCard(
                   padding: const EdgeInsets.all(16),
@@ -1940,7 +1964,6 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                     ],
                   ),
                 ),
-              ],
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,

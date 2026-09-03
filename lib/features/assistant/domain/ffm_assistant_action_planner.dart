@@ -242,7 +242,8 @@ class FfmAssistantActionPlanner {
             FfmAssistantDraftKind.liabilityPayment =>
               'verify.debt_payment',
             FfmAssistantDraftKind.receivableUpdate ||
-            FfmAssistantDraftKind.receivableArchive ||
+            FfmAssistantDraftKind.receivableArchive =>
+              'verify.receivable_mutation',
             FfmAssistantDraftKind.receivablePayment =>
               'verify.debt_payment',
             FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
@@ -357,6 +358,7 @@ class FfmAssistantActionPlanner {
     if (draft.goalName != null) 'goal': draft.goalName,
     if (draft.note != null) 'note': draft.note,
     if (draft.date != null) 'date': draft.date!.toIso8601String(),
+    if (draft.location != null) 'location': draft.location,
     if (draft.linkedActivityId != null) 'linkedActivityId': draft.linkedActivityId,
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.

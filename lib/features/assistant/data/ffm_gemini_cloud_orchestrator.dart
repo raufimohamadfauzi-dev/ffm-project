@@ -338,7 +338,7 @@ class FfmGeminiCloudOrchestrator {
                 'party': {
                   'type': 'STRING',
                   'description':
-                      'Nama pihak peminjam atau pemberi hutang (untuk type liability atau receivable)',
+                      'Nama pihak terkait: sumber pemasukan untuk income, pemakai dana untuk expense, pemberi pinjaman untuk liability, atau peminjam untuk receivable',
                 },
                 'amount': {'type': 'NUMBER', 'description': 'Nominal uang'},
                 'adminFee': {
@@ -360,6 +360,14 @@ class FfmGeminiCloudOrchestrator {
                 'merchant': {
                   'type': 'STRING',
                   'description': 'Nama toko/merchant dari daftar toko_aktif di KONTEKS TERARAH',
+                },
+                'location': {
+                  'type': 'STRING',
+                  'description': 'Lokasi kejadian transaksi (misalnya pasar, rumah, kantor). Sama dengan kolom Lokasi di form transaksi.',
+                },
+                'incomeSource': {
+                  'type': 'STRING',
+                  'description': 'Sumber pemasukan untuk type income (sama dengan kolom Sumber pemasukan di form transaksi)',
                 },
                 'newMerchant': {
                   'type': 'STRING',
@@ -390,6 +398,21 @@ class FfmGeminiCloudOrchestrator {
                 'newTags': {
                   'type': 'STRING',
                   'description': 'Daftar tag baru dipisah koma yang belum ada di tag_aktif dan dipakai oleh transaksi ini',
+                },
+                'monthlyInstallment': {
+                  'type': 'NUMBER',
+                  'description':
+                      'Nominal cicilan per bulan untuk hutang (liability) atau piutang (receivable)',
+                },
+                'interestRate': {
+                  'type': 'NUMBER',
+                  'description':
+                      'Bunga dalam persen per tahun untuk hutang (liability) atau piutang (receivable)',
+                },
+                'categoryIds': {
+                  'type': 'STRING',
+                  'description':
+                      'Daftar nama kategori dipisah koma untuk anggaran multi-kategori (type budget)',
                 },
                 'targetDate': {
                   'type': 'STRING',
@@ -454,8 +477,8 @@ ATURAN DATA & TRANSAKSI:
 - Untuk membaca data yang tidak ada di konteks (misal riwayat transaksi detail, target, hutang, piutang, aset, anggaran, aktivitas prioritas, atau pengingat/alarm), gunakan tool `read_data` (pilihan: ${FfmGeminiReadCapabilityPolicy.formattedToolChoices}).
 - Kontrak privasi bounded: ${FfmGeminiReadCapabilityPolicy.privacyContractExplanation}
 - Untuk membuat/mengubah data (transaksi, transfer, goal, budget, reminder, dll), gunakan tool `create_draft`. Isi parameter yang relevan.
-- Fitur transaksi mendukung: pengeluaran/pemasukan dengan rincian belanja (`items`), toko/merchant (`merchant`), nomor nota (`receiptNumber`), nominal dibayar (`paidAmount`), dan kembalian (`changeAmount`); serta transfer saldo antar-rekening (`fromAccount`, `toAccount`, `amount`, dan `adminFee` jika ada biaya admin).
-- Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`), bayar cicilan/pelunasan hutang (`type: "expense"`, `category: "Hutang"`, `note: "Bayar hutang ..."`), dan penerimaan piutang (`type: "income"`, `note: "Penerimaan piutang ..."`).
+- Fitur transaksi mendukung: pengeluaran/pemasukan dengan rincian belanja (`items`), toko/merchant (`merchant`), lokasi kejadian (`location`), sumber pemasukan (`incomeSource`/`party` untuk pemasukan, `party` untuk dipakai-oleh pengeluaran), nomor nota (`receiptNumber`), nominal dibayar (`paidAmount`), dan kembalian (`changeAmount`); serta transfer saldo antar-rekening (`fromAccount`, `toAccount`, `amount`, dan `adminFee` jika ada biaya admin). Top-up e-wallet ("isi saldo gopay", "top up ovo dari bca") adalah transfer: `toAccount` = e-wallet tujuan, `fromAccount` = sumber bila disebut, bila tidak disebut biarkan kosong agar pengguna memilih — jangan ditebak.
+- Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), bayar cicilan/pelunasan hutang (`type: "expense"`, `category: "Hutang"`, `note: "Bayar hutang ..."`), dan penerimaan piutang (`type: "income"`, `note: "Penerimaan piutang ..."`).
 - WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
 - Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.

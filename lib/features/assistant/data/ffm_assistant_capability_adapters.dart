@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 
 // ... (imports remain)
@@ -3102,8 +3104,28 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final date = _dateParameter(step.parameters['date']) ?? _clock();
     final note = step.parameters['note']?.toString().trim();
-    final party = step.parameters['party']?.toString().trim();
+    // Kolom disamakan dengan form transaksi + database: pihak tunggal
+    // (party / incomeSource / partyName), lokasi, dan field nota.
+    final party =
+        step.parameters['party']?.toString().trim().isNotEmpty == true
+        ? step.parameters['party']?.toString().trim()
+        : step.parameters['incomeSource']?.toString().trim().isNotEmpty == true
+        ? step.parameters['incomeSource']?.toString().trim()
+        : step.parameters['partyName']?.toString().trim();
+    final location = step.parameters['location']?.toString().trim();
+    final receiptNumber = step.parameters['receiptNumber']?.toString().trim();
+    final receiptPaidAmount = _positiveInt(
+      step.parameters['receiptPaidAmount'],
+    );
+    final receiptChangeAmount = _positiveInt(
+      step.parameters['receiptChangeAmount'],
+    );
+    final receiptRawText = step.parameters['receiptRawText']?.toString();
     final linkedActivityId = step.parameters['linkedActivityId']?.toString();
+    final items = _transactionItemsFromJson(
+      step.parameters['itemsJson'],
+      idempotencyKey,
+    );
     String? merchantId = merchant?.id;
     final tagIds = <String>{for (final tag in tags) tag.id};
     await _database.transaction(() async {
@@ -3145,12 +3167,21 @@ class FfmAssistantCapabilityAdapterRegistry {
         source: 'assistant_orchestrator',
         accountId: account.id,
         merchantId: merchantId,
+        location: location == null || location.isEmpty ? null : location,
         partyName: party == null || party.isEmpty ? null : party,
+        receiptRawText: receiptRawText == null || receiptRawText.isEmpty
+            ? null
+            : receiptRawText,
+        receiptNumber: receiptNumber == null || receiptNumber.isEmpty
+            ? null
+            : receiptNumber,
+        receiptPaidAmount: receiptPaidAmount,
+        receiptChangeAmount: receiptChangeAmount,
         linkedActivityId: linkedActivityId,
         recordedAt: _clock(),
         updatedAt: _clock(),
       );
-      await SaveTransaction(_database)(entity);
+      await SaveTransaction(_database)(entity, items: items);
       await (_database.delete(
         _database.transactionTags,
       )..where((row) => row.transactionId.equals(id))).go();
@@ -3683,6 +3714,51 @@ class FfmAssistantCapabilityAdapterRegistry {
   int? _nonNegativeInt(Object? value) {
     final parsed = _positiveInt(value);
     return parsed == null || parsed < 0 ? null : parsed;
+  }
+
+  /// Item nota draft asisten disamakan dengan kolom transaction_items.
+  /// Format sama dengan form: itemsJson list of {name/itemName, price, qty}.
+  List<TransactionItemEntity> _transactionItemsFromJson(
+    Object? raw,
+    String idempotencyKey,
+  ) {
+    if (raw is! String || raw.trim().isEmpty) return const [];
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return const [];
+      final items = <TransactionItemEntity>[];
+      var index = 0;
+      for (final entry in decoded) {
+        if (entry is! Map) continue;
+        final name =
+            entry['name']?.toString() ??
+            entry['itemName']?.toString() ??
+            '';
+        if (name.trim().isEmpty) continue;
+        final price =
+            int.tryParse(entry['price']?.toString() ?? '0') ?? 0;
+        final qty =
+            double.tryParse(
+              entry['qty']?.toString() ??
+                  entry['quantity']?.toString() ??
+                  '1',
+            ) ??
+            1.0;
+        items.add(
+          TransactionItemEntity(
+            id: _stableId('$idempotencyKey:item:$index:$name'),
+            transactionId: _stableId(idempotencyKey),
+            itemName: name.trim(),
+            price: price,
+            qty: qty,
+          ),
+        );
+        index++;
+      }
+      return items;
+    } on Object {
+      return const [];
+    }
   }
 
   String _stableId(String key) {

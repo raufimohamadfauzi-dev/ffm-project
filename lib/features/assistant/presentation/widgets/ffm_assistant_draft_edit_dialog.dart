@@ -33,12 +33,17 @@ class _FfmAssistantDraftEditDialogState
   late final TextEditingController _categoryController;
   late final TextEditingController _goalController;
   late final TextEditingController _noteController;
-  late final TextEditingController _incomeSourceController;
+  late final TextEditingController _merchantController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _partyController;
+  late final TextEditingController _adminFeeController;
   late final TextEditingController _tagsController;
-  late final List<String> _incomeSources;
+  late final TextEditingController _monthlyInstallmentController;
+  late String _budgetPeriod;
   late final List<String> _tags;
   late String? _fromAccount;
   late String? _toAccount;
+  late DateTime? _date;
   late ActivityMode _activityMode;
 
   @override
@@ -53,16 +58,49 @@ class _FfmAssistantDraftEditDialogState
     );
     _goalController = TextEditingController(text: widget.draft.goalName ?? '');
     _noteController = TextEditingController(text: widget.draft.note ?? '');
-    _incomeSourceController = TextEditingController(
-      text: widget.draft.formValues['incomeSource'] ?? '',
+    _merchantController = TextEditingController(
+      text:
+          widget.draft.merchantName ??
+          widget.draft.formValues['merchant'] ??
+          widget.draft.formValues['merchantName'] ??
+          '',
     );
+    _locationController = TextEditingController(
+      text:
+          widget.draft.location ??
+          widget.draft.formValues['location'] ??
+          '',
+    );
+    _partyController = TextEditingController(
+      text:
+          widget.draft.partyName ??
+          widget.draft.formValues['incomeSource'] ??
+          widget.draft.formValues['party'] ??
+          widget.draft.formValues['partyName'] ??
+          widget.draft.formValues['lender'] ??
+          widget.draft.formValues['borrower'] ??
+          '',
+    );
+    _adminFeeController = TextEditingController(
+      text:
+          widget.draft.adminFee?.toString() ??
+          widget.draft.formValues['adminFee'] ??
+          '',
+    );
+    _monthlyInstallmentController = TextEditingController(
+      text:
+          widget.draft.formValues['monthlyInstallment'] ??
+          widget.draft.formValues['cicilan'] ??
+          '',
+    );
+    _budgetPeriod = widget.draft.formValues['periodType'] ?? 'monthly';
     _tagsController = TextEditingController(
       text: widget.draft.formValues['tags'] ?? '',
     );
-    _incomeSources = _csvValues(_incomeSourceController);
     _tags = _csvValues(_tagsController);
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
+    _date = widget.draft.date;
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -78,7 +116,11 @@ class _FfmAssistantDraftEditDialogState
     _categoryController.dispose();
     _goalController.dispose();
     _noteController.dispose();
-    _incomeSourceController.dispose();
+    _merchantController.dispose();
+    _locationController.dispose();
+    _partyController.dispose();
+    _adminFeeController.dispose();
+    _monthlyInstallmentController.dispose();
     _tagsController.dispose();
     super.dispose();
   }
@@ -97,30 +139,8 @@ class _FfmAssistantDraftEditDialogState
         .toList(growable: false);
   }
 
-  void _syncIncomeSourceText() {
-    _incomeSourceController.text = _incomeSources.join(', ');
-  }
-
   void _syncTagsText() {
     _tagsController.text = _tags.join(', ');
-  }
-
-  void _addIncomeSource(String raw) {
-    final value = raw.trim();
-    if (value.isEmpty) return;
-    final normalized = value.toLowerCase();
-    if (_incomeSources.any((item) => item.toLowerCase() == normalized)) return;
-    setState(() {
-      _incomeSources.add(value);
-      _syncIncomeSourceText();
-    });
-  }
-
-  void _removeIncomeSource(String value) {
-    setState(() {
-      _incomeSources.removeWhere((item) => item.toLowerCase() == value.toLowerCase());
-      _syncIncomeSourceText();
-    });
   }
 
   void _addTag(String raw) {
@@ -144,43 +164,81 @@ class _FfmAssistantDraftEditDialogState
   void _save() {
     final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = amountText.isEmpty ? null : int.tryParse(amountText);
+    final adminFeeText = _adminFeeController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    final adminFee = adminFeeText.isEmpty
+        ? widget.draft.adminFee
+        : int.tryParse(adminFeeText);
     final goalName = _textOrNull(_goalController);
     final title = _isGoalContribution
         ? (widget.draft.kind == FfmAssistantDraftKind.goalDeposit
             ? 'Setor Target ${goalName ?? ''}'.trim()
             : 'Pakai Target ${goalName ?? ''}'.trim())
         : _textOrNull(_titleController);
+    final merchantName = _isTransaction
+        ? _textOrNull(_merchantController)
+        : widget.draft.merchantName;
+    final location = _isTransaction
+        ? _textOrNull(_locationController)
+        : widget.draft.location;
+    final monthlyInstallment = _monthlyInstallmentController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    // Kolom pihak tunggal untuk transaksi maupun hutang/piutang (partyName)
+    // agar sinkron dengan database transactions, liabilities, dan receivables.
+    final partyName = (_isTransaction || _isDebtOrReceivable)
+        ? _textOrNull(_partyController)
+        : widget.draft.partyName;
     final editedDraft = FfmAssistantDraft(
       kind: widget.draft.kind,
       createdAt: widget.draft.createdAt,
       amount: amount,
       title: title,
-      partyName: widget.draft.partyName,
+      partyName: partyName,
       fromAccountName:
           _fromAccount?.trim().isNotEmpty == true ? _fromAccount!.trim() : null,
       toAccountName:
           _toAccount?.trim().isNotEmpty == true ? _toAccount!.trim() : null,
       categoryName: _textOrNull(_categoryController),
-      adminFee: widget.draft.adminFee,
+      adminFee: widget.draft.kind == FfmAssistantDraftKind.transfer
+          ? adminFee
+          : widget.draft.adminFee,
       goalName: goalName,
       note: _textOrNull(_noteController),
-      date: widget.draft.date,
+      date: _date ?? widget.draft.date,
       linkedActivityId: widget.draft.linkedActivityId,
       formValues: {
         ...widget.draft.formValues,
+        if (widget.draft.kind == FfmAssistantDraftKind.budget)
+          'periodType': _budgetPeriod,
+        if (_isDebtOrReceivable && partyName != null) 'partyName': partyName,
+        if (_isDebtOrReceivable && monthlyInstallment.isNotEmpty)
+          'monthlyInstallment': monthlyInstallment,
+        if (_isDebtOrReceivable && _date != null)
+          'dueDate': _date!.toIso8601String(),
+        if (widget.draft.kind == FfmAssistantDraftKind.goal && _date != null)
+          'targetDate': _date!.toIso8601String(),
         if (widget.draft.kind == FfmAssistantDraftKind.activity)
           'activityMode': _activityMode.value,
         if (widget.draft.kind == FfmAssistantDraftKind.activity)
           'kind': _activityMode.activityKind.value,
         if (widget.draft.kind == FfmAssistantDraftKind.activity)
           'modeNeedsConfirmation': 'false',
-        if (widget.draft.kind == FfmAssistantDraftKind.income)
-          'incomeSource': _incomeSources.join(', '),
+        if (widget.draft.kind == FfmAssistantDraftKind.income &&
+            partyName != null)
+          'incomeSource': partyName,
         if (widget.draft.kind == FfmAssistantDraftKind.income ||
             widget.draft.kind == FfmAssistantDraftKind.expense)
           'tags': _tags.join(', '),
+        if (_isTransaction && merchantName != null) 'merchant': merchantName,
+        if (_isTransaction && location != null) 'location': location,
+        if (_isTransaction && partyName != null) 'party': partyName,
       },
-      merchantName: widget.draft.merchantName,
+      merchantName: merchantName ?? widget.draft.merchantName,
+      location: location ?? widget.draft.location,
       slmFieldValues: widget.draft.slmFieldValues,
     );
 
@@ -200,6 +258,20 @@ class _FfmAssistantDraftEditDialogState
     FfmAssistantDraftKind.transfer => true,
     _ => false,
   };
+
+  bool get _isDebtOrReceivable => switch (widget.draft.kind) {
+    FfmAssistantDraftKind.liability ||
+    FfmAssistantDraftKind.liabilityPayment ||
+    FfmAssistantDraftKind.receivable ||
+    FfmAssistantDraftKind.receivablePayment => true,
+    _ => false,
+  };
+
+  bool get _showsDate =>
+      _isTransaction ||
+      _isDebtOrReceivable ||
+      widget.draft.kind == FfmAssistantDraftKind.goal ||
+      _isActivityDraft;
 
   bool get _isGoalContribution =>
       widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
@@ -425,14 +497,132 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Makanan, Transportasi',
               ),
             ),
+          // Kolom transaksi disamakan dengan form resmi + database:
+          // merchant, lokasi, tanggal, pihak, biaya admin (transfer).
+          if (widget.draft.kind == FfmAssistantDraftKind.income ||
+              widget.draft.kind == FfmAssistantDraftKind.expense)
+            TextField(
+              controller: _merchantController,
+              decoration: const InputDecoration(
+                labelText: 'Toko / tempat (opsional)',
+                hintText: 'Contoh: Indomaret, Pasar',
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.income ||
+              widget.draft.kind == FfmAssistantDraftKind.expense)
+            TextField(
+              controller: _locationController,
+              decoration: const InputDecoration(
+                labelText: 'Lokasi (opsional)',
+                hintText: 'Misalnya pasar, rumah, atau kantor',
+              ),
+            ),
+          if (_showsDate)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: Text(
+                _isTransaction
+                    ? 'Tanggal kejadian'
+                    : _isDebtOrReceivable
+                    ? 'Tanggal jatuh tempo'
+                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    ? 'Target tanggal tercapai'
+                    : 'Tanggal aktivitas',
+              ),
+              subtitle: Text(
+                _date == null
+                    ? 'Belum diisi'
+                    : '${_date!.day.toString().padLeft(2, '0')}/${_date!.month.toString().padLeft(2, '0')}/${_date!.year}',
+              ),
+              trailing: TextButton(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime(2100),
+                    initialDate: _date ?? DateTime.now(),
+                    helpText: _isDebtOrReceivable
+                        ? 'Pilih tanggal jatuh tempo'
+                        : widget.draft.kind == FfmAssistantDraftKind.goal
+                        ? 'Pilih target tanggal tercapai'
+                        : 'Pilih tanggal transaksi',
+                  );
+                  if (picked != null && mounted) {
+                    setState(() => _date = picked);
+                  }
+                },
+                child: const Text('Ganti'),
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.budget) ...[
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _budgetPeriod,
+              decoration: const InputDecoration(labelText: 'Periode anggaran'),
+              items: const [
+                DropdownMenuItem(value: 'monthly', child: Text('Bulanan')),
+                DropdownMenuItem(value: 'weekly', child: Text('Mingguan')),
+                DropdownMenuItem(value: 'biweekly', child: Text('Per Dua Minggu')),
+                DropdownMenuItem(value: 'nonrecurring', child: Text('Tidak Rutin')),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _budgetPeriod = value);
+              },
+            ),
+          ],
+          if (widget.draft.kind == FfmAssistantDraftKind.transfer)
+            TextField(
+              controller: _adminFeeController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Biaya admin (opsional, Rp)',
+                hintText: 'Contoh: 2500',
+                helperText:
+                    'Dipisahkan sebagai pengeluaran dari rekening asal.',
+              ),
+            ),
           if (widget.draft.kind == FfmAssistantDraftKind.income)
-            _MultiValueEditor(
-              label: 'Sumber pemasukan (gaji, usaha, dll)',
-              hint: 'Tambah sumber pemasukan',
-              values: _incomeSources,
-              onAdd: _addIncomeSource,
-              onRemove: _removeIncomeSource,
-              controller: _incomeSourceController,
+            TextField(
+              controller: _partyController,
+              decoration: const InputDecoration(
+                labelText: 'Sumber pemasukan',
+                hintText: 'Contoh: Gaji, Usaha',
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.expense)
+            TextField(
+              controller: _partyController,
+              decoration: const InputDecoration(
+                labelText: 'Dipakai oleh (opsional)',
+                hintText: 'Contoh: Ayah, Ibu',
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.liability)
+            TextField(
+              controller: _partyController,
+              decoration: const InputDecoration(
+                labelText: 'Pemberi pinjaman / nama pihak',
+                hintText: 'Contoh: Bank Mandiri, Teman, Keluarga',
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.receivable)
+            TextField(
+              controller: _partyController,
+              decoration: const InputDecoration(
+                labelText: 'Peminjam / nama pihak',
+                hintText: 'Contoh: Budi, Saudara, Karyawan',
+              ),
+            ),
+          if (widget.draft.kind == FfmAssistantDraftKind.liability ||
+              widget.draft.kind == FfmAssistantDraftKind.receivable)
+            TextField(
+              controller: _monthlyInstallmentController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Cicilan per bulan (opsional, Rp)',
+                hintText: 'Contoh: 500000',
+              ),
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
               widget.draft.kind == FfmAssistantDraftKind.expense)

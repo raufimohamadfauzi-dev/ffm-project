@@ -99,6 +99,10 @@ class FfmAssistantDraftFeedbackService {
     }
     if (original.fromAccountName != edited.fromAccountName) changed.add('fromAccount');
     if (original.toAccountName != edited.toAccountName) changed.add('toAccount');
+    if (original.merchantName != edited.merchantName) changed.add('merchant');
+    if (original.location != edited.location) changed.add('location');
+    if (original.partyName != edited.partyName) changed.add('party');
+    if (original.adminFee != edited.adminFee) changed.add('adminFee');
     
     return changed;
   }

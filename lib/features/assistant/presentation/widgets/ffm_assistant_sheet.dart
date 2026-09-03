@@ -58,6 +58,9 @@ import 'gemini_typing_indicator.dart';
 import 'ffm_assistant_page_context.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
 import 'ffm_assistant_message_correction_dialog.dart';
+import '../pages/agent_inbox_page.dart';
+import '../../data/ffm_assistant_insight_repository.dart';
+import '../../domain/ffm_assistant_insight.dart';
 import 'ffm_assistant_markdown_text.dart';
 import 'ffm_assistant_global_launcher.dart';
 import '../pages/ffm_memory_viewer_page.dart';
@@ -175,7 +178,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _isFullScreen = true;
   String? _cloudStatusError;
   String? _cloudModel;
-  FfmAssistantRoutingMode _routingMode = FfmAssistantRoutingMode.agent;
+  FfmAssistantRoutingMode _routingMode = FfmAssistantRoutingMode.geminiCloud;
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
@@ -203,6 +206,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   late final _intentClassificationService =
       getIt<FfmAssistantIntentClassificationService>();
   var _memoryCount = 0;
+  var _inboxCount = 0;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
   List<FfmAssistantDraftQueueItem> get _draftQueue => widget.session.draftQueue;
@@ -286,12 +290,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           FfmAssistantProcessEvent(
             label: _geminiReadCapabilityLabel(usedReadCapability),
             detail: capabilityDetail,
-            elapsed: elapsed,
+            elapsed: _processStopwatch.elapsed,
           ),
         FfmAssistantProcessEvent(
           label: sourceEvent.label,
           detail: sourceEvent.detail,
-          elapsed: elapsed,
+          elapsed: _processStopwatch.elapsed,
         ),
       ],
     );
@@ -587,6 +591,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _loadRoutingMode();
     unawaited(_loadAutonomyPolicy());
     _refreshMemoryCount();
+    _refreshInboxCount();
     unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _historyRestoreFuture;
@@ -641,12 +646,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final mode = await _supabaseConfig.getLlmMode();
       if (!mounted) return;
       setState(() {
-        _routingMode = mode == 'gemini' || mode == 'gemini_cloud'
-            ? FfmAssistantRoutingMode.geminiCloud
-            : FfmAssistantRoutingMode.agent;
+        _routingMode = mode == 'agent'
+            ? FfmAssistantRoutingMode.agent
+            : FfmAssistantRoutingMode.geminiCloud;
       });
     } on Object {
-      // AGENT adalah default aman bila preference belum tersedia.
+      // Gemini Cloud adalah default untuk obrolan cerdas.
     }
   }
 
@@ -698,6 +703,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final all = await _personalMemoryService.readAll();
     if (!mounted) return;
     setState(() => _memoryCount = all.length);
+  }
+
+  Future<void> _refreshInboxCount() async {
+    try {
+      final repo = FfmAssistantInsightRepository(getIt<AppDatabase>());
+      final active = await repo.getActiveInsights(
+        householdId: AppContext.householdId,
+      );
+      final unread = active
+          .where((i) => i.status == FfmAssistantInsightStatus.newInsight)
+          .length;
+      if (!mounted) return;
+      setState(() => _inboxCount = unread);
+    } catch (_) {}
   }
 
   void _checkForMemoryNudge(String userMessage) {
@@ -941,6 +960,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : 'Tahap 1/2: Menyiapkan konteks Agent...',
     );
     try {
+      if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
+        stopwatch.stop();
+        setState(() {
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text:
+                  'Koneksi Gemini Cloud belum aktif atau belum diverifikasi.\n\n'
+                  '• Untuk mengobrol secara alami, hubungkan internet dan pasang API Key Gemini.\n'
+                  '• Dapatkan API Key gratis di:\n'
+                  '  [Google AI Studio (aistudio.google.com)](https://aistudio.google.com/)\n\n'
+                  '• Untuk mencatat transaksi secara offline, silakan gunakan tombol input manual di halaman utama.\n\n'
+                  'Ikuti juga update & tutorial di media sosial:\n'
+                  '• YouTube: [YouTube @clipsmartt](https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe)\n'
+                  '• TikTok: [TikTok @clip.smarts](https://www.tiktok.com/@clip.smarts?_r=1&_t=ZS-997Uzi7kXma)',
+              createdAt: DateTime.now(),
+            ),
+          );
+          _submitting = false;
+        });
+        _scrollToEnd();
+        return;
+      }
       if (_tryReviseActiveDraft(text)) return;
       if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
@@ -2048,7 +2090,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (amount != null) return draft.copyWith(amount: amount);
     }
     final fieldMatch = RegExp(
-      r'(rekening asal|asal|rekening tujuan|tujuan|kategori|target|catatan|judul|nama)\s*(?:jadi|ke)\s+(.+)$',
+      r'(rekening asal|asal|rekening tujuan|tujuan|kategori|target|catatan|judul|nama|pihak|pemberi hutang|pemberi pinjaman|peminjam|sumber|toko|tempat|lokasi|cicilan|periode)\s*(?:jadi|ke)\s+(.+)$',
     ).firstMatch(normalized);
     if (fieldMatch == null) return null;
     final field = fieldMatch.group(1)!;
@@ -2061,6 +2103,43 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       'target' => draft.copyWith(goalName: value),
       'catatan' => draft.copyWith(note: value),
       'judul' || 'nama' => draft.copyWith(title: value),
+      'pihak' ||
+      'pemberi hutang' ||
+      'pemberi pinjaman' ||
+      'peminjam' ||
+      'sumber' =>
+        draft.copyWith(
+          partyName: value,
+          formValues: {
+            ...draft.formValues,
+            'party': value,
+            'partyName': value,
+            if (draft.kind == FfmAssistantDraftKind.income)
+              'incomeSource': value,
+          },
+        ),
+      'toko' || 'tempat' => draft.copyWith(
+        merchantName: value,
+        formValues: {...draft.formValues, 'merchant': value},
+      ),
+      'lokasi' => draft.copyWith(
+        location: value,
+        formValues: {...draft.formValues, 'location': value},
+      ),
+      'cicilan' => draft.copyWith(
+        formValues: {...draft.formValues, 'monthlyInstallment': value},
+      ),
+      'periode' => draft.copyWith(
+        formValues: {
+          ...draft.formValues,
+          'periodType': switch (value.toLowerCase()) {
+            'mingguan' || 'weekly' => 'weekly',
+            'per dua minggu' || 'biweekly' => 'biweekly',
+            'tidak rutin' || 'nonrecurring' => 'nonrecurring',
+            _ => 'monthly',
+          },
+        },
+      ),
       _ => null,
     };
   }
@@ -2089,8 +2168,24 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (before.categoryName != after.categoryName) {
       return 'kategori diubah menjadi ${after.categoryName}.';
     }
+    if (before.partyName != after.partyName) {
+      return 'pihak diubah menjadi ${after.partyName}.';
+    }
+    if (before.merchantName != after.merchantName) {
+      return 'toko/tempat diubah menjadi ${after.merchantName}.';
+    }
+    if (before.location != after.location) {
+      return 'lokasi diubah menjadi ${after.location}.';
+    }
     if (before.goalName != after.goalName) {
       return 'target diubah menjadi ${after.goalName}.';
+    }
+    if (before.formValues['monthlyInstallment'] !=
+        after.formValues['monthlyInstallment']) {
+      return 'cicilan diubah menjadi ${after.formValues['monthlyInstallment']}.';
+    }
+    if (before.formValues['periodType'] != after.formValues['periodType']) {
+      return 'periode anggaran diubah menjadi ${after.formValues['periodType']}.';
     }
     return 'draft diperbarui.';
   }
@@ -2551,6 +2646,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       ),
                     )
                     .then((_) => _refreshMemoryCount()),
+                inboxCount: _inboxCount,
+                onOpenInbox: () => Navigator.of(context)
+                    .push(
+                      MaterialPageRoute(
+                        builder: (_) => const AgentInboxPage(),
+                        fullscreenDialog: true,
+                      ),
+                    )
+                    .then((_) => _refreshInboxCount()),
               ),
               Divider(
                 height: 1,

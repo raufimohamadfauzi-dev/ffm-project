@@ -79,6 +79,15 @@ class _FfmAssistantProcessDisclosureState
     'navigate.tags' => 'Membuka halaman Tag',
     'navigate.merchants' => 'Membuka halaman Toko',
     'navigate.income_sources' => 'Membuka halaman Sumber Pemasukan',
+    'transactions' => 'Mencatat transaksi',
+    'expense' => 'Menyiapkan pengeluaran',
+    'income' => 'Menyiapkan pemasukan',
+    'save draft' || 'save_draft' || 'mutate.save_draft' => 'Menyimpan draf',
+    'saved draft' || 'saved_draft' || 'verify.saved_draft' => 'Verifikasi draf tersimpan',
+    'draft.expense' => 'Menyusun draf pengeluaran',
+    'draft.income' => 'Menyusun draf pemasukan',
+    'draft.transfer' => 'Menyusun draf transfer',
+    'draft.goal' => 'Menyusun draf target keuangan',
     _ =>
       capabilityId
           .replaceFirst(RegExp(r'^(read|draft|mutate|verify|navigate)\.'), '')
@@ -127,9 +136,11 @@ class _FfmAssistantProcessDisclosureState
     final isDark = theme.brightness == Brightness.dark;
     final origin = _origin;
     final plan = widget.actionPlan;
+    final isAllPending = plan != null &&
+        plan.steps.every((s) => s.status == FfmAssistantActionStepStatus.pending);
     final planSummary = plan == null
         ? '${origin.label} · $_duration'
-        : plan.status == FfmAssistantActionPlanStatus.planned
+        : (plan.status == FfmAssistantActionPlanStatus.planned || isAllPending)
         ? 'Menunggu ${plan.steps.length} langkah · perlu konfirmasi'
         : 'Menjalankan ${plan.steps.length} langkah · $_duration';
     return Container(

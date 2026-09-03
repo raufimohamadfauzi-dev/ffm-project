@@ -339,14 +339,17 @@ class ActivityVoiceParser {
       );
     }
 
+    final cleanTitle = _cleanTitle(raw);
     return ActivityVoiceIntent(
       rawTranscript: raw,
       normalizedText: text,
-      type: ActivityVoiceIntentType.note,
+      type: ActivityVoiceIntentType.start,
       status: ActivityVoiceStatus.preview,
+      kind: ActivityKind.timer,
       category: detectedCategory,
+      targetTitle: cleanTitle,
       checkpointLabel: raw,
-      confidence: .55,
+      confidence: .8,
     );
   }
 

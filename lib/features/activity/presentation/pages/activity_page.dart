@@ -13,7 +13,6 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../../settings/data/category_repository.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../data/services/activity_speech_service.dart';
-import '../../domain/activity_category_resolution.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
@@ -80,9 +79,6 @@ class _ActivityViewState extends State<_ActivityView>
   bool _processingFinalVoice = false;
   List<String> _voiceCategories = const [];
   Map<String, String> _activityCategoryIds = const {};
-
-  // Mini conversation state untuk multi-turn voice
-  _VoiceConversation? _voiceConversation;
 
   @override
   void initState() {
@@ -181,42 +177,77 @@ class _ActivityViewState extends State<_ActivityView>
           child: ListView(
             shrinkWrap: true,
             children: [
-              Text(
-                session.title,
-                style: const TextStyle(
-                  fontSize: 21,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${session.category} • ${_dateOnly(session.startedAt)}${session.parentSessionId == null ? '' : ' • aktivitas di dalam sesi lain'}',
-              ),
-              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
-                    child: _DetailMetric(
-                      label: 'Mulai',
-                      value: _time(session.startedAt),
+                    child: Text(
+                      session.title,
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                   ),
-                  Expanded(
-                    child: _DetailMetric(
-                      label: 'Selesai',
-                      value: session.endedAt == null
-                          ? 'Berjalan'
-                          : _time(session.endedAt!),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: session.isHistory
+                          ? Colors.purple.withValues(alpha: 0.12)
+                          : Colors.teal.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                  ),
-                  Expanded(
-                    child: _DetailMetric(
-                      label: 'Durasi',
-                      value: _calculator.format(session.durationAt()),
+                    child: Text(
+                      session.isHistory ? '📝 Catatan' : '⏱️ Timer',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: session.isHistory ? Colors.purple.shade800 : Colors.teal.shade800,
+                      ),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Text(
+                '${session.category} • ${_dateTime(session.startedAt)}${session.parentSessionId == null ? '' : ' • aktivitas di dalam sesi lain'}',
+              ),
+              const SizedBox(height: 14),
+              if (session.isHistory)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DetailMetric(
+                        label: 'Tanggal & Waktu Catatan',
+                        value: _dateTime(session.startedAt),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: _DetailMetric(
+                        label: 'Mulai',
+                        value: _time(session.startedAt),
+                      ),
+                    ),
+                    Expanded(
+                      child: _DetailMetric(
+                        label: 'Selesai',
+                        value: session.endedAt == null
+                            ? 'Berjalan'
+                            : _time(session.endedAt!),
+                      ),
+                    ),
+                    Expanded(
+                      child: _DetailMetric(
+                        label: 'Durasi',
+                        value: _calculator.format(session.durationAt()),
+                      ),
+                    ),
+                  ],
+                ),
               if (children.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 const Text(
@@ -239,8 +270,34 @@ class _ActivityViewState extends State<_ActivityView>
                   ),
               ],
               if (session.notes?.isNotEmpty == true) ...[
-                const SizedBox(height: 14),
-                Text(session.notes!),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.notes_outlined,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          session.notes!,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
               const SizedBox(height: 18),
               const Text(
@@ -285,6 +342,8 @@ class _ActivityViewState extends State<_ActivityView>
     String? initialTitle,
     String? initialCategory,
     String? initialNotes,
+    DateTime? initialStartedAt,
+    ActivityMode? initialMode,
   }) async {
     final result = await showModalBottomSheet<_SessionDraft>(
       context: context,
@@ -294,6 +353,8 @@ class _ActivityViewState extends State<_ActivityView>
         initialTitle: initialTitle,
         initialCategory: initialCategory,
         initialNotes: initialNotes,
+        initialStartedAt: initialStartedAt,
+        initialMode: initialMode,
       ),
     );
     if (result == null || !mounted) return;
@@ -459,12 +520,6 @@ class _ActivityViewState extends State<_ActivityView>
   Future<void> _previewVoice(String transcript) async {
     final state = context.read<ActivityBloc>().state;
 
-    // Jika sedang dalam multi-turn conversation, handle di sini
-    if (_voiceConversation != null) {
-      await _handleConversationResponse(transcript);
-      return;
-    }
-
     if (await _interpretVoiceWithAssistant(transcript, state)) return;
 
     final parsed = _voiceParser.parse(
@@ -499,22 +554,40 @@ class _ActivityViewState extends State<_ActivityView>
       return;
     }
 
-    // Jika start dan belum ada category, mulai multi-turn conversation
+    // Jika start, langsung buka form draft aktivitas agar pengguna dapat melihat & mengoreksi
     if (parsed.type == ActivityVoiceIntentType.start &&
         parsed.targetTitle != null) {
-      await _startConversation(parsed.targetTitle!);
+      if (!mounted) return;
+      await _startSession(
+        initialTitle: parsed.targetTitle,
+        initialCategory: parsed.category.isNotEmpty ? parsed.category : null,
+        initialNotes:
+            (transcript.trim().toLowerCase() != parsed.targetTitle!.toLowerCase())
+                ? transcript.trim()
+                : null,
+        initialStartedAt: parsed.startedAt,
+      );
       return;
     }
 
     var intent = parsed;
     if (intent.type == ActivityVoiceIntentType.note &&
-        intent.targetSessionId == null &&
-        state.activeSessions.length == 1) {
-      final session = state.activeSessions.single;
-      intent = intent.copyWith(
-        targetSessionId: session.id,
-        targetTitle: session.title,
-      );
+        intent.targetSessionId == null) {
+      if (state.activeSessions.length == 1) {
+        final session = state.activeSessions.single;
+        intent = intent.copyWith(
+          targetSessionId: session.id,
+          targetTitle: session.title,
+        );
+      } else {
+        if (!mounted) return;
+        await _startSession(
+          initialTitle: intent.targetTitle ?? transcript,
+          initialCategory: intent.category.isNotEmpty ? intent.category : null,
+          initialNotes: transcript,
+        );
+        return;
+      }
     }
     setState(() {
       _voiceIntent = intent;
@@ -548,312 +621,27 @@ class _ActivityViewState extends State<_ActivityView>
         return false;
       }
 
-      final draft =
-          _VoiceConversation(
-              title: proposal!.title!.trim(),
-              category: proposal.categoryName?.trim() ?? '',
-            )
-            ..note = proposal.note
-            ..startedAt = proposal.date ?? DateTime.now()
-            ..conversationHistory.add(transcript);
-      if (draft.category.isNotEmpty) {
-        final categories = await getIt<CategoryRepository>().readActive(
-          AppContext.householdId,
-          type: 'activity',
-        );
-        final resolution = resolveActivityCategoryName(categories, draft.category);
-        if (resolution.isResolved) {
-          draft
-            ..category = resolution.category!.name
-            ..categoryId = resolution.category!.id
-            ..step = _ConversationStep.confirm;
-        } else if (resolution.isAmbiguous) {
-          final names = resolution.candidates.map((c) => c.name).join(', ');
-          draft.validationErrors.add(
-            'Kategori “${draft.category}” mirip beberapa pilihan: $names. Sebutkan yang mana.',
-          );
-        } else {
-          draft.validationErrors.add(
-            'Kategori “${draft.category}” belum ada di Data Utama.',
-          );
-          draft.category = '';
-        }
-      }
       if (!mounted) return true;
       setState(() {
-        _voiceConversation = draft;
-        _voiceIntent = null;
         _voiceText = transcript;
-        _voiceError = draft.validationErrors.isEmpty
-            ? null
-            : draft.validationErrors.single;
-        _voiceStatus = draft.canConfirm
-            ? 'Draft siap dikonfirmasi'
-            : 'Lengkapi kategori draft';
+        _voiceStatus = 'Membuka form draft dari LLM...';
+        _voiceError = null;
       });
-      await _speechService.speak(
-        draft.canConfirm
-            ? draft.confirmMessage
-            : 'Aktivitas ${draft.title}. Pilih kategori dari Data Utama sebelum disimpan.',
+
+      final modeVal = proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
+      await _startSession(
+        initialTitle: proposal.title!.trim(),
+        initialCategory: proposal.categoryName?.trim(),
+        initialNotes: proposal.note,
+        initialStartedAt: proposal.date,
+        initialMode: modeVal == 'history' || modeVal == 'catatan'
+            ? ActivityMode.history
+            : ActivityMode.timeTracking,
       );
       return true;
     } catch (_) {
-      // Speech remains usable offline when cloud or assistant routing fails.
       return false;
     }
-  }
-
-  Future<void> _startConversation(String title) async {
-    final repo = getIt<CategoryRepository>();
-    final cats = await repo.readActive(
-      AppContext.householdId,
-      type: 'activity',
-    );
-    if (!mounted) return;
-    if (cats.isEmpty) {
-      setState(() {
-        _voiceError = 'Belum ada kategori aktivitas aktif di Data Utama.';
-        _voiceStatus = 'Kategori diperlukan';
-      });
-      await _speechService.speak(
-        'Belum ada kategori aktivitas. Buat satu kategori di Data Utama sebelum melanjutkan.',
-      );
-      return;
-    }
-    _voiceConversation = _VoiceConversation(title: title, category: '');
-    setState(() {
-      _voiceText = title;
-      _voiceStatus = 'Pilih kategori';
-      _voiceError = null;
-    });
-    _speechService.speak(
-      'Aktivitas $title. Pilih kategori: ${cats.map((c) => c.name).join(", ")}. Atau bilang "lewati" untuk pakai kategori pertama.',
-    );
-  }
-
-  Future<void> _handleConversationResponse(String transcript) async {
-    final conv = _voiceConversation;
-    if (conv == null) return;
-
-    final lower = transcript.toLowerCase().trim();
-    conv.conversationHistory.add(transcript.trim());
-
-    // Handle cancel
-    if (lower == 'batal' || lower == 'cancel') {
-      _cancelConversation();
-      return;
-    }
-
-    if (conv.step == _ConversationStep.confirm &&
-        await _applyVoiceDraftCorrection(conv, transcript)) {
-      if (!mounted) return;
-      setState(() => _voiceStatus = 'Draft diperbarui, cek lagi');
-      await _speechService.speak(conv.confirmMessage);
-      return;
-    }
-
-    switch (conv.step) {
-      case _ConversationStep.category:
-        // Ambil kategori dari database untuk validasi
-        final repo = getIt<CategoryRepository>();
-        final cats = await repo.readActive(
-          AppContext.householdId,
-          type: 'activity',
-        );
-        final categoryNames = cats.map((c) => c.name.toLowerCase()).toList();
-
-        final matched = categoryNames.where((c) => lower.contains(c)).toList();
-        if (matched.isNotEmpty) {
-          // Use the matched category from database
-          final catIndex = categoryNames.indexOf(matched.first);
-          conv.category = cats[catIndex].name;
-          conv.categoryId = cats[catIndex].id;
-        } else if (lower == 'lewati' || lower == 'skip') {
-          if (cats.isEmpty) {
-            setState(() => _voiceError = 'Belum ada kategori aktivitas aktif.');
-            return;
-          }
-          conv.category = cats.first.name;
-          conv.categoryId = cats.first.id;
-        } else {
-          setState(
-            () => _voiceError = 'Kategori belum ada di Data Utama. Pilih kategori yang disebutkan atau buat dulu kategori baru.',
-          );
-          await _speechService.speak(
-            'Kategori itu belum ada. Sebut salah satu kategori yang tersedia, atau buat kategori baru di Data Utama.',
-          );
-          return;
-        }
-        conv.step = _ConversationStep.note;
-        setState(() {
-          _voiceStatus = 'Tambah catatan?';
-        });
-        _speechService.speak(
-          'Kategori ${conv.category}. Mau tambah catatan? Bilang catatannya, atau bilang "lewati" untuk skip.',
-        );
-        break;
-
-      case _ConversationStep.note:
-        if (lower == 'lewati' ||
-            lower == 'skip' ||
-            lower == 'tidak' ||
-            lower == 'ga' ||
-            lower == 'enggak') {
-          conv.note = null;
-        } else {
-          conv.note = transcript.trim();
-        }
-        conv.step = _ConversationStep.confirm;
-        setState(() {
-          _voiceStatus = 'Konfirmasi';
-        });
-        _speechService.speak(conv.confirmMessage);
-        break;
-
-      case _ConversationStep.confirm:
-        if (lower == 'ya' ||
-            lower == 'ok' ||
-            lower == 'oke' ||
-            lower == 'simpan' ||
-            lower == 'konfirmasi' ||
-            lower.contains('simpan')) {
-          _saveConversation();
-        } else if (lower == 'tidak' || lower == 'batal' || lower == 'ulang') {
-          _cancelConversation();
-        } else {
-          // Anggap sebagai catatan tambahan
-          conv.note = conv.note != null
-              ? '${conv.note!}, $transcript'
-              : transcript.trim();
-          setState(() {
-            _voiceStatus = 'Konfirmasi';
-          });
-          _speechService.speak(conv.confirmMessage);
-        }
-        break;
-
-      case _ConversationStep.title:
-        break;
-    }
-  }
-
-  Future<bool> _applyVoiceDraftCorrection(
-    _VoiceConversation draft,
-    String transcript,
-  ) async {
-    final text = transcript.trim();
-    final lower = text.toLowerCase();
-    if (draft.applyTextCorrection(text)) {
-      return true;
-    }
-    final categoryText = RegExp(
-      r'^(?:kategori(?:nya)?|ganti\s+(?:kategori(?:nya)?\s+)?jadi)\s+(.+)$',
-    ).firstMatch(lower);
-    if (categoryText == null) return false;
-    final requested = categoryText.group(1)!.trim();
-    final categories = await getIt<CategoryRepository>().readActive(
-      AppContext.householdId,
-      type: 'activity',
-    );
-    final resolution = resolveActivityCategoryName(categories, requested);
-    if (resolution.isResolved) {
-      draft.category = resolution.category!.name;
-      draft.categoryId = resolution.category!.id;
-      draft.validationErrors.clear();
-      if (mounted) setState(() => _voiceError = null);
-      return true;
-    }
-    if (resolution.isAmbiguous) {
-      final names = resolution.candidates.map((c) => c.name).join(', ');
-      draft.validationErrors
-        ..clear()
-        ..add('Kategori “$requested” mirip beberapa pilihan: $names. Yang mana?');
-      if (mounted) {
-        setState(() => _voiceError = draft.validationErrors.single);
-      }
-      return true;
-    }
-    draft.validationErrors
-      ..clear()
-      ..add('Kategori “$requested” belum ada di Data Utama.');
-    if (mounted) {
-      setState(() => _voiceError = draft.validationErrors.single);
-    }
-    return true;
-  }
-
-  Future<void> _saveConversation() async {
-    final conv = _voiceConversation;
-    if (conv == null) return;
-
-    if (!conv.canConfirm) {
-      setState(() => _voiceError = 'Lengkapi draft sebelum menyimpan.');
-      return;
-    }
-
-    setState(() {
-      _voiceStatus = 'Menyimpan...';
-      _voiceError = null;
-    });
-
-    try {
-      final intent = ActivityVoiceIntent(
-        rawTranscript: conv.title,
-        normalizedText: conv.title,
-        type: ActivityVoiceIntentType.start,
-        status: ActivityVoiceStatus.preview,
-        targetTitle: conv.title,
-        category: conv.category,
-        categoryId: conv.categoryId,
-        startedAt: conv.startedAt,
-      );
-
-      await context.read<ActivityBloc>().executeVoiceIntent(intent);
-
-      // Simpan note jika ada
-      if (conv.note != null && conv.note!.isNotEmpty && mounted) {
-        final state = context.read<ActivityBloc>().state;
-        if (state.activeSessions.isNotEmpty) {
-          final session = state.activeSessions.last;
-          final noteIntent = ActivityVoiceIntent(
-            rawTranscript: conv.note!,
-            normalizedText: conv.note!,
-            type: ActivityVoiceIntentType.note,
-            status: ActivityVoiceStatus.preview,
-            targetSessionId: session.id,
-            targetTitle: session.title,
-          );
-          await context.read<ActivityBloc>().executeVoiceIntent(noteIntent);
-        }
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _voiceConversation = null;
-        _voiceIntent = null;
-        _voiceText = '';
-        _voiceError = null;
-        _voiceStatus = 'Tersimpan';
-      });
-      await _speechService.speak('Aktivitas ${conv.title} sudah disimpan.');
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _voiceError = 'Gagal menyimpan: $e';
-        _voiceStatus = 'Error';
-      });
-    }
-  }
-
-  void _cancelConversation() {
-    setState(() {
-      _voiceConversation = null;
-      _voiceIntent = null;
-      _voiceText = '';
-      _voiceError = null;
-      _voiceStatus = 'Dibatalkan';
-    });
-    _speechService.speak('Dibatalkan.');
   }
 
   Future<void> _fallbackToGemini(String transcript) async {
@@ -872,23 +660,27 @@ class _ActivityViewState extends State<_ActivityView>
       );
       if (!mounted) return;
 
-      // Jika intent mengandung draft (proposal dari Gemini), tampilkan di chat
-      if (intent.draft != null || intent.destination != null) {
-        // Buka assistant sheet dengan hasil Gemini
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Perintah dikirim ke asisten. Cek chat untuk konfirmasi.',
-            ),
-            duration: const Duration(seconds: 2),
-          ),
+      // Jika intent mengandung draft proposal aktivitas, buka form draft langsung agar bisa dikoreksi
+      if (intent.draft?.kind == FfmAssistantDraftKind.activity &&
+          intent.draft?.title?.trim().isNotEmpty == true) {
+        final proposal = intent.draft!;
+        final modeVal =
+            proposal.formValues['mode'] ?? proposal.formValues['activityKind'];
+        await _startSession(
+          initialTitle: proposal.title!.trim(),
+          initialCategory: proposal.categoryName?.trim(),
+          initialNotes: proposal.note,
+          initialStartedAt: proposal.date,
+          initialMode: modeVal == 'history' || modeVal == 'catatan'
+              ? ActivityMode.history
+              : ActivityMode.timeTracking,
         );
+        if (!mounted) return;
         setState(() {
           _voiceIntent = null;
           _voiceText = transcript;
           _voiceError = null;
-          _voiceStatus = 'Dikirim ke asisten';
+          _voiceStatus = 'Draft dibuka di form';
         });
         return;
       }
@@ -991,11 +783,6 @@ class _ActivityViewState extends State<_ActivityView>
   }
 
   Future<void> _cancelVoice() async {
-    // Cancel conversation if active
-    if (_voiceConversation != null) {
-      _cancelConversation();
-      return;
-    }
     final intent = _voiceIntent;
     if (intent != null) {
       await context.read<ActivityBloc>().recordVoiceIntent(
@@ -1143,14 +930,33 @@ class _ActivityViewState extends State<_ActivityView>
             ),
           ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          heroTag: 'activity_add_fab',
-          onPressed: _startSession,
-          tooltip: 'Mulai sesi aktivitas',
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          icon: const Icon(Icons.add),
-          label: const Text('Catat aktivitas'),
+        floatingActionButton: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'activity_vn_fab',
+              onPressed: _startVoiceCapture,
+              tooltip: 'Bicara / Voice Note aktivitas',
+              backgroundColor:
+                  Theme.of(context).colorScheme.secondaryContainer,
+              foregroundColor:
+                  Theme.of(context).colorScheme.onSecondaryContainer,
+              icon: Icon(
+                _processingFinalVoice ? Icons.hourglass_empty : Icons.mic,
+              ),
+              label: const Text('Bicara VN'),
+            ),
+            const SizedBox(width: 10),
+            FloatingActionButton.extended(
+              heroTag: 'activity_add_fab',
+              onPressed: _startSession,
+              tooltip: 'Mulai sesi aktivitas',
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              icon: const Icon(Icons.add),
+              label: const Text('Catat aktivitas'),
+            ),
+          ],
         ),
         body: BlocBuilder<ActivityBloc, ActivityState>(
           builder: (context, state) {
@@ -1174,10 +980,6 @@ class _ActivityViewState extends State<_ActivityView>
                   const SizedBox(height: 16),
                   _VoiceActivityCard(
                     intent: _voiceIntent,
-                    draft: _voiceConversation,
-                    draftCanConfirm:
-                        _voiceConversation?.isComplete == true &&
-                        _voiceConversation!.canConfirm,
                     text: _voiceText,
                     status: _voiceStatus,
                     error: _voiceError,
@@ -1201,7 +1003,6 @@ class _ActivityViewState extends State<_ActivityView>
                       });
                     },
                     onConfirm: _confirmVoice,
-                    onConfirmDraft: _saveConversation,
                     onCancel: _cancelVoice,
                   ),
                   const SizedBox(height: 16),
@@ -1415,19 +1216,36 @@ class _SectionTitle extends StatelessWidget {
   final int count;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
-        ),
-        const SizedBox(width: 8),
-        Chip(label: Text('$count')),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 4),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: scheme.onSecondaryContainer,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _FilteredEmptyHint extends StatelessWidget {
@@ -1717,18 +1535,25 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPriority = session.priority > 0;
+    final isNote = session.isHistory;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
         child: ListTile(
           contentPadding: EdgeInsets.zero,
           leading: CircleAvatar(
-            backgroundColor: isPriority ? Colors.amber.withValues(alpha: 0.2) : null,
-            foregroundColor: isPriority ? Colors.amber.shade900 : null,
+            backgroundColor: isPriority
+                ? Colors.amber.withValues(alpha: 0.2)
+                : (isNote ? Colors.purple.withValues(alpha: 0.15) : null),
+            foregroundColor: isPriority
+                ? Colors.amber.shade900
+                : (isNote ? Colors.purple.shade800 : null),
             child: Icon(
-              session.status == ActivitySessionStatus.completed
-                  ? Icons.check
-                  : (isPriority ? Icons.star_rounded : Icons.timer_outlined),
+              isNote
+                  ? Icons.edit_note_outlined
+                  : (session.status == ActivitySessionStatus.completed
+                      ? Icons.check
+                      : (isPriority ? Icons.star_rounded : Icons.timer_outlined)),
             ),
           ),
           title: Row(
@@ -1737,6 +1562,23 @@ class _SessionCard extends StatelessWidget {
                 child: Text(
                   session.title,
                   style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isNote
+                      ? Colors.purple.withValues(alpha: 0.12)
+                      : Colors.teal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  isNote ? '📝 Catatan' : '⏱️ Timer',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isNote ? Colors.purple.shade900 : Colors.teal.shade900,
+                  ),
                 ),
               ),
               if (isPriority) ...[
@@ -1761,7 +1603,9 @@ class _SessionCard extends StatelessWidget {
             ],
           ),
           subtitle: Text(
-            '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
+            isNote
+                ? '${session.category} • ${_dateTime(session.startedAt)}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}'
+                : '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
           ),
           onTap: onOpen,
           trailing: Row(
@@ -1854,12 +1698,17 @@ class _SessionForm extends StatefulWidget {
     this.initialTitle,
     this.initialCategory,
     this.initialNotes,
+    this.initialStartedAt,
+    this.initialMode,
   });
 
   final String? parentSessionTitle;
   final String? initialTitle;
   final String? initialCategory;
   final String? initialNotes;
+  final DateTime? initialStartedAt;
+  final ActivityMode? initialMode;
+
   @override
   State<_SessionForm> createState() => _SessionFormState();
 }
@@ -1871,6 +1720,8 @@ class _SessionFormState extends State<_SessionForm> {
   DateTime _startedAt = DateTime.now();
   ActivityMode _mode = ActivityMode.timeTracking;
   final _categoryRepository = getIt<CategoryRepository>();
+  final _formSpeechService = ActivitySpeechService();
+  bool _isListeningFormVoice = false;
   List<String> _activityCategories = [];
   Map<String, String> _activityCategoryIds = const {};
   String? _selectedCategory;
@@ -1889,7 +1740,44 @@ class _SessionFormState extends State<_SessionForm> {
         ? widget.initialCategory
         : null;
     _notes = TextEditingController(text: widget.initialNotes ?? '');
+    if (widget.initialStartedAt != null) _startedAt = widget.initialStartedAt!;
+    if (widget.initialMode != null) _mode = widget.initialMode!;
+    _notes = TextEditingController(text: widget.initialNotes ?? '');
     _loadActivityCategories();
+  }
+
+  Future<void> _captureFormVoice() async {
+    if (_isListeningFormVoice) {
+      await _formSpeechService.stop();
+      if (mounted) setState(() => _isListeningFormVoice = false);
+      return;
+    }
+    final initialized = await _formSpeechService.initialize(
+      onError: (msg) {
+        if (!mounted) return;
+        setState(() => _isListeningFormVoice = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Suara belum terdeteksi: $msg')),
+        );
+      },
+    );
+    if (!initialized) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pengenalan suara belum tersedia.')),
+      );
+      return;
+    }
+    if (mounted) setState(() => _isListeningFormVoice = true);
+    await _formSpeechService.listen(
+      onResult: (text, isFinal) {
+        if (!mounted) return;
+        setState(() {
+          _title.text = text;
+          if (isFinal) _isListeningFormVoice = false;
+        });
+      },
+    );
   }
 
   Future<void> _loadActivityCategories() async {
@@ -1938,6 +1826,7 @@ class _SessionFormState extends State<_SessionForm> {
     _title.dispose();
     _category.dispose();
     _notes.dispose();
+    _formSpeechService.stop();
     super.dispose();
   }
 
@@ -1963,42 +1852,158 @@ class _SessionFormState extends State<_SessionForm> {
           Text('Induk: ${widget.parentSessionTitle}'),
         ],
         const SizedBox(height: 12),
-        SegmentedButton<ActivityMode>(
-          segments: const [
-            ButtonSegment(
-              value: ActivityMode.timeTracking,
-              icon: Icon(Icons.timer_outlined),
-              label: Text('Pakai timer'),
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => setState(() => _mode = ActivityMode.timeTracking),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _mode == ActivityMode.timeTracking
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _mode == ActivityMode.timeTracking
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                      width: _mode == ActivityMode.timeTracking ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            color: _mode == ActivityMode.timeTracking
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '⏱️ Pakai Timer',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: _mode == ActivityMode.timeTracking
+                                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Lacak durasi berjalan',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: _mode == ActivityMode.timeTracking
+                              ? Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-            ButtonSegment(
-              value: ActivityMode.history,
-              icon: Icon(Icons.edit_note_outlined),
-              label: Text('Catat saja'),
+            const SizedBox(width: 10),
+            Expanded(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => setState(() => _mode = ActivityMode.history),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _mode == ActivityMode.history
+                        ? Colors.purple.withValues(alpha: 0.15)
+                        : Theme.of(context).colorScheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _mode == ActivityMode.history
+                          ? Colors.purple.shade700
+                          : Theme.of(context).colorScheme.outlineVariant,
+                      width: _mode == ActivityMode.history ? 2 : 1,
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.edit_note_outlined,
+                            color: _mode == ActivityMode.history
+                                ? Colors.purple.shade800
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '📝 Catat Saja',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: _mode == ActivityMode.history
+                                  ? Colors.purple.shade900
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Kejadian sekali catat',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: _mode == ActivityMode.history
+                              ? Colors.purple.shade900.withValues(alpha: 0.8)
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
-          selected: {_mode},
-          showSelectedIcon: false,
-          onSelectionChanged: (selection) {
-            setState(() => _mode = selection.first);
-          },
         ),
-        const SizedBox(height: 6),
-        Text(
-          _mode == ActivityMode.timeTracking
-              ? 'Untuk kegiatan yang sedang berjalan dan perlu dihitung durasinya.'
-              : 'Untuk kejadian satu kali, misalnya menanam, belanja, atau membayar upah.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         TextField(
           controller: _title,
           autofocus: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Nama aktivitas',
             hintText: 'Misalnya ke pasar lalu ke kebun',
+            prefixIcon: Icon(
+              Icons.directions_run_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            suffixIcon: IconButton(
+              icon: Icon(_isListeningFormVoice ? Icons.mic : Icons.mic_none),
+              color: _isListeningFormVoice
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.primary,
+              tooltip: _isListeningFormVoice
+                  ? 'Stop dengar'
+                  : 'Bicara nama aktivitas (Voice)',
+              onPressed: _captureFormVoice,
+            ),
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
         if (_loadingCategories)
           const Center(child: CircularProgressIndicator())
         else
@@ -2007,14 +2012,26 @@ class _SessionFormState extends State<_SessionForm> {
             children: [
               DropdownButtonFormField<String>(
                 initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Kategori',
+                decoration: InputDecoration(
+                  labelText: 'Kategori aktivitas',
                   hintText: 'Pilih kategori aktivitas',
+                  prefixIcon: Icon(
+                    Icons.category_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 items: _activityCategories
                     .map(
-                      (item) =>
-                          DropdownMenuItem(value: item, child: Text(item)),
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(
+                          item,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     )
                     .toList(),
                 onChanged: (value) {
@@ -2025,7 +2042,12 @@ class _SessionFormState extends State<_SessionForm> {
                 },
               ),
               const SizedBox(height: 8),
-              TextButton.icon(
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
                 onPressed: () async {
                   final result = await Navigator.of(context).push<String>(
                     MaterialPageRoute(
@@ -2057,16 +2079,9 @@ class _SessionFormState extends State<_SessionForm> {
               ),
             ],
           ),
-        const SizedBox(height: 10),
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          title: Text(
-            _mode == ActivityMode.timeTracking
-                ? 'Mulai pada'
-                : 'Tanggal kejadian',
-          ),
-          subtitle: Text(_dateTime(_startedAt)),
-          trailing: const Icon(Icons.schedule),
+        const SizedBox(height: 12),
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
           onTap: () async {
             final picked = await showDatePicker(
               context: context,
@@ -2085,34 +2100,106 @@ class _SessionFormState extends State<_SessionForm> {
               ),
             );
           },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.calendar_month_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _mode == ActivityMode.timeTracking
+                            ? 'Mulai pada'
+                            : 'Tanggal & waktu kejadian',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _dateTime(_startedAt),
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
+          ),
         ),
+        const SizedBox(height: 12),
         TextField(
           controller: _notes,
           maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
+          decoration: InputDecoration(
+            labelText: 'Catatan (opsional)',
+            hintText: 'Keterangan tambahan jika ada',
+            prefixIcon: Icon(
+              Icons.notes_outlined,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
         ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: () {
-            if (_title.text.trim().isEmpty) return;
-            Navigator.pop(
-              context,
-              _SessionDraft(
-                _title.text.trim(),
-                _category.text.trim(),
-                _activityCategoryIds[_selectedCategory],
-                _mode,
-                _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-                _startedAt,
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: _mode == ActivityMode.history
+                  ? Colors.purple.shade700
+                  : Theme.of(context).colorScheme.primary,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-            );
-          },
-          child: Text(
-            _mode == ActivityMode.history
-                ? 'Simpan catatan'
-                : widget.parentSessionTitle == null
-                ? 'Mulai sekarang'
-                : 'Mulai aktivitas anak',
+            ),
+            onPressed: () {
+              if (_title.text.trim().isEmpty) return;
+              Navigator.pop(
+                context,
+                _SessionDraft(
+                  _title.text.trim(),
+                  _category.text.trim(),
+                  _activityCategoryIds[_selectedCategory],
+                  _mode,
+                  _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+                  _startedAt,
+                ),
+              );
+            },
+            icon: Icon(
+              _mode == ActivityMode.history
+                  ? Icons.check_circle_outline
+                  : Icons.play_arrow_rounded,
+            ),
+            label: Text(
+              _mode == ActivityMode.history
+                  ? 'Simpan Catatan'
+                  : widget.parentSessionTitle == null
+                  ? 'Mulai Aktivitas Sekarang'
+                  : 'Mulai Aktivitas Anak',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            ),
           ),
         ),
       ],
@@ -2252,35 +2339,9 @@ String _dateOnly(DateTime value) =>
 String _dateTime(DateTime value) =>
     '${_two(value.day)}/${_two(value.month)}/${value.year} ${_time(value)}';
 
-enum _ConversationStep { title, category, note, confirm }
-
-class _VoiceConversation extends VoiceActivityDraft {
-  _VoiceConversation({required super.title, required String category})
-    : super(categoryName: category);
-
-  String get category => categoryName;
-  set category(String value) => categoryName = value;
-
-  String? get note => notes;
-  set note(String? value) => notes = value;
-  _ConversationStep step = _ConversationStep.category;
-
-  bool get isComplete => step == _ConversationStep.confirm;
-
-  String get confirmMessage {
-    final catPart = category.isNotEmpty ? ' kategori $category' : '';
-    final notePart = note != null && note!.isNotEmpty
-        ? ', catatan "$note"'
-        : '';
-    return 'Aktivitas "$title"$catPart$notePart. Simpan?';
-  }
-}
-
 class _VoiceActivityCard extends StatelessWidget {
   const _VoiceActivityCard({
     required this.intent,
-    required this.draft,
-    required this.draftCanConfirm,
     required this.text,
     required this.status,
     required this.error,
@@ -2294,13 +2355,10 @@ class _VoiceActivityCard extends StatelessWidget {
     required this.onSelectTarget,
     required this.onCategoryChanged,
     required this.onConfirm,
-    required this.onConfirmDraft,
     required this.onCancel,
   });
 
   final ActivityVoiceIntent? intent;
-  final VoiceActivityDraft? draft;
-  final bool draftCanConfirm;
   final String text;
   final String status;
   final String? error;
@@ -2314,7 +2372,6 @@ class _VoiceActivityCard extends StatelessWidget {
   final ValueChanged<String?> onSelectTarget;
   final ValueChanged<String> onCategoryChanged;
   final VoidCallback onConfirm;
-  final VoidCallback onConfirmDraft;
   final VoidCallback onCancel;
 
   @override
@@ -2403,56 +2460,6 @@ class _VoiceActivityCard extends StatelessWidget {
                   icon: const Icon(Icons.volume_up_outlined),
                   label: const Text('Bacakan lagi'),
                 ),
-              ],
-            ),
-          ],
-          if (draft != null) ...[
-            const Divider(height: 24),
-            Text(
-              'Draft aktivitas',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: scheme.onSecondaryContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Aktivitas: ${draft!.title.isEmpty ? 'Belum disebutkan' : draft!.title}',
-            ),
-            Text(
-              'Kategori: ${draft!.categoryName.isEmpty ? 'Belum dipilih' : draft!.categoryName}',
-            ),
-            Text('Mulai: ${_dateTime(draft!.startedAt)}'),
-            Text(
-              'Catatan: ${draft!.notes?.isNotEmpty == true ? draft!.notes : 'Tidak ada'}',
-            ),
-            if (draft!.missingFields.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Masih perlu: ${draft!.missingFields.join(', ')}',
-                  style: TextStyle(color: scheme.error),
-                ),
-              ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: isListening ? onStop : onListen,
-                  icon: Icon(isListening ? Icons.stop : Icons.mic_none),
-                  label: Text(isListening ? 'Stop bicara' : 'Bicara lagi'),
-                ),
-                TextButton(
-                  onPressed: onCancel,
-                  child: const Text('Batal draft'),
-                ),
-                if (draftCanConfirm)
-                  FilledButton.icon(
-                    onPressed: onConfirmDraft,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Konfirmasi'),
-                  ),
               ],
             ),
           ],

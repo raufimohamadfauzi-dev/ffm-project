@@ -106,9 +106,9 @@ void main() {
     expect(find.text('Rincian belanja'), findsOneWidget);
     expect(find.text('2 item'), findsOneWidget);
     expect(find.text('Minyak Goreng 2L'), findsOneWidget);
-    expect(find.text('2.0 pouch @ Rp 35000'), findsOneWidget);
+    expect(find.text('Jumlah: 2.0 pouch · Harga satuan: Rp 35000'), findsOneWidget);
     expect(find.text('Beras Pandan Wangi 5kg'), findsOneWidget);
-    expect(find.text('1.0 karung @ Rp 80000'), findsOneWidget);
+    expect(find.text('Jumlah: 1.0 karung · Harga satuan: Rp 80000'), findsOneWidget);
     expect(find.text('Subtotal Item'), findsOneWidget);
 
     // Verifikasi Tags & OCR Text

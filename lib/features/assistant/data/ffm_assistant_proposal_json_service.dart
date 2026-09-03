@@ -336,6 +336,10 @@ class FfmAssistantProposalJsonService {
       proposal['changeAmount'] ?? proposal['receiptChangeAmount'],
     );
     final receiptRawText = _boundedText(proposal['receiptRawText'], 1000);
+    final location = _boundedText(
+      proposal['location'] ?? proposal['lokasi'],
+      200,
+    );
 
     String? itemsJson;
     final rawItems = proposal['items'];
@@ -359,6 +363,11 @@ class FfmAssistantProposalJsonService {
     if (tags != null) formValues['tags'] = tags;
     if (newTags != null) formValues['newTags'] = newTags;
     if (newMerchant != null) formValues['newMerchant'] = newMerchant;
+    if (location?.isNotEmpty == true) formValues['location'] = location!;
+    final incomeSource = _boundedText(proposal['incomeSource'], 120);
+    if (incomeSource?.isNotEmpty == true) {
+      formValues['incomeSource'] = incomeSource!;
+    }
 
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
@@ -367,7 +376,11 @@ class FfmAssistantProposalJsonService {
         amount: amount,
         title: _boundedText(proposal['title'] ?? proposal['merchant'], 120),
         merchantName: _boundedText(proposal['merchant'], 120),
-        partyName: _boundedText(proposal['party'], 120),
+        location: location,
+        partyName: _boundedText(
+          proposal['party'] ?? proposal['partyName'] ?? proposal['incomeSource'],
+          120,
+        ),
         fromAccountName: _boundedText(proposal['fromAccount'], 100),
         toAccountName: _boundedText(proposal['toAccount'], 100),
         categoryName: _boundedText(proposal['category'], 100),
@@ -645,6 +658,19 @@ class FfmAssistantProposalJsonService {
     final periodType = _canonicalBudgetPeriod(
       proposal['period'] ?? proposal['periodType'],
     );
+    final rawCategoryIds = proposal['categoryIds'] ?? proposal['categories'];
+    final categoryIds = switch (rawCategoryIds) {
+      List list => list
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      String str => str
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      _ => null,
+    };
 
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
@@ -655,7 +681,11 @@ class FfmAssistantProposalJsonService {
         categoryName: title,
         note: note,
         date: createdAt,
-        formValues: {if (periodType case final String p) 'periodType': p},
+        formValues: {
+          if (periodType case final String p) 'periodType': p,
+          if (categoryIds != null && categoryIds.isNotEmpty)
+            'categoryIdsJson': jsonEncode(categoryIds),
+        },
       ),
     );
   }
@@ -690,7 +720,12 @@ class FfmAssistantProposalJsonService {
       100,
     );
     final party = _boundedText(
-      proposal['party'] ?? proposal['partyName'] ?? proposal['title'] ?? proposal['name'],
+      proposal['party'] ??
+          proposal['partyName'] ??
+          proposal['lender'] ??
+          proposal['pemberiPinjaman'] ??
+          proposal['title'] ??
+          proposal['name'],
       100,
     );
     final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
@@ -699,6 +734,12 @@ class FfmAssistantProposalJsonService {
         'Nominal hutang harus lebih dari nol.',
       );
     }
+    final monthlyInstallment = _positiveInt(
+      proposal['monthlyInstallment'] ??
+          proposal['installment'] ??
+          proposal['cicilan'],
+    );
+    final interestRate = proposal['interestRate'] ?? proposal['bunga'];
     final note = _boundedText(proposal['note'] ?? proposal['catatan'], 300);
     final date = _dateOr(
       proposal['dueDate'] ?? proposal['targetDate'] ?? proposal['date'],
@@ -716,7 +757,12 @@ class FfmAssistantProposalJsonService {
         date: date,
         formValues: {
           'source': 'gemini_proposal',
-          if (proposal['dueDate'] != null) 'dueDate': proposal['dueDate'].toString(),
+          if (party case final String p) 'partyName': p,
+          if (proposal['dueDate'] != null)
+            'dueDate': proposal['dueDate'].toString(),
+          if (monthlyInstallment != null)
+            'monthlyInstallment': monthlyInstallment.toString(),
+          if (interestRate != null) 'interestRate': interestRate.toString(),
         },
       ),
     );
@@ -731,7 +777,12 @@ class FfmAssistantProposalJsonService {
       100,
     );
     final party = _boundedText(
-      proposal['party'] ?? proposal['partyName'] ?? proposal['title'] ?? proposal['name'],
+      proposal['party'] ??
+          proposal['partyName'] ??
+          proposal['borrower'] ??
+          proposal['peminjam'] ??
+          proposal['title'] ??
+          proposal['name'],
       100,
     );
     final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
@@ -740,6 +791,12 @@ class FfmAssistantProposalJsonService {
         'Nominal piutang harus lebih dari nol.',
       );
     }
+    final monthlyInstallment = _positiveInt(
+      proposal['monthlyInstallment'] ??
+          proposal['installment'] ??
+          proposal['cicilan'],
+    );
+    final interestRate = proposal['interestRate'] ?? proposal['bunga'];
     final note = _boundedText(proposal['note'] ?? proposal['catatan'], 300);
     final date = _dateOr(
       proposal['dueDate'] ?? proposal['targetDate'] ?? proposal['date'],
@@ -757,7 +814,12 @@ class FfmAssistantProposalJsonService {
         date: date,
         formValues: {
           'source': 'gemini_proposal',
-          if (proposal['dueDate'] != null) 'dueDate': proposal['dueDate'].toString(),
+          if (party case final String p) 'partyName': p,
+          if (proposal['dueDate'] != null)
+            'dueDate': proposal['dueDate'].toString(),
+          if (monthlyInstallment != null)
+            'monthlyInstallment': monthlyInstallment.toString(),
+          if (interestRate != null) 'interestRate': interestRate.toString(),
         },
       ),
     );
@@ -788,9 +850,32 @@ class FfmAssistantProposalJsonService {
 
   static String? _extractJson(String text) {
     final start = text.indexOf('{');
-    final end = text.lastIndexOf('}');
-    if (start < 0 || end <= start) return null;
-    return text.substring(start, end + 1);
+    if (start < 0) return null;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var index = start; index < text.length; index++) {
+      final character = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character == r'\') {
+          escaped = true;
+        } else if (character == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (character == '"') {
+        inString = true;
+      } else if (character == '{') {
+        depth++;
+      } else if (character == '}') {
+        depth--;
+        if (depth == 0) return text.substring(start, index + 1);
+      }
+    }
+    return null;
   }
 
   static String? _boundedText(Object? value, int maxLength) {
@@ -801,10 +886,19 @@ class FfmAssistantProposalJsonService {
 
   static int? _positiveInt(Object? value) {
     if (value is num) {
+      if (!value.isFinite || value != value.roundToDouble()) return null;
       final result = value.toInt();
       return result > 0 ? result : null;
     }
-    final digits = value?.toString().replaceAll(RegExp(r'[^0-9]'), '') ?? '';
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) return null;
+    final isPlainInteger = RegExp(r'^\d+$').hasMatch(text);
+    final isGroupedInteger = RegExp(
+      r'^(?:Rp\s*)?\d{1,3}(?:[.,]\d{3})+$',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (!isPlainInteger && !isGroupedInteger) return null;
+    final digits = text.replaceAll(RegExp(r'[^0-9]'), '');
     final result = int.tryParse(digits);
     return result != null && result > 0 ? result : null;
   }

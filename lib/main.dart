@@ -27,6 +27,7 @@ import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 
 import 'features/assistant/presentation/pages/assistant_profile_page.dart';
+import 'features/assistant/presentation/pages/agent_inbox_page.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/audit/presentation/pages/activity_log_page.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
@@ -502,6 +503,9 @@ class _AppShellState extends State<AppShell> {
     _reminderNotifications.openTarget.addListener(
       _openReminderFromNotification,
     );
+    _reminderNotifications.inboxOpenTarget.addListener(
+      _openInboxFromNotification,
+    );
     _proactiveMonitor = FfmAssistantProactiveMonitor(
       activityRepository: getIt<ActivityRepository>(),
       launcherState: widget.launcherState,
@@ -510,6 +514,7 @@ class _AppShellState extends State<AppShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumePendingWidgetAction();
       _openReminderFromNotification();
+      _openInboxFromNotification();
     });
   }
 
@@ -523,6 +528,17 @@ class _AppShellState extends State<AppShell> {
           focusReminderId: target.reminderId,
           focusHistoryId: target.historyId,
         ),
+      ),
+    );
+  }
+
+  void _openInboxFromNotification() {
+    if (!mounted) return;
+    final target = _reminderNotifications.takeInboxOpenTarget();
+    if (target == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const AgentInboxPage(),
       ),
     );
   }
@@ -581,6 +597,9 @@ class _AppShellState extends State<AppShell> {
     _proactiveMonitor?.stop();
     _reminderNotifications.openTarget.removeListener(
       _openReminderFromNotification,
+    );
+    _reminderNotifications.inboxOpenTarget.removeListener(
+      _openInboxFromNotification,
     );
     _widgetChannel.setMethodCallHandler(null);
     super.dispose();

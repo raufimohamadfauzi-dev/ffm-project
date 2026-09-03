@@ -4,6 +4,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_fuzzy_matcher.
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_query_tools.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_tool.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:drift/drift.dart' as drift;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -87,6 +88,49 @@ void main() {
       expect(answer.message, contains('Saldo buku SeaBank'));
       expect(after, hasLength(before.length));
       expect(after.single.id, before.single.id);
+    });
+
+    test('query belanja rokok membaca item dan menghitung total periode', () async {
+      final database = createInMemoryDatabaseForTests();
+      addTearDown(database.close);
+      final date = DateTime(2026, 8, 22, 9);
+      await database.into(database.transactions).insert(
+            TransactionsCompanion.insert(
+              id: 'tx-rokok-v63',
+              householdId: AppContext.householdId,
+              type: 'expense',
+              amount: -45000,
+              date: date,
+              recordedAt: date,
+              categoryId: const drift.Value('cat-belanja'),
+              createdAt: date,
+            ),
+          );
+      await database.into(database.transactionItems).insert(
+            TransactionItemsCompanion.insert(
+              id: 'item-rokok-v63',
+              transactionId: 'tx-rokok-v63',
+              itemName: 'Rokok kretek',
+              qty: const drift.Value(2),
+              price: const drift.Value(22500),
+              amount: const drift.Value(45000),
+              createdAt: date,
+            ),
+          );
+
+      final registry = FfmAssistantQueryRegistry(
+        database,
+        clock: () => date,
+      );
+      final answer = await registry.tryAnswer(
+        'berapa belanja rokok minggu ini',
+        householdId: AppContext.householdId,
+      );
+
+      expect(answer, isNotNull);
+      expect(answer!.title, 'Belanja rokok');
+      expect(answer.message, contains('Rp45.000'));
+      expect(answer.message, contains('2'));
     });
   });
 }

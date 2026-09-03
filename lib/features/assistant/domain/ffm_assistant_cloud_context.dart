@@ -107,6 +107,8 @@ class FfmAssistantCloudDraftContext {
         add('party', draft.partyName);
         add('toAccount', draft.toAccountName);
         add('category', draft.categoryName);
+        add('merchant', draft.merchantName);
+        add('location', draft.location);
         add('note', draft.note);
         addDate();
       case FfmAssistantDraftKind.expense:
@@ -115,6 +117,8 @@ class FfmAssistantCloudDraftContext {
         add('party', draft.partyName);
         add('fromAccount', draft.fromAccountName);
         add('category', draft.categoryName);
+        add('merchant', draft.merchantName);
+        add('location', draft.location);
         add('note', draft.note);
         addDate();
       case FfmAssistantDraftKind.transfer:

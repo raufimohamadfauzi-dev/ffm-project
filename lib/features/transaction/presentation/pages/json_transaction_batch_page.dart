@@ -93,6 +93,9 @@ class JsonTransactionRowDraft {
     int? amount,
     String? merchantName,
     String? partyName,
+    String? location,
+    List<String> tags = const [],
+    this.receiptNumber,
     String? note,
     this.categoryId,
     this.accountId,
@@ -103,6 +106,8 @@ class JsonTransactionRowDraft {
         ),
         merchantController = TextEditingController(text: merchantName ?? ''),
         partyController = TextEditingController(text: partyName ?? ''),
+        locationController = TextEditingController(text: location ?? ''),
+        tagsController = TextEditingController(text: tags.join(', ')),
         noteController = TextEditingController(text: note ?? ''),
         time = DateTime.now(),
         items = items
@@ -138,9 +143,12 @@ class JsonTransactionRowDraft {
   String? categoryId;
   String? accountId;
   String? budgetId;
+  final String? receiptNumber;
   final TextEditingController amountController;
   final TextEditingController merchantController;
   final TextEditingController partyController;
+  final TextEditingController locationController;
+  final TextEditingController tagsController;
   final TextEditingController noteController;
   final List<JsonTransactionItemDraft> items;
 
@@ -150,6 +158,8 @@ class JsonTransactionRowDraft {
     amountController.dispose();
     merchantController.dispose();
     partyController.dispose();
+    locationController.dispose();
+    tagsController.dispose();
     noteController.dispose();
     for (final item in items) {
       item.dispose();
@@ -216,7 +226,7 @@ class JsonTransactionBatchPage extends StatefulWidget {
     required this.categories,
     required this.merchants,
     required this.accounts,
-    this.budgetOptions = const [],
+    required this.budgetOptions,
   });
 
   final List<Category> categories;
@@ -254,6 +264,9 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
     String? accountId,
     String? budgetId,
     String? partyName,
+    String? location,
+    List<String> tags = const [],
+    String? receiptNumber,
     String? note,
     List<ReceiptOcrItem> items = const [],
   }) {
@@ -282,6 +295,9 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
       amount: amount,
       merchantName: merchant,
       partyName: partyName,
+      location: location,
+      tags: tags,
+      receiptNumber: receiptNumber,
       note: note,
       categoryId: validCategory,
       accountId: validAccount,
@@ -431,6 +447,9 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
                   _findBudgetOption(entry.budgetId)?.id ??
                   _findBudgetByName(entry.budgetName)?.id,
               partyName: entry.partyName,
+              location: entry.location,
+              tags: entry.tags,
+              receiptNumber: entry.receiptNumber,
               note: entry.note,
               items: entry.items,
             );
@@ -597,6 +616,19 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
             ),
           )
           .toList();
+      final merchantName = row.merchantController.text.trim();
+      final matchedMerchant = widget.merchants
+          .where(
+            (merchant) =>
+                merchant.name.toLowerCase() == merchantName.toLowerCase(),
+          )
+          .firstOrNull;
+      final tags = row.tagsController.text
+          .split(',')
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toList();
+
       drafts.add(
         TransactionDraft(
           type: row.type,
@@ -608,16 +640,18 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
           date: row.date,
           amount: row.type == TransactionType.expense ? -amount : amount,
           note: row.noteController.text.trim(),
+          location: row.locationController.text.trim().isEmpty
+              ? null
+              : row.locationController.text.trim(),
           source: 'json_batch',
           accountId: row.accountId,
-          merchantId: widget.merchants
-              .where(
-                (merchant) =>
-                    merchant.name.toLowerCase() ==
-                    row.merchantController.text.trim().toLowerCase(),
-              )
-              .firstOrNull
-              ?.id,
+          merchantId: matchedMerchant?.id,
+          assistantMerchantName:
+              matchedMerchant == null && merchantName.isNotEmpty
+                  ? merchantName
+                  : null,
+          receiptNumber: row.receiptNumber,
+          tags: tags,
           items: items,
         ),
       );
@@ -1249,6 +1283,22 @@ class JsonTransactionBatchPageState extends State<JsonTransactionBatchPage> {
             decoration: const InputDecoration(
               labelText: 'Toko/tempat (opsional)',
               prefixIcon: Icon(Icons.storefront_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: row.locationController,
+            decoration: const InputDecoration(
+              labelText: 'Lokasi / alamat (opsional)',
+              prefixIcon: Icon(Icons.location_on_outlined),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: row.tagsController,
+            decoration: const InputDecoration(
+              labelText: 'Tag transaksi (opsional, pisahkan koma)',
+              prefixIcon: Icon(Icons.label_outline),
             ),
           ),
           const SizedBox(height: 10),

@@ -46,6 +46,7 @@ class FfmAssistantQueryRegistry {
       _tools = <FfmAssistantQueryTool>[
         _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
         _AccountBalanceQueryTool(database),
+        _TobaccoPurchaseQueryTool(database),
         _TransactionSummaryQueryTool(database),
         _ActiveActivityQueryTool(database),
         _GoalStatusQueryTool(database),
@@ -95,6 +96,118 @@ class FfmAssistantQueryRegistry {
   }
 }
 
+class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
+  const _TobaccoPurchaseQueryTool(this._database);
+
+  static const _keywords = [
+    'rokok',
+    'sigaret',
+    'kretek',
+    'tembakau',
+    'cigarette',
+    'vape',
+    'rokok elektrik',
+  ];
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    return _keywords.any(normalizedText.contains) &&
+        RegExp(r'\b(berapa|total|beli|belanja|pengeluaran|habis|rokok)\b')
+            .hasMatch(normalizedText);
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final (start, end, label) = _period(request.now, request.normalizedText);
+    final transactions = await (_database.select(_database.transactions)..where(
+          (row) =>
+              row.householdId.equals(request.householdId) &
+              row.type.equals('expense') &
+              row.isArchived.equals(false) &
+              row.isDeleted.equals(false) &
+              row.date.isBiggerOrEqualValue(start) &
+              row.date.isSmallerThanValue(end),
+        ))
+        .get();
+    if (transactions.isEmpty) {
+      return FfmAssistantQueryAnswer(
+        title: 'Belanja rokok',
+        message: 'Belum ada pengeluaran yang tercatat pada $label.',
+      );
+    }
+
+    final categories = await (_database.select(_database.categories)
+          ..where((row) => row.householdId.equals(request.householdId)))
+        .get();
+    final merchants = await (_database.select(_database.merchants)
+          ..where((row) => row.householdId.equals(request.householdId)))
+        .get();
+    final categoryNames = {for (final row in categories) row.id: row.name};
+    final merchantNames = {for (final row in merchants) row.id: row.name};
+    final ids = transactions.map((row) => row.id).toSet();
+    final items = await (_database.select(_database.transactionItems)
+          ..where((row) => row.transactionId.isIn(ids)))
+        .get();
+    final itemsByTransaction = <String, List<String>>{};
+    var itemCount = 0.0;
+    for (final item in items) {
+      (itemsByTransaction[item.transactionId] ??= <String>[]).add(item.itemName);
+    }
+
+    final matches = transactions.where((transaction) {
+      final searchable = [
+        categoryNames[transaction.categoryId] ?? '',
+        merchantNames[transaction.merchantId] ?? '',
+        transaction.note ?? '',
+        ...?itemsByTransaction[transaction.id],
+      ].join(' ').toLowerCase();
+      return _keywords.any(searchable.contains);
+    }).toList(growable: false);
+    if (matches.isEmpty) {
+      return FfmAssistantQueryAnswer(
+        title: 'Belanja rokok',
+        message:
+            'Belum ada transaksi yang terdeteksi sebagai pembelian rokok pada $label. Deteksi memakai nama item, kategori, toko, dan catatan yang tersimpan.',
+      );
+    }
+    for (final transaction in matches) {
+      for (final item in items.where((item) => item.transactionId == transaction.id)) {
+        if (_keywords.any(item.itemName.toLowerCase().contains)) {
+          itemCount += item.qty;
+        }
+      }
+    }
+    final total = matches.fold<int>(
+      0,
+      (sum, transaction) => sum + transaction.amount.abs(),
+    );
+    final quantityText = itemCount == 0
+        ? ''
+        : ' Perkiraan jumlah item yang tertulis: ${itemCount == itemCount.roundToDouble() ? itemCount.toInt() : itemCount}.';
+    return FfmAssistantQueryAnswer(
+      title: 'Belanja rokok',
+      message:
+          'Pada $label, terdeteksi ${matches.length} transaksi terkait rokok dengan total ${_rupiah(total)}.$quantityText Deteksi ini berdasarkan data yang kamu simpan, jadi periksa kategori atau rincian jika ada pembelian yang belum terlabeli.',
+    );
+  }
+
+  (DateTime, DateTime, String) _period(DateTime now, String text) {
+    final today = DateTime(now.year, now.month, now.day);
+    if (text.contains('tahun') || text.contains('12 bulan')) {
+      return (DateTime(now.year, 1, 1), DateTime(now.year + 1, 1, 1), 'tahun ini');
+    }
+    if (text.contains('minggu')) {
+      final start = today.subtract(Duration(days: today.weekday - 1));
+      return (start, start.add(const Duration(days: 7)), 'minggu ini');
+    }
+    return (DateTime(now.year, now.month, 1), DateTime(now.year, now.month + 1), 'bulan ini');
+  }
+}
+
 class _DatabaseStructureQueryTool implements FfmAssistantQueryTool {
   const _DatabaseStructureQueryTool(this._structureService);
 
@@ -139,10 +252,20 @@ class _AccountBalanceQueryTool implements FfmAssistantQueryTool {
   final AppDatabase _database;
 
   @override
-  bool canHandle(String normalizedText) =>
-      normalizedText.contains('saldo') &&
-      !normalizedText.contains('saldo target') &&
-      !normalizedText.contains('saldo tujuan');
+  bool canHandle(String normalizedText) {
+    if (normalizedText.contains('saldo target') ||
+        normalizedText.contains('saldo tujuan')) {
+      return false;
+    }
+    // Perintah top-up/isi saldo adalah mutasi (transfer masuk ke rekening),
+    // bukan pertanyaan saldo — walau mengandung kata "saldo".
+    if (normalizedText.contains('isi saldo') ||
+        normalizedText.contains('tambah saldo') ||
+        RegExp(r'top\s?up').hasMatch(normalizedText)) {
+      return false;
+    }
+    return normalizedText.contains('saldo');
+  }
 
   @override
   Future<FfmAssistantQueryAnswer?> answer(

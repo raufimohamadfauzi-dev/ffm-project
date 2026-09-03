@@ -421,6 +421,7 @@ class FfmAssistantDraft {
     this.linkedActivityId,
     this.formValues = const <String, String>{},
     this.merchantName,
+    this.location,
     this.slmFieldValues = const <String, String>{},
   });
 
@@ -442,6 +443,7 @@ class FfmAssistantDraft {
   /// Merchant dan nilai field yang berasal dari tebakan awal SLM/rule parser.
   /// Hanya dipakai untuk pembelajaran setelah user mengonfirmasi form.
   final String? merchantName;
+  final String? location;
   final Map<String, String> slmFieldValues;
 
   bool get hasAmount => amount != null && amount! > 0;
@@ -460,6 +462,7 @@ class FfmAssistantDraft {
     String? linkedActivityId,
     Map<String, String>? formValues,
     String? merchantName,
+    String? location,
     Map<String, String>? slmFieldValues,
   }) => FfmAssistantDraft(
     kind: kind,
@@ -477,6 +480,7 @@ class FfmAssistantDraft {
     linkedActivityId: linkedActivityId ?? this.linkedActivityId,
     formValues: formValues ?? this.formValues,
     merchantName: merchantName ?? this.merchantName,
+    location: location ?? this.location,
     slmFieldValues: slmFieldValues ?? this.slmFieldValues,
   );
 }

@@ -101,6 +101,11 @@ class FfmAssistantDraftPreview extends StatefulWidget {
   static String formFieldLabel(String field) => switch (field) {
     'type' => 'Jenis Kategori',
     'defaultBudgetPeriod' => 'Saran Periode',
+    'periodType' => 'Periode Anggaran',
+    'monthlyInstallment' => 'Cicilan per Bulan',
+    'dueDate' => 'Jatuh Tempo',
+    'targetDate' => 'Target Tanggal',
+    'interestRate' => 'Bunga (%)',
     'accountType' => 'Jenis Rekening',
     'openingBalance' => 'Saldo Awal',
     'details' => 'Keterangan',
@@ -110,21 +115,50 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     'newMerchant' => 'Toko baru yang akan dibuat',
     'newTags' => 'Tag baru yang akan dibuat',
     'tags' => 'Tag transaksi',
+    'merchant' => 'Toko',
+    'merchantName' => 'Toko',
+    'location' => 'Lokasi',
+    'incomeSource' => 'Sumber pemasukan',
+    'party' => 'Pihak/Penerima',
+    'partyName' => 'Pihak/Penerima',
+    'receiptNumber' => 'No. Nota',
+    'receiptPaidAmount' => 'Nominal Dibayar',
+    'receiptChangeAmount' => 'Kembalian',
+    'receiptRawText' => 'Teks Nota',
+    'itemsJson' => 'Rincian Item',
+    'adminFee' => 'Biaya Admin',
+    'date' => 'Tanggal',
+    'fromAccount' => 'Sumber Dana',
+    'toAccount' => 'Tujuan Dana',
+    'fromAccountName' => 'Sumber Dana',
+    'toAccountName' => 'Tujuan Dana',
+    'category' => 'Kategori',
+    'categoryName' => 'Kategori',
+    'amount' => 'Nominal',
     _ => field,
   };
 
-  static String formFieldValue(String field, String value) =>
-      switch ('$field:$value') {
-        'type:income' => 'Pemasukan',
-        'type:expense' => 'Pengeluaran',
-        'defaultBudgetPeriod:none' => 'Tidak ada',
-        'defaultBudgetPeriod:weekly' => 'Mingguan',
-        'defaultBudgetPeriod:monthly' => 'Bulanan',
-        'accountType:cash' => 'Tunai',
-        'accountType:bank' => 'Bank',
-        'accountType:ewallet' => 'E-Wallet',
-        _ => value,
-      };
+  static String formFieldValue(String field, String value) {
+    if (field == 'monthlyInstallment') {
+      final parsed = int.tryParse(value.replaceAll(RegExp(r'[^0-9]'), ''));
+      if (parsed != null) return rupiah(parsed);
+    }
+    return switch ('$field:$value') {
+      'type:income' => 'Pemasukan',
+      'type:expense' => 'Pengeluaran',
+      'defaultBudgetPeriod:none' => 'Tidak ada',
+      'defaultBudgetPeriod:weekly' => 'Mingguan',
+      'defaultBudgetPeriod:monthly' => 'Bulanan',
+      'periodType:monthly' => 'Bulanan',
+      'periodType:weekly' => 'Mingguan',
+      'periodType:biweekly' => 'Per Dua Minggu',
+      'periodType:nonrecurring' => 'Tidak Rutin',
+      'accountType:cash' => 'Tunai',
+      'accountType:bank' => 'Bank',
+      'accountType:ewallet' => 'E-Wallet',
+      _ => value,
+    };
+  }
 
   @override
   State<FfmAssistantDraftPreview> createState() =>
@@ -149,19 +183,63 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
       MapEntry('Nama/Judul', draft.title ?? 'Belum diisi'),
       if (draft.amount != null)
         MapEntry('Nominal', FfmAssistantDraftPreview.rupiah(draft.amount!)),
+      if (draft.partyName != null)
+        MapEntry(
+          draft.kind == FfmAssistantDraftKind.liability
+              ? 'Pemberi Pinjaman'
+              : draft.kind == FfmAssistantDraftKind.receivable
+              ? 'Peminjam'
+              : draft.kind == FfmAssistantDraftKind.income
+              ? 'Sumber Pemasukan'
+              : 'Pihak/Penerima',
+          draft.partyName!,
+        ),
       if (draft.fromAccountName != null)
         MapEntry('Sumber Dana', draft.fromAccountName!),
       if (draft.toAccountName != null)
         MapEntry('Tujuan Dana', draft.toAccountName!),
       if (draft.categoryName != null) MapEntry('Kategori', draft.categoryName!),
       if (draft.merchantName != null) MapEntry('Toko', draft.merchantName!),
-      ...draft.formValues.entries.map(
-        (field) => MapEntry(
-          FfmAssistantDraftPreview.formFieldLabel(field.key),
-          FfmAssistantDraftPreview.formFieldValue(field.key, field.value),
+      if (draft.location?.trim().isNotEmpty == true)
+        MapEntry('Lokasi', draft.location!.trim()),
+      if (draft.date != null)
+        MapEntry(
+          draft.kind == FfmAssistantDraftKind.liability ||
+                  draft.kind == FfmAssistantDraftKind.receivable
+              ? 'Jatuh Tempo'
+              : draft.kind == FfmAssistantDraftKind.goal
+              ? 'Target Tanggal'
+              : 'Tanggal',
+          '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year}',
         ),
-      ),
-      if (draft.partyName != null) MapEntry('Pihak/Penerima', draft.partyName!),
+      ...draft.formValues.entries
+          .where(
+            (field) =>
+                field.value.trim().isNotEmpty &&
+                !const {
+                  'location',
+                  'date',
+                  'merchant',
+                  'merchantName',
+                  'category',
+                  'categoryName',
+                  'fromAccount',
+                  'toAccount',
+                  'fromAccountName',
+                  'toAccountName',
+                  'amount',
+                  'note',
+                  'party',
+                  'partyName',
+                  'source',
+                }.contains(field.key),
+          )
+          .map(
+            (field) => MapEntry(
+              FfmAssistantDraftPreview.formFieldLabel(field.key),
+              FfmAssistantDraftPreview.formFieldValue(field.key, field.value),
+            ),
+          ),
       if (draft.goalName != null) MapEntry('Target', draft.goalName!),
       if (draft.adminFee != null && draft.adminFee! > 0)
         MapEntry(

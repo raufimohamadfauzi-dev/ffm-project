@@ -24,6 +24,9 @@ class ReceiptBatchEntry {
     this.budgetId,
     this.budgetName,
     this.partyName,
+    this.location,
+    this.tags = const [],
+    this.receiptNumber,
     this.note,
     this.fromAccountId,
     this.toAccountId,
@@ -40,6 +43,9 @@ class ReceiptBatchEntry {
   final String? budgetId;
   final String? budgetName;
   final String? partyName;
+  final String? location;
+  final List<String> tags;
+  final String? receiptNumber;
   final String? note;
   final String? fromAccountId;
   final String? toAccountId;
@@ -88,10 +94,13 @@ class ReceiptImportService {
     final data = rawReceipt is Map
         ? Map<String, dynamic>.from(rawReceipt)
         : root;
-    final declaredFormat = root['format']?.toString();
+    final declaredFormat =
+        root['format']?.toString() ?? root['formatVersion']?.toString();
     if (declaredFormat != null &&
         declaredFormat.isNotEmpty &&
-        declaredFormat != format) {
+        declaredFormat != format &&
+        declaredFormat != batchFormat &&
+        declaredFormat != 'ffm-assistant-proposal-v1') {
       throw ReceiptImportException(
         'Format $declaredFormat belum didukung. Pakai $format.',
       );
@@ -122,15 +131,17 @@ class ReceiptImportService {
 
     final result = ReceiptOcrResult(
       merchant: _text(data['merchant'] ?? data['toko']),
-      total: _money(data['total'] ?? data['grand_total']),
+      total: _money(data['total'] ?? data['amount']),
       date: _date(data['date'] ?? data['tanggal']),
       time: _text(data['time'] ?? data['waktu']),
       paidAmount: _money(data['paid_amount'] ?? data['bayar']),
       changeAmount: _money(data['change_amount'] ?? data['kembalian']),
-      receiptNumber: _text(data['receipt_number'] ?? data['nomor_nota']),
-      rawText: _text(data['raw_text'] ?? data['teks_asli']) ?? '',
-      categoryId: _text(data['category_id']),
-      imagePath: imagePath ?? _text(data['image_path']),
+      receiptNumber: _text(
+        data['receipt_number'] ?? data['nomor_nota'] ?? data['nomor_struk'],
+      ),
+      rawText: _text(data['raw_text'] ?? data['catatan']) ?? '',
+      categoryId: _text(data['category_id'] ?? data['kategori_id']),
+      imagePath: imagePath,
       items: items,
       warnings: warnings,
     );
@@ -143,26 +154,54 @@ class ReceiptImportService {
   }
 
   static ReceiptBatchImport parseBatchJson(String rawJson) {
-    final decoded = _decodeJson(rawJson);
-    if (decoded is! Map) {
-      throw const ReceiptImportException('JSON batch harus berupa objek.');
+    final dynamic decoded = _decodeJson(rawJson);
+    Map<String, dynamic> root;
+    if (decoded is List) {
+      root = {'transactions': decoded};
+    } else if (decoded is Map) {
+      root = Map<String, dynamic>.from(decoded);
+    } else {
+      throw const ReceiptImportException('Format JSON tidak valid.');
     }
-    final root = Map<String, dynamic>.from(decoded);
-    final declaredFormat = root['format']?.toString();
+
+    final declaredFormat =
+        root['format']?.toString() ?? root['formatVersion']?.toString();
     if (declaredFormat == bankStatementFormat ||
         root['mutations'] is List ||
         root['statement'] is Map) {
       return _parseBankStatement(root);
     }
-    if (declaredFormat != null &&
-        declaredFormat.isNotEmpty &&
-        declaredFormat != batchFormat &&
-        declaredFormat != format &&
-        declaredFormat != bankStatementFormat) {
-      throw ReceiptImportException(
-        'Format $declaredFormat belum didukung. Pakai $batchFormat.',
-      );
+
+    // Dukung format proposal dari Asisten AI FFM (ffm-assistant-proposal-v1)
+    if (declaredFormat == 'ffm-assistant-proposal-v1' ||
+        root.containsKey('proposal') ||
+        root.containsKey('proposals')) {
+      final proposalList = <dynamic>[];
+      if (root['proposals'] is List) {
+        proposalList.addAll(root['proposals'] as List);
+      } else if (root['proposal'] is Map) {
+        proposalList.add(root['proposal']);
+      }
+      if (proposalList.isNotEmpty) {
+        root['transactions'] = proposalList.map((p) {
+          if (p is! Map) return p;
+          final map = Map<String, dynamic>.from(p);
+          final kind = map['kind']?.toString() ?? map['type']?.toString();
+          return {
+            ...map,
+            'type': kind,
+            'party_name':
+                map['party'] ?? map['partyName'] ?? map['incomeSource'],
+            'from_account_id': map['fromAccount'],
+            'to_account_id': map['toAccount'],
+            'location': map['location'],
+            'tags': map['tags'],
+            'admin_fee': map['adminFee'],
+          };
+        }).toList();
+      }
     }
+
     final rawTransactions = root['transactions'];
     if (rawTransactions is! List) {
       final receipt = parseJson(rawJson);
@@ -178,6 +217,7 @@ class ReceiptImportService {
             budgetName: _text(
               (root['budget_name'] ?? root['anggaran_nama'])?.toString(),
             ),
+            receiptNumber: receipt.receiptNumber,
             note: receipt.rawText.trim().isEmpty ? null : receipt.rawText,
             items: receipt.items,
           ),
@@ -200,7 +240,7 @@ class ReceiptImportService {
           typeValue != 'expense' &&
           typeValue != 'transfer') {
         warnings.add(
-          'Transaksi ke-${index + 1} harus memiliki type income atau expense.',
+          'Transaksi ke-${index + 1} harus memiliki type income, expense, atau transfer.',
         );
         continue;
       }
@@ -234,13 +274,39 @@ class ReceiptImportService {
       if (amount == null || amount <= 0) {
         warnings.add('Transaksi ke-${index + 1} belum memiliki nominal valid.');
       }
+      final location = _text(
+        data['location'] ??
+            data['lokasi'] ??
+            data['address'] ??
+            data['alamat'],
+      );
+      final rawTags = data['tags'] ?? data['tag'];
+      final tags = switch (rawTags) {
+        List list => list
+            .map((e) => e.toString().trim())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+        String str => str
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList(),
+        _ => const <String>[],
+      };
+      final receiptNumber = _text(
+        data['receipt_number'] ??
+            data['receiptNumber'] ??
+            data['nomor_nota'] ??
+            data['nomor_struk'] ??
+            data['invoice_number'],
+      );
       entries.add(
         ReceiptBatchEntry(
           type: typeValue!,
           date: _date(data['date'] ?? data['tanggal']),
           time: _text(data['time'] ?? data['waktu']),
           amount: amount,
-          merchant: _text(data['merchant'] ?? data['toko']),
+          merchant: _text(data['merchant'] ?? data['toko'] ?? data['store']),
           categoryId: _text(data['category_id'] ?? data['kategori_id']),
           accountId: _text(data['account_id'] ?? data['rekening_id']),
           budgetId: _text(data['budget_id'] ?? data['anggaran_id']),
@@ -248,17 +314,46 @@ class ReceiptImportService {
             data['budget_name'] ??
                 data['anggaran_nama'] ??
                 data['budget'] ??
-                data['anggaran'],
+                data['anggaran'] ??
+                data['category_name'] ??
+                data['category'] ??
+                data['kategori'],
           ),
           partyName: _text(
-            data['party_name'] ?? data['sumber'] ?? data['dipakai_oleh'],
+            data['party_name'] ??
+                data['party'] ??
+                data['pihak'] ??
+                data['sumber'] ??
+                data['income_source'] ??
+                data['incomeSource'] ??
+                data['used_by'] ??
+                data['dipakai_oleh'],
           ),
-          note: _text(data['note'] ?? data['catatan']),
+          location: location,
+          tags: tags,
+          receiptNumber: receiptNumber,
+          note: _text(data['note'] ?? data['catatan'] ?? data['keterangan']),
           fromAccountId: _text(
-            data['from_account_id'] ?? data['rekening_asal'],
+            data['from_account_id'] ??
+                data['rekening_asal_id'] ??
+                data['from_account'] ??
+                data['fromAccount'] ??
+                data['rekening_asal'],
           ),
-          toAccountId: _text(data['to_account_id'] ?? data['rekening_tujuan']),
-          adminFee: _money(data['admin_fee'] ?? data['biaya_admin']),
+          toAccountId: _text(
+            data['to_account_id'] ??
+                data['rekening_tujuan_id'] ??
+                data['to_account'] ??
+                data['toAccount'] ??
+                data['rekening_tujuan'],
+          ),
+          adminFee: _money(
+            data['admin_fee'] ??
+                data['adminFee'] ??
+                data['biaya_admin'] ??
+                data['fee'] ??
+                data['biaya'],
+          ),
           items: items,
         ),
       );
@@ -469,6 +564,9 @@ Aturan:
         'budget_id': null,
         'budget_name': null,
         'party_name': null,
+        'location': null,
+        'tags': null,
+        'receipt_number': null,
         'from_account_id': null,
         'to_account_id': null,
         'admin_fee': 0,
@@ -630,21 +728,19 @@ Aturan:
 
   static int? _money(dynamic value) {
     if (value == null || value is bool) return null;
-    if (value is num) return value.round();
-    var text = value.toString().trim();
-    if (text.isEmpty) return null;
-    text = text.replaceAll(RegExp(r'[^0-9,.]'), '');
-    if (text.isEmpty) return null;
-    if (text.contains('.') && text.contains(',')) {
-      text = text.replaceAll('.', '').replaceAll(',', '');
-    } else if (text.contains('.') || text.contains(',')) {
-      final separator = text.contains('.') ? '.' : ',';
-      final parts = text.split(separator);
-      text = parts.length == 2 && parts.last.length < 3
-          ? '${parts.first}.${parts.last}'
-          : parts.join();
+    if (value is num) {
+      if (!value.isFinite || value != value.roundToDouble()) return null;
+      return value.toInt();
     }
-    return double.tryParse(text)?.round();
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final isPlainInteger = RegExp(r'^\d+$').hasMatch(text);
+    final isGroupedInteger = RegExp(
+      r'^(?:Rp\s*)?\d{1,3}(?:[.,]\d{3})+$',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (!isPlainInteger && !isGroupedInteger) return null;
+    return int.tryParse(text.replaceAll(RegExp(r'[^0-9]'), ''));
   }
 
   static double? _number(dynamic value) {

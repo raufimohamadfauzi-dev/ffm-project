@@ -1159,6 +1159,19 @@ class FfmAssistantInterpreter {
         ),
       ];
     }
+    if (_isGreetingWord(normalized)) {
+      final greeting = _randomGreeting();
+      return [
+        FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.help,
+          confidence: 1,
+          response:
+              '$greeting Masih ada draf yang belum lengkap nih. Mau lanjut melengkapi draf di atas, atau ada hal lain yang mau kamu catat?',
+        ),
+      ];
+    }
     // Explicit new intent tidak boleh diserap pending draft yang belum
     // lengkap. Misal pending goal kurang nominal + "catat pemasukan 500 rb"
     // harus menjadi transaksi baru, bukan mengisi nominal goal lama.
@@ -1335,6 +1348,9 @@ class FfmAssistantInterpreter {
       'ubah',
       'koreksi',
       'edit',
+      'isi saldo',
+      'top up',
+      'topup',
     ]);
 
     // Semua guard deterministik berjalan lebih dahulu. Jika tidak menangani
@@ -6820,15 +6836,33 @@ class FfmAssistantInterpreter {
       'kirim uang',
       'geser uang',
       'cairkan',
+      'isi saldo',
+      'top up',
+      'topup',
+      'tambah saldo',
     ]);
     if (transfer) {
       final fromTo = _parseTransferAccounts(normalized, accounts);
+      var from = fromTo.$1;
+      var to = fromTo.$2;
+      // Top-up ("isi saldo gopay", "top up gopay dari bca") menyebut tujuan
+      // lebih dulu; sumber menyusul setelah kata "dari". Bila sumber tidak
+      // disebut, tujuan tetap diisi dan validator meminta rekening asal —
+      // tidak ditebak diam-diam.
+      if (from == null || to == null) {
+        from ??= _matchAccountAfterMarker(normalized, accounts, 'dari');
+        final mentioned = _mentionedAccounts(normalized, accounts);
+        Account? firstOther(Account? exclude) => mentioned
+            .where((account) => account.id != exclude?.id)
+            .firstOrNull;
+        to ??= firstOther(from);
+      }
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.transfer,
         createdAt: now,
         amount: amount,
-        fromAccountName: fromTo.$1?.name,
-        toAccountName: fromTo.$2?.name,
+        fromAccountName: from?.name,
+        toAccountName: to?.name,
         adminFee: adminFee,
         note: rawText.trim(),
         date: now,
@@ -7032,7 +7066,16 @@ class FfmAssistantInterpreter {
       toAccountName: income ? selectedAccount?.name : null,
       fromAccountName: expense ? selectedAccount?.name : null,
       note: rawText.trim(),
+      partyName: income
+          ? _extractParty(normalized, const ['dari', 'sumber'])
+          : _extractParty(normalized, const [
+              'dipakai oleh',
+              'dipakai',
+              'untuk',
+              'oleh',
+            ]),
       merchantName: _extractMerchant(normalized),
+      location: _extractLocation(normalized),
       slmFieldValues: slmFieldValues,
       linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,
       date: now,
@@ -7124,6 +7167,33 @@ class FfmAssistantInterpreter {
       _matchAccount(match.group(1)!, accounts),
       _matchAccount(match.group(2)!, accounts),
     );
+  }
+
+  Account? _matchAccountAfterMarker(
+    String text,
+    List<Account> accounts,
+    String marker,
+  ) {
+    final match = RegExp(
+      '\\b$marker\\s+([a-z0-9][a-z0-9 .&-]{1,60})',
+    ).firstMatch(text);
+    if (match == null) return null;
+    return _matchAccount(match.group(1)!, accounts);
+  }
+
+  /// Semua rekening yang namanya disebut di teks, tanpa duplikat.
+  /// Dipakai top-up/transfer yang menyebut tujuan dulu ("top up gopay
+  /// ... dari bca") agar arah dana tidak terbalik.
+  List<Account> _mentionedAccounts(String text, List<Account> accounts) {
+    final seen = <String>{};
+    final result = <Account>[];
+    for (final account in accounts) {
+      final name = account.name.trim().toLowerCase();
+      if (name.isNotEmpty && text.contains(name) && seen.add(account.id)) {
+        result.add(account);
+      }
+    }
+    return result;
   }
 
   Account? _matchAccount(String text, List<Account> accounts) {
@@ -7266,7 +7336,10 @@ class FfmAssistantInterpreter {
     };
     final tokens = normalized
         .replaceAll(RegExp(r'[0-9]+'), '')
-        .replaceAll(RegExp(r'[rp.]'), '')
+        // Hapus "rp" sebagai kata utuh + titik seribu — JANGAN kelas [rp.]
+        // yang ikut memakan huruf r/p di dalam kata ("gopay"→"goay").
+        .replaceAll(RegExp(r'\brp\b'), '')
+        .replaceAll('.', ' ')
         .trim()
         .split(RegExp(r'\s+'))
         .where((t) => t.length >= 3 && !stopWords.contains(t))
@@ -7814,6 +7887,19 @@ class FfmAssistantInterpreter {
         : value.split(' ').map(_capitalize).join(' ');
   }
 
+  /// Lokasi disamakan dengan kolom database transactions.location +
+  /// form transaksi. Pola eksplisit "lokasi ..." agar tidak bentrok
+  /// dengan ekstraksi merchant ("di/pada ...").
+  String? _extractLocation(String text) {
+    final match = RegExp(
+      r'\blokas(?:i|inya)\s+([a-z0-9][a-z0-9 .&-]{1,80}?)(?=\s+(?:sebesar|senilai|rp|harga|untuk|dengan|hari ini|kemarin|besok)\b|\s+[0-9]|$)',
+    ).firstMatch(text);
+    final value = match?.group(1)?.trim();
+    return value == null || value.isEmpty
+        ? null
+        : value.split(' ').map(_capitalize).join(' ');
+  }
+
   String? _extractParty(String text, List<String> markers) {
     for (final marker in markers) {
       final match = RegExp(
@@ -7882,16 +7968,21 @@ class FfmAssistantInterpreter {
   /// Ubah pesan error teknis dari parser proposal menjadi pesan yang ramah
   /// untuk pengguna. Detail teknis asli tetap dipertahankan agar tidak
   /// menghilangkan informasi, tetapi tidak pernah dibocorkan mentah ke UX.
-  String _friendlyProposalError(
-    String technicalError,
-  ) => switch (technicalError) {
-    'Jenis proposal belum didukung. Gunakan master_data, transaction, activity, reminder, goal, goal_deposit, goal_usage, budget, memory, atau navigation.' ||
-    'Jenis proposal belum didukung.' => 'Aku belum paham jenis permintaan itu. Sebutkan dengan kalimat biasa, misalnya "catat pengeluaran 50 ribu untuk makan".',
-    'JSON proposal belum valid. Salin ulang hasil LLM tanpa Markdown atau teks tambahan.' ||
-    'JSON proposal belum valid.' => 'Aku menerima permintaan yang formatnya tidak bisa kubaca. Coba tulis ulang dengan kalimat biasa yang lebih sederhana.',
-    'Proposal JSON belum punya objek “proposal”.' => 'Aku belum bisa membaca isi permintaan itu. Silakan coba lagi dengan kalimat yang lebih jelas.',
-    _ => 'Aku belum bisa menangani permintaan itu dengan benar. Silakan urai ulang maksudmu dengan kalimat biasa, atau beri tahu apa yang ingin kamu lakukan dan nominalnya bila ada.',
-  };
+  String _friendlyProposalError(String technicalError) {
+    final lowered = technicalError.toLowerCase();
+    if (lowered.contains('jenis proposal') ||
+        lowered.contains('proposal_kind') ||
+        lowered.contains('master_data, transaction')) {
+      return 'Aku belum paham jenis permintaan itu. Sebutkan dengan kalimat biasa, misalnya "catat pengeluaran 50 ribu untuk makan".';
+    }
+    if (lowered.contains('json proposal') || lowered.contains('markdown')) {
+      return 'Aku menerima permintaan yang formatnya tidak bisa kubaca. Coba tulis ulang dengan kalimat biasa yang lebih sederhana.';
+    }
+    if (lowered.contains('objek “proposal”') || lowered.contains('objek proposal')) {
+      return 'Aku belum bisa membaca isi permintaan itu. Silakan coba lagi dengan kalimat yang lebih jelas.';
+    }
+    return 'Aku belum bisa menangani permintaan itu dengan benar. Silakan urai ulang maksudmu dengan kalimat biasa, atau beri tahu apa yang ingin kamu lakukan dan nominalnya bila ada.';
+  }
 
   /// Catat detail teknis kegagalan ke diagnostics tanpa memblokir alur chat.
   /// Dipakai agar pesan ramah ke user tidak menghilangkan informasi debug.
