@@ -36,10 +36,24 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
   String? _message;
   int _secretTapCount = 0;
   DateTime? _lastSecretTap;
+  bool _developerModeActive = false;
+
+  void _activateDeveloperMode() {
+    if (_submitting) return;
+    if (_developerModeActive) {
+      _triggerDeveloperBypass();
+      return;
+    }
+    setState(() {
+      _developerModeActive = true;
+      _message =
+          '🔑 Mode Developer Rahasia Aktif. Masukkan 9999 / 000000 atau tahan Logo FFM.';
+    });
+  }
 
   void _triggerDeveloperBypass() {
     if (_submitting) return;
-    final masterPin = widget.pinLength == 6 ? '999999' : '9999';
+    final masterPin = widget.pinLength == 6 ? '#DEV_PIN#999999' : '#DEV_PIN#9999';
     widget.onCompleted(masterPin);
   }
 
@@ -54,7 +68,7 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
     _lastSecretTap = now;
     if (_secretTapCount >= 5) {
       _secretTapCount = 0;
-      _triggerDeveloperBypass();
+      _activateDeveloperMode();
     }
   }
 
@@ -69,6 +83,7 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
       _digits = '';
       _message = null;
       _submitting = false;
+      _developerModeActive = false;
     }
   }
 
@@ -80,7 +95,7 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
     });
     if (_digits.length != widget.pinLength) return;
     setState(() => _submitting = true);
-    final pin = _digits;
+    final pin = _developerModeActive ? '#DEV_PIN#$_digits' : _digits;
     final issue = await widget.onCompleted(pin);
     if (!mounted) return;
     setState(() {
@@ -117,7 +132,7 @@ class _AppPinEntryPanelState extends State<AppPinEntryPanel> {
                   children: [
                     GestureDetector(
                       onTap: _handleLogoTap,
-                      onLongPress: _triggerDeveloperBypass,
+                      onLongPress: _activateDeveloperMode,
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(30),
                         child: Image.asset(
