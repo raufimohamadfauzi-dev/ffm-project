@@ -1,14 +1,27 @@
+import 'dart:async';
 import '../domain/ffm_assistant_models.dart';
 
 /// Service untuk melacak perubahan draft dan mengirim feedback ke LLM
-/// agar context percakapan tetap konsisten.
+/// serta mempelajari aturan personal baru secara otonom (Modul 3A).
 class FfmAssistantDraftFeedbackService {
-  FfmAssistantDraftFeedbackService();
+  FfmAssistantDraftFeedbackService({
+    this.onRuleLearned,
+  });
+
+  Future<void> Function({
+    required String key,
+    required String value,
+    required String label,
+  })? onRuleLearned;
 
   final List<DraftChangeRecord> _changeHistory = [];
+  final List<({String key, String value, String label})> _learnedRules = [];
   static const int _maxHistorySize = 10;
 
-  /// Mencatat perubahan draft saat user mengedit draft
+  List<({String key, String value, String label})> get learnedRules =>
+      List.unmodifiable(_learnedRules);
+
+  /// Mencatat perubahan draft saat user mengedit draft dan belajar aturan personal secara otonom
   void recordDraftEdit({
     required FfmAssistantDraft originalDraft,
     required FfmAssistantDraft editedDraft,
@@ -29,6 +42,70 @@ class FfmAssistantDraftFeedbackService {
     _changeHistory.add(record);
     if (_changeHistory.length > _maxHistorySize) {
       _changeHistory.removeAt(0);
+    }
+
+    _extractAndLearnRules(originalDraft, editedDraft);
+  }
+
+  void _extractAndLearnRules(
+    FfmAssistantDraft original,
+    FfmAssistantDraft edited,
+  ) {
+    // 1. Koreksi Kategori berdasarkan Toko / Merchant
+    final merchant = edited.merchantName?.trim();
+    final editedCategory = edited.categoryName?.trim();
+    if (merchant != null &&
+        merchant.isNotEmpty &&
+        editedCategory != null &&
+        editedCategory.isNotEmpty &&
+        original.categoryName != edited.categoryName) {
+      final key = 'merchant_category_${merchant.toLowerCase()}';
+      final label = 'Toko "$merchant" dikategorikan sebagai: $editedCategory';
+      _learnedRules.add((key: key, value: editedCategory, label: label));
+      if (onRuleLearned != null) {
+        unawaited(onRuleLearned!(
+          key: key,
+          value: editedCategory,
+          label: label,
+        ));
+      }
+    }
+
+    // 2. Koreksi Kategori berdasarkan Judul Transaksi (jika merchant tidak ada)
+    final title = edited.title?.trim();
+    if ((merchant == null || merchant.isEmpty) &&
+        title != null &&
+        title.isNotEmpty &&
+        editedCategory != null &&
+        editedCategory.isNotEmpty &&
+        original.categoryName != edited.categoryName) {
+      final key = 'item_category_${title.toLowerCase()}';
+      final label = 'Item "$title" dikategorikan sebagai: $editedCategory';
+      _learnedRules.add((key: key, value: editedCategory, label: label));
+      if (onRuleLearned != null) {
+        unawaited(onRuleLearned!(
+          key: key,
+          value: editedCategory,
+          label: label,
+        ));
+      }
+    }
+
+    // 3. Koreksi Rekening Sumber
+    final fromAccount = edited.fromAccountName?.trim();
+    if (fromAccount != null &&
+        fromAccount.isNotEmpty &&
+        original.fromAccountName != edited.fromAccountName) {
+      final key = 'preferred_account';
+      final label = 'Rekening sumber utama pilihan: $fromAccount';
+      _learnedRules.add((key: key, value: fromAccount, label: label));
+      if (onRuleLearned != null) {
+        unawaited(onRuleLearned!(
+          key: key,
+          value: fromAccount,
+          label: label,
+        ));
+      }
     }
   }
 

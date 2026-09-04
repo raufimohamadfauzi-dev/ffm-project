@@ -65,6 +65,7 @@ class FfmAssistantActionPlan {
     required this.createdAt,
     this.status = FfmAssistantActionPlanStatus.planned,
     this.requiresConfirmation = false,
+    this.isComposite = false,
     this.confirmedAt,
     this.completedAt,
     this.blockedReason,
@@ -76,6 +77,7 @@ class FfmAssistantActionPlan {
   final DateTime createdAt;
   final FfmAssistantActionPlanStatus status;
   final bool requiresConfirmation;
+  final bool isComposite;
   final DateTime? confirmedAt;
   final DateTime? completedAt;
   final String? blockedReason;
@@ -99,20 +101,35 @@ class FfmAssistantActionPlan {
         mutationIndexes.add(index);
       }
     }
-    if (mutationIndexes.length > 1) {
+    if (!isComposite && mutationIndexes.length > 1) {
       return 'Workflow memuat lebih dari satu mutasi. Pecah menjadi konfirmasi terpisah.';
     }
     if (mutationIndexes.isEmpty) return null;
     if (!requiresConfirmation) {
       return 'Workflow mutasi wajib meminta konfirmasi eksplisit.';
     }
-    final mutationIndex = mutationIndexes.single;
-    final hasVerification = steps
-        .skip(mutationIndex + 1)
-        .any((step) => step.capabilityId.startsWith('verify.'));
-    return hasVerification
-        ? null
-        : 'Workflow mutasi wajib memiliki pembacaan ulang untuk verifikasi.';
+    if (!isComposite) {
+      final mutationIndex = mutationIndexes.single;
+      final hasVerification = steps
+          .skip(mutationIndex + 1)
+          .any((step) => step.capabilityId.startsWith('verify.'));
+      return hasVerification
+          ? null
+          : 'Workflow mutasi wajib memiliki pembacaan ulang untuk verifikasi.';
+    } else {
+      for (var i = 0; i < mutationIndexes.length; i++) {
+        final currentMutIdx = mutationIndexes[i];
+        final nextMutIdx =
+            i + 1 < mutationIndexes.length ? mutationIndexes[i + 1] : steps.length;
+        final hasVerification = steps
+            .sublist(currentMutIdx + 1, nextMutIdx)
+            .any((step) => step.capabilityId.startsWith('verify.'));
+        if (!hasVerification) {
+          return 'Setiap mutasi pada workflow bertahap wajib memiliki pembacaan ulang untuk verifikasi.';
+        }
+      }
+      return null;
+    }
   }
 
   bool get isTerminal => const {
@@ -128,6 +145,7 @@ class FfmAssistantActionPlan {
     List<FfmAssistantActionStep>? steps,
     FfmAssistantActionPlanStatus? status,
     bool? requiresConfirmation,
+    bool? isComposite,
     DateTime? confirmedAt,
     DateTime? completedAt,
     String? blockedReason,
@@ -138,6 +156,7 @@ class FfmAssistantActionPlan {
     createdAt: createdAt,
     status: status ?? this.status,
     requiresConfirmation: requiresConfirmation ?? this.requiresConfirmation,
+    isComposite: isComposite ?? this.isComposite,
     confirmedAt: confirmedAt ?? this.confirmedAt,
     completedAt: completedAt ?? this.completedAt,
     blockedReason: blockedReason ?? this.blockedReason,

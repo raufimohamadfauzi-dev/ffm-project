@@ -59,7 +59,21 @@ class FfmPersonalMemoryService {
   FfmPersonalMemoryService([
     this._memories,
     FfmAssistantDraftFeedbackService? feedbackService,
-  ]) : feedbackService = feedbackService ?? FfmAssistantDraftFeedbackService();
+  ]) : feedbackService = feedbackService ?? FfmAssistantDraftFeedbackService() {
+    if (this.feedbackService.onRuleLearned == null && _memories != null) {
+      this.feedbackService.onRuleLearned = ({
+        required String key,
+        required String value,
+        required String label,
+      }) async {
+        await learnCorrectionRule(
+          key: key,
+          value: value,
+          humanLabel: label,
+        );
+      };
+    }
+  }
 
   final FfmAssistantMemoryRepository? _memories;
   final FfmAssistantDraftFeedbackService feedbackService;
@@ -340,6 +354,40 @@ class FfmPersonalMemoryService {
     final all = await readAll();
     if (all.isEmpty) return '';
     return all.map((i) => '• ${i.humanLabel}').join('\n');
+  }
+
+  /// Belajar otonom dari koreksi draft pengguna (Modul 3A).
+  /// Menyimpan aturan personal otomatis agar transaksi/tindakan serupa berikutnya tepat.
+  Future<FfmPersonalMemoryInsight?> learnCorrectionRule({
+    required String key,
+    required String value,
+    required String humanLabel,
+    String? sourceMessage,
+  }) async {
+    final memories = _memories;
+    if (memories == null) return null;
+    final record = await memories.save(
+      kind: _kindKebab(FfmPersonalMemoryKind.habitData),
+      triggerText: key,
+      valueText: value,
+      source: 'draft-correction-learning',
+      metadata: {
+        'scope': 'personal-memory',
+        'humanLabel': humanLabel,
+        'approved': true,
+        'isLearnedRule': true,
+        'sourceMessage': ?sourceMessage,
+      },
+    );
+    return FfmPersonalMemoryInsight(
+      id: record.id,
+      kind: FfmPersonalMemoryKind.habitData,
+      key: record.triggerText,
+      value: record.valueText,
+      humanLabel: humanLabel,
+      sourceMessage: sourceMessage,
+      savedAt: record.createdAt,
+    );
   }
 
   /// Menghapus satu memori berdasarkan ID.

@@ -41,85 +41,7 @@ class FfmAssistantActionPlanner {
     }
     final draft = intent.draft;
     if (draft != null) {
-      final capabilityId = switch (draft.kind) {
-        FfmAssistantDraftKind.income => 'draft.income',
-        FfmAssistantDraftKind.expense => 'draft.expense',
-        FfmAssistantDraftKind.transfer => 'draft.transfer',
-        FfmAssistantDraftKind.goalDeposit => 'draft.goal_deposit',
-        FfmAssistantDraftKind.goalUsage => 'draft.goal_usage',
-        FfmAssistantDraftKind.goal => 'draft.goal',
-        FfmAssistantDraftKind.liability => 'draft.liability',
-        FfmAssistantDraftKind.liabilityUpdate => 'draft.liability_update',
-        FfmAssistantDraftKind.liabilityArchive => 'draft.liability_archive',
-        FfmAssistantDraftKind.liabilityPayment => 'draft.liability_payment',
-        FfmAssistantDraftKind.receivable => 'draft.receivable',
-        FfmAssistantDraftKind.receivableUpdate => 'draft.receivable_update',
-        FfmAssistantDraftKind.receivableArchive => 'draft.receivable_archive',
-        FfmAssistantDraftKind.receivablePayment => 'draft.receivable_payment',
-        FfmAssistantDraftKind.asset => 'draft.asset',
-        FfmAssistantDraftKind.assetUpdate => 'draft.asset_update',
-        FfmAssistantDraftKind.assetArchive => 'draft.asset_archive',
-        FfmAssistantDraftKind.budget => 'draft.budget',
-        FfmAssistantDraftKind.budgetUpdate => 'draft.budget_update',
-        FfmAssistantDraftKind.budgetArchive => 'draft.budget_archive',
-        FfmAssistantDraftKind.masterData => 'draft.master_data',
-        FfmAssistantDraftKind.merchantUpdate => 'draft.merchant_update',
-        FfmAssistantDraftKind.merchantArchive => 'draft.merchant_archive',
-        FfmAssistantDraftKind.merchantDelete => 'draft.merchant_delete',
-        FfmAssistantDraftKind.tagUpdate => 'draft.tag_update',
-        FfmAssistantDraftKind.tagArchive => 'draft.tag_archive',
-        FfmAssistantDraftKind.tagDelete => 'draft.tag_delete',
-        FfmAssistantDraftKind.incomeSourceUpdate =>
-          'draft.income_source_update',
-        FfmAssistantDraftKind.incomeSourceArchive =>
-          'draft.income_source_archive',
-        FfmAssistantDraftKind.incomeSourceDelete =>
-          'draft.income_source_delete',
-        FfmAssistantDraftKind.categoryUpdate => 'draft.category_update',
-        FfmAssistantDraftKind.categoryArchive => 'draft.category_archive',
-        FfmAssistantDraftKind.categoryDelete => 'draft.category_delete',
-        FfmAssistantDraftKind.accountUpdate => 'draft.account_update',
-        FfmAssistantDraftKind.accountArchive => 'draft.account_archive',
-        FfmAssistantDraftKind.accountDelete => 'draft.account_delete',
-        FfmAssistantDraftKind.reminder => 'draft.reminder',
-        FfmAssistantDraftKind.reminderUpdate => 'draft.reminder_update',
-        FfmAssistantDraftKind.activity => 'draft.activity',
-        FfmAssistantDraftKind.dailyNote => 'draft.daily_note',
-        FfmAssistantDraftKind.dailyNoteArchive => 'draft.daily_note_archive',
-        FfmAssistantDraftKind.task => 'draft.task',
-        FfmAssistantDraftKind.taskUpdate => 'draft.task_update',
-        FfmAssistantDraftKind.taskComplete => 'draft.task_complete',
-        FfmAssistantDraftKind.taskReopen => 'draft.task_reopen',
-        FfmAssistantDraftKind.taskArchive => 'draft.task_archive',
-        FfmAssistantDraftKind.routine => 'draft.routine',
-        FfmAssistantDraftKind.routineUpdate => 'draft.routine_update',
-        FfmAssistantDraftKind.routineMarkComplete =>
-          'draft.routine_mark_complete',
-        FfmAssistantDraftKind.routineUnmarkComplete =>
-          'draft.routine_unmark_complete',
-        FfmAssistantDraftKind.routineActivate => 'draft.routine_activate',
-        FfmAssistantDraftKind.routineDeactivate => 'draft.routine_deactivate',
-        FfmAssistantDraftKind.routineArchive => 'draft.routine_archive',
-        FfmAssistantDraftKind.schedule => 'draft.schedule',
-        FfmAssistantDraftKind.scheduleUpdate => 'draft.schedule_update',
-        FfmAssistantDraftKind.scheduleArchive => 'draft.schedule_archive',
-        FfmAssistantDraftKind.recurringTransactionUpdate =>
-          'draft.recurring_transaction_update',
-        FfmAssistantDraftKind.recurringTransactionArchive =>
-          'draft.recurring_transaction_archive',
-        FfmAssistantDraftKind.profile => 'draft.profile',
-        FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
-        FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
-        FfmAssistantDraftKind.reminderArchive => 'draft.reminder_archive',
-        FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
-        FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
-        FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
-        FfmAssistantDraftKind.activityArchive => 'draft.activity_archive',
-        FfmAssistantDraftKind.activityDelete => 'draft.activity_delete',
-        FfmAssistantDraftKind.activityFinish => 'draft.activity_finish',
-        FfmAssistantDraftKind.activityUpdate => 'draft.activity_update',
-        FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
-      };
+      final capabilityId = _draftCapabilityFor(draft.kind);
       steps.add(
         FfmAssistantActionStep(
           id: 'draft',
@@ -128,61 +50,7 @@ class FfmAssistantActionPlanner {
         ),
       );
       final parameters = _draftParameters(draft);
-      final mutationCapability = switch (draft.kind) {
-        FfmAssistantDraftKind.goalUpdate => 'mutate.update',
-        FfmAssistantDraftKind.goalArchive => 'mutate.archive',
-        FfmAssistantDraftKind.assetUpdate => 'mutate.update',
-        FfmAssistantDraftKind.assetArchive => 'mutate.archive',
-        FfmAssistantDraftKind.liabilityUpdate => 'mutate.update',
-        FfmAssistantDraftKind.liabilityArchive => 'mutate.archive',
-        FfmAssistantDraftKind.liabilityPayment => 'mutate.debt_payment',
-        FfmAssistantDraftKind.receivableUpdate => 'mutate.update',
-        FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
-        FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
-        FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
-        FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
-        FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
-        FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
-        FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.activityArchive => 'mutate.archive',
-        FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.activityFinish => 'mutate.update',
-        FfmAssistantDraftKind.activityUpdate => 'mutate.update',
-        FfmAssistantDraftKind.activityEdit => 'mutate.update',
-        FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
-        FfmAssistantDraftKind.taskUpdate => 'mutate.update',
-        FfmAssistantDraftKind.taskComplete => 'mutate.update',
-        FfmAssistantDraftKind.taskReopen => 'mutate.update',
-        FfmAssistantDraftKind.taskArchive => 'mutate.archive',
-        FfmAssistantDraftKind.routineUpdate ||
-        FfmAssistantDraftKind.routineMarkComplete ||
-        FfmAssistantDraftKind.routineUnmarkComplete ||
-        FfmAssistantDraftKind.routineActivate ||
-        FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
-        FfmAssistantDraftKind.routineArchive => 'mutate.archive',
-        FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
-        FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
-        FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
-        FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
-        FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
-        FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
-        FfmAssistantDraftKind.merchantDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.tagUpdate => 'mutate.update',
-        FfmAssistantDraftKind.tagArchive => 'mutate.archive',
-        FfmAssistantDraftKind.tagDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.incomeSourceUpdate => 'mutate.update',
-        FfmAssistantDraftKind.incomeSourceArchive => 'mutate.archive',
-        FfmAssistantDraftKind.incomeSourceDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.categoryUpdate => 'mutate.update',
-        FfmAssistantDraftKind.categoryArchive => 'mutate.archive',
-        FfmAssistantDraftKind.categoryDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.accountUpdate => 'mutate.update',
-        FfmAssistantDraftKind.accountArchive => 'mutate.archive',
-        FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
-        FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
-        FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
-        _ => 'mutate.save_draft',
-      };
+      final mutationCapability = _mutationCapabilityFor(draft.kind);
       final idempotencyKey = '$planId:save';
       steps.add(
         FfmAssistantActionStep(
@@ -194,72 +62,7 @@ class FfmAssistantActionPlanner {
       steps.add(
         FfmAssistantActionStep(
           id: 'verify',
-          capabilityId: switch (draft.kind) {
-            FfmAssistantDraftKind.transactionUpdate ||
-            FfmAssistantDraftKind.transactionArchive ||
-            FfmAssistantDraftKind.transactionDelete =>
-              'verify.transaction_mutation',
-            FfmAssistantDraftKind.activityArchive ||
-            FfmAssistantDraftKind.activityDelete ||
-            FfmAssistantDraftKind.activityFinish ||
-            FfmAssistantDraftKind.activityUpdate ||
-            FfmAssistantDraftKind.activityEdit => 'verify.activity_mutation',
-            FfmAssistantDraftKind.dailyNote ||
-            FfmAssistantDraftKind.dailyNoteArchive =>
-              'verify.daily_note_mutation',
-            FfmAssistantDraftKind.task ||
-            FfmAssistantDraftKind.taskUpdate ||
-            FfmAssistantDraftKind.taskComplete ||
-            FfmAssistantDraftKind.taskReopen ||
-            FfmAssistantDraftKind.taskArchive => 'verify.task_mutation',
-            FfmAssistantDraftKind.routine ||
-            FfmAssistantDraftKind.routineUpdate ||
-            FfmAssistantDraftKind.routineMarkComplete ||
-            FfmAssistantDraftKind.routineUnmarkComplete ||
-            FfmAssistantDraftKind.routineActivate ||
-            FfmAssistantDraftKind.routineDeactivate ||
-            FfmAssistantDraftKind.routineArchive => 'verify.routine_mutation',
-            FfmAssistantDraftKind.schedule ||
-            FfmAssistantDraftKind.scheduleUpdate ||
-            FfmAssistantDraftKind.scheduleArchive => 'verify.schedule_mutation',
-            FfmAssistantDraftKind.recurringTransactionUpdate ||
-            FfmAssistantDraftKind.recurringTransactionArchive =>
-              'verify.recurring_transaction_mutation',
-            FfmAssistantDraftKind.merchantUpdate ||
-            FfmAssistantDraftKind.merchantArchive ||
-            FfmAssistantDraftKind.merchantDelete => 'verify.merchant_mutation',
-            FfmAssistantDraftKind.tagUpdate ||
-            FfmAssistantDraftKind.tagArchive ||
-            FfmAssistantDraftKind.tagDelete => 'verify.tag_mutation',
-            FfmAssistantDraftKind.incomeSourceUpdate ||
-            FfmAssistantDraftKind.incomeSourceArchive ||
-            FfmAssistantDraftKind.incomeSourceDelete =>
-              'verify.income_source_mutation',
-            FfmAssistantDraftKind.categoryUpdate ||
-            FfmAssistantDraftKind.categoryArchive ||
-            FfmAssistantDraftKind.categoryDelete => 'verify.category_mutation',
-            FfmAssistantDraftKind.accountUpdate ||
-            FfmAssistantDraftKind.accountArchive ||
-            FfmAssistantDraftKind.accountDelete => 'verify.account_mutation',
-            FfmAssistantDraftKind.budgetUpdate ||
-            FfmAssistantDraftKind.budgetArchive => 'verify.budget_mutation',
-            FfmAssistantDraftKind.goalUpdate ||
-            FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
-            FfmAssistantDraftKind.assetUpdate ||
-            FfmAssistantDraftKind.assetArchive => 'verify.asset_mutation',
-            FfmAssistantDraftKind.liabilityUpdate ||
-            FfmAssistantDraftKind.liabilityArchive ||
-            FfmAssistantDraftKind.liabilityPayment =>
-              'verify.debt_payment',
-            FfmAssistantDraftKind.receivableUpdate ||
-            FfmAssistantDraftKind.receivableArchive =>
-              'verify.receivable_mutation',
-            FfmAssistantDraftKind.receivablePayment =>
-              'verify.debt_payment',
-            FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
-            FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
-            _ => 'verify.saved_draft',
-          },
+          capabilityId: _verifyCapabilityFor(draft.kind),
           parameters: {...parameters, '_idempotencyKey': idempotencyKey},
         ),
       );
@@ -285,6 +88,92 @@ class FfmAssistantActionPlanner {
     return plan;
   }
 
+  /// Merancang Rencana Aksi Bertahap (Multi-Step Action Plan)
+  /// untuk kebutuhan finansial gabungan (misal: target + alokasi pos + pengingat).
+  FfmAssistantActionPlan? planCompositePlan({
+    required String summary,
+    required List<FfmAssistantDraft> drafts,
+    String? customPlanId,
+  }) {
+    if (drafts.isEmpty) return null;
+    final planId = customPlanId ??
+        'composite-plan-${_stableHash(summary).toRadixString(16)}';
+    final steps = <FfmAssistantActionStep>[];
+
+    // Kumpulkan pembacaan prasyarat yang terdeduplikasi untuk seluruh draf
+    final reads = <String>[];
+    for (final draft in drafts) {
+      for (final r in _prerequisiteReadsForDraft(draft.kind)) {
+        if (!reads.contains(r)) {
+          reads.add(r);
+        }
+      }
+    }
+
+    for (var i = 0; i < reads.length; i++) {
+      steps.add(
+        FfmAssistantActionStep(
+          id: reads.length == 1 ? 'read' : 'read_${i + 1}',
+          capabilityId: reads[i],
+          parameters: {'query': summary},
+        ),
+      );
+    }
+
+    // Bangun rangkaian draft -> save -> verify untuk setiap draf berurutan
+    for (var i = 0; i < drafts.length; i++) {
+      final draft = drafts[i];
+      final stepSuffix = drafts.length == 1 ? '' : '_${i + 1}';
+      final draftCapability = _draftCapabilityFor(draft.kind);
+      final mutationCapability = _mutationCapabilityFor(draft.kind);
+      final verifyCapability = _verifyCapabilityFor(draft.kind);
+      final parameters = _draftParameters(draft);
+      final idempotencyKey = '$planId:save$stepSuffix';
+
+      steps.add(
+        FfmAssistantActionStep(
+          id: 'draft$stepSuffix',
+          capabilityId: draftCapability,
+          parameters: parameters,
+        ),
+      );
+      steps.add(
+        FfmAssistantActionStep(
+          id: 'save$stepSuffix',
+          capabilityId: mutationCapability,
+          parameters: {...parameters, '_idempotencyKey': idempotencyKey},
+        ),
+      );
+      steps.add(
+        FfmAssistantActionStep(
+          id: 'verify$stepSuffix',
+          capabilityId: verifyCapability,
+          parameters: {...parameters, '_idempotencyKey': idempotencyKey},
+        ),
+      );
+    }
+
+    if (steps.isEmpty) return null;
+    final exceedsBudget =
+        steps.length > FfmAssistantExecutionLimits.maxStepsPerPlan;
+    return FfmAssistantActionPlan(
+      id: planId,
+      summary: exceedsBudget
+          ? FfmAssistantExecutionLimits.tooComplexMessage
+          : summary,
+      steps: steps,
+      createdAt: (now ?? DateTime.now)(),
+      requiresConfirmation: true,
+      isComposite: drafts.length > 1,
+      status: exceedsBudget
+          ? FfmAssistantActionPlanStatus.blockedByBudget
+          : FfmAssistantActionPlanStatus.planned,
+      blockedReason: exceedsBudget
+          ? FfmAssistantBudgetBlockReason.tooManySteps.name
+          : null,
+    );
+  }
+
   String _planId(FfmAssistantIntent intent) =>
       'plan-${_stableHash('${intent.type.name}|${intent.normalizedText}').toRadixString(16)}';
 
@@ -305,6 +194,239 @@ class FfmAssistantActionPlanner {
     _ => null,
   };
 
+  static String _draftCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
+    FfmAssistantDraftKind.income => 'draft.income',
+    FfmAssistantDraftKind.expense => 'draft.expense',
+    FfmAssistantDraftKind.transfer => 'draft.transfer',
+    FfmAssistantDraftKind.goalDeposit => 'draft.goal_deposit',
+    FfmAssistantDraftKind.goalUsage => 'draft.goal_usage',
+    FfmAssistantDraftKind.goal => 'draft.goal',
+    FfmAssistantDraftKind.liability => 'draft.liability',
+    FfmAssistantDraftKind.liabilityUpdate => 'draft.liability_update',
+    FfmAssistantDraftKind.liabilityArchive => 'draft.liability_archive',
+    FfmAssistantDraftKind.liabilityPayment => 'draft.liability_payment',
+    FfmAssistantDraftKind.receivable => 'draft.receivable',
+    FfmAssistantDraftKind.receivableUpdate => 'draft.receivable_update',
+    FfmAssistantDraftKind.receivableArchive => 'draft.receivable_archive',
+    FfmAssistantDraftKind.receivablePayment => 'draft.receivable_payment',
+    FfmAssistantDraftKind.asset => 'draft.asset',
+    FfmAssistantDraftKind.assetUpdate => 'draft.asset_update',
+    FfmAssistantDraftKind.assetArchive => 'draft.asset_archive',
+    FfmAssistantDraftKind.budget => 'draft.budget',
+    FfmAssistantDraftKind.budgetUpdate => 'draft.budget_update',
+    FfmAssistantDraftKind.budgetArchive => 'draft.budget_archive',
+    FfmAssistantDraftKind.masterData => 'draft.master_data',
+    FfmAssistantDraftKind.merchantUpdate => 'draft.merchant_update',
+    FfmAssistantDraftKind.merchantArchive => 'draft.merchant_archive',
+    FfmAssistantDraftKind.merchantDelete => 'draft.merchant_delete',
+    FfmAssistantDraftKind.tagUpdate => 'draft.tag_update',
+    FfmAssistantDraftKind.tagArchive => 'draft.tag_archive',
+    FfmAssistantDraftKind.tagDelete => 'draft.tag_delete',
+    FfmAssistantDraftKind.incomeSourceUpdate => 'draft.income_source_update',
+    FfmAssistantDraftKind.incomeSourceArchive => 'draft.income_source_archive',
+    FfmAssistantDraftKind.incomeSourceDelete => 'draft.income_source_delete',
+    FfmAssistantDraftKind.categoryUpdate => 'draft.category_update',
+    FfmAssistantDraftKind.categoryArchive => 'draft.category_archive',
+    FfmAssistantDraftKind.categoryDelete => 'draft.category_delete',
+    FfmAssistantDraftKind.accountUpdate => 'draft.account_update',
+    FfmAssistantDraftKind.accountArchive => 'draft.account_archive',
+    FfmAssistantDraftKind.accountDelete => 'draft.account_delete',
+    FfmAssistantDraftKind.reminder => 'draft.reminder',
+    FfmAssistantDraftKind.reminderUpdate => 'draft.reminder_update',
+    FfmAssistantDraftKind.activity => 'draft.activity',
+    FfmAssistantDraftKind.dailyNote => 'draft.daily_note',
+    FfmAssistantDraftKind.dailyNoteArchive => 'draft.daily_note_archive',
+    FfmAssistantDraftKind.task => 'draft.task',
+    FfmAssistantDraftKind.taskUpdate => 'draft.task_update',
+    FfmAssistantDraftKind.taskComplete => 'draft.task_complete',
+    FfmAssistantDraftKind.taskReopen => 'draft.task_reopen',
+    FfmAssistantDraftKind.taskArchive => 'draft.task_archive',
+    FfmAssistantDraftKind.routine => 'draft.routine',
+    FfmAssistantDraftKind.routineUpdate => 'draft.routine_update',
+    FfmAssistantDraftKind.routineMarkComplete => 'draft.routine_mark_complete',
+    FfmAssistantDraftKind.routineUnmarkComplete =>
+      'draft.routine_unmark_complete',
+    FfmAssistantDraftKind.routineActivate => 'draft.routine_activate',
+    FfmAssistantDraftKind.routineDeactivate => 'draft.routine_deactivate',
+    FfmAssistantDraftKind.routineArchive => 'draft.routine_archive',
+    FfmAssistantDraftKind.schedule => 'draft.schedule',
+    FfmAssistantDraftKind.scheduleUpdate => 'draft.schedule_update',
+    FfmAssistantDraftKind.scheduleArchive => 'draft.schedule_archive',
+    FfmAssistantDraftKind.recurringTransactionUpdate =>
+      'draft.recurring_transaction_update',
+    FfmAssistantDraftKind.recurringTransactionArchive =>
+      'draft.recurring_transaction_archive',
+    FfmAssistantDraftKind.profile => 'draft.profile',
+    FfmAssistantDraftKind.goalUpdate => 'draft.goal_update',
+    FfmAssistantDraftKind.goalArchive => 'draft.goal_archive',
+    FfmAssistantDraftKind.reminderArchive => 'draft.reminder_archive',
+    FfmAssistantDraftKind.transactionUpdate => 'draft.transaction_update',
+    FfmAssistantDraftKind.transactionArchive => 'draft.transaction_archive',
+    FfmAssistantDraftKind.transactionDelete => 'draft.transaction_delete',
+    FfmAssistantDraftKind.activityArchive => 'draft.activity_archive',
+    FfmAssistantDraftKind.activityDelete => 'draft.activity_delete',
+    FfmAssistantDraftKind.activityFinish => 'draft.activity_finish',
+    FfmAssistantDraftKind.activityUpdate => 'draft.activity_update',
+    FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
+  };
+
+  static String _mutationCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
+    FfmAssistantDraftKind.goalUpdate => 'mutate.update',
+    FfmAssistantDraftKind.goalArchive => 'mutate.archive',
+    FfmAssistantDraftKind.assetUpdate => 'mutate.update',
+    FfmAssistantDraftKind.assetArchive => 'mutate.archive',
+    FfmAssistantDraftKind.liabilityUpdate => 'mutate.update',
+    FfmAssistantDraftKind.liabilityArchive => 'mutate.archive',
+    FfmAssistantDraftKind.liabilityPayment => 'mutate.debt_payment',
+    FfmAssistantDraftKind.receivableUpdate => 'mutate.update',
+    FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
+    FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
+    FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
+    FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
+    FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
+    FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
+    FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.activityArchive => 'mutate.archive',
+    FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.activityFinish => 'mutate.update',
+    FfmAssistantDraftKind.activityUpdate => 'mutate.update',
+    FfmAssistantDraftKind.activityEdit => 'mutate.update',
+    FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
+    FfmAssistantDraftKind.taskUpdate => 'mutate.update',
+    FfmAssistantDraftKind.taskComplete => 'mutate.update',
+    FfmAssistantDraftKind.taskReopen => 'mutate.update',
+    FfmAssistantDraftKind.taskArchive => 'mutate.archive',
+    FfmAssistantDraftKind.routineUpdate ||
+    FfmAssistantDraftKind.routineMarkComplete ||
+    FfmAssistantDraftKind.routineUnmarkComplete ||
+    FfmAssistantDraftKind.routineActivate ||
+    FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
+    FfmAssistantDraftKind.routineArchive => 'mutate.archive',
+    FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
+    FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
+    FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
+    FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
+    FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
+    FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
+    FfmAssistantDraftKind.merchantDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.tagUpdate => 'mutate.update',
+    FfmAssistantDraftKind.tagArchive => 'mutate.archive',
+    FfmAssistantDraftKind.tagDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.incomeSourceUpdate => 'mutate.update',
+    FfmAssistantDraftKind.incomeSourceArchive => 'mutate.archive',
+    FfmAssistantDraftKind.incomeSourceDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.categoryUpdate => 'mutate.update',
+    FfmAssistantDraftKind.categoryArchive => 'mutate.archive',
+    FfmAssistantDraftKind.categoryDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.accountUpdate => 'mutate.update',
+    FfmAssistantDraftKind.accountArchive => 'mutate.archive',
+    FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
+    FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
+    FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
+    _ => 'mutate.save_draft',
+  };
+
+  static String _verifyCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
+    FfmAssistantDraftKind.transactionUpdate ||
+    FfmAssistantDraftKind.transactionArchive ||
+    FfmAssistantDraftKind.transactionDelete => 'verify.transaction_mutation',
+    FfmAssistantDraftKind.activityArchive ||
+    FfmAssistantDraftKind.activityDelete ||
+    FfmAssistantDraftKind.activityFinish ||
+    FfmAssistantDraftKind.activityUpdate ||
+    FfmAssistantDraftKind.activityEdit => 'verify.activity_mutation',
+    FfmAssistantDraftKind.dailyNote ||
+    FfmAssistantDraftKind.dailyNoteArchive => 'verify.daily_note_mutation',
+    FfmAssistantDraftKind.task ||
+    FfmAssistantDraftKind.taskUpdate ||
+    FfmAssistantDraftKind.taskComplete ||
+    FfmAssistantDraftKind.taskReopen ||
+    FfmAssistantDraftKind.taskArchive => 'verify.task_mutation',
+    FfmAssistantDraftKind.routine ||
+    FfmAssistantDraftKind.routineUpdate ||
+    FfmAssistantDraftKind.routineMarkComplete ||
+    FfmAssistantDraftKind.routineUnmarkComplete ||
+    FfmAssistantDraftKind.routineActivate ||
+    FfmAssistantDraftKind.routineDeactivate ||
+    FfmAssistantDraftKind.routineArchive => 'verify.routine_mutation',
+    FfmAssistantDraftKind.schedule ||
+    FfmAssistantDraftKind.scheduleUpdate ||
+    FfmAssistantDraftKind.scheduleArchive => 'verify.schedule_mutation',
+    FfmAssistantDraftKind.recurringTransactionUpdate ||
+    FfmAssistantDraftKind.recurringTransactionArchive =>
+      'verify.recurring_transaction_mutation',
+    FfmAssistantDraftKind.merchantUpdate ||
+    FfmAssistantDraftKind.merchantArchive ||
+    FfmAssistantDraftKind.merchantDelete => 'verify.merchant_mutation',
+    FfmAssistantDraftKind.tagUpdate ||
+    FfmAssistantDraftKind.tagArchive ||
+    FfmAssistantDraftKind.tagDelete => 'verify.tag_mutation',
+    FfmAssistantDraftKind.incomeSourceUpdate ||
+    FfmAssistantDraftKind.incomeSourceArchive ||
+    FfmAssistantDraftKind.incomeSourceDelete =>
+      'verify.income_source_mutation',
+    FfmAssistantDraftKind.categoryUpdate ||
+    FfmAssistantDraftKind.categoryArchive ||
+    FfmAssistantDraftKind.categoryDelete => 'verify.category_mutation',
+    FfmAssistantDraftKind.accountUpdate ||
+    FfmAssistantDraftKind.accountArchive ||
+    FfmAssistantDraftKind.accountDelete => 'verify.account_mutation',
+    FfmAssistantDraftKind.budgetUpdate ||
+    FfmAssistantDraftKind.budgetArchive => 'verify.budget_mutation',
+    FfmAssistantDraftKind.goalUpdate ||
+    FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
+    FfmAssistantDraftKind.assetUpdate ||
+    FfmAssistantDraftKind.assetArchive => 'verify.asset_mutation',
+    FfmAssistantDraftKind.liabilityUpdate ||
+    FfmAssistantDraftKind.liabilityArchive ||
+    FfmAssistantDraftKind.liabilityPayment => 'verify.debt_payment',
+    FfmAssistantDraftKind.receivableUpdate ||
+    FfmAssistantDraftKind.receivableArchive => 'verify.receivable_mutation',
+    FfmAssistantDraftKind.receivablePayment => 'verify.debt_payment',
+    FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
+    FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
+    _ => 'verify.saved_draft',
+  };
+
+  static List<String> _prerequisiteReadsForDraft(FfmAssistantDraftKind kind) =>
+      switch (kind) {
+        FfmAssistantDraftKind.income ||
+        FfmAssistantDraftKind.expense => const [
+          'read.accounts',
+          'read.categories',
+        ],
+        FfmAssistantDraftKind.transfer => const ['read.accounts'],
+        FfmAssistantDraftKind.goalDeposit ||
+        FfmAssistantDraftKind.goalUsage ||
+        FfmAssistantDraftKind.goal ||
+        FfmAssistantDraftKind.goalUpdate ||
+        FfmAssistantDraftKind.goalArchive => const ['read.goals'],
+        FfmAssistantDraftKind.liability ||
+        FfmAssistantDraftKind.liabilityUpdate ||
+        FfmAssistantDraftKind.liabilityArchive ||
+        FfmAssistantDraftKind.liabilityPayment => const ['read.liabilities'],
+        FfmAssistantDraftKind.receivable ||
+        FfmAssistantDraftKind.receivableUpdate ||
+        FfmAssistantDraftKind.receivableArchive ||
+        FfmAssistantDraftKind.receivablePayment => const ['read.receivable'],
+        FfmAssistantDraftKind.asset ||
+        FfmAssistantDraftKind.assetUpdate ||
+        FfmAssistantDraftKind.assetArchive => const ['read.assets'],
+        FfmAssistantDraftKind.budget ||
+        FfmAssistantDraftKind.budgetUpdate ||
+        FfmAssistantDraftKind.budgetArchive => const ['read.budget'],
+        FfmAssistantDraftKind.activity ||
+        FfmAssistantDraftKind.activityArchive ||
+        FfmAssistantDraftKind.activityDelete ||
+        FfmAssistantDraftKind.activityFinish ||
+        FfmAssistantDraftKind.activityUpdate ||
+        FfmAssistantDraftKind.activityEdit => const ['read.activity'],
+        FfmAssistantDraftKind.reminder ||
+        FfmAssistantDraftKind.reminderUpdate ||
+        FfmAssistantDraftKind.reminderArchive => const ['read.reminders'],
+        _ => const <String>[],
+      };
+
   List<String> _prerequisiteReadCapabilitiesFor(FfmAssistantIntent intent) {
     final reads = <String>[];
     // Gemini Cloud answers queries directly in its bounded orchestrator turn.
@@ -322,40 +444,7 @@ class FfmAssistantActionPlanner {
 
     final draft = intent.draft;
     if (draft != null) {
-      final draftReads = switch (draft.kind) {
-        FfmAssistantDraftKind.income ||
-        FfmAssistantDraftKind.expense => ['read.accounts', 'read.categories'],
-        FfmAssistantDraftKind.transfer => ['read.accounts'],
-        FfmAssistantDraftKind.goalDeposit ||
-        FfmAssistantDraftKind.goalUsage ||
-        FfmAssistantDraftKind.goal ||
-        FfmAssistantDraftKind.goalUpdate ||
-        FfmAssistantDraftKind.goalArchive => ['read.goals'],
-        FfmAssistantDraftKind.liability ||
-        FfmAssistantDraftKind.liabilityUpdate ||
-        FfmAssistantDraftKind.liabilityArchive ||
-        FfmAssistantDraftKind.liabilityPayment => ['read.liabilities'],
-        FfmAssistantDraftKind.receivable ||
-        FfmAssistantDraftKind.receivableUpdate ||
-        FfmAssistantDraftKind.receivableArchive ||
-        FfmAssistantDraftKind.receivablePayment => ['read.receivable'],
-        FfmAssistantDraftKind.asset ||
-        FfmAssistantDraftKind.assetUpdate ||
-        FfmAssistantDraftKind.assetArchive => ['read.assets'],
-        FfmAssistantDraftKind.budget ||
-        FfmAssistantDraftKind.budgetUpdate ||
-        FfmAssistantDraftKind.budgetArchive => ['read.budget'],
-        FfmAssistantDraftKind.activity ||
-        FfmAssistantDraftKind.activityArchive ||
-        FfmAssistantDraftKind.activityDelete ||
-        FfmAssistantDraftKind.activityFinish ||
-        FfmAssistantDraftKind.activityUpdate ||
-        FfmAssistantDraftKind.activityEdit => ['read.activity'],
-        FfmAssistantDraftKind.reminder ||
-        FfmAssistantDraftKind.reminderUpdate ||
-        FfmAssistantDraftKind.reminderArchive => ['read.reminders'],
-        _ => <String>[],
-      };
+      final draftReads = _prerequisiteReadsForDraft(draft.kind);
       for (final r in draftReads) {
         if (!reads.contains(r)) {
           reads.add(r);

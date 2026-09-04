@@ -1,19 +1,10 @@
-# Rencana Paket Teknis: Halaman Anggaran Pintar & Adaptasi Agen Otonom (Smart Budget & Agent Adaptation)
+# Rencana Paket Teknis: Halaman Anggaran Pintar & Upgrade Kecerdasan Agen Otonom
 
-Dokumen ini memuat arsitektur teknis, logika deterministik, dan integrasi kecerdasan LLM/Orkestrator untuk **Halaman Anggaran Pintar, Adaptif, dan Simulator Interaktif**.
-
----
-
-## 1. Latar Belakang & Prinsip Produk
-
-Halaman anggaran tradisional yang menggunakan angka patokan kaku (*hardcoded targets*) sering kali membuat pengguna tertekan dan malas mencatat karena pengeluaran dunia nyata selalu berubah-ubah.
-
-**Solusi Smart & Adaptif FFM:**
-Mengubah Halaman Anggaran menjadi **Sistem Pintar Berbasis Perilaku Riil Pengguna**, yang secara otomatis menghitung baseline kebiasaan, memberikan rekomendasi pergeseran anggaran (*rebalance*) 1-ketukan, memperhitungkan kecepatan bakar uang (*burn rate*), dan mampu diajak bersimulasi keputusan keuangan via Asisten AI.
+Dokumen ini memuat arsitektur teknis, logika deterministik, dan integrasi kecerdasan Orkestrator AI untuk **Halaman Anggaran Pintar & Adaptif** serta **3 Modul Upgrade Agen Otonom (3A, 3B, 3C)**.
 
 ---
 
-## 2. Empat Pilar Utama Fitur & Arsitektur Teknis
+## BAGIAN A: Halaman Anggaran Pintar & Adaptif (Smart Budget System)
 
 ### 🟢 1. Smart Dynamic Baseline Budgeting (Anggaran Otomatis Berdasarkan Kebiasaan)
 - **Problem:** Default halaman anggaran kosong / bernilai `Rp 0` jika pengguna tidak menginput target kaku satu per satu.
@@ -47,40 +38,66 @@ Mengubah Halaman Anggaran menjadi **Sistem Pintar Berbasis Perilaku Riil Penggun
 
 ---
 
-### 🔴 4. Simulator "What-If" Anggaran & Adaptasi Asisten AI (LLM / Orchestrator)
+### 🔴 4. Simulator "What-If" Anggaran via Asisten AI (LLM / Orchestrator)
 - **Integrasi Agent & LLM:**
   - `FfmGeminiCloudOrchestrator` dan `FfmAgentHarness` diperbarui agar memahami konteks struktur anggaran dinamis.
 - **Simulasi Interaktif:**
   - Pengguna dapat bertanya atau menguji simulasi langsung di chat Asisten AI:
     > **Pengguna:** *"Kalau saya mau beli laptop 5 juta bulan depan, gimana dampaknya ke anggaranku?"*
     > **Agent AI:** *"Jika membeli laptop Rp 5.000.000, alokasi Tabungan Anda berkurang 40%, namun pos Makanan & Tagihan Wajib tetap aman. Rekomendasi: Alokasikan cicilan Rp 1.670.000/bulan selama 3 bulan agar anggaran bulanan tetap stabil."*
-- **Otonomi Adaptasi Agen:**
-  - Agen AI secara otonom mengingat preferensi toleransi anggaran pengguna melalui `FfmPersonalMemoryService`.
+
+---
+
+## BAGIAN B: Upgrade Kecerdasan Agen Otonom & Orkestrator AI (3A, 3B, 3C)
+
+### 🧠 1. Modul 3A: Agen Belajar Otonom dari Koreksi Pengguna (*Self-Learning from Corrections*)
+- **Cara Kerja:**
+  - Setiap kali pengguna merubah atau mengedit draft transaksi/NFC/notifikasi (misalnya mengubah nama merchant atau kategori dari *Lain-lain* menjadi *Kebutuhan Rumah Tangga*):
+  - `FfmAssistantDraftFeedbackService` secara otomatis mencatat pola koreksi tersebut.
+  - Agen AI secara otonom menyimpan **Aturan Personal Baru** ke `FfmPersonalMemoryService`.
+- **Dampak:** Transaksi serupa berikutnya otomatis 100% tepat sesuai selera pengguna tanpa perlu diajari berulang kali.
+
+---
+
+### 🔍 2. Modul 3B: Detektor Kebocoran Halus Otonom (*Micro-Expense Leak & Burn Rate Detector*)
+- **Cara Kerja:**
+  - Dijalankan secara periodik di latar belakang oleh `AutonomousEvaluationCoordinator`.
+  - Menganalisis pengeluaran kecil berulang (misal biaya admin transfer, langganan tersembunyi, jajan impulsif harian) yang terakumulasi menjadi angka besar.
+- **Hasil Insight Otonom:**
+  - Agen menyajikan kartu insight berprioritas di *Agent Inbox*:
+    > 💡 *"Terdeteksi kebocoran halus sebesar Rp 180.000 bulan ini dari biaya admin transfer & jajan harian. Penghematan di pos ini dapat menambah saldo tabungan Anda sebesar 15%."*
+
+---
+
+### 🗺️ 3. Modul 3C: Orkestrator Rencana Aksi Bertahap (*Multi-Step Action Plan Orchestrator*)
+- **Cara Kerja:**
+  - Ketika pengguna memberikan instruksi atau tujuan keuangan kompleks (misal: *"Saya mau kumpulkan dana darurat 10 juta dalam 5 bulan"*):
+  - `FfmGeminiCloudOrchestrator` tidak hanya membalas dengan teks biasa, melainkan merancang **Rencana Aksi Bertahap (*Structured Action Plan*)**:
+    1. Buat Target Keuangan Baru "Dana Darurat" (Rp 2.000.000/bulan).
+    2. Alokasikan Rp 300.000 dari penghematan pos hiburan.
+    3. Pasang pengingat otomatis tiap tanggal 25.
+  - Dilengkapi tombol konfirmasi 1-ketukan `[ ✅ Jalankan Rencana Aksi ]`.
 
 ---
 
 ## 3. Checklist Rencana Pengerjaan (`- [ ]`)
 
-- [ ] **Tugas 1: Engine Perhitungan Anggaran Dinamis (`smart_budget_engine.dart`)**
-  - [ ] Implementasi algoritma *3-Month Moving Average* per kategori.
-  - [ ] Implementasi rumus *Burn Rate Velocity* dan batas belanja harian aman.
-- [ ] **Tugas 2: Integrasi UI Halaman Anggaran Adaptif (`flexible_cash_flow_page.dart` / `budget_page.dart`)**
-  - [ ] Menampilkan *Smart Dynamic Baseline* secara otomatis jika target manual kosong.
-  - [ ] Menampilkan indikator laju belanja harian aman dan proyeksi sisa hari.
-- [ ] **Tugas 3: Modul Rebalance Anggaran 1-Ketukan (`smart_envelope_rebalance.dart`)**
-  - [ ] Deteksi otomatis pos anggaran menipis vs melimpah.
-  - [ ] Kartu konfirmasi rebalance 1-ketukan untuk pengguna.
-- [ ] **Tugas 4: Upgrade Orkestrator Gemini Cloud & Agent Harness untuk Simulator "What-If"**
-  - [ ] Tambahkan kapabilitas intent `budget_what_if_simulation` pada `FfmGeminiCloudOrchestrator`.
-  - [ ] Sertakan konteks *Smart Budget* ke dalam *Working Context* Asisten AI.
-- [ ] **Tugas 5: Pengujian Unit & Verifikasi Analysis**
-  - [ ] Buat unit test `test/smart_budget_engine_test.dart`.
-  - [ ] Jalankan `flutter analyze lib test`.
+### Tahap 1: Halaman Anggaran Pintar & Adaptif (Smart Budget Engine)
+- [ ] **Tugas 1.1:** Engine Perhitungan Anggaran Dinamis (`smart_budget_engine.dart` - 3-Month Moving Average & Burn Rate).
+- [ ] **Tugas 1.2:** Integrasi UI Halaman Anggaran Adaptif (`flexible_cash_flow_page.dart` / `budget_page.dart`).
+- [ ] **Tugas 1.3:** Modul Rebalance Anggaran 1-Ketukan (`smart_envelope_rebalance.dart`).
+- [ ] **Tugas 1.4:** Upgrade Orkestrator Gemini Cloud & Agent Harness untuk Simulator "What-If" Anggaran.
+
+### Tahap 2: Upgrade Kecerdasan Agen Otonom (3A, 3B, 3C)
+- [x] **Tugas 2.1:** Modul 3A Self-Learning dari Koreksi Pengguna (`FfmAssistantDraftFeedbackService` & `FfmPersonalMemoryService`).
+- [x] **Tugas 2.2:** Modul 3B Detektor Kebocoran Halus Otonom di `AutonomousEvaluationCoordinator`.
+- [x] **Tugas 2.3:** Modul 3C Orkestrator Rencana Aksi Bertahap (`FfmAssistantActionPlanner`).
+- [x] **Tugas 2.4:** Pengujian Unit Komprehensif (`test/smart_budget_engine_test.dart` & `test/autonomous_agent_upgrades_test.dart`) + `flutter analyze lib test`.
 
 ---
 
 ## 4. Keamanan & Batasan (Compliance `AGENTS.md`)
 
 1. **Finansial Deterministik:** Perhitungan rata-rata moving average, selisih rebalance, dan burn rate dilakukan oleh kode Dart deterministik (`SmartBudgetEngine`), bukan tebakan LLM.
-2. **LLM untuk Interpretasi & Simulasi:** LLM Gemini digunakan untuk menjelaskan proyeksi, menjawab simulasi "What-If", dan memberikan rekomendasi yang ramah pengguna.
-3. **Konfirmasi 1-Ketukan:** Setiap aksi pergeseran anggaran (*rebalance*) wajib memerlukan persetujuan eksplisit 1-ketukan dari pengguna.
+2. **LLM untuk Interpretasi & Simulasi:** LLM Gemini digunakan untuk menjelaskan proyeksi, menjawab simulasi "What-If", dan merancang *Structured Action Plan*.
+3. **Konfirmasi 1-Ketukan:** Setiap aksi mutasi atau pergeseran anggaran (*rebalance*) wajib memerlukan persetujuan eksplisit 1-ketukan dari pengguna.
