@@ -22,7 +22,7 @@ class FfmCalendarService(private val context: Context) {
 
     companion object {
         private const val TAG = "FfmCalendarService"
-        private const val CALENDAR_PROJECTION = arrayOf(
+        private val CALENDAR_PROJECTION = arrayOf(
             Calendars._ID,
             Calendars.NAME,
             Calendars.ACCOUNT_NAME,
@@ -188,7 +188,7 @@ class FfmCalendarService(private val context: Context) {
         }
 
         return mapOf(
-            "success" to rowsUpdated > 0,
+            "success" to (rowsUpdated > 0),
             "eventId" to eventId,
             "rowsUpdated" to rowsUpdated
         )
@@ -211,7 +211,7 @@ class FfmCalendarService(private val context: Context) {
         }
 
         return mapOf(
-            "success" to rowsDeleted > 0,
+            "success" to (rowsDeleted > 0),
             "eventId" to eventId,
             "rowsDeleted" to rowsDeleted
         )
