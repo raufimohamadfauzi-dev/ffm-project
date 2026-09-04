@@ -172,8 +172,90 @@ void main() {
       test('com.shopee.id => ShopeePay', () {
         expect(PaymentNotificationParser.labelFor('com.shopee.id'), equals('ShopeePay'));
       });
+      test('com.seabank.id => SeaBank', () {
+        expect(PaymentNotificationParser.labelFor('com.seabank.id'), equals('SeaBank'));
+      });
+      test('com.gojek.app => GoPay', () {
+        expect(PaymentNotificationParser.labelFor('com.gojek.app'), equals('GoPay'));
+      });
+      test('com.gopay.wallet => GoPay', () {
+        expect(PaymentNotificationParser.labelFor('com.gopay.wallet'), equals('GoPay'));
+      });
       test('package tidak dikenal => kembalikan package itu sendiri', () {
         expect(PaymentNotificationParser.labelFor('com.unknown.app'), equals('com.unknown.app'));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // Skenario Spesifik: SeaBank & GoPay
+    // -------------------------------------------------------------------------
+
+    group('SeaBank & GoPay real-world scenarios', () {
+      test('SeaBank transfer keluar', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.seabank.id',
+          title: 'Transfer Berhasil',
+          body: 'Transfer sebesar Rp 75.000 ke BUDI SANTOSO berhasil.',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(75000.0));
+        expect(result.accountLabel, equals('SeaBank'));
+        expect(result.merchantName, equals('BUDI SANTOSO'));
+        expect(result.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('SeaBank transfer masuk (kredit)', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.seabank.id',
+          title: 'Transfer Masuk',
+          body: 'Transfer masuk sebesar Rp 150.000 dari SITI AISYAH telah masuk ke rekening Anda.',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(150000.0));
+        expect(result.accountLabel, equals('SeaBank'));
+        expect(result.merchantName, equals('SITI AISYAH'));
+        expect(result.mutationType, equals(PaymentMutationType.credit));
+      });
+
+      test('SeaBank pembayaran QRIS', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.seabank.id',
+          title: 'Pembayaran Berhasil',
+          body: 'QRIS ke KOPI KENANGAN sebesar Rp 25.000 berhasil via SeaBank',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(25000.0));
+        expect(result.accountLabel, equals('SeaBank'));
+        expect(result.merchantName, equals('KOPI KENANGAN'));
+        expect(result.suggestedCategory, equals('Makanan & Minuman'));
+        expect(result.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('GoPay pembayaran di merchant', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.gojek.app',
+          title: 'Pembayaran Berhasil',
+          body: 'Pembayaran Rp 45.000 di ALFAMART berhasil.',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(45000.0));
+        expect(result.accountLabel, equals('GoPay'));
+        expect(result.merchantName, equals('ALFAMART'));
+        expect(result.suggestedCategory, equals('Belanja & Ritel'));
+        expect(result.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('GoPay transfer masuk', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.gopay.wallet',
+          title: 'Saldo Masuk',
+          body: 'Kamu menerima transfer sebesar Rp 100.000 dari AHMAD FAUZI',
+        );
+        expect(result, isNotNull);
+        expect(result!.amount, equals(100000.0));
+        expect(result.accountLabel, equals('GoPay'));
+        expect(result.merchantName, equals('AHMAD FAUZI'));
+        expect(result.mutationType, equals(PaymentMutationType.credit));
       });
     });
 

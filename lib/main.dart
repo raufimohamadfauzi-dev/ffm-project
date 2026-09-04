@@ -65,6 +65,8 @@ import 'features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart
 import 'features/assistant/data/ffm_assistant_foreground_service.dart';
 import 'features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import 'features/activity/data/repositories/activity_repository.dart';
+import 'features/assistant/data/notification_listener_bridge.dart';
+import 'features/assistant/presentation/pages/payment_detector_settings_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -149,6 +151,14 @@ Future<void> main() async {
   try {
     isDark = await ThemePreference.isDark();
   } catch (_) {}
+
+  // Inisialisasi pendengar notifikasi perbankan & e-wallet lokal
+  try {
+    if (getIt.isRegistered<NotificationListenerBridge>()) {
+      getIt<NotificationListenerBridge>().startListening();
+    }
+  } catch (_) {}
+
   runApp(FfmApp(initialDarkMode: isDark));
 }
 
@@ -1001,6 +1011,12 @@ class _AppShellState extends State<AppShell> {
       case FfmAssistantDestination.intelligenceDashboard:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
+      case FfmAssistantDestination.paymentDetector:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const PaymentDetectorSettingsPage(),
+          ),
+        );
     }
   }
 

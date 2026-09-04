@@ -102,6 +102,7 @@ class FfmNotificationListenerService : NotificationListenerService() {
             "id.co.bri.brimo",             // BRImo
             "id.bni.mobile",               // BNI Mobile Banking
             "id.co.bni.wondr",             // Wondr by BNI
+            "com.seabank.id",              // SeaBank Indonesia
             "com.gojek.app",               // GoPay (via Gojek)
             "com.gopay.wallet",            // GoPay standalone
             "ovo.id",                       // OVO

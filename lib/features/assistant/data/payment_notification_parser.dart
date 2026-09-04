@@ -84,9 +84,14 @@ class PaymentNotificationParser {
       r'(?:QRIS|qris)\s+(?:ke|di|to)\s+([A-Z0-9][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\.|\s+via|\s+Rp|\s+sebesar|$)',
       caseSensitive: false,
     ),
-    // "ke MERCHANT berhasil" — merchant sebelum kata berhasil/sukses
+    // "Transfer / uang masuk dari NAMA" — nama pengirim kredit
     RegExp(
-      r'\bke\s+([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\s+via|\.|$)',
+      r'(?:dari|from)\s+([A-Z0-9][A-Z0-9 &\-\.]{1,48}?)(?=\s+sebesar|\s+berhasil|\s+sukses|\s+telah|\s+masuk|\s+Rp|\.|$)',
+      caseSensitive: false,
+    ),
+    // "ke MERCHANT berhasil" — merchant sebelum kata berhasil/sukses (abaikan kata rekening/akun/saldo/dompet)
+    RegExp(
+      r'\bke\s+(?!(?:rekening|akun|dompet|saldo|kantong)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\s+via|\.|$)',
       caseSensitive: false,
     ),
     // "di MERCHANT berhasil" — merchant sebelum kata berhasil/sukses
@@ -101,7 +106,7 @@ class PaymentNotificationParser {
     ),
     // "Transfer ke NAMA" — nama sebelum berhasil/Rp
     RegExp(
-      r'[Tt]ransfer\s+(?:ke|to)\s+([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
+      r'[Tt]ransfer\s+(?:ke|to)\s+(?!(?:rekening|akun|dompet|saldo|kantong)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
       caseSensitive: false,
     ),
     // "Bayar MERCHANT" / "Membayar MERCHANT"
@@ -183,6 +188,7 @@ class PaymentNotificationParser {
     'id.co.bri.brimo': 'BRImo',
     'id.bni.mobile': 'BNI Mobile',
     'id.co.bni.wondr': 'Wondr BNI',
+    'com.seabank.id': 'SeaBank',
     'com.gojek.app': 'GoPay',
     'com.gopay.wallet': 'GoPay',
     'ovo.id': 'OVO',
@@ -266,10 +272,25 @@ class PaymentNotificationParser {
   }
 
   static PaymentMutationType _detectMutationType(String text) {
+    final lower = text.toLowerCase();
+    // Cek frasa kredit spesifik (misal: "transfer masuk", "menerima transfer", "dana masuk", "top-up")
+    final explicitCredit = RegExp(
+      r'\b(transfer masuk|dana masuk|uang masuk|menerima transfer|terima transfer|diterima dari|masuk ke|transfer dari|top.?up)\b',
+      caseSensitive: false,
+    );
+    if (explicitCredit.hasMatch(lower)) return PaymentMutationType.credit;
+
+    // Cek frasa debit spesifik (misal: "transfer ke", "transfer keluar", "pembayaran ke", "bayar di")
+    final explicitDebit = RegExp(
+      r'\b(transfer (?:ke|to)|transfer keluar|pembayaran|bayar|pembelian|beli|tarik)\b',
+      caseSensitive: false,
+    );
+    if (explicitDebit.hasMatch(lower)) return PaymentMutationType.debit;
+
     final hasDebit = _debitKeywords.hasMatch(text);
     final hasCredit = _creditKeywords.hasMatch(text);
-    if (hasDebit && !hasCredit) return PaymentMutationType.debit;
     if (hasCredit && !hasDebit) return PaymentMutationType.credit;
+    if (hasDebit && !hasCredit) return PaymentMutationType.debit;
     // Default ke debit jika tidak dapat ditentukan (lebih aman untuk pencatatan)
     return PaymentMutationType.debit;
   }

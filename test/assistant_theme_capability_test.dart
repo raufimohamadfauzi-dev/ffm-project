@@ -62,6 +62,23 @@ void main() {
       expect(systemIntent.pluginMetadata?['theme'], 'system');
       expect(systemIntent.response, contains('sistem'));
 
+      // Skenario 4: Mode Gemini Cloud tetap deterministik menangani ganti tema
+      final geminiCloudDarkIntent = await interpreter.interpret(
+        'pindah mode gelap',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+      expect(geminiCloudDarkIntent.type, FfmAssistantIntentType.changeTheme);
+      expect(geminiCloudDarkIntent.pluginMetadata?['theme'], 'dark');
+      expect(geminiCloudDarkIntent.response, contains('mode gelap'));
+
+      // Skenario 5: Koreksi user "salah, sekarang harusnya mode gelap"
+      final correctionIntent = await interpreter.interpret(
+        'salah, sekarang harusnya mode gelap',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+      expect(correctionIntent.type, FfmAssistantIntentType.changeTheme);
+      expect(correctionIntent.pluginMetadata?['theme'], 'dark');
+
       await db.close();
     });
   });

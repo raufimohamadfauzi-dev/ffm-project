@@ -180,6 +180,7 @@ enum FfmAssistantDestination {
   localModel,
   assistantProfile,
   intelligenceDashboard,
+  paymentDetector,
 }
 
 enum FfmAssistantDraftKind {
@@ -999,6 +1000,21 @@ abstract final class FfmAssistantCatalog {
         'gemini',
       ],
     ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.paymentDetector,
+      name: 'Pendeteksi Notifikasi Pembayaran',
+      description: 'Mendeteksi otomatis pembayaran dan transfer dari aplikasi bank dan e-wallet.',
+      aliases: [
+        'deteksi notifikasi',
+        'pendeteksi notifikasi',
+        'notifikasi pembayaran',
+        'deteksi pembayaran',
+        'deteksi otomatis',
+        'notifikasi bank',
+        'notifikasi gopay',
+        'notifikasi seabank',
+      ],
+    ),
   ];
 
   static const otherMenuItems = <FfmAssistantOtherMenuItem>[
@@ -1194,5 +1210,6 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas dan preferensi.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
         FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
+        FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
       };
 }

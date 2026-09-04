@@ -14,6 +14,7 @@ import java.util.Locale
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterFragmentActivity() {
@@ -30,6 +31,7 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        FlutterEngineCache.getInstance().put("ffm_flutter_engine", flutterEngine)
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale("id", "ID")
@@ -320,6 +322,7 @@ class MainActivity : FlutterFragmentActivity() {
         clearSpeechQueue("stopped")
         textToSpeech?.shutdown()
         textToSpeech = null
+        FlutterEngineCache.getInstance().remove("ffm_flutter_engine")
         super.onDestroy()
     }
 

@@ -1525,6 +1525,12 @@ class FfmAssistantInterpreter {
       } catch (_) {}
     }
 
+    // ── KONTROL TEMA APLIKASI (Deterministik) ─────────────────────────────────
+    // Perubahan tema (mode gelap / terang / sistem) adalah kontrol UI lokal murni.
+    // Dijalankan deterministik sebelum Gemini Cloud agar instan (<10ms) dan tidak halusinasi.
+    final earlyThemeIntent = _parseThemeChangeRequest(rawText, normalized);
+    if (earlyThemeIntent != null) return earlyThemeIntent;
+
     // ── GREETING & SAPAAN (Deterministik) ─────────────────────────────────────
     // Sapaan simple dijawab langsung tanpa ke Gemini untuk respons cepat, hanya
     // di mode Agent. Di mode Gemini Cloud, sapaan tetap diteruskan ke Gemini
@@ -3122,6 +3128,7 @@ class FfmAssistantInterpreter {
         clean.contains('hp');
 
     final isThemeWord = clean.contains('tema') ||
+        clean.contains('theme') ||
         clean.contains('mode') ||
         clean.contains('tampilan') ||
         clean.contains('warna');

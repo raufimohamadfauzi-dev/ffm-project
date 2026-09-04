@@ -161,6 +161,8 @@ class FfmAssistantWorkItem {
         return 'Profil Asisten';
       case FfmAssistantDestination.intelligenceDashboard:
         return 'Dashboard Intelijen';
+      case FfmAssistantDestination.paymentDetector:
+        return 'Pendeteksi Notifikasi';
     }
   }
 

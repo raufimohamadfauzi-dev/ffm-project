@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
+import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../data/notification_listener_bridge.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
@@ -73,16 +76,112 @@ class _PaymentDetectorSettingsPageState
   }
 
   Future<void> _confirmDraft(PaymentDraft draft) async {
-    await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
-    _loadDrafts();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Transaksi ${draft.formattedAmount} dikonfirmasi.'),
-          backgroundColor: Colors.green.shade700,
-          behavior: SnackBarBehavior.floating,
+    try {
+      final db = getIt<AppDatabase>();
+      final isDebit = draft.mutationType == PaymentMutationType.debit;
+      final signedAmount =
+          isDebit ? -draft.amount.round() : draft.amount.round();
+      final txId = 'tx_notif_${draft.id}';
+
+      // 1. Cari akun yang cocok (SeaBank, GoPay, BCA, dll.)
+      final accounts = await (db.select(db.accounts)
+            ..where((a) => a.isArchived.equals(false)))
+          .get();
+      Account? matchedAccount;
+      final lowerSource = draft.sourceApp.toLowerCase();
+      final lowerLabel = draft.accountLabel.toLowerCase();
+      for (final a in accounts) {
+        final aName = a.name.toLowerCase();
+        if (lowerLabel.contains('seabank') || lowerSource.contains('seabank')) {
+          if (aName.contains('seabank')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('gopay') ||
+            lowerSource.contains('gojek') ||
+            lowerSource.contains('gopay')) {
+          if (aName.contains('gopay') || aName.contains('gojek')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (aName.contains(lowerLabel)) {
+          matchedAccount = a;
+          break;
+        }
+      }
+      matchedAccount ??= accounts.isNotEmpty ? accounts.first : null;
+
+      // 2. Cari kategori yang cocok
+      final categories = await (db.select(db.categories)
+            ..where((c) => c.isActive.equals(true)))
+          .get();
+      Category? matchedCategory;
+      if (draft.suggestedCategory != null) {
+        final targetCat = draft.suggestedCategory!.toLowerCase();
+        for (final c in categories) {
+          if (c.name.toLowerCase().contains(targetCat) ||
+              targetCat.contains(c.name.toLowerCase())) {
+            matchedCategory = c;
+            break;
+          }
+        }
+      }
+      if (matchedCategory == null) {
+        final targetType = isDebit ? 'expense' : 'income';
+        matchedCategory = categories.where((c) => c.type == targetType).firstOrNull ??
+            categories.firstOrNull;
+      }
+
+      // 3. Simpan transaksi secara nyata ke database
+      final saveTx = getIt.isRegistered<SaveTransaction>()
+          ? getIt<SaveTransaction>()
+          : SaveTransaction(db);
+
+      await saveTx(
+        TransactionEntity(
+          id: txId,
+          householdId: AppContext.householdId,
+          date: draft.createdAt,
+          amount: signedAmount,
+          owner: 'Asisten (Notifikasi)',
+          categoryId: matchedCategory?.id,
+          accountId: matchedAccount?.id,
+          note:
+              'Otomatis dari notifikasi ${draft.accountLabel}${draft.merchantName.isNotEmpty ? ' (${draft.merchantName})' : ''}',
+          source: 'notification_detector',
+          sourceId: draft.id,
+          partyName: draft.merchantName.isNotEmpty ? draft.merchantName : null,
+          recordedAt: DateTime.now(),
         ),
       );
+
+      await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
+      _loadDrafts();
+      if (mounted) {
+        final targetName =
+            matchedAccount != null ? 'ke ${matchedAccount.name}' : '';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Transaksi ${draft.formattedAmount} berhasil dicatat $targetName.',
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (_) {
+      // Fallback update status jika ada kendala database
+      await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
+      _loadDrafts();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Status draft ${draft.formattedAmount} diperbarui.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
