@@ -27,6 +27,8 @@ import '../../../recurring_transaction/presentation/pages/recurring_transaction_
 import 'pin_security_page.dart';
 import 'privacy_center_page.dart';
 import 'supabase_setup_page.dart';
+import 'calendar_settings_page.dart';
+import '../../../assistant/presentation/widgets/nfc_scan_dialog.dart';
 
 class OtherMenuPage extends StatefulWidget {
   const OtherMenuPage({super.key});
@@ -62,6 +64,8 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Analisa', 'pola keuangan'],
       ['Pengingat', 'lokal lupa'],
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
+      ['Kalender & Smartwatch', 'Google Calendar jam tangan pintar sinkronisasi tagihan'],
+      ['Pemindai NFC e-Money', 'kartu tol flazz brizzi tap saldo selisih'],
       ['Kunci aplikasi', 'PIN keamanan'],
       ['Bantuan perbaikan', 'error laporan'],
       ['Monitoring Agent', 'riwayat run tool eksekusi autonomy'],
@@ -389,6 +393,32 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
               ),
             ),
+            _MenuCard(
+              icon: Icons.calendar_month_rounded,
+              title: 'Kalender & Smartwatch',
+              subtitle: 'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
+              iconColor: const Color(0xFF0284C7),
+              iconBackgroundColor: const Color(0xFFE0F2FE),
+              badgeText: 'SINKRON',
+              onTap: () => _open(context, const CalendarSettingsPage()),
+              visible: _matches(
+                'Kalender Smartwatch Google Calendar sinkronisasi jadwal tagihan jatuh tempo',
+                'Sinkronisasi tagihan & jatuh tempo ke Google Calendar dan jam tangan pintar.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.nfc_rounded,
+              title: 'Pemindai Kartu NFC e-Money',
+              subtitle: 'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+              iconColor: const Color(0xFF059669),
+              iconBackgroundColor: const Color(0xFFD1FAE5),
+              badgeText: 'NFC',
+              onTap: () => NfcScanDialog.show(context),
+              visible: _matches(
+                'Pemindai Kartu NFC e-Money cek saldo kartu tol mutasi otomatis tap flazz brizzi',
+                'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+              ),
+            ),
 
             if (_searchQuery.trim().isNotEmpty && !_hasMatchingMenu())
               const Padding(
@@ -486,6 +516,8 @@ class _MenuCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final fgColor = iconColor ?? scheme.primary;
     final bgColor = iconBackgroundColor ?? fgColor.withValues(alpha: .14);
+    final badgeColor = scheme.primary;
+    final badgeBackgroundColor = scheme.primaryContainer;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -514,8 +546,8 @@ class _MenuCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 AppStatusChip(
                   label: badgeText!,
-                  color: fgColor,
-                  backgroundColor: fgColor.withValues(alpha: .12),
+                  color: badgeColor,
+                  backgroundColor: badgeBackgroundColor,
                 ),
               ],
             ],
