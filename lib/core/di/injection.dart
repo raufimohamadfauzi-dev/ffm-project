@@ -4,6 +4,7 @@ import '../database/app_database.dart';
 import '../database/audit_logger.dart';
 import '../diagnostics/app_diagnostics_service.dart';
 import '../security/app_pin_service.dart';
+import '../theme/app_theme_controller.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/domain/services/activity_application_service.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
@@ -50,6 +51,7 @@ import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
 import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
+import '../../features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
@@ -79,6 +81,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerSingleton<AppDatabase>(db);
   getIt.registerLazySingleton<AppDiagnosticsService>(AppDiagnosticsService.new);
   getIt.registerLazySingleton<AppPinService>(AppPinService.new);
+  getIt.registerLazySingleton<AppThemeController>(AppThemeController.new);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
   getIt.registerLazySingleton<BudgetGuardService>(() => BudgetGuardService(db));
   getIt.registerLazySingleton<AuditLogRepository>(
@@ -341,6 +344,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       ),
       habitLearner: getIt<FfmActivityHabitLearner>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
+      themeController: getIt<AppThemeController>(),
     ),
   );
   getIt.registerLazySingleton<FfmActivityHabitLearner>(
@@ -368,5 +372,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantReportService>(
     () => FfmAssistantReportService(getIt<JsonExportStudioService>()),
+  );
+  getIt.registerLazySingleton<AssistantOnboardingOrchestrator>(
+    () => AssistantOnboardingOrchestrator(database: db),
   );
 }

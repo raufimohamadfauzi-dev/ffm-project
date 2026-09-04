@@ -1686,6 +1686,9 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final themeIntent = _parseThemeChangeRequest(rawText, normalized);
+    if (themeIntent != null) return themeIntent;
+
     if (_isOtherMenuListRequest(normalized)) {
       return FfmAssistantIntent(
         rawText: rawText,
@@ -3100,6 +3103,62 @@ class FfmAssistantInterpreter {
         .toList(growable: false);
     if (matches.length == 1) return matches.single;
     return _taughtMemory.findFuzzyAnswer(normalized);
+  }
+
+  FfmAssistantIntent? _parseThemeChangeRequest(
+    String rawText,
+    String normalized,
+  ) {
+    final clean = normalized.toLowerCase();
+
+    final hasDark = clean.contains('dark') ||
+        clean.contains('gelap') ||
+        clean.contains('malam');
+    final hasLight = clean.contains('light') ||
+        clean.contains('terang') ||
+        clean.contains('siang');
+    final hasSystem = clean.contains('sistem') ||
+        clean.contains('default') ||
+        clean.contains('hp');
+
+    final isThemeWord = clean.contains('tema') ||
+        clean.contains('mode') ||
+        clean.contains('tampilan') ||
+        clean.contains('warna');
+
+    if (!isThemeWord &&
+        !clean.contains('dark mode') &&
+        !clean.contains('light mode') &&
+        !clean.startsWith('gelap') &&
+        !clean.startsWith('terang')) {
+      return null;
+    }
+
+    String themeTarget;
+    String responseText;
+
+    if (hasDark) {
+      themeTarget = 'dark';
+      responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode gelap 🌙';
+    } else if (hasLight) {
+      themeTarget = 'light';
+      responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode terang ☀️';
+    } else if (hasSystem) {
+      themeTarget = 'system';
+      responseText =
+          'Baik, tema aplikasi sekarang mengikuti pengaturan sistem perangkat Anda 📱';
+    } else {
+      return null;
+    }
+
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.changeTheme,
+      confidence: 1.0,
+      response: responseText,
+      pluginMetadata: {'theme': themeTarget},
+    );
   }
 
   Future<FfmAssistantIntent> _setupGuide(

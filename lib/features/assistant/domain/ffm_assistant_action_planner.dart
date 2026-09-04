@@ -29,6 +29,16 @@ class FfmAssistantActionPlanner {
         ),
       );
     }
+    if (intent.type == FfmAssistantIntentType.changeTheme) {
+      final theme = intent.pluginMetadata?['theme']?.toString() ?? 'system';
+      steps.add(
+        FfmAssistantActionStep(
+          id: 'set_theme',
+          capabilityId: 'system.set_theme',
+          parameters: {'theme': theme},
+        ),
+      );
+    }
     final draft = intent.draft;
     if (draft != null) {
       final capabilityId = switch (draft.kind) {

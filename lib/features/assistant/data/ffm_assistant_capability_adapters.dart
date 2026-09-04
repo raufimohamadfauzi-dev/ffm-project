@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
+import '../../../core/theme/app_theme_controller.dart';
 import '../../budget/data/budget_repository.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
@@ -42,12 +43,14 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmAssistantReminderMutationService? reminderMutations,
     FfmActivityHabitLearner? habitLearner,
     FfmAssistantPersonalizationRepository? personalization,
+    AppThemeController? themeController,
   })  : _database = database, // ignore: prefer_initializing_formals
         _householdId = householdId, // ignore: prefer_initializing_formals
         _clock = clock ?? DateTime.now,
         _reminderMutations = reminderMutations, // ignore: prefer_initializing_formals
         _habitLearner = habitLearner, // ignore: prefer_initializing_formals
-        _personalization = personalization; // ignore: prefer_initializing_formals
+        _personalization = personalization, // ignore: prefer_initializing_formals
+        _themeController = themeController; // ignore: prefer_initializing_formals
 
   final AppDatabase _database;
   final String _householdId;
@@ -55,6 +58,7 @@ class FfmAssistantCapabilityAdapterRegistry {
   final FfmAssistantReminderMutationService? _reminderMutations;
   final FfmActivityHabitLearner? _habitLearner;
   final FfmAssistantPersonalizationRepository? _personalization;
+  final AppThemeController? _themeController;
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -71,6 +75,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.recurring': _readRecurring,
     'read.reminders': _readReminders,
     'read.model_status': _readModelStatus,
+    'system.set_theme': _setTheme,
     'draft.transaction_update': _prepareTransactionMutation,
     'draft.transaction_archive': _prepareTransactionMutation,
     'draft.transaction_delete': _prepareTransactionMutation,
@@ -4047,6 +4052,23 @@ class FfmAssistantCapabilityAdapterRegistry {
   ) async {
     return FfmAssistantCapabilityExecutionResult.success(
       'Status Gemini Cloud dikelola dari Dashboard Intelligence. Provider hanya aktif setelah API key dan model diuji berhasil.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _setTheme(
+    FfmAssistantActionStep step,
+  ) async {
+    final theme = step.parameters['theme']?.toString() ?? 'system';
+    if (_themeController != null) {
+      await _themeController.setByName(theme);
+    }
+    final modeLabel = switch (theme.toLowerCase()) {
+      'dark' => 'mode gelap 🌙',
+      'light' => 'mode terang ☀️',
+      _ => 'mode ikuti sistem 📱',
+    };
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tampilan aplikasi berhasil diubah ke $modeLabel.',
     );
   }
 

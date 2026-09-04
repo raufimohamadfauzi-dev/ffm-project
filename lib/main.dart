@@ -13,7 +13,9 @@ import 'core/diagnostics/app_diagnostics_service.dart';
 import 'core/di/injection.dart';
 import 'core/security/app_pin_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/app_theme_controller.dart';
 import 'core/theme/theme_preference.dart';
+import 'features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import 'features/assistant/domain/ffm_assistant_models.dart';
 import 'features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import 'features/assistant/data/ffm_assistant_memory_repository.dart';
@@ -239,6 +241,7 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   static const _lockAfterBackground = Duration(seconds: 10);
 
   late var _isDark = widget.initialDarkMode;
+  AppThemeController? _themeController;
   late final AppPinService _pinService =
       widget.pinService ?? getIt<AppPinService>();
   late final AppDiagnosticsService _diagnostics =
@@ -254,10 +257,19 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   );
   final _assistantPageContext = FfmAssistantPageContextController();
 
+  void _onThemeStateChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (getIt.isRegistered<AppThemeController>()) {
+      _themeController = getIt<AppThemeController>();
+      _themeController?.addListener(_onThemeStateChanged);
+      unawaited(_themeController?.loadSavedTheme());
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         unawaited(_diagnostics.markStartupComplete());
@@ -285,14 +297,33 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _themeController?.removeListener(_onThemeStateChanged);
     _assistantLauncherState.dispose();
     _assistantPageContext.dispose();
     super.dispose();
   }
 
+  void _checkAutoOpenOnboarding() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      try {
+        if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
+          final needs = await getIt<AssistantOnboardingOrchestrator>()
+              .checkNeedsOnboarding();
+          if (needs && mounted) {
+            await _appShellKey.currentState?._openAssistant();
+          }
+        }
+      } catch (_) {}
+    });
+  }
+
   Future<void> _preparePinGate() async {
     if (widget.pinEnabled == false) {
-      if (mounted) setState(() => _pinGateLoading = false);
+      if (mounted) {
+        setState(() => _pinGateLoading = false);
+        _checkAutoOpenOnboarding();
+      }
       return;
     }
     try {
@@ -300,12 +331,16 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
         const Duration(seconds: 4),
       );
       if (!mounted) return;
+      final isLocked = configuredLength != null || widget.pinEnabled == true;
       setState(() {
         _pinGateLoading = false;
         _securityUnavailable = false;
         _pinLength = configuredLength ?? AppPinService.defaultPinLength;
-        _isLocked = configuredLength != null || widget.pinEnabled == true;
+        _isLocked = isLocked;
       });
+      if (!isLocked) {
+        _checkAutoOpenOnboarding();
+      }
     } catch (error, stackTrace) {
       await _diagnostics.recordException(
         code: 'PIN_GATE_READ_FAILED',
@@ -368,6 +403,7 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
       if (!mounted) return null;
       if (outcome == FfmAppPinOperation.success) {
         setState(() => _isLocked = false);
+        _checkAutoOpenOnboarding();
         return null;
       }
       return switch (outcome) {
@@ -394,7 +430,8 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: 'FFM',
     debugShowCheckedModeBanner: false,
-    themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
+    themeMode: _themeController?.themeMode ??
+        (_isDark ? ThemeMode.dark : ThemeMode.light),
     theme: AppTheme.light(),
     darkTheme: AppTheme.dark(),
     builder: (context, child) {
@@ -451,10 +488,16 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
             launcherState: _assistantLauncherState,
             pageContext: _assistantPageContext,
             pageContextController: _assistantPageContext,
-            isDark: _isDark,
+            isDark: _themeController?.isDark ?? _isDark,
             onThemeChanged: (value) async {
-              setState(() => _isDark = value);
-              await ThemePreference.saveDark(value);
+              if (_themeController != null) {
+                await _themeController!.setThemeMode(
+                  value ? ThemeMode.dark : ThemeMode.light,
+                );
+              } else {
+                setState(() => _isDark = value);
+                await ThemePreference.saveDark(value);
+              }
             },
           ),
   );

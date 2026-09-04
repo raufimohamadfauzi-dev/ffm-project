@@ -952,6 +952,15 @@ class FfmAssistantCapabilityRegistry {
       destination: FfmAssistantDestination.intelligenceDashboard,
       readOnly: true,
     ),
+    const FfmAssistantCapability(
+      id: 'system.set_theme',
+      label: 'Ubah tema tampilan',
+      description:
+          'Mengubah tema aplikasi menjadi gelap, terang, atau ikuti sistem.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      parameterNames: ['theme'],
+      readOnly: true,
+    ),
   ]);
 
   static String _destinationName(FfmAssistantDestination destination) =>

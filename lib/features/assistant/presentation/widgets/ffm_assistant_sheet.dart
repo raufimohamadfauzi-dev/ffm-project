@@ -36,8 +36,10 @@ import '../../domain/ffm_memory_candidate.dart';
 import '../../domain/ffm_memory_type.dart';
 
 import '../../data/ffm_assistant_unanswered_question_repository.dart';
+import '../../domain/assistant_onboarding_orchestrator.dart';
 import '../../domain/ffm_assistant_action_plan.dart';
 import '../../domain/ffm_assistant_action_planner.dart';
+import '../../../../core/theme/app_theme_controller.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_work_item.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
@@ -193,6 +195,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
   Future<void>? _historyRestoreFuture;
   var _historyWasRestored = false;
+  List<String> _onboardingSuggestions = const <String>[];
 
   // Streaming state
   final _streamingController = FfmStreamingTextController();
@@ -607,7 +610,27 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
   }
 
-  void _checkAndInitiateGreetings() {
+  Future<void> _checkAndInitiateGreetings() async {
+    if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
+      final onboarding = getIt<AssistantOnboardingOrchestrator>();
+      final needsOnboarding = await onboarding.checkNeedsOnboarding();
+      if (needsOnboarding && mounted) {
+        final startTurn = onboarding.start();
+        setState(() {
+          _entries.clear();
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: startTurn.message,
+              createdAt: DateTime.now(),
+            ),
+          );
+          widget.session.lastAssistantText = startTurn.message;
+          _onboardingSuggestions = startTurn.suggestions;
+        });
+        return;
+      }
+    }
     _checkAndInitiateProactiveGreeting();
     _checkAndInitiateContextualGreeting();
   }
@@ -940,6 +963,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
+
+    if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
+      final onboarding = getIt<AssistantOnboardingOrchestrator>();
+      if (onboarding.isOnboardingActive) {
+        final response = await onboarding.processInput(text);
+        if (!mounted) return;
+        setState(() {
+          _submitting = false;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: response.message,
+              createdAt: DateTime.now(),
+            ),
+          );
+          widget.session.lastAssistantText = response.message;
+          _onboardingSuggestions = response.suggestions;
+        });
+        _scrollToEnd(force: true);
+        return;
+      }
+    }
 
     // Cek intent spesifik sebelum interpreter (tag vs draft confusion)
     final specificIntent = _intentClassificationService.classifySpecificIntent(
@@ -1474,6 +1519,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
     if (_navigatingFromChat) return;
+    if (intent.type == FfmAssistantIntentType.changeTheme) {
+      final theme = intent.pluginMetadata?['theme']?.toString() ?? 'system';
+      if (getIt.isRegistered<AppThemeController>()) {
+        await getIt<AppThemeController>().setByName(theme);
+      }
+      return;
+    }
     if (intent.type == FfmAssistantIntentType.exportReport) {
       await _showReportPreview(intent);
       return;
@@ -2865,6 +2917,29 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (_onboardingSuggestions.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: _onboardingSuggestions.map((suggestion) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: ActionChip(
+                                        label: Text(
+                                          suggestion,
+                                          style: const TextStyle(fontSize: 13),
+                                        ),
+                                        onPressed: _submitting
+                                            ? null
+                                            : () => _submit(suggestion),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ),
                           Container(
                             decoration: BoxDecoration(
                               color: isDark
