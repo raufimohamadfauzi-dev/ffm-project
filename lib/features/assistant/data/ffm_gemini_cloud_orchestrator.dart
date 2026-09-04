@@ -14,6 +14,7 @@ class FfmGeminiCloudTurnResult {
     this.latency,
     this.usedReadCapability,
     this.readEvidence,
+    this.usageMetadata,
   }) : errorMessage = null;
 
   const FfmGeminiCloudTurnResult.failure({
@@ -21,6 +22,7 @@ class FfmGeminiCloudTurnResult {
     required this.model,
     this.statusCode,
     this.latency,
+    this.usageMetadata,
   }) : text = null,
        usedReadCapability = null,
        readEvidence = null;
@@ -32,6 +34,7 @@ class FfmGeminiCloudTurnResult {
   final Duration? latency;
   final String? usedReadCapability;
   final String? readEvidence;
+  final GeminiUsageMetadata? usageMetadata;
 
   bool get ok => text != null;
 }
@@ -59,6 +62,7 @@ class FfmGeminiCloudOrchestrator {
     required bool ok,
     int? httpStatus,
     Duration? latency,
+    GeminiUsageMetadata? usageMetadata,
   })?
   recordUsage;
 
@@ -167,6 +171,7 @@ class FfmGeminiCloudOrchestrator {
       );
     }
     String? readEvidence;
+    var totalUsage = result.usageMetadata;
     if (request.request != null) {
       String facts;
       try {
@@ -182,6 +187,7 @@ class FfmGeminiCloudOrchestrator {
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
+          usageMetadata: totalUsage,
         );
       }
       try {
@@ -193,12 +199,23 @@ class FfmGeminiCloudOrchestrator {
           instruction: secondInstruction,
         );
         finalText = result.text?.trim() ?? '';
+        if (result.usageMetadata != null) {
+          totalUsage = GeminiUsageMetadata(
+            promptTokenCount: (totalUsage?.promptTokenCount ?? 0) +
+                result.usageMetadata!.promptTokenCount,
+            candidatesTokenCount: (totalUsage?.candidatesTokenCount ?? 0) +
+                result.usageMetadata!.candidatesTokenCount,
+            totalTokenCount: (totalUsage?.totalTokenCount ?? 0) +
+                result.usageMetadata!.totalTokenCount,
+          );
+        }
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
           errorMessage: 'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
+          usageMetadata: totalUsage,
         );
       }
       if (!result.ok) return _failure(result);
@@ -210,6 +227,7 @@ class FfmGeminiCloudOrchestrator {
       latency: result.latency,
       usedReadCapability: request.request?.capabilityId,
       readEvidence: readEvidence,
+      usageMetadata: totalUsage,
     );
   }
 
@@ -237,6 +255,7 @@ class FfmGeminiCloudOrchestrator {
       ok: result.ok,
       httpStatus: result.statusCode,
       latency: result.latency,
+      usageMetadata: result.usageMetadata,
     );
     return result;
   }
@@ -247,6 +266,7 @@ class FfmGeminiCloudOrchestrator {
         model: result.model,
         statusCode: result.statusCode,
         latency: result.latency,
+        usageMetadata: result.usageMetadata,
       );
 
   Future<void> _record({
@@ -255,6 +275,7 @@ class FfmGeminiCloudOrchestrator {
     required bool ok,
     int? httpStatus,
     Duration? latency,
+    GeminiUsageMetadata? usageMetadata,
   }) async {
     try {
       await recordUsage?.call(
@@ -263,6 +284,7 @@ class FfmGeminiCloudOrchestrator {
         ok: ok,
         httpStatus: httpStatus,
         latency: latency,
+        usageMetadata: usageMetadata,
       );
     } on Object {
       // Diagnostics must not alter the conversation result.
@@ -462,6 +484,12 @@ Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data p
 ATURAN IDENTITAS APLIKASI & PEMBUAT:
 - FFM = Family Finance Manager, aplikasi pengelolaan keuangan keluarga offline-first.
 - Pembuat/developer aplikasi ini adalah Rafi Sinkkat.
+
+ATURAN IDENTITAS KELUARGA & SAPAAN:
+- Jika di KONTEKS TERARAH terdapat informasi profil keluarga (Nama Keluarga, Suami, Istri dari Data Utama atau Personal Memory):
+  * Kenali identitas pengguna atau pasangannya (misal nama suami, nama istri, dan nama keluarga).
+  * Gunakan nama panggilan atau sapaan yang hangat dan sopan (misal: "Pak [Nama Suami]", "Bu [Nama Istri]", atau "Keluarga [Nama Keluarga]").
+  * Jika pengguna menyebut "istri saya" atau "suami saya", cocokkan secara tepat dengan nama yang tertera di profil Data Utama tanpa perlu bertanya ulang.
 
 ATURAN WAJIB JAWABAN:
 - Jawab PERTANYAAN USER saja secara natural dan mengalir.

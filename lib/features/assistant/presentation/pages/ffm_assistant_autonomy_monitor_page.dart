@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
+import '../../data/ffm_assistant_foreground_service.dart';
 import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/ffm_assistant_autonomy_policy.dart';
 import '../../domain/ffm_assistant_insight.dart';
@@ -30,6 +31,9 @@ class _FfmAssistantAutonomyMonitorPageState
   int _activeInsightCount = 0;
   int _actedInsightCount = 0;
   int _dismissedInsightCount = 0;
+  bool _foregroundServiceEnabled = false;
+  bool _isIgnoringBatteryOptimizations = true;
+  bool _updatingForegroundService = false;
   bool _loading = true;
   bool _savingPolicy = false;
   bool _policyChanged = false;
@@ -82,6 +86,16 @@ class _FfmAssistantAutonomyMonitorPageState
             .length;
       } catch (_) {}
 
+      var fgEnabled = false;
+      var isIgnoringBattery = true;
+      try {
+        if (getIt.isRegistered<FfmAssistantForegroundServiceManager>()) {
+          final fg = getIt<FfmAssistantForegroundServiceManager>();
+          fgEnabled = await fg.isEnabled();
+          isIgnoringBattery = await fg.isIgnoringBatteryOptimizations();
+        }
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
         _runs = runs;
@@ -89,6 +103,8 @@ class _FfmAssistantAutonomyMonitorPageState
         _activeInsightCount = activeCount;
         _actedInsightCount = actedCount;
         _dismissedInsightCount = dismissedCount;
+        _foregroundServiceEnabled = fgEnabled;
+        _isIgnoringBatteryOptimizations = isIgnoringBattery;
         _policyChanged = false;
         _loading = false;
       });
@@ -124,6 +140,8 @@ class _FfmAssistantAutonomyMonitorPageState
                 children: [
                   _buildIntro(context),
                   const SizedBox(height: 16),
+                  _buildForegroundServiceCard(context),
+                  const SizedBox(height: 16),
                   _buildInsightSummary(context),
                   const SizedBox(height: 16),
                   _buildPolicyCard(context),
@@ -144,6 +162,199 @@ class _FfmAssistantAutonomyMonitorPageState
                 ],
               ),
             ),
+    );
+  }
+
+  Future<void> _toggleForegroundService(bool enabled) async {
+    setState(() => _updatingForegroundService = true);
+    try {
+      final fg = getIt<FfmAssistantForegroundServiceManager>();
+      await fg.setEnabled(enabled);
+      final actuallyEnabled = await fg.isEnabled();
+      final isIgnoring = await fg.isIgnoringBatteryOptimizations();
+      if (!mounted) return;
+      setState(() {
+        _foregroundServiceEnabled = actuallyEnabled;
+        _isIgnoringBatteryOptimizations = isIgnoring;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            actuallyEnabled
+                ? 'Mode Siaga Status Bar aktif. Asisten kebal dari pembatasan Android.'
+                : 'Mode Siaga Status Bar dinonaktifkan. Menggunakan WorkManager standar.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mengubah mode status bar: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _updatingForegroundService = false);
+    }
+  }
+
+  Future<void> _requestIgnoreBattery() async {
+    try {
+      final fg = getIt<FfmAssistantForegroundServiceManager>();
+      await fg.requestIgnoreBatteryOptimization();
+      final isIgnoring = await fg.isIgnoringBatteryOptimizations();
+      if (!mounted) return;
+      setState(() => _isIgnoringBatteryOptimizations = isIgnoring);
+    } catch (_) {}
+  }
+
+  Widget _buildForegroundServiceCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
+          color: isDark ? const Color(0xFF35302B) : const Color(0xFFE8E0D0),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: _foregroundServiceEnabled
+                        ? Colors.teal.withValues(alpha: 0.15)
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _foregroundServiceEnabled
+                        ? Icons.notifications_active_rounded
+                        : Icons.notifications_none_rounded,
+                    size: 20,
+                    color: _foregroundServiceEnabled
+                        ? Colors.teal
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Ketahanan Background & Status Bar',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Anti-Kill: Mencegah agen tertidur oleh OS Android',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _foregroundServiceEnabled
+                        ? Colors.green.withValues(alpha: 0.15)
+                        : theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _foregroundServiceEnabled ? 'STATUS BAR AKTIF' : 'WORKMANAGER',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: _foregroundServiceEnabled
+                          ? Colors.green.shade700
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Mode Siaga Status Bar (Foreground Service)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
+              subtitle: Text(
+                _foregroundServiceEnabled
+                    ? 'Agen aktif di status bar, radar keuangan berdetak setiap 15 menit tanpa terputus oleh Doze Mode.'
+                    : 'Agen menggunakan jadwal berkala standar Android. Dapat ditunda jika HP mengaktifkan hemat baterai.',
+                style: const TextStyle(fontSize: 12),
+              ),
+              value: _foregroundServiceEnabled,
+              onChanged: _updatingForegroundService
+                  ? null
+                  : (val) => _toggleForegroundService(val),
+            ),
+            if (!_isIgnoringBatteryOptimizations) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.amber.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.battery_alert_rounded,
+                      color: Colors.amber,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Optimasi baterai Android masih membatasi FFM di latar belakang.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.amber.shade200
+                              : Colors.amber.shade900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonal(
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                      ),
+                      onPressed: _requestIgnoreBattery,
+                      child: const Text('Buka Izin',
+                          style: TextStyle(fontSize: 11)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 

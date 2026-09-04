@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
+import '../../../assistant/data/telegram_bot_service.dart';
+import '../../../assistant/data/telegram_config_repository.dart';
+import '../../../assistant/data/telegram_message_formatter.dart';
 import '../entities/transaction_entity.dart';
 
 class TransactionEntity {
@@ -124,9 +128,17 @@ class GetTransaction {
 }
 
 class SaveTransaction {
-  const SaveTransaction(this.database, {this.autonomyTrigger});
+  const SaveTransaction(
+    this.database, {
+    this.autonomyTrigger,
+    this.telegramBotService,
+    this.telegramConfigRepository,
+  });
+
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
+  final TelegramBotService? telegramBotService;
+  final TelegramConfigRepository? telegramConfigRepository;
 
   Future<void> call(
     TransactionEntity entity, {
@@ -191,6 +203,53 @@ class SaveTransaction {
       entityId: entity.id,
       payload: const {'entityType': 'transaction', 'operation': 'save'},
     );
+
+    _notifyTelegramIfEnabled(entity);
+  }
+
+  void _notifyTelegramIfEnabled(TransactionEntity entity) {
+    if (telegramBotService == null || telegramConfigRepository == null) return;
+    unawaited(() async {
+      try {
+        final config = await telegramConfigRepository!.loadConfig();
+        if (!config.isReady || !config.notifyOnNewTransaction) return;
+        if (entity.amount.abs() < config.notifyMinAmount) return;
+
+        String? categoryName;
+        if (entity.categoryId != null) {
+          final cat = await (database.select(database.categories)
+                ..where((c) => c.id.equals(entity.categoryId!)))
+              .getSingleOrNull();
+          categoryName = cat?.name;
+        }
+
+        String? accountName;
+        if (entity.accountId != null) {
+          final acc = await (database.select(database.accounts)
+                ..where((a) => a.id.equals(entity.accountId!)))
+              .getSingleOrNull();
+          accountName = acc?.name;
+        }
+
+        final msg = TelegramMessageFormatter.formatNewTransactionMessage(
+          type: entity.amount >= 0 ? 'income' : 'expense',
+          amount: entity.amount.abs(),
+          categoryOrDescription: entity.note?.trim().isNotEmpty == true
+              ? entity.note!
+              : (categoryName ?? 'Tanpa Kategori'),
+          categoryName: categoryName,
+          accountName: accountName,
+          recordedBy: entity.owner,
+          transactionDate: entity.date,
+        );
+
+        await telegramBotService!.sendMessage(
+          botToken: config.botToken,
+          chatId: config.chatId,
+          text: msg,
+        );
+      } catch (_) {}
+    }());
   }
 }
 

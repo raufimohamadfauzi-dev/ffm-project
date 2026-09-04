@@ -98,7 +98,7 @@ class FfmPersonalMemoryService {
       kind: FfmPersonalMemoryKind.preference,
       key: 'hobby',
       pattern: RegExp(
-        r'(?:hobi|kesenangan|suka)\s+(?:ku|saya|gue)?\s*(?:adalah|nya)?\s*([\w\s,]{2,40})',
+        r'(?:hobi|kegemaran)\s+(?:ku|saya|gue)?\s*(?:adalah|nya)?\s*([\w\s,]{2,40})',
         caseSensitive: false,
       ),
       labeler: (m) => 'Hobi: ${m.group(1)?.trim()}',
@@ -143,7 +143,7 @@ class FfmPersonalMemoryService {
       kind: FfmPersonalMemoryKind.preference,
       key: 'financial_goal',
       pattern: RegExp(
-        r'(?:ingin|mau|目标|mimpi)\s+(?:beli|punya|membeli)\s+([\w\s]{3,30})',
+        r'(?:target|tujuan|rencana|mimpi)\s+(?:keuangan|finansial|hidup)?\s*(?:ku|saya|kami)?\s+(?:adalah\s+)?(?:ingin\s+|mau\s+)?(?:beli|punya|membeli|mencapai)\s+([\w\s]{3,30})',
         caseSensitive: false,
       ),
       labeler: (m) => 'Goal keuangan: ${m.group(1)?.trim()}',
@@ -197,19 +197,78 @@ class FfmPersonalMemoryService {
     return baseContext;
   }
 
+  static bool _isQuestionOrTransaction(String text) {
+    final lower = text.trim().toLowerCase();
+    if (lower.isEmpty) return true;
+    if (lower.contains('?')) return true;
+
+    // 1. Kata tanya / interogatif
+    const questionWords = [
+      'berapa', 'kapan', 'apakah', 'apatah', 'kenapa', 'mengapa',
+      'bagaimana', 'gimana', 'siapa', 'dimana', 'di mana', 'ke mana', 'dari mana',
+      'apa ya', 'apa sih', 'apa itu', 'ada apa', 'apa yang',
+      'bisa apa', 'kamu siapa', 'bisa bantu apa', 'kamu asisten apa',
+    ];
+    if (questionWords.any((q) => lower.contains(q))) return true;
+
+    // Perintah query berbasis awalan
+    const prefixOnlyCommands = [
+      'cek ', 'lihat ', 'tampilkan ', 'tunjukin ', 'tolong jelaskan', 'jelaskan ',
+    ];
+    if (prefixOnlyCommands.any((p) => lower.startsWith(p))) return true;
+
+    // 2. Perintah transaksi finansial & aksi aplikasi
+    const commandWords = [
+      'catat', 'tulis', 'tambah', 'masukkan', 'input', 'transfer', 'kirim',
+      'bayar', 'beli', 'membeli', 'top up', 'topup', 'tarik tunai', 'simpan transaksi',
+      'hapus', 'ubah', 'ganti', 'edit', 'buka', 'navigasi', 'reset', 'ekspor',
+      'backup', 'impor', 'sinkron', 'kunci', 'pin'
+    ];
+    if (commandWords.any((cmd) => lower.startsWith(cmd) || lower.contains(' $cmd '))) {
+      return true;
+    }
+
+    // 3. Sapaan santai, konfirmasi & small talk
+    const casualWords = [
+      'halo', 'hallo', 'hai', 'hello', 'hei', 'hey', 'pagi', 'siang', 'sore', 'malam',
+      'apa kabar', 'terima kasih', 'makasih', 'makasi', 'thanks', 'thx',
+      'ok', 'oke', 'siap', 'sip', 'mantap', 'keren', 'bagus', 'biasa aja',
+      'wkwk', 'haha', 'hehe'
+    ];
+    if (casualWords.any((c) => lower == c || lower.startsWith('$c ') || lower.endsWith(' $c'))) {
+      return true;
+    }
+
+    return false;
+  }
+
   /// Menganalisis satu kalimat user dan mengembalikan insight jika ada pola yang cocok.
   /// Mengembalikan null jika tidak ada fakta baru yang terdeteksi.
   FfmPersonalMemoryInsight? extractFromMessage(String userMessage) {
     final text = userMessage.trim();
     if (text.isEmpty) return null;
+    if (_isQuestionOrTransaction(text)) return null;
+
+    const stopWords = {
+      'unknown', 'null', 'undefined', 'siapa', 'apa', 'dia', 'kamu',
+      'anda', 'saya', 'aku', 'gue', 'kami', 'kita', 'mereka', 'tahu',
+      'belum', 'ada', 'tidak', 'bukan', 'adalah', 'bisa', 'dong', 'ya',
+      'nih', 'deh', 'aja', 'saja', 'toko', 'warung', 'rekening',
+      'kategori', 'uang', 'saldo', 'gaji', 'belanja', 'makan', 'minum',
+      'hari', 'bulan', 'nama', 'panggil', 'seorang', 'orang',
+    };
 
     for (final rule in _patterns) {
       final match = rule.pattern.firstMatch(text);
       if (match != null) {
+        final rawVal = match.group(1)?.trim() ?? text;
+        if (rule.key == 'name' && stopWords.contains(rawVal.toLowerCase())) {
+          continue;
+        }
         return FfmPersonalMemoryInsight(
           kind: rule.kind,
           key: rule.key,
-          value: match.group(1)?.trim() ?? text,
+          value: rawVal,
           humanLabel: rule.labeler(match),
           sourceMessage: text,
         );

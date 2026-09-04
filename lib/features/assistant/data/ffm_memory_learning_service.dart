@@ -17,6 +17,51 @@ class FfmMemoryLearningService {
   FfmAssistantMemoryRepository? _memoryRepository;
   final _supabase = SupabaseService();
 
+  bool _isQuestionOrTransaction(String text) {
+    final lower = text.trim().toLowerCase();
+    if (lower.isEmpty) return true;
+    if (lower.contains('?')) return true;
+
+    // 1. Kata tanya / interogatif (baik di awal maupun di tengah kalimat)
+    const questionWords = [
+      'berapa', 'kapan', 'apakah', 'apatah', 'kenapa', 'mengapa',
+      'bagaimana', 'gimana', 'siapa', 'dimana', 'di mana', 'ke mana', 'dari mana',
+      'apa ya', 'apa sih', 'apa itu', 'ada apa', 'apa yang',
+      'bisa apa', 'kamu siapa', 'bisa bantu apa', 'kamu asisten apa',
+    ];
+    if (questionWords.any((q) => lower.contains(q))) return true;
+
+    // Perintah query berbasis awalan
+    const prefixOnlyCommands = [
+      'cek ', 'lihat ', 'tampilkan ', 'tunjukin ', 'tolong jelaskan', 'jelaskan ',
+    ];
+    if (prefixOnlyCommands.any((p) => lower.startsWith(p))) return true;
+
+    // 2. Perintah transaksi finansial & aksi aplikasi / mutasi database
+    const commandWords = [
+      'catat', 'tulis', 'tambah', 'masukkan', 'input', 'transfer', 'kirim',
+      'bayar', 'beli', 'membeli', 'top up', 'topup', 'tarik tunai', 'simpan transaksi',
+      'hapus', 'ubah', 'ganti', 'edit', 'buka', 'navigasi', 'reset', 'ekspor',
+      'backup', 'impor', 'sinkron', 'kunci', 'pin'
+    ];
+    if (commandWords.any((cmd) => lower.startsWith(cmd) || lower.contains(' $cmd '))) {
+      return true;
+    }
+
+    // 3. Sapaan santai, konfirmasi & small talk
+    const casualWords = [
+      'halo', 'hallo', 'hai', 'hello', 'hei', 'hey', 'pagi', 'siang', 'sore', 'malam',
+      'apa kabar', 'terima kasih', 'makasih', 'makasi', 'thanks', 'thx',
+      'ok', 'oke', 'siap', 'sip', 'mantap', 'keren', 'bagus', 'biasa aja',
+      'wkwk', 'haha', 'hehe'
+    ];
+    if (casualWords.any((c) => lower == c || lower.startsWith('$c ') || lower.endsWith(' $c'))) {
+      return true;
+    }
+
+    return false;
+  }
+
   /// Extract memory candidates dari percakapan turn.
   Future<List<FfmMemoryPromotionCandidate>> extractCandidates({
     required String userQuery,
@@ -24,10 +69,13 @@ class FfmMemoryLearningService {
     required List<FfmMemoryCandidate> usedMemories,
   }) async {
     final candidates = <FfmMemoryPromotionCandidate>[];
+    final isQueryNoise = _isQuestionOrTransaction(userQuery);
 
-    // 1. Pattern-based extraction
-    final patternCandidates = _extractPatternBased(userQuery);
-    candidates.addAll(patternCandidates);
+    // 1. Pattern-based extraction (hanya jika bukan pertanyaan atau mutasi transaksi kasual)
+    if (!isQueryNoise) {
+      final patternCandidates = _extractPatternBased(userQuery);
+      candidates.addAll(patternCandidates);
+    }
 
     // 2. Usage-based learning
     final usageCandidates = _extractUsageBased(usedMemories);
@@ -40,22 +88,21 @@ class FfmMemoryLearningService {
     );
     candidates.addAll(correctionCandidates);
 
-    // 4. Frequency-based extraction
-    // Hindari duplikat: kalimat yang sudah menghasilkan fakta spesifik
-    // (mis. jadwal gaji) tidak boleh sekaligus menjadi habit generik dengan
-    // nilai yang sama, agar pending approval dan konteks tetap deterministik.
-    final specificValues = <String>{
-      for (final candidate in candidates)
-        if (candidate.type != FfmMemoryType.habit)
-          candidate.value.trim().toLowerCase(),
-    };
-    final frequencyCandidates =
-        _extractFrequencyPatterns(userQuery).where(
-          (candidate) => !specificValues.contains(
+    // 4. Frequency-based extraction (hanya jika bukan pertanyaan atau mutasi transaksi kasual)
+    if (!isQueryNoise) {
+      final specificValues = <String>{
+        for (final candidate in candidates)
+          if (candidate.type != FfmMemoryType.habit)
             candidate.value.trim().toLowerCase(),
-          ),
-        );
-    candidates.addAll(frequencyCandidates);
+      };
+      final frequencyCandidates =
+          _extractFrequencyPatterns(userQuery).where(
+            (candidate) => !specificValues.contains(
+              candidate.value.trim().toLowerCase(),
+            ),
+          );
+      candidates.addAll(frequencyCandidates);
+    }
 
     return candidates;
   }
@@ -174,29 +221,31 @@ class FfmMemoryLearningService {
     final candidates = <FfmMemoryPromotionCandidate>[];
     final lowerQuery = userQuery.toLowerCase();
 
-    if (lowerQuery.contains('panggil saya') ||
-        lowerQuery.contains('nama saya')) {
+    final extractedName = _extractName(userQuery);
+    if (extractedName != null) {
       candidates.add(
         FfmMemoryPromotionCandidate(
           type: FfmMemoryType.identity,
           key: 'preferred_name',
-          value: _extractName(userQuery),
-          confidence: 0.7,
-          reason: 'User menyebutkan nama panggilan',
+          value: extractedName,
+          confidence: 0.85,
+          reason: 'User menyebutkan nama panggilan: $extractedName',
           sourceId: userQuery,
           requiresApproval: true,
         ),
       );
     }
 
-    if (RegExp(r'gaji(?:an)?\s+(?:tiap|setiap|per)?\s*tanggal\s+\d+')
-        .hasMatch(lowerQuery)) {
+    if (RegExp(
+      r'gaji(?:an)?\s+(?:tiap|setiap|per)?\s*tanggal\s+\d+|gaji(?:an)?\s+tanggal\s+\d+\s+(?:tiap|setiap|per)?\s*bulan',
+      caseSensitive: false,
+    ).hasMatch(lowerQuery)) {
       candidates.add(
         FfmMemoryPromotionCandidate(
           type: FfmMemoryType.explicitFact,
           key: 'payday',
           value: userQuery,
-          confidence: 0.8,
+          confidence: 0.85,
           reason: 'User menyebutkan jadwal gaji',
           sourceId: userQuery,
           requiresApproval: true,
@@ -204,54 +253,99 @@ class FfmMemoryLearningService {
       );
     }
 
-    if (RegExp(r'(?:budget|anggaran|jatah)\s+(?:makan|makanan)')
-        .hasMatch(lowerQuery)) {
-      candidates.add(
-        FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.explicitFact,
-          key: 'budget_food',
-          value: userQuery,
-          confidence: 0.75,
-          reason: 'User menyebutkan anggaran makan',
-          sourceId: userQuery,
-          requiresApproval: true,
-        ),
-      );
+    final foodMatch = RegExp(
+      r'(?:budget|anggaran|jatah)\s+(?:makan|makanan)\s+(?:perbulan|sebulan|tiap\s+bulan)?\s*(?:sebesar|sebanyak|sekitar|adalah)?\s*([\d.,]+(?:\s*(?:juta|ribu|rb|jt))?)',
+      caseSensitive: false,
+    ).firstMatch(lowerQuery);
+    if (foodMatch != null) {
+      final amount = foodMatch.group(1)?.trim();
+      if (amount != null && amount.isNotEmpty) {
+        candidates.add(
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.explicitFact,
+            key: 'budget_food',
+            value: 'Anggaran makan: $amount',
+            confidence: 0.8,
+            reason: 'User menyebutkan anggaran makan $amount',
+            sourceId: userQuery,
+            requiresApproval: true,
+          ),
+        );
+      }
     }
 
-    if (lowerQuery.contains('target nabung') ||
-        lowerQuery.contains('target menabung')) {
-      candidates.add(
-        FfmMemoryPromotionCandidate(
-          type: FfmMemoryType.goal,
-          key: 'savings_target',
-          value: userQuery,
-          confidence: 0.8,
-          reason: 'User menyebutkan target tabungan',
-          sourceId: userQuery,
-          requiresApproval: true,
-        ),
-      );
+    final goalMatch = RegExp(
+      r'(?:target\s+(?:nabung|menabung)|mau\s+nabung)\s+(?:sebesar|sebanyak|sekitar|adalah)?\s*([\d.,]+(?:\s*(?:juta|ribu|rb|jt))?|[\w\s]{3,35})',
+      caseSensitive: false,
+    ).firstMatch(lowerQuery);
+    if (goalMatch != null) {
+      final goal = goalMatch.group(1)?.trim();
+      if (goal != null && goal.isNotEmpty && goal.length <= 40) {
+        candidates.add(
+          FfmMemoryPromotionCandidate(
+            type: FfmMemoryType.goal,
+            key: 'savings_target',
+            value: goal,
+            confidence: 0.8,
+            reason: 'User menyebutkan target tabungan',
+            sourceId: userQuery,
+            requiresApproval: true,
+          ),
+        );
+      }
     }
 
     return candidates;
   }
 
-  String _extractName(String query) {
-    final words = query.split(' ');
-    for (var i = 0; i < words.length; i++) {
-      if (words[i].toLowerCase() == 'adalah' && i + 1 < words.length) {
-        return words[i + 1];
-      }
-      if ((words[i].toLowerCase() == 'panggil' ||
-              words[i].toLowerCase() == 'nama') &&
-          i + 1 < words.length &&
-          words[i + 1].toLowerCase() != 'saya' &&
-          words[i + 1].toLowerCase() != 'ku') {
-        return words[i + 1];
+  String? _extractName(String query) {
+    final clean = query.trim();
+    final lower = clean.toLowerCase();
+
+    // Jangan ekstrak jika berupa kalimat tanya atau sapaan semata
+    if (lower.contains('siapa') ||
+        lower.contains('?') ||
+        lower.contains('tahu')) {
+      return null;
+    }
+
+    final patterns = [
+      RegExp(
+        r'(?:panggil(?:\s*saya|\s*aku|\s*gue)?\s+(?:dengan\s+nama\s+|sebagai\s+)?)([A-Za-zÀ-ÿ]{2,25})',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:nama(?:\s*saya|\s*aku|\s*gue)?\s+(?:adalah\s+)?)([A-Za-zÀ-ÿ]{2,25})',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'(?:namaku|panggilanku)\s+(?:adalah\s+)?([A-Za-zÀ-ÿ]{2,25})',
+        caseSensitive: false,
+      ),
+    ];
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(clean);
+      if (match != null) {
+        final rawName = match.group(1)?.trim();
+        if (rawName == null || rawName.length < 2) continue;
+
+        const stopWords = {
+          'unknown', 'null', 'undefined', 'siapa', 'apa', 'dia', 'kamu',
+          'anda', 'saya', 'aku', 'gue', 'kami', 'kita', 'mereka', 'tahu',
+          'belum', 'ada', 'tidak', 'bukan', 'adalah', 'bisa', 'dong', 'ya',
+          'nih', 'deh', 'aja', 'saja', 'toko', 'warung', 'rekening',
+          'kategori', 'uang', 'saldo', 'gaji', 'belanja', 'makan', 'minum',
+          'hari', 'bulan', 'nama', 'panggil', 'seorang', 'orang',
+        };
+
+        if (stopWords.contains(rawName.toLowerCase())) continue;
+
+        return rawName[0].toUpperCase() + rawName.substring(1).toLowerCase();
       }
     }
-    return 'unknown';
+
+    return null;
   }
 
   List<FfmMemoryPromotionCandidate> _extractUsageBased(
@@ -276,7 +370,7 @@ class FfmMemoryLearningService {
             confidence: 0.6,
             reason: 'Topik ${entry.key} sering muncul dalam percakapan',
             sourceId: 'usage-analysis',
-            requiresApproval: false,
+            requiresApproval: true,
           ),
         );
       }
@@ -351,12 +445,12 @@ class FfmMemoryLearningService {
     final candidates = <FfmMemoryPromotionCandidate>[];
     final lower = userQuery.toLowerCase();
 
+    // Hanya deteksi rutinitas jika user menyatakan rutinitas/jadwal eksplisit
     final timePatterns = {
       RegExp(r'(?:setiap|tiap|per)\s+pagi'): 'morning_routine',
       RegExp(r'(?:setiap|tiap|per)\s+malam'): 'evening_routine',
       RegExp(r'(?:setiap|tiap|per)\s+bulan'): 'monthly_routine',
       RegExp(r'(?:setiap|tiap|per)\s+minggu'): 'weekly_routine',
-      RegExp(r'(?:selalu|biasa(nya)?)\s+'): 'habitual_behavior',
     };
 
     for (final entry in timePatterns.entries) {

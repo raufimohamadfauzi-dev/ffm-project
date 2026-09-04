@@ -57,14 +57,18 @@ import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/assistant/data/ffm_memory_maintenance_service.dart';
 import 'features/assistant/data/ffm_assistant_proactive_monitor.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'features/assistant/data/ffm_assistant_autonomy_background_dispatcher.dart';
 import 'features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
+import 'features/assistant/data/ffm_assistant_foreground_service.dart';
+import 'features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import 'features/activity/data/repositories/activity_repository.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterForegroundTask.initCommunicationPort();
   // Muat data simbol locale agar DateFormat(..., 'id_ID') tidak memicu
   // LocaleDataException saat UI memformat tanggal.
   await initializeDateFormatting('id_ID', null);
@@ -162,6 +166,26 @@ Future<void> _scheduleAutonomyBackgroundWork(
       impact: 'Agent tetap berjalan saat aplikasi dibuka; scheduler akan dicoba lagi pada startup berikutnya.',
     );
   }
+
+  // Inisialisasi dan pulihkan Foreground Service jika diaktifkan pengguna
+  try {
+    if (getIt.isRegistered<FfmAssistantForegroundServiceManager>()) {
+      final fgManager = getIt<FfmAssistantForegroundServiceManager>();
+      fgManager.initialize();
+      final isEnabled = await fgManager.isEnabled();
+      if (isEnabled) {
+        await fgManager.startService();
+      }
+    }
+  } catch (error, stackTrace) {
+    await diagnostics.recordException(
+      code: 'AUTONOMY_FOREGROUND_SERVICE_INIT_FAILED',
+      feature: 'Foreground Agent',
+      error: error,
+      stackTrace: stackTrace,
+      impact: 'Layanan status bar akan dicoba lagi pada siklus berikutnya.',
+    );
+  }
 }
 
 Future<void> _initializePersonalContext(
@@ -235,12 +259,27 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_diagnostics.markStartupComplete());
+      if (mounted) {
+        unawaited(_diagnostics.markStartupComplete());
+        _triggerCatchUpEvaluation();
+      }
     });
     if (widget.database != null && !getIt.isRegistered<AppDatabase>()) {
       configureDependencies(database: widget.database);
     }
     _preparePinGate();
+  }
+
+  void _triggerCatchUpEvaluation() {
+    unawaited(() async {
+      try {
+        if (getIt.isRegistered<AutonomousEvaluationCoordinator>()) {
+          await getIt<AutonomousEvaluationCoordinator>().runEvaluation(
+            householdId: AppContext.householdId,
+          );
+        }
+      } catch (_) {}
+    }());
   }
 
   @override
@@ -293,6 +332,7 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
       return;
     }
     if (state == AppLifecycleState.resumed) {
+      _triggerCatchUpEvaluation();
       final backgroundedAt = _backgroundedAt;
       _backgroundedAt = null;
       if (backgroundedAt != null &&

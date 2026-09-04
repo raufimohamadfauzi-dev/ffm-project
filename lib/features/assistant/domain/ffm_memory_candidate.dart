@@ -148,8 +148,15 @@ class FfmMemoryPromotionCandidate {
   /// Validasi dasar untuk candidate
   bool get isValid {
     if (confidence < 0.0 || confidence > 1.0) return false;
-    if (key.trim().isEmpty) return false;
-    if (value.trim().isEmpty) return false;
+    final cleanKey = key.trim().toLowerCase();
+    final cleanVal = value.trim().toLowerCase();
+    if (cleanKey.isEmpty || cleanVal.isEmpty) return false;
+    if (cleanVal == 'unknown' ||
+        cleanVal == 'null' ||
+        cleanVal == 'undefined' ||
+        cleanKey == 'unknown') {
+      return false;
+    }
     return true;
   }
 

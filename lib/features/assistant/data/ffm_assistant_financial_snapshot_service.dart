@@ -135,10 +135,13 @@ class FfmAssistantFinancialSnapshotService {
           return '$date|$kind|amount=${row.amount.abs()}';
         })
         .toList(growable: false);
+    final periodAndRange = (startDate != null && endDate != null)
+        ? _rangeLabel(startDate, endDate)
+        : 'periode=${_monthLabel(now.month)} ${now.year}; rentang=seluruh_bulan';
     if (visible.isEmpty) {
-      return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; ${_rangeLabel(startDate, endDate)}; tidak ada transaksi pemasukan/pengeluaran.';
+      return 'Transaction digest lokal bounded: $periodAndRange; tidak ada transaksi pemasukan/pengeluaran.';
     }
-    return 'Transaction digest lokal bounded: periode=${_monthLabel(now.month)} ${now.year}; ${_rangeLabel(startDate, endDate)}; '
+    return 'Transaction digest lokal bounded: $periodAndRange; '
         'items=${visible.join('; ')}. Detail merchant, catatan, rekening, kategori, dan ID tidak tersedia.';
   }
 
@@ -204,6 +207,28 @@ class FfmAssistantFinancialSnapshotService {
             ))
             .get();
 
+    final household = await (_database.select(_database.households)
+          ..where((row) => row.id.equals(householdId)))
+        .getSingleOrNull();
+    final familyParts = <String>[];
+    if (household != null) {
+      if (household.name.trim().isNotEmpty &&
+          household.name.trim().toLowerCase() != 'keluarga baru') {
+        familyParts.add('nama_keluarga="${household.name.trim()}"');
+      }
+      if (household.husbandName != null &&
+          household.husbandName!.trim().isNotEmpty) {
+        familyParts.add('suami="${household.husbandName!.trim()}"');
+      }
+      if (household.wifeName != null &&
+          household.wifeName!.trim().isNotEmpty) {
+        familyParts.add('istri="${household.wifeName!.trim()}"');
+      }
+    }
+    final familyPrefix = familyParts.isNotEmpty
+        ? 'profil_keluarga=(${familyParts.join(', ')}); '
+        : '';
+
     final accountNames = accounts.map((row) => row.name).toList()..sort();
     final categoryNames = categories.map((row) => row.name).toList()..sort();
     final incomeSourceNames = incomeSources.map((row) => row.name).toList()
@@ -213,6 +238,7 @@ class FfmAssistantFinancialSnapshotService {
     final merchantNames = merchants.map((row) => row.name).toList()..sort();
     final context =
         'Data Utama lokal (nama saja; tanpa saldo, ID, atau detail): '
+        '$familyPrefix'
         'rekening_aktif=${_nameList(accountNames, maxAccounts)}; '
         'kategori_aktif=${_nameList(categoryNames, maxCategories)}; '
         'sumber_pemasukan_aktif=${_nameList(incomeSourceNames, maxIncomeSources)}; '
@@ -221,6 +247,35 @@ class FfmAssistantFinancialSnapshotService {
         'toko_aktif=${_nameList(merchantNames, maxMerchants)}. '
         'Gunakan hanya nama yang tercantum sebagai evidence; jangan membuat nama baru.';
     return _clip(context, maxCharacters);
+  }
+
+  /// Profil identitas keluarga dari Data Utama (nama keluarga, suami, istri)
+  /// untuk sapaan alami dan personalisasi interaksi asisten.
+  Future<String> buildHouseholdProfileContext({
+    required String householdId,
+  }) async {
+    final household = await (_database.select(_database.households)
+          ..where((row) => row.id.equals(householdId)))
+        .getSingleOrNull();
+    if (household == null) return '';
+
+    final parts = <String>[];
+    final famName = household.name.trim();
+    if (famName.isNotEmpty && famName.toLowerCase() != 'keluarga baru') {
+      parts.add('Nama Keluarga: "$famName"');
+    }
+    final husband = household.husbandName?.trim();
+    if (husband != null && husband.isNotEmpty) {
+      parts.add('Suami: "$husband"');
+    }
+    final wife = household.wifeName?.trim();
+    if (wife != null && wife.isNotEmpty) {
+      parts.add('Istri: "$wife"');
+    }
+
+    if (parts.isEmpty) return '';
+    return 'Fakta Profil Keluarga dari Data Utama: ${parts.join(' · ')}. '
+        'Gunakan informasi ini untuk sapaan yang hangat dan pengenalan anggota keluarga.';
   }
 
   Future<String> buildHarvestContext({
@@ -510,6 +565,7 @@ class FfmAssistantFinancialSnapshotService {
     required String householdId,
     int maxItems = 8,
     int maxCharacters = 700,
+    DateTime? now,
   }) async {
     final goals =
         await (_database.select(_database.goals)..where(
@@ -518,8 +574,38 @@ class FfmAssistantFinancialSnapshotService {
                   row.isActive.equals(true),
             ))
             .get();
+
+    String emergencyFundInsight = '';
+    try {
+      final refDate = now ?? DateTime.now();
+      final threeMonthsAgo = DateTime(refDate.year, refDate.month - 3, 1);
+      final expenseRows = await (_database.select(_database.transactions)
+            ..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.type.equals('expense') &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(threeMonthsAgo),
+            ))
+          .get();
+      var totalExpense3Mo = 0;
+      for (final t in expenseRows) {
+        totalExpense3Mo += t.amount.abs();
+      }
+      final avgMonthlyExpense =
+          expenseRows.isEmpty ? 0 : (totalExpense3Mo / 3).round();
+      if (avgMonthlyExpense > 0) {
+        emergencyFundInsight =
+            ' | Rata-rata pengeluaran/bulan: Rp $avgMonthlyExpense (Patokan Dana Darurat: 3 bln=Rp ${avgMonthlyExpense * 3}, 6 bln=Rp ${avgMonthlyExpense * 6}, 12 bln=Rp ${avgMonthlyExpense * 12})';
+      }
+    } catch (_) {}
+
     if (goals.isEmpty) {
-      return 'Goals digest: belum ada target keuangan aktif.';
+      return _clip(
+        'Goals digest: belum ada target keuangan aktif.$emergencyFundInsight',
+        maxCharacters,
+      );
     }
     goals.sort((a, b) => a.name.compareTo(b.name));
     final visible = goals.take(maxItems).toList(growable: false);
@@ -533,7 +619,7 @@ class FfmAssistantFinancialSnapshotService {
         ? '; … (+${goals.length - maxItems} lebih)'
         : '';
     return _clip(
-      'Goals digest (hanya target aktif): ${lines.join('; ')}$suffix.',
+      'Goals digest (hanya target aktif): ${lines.join('; ')}$suffix.$emergencyFundInsight',
       maxCharacters,
     );
   }

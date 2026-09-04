@@ -16,6 +16,7 @@ import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
+import 'activity_detail_page.dart';
 
 class ActivityPage extends StatelessWidget {
   const ActivityPage({
@@ -64,6 +65,7 @@ class _ActivityViewState extends State<_ActivityView>
     with WidgetsBindingObserver {
   String? _categoryFilterId;
   String _modeFilter = 'Semua mode';
+  String _riwayatTab = 'Semua';
   final _searchController = TextEditingController();
   String _searchQuery = '';
   DateTime? _dayFilter;
@@ -167,160 +169,10 @@ class _ActivityViewState extends State<_ActivityView>
     List<ActivitySessionEntity> children,
   ) async {
     if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      session.title,
-                      style: const TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: session.isHistory
-                          ? Colors.purple.withValues(alpha: 0.12)
-                          : Colors.teal.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      session.isHistory ? '📝 Catatan' : '⏱️ Timer',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: session.isHistory ? Colors.purple.shade800 : Colors.teal.shade800,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '${session.category} • ${_dateTime(session.startedAt)}${session.parentSessionId == null ? '' : ' • aktivitas di dalam sesi lain'}',
-              ),
-              const SizedBox(height: 14),
-              if (session.isHistory)
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DetailMetric(
-                        label: 'Tanggal & Waktu Catatan',
-                        value: _dateTime(session.startedAt),
-                      ),
-                    ),
-                  ],
-                )
-              else
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DetailMetric(
-                        label: 'Mulai',
-                        value: _time(session.startedAt),
-                      ),
-                    ),
-                    Expanded(
-                      child: _DetailMetric(
-                        label: 'Selesai',
-                        value: session.endedAt == null
-                            ? 'Berjalan'
-                            : _time(session.endedAt!),
-                      ),
-                    ),
-                    Expanded(
-                      child: _DetailMetric(
-                        label: 'Durasi',
-                        value: _calculator.format(session.durationAt()),
-                      ),
-                    ),
-                  ],
-                ),
-              if (children.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Aktivitas di dalamnya',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 6),
-                for (final child in children)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      child.status == ActivitySessionStatus.active
-                          ? Icons.play_circle_outline
-                          : Icons.check_circle_outline,
-                    ),
-                    title: Text(child.title),
-                    subtitle: Text(
-                      '${_dateTime(child.startedAt)} • ${_calculator.format(child.durationAt())}${child.endedAt == null ? ' • berjalan' : ''}',
-                    ),
-                  ),
-              ],
-              if (session.notes?.isNotEmpty == true) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        Icons.notes_outlined,
-                        size: 18,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          session.notes!,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 18),
-              const Text(
-                'Update aktivitas',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 8),
-              if (checkpoints.isEmpty)
-                const Text(
-                  'Belum ada update. Tekan Update aktivitas saat ada perubahan.',
-                )
-              else
-                for (var index = 0; index < checkpoints.length; index++)
-                  _CheckpointDetailTile(
-                    checkpoint: checkpoints[index],
-                    previous: index == 0
-                        ? session.startedAt
-                        : checkpoints[index - 1].occurredAt,
-                    calculator: _calculator,
-                  ),
-            ],
-          ),
-        ),
+    FocusManager.instance.primaryFocus?.unfocus();
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ActivityDetailPage(sessionId: session.id),
       ),
     );
   }
@@ -887,6 +739,8 @@ class _ActivityViewState extends State<_ActivityView>
         initialTitle: session.title,
         initialCategory: session.category,
         initialNotes: session.notes,
+        initialStartedAt: session.startedAt,
+        initialMode: session.effectiveMode,
       ),
     );
     if (result == null || !mounted) return;
@@ -896,6 +750,8 @@ class _ActivityViewState extends State<_ActivityView>
       categoryId: result.categoryId,
       kind: result.kind,
       notes: result.notes,
+      startedAt: result.startedAt,
+      endedAt: session.isHistory ? result.startedAt : session.endedAt,
       updatedAt: DateTime.now(),
     );
     await context.read<ActivityBloc>().saveSession(updated);
@@ -933,7 +789,7 @@ class _ActivityViewState extends State<_ActivityView>
         floatingActionButton: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FloatingActionButton.extended(
+            FloatingActionButton(
               heroTag: 'activity_vn_fab',
               onPressed: _startVoiceCapture,
               tooltip: 'Bicara / Voice Note aktivitas',
@@ -941,20 +797,29 @@ class _ActivityViewState extends State<_ActivityView>
                   Theme.of(context).colorScheme.secondaryContainer,
               foregroundColor:
                   Theme.of(context).colorScheme.onSecondaryContainer,
-              icon: Icon(
+              child: Icon(
                 _processingFinalVoice ? Icons.hourglass_empty : Icons.mic,
               ),
-              label: const Text('Bicara VN'),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             FloatingActionButton.extended(
-              heroTag: 'activity_add_fab',
-              onPressed: _startSession,
-              tooltip: 'Mulai sesi aktivitas',
+              heroTag: 'activity_timer_fab',
+              onPressed: () => _startSession(initialMode: ActivityMode.timeTracking),
+              tooltip: 'Mulai aktivitas dengan timer berjalan',
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              icon: const Icon(Icons.add),
-              label: const Text('Catat aktivitas'),
+              icon: const Icon(Icons.timer_outlined),
+              label: const Text('Mulai Timer'),
+            ),
+            const SizedBox(width: 8),
+            FloatingActionButton.extended(
+              heroTag: 'activity_note_fab',
+              onPressed: () => _startSession(initialMode: ActivityMode.history),
+              tooltip: 'Catat kejadian atau riwayat selesai',
+              backgroundColor: Colors.purple.shade700,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.edit_note_rounded),
+              label: const Text('Catat Riwayat'),
             ),
           ],
         ),
@@ -1111,11 +976,17 @@ class _ActivityViewState extends State<_ActivityView>
                             (session) =>
                                 session.status !=
                                     ActivitySessionStatus.active &&
+                                !session.isArchived &&
                                 (_categoryFilterId == null ||
                                     session.categoryId == _categoryFilterId) &&
                                 _matchesDay(session.startedAt) &&
                                 _matchesMode(session) &&
-                                _matchesSearch(session),
+                                _matchesSearch(session) &&
+                                (_riwayatTab == 'Semua'
+                                    ? true
+                                    : (_riwayatTab == 'Timer'
+                                        ? session.isTimeTracking
+                                        : session.isHistory)),
                           )
                           .toList();
                       return Column(
@@ -1162,9 +1033,37 @@ class _ActivityViewState extends State<_ActivityView>
                             const SizedBox(height: 8),
                           ],
                           _SectionTitle(
-                            title: 'Aktivitas tersimpan',
+                            title: 'Riwayat Aktivitas',
                             count: visibleSessions.length,
                           ),
+                          const SizedBox(height: 6),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final tab in ['Semua', 'Timer', 'Catatan'])
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: Text(
+                                        tab == 'Timer'
+                                            ? '⏱️ Timer'
+                                            : (tab == 'Catatan'
+                                                ? '📝 Catatan'
+                                                : 'Semua'),
+                                      ),
+                                      selected: _riwayatTab == tab,
+                                      onSelected: (selected) {
+                                        if (selected) {
+                                          setState(() => _riwayatTab = tab);
+                                        }
+                                      },
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           if (visibleSessions.isEmpty)
                             const AppEmptyState(
                               icon: Icons.timeline_outlined,
@@ -1602,10 +1501,35 @@ class _SessionCard extends StatelessWidget {
               ],
             ],
           ),
-          subtitle: Text(
-            isNote
-                ? '${session.category} • ${_dateTime(session.startedAt)}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}'
-                : '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 2),
+              Text(
+                isNote
+                    ? '${session.category} • ${_dateTime(session.startedAt)}'
+                    : '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              if (isNote && session.notes?.trim().isNotEmpty == true) ...[
+                const SizedBox(height: 4),
+                Text(
+                  session.notes!.trim(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.85),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ],
           ),
           onTap: onOpen,
           trailing: Row(
@@ -2175,6 +2099,7 @@ class _SessionFormState extends State<_SessionForm> {
             ),
             onPressed: () {
               if (_title.text.trim().isEmpty) return;
+              FocusManager.instance.primaryFocus?.unfocus();
               Navigator.pop(
                 context,
                 _SessionDraft(
@@ -2272,6 +2197,7 @@ class _CheckpointFormState extends State<_CheckpointForm> {
         FilledButton(
           onPressed: () {
             if (_label.text.trim().isEmpty) return;
+            FocusManager.instance.primaryFocus?.unfocus();
             Navigator.pop(
               context,
               _CheckpointDraft(
@@ -2285,48 +2211,6 @@ class _CheckpointFormState extends State<_CheckpointForm> {
           child: const Text('Simpan update'),
         ),
       ],
-    ),
-  );
-}
-
-class _DetailMetric extends StatelessWidget {
-  const _DetailMetric({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(label, style: Theme.of(context).textTheme.labelMedium),
-      const SizedBox(height: 3),
-      Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
-    ],
-  );
-}
-
-class _CheckpointDetailTile extends StatelessWidget {
-  const _CheckpointDetailTile({
-    required this.checkpoint,
-    required this.previous,
-    required this.calculator,
-  });
-  final ActivityCheckpointEntity checkpoint;
-  final DateTime previous;
-  final ActivityDurationCalculator calculator;
-
-  @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.flag_outlined),
-    title: Text(checkpoint.label),
-    subtitle: Text(
-      [
-        _dateTime(checkpoint.occurredAt),
-        'selang ${calculator.format(checkpoint.occurredAt.difference(previous))}',
-        if (checkpoint.place?.isNotEmpty == true) checkpoint.place!,
-        if (checkpoint.note?.isNotEmpty == true) checkpoint.note!,
-      ].join(' • '),
     ),
   );
 }

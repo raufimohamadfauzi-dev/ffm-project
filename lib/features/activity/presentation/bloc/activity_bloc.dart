@@ -92,18 +92,52 @@ class ActivityBloc extends Cubit<ActivityState> {
 
   final ActivityRepository repository;
   static const _uuid = Uuid();
+  bool _migrated = false;
+  bool _healingDone = false;
 
   Future<void> load() async {
     emit(state.copyWith(loading: true, clearError: true));
     try {
-      // Trigger migration once
-      await repository.migrateOldData(AppContext.householdId);
+      // Trigger migration once per app session
+      if (!_migrated) {
+        await repository.migrateOldData(AppContext.householdId);
+        _migrated = true;
+      }
 
-      final sessions = await repository.getSessions(AppContext.householdId);
+      var sessions = await repository.getSessions(AppContext.householdId);
+
+      // Auto-healing 1x untuk data catatan lama agar tidak berstatus 'active' atau 'berjalan'
+      if (!_healingDone) {
+        _healingDone = true;
+        var needsReload = false;
+        for (final session in sessions) {
+          if (session.isHistory &&
+              (session.endedAt == null ||
+                  session.status != ActivitySessionStatus.completed)) {
+            await repository.saveSession(
+              session.copyWith(
+                endedAt: session.startedAt,
+                status: ActivitySessionStatus.completed,
+                isCompleted: true,
+                updatedAt: DateTime.now(),
+              ),
+            );
+            needsReload = true;
+          }
+        }
+        if (needsReload) {
+          sessions = await repository.getSessions(AppContext.householdId);
+        }
+      }
+
       final entries = await repository.getEntries(AppContext.householdId);
-      final activeSessions = await repository.recoverActiveSessions(
+      final activeSessionsRaw = await repository.recoverActiveSessions(
         AppContext.householdId,
       );
+      // Sesi catatan tidak boleh berada di activeSessions
+      final activeSessions = activeSessionsRaw
+          .where((s) => !s.isHistory && s.status == ActivitySessionStatus.active)
+          .toList();
       final notes = await repository.getNotes(AppContext.householdId);
 
       // Fetch habit suggestions
@@ -238,16 +272,28 @@ class ActivityBloc extends Cubit<ActivityState> {
           subjectType: subjectType,
           subjectId: subjectId,
           startedAt: now,
+          endedAt: (resolvedKind == ActivityKind.note ||
+                  resolvedKind == ActivityKind.event ||
+                  mode == ActivityMode.history)
+              ? now
+              : null,
           scheduledAt: scheduledAt,
           dueDate: dueDate,
           isAllDay: isAllDay,
-          isCompleted: isCompleted,
+          isCompleted: (resolvedKind == ActivityKind.note ||
+                  resolvedKind == ActivityKind.event ||
+                  mode == ActivityMode.history)
+              ? true
+              : isCompleted,
           priority: priority,
-          status:
-              (resolvedKind == ActivityKind.timer ||
-                  resolvedKind == ActivityKind.task)
-              ? ActivitySessionStatus.active
-              : ActivitySessionStatus.completed,
+          status: (resolvedKind == ActivityKind.note ||
+                  resolvedKind == ActivityKind.event ||
+                  mode == ActivityMode.history)
+              ? ActivitySessionStatus.completed
+              : ((resolvedKind == ActivityKind.timer ||
+                      resolvedKind == ActivityKind.task)
+                  ? ActivitySessionStatus.active
+                  : ActivitySessionStatus.completed),
           notes: notes,
           createdAt: DateTime.now(),
         ),
@@ -308,6 +354,69 @@ class ActivityBloc extends Cubit<ActivityState> {
         ),
       ),
     );
+  }
+
+  Future<void> editCheckpoint({
+    required String checkpointId,
+    required String label,
+    String? place,
+    String? note,
+    DateTime? occurredAt,
+  }) async {
+    ActivityCheckpointEntity? existing;
+    for (final list in state.checkpoints.values) {
+      for (final cp in list) {
+        if (cp.id == checkpointId) {
+          existing = cp;
+          break;
+        }
+      }
+      if (existing != null) break;
+    }
+    if (existing == null) return;
+    final updated = existing.copyWith(
+      label: label.trim().isEmpty ? existing.label : label.trim(),
+      place: place,
+      note: note,
+      occurredAt: occurredAt ?? existing.occurredAt,
+    );
+    await _save(() => repository.saveCheckpoint(updated));
+  }
+
+  Future<void> deleteCheckpoint(String checkpointId) async {
+    await _save(() => repository.deleteCheckpoint(checkpointId));
+  }
+
+  Future<void> updateSession({
+    required String sessionId,
+    required String title,
+    required String category,
+    String? categoryId,
+    String? notes,
+    DateTime? startedAt,
+    DateTime? endedAt,
+    int? priority,
+  }) async {
+    final current = await repository.getSession(AppContext.householdId, sessionId);
+    if (current == null) return;
+    final resolvedCategory = await repository.resolveActiveActivityCategory(
+      householdId: AppContext.householdId,
+      categoryId: categoryId,
+      categoryName: category,
+    );
+    final updated = current.copyWith(
+      title: title.trim().isEmpty ? current.title : title.trim(),
+      category: resolvedCategory?.name ?? category,
+      categoryId: resolvedCategory?.id ?? categoryId ?? current.categoryId,
+      notes: notes,
+      startedAt: startedAt ?? current.startedAt,
+      endedAt: current.isHistory
+          ? (startedAt ?? current.startedAt)
+          : (endedAt ?? current.endedAt),
+      priority: priority,
+      updatedAt: DateTime.now(),
+    );
+    await _save(() => repository.saveSession(updated));
   }
 
   Future<void> addNote({

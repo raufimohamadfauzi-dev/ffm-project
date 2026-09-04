@@ -79,6 +79,11 @@ class _SummaryPageState extends State<SummaryPage> {
     final emergencyFund = assets
         .where((asset) => asset.assetType == 'cash')
         .fold<int>(0, (sum, asset) => sum + asset.value);
+    final totalAssetsVal = assets.fold<int>(0, (sum, asset) => sum + asset.value);
+    final totalLiabilitiesVal = liabilities.fold<int>(
+      0,
+      (sum, liability) => sum + liability.remainingBalance,
+    );
     final hasAnyTransaction = transactions.isNotEmpty;
     final hasIncome = transactions.any((item) => item.transaction.amount > 0);
     final hasExpense = transactions.any((item) => item.transaction.amount < 0);
@@ -89,6 +94,8 @@ class _SummaryPageState extends State<SummaryPage> {
         totalMonthlyInstallments: installments,
         emergencyFundAmount: emergencyFund,
         averageMonthlyExpenses: expenses,
+        totalAssets: totalAssetsVal,
+        totalLiabilities: totalLiabilitiesVal,
       ),
     );
     final forecast = FinancialAnalysis.forecast(
@@ -1106,37 +1113,55 @@ class _HealthScoreCard extends StatelessWidget {
 
   final FinancialHealthScore score;
 
-  String get _statusLabel {
-    switch (score.status) {
-      case FinancialHealthStatus.excellent:
-        return 'Mantap';
-      case FinancialHealthStatus.good:
-        return 'Sehat';
-      case FinancialHealthStatus.fair:
-        return 'Lumayan';
-      case FinancialHealthStatus.warning:
-        return 'Perlu dijaga';
-      case FinancialHealthStatus.critical:
-        return 'Perlu dibenahi';
-    }
+  Color _statusColor(FinancialHealthStatus status) {
+    return switch (status) {
+      FinancialHealthStatus.excellent => const Color(0xFF059669),
+      FinancialHealthStatus.good => const Color(0xFF0D9488),
+      FinancialHealthStatus.fair => const Color(0xFF2563EB),
+      FinancialHealthStatus.warning => const Color(0xFFD97706),
+      FinancialHealthStatus.critical => const Color(0xFFDC2626),
+    };
   }
 
-  Color get _statusColor {
-    if (score.totalScore >= 70) return AppColors.positive;
-    if (score.totalScore >= 50) return AppColors.warning;
-    return AppColors.negative;
+  void _openDetailSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FinancialHealthDetailSheet(score: score),
+    );
+  }
+
+  void _askAssistant(BuildContext context) {
+    final open = FfmAssistantContextScope.openAssistantOf(context);
+    if (open != null) {
+      open(
+        initialPrompt:
+            'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Buka Asisten AI dari tombol mengambang di pojok kanan bawah.'),
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final value = score.totalScore / 100;
     final scheme = Theme.of(context).colorScheme;
+    final color = _statusColor(score.status);
+    final progress = (score.totalScore / 100).clamp(0.0, 1.0);
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Icon(Icons.health_and_safety_outlined, color: color, size: 20),
+              const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   AppCopy.skorKesehatan,
@@ -1144,51 +1169,551 @@ class _HealthScoreCard extends StatelessWidget {
                 ),
               ),
               AppStatusChip(
-                label: _statusLabel,
-                color: _statusColor,
-                backgroundColor: _statusColor.withValues(alpha: .12),
+                label: score.statusLabel,
+                color: color,
+                backgroundColor: color.withValues(alpha: .12),
               ),
             ],
           ),
           const SizedBox(height: 16),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                '${score.totalScore}',
-                style: AppTextStyles.moneyLarge.copyWith(fontSize: 40),
+              SizedBox(
+                width: 76,
+                height: 76,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CircularProgressIndicator(
+                      value: progress,
+                      strokeWidth: 8,
+                      backgroundColor: color.withValues(alpha: .15),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                      strokeCap: StrokeCap.round,
+                    ),
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${score.totalScore}',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: scheme.onSurface,
+                              height: 1.0,
+                            ),
+                          ),
+                          Text(
+                            '/100',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: Text(
-                  'dari 100',
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: scheme.onSurfaceVariant),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kondisi ${score.statusLabel}',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      score.headline.isNotEmpty
+                          ? score.headline
+                          : 'Evaluasi berdasarkan 5 pilar kesehatan finansial keluarga.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: value,
-              minHeight: 10,
-              backgroundColor: scheme.surfaceContainerHighest,
-              color: _statusColor,
+          if (score.pillars.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest.withValues(alpha: .5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Ringkasan 5 Pilar',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                      Text(
+                        'Skor Maks 100',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: score.pillars.map((pillar) {
+                      final pColor = _statusColor(pillar.status);
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: pillar.percentage,
+                                  minHeight: 6,
+                                  backgroundColor: scheme.surfaceContainer,
+                                  color: pColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${pillar.score}',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: pColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(growable: false),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            score.cashflow >= 0
-                ? 'Arus kas bulan ini masih positif. Pertahankan ritmenya.'
-                : 'Bulan ini agak seret. Yuk cek lagi pengeluaran yang bisa dirapikan.',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: scheme.onSurfaceVariant),
+          ],
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: () => _openDetailSheet(context),
+                  icon: const Icon(Icons.analytics_outlined, size: 18),
+                  label: const Text('Rincian 5 Pilar'),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _askAssistant(context),
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: const Text('Tanya AI'),
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
+    );
+  }
+}
+
+class _FinancialHealthDetailSheet extends StatelessWidget {
+  const _FinancialHealthDetailSheet({required this.score});
+
+  final FinancialHealthScore score;
+
+  Color _statusColor(FinancialHealthStatus status) {
+    return switch (status) {
+      FinancialHealthStatus.excellent => const Color(0xFF059669),
+      FinancialHealthStatus.good => const Color(0xFF0D9488),
+      FinancialHealthStatus.fair => const Color(0xFF2563EB),
+      FinancialHealthStatus.warning => const Color(0xFFD97706),
+      FinancialHealthStatus.critical => const Color(0xFFDC2626),
+    };
+  }
+
+  IconData _pillarIcon(String id) => switch (id) {
+    'cashflow' => Icons.trending_up_rounded,
+    'living_expense' => Icons.shopping_bag_outlined,
+    'debt_service' => Icons.credit_card_outlined,
+    'emergency_fund' => Icons.shield_outlined,
+    'net_worth' => Icons.account_balance_outlined,
+    _ => Icons.pie_chart_outline_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = _statusColor(score.status);
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.onSurfaceVariant.withValues(alpha: .3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 16, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Evaluasi 5 Pilar Finansial',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              AppStatusChip(
+                                label: '${score.totalScore}/100 · ${score.statusLabel}',
+                                color: color,
+                                backgroundColor: color.withValues(alpha: .12),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Diagnosa menyeluruh kondisi finansial keluarga FFM',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: .08),
+                        border: Border.all(color: color.withValues(alpha: .25)),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.info_outline_rounded, color: color, size: 22),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Kondisi Finansial: ${score.statusLabel}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: color,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  score.headline,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurface,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (score.strengths.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Kekuatan Finansial Anda',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...score.strengths.map(
+                        (s) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: Color(0xFF059669),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  s,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (score.warnings.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Area Perlu Perhatian',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...score.warnings.map(
+                        (w) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Color(0xFFD97706),
+                                size: 18,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  w,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Text(
+                      'Rincian 5 Pilar Kesehatan Finansial',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...score.pillars.map((pillar) {
+                      final pColor = _statusColor(pillar.status);
+                      final icon = _pillarIcon(pillar.id);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerHighest.withValues(alpha: .35),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: scheme.outlineVariant.withValues(alpha: .5),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(icon, color: pColor, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    pillar.title,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: pColor.withValues(alpha: .15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    '${pillar.score} / ${pillar.maxScore} pt',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: pColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(999),
+                              child: LinearProgressIndicator(
+                                value: pillar.percentage,
+                                minHeight: 6,
+                                backgroundColor: scheme.surfaceContainer,
+                                color: pColor,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              pillar.factDescription,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurface,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Saran: ${pillar.suggestion}',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    if (score.recommendations.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer.withValues(alpha: .4),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: scheme.primary.withValues(alpha: .3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.lightbulb_outline_rounded,
+                                  color: scheme.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Langkah Tindakan Paling Efektif',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: scheme.primary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            ...score.recommendations.map(
+                              (r) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '👉 ',
+                                      style: TextStyle(color: scheme.primary),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        r,
+                                        style: Theme.of(context).textTheme.bodyMedium,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        final open = FfmAssistantContextScope.openAssistantOf(context);
+                        open?.call(
+                          initialPrompt:
+                              'Bagaimana analisis 5 pilar kesehatan finansial keluarga saya dan langkah apa yang direkomendasikan untuk menaikkan skor?',
+                        );
+                      },
+                      icon: const Icon(Icons.auto_awesome_rounded),
+                      label: const Text('Konsultasikan Langkah Perbaikan dengan AI'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

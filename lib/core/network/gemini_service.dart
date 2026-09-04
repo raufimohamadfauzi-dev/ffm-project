@@ -17,8 +17,43 @@ class GeminiFunctionCall {
   final Map<String, dynamic> args;
 }
 
+class GeminiUsageMetadata {
+  const GeminiUsageMetadata({
+    required this.promptTokenCount,
+    required this.candidatesTokenCount,
+    required this.totalTokenCount,
+  });
+
+  final int promptTokenCount;
+  final int candidatesTokenCount;
+  final int totalTokenCount;
+
+  factory GeminiUsageMetadata.fromJson(Map<String, dynamic> json) {
+    return GeminiUsageMetadata(
+      promptTokenCount: (json['promptTokenCount'] as num?)?.toInt() ?? 0,
+      candidatesTokenCount: (json['candidatesTokenCount'] as num?)?.toInt() ?? 0,
+      totalTokenCount: (json['totalTokenCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'promptTokenCount': promptTokenCount,
+    'candidatesTokenCount': candidatesTokenCount,
+    'totalTokenCount': totalTokenCount,
+  };
+}
+
 class GeminiResult {
-  const GeminiResult({required this.model, required this.statusCode, required this.message, this.text, this.functionCalls, this.latency, this.diagnosticCode});
+  const GeminiResult({
+    required this.model,
+    required this.statusCode,
+    required this.message,
+    this.text,
+    this.functionCalls,
+    this.latency,
+    this.diagnosticCode,
+    this.usageMetadata,
+  });
   final String model;
   final int? statusCode;
   final String message;
@@ -26,6 +61,7 @@ class GeminiResult {
   final List<GeminiFunctionCall>? functionCalls;
   final Duration? latency;
   final String? diagnosticCode;
+  final GeminiUsageMetadata? usageMetadata;
   bool get ok => (text != null && text!.trim().isNotEmpty) || (functionCalls != null && functionCalls!.isNotEmpty);
 }
 
@@ -103,18 +139,26 @@ class GeminiService {
           {'role': 'user', 'parts': [{'text': prompt}]},
         ],
         'generationConfig': {'temperature': 0.7, 'topK': 40, 'topP': 0.95, 'maxOutputTokens': 1024},
-      })).timeout(const Duration(seconds: 15));
+      })).timeout(const Duration(seconds: 30));
       stopwatch.stop();
       if (response.statusCode != 200) return GeminiResult(model: model, statusCode: response.statusCode, message: _statusMessage(response.statusCode, response.body), latency: stopwatch.elapsed, diagnosticCode: _diagnosticCodeFor(response.statusCode));
       
+      GeminiUsageMetadata? usageMetadata;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded['usageMetadata'] is Map<String, dynamic>) {
+          usageMetadata = GeminiUsageMetadata.fromJson(decoded['usageMetadata'] as Map<String, dynamic>);
+        }
+      } catch (_) {}
+
       final (text, functionCalls) = _extractContent(response.body);
-      if (text == null && functionCalls == null) return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.responseEmpty);
+      if (text == null && functionCalls == null) return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini mengirim respons tanpa teks yang dapat dibaca.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.responseEmpty, usageMetadata: usageMetadata);
       
       var finalText = text;
       if (finalText != null && _proposalGateDenied(systemInstruction) && _containsStructuredProposal(finalText)) {
         finalText = 'Aku bisa membantu menjelaskan atau menganalisisnya, tetapi aku tidak membuat rancangan perubahan data dari kalimat ini. Jika memang ingin mengubah data FFM, sebutkan tindakan secara eksplisit, misalnya “catat…”, “tambahkan…”, atau “ubah…”.';
       }
-      return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).', text: finalText, functionCalls: functionCalls, latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.chatSuccess);
+      return GeminiResult(model: model, statusCode: response.statusCode, message: 'Gemini merespons (${stopwatch.elapsedMilliseconds} ms).', text: finalText, functionCalls: functionCalls, latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.chatSuccess, usageMetadata: usageMetadata);
     } on http.ClientException {
       stopwatch.stop();
       return GeminiResult(model: model, statusCode: null, message: 'Koneksi ke Gemini gagal. Periksa internet atau endpoint API.', latency: stopwatch.elapsed, diagnosticCode: GeminiDiagnosticCodes.network);
@@ -124,7 +168,7 @@ class GeminiService {
     } on Exception catch (error) {
       stopwatch.stop();
       final isTimeout = error.toString().toLowerCase().contains('timeout');
-      return GeminiResult(model: model, statusCode: null, message: isTimeout ? 'Request Gemini timeout setelah 15 detik.' : 'Request Gemini gagal: ${error.runtimeType}.', latency: stopwatch.elapsed, diagnosticCode: isTimeout ? GeminiDiagnosticCodes.timeout : GeminiDiagnosticCodes.network);
+      return GeminiResult(model: model, statusCode: null, message: isTimeout ? 'Request Gemini timeout setelah 30 detik. Periksa stabilitas koneksi internet.' : 'Request Gemini gagal: ${error.runtimeType}.', latency: stopwatch.elapsed, diagnosticCode: isTimeout ? GeminiDiagnosticCodes.timeout : GeminiDiagnosticCodes.network);
     }
   }
 

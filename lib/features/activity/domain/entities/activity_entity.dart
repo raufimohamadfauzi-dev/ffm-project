@@ -171,6 +171,7 @@ class ActivitySessionEntity {
     String? category,
     String? categoryId,
     ActivityKind? kind,
+    DateTime? startedAt,
     DateTime? endedAt,
     DateTime? scheduledAt,
     DateTime? dueDate,
@@ -193,7 +194,7 @@ class ActivitySessionEntity {
     categoryId: categoryId ?? this.categoryId,
     kind: kind ?? this.kind,
     parentSessionId: parentSessionId,
-    startedAt: startedAt,
+    startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt ?? this.endedAt,
     scheduledAt: scheduledAt ?? this.scheduledAt,
     dueDate: dueDate ?? this.dueDate,
@@ -237,6 +238,23 @@ class ActivityCheckpointEntity {
   final int sequence;
   final String? note;
   final DateTime createdAt;
+
+  ActivityCheckpointEntity copyWith({
+    String? label,
+    String? place,
+    DateTime? occurredAt,
+    int? sequence,
+    String? note,
+  }) => ActivityCheckpointEntity(
+    id: id,
+    sessionId: sessionId,
+    label: label ?? this.label,
+    place: place ?? this.place,
+    occurredAt: occurredAt ?? this.occurredAt,
+    sequence: sequence ?? this.sequence,
+    note: note ?? this.note,
+    createdAt: createdAt,
+  );
 }
 
 class ActivityJournalEntryEntity {

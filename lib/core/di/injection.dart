@@ -38,12 +38,17 @@ import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
+import '../../features/assistant/data/ffm_assistant_foreground_service.dart';
 import '../../features/assistant/data/ffm_assistant_proactive_evaluation_task.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
+import '../../features/assistant/data/telegram_bot_service.dart';
+import '../../features/assistant/data/telegram_config_repository.dart';
 import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
+import '../../features/assistant/data/payment_draft_repository.dart';
+import '../../features/assistant/data/notification_listener_bridge.dart';
 import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
@@ -87,6 +92,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => SaveTransaction(
       db,
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+      telegramBotService: getIt<TelegramBotService>(),
+      telegramConfigRepository: getIt<TelegramConfigRepository>(),
     ),
   );
   getIt.registerLazySingleton<SaveTransactionBatch>(
@@ -262,8 +269,22 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundScheduler>(
     FfmAssistantAutonomyBackgroundScheduler.new,
   );
+  getIt.registerLazySingleton<FfmAssistantForegroundServiceManager>(
+    FfmAssistantForegroundServiceManager.new,
+  );
   getIt.registerLazySingleton<FfmProactiveDeliveryPolicy>(
     FfmProactiveDeliveryPolicy.new,
+  );
+  getIt.registerLazySingleton<TelegramBotService>(TelegramBotService.new);
+  getIt.registerLazySingleton<TelegramConfigRepository>(
+    TelegramConfigRepository.new,
+  );
+  // Fitur 02: Pendeteksi Notifikasi QRIS & Bank
+  getIt.registerLazySingleton<PaymentDraftRepository>(
+    PaymentDraftRepository.new,
+  );
+  getIt.registerLazySingleton<NotificationListenerBridge>(
+    () => NotificationListenerBridge(getIt<PaymentDraftRepository>()),
   );
   getIt.registerLazySingleton<AutonomousEvaluationCoordinator>(
     () => AutonomousEvaluationCoordinator(
@@ -271,6 +292,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       insightRepository: FfmAssistantInsightRepository(db),
       notificationService: getIt<ReminderNotificationService>(),
       deliveryPolicy: getIt<FfmProactiveDeliveryPolicy>(),
+      telegramBotService: getIt<TelegramBotService>(),
+      telegramConfigRepository: getIt<TelegramConfigRepository>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundEventHandler>(

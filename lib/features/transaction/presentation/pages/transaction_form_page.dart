@@ -1007,7 +1007,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           ]);
     final label = isIncome ? 'Sumber pemasukan' : 'Dipakai oleh';
     final help = isIncome
-        ? 'Pilih sumber uangnya, misalnya gaji atau panen. Saldo tetap gabungan keluarga.'
+        ? 'Opsional: nama instansi, klien, atau pemberi dana jika ingin dicatat.'
         : 'Cuma penanda rincian pemakaian. Saldo tetap gabungan keluarga.';
     if (options.isEmpty) {
       return AppCard(
@@ -1064,9 +1064,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       searchHintText: 'Cari sumber atau pemakai',
       cacheKey: 'transaksi.${isIncome ? 'sumber_pemasukan' : 'dipakai_oleh'}',
       onChanged: (party) => setState(() => _partyName = party?.name ?? ''),
-      validator: isIncome
-          ? (party) => party == null ? 'Pilih sumber pemasukan dulu.' : null
-          : null,
+      validator: null,
     );
   }
 
@@ -1611,8 +1609,10 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                       .firstOrNull,
                   itemLabel: _categoryDisplayName,
                   itemId: (category) => category.id,
-                  labelText: 'Kategori uang masuk / keluar',
-                  helperText: 'Pilih sendiri. Tidak ada kategori yang dipilih otomatis.',
+                  labelText: isIncome ? 'Kategori pemasukan' : 'Kategori pengeluaran',
+                  helperText: isIncome
+                      ? 'Pilih pos kategori uang masuk.'
+                      : 'Pilih pos kategori uang keluar.',
                   searchHintText: 'Cari kategori transaksi',
                   cacheKey: 'transaksi.kategori',
                   onChanged: (category) {
@@ -1723,17 +1723,19 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                         ),
                       ),
                     const SizedBox(height: 12),
-                    TextFormField(
-                      controller: _locationController,
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Lokasi transaksi',
-                        hintText: 'Misalnya pasar, rumah, atau kantor',
-                        helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian.',
-                        prefixIcon: Icon(Icons.location_on_outlined),
+                    if (!isIncome || _locationController.text.trim().isNotEmpty) ...[
+                      TextFormField(
+                        controller: _locationController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Lokasi transaksi',
+                          hintText: 'Misalnya pasar, toko, atau resto',
+                          helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian belanja.',
+                          prefixIcon: Icon(Icons.location_on_outlined),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
+                      const SizedBox(height: 10),
+                    ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.calendar_today_outlined),

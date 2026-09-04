@@ -180,4 +180,89 @@ void main() {
     expect(distinctIds, hasLength(64));
     expect(await memories.readActive(), hasLength(64));
   });
+
+  group('saveManualMemory', () {
+    test('menyimpan profil (userModel) langsung aktif dan disetujui', () async {
+      final item = await service.saveManualMemory(
+        label: 'Nama panggilan',
+        value: 'Naya',
+        scope: FfmPersonalMemoryControlScope.userModel,
+      );
+
+      expect(item.label, 'Nama panggilan');
+      expect(item.value, 'Naya');
+      expect(item.scope, FfmPersonalMemoryControlScope.userModel);
+
+      final visible = await service.readVisible();
+      expect(visible.map((e) => e.label), contains('Nama panggilan'));
+    });
+
+    test('menyimpan preferensi (personalMemory) langsung aktif dan disetujui', () async {
+      final item = await service.saveManualMemory(
+        label: 'Gaya Bahasa',
+        value: 'Santai dan ramah',
+        scope: FfmPersonalMemoryControlScope.personalMemory,
+      );
+
+      expect(item.label, 'Gaya Bahasa');
+      expect(item.value, 'Santai dan ramah');
+      expect(item.scope, FfmPersonalMemoryControlScope.personalMemory);
+
+      final visible = await service.readVisible();
+      expect(visible.map((e) => e.label), contains('Gaya Bahasa'));
+    });
+
+    test('menyimpan koreksi (aliasCorrection) langsung aktif dan berlabel Koreksi', () async {
+      final item = await service.saveManualMemory(
+        label: 'mamam',
+        value: 'makan siang',
+        scope: FfmPersonalMemoryControlScope.aliasCorrection,
+      );
+
+      expect(item.label, 'Koreksi: mamam');
+      expect(item.value, 'makan siang');
+      expect(item.scope, FfmPersonalMemoryControlScope.aliasCorrection);
+
+      final visible = await service.readVisible();
+      expect(visible.map((e) => e.label), contains('Koreksi: mamam'));
+    });
+
+    test('menolak input kosong', () async {
+      expect(
+        () => service.saveManualMemory(
+          label: '',
+          value: 'value',
+          scope: FfmPersonalMemoryControlScope.userModel,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.saveManualMemory(
+          label: 'label',
+          value: '  ',
+          scope: FfmPersonalMemoryControlScope.personalMemory,
+        ),
+        throwsArgumentError,
+      );
+    });
+
+    test('menolak input yang mengandung data sensitif atau angka nominal besar', () async {
+      expect(
+        () => service.saveManualMemory(
+          label: 'pin atm',
+          value: '123456',
+          scope: FfmPersonalMemoryControlScope.userModel,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => service.saveManualMemory(
+          label: 'catatan gaji',
+          value: '5000000',
+          scope: FfmPersonalMemoryControlScope.personalMemory,
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
 }

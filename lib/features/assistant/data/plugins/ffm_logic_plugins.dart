@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../advisor/domain/usecases/financial_health_calculator.dart';
 import '../../domain/ffm_agent_harness.dart';
 
 String _rupiah(int amount) {
@@ -207,49 +208,61 @@ class FfmFinancialHealthLogicPlugin extends FfmAgentPlugin {
             .get();
     final monthlyDebt =
         liabilities.fold<int>(0, (sum, row) => sum + row.monthlyInstallment);
+    final totalLiabilities =
+        liabilities.fold<int>(0, (sum, row) => sum + row.remainingBalance);
 
-    if (income == 0) {
-      return const FfmHarnessResult(
-        pluginName: 'financial_health_logic',
-        category: FfmPluginCategory.logic,
-        text:
-            '📊 **Analisis Kesehatan Keuangan**\n\n'
-            'Belum ada data pemasukan bulan ini untuk menghitung rasio. Catat pemasukan bulan ini terlebih dahulu.',
-      );
-    }
+    final assetRows =
+        await (_db.select(_db.assets)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.isArchived.equals(false),
+            ))
+            .get();
+    final totalAssets =
+        assetRows.fold<int>(0, (sum, row) => sum + row.value);
+    final emergencyFund = assetRows
+        .where((row) => row.assetType == 'cash')
+        .fold<int>(0, (sum, row) => sum + row.value);
 
-    final savings = (income - expense).clamp(0, income);
-    final savingsRate = (savings / income * 100).round();
-    final debtToIncomeRate = (monthlyDebt / income * 100).round();
+    final score = const FinancialHealthCalculator().calculate(
+      FinancialHealthInput(
+        totalIncome: income,
+        totalExpenses: expense,
+        totalMonthlyInstallments: monthlyDebt,
+        emergencyFundAmount: emergencyFund,
+        averageMonthlyExpenses: expense,
+        totalAssets: totalAssets,
+        totalLiabilities: totalLiabilities,
+      ),
+    );
 
-    final healthBadge = savingsRate >= 20 && debtToIncomeRate <= 30
-        ? '🟢 **SEHAT PRIMA**'
-        : savingsRate >= 10 && debtToIncomeRate <= 40
-        ? '🟡 **CUKUP SEHAT**'
-        : '🔴 **PERLU PERBAIKAN**';
+    final badge = switch (score.status) {
+      FinancialHealthStatus.excellent => '🟢 **PRIMA (${score.totalScore}/100)**',
+      FinancialHealthStatus.good => '🟢 **SEHAT (${score.totalScore}/100)**',
+      FinancialHealthStatus.fair => '🟡 **CUKUP (${score.totalScore}/100)**',
+      FinancialHealthStatus.warning => '🟠 **PERLU DIJAGA (${score.totalScore}/100)**',
+      FinancialHealthStatus.critical => '🔴 **PERLU DIBENAHI (${score.totalScore}/100)**',
+    };
 
     final lines = <String>[
-      '🏥 **Rapor Kesehatan Finansial Keluarga**\n',
-      'Status Keseluruhan: $healthBadge\n',
-      '📈 **1. Rasio Tabungan (Savings Rate): $savingsRate%** (Ideal: ≥ 20%)',
-      savingsRate >= 20
-          ? '   ✅ Luar biasa! Kemampuan menabung Anda sangat baik.'
-          : savingsRate >= 10
-          ? '   ⚠️ Masih aman, namun usahakan tingkatkan ke 20%.'
-          : '   🔴 Rendah. Pengeluaran menyerap hampir seluruh pemasukan.',
-      '\n💳 **2. Rasio Beban Cicilan (Debt Service Ratio): $debtToIncomeRate%** (Maksimal Aman: ≤ 30%)',
-      debtToIncomeRate == 0
-          ? '   ✅ Bebas cicilan! Tidak ada beban hutang bulanan.'
-          : debtToIncomeRate <= 30
-          ? '   ✅ Porsi cicilan dalam batas aman (≤ 30% pemasukan).'
-          : '   ⚠️ Peringatan: Beban cicilan melebihi batas aman 30% pemasukan!',
-      '\n💡 **Rekomendasi Aksi:**',
-      if (savingsRate < 20)
-        '- Sisihkan minimal 10-20% di awal gajian ke amplop tabungan sebelum belanja.',
-      if (debtToIncomeRate > 30)
-        '- Tahan pengajuan pinjaman/kredit baru hingga rasio cicilan turun.',
-      if (savingsRate >= 20 && debtToIncomeRate <= 30)
-        '- Pertahankan pola ini dan alokasikan surplus ke dana darurat atau investasi.',
+      '🏥 **Rapor Kesehatan Finansial Keluarga (Evaluasi 5 Pilar)**\n',
+      'Status Keseluruhan: $badge',
+      '${score.headline}\n',
+      '📊 **Nilai 5 Pilar Utama:**',
+      for (final p in score.pillars)
+        '• **${p.title} (${p.score}/${p.maxScore} poin)**\n  ${p.factDescription}',
+      if (score.strengths.isNotEmpty) ...[
+        '\n💪 **Kekuatan Finansial:**',
+        for (final s in score.strengths) '• ✅ $s',
+      ],
+      if (score.warnings.isNotEmpty) ...[
+        '\n⚠️ **Area Perlu Perhatian:**',
+        for (final w in score.warnings) '• ⚠️ $w',
+      ],
+      if (score.recommendations.isNotEmpty) ...[
+        '\n💡 **Rekomendasi Aksi:**',
+        for (final r in score.recommendations) '• 👉 $r',
+      ],
     ];
 
     return FfmHarnessResult(
@@ -257,10 +270,14 @@ class FfmFinancialHealthLogicPlugin extends FfmAgentPlugin {
       category: category,
       text: lines.join('\n'),
       metadata: {
-        'savingsRate': savingsRate,
-        'debtToIncomeRate': debtToIncomeRate,
+        'totalScore': score.totalScore,
+        'status': score.status.name,
+        'savingsRate': (score.savingsRate * 100).round(),
+        'debtToIncomeRate': (score.debtToIncomeRatio * 100).round(),
         'income': income,
         'expense': expense,
+        'emergencyMonths': score.emergencyMonths,
+        'netWorth': score.netWorth,
       },
     );
   }
@@ -750,12 +767,15 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
   @override
   List<String> get triggers => [
     'dana darurat',
+    'target keuangan dana darurat',
+    'target dana darurat',
     'hitung dana darurat',
     'kebutuhan darurat',
     'emergency fund',
     'dana cadangan',
     'tabungan darurat',
     'berapa dana darurat',
+    'berapa bulan dana darurat',
     'cukup dana darurat',
     'simpanan darurat',
   ];

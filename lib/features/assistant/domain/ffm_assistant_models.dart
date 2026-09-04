@@ -36,6 +36,7 @@ class FfmAssistantProcessTrace {
     this.fallbackReason,
     this.pluginName,
     this.pluginCategory,
+    this.tokenUsage,
   });
 
   final FfmAssistantResponseOrigin origin;
@@ -50,6 +51,9 @@ class FfmAssistantProcessTrace {
   /// Label tampilan ramah pengguna untuk kategori plugin.
   /// Contoh: '👁️ Sense', '🧮 Logic', '✋ Actuator'.
   final String? pluginCategory;
+
+  /// Konsumsi token (promptTokenCount, candidatesTokenCount, totalTokenCount) jika ada.
+  final Map<String, dynamic>? tokenUsage;
 }
 
 enum FfmAssistantIntentType {

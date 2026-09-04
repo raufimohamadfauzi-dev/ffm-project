@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
 import '../data/ffm_assistant_insight_repository.dart';
@@ -10,6 +11,9 @@ import 'detectors/micro_expense_leak_detector.dart';
 import 'detectors/predictive_runway_detector.dart';
 import 'ffm_assistant_insight.dart';
 import 'ffm_proactive_delivery_policy.dart';
+import '../data/telegram_bot_service.dart';
+import '../data/telegram_config_repository.dart';
+import '../data/telegram_message_formatter.dart';
 
 class AutonomousEvaluationCoordinator {
   AutonomousEvaluationCoordinator({
@@ -18,7 +22,10 @@ class AutonomousEvaluationCoordinator {
     DateTime Function()? clock,
     this.notificationService,
     this.deliveryPolicy,
-  })  : _repo = insightRepository,
+    this.telegramBotService,
+    this.telegramConfigRepository,
+  })  : _db = database,
+        _repo = insightRepository,
         _clock = clock ?? DateTime.now,
         _runwayDetector = PredictiveRunwayDetector(database),
         _rebalanceDetector = IntelligentEnvelopeRebalanceDetector(database),
@@ -33,10 +40,14 @@ class AutonomousEvaluationCoordinator {
   /// Helper untuk reset debounce saat testing
   static void resetDebounce() => _lastEvaluationTimes.clear();
 
+  final AppDatabase _db;
+
   final FfmAssistantInsightRepository _repo;
   final DateTime Function() _clock;
   final ReminderNotificationService? notificationService;
   final FfmProactiveDeliveryPolicy? deliveryPolicy;
+  final TelegramBotService? telegramBotService;
+  final TelegramConfigRepository? telegramConfigRepository;
 
   final PredictiveRunwayDetector _runwayDetector;
   final IntelligentEnvelopeRebalanceDetector _rebalanceDetector;
@@ -141,6 +152,160 @@ class AutonomousEvaluationCoordinator {
       }
     }
 
+    // Jika ada insight baru dan integrasi Telegram Bot aktif, kirim salinan peringatan radar
+    if (savedInsights.isNotEmpty &&
+        telegramBotService != null &&
+        telegramConfigRepository != null) {
+      try {
+        final teleConfig = await telegramConfigRepository!.loadConfig();
+        if (teleConfig.isReady && teleConfig.alertsEnabled) {
+          for (final saved in savedInsights) {
+            // Teruskan wawasan prioritas tinggi (>= 70) ke Telegram
+            if (saved.priority >= 70) {
+              final alertMsg = TelegramMessageFormatter.formatAlertMessage(
+                title: saved.title,
+                summary: saved.summary,
+              );
+              await telegramBotService!.sendMessage(
+                botToken: teleConfig.botToken,
+                chatId: teleConfig.chatId,
+                text: alertMsg,
+              );
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Catch-up: periksa apakah laporan mingguan tertunda perlu dikirimkan
+    try {
+      await checkAndSendWeeklyReport(householdId: householdId);
+    } catch (_) {}
+
     return savedInsights;
+  }
+
+  /// Memeriksa dan mengirimkan Laporan Mingguan ke Telegram jika belum terkirim pekan ini (*Catch-Up*).
+  /// Parameter `force = true` dapat digunakan untuk pengiriman manual langsung (*Kirim Sekarang*).
+  Future<bool> checkAndSendWeeklyReport({
+    required String householdId,
+    bool force = false,
+  }) async {
+    if (telegramBotService == null || telegramConfigRepository == null) {
+      return false;
+    }
+    try {
+      final config = await telegramConfigRepository!.loadConfig();
+      if (!config.isReady) return false;
+      if (!force && !config.weeklyReportEnabled) return false;
+
+      final now = _clock();
+      if (!force) {
+        final lastSent =
+            await telegramConfigRepository!.loadLastWeeklyReportSent();
+        if (lastSent != null) {
+          final diffDays = now.difference(lastSent).inDays;
+          // Jangan kirim ulang otomatis jika belum ada 6 hari sejak pengiriman terakhir
+          if (diffDays < 6) return false;
+        }
+      }
+
+      // Kumpulkan data transaksi 7 hari terakhir secara deterministik
+      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      final allTxs = await (_db.select(_db.transactions)
+            ..where((row) =>
+                row.householdId.equals(householdId) &
+                row.isArchived.equals(false) &
+                row.isDeleted.equals(false)))
+          .get();
+
+      var totalExpense = 0;
+      var totalIncome = 0;
+      final categoryExpenses = <String, int>{};
+
+      for (final tx in allTxs) {
+        if (tx.date.isBefore(sevenDaysAgo) || tx.date.isAfter(now)) continue;
+        if (tx.type == 'expense' || tx.amount < 0) {
+          final amt = tx.amount.abs();
+          totalExpense += amt;
+          final catId = tx.categoryId ?? 'uncategorized';
+          categoryExpenses[catId] = (categoryExpenses[catId] ?? 0) + amt;
+        } else if (tx.type == 'income' || tx.amount > 0) {
+          totalIncome += tx.amount.abs();
+        }
+      }
+
+      // Cari kategori terbesar
+      String? topCatName;
+      int topCatAmount = 0;
+      if (categoryExpenses.isNotEmpty) {
+        final sortedCats = categoryExpenses.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+        final topEntry = sortedCats.first;
+        topCatAmount = topEntry.value;
+
+        if (topEntry.key != 'uncategorized') {
+          final cat = await (_db.select(_db.categories)
+                ..where((c) => c.id.equals(topEntry.key)))
+              .getSingleOrNull();
+          topCatName = cat?.name;
+        } else {
+          topCatName = 'Lain-lain';
+        }
+      }
+
+      // Hitung total saldo kas likuid dari rekening aktif
+      final accounts = await (_db.select(_db.accounts)
+            ..where((row) =>
+                row.householdId.equals(householdId) &
+                row.isActive.equals(true) &
+                row.isArchived.equals(false)))
+          .get();
+
+      int liquidCash = 0;
+      for (final acc in accounts) {
+        int balance = acc.openingBalance;
+        for (final tx in allTxs) {
+          if (tx.accountId == acc.id) {
+            balance += tx.amount;
+          }
+        }
+        liquidCash += balance;
+      }
+
+      // Ambil profil keluarga
+      final household = await (_db.select(_db.households)
+            ..where((h) => h.id.equals(householdId)))
+          .getSingleOrNull();
+
+      final reportMsg = TelegramMessageFormatter.formatWeeklyReport(
+        familyName: household?.name,
+        husbandName: household?.husbandName,
+        wifeName: household?.wifeName,
+        totalExpense: totalExpense,
+        totalIncome: totalIncome,
+        topExpenseCategory: topCatName,
+        topExpenseAmount: topCatAmount,
+        cashBalance: liquidCash,
+        headline: totalExpense > 0 && liquidCash > totalExpense * 4
+            ? 'Cadangan kas keluarga sehat dan aman untuk operasional.'
+            : null,
+      );
+
+      final result = await telegramBotService!.sendMessage(
+        botToken: config.botToken,
+        chatId: config.chatId,
+        text: reportMsg,
+      );
+
+      if (result.success) {
+        await telegramConfigRepository!.saveLastWeeklyReportSent(now);
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 }

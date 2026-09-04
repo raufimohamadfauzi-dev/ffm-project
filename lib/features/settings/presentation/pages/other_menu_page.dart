@@ -6,6 +6,8 @@ import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/assistant_profile_page.dart';
 import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
+import '../../../assistant/presentation/pages/telegram_setup_page.dart';
+import '../../../assistant/presentation/pages/payment_detector_settings_page.dart';
 
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
@@ -126,43 +128,69 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
             ))
               AppCard(
-                color: Theme.of(context).colorScheme.primaryContainer,
+                color: const Color(0xFFD1FAE5).withValues(alpha: .5),
+                border: BorderSide(color: const Color(0xFF059669).withValues(alpha: .4), width: 1.5),
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                    child: const Icon(Icons.tune_outlined),
+                  leading: Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF059669),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.tune_rounded, color: Colors.white, size: 24),
                   ),
-                  title: const Text(
-                    'Data Utama',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+                  title: Row(
+                    children: const [
+                      Expanded(
+                        child: Text(
+                          'Data Utama',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        ),
+                      ),
+                      AppStatusChip(
+                        label: 'WAJIB AWAL',
+                        color: Color(0xFF059669),
+                        backgroundColor: Color(0xFFD1FAE5),
+                      ),
+                    ],
                   ),
-                  subtitle: const Text(
-                    'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+                  subtitle: const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Isi kategori, toko, tag, rekening, dan sumber pemasukan untuk pilihan transaksi.',
+                    ),
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _open(context, const MasterDataPage()),
                 ),
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             _MenuCard(
-              icon: Icons.cloud_queue_outlined,
+              icon: Icons.cloud_queue_rounded,
               title: 'Gemini Cloud & Memori',
               subtitle: 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
+              iconColor: const Color(0xFF0284C7),
+              iconBackgroundColor: const Color(0xFFE0F2FE),
+              badgeText: 'AI CLOUD',
               onTap: () => _open(context, const SupabaseSetupPage()),
               visible: _matches(
                 'Gemini Cloud Memori simpan uji model chatbot Supabase',
                 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
               ),
             ),
+            const SizedBox(height: 16),
             const AppSectionHeader(title: 'Data keluarga'),
             const SizedBox(height: 8),
             _MenuCard(
-              icon: Icons.inventory_2_outlined,
+              icon: Icons.inventory_2_rounded,
               title: 'Aset keluarga',
               subtitle:
                   'Catat barang atau kekayaan keluarga yang ingin dipantau.',
+              iconColor: const Color(0xFF4F46E5),
+              iconBackgroundColor: const Color(0xFFEEF2FF),
+              badgeText: 'HARTA',
               onTap: () => _open(context, const AssetListPage()),
               visible: _matches(
                 'Aset keluarga',
@@ -170,9 +198,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.flag_outlined,
+              icon: Icons.flag_rounded,
               title: 'Target keuangan',
               subtitle: 'Pantau uang yang ingin dikumpulkan sampai batas waktu tertentu.',
+              iconColor: const Color(0xFF0D9488),
+              iconBackgroundColor: const Color(0xFFCCFBF1),
+              badgeText: 'GOALS',
               onTap: () => _open(context, const GoalListPage()),
               visible: _matches(
                 'Target keuangan',
@@ -180,23 +211,29 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.account_balance_outlined,
+              icon: Icons.account_balance_rounded,
               title: 'Hutang & piutang',
               subtitle: 'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
+              iconColor: const Color(0xFFEA580C),
+              iconBackgroundColor: const Color(0xFFFFEDD5),
+              badgeText: 'KEWAJIBAN',
               onTap: () => _open(context, const LiabilityReceivablePage()),
               visible: _matches(
                 'Hutang & piutang',
                 'Kelola kewajiban dan uang yang masih perlu diterima keluarga.',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const AppSectionHeader(title: 'Laporan dan cadangan'),
             const SizedBox(height: 8),
             _MenuCard(
-              icon: Icons.ios_share_outlined,
+              icon: Icons.ios_share_rounded,
               title: 'Ekspor & cadangan',
               subtitle:
                   'Buat JSON, CSV, HTML, PDF, atau pulihkan data dari berkas.',
+              iconColor: const Color(0xFF7C3AED),
+              iconBackgroundColor: const Color(0xFFF3E8FF),
+              badgeText: 'BACKUP',
               onTap: () => _open(context, const BackupPage()),
               visible: _matches(
                 'Ekspor & cadangan',
@@ -204,9 +241,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.summarize_outlined,
+              icon: Icons.summarize_rounded,
               title: 'Ringkasan bulanan',
               subtitle: 'Bandingkan arus kas, kesehatan keuangan, dan laporan per bulan.',
+              iconColor: const Color(0xFF2563EB),
+              iconBackgroundColor: const Color(0xFFDBEAFE),
+              badgeText: 'LAPORAN',
               onTap: () => _open(context, const MonthlyReportPage()),
               visible: _matches(
                 'Ringkasan bulanan',
@@ -214,33 +254,41 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.history,
+              icon: Icons.history_rounded,
               title: 'Log aktivitas',
               subtitle: 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+              iconColor: const Color(0xFF475569),
+              iconBackgroundColor: const Color(0xFFF1F5F9),
+              badgeText: 'AUDIT',
               onTap: () => _open(context, const ActivityLogPage()),
               visible: _matches(
                 'Log aktivitas',
                 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const AppSectionHeader(title: 'Pengingat dan alat'),
             const SizedBox(height: 8),
             _MenuCard(
-              icon: Icons.badge_outlined,
+              icon: Icons.badge_rounded,
               title: 'Profil Personalisasi Asisten',
               subtitle: 'Ekspor atau impor preferensi dan pola belajar terkontrol secara terenkripsi.',
+              iconColor: const Color(0xFFC026D3),
+              iconBackgroundColor: const Color(0xFFFAE8FF),
+              badgeText: 'MEMORI AI',
               onTap: () => _open(context, const AssistantProfilePage()),
               visible: _matches(
                 'Profil Personalisasi Asisten',
                 'Ekspor atau impor preferensi dan pola belajar terkontrol secara terenkripsi.',
               ),
             ),
-
             _MenuCard(
-              icon: Icons.mark_email_unread_outlined,
+              icon: Icons.mark_email_unread_rounded,
               title: 'Laporan & Kotak Masuk Asisten',
               subtitle: 'Tinjau rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+              iconColor: const Color(0xFFD97706),
+              iconBackgroundColor: const Color(0xFFFEF3C7),
+              badgeText: 'PROAKTIF',
               onTap: () => _open(context, const AgentInboxPage()),
               visible: _matches(
                 'Laporan Kotak Masuk Asisten insight rekomendasi saran runway rebalance',
@@ -248,9 +296,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.monitor_heart_outlined,
+              icon: Icons.monitor_heart_rounded,
               title: 'Monitoring Agent',
               subtitle: 'Periksa riwayat run dan eksekusi tool Agent secara read-only.',
+              iconColor: const Color(0xFFE11D48),
+              iconBackgroundColor: const Color(0xFFFFE4E6),
+              badgeText: 'AUTONOMY',
               onTap: () =>
                   _open(context, const FfmAssistantAutonomyMonitorPage()),
               visible: _matches(
@@ -259,10 +310,39 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.insights_outlined,
+              icon: Icons.send_rounded,
+              title: 'Telegram Bot Keluarga',
+              subtitle: 'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
+              iconColor: const Color(0xFF0284C7),
+              iconBackgroundColor: const Color(0xFFE0F2FE),
+              badgeText: 'BOT KELUARGA',
+              onTap: () => _open(context, const TelegramSetupPage()),
+              visible: _matches(
+                'Telegram Bot Keluarga notifikasi laporan alarm boncos grup suami istri',
+                'Kirim laporan mingguan otomatis & alarm radar boncos ke chat/grup keluarga.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.qr_code_scanner,
+              title: 'Pendeteksi Bayar Otomatis',
+              subtitle: 'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
+              iconColor: const Color(0xFF7C3AED),
+              iconBackgroundColor: const Color(0xFFEDE9FE),
+              badgeText: 'QRIS & BANK',
+              onTap: () => _open(context, const PaymentDetectorSettingsPage()),
+              visible: _matches(
+                'Pendeteksi Bayar Otomatis QRIS bank notifikasi transaksi auto detect',
+                'Tangkap otomatis transaksi QRIS & bank dari notifikasi HP. 100% lokal, tanpa cloud.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.auto_graph_rounded,
               title: 'Analisa',
               subtitle:
                   'Baca pola keuangan dan saran dari data yang tersimpan.',
+              iconColor: const Color(0xFF059669),
+              iconBackgroundColor: const Color(0xFFD1FAE5),
+              badgeText: 'INSIGHT',
               onTap: () => _open(context, const AnalysisPage()),
               visible: _matches(
                 'Analisa',
@@ -270,10 +350,13 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.notifications_none_outlined,
+              icon: Icons.notifications_active_rounded,
               title: 'Pengingat',
               subtitle:
                   'Buat pengingat lokal untuk hal yang tidak boleh kelupaan.',
+              iconColor: const Color(0xFFCA8A04),
+              iconBackgroundColor: const Color(0xFFFEF9C3),
+              badgeText: 'ALARM',
               onTap: () => _open(context, const ReminderPage()),
               visible: _matches(
                 'Pengingat',
@@ -281,9 +364,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.nights_stay_outlined,
+              icon: Icons.nights_stay_rounded,
               title: 'Kalender Hijriah & Hilal',
               subtitle: 'Atur koreksi Hilal (-2/+2 hari) dan penetapan awal bulan Hijriah.',
+              iconColor: const Color(0xFF16A34A),
+              iconBackgroundColor: const Color(0xFFDCFCE7),
+              badgeText: 'HIJRIAH',
               onTap: () => _open(context, const HijriSettingsPage()),
               visible: _matches(
                 'Kalender Hijriah Hilal rukyat isbat puasa ramadan',
@@ -291,9 +377,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.event_repeat_outlined,
+              icon: Icons.event_repeat_rounded,
               title: 'Pemasukan berkala',
               subtitle: 'Atur bunga atau pemasukan rutin harian, mingguan, dan bulanan.',
+              iconColor: const Color(0xFF0891B2),
+              iconBackgroundColor: const Color(0xFFCFFAFE),
+              badgeText: 'RUTIN',
               onTap: () => _open(context, const RecurringTransactionPage()),
               visible: _matches(
                 'Pemasukan berkala',
@@ -306,14 +395,17 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 padding: EdgeInsets.only(top: 24),
                 child: Center(child: Text('Menu tidak ditemukan.')),
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
             const AppSectionHeader(title: 'Keamanan dan informasi'),
             const SizedBox(height: 8),
             _MenuCard(
-              icon: Icons.lock_outline,
+              icon: Icons.lock_rounded,
               title: 'Kunci aplikasi',
               subtitle:
                   'Atur PIN untuk membantu menjaga akses ke data keluarga.',
+              iconColor: const Color(0xFFDC2626),
+              iconBackgroundColor: const Color(0xFFFEE2E2),
+              badgeText: 'PIN',
               onTap: () => _open(context, const PinSecurityPage()),
               visible: _matches(
                 'Kunci aplikasi',
@@ -321,9 +413,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.bug_report_outlined,
+              icon: Icons.bug_report_rounded,
               title: 'Bantuan perbaikan',
               subtitle: 'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+              iconColor: const Color(0xFFC2410C),
+              iconBackgroundColor: const Color(0xFFFFEDD5),
+              badgeText: 'DIAGNOSTIK',
               onTap: () => _open(context, const AppDiagnosticsPage()),
               visible: _matches(
                 'Bantuan perbaikan',
@@ -331,9 +426,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.privacy_tip_outlined,
+              icon: Icons.privacy_tip_rounded,
               title: 'Pusat privasi',
               subtitle: 'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',
+              iconColor: const Color(0xFF4338CA),
+              iconBackgroundColor: const Color(0xFFE0E7FF),
+              badgeText: 'PRIVASI',
               onTap: () => _open(context, const PrivacyCenterPage()),
               visible: _matches(
                 'Pusat privasi',
@@ -341,9 +439,12 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.storage_outlined,
+              icon: Icons.storage_rounded,
               title: 'Struktur database',
               subtitle: 'Lihat tabel dan gambaran isi database lokal FFM.',
+              iconColor: const Color(0xFF334155),
+              iconBackgroundColor: const Color(0xFFE2E8F0),
+              badgeText: 'SQL LOKAL',
               onTap: () => _open(context, const DatabaseStructurePage()),
               visible: _matches(
                 'Struktur database',
@@ -364,6 +465,9 @@ class _MenuCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.iconColor,
+    this.iconBackgroundColor,
+    this.badgeText,
     this.visible = true,
   });
 
@@ -371,29 +475,63 @@ class _MenuCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final Color? iconColor;
+  final Color? iconBackgroundColor;
+  final String? badgeText;
   final bool visible;
 
   @override
   Widget build(BuildContext context) {
     if (!visible) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
+    final fgColor = iconColor ?? scheme.primary;
+    final bgColor = iconBackgroundColor ?? fgColor.withValues(alpha: .14);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
         padding: EdgeInsets.zero,
         child: ListTile(
           minVerticalPadding: 14,
-          leading: CircleAvatar(
-            backgroundColor: scheme.secondaryContainer,
-            foregroundColor: scheme.onSecondaryContainer,
-            child: Icon(icon),
+          leading: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: fgColor, size: 22),
           ),
-          title: Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              if (badgeText != null) ...[
+                const SizedBox(width: 8),
+                AppStatusChip(
+                  label: badgeText!,
+                  color: fgColor,
+                  backgroundColor: fgColor.withValues(alpha: .12),
+                ),
+              ],
+            ],
           ),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              subtitle,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
+                fontSize: 13,
+                height: 1.3,
+              ),
+            ),
+          ),
+          trailing: const Icon(Icons.chevron_right, size: 20),
           onTap: onTap,
         ),
       ),

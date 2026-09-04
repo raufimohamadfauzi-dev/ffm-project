@@ -44,7 +44,7 @@ class FfmGeminiReadCapabilityPolicy {
       canonicalToolChoices.map((c) => '`$c`').join(', ');
 
   static const String privacyContractExplanation =
-      'Data yang dibaca Gemini dibatasi ketat: hanya agregat ringkas bulan berjalan atau maksimal 8 transaksi bertanggal tanpa nomor rekening, nama merchant sensitif, catatan pribadi, atau pengenal unik database.';
+      'Data yang dibaca Gemini dibatasi ketat: agregat ringkas terikat tanggal tanpa nomor rekening, nama merchant sensitif, catatan pribadi, atau pengenal unik database.';
 
   static bool isAllowed(String capabilityId) =>
       allowedCapabilityIds.contains(capabilityId.trim());
@@ -88,6 +88,7 @@ class FfmGeminiReadCapabilityService {
       case 'read.goals':
         return await _financialSnapshot.buildGoalsDigest(
           householdId: householdId,
+          now: now,
         );
       case 'read.liabilities':
       case 'read.debts':
@@ -135,14 +136,15 @@ class FfmGeminiReadCapabilityService {
     if (startDate == null || endDate == null) {
       throw StateError('Rentang tanggal transaksi tidak lengkap.');
     }
-    if (endDate.isBefore(startDate) ||
-        endDate.difference(startDate).inDays > 13) {
-      throw StateError('Rentang transaksi tidak valid atau melebihi 14 hari.');
+    if (endDate.isBefore(startDate)) {
+      throw StateError(
+        'Rentang transaksi tidak valid: tanggal akhir mendahului tanggal awal.',
+      );
     }
-    final monthStart = DateTime(now.year, now.month);
-    final monthEnd = DateTime(now.year, now.month + 1);
-    if (startDate.isBefore(monthStart) || !endDate.isBefore(monthEnd)) {
-      throw StateError('Rentang transaksi harus berada dalam bulan berjalan.');
+    if (endDate.difference(startDate).inDays > 730) {
+      throw StateError(
+        'Rentang transaksi melebihi batas maksimal 730 hari (2 tahun).',
+      );
     }
   }
 }

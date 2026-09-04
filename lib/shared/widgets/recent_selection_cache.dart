@@ -1,33 +1,51 @@
 import 'dart:convert';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Cache pilihan terakhir untuk mempercepat input tanpa mengubah data utama.
 ///
-/// Cache ini hanya menyimpan ID/string pilihan pada perangkat. Nilai yang sudah
-/// tidak ada di master data akan diabaikan oleh komponen pemanggil.
+/// Cache ini menggunakan in-memory cache dengan persistensi [SharedPreferences]
+/// agar pembacaan nilai berlangsung instan (0 ms) tanpa IPC ke Keystore.
 class RecentSelectionCache {
-  RecentSelectionCache([FlutterSecureStorage? storage])
-    : _storage = storage ?? const FlutterSecureStorage();
+  RecentSelectionCache([this._prefs]);
 
-  final FlutterSecureStorage _storage;
+  SharedPreferences? _prefs;
+  final Map<String, List<String>> _memoryCache = {};
 
   static const _keyPrefix = 'ffm_recent_selection_v1_';
   static const _maxItems = 5;
 
+  Future<SharedPreferences> _getPrefs() async {
+    return _prefs ??= await SharedPreferences.getInstance();
+  }
+
   Future<List<String>> read(String fieldKey) async {
-    final raw = await _storage.read(key: _key(fieldKey));
-    if (raw == null || raw.trim().isEmpty) return const [];
+    final cacheKey = _key(fieldKey);
+    if (_memoryCache.containsKey(cacheKey)) {
+      return _memoryCache[cacheKey]!;
+    }
+    final prefs = await _getPrefs();
+    final raw = prefs.getString(cacheKey);
+    if (raw == null || raw.trim().isEmpty) {
+      _memoryCache[cacheKey] = const [];
+      return const [];
+    }
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded
+      if (decoded is! List) {
+        _memoryCache[cacheKey] = const [];
+        return const [];
+      }
+      final list = decoded
           .map((item) => item.toString().trim())
           .where((item) => item.isNotEmpty)
           .toSet()
           .take(_maxItems)
           .toList(growable: false);
+      _memoryCache[cacheKey] = list;
+      return list;
     } catch (_) {
+      _memoryCache[cacheKey] = const [];
       return const [];
     }
   }
@@ -43,10 +61,13 @@ class RecentSelectionCache {
     final current = await read(fieldKey);
     final kept = current.where(valid.contains).toList(growable: false);
     if (kept.length != current.length) {
+      final cacheKey = _key(fieldKey);
+      _memoryCache[cacheKey] = kept;
+      final prefs = await _getPrefs();
       if (kept.isEmpty) {
-        await _storage.delete(key: _key(fieldKey));
+        await prefs.remove(cacheKey);
       } else {
-        await _storage.write(key: _key(fieldKey), value: jsonEncode(kept));
+        await prefs.setString(cacheKey, jsonEncode(kept));
       }
     }
     return kept;
@@ -60,10 +81,19 @@ class RecentSelectionCache {
       cleanValue,
       ...current.where((item) => item != cleanValue),
     ].take(_maxItems).toList(growable: false);
-    await _storage.write(key: _key(fieldKey), value: jsonEncode(values));
+
+    final cacheKey = _key(fieldKey);
+    _memoryCache[cacheKey] = values;
+    final prefs = await _getPrefs();
+    await prefs.setString(cacheKey, jsonEncode(values));
   }
 
-  Future<void> clear(String fieldKey) => _storage.delete(key: _key(fieldKey));
+  Future<void> clear(String fieldKey) async {
+    final cacheKey = _key(fieldKey);
+    _memoryCache.remove(cacheKey);
+    final prefs = await _getPrefs();
+    await prefs.remove(cacheKey);
+  }
 
   String _key(String fieldKey) {
     final safeKey = fieldKey.trim().toLowerCase().replaceAll(

@@ -34,7 +34,7 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
       r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap|saran|rekomendasi|evaluasi|bulan lalu|bulan depan|3 bulan|tiga bulan|harus saya lakukan|harus lakukan)\b',
     ).hasMatch(normalized);
     final needsMasterData = RegExp(
-      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi)\b',
+      r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi|suami|istri|pasangan|keluarga|rumah tangga|nama)\b',
     ).hasMatch(normalized);
     final needsRecentTransactions = RegExp(
       r'\b(terakhir|terbaru|riwayat|minggu ini|bulan ini|hari ini|kemarin)\b',
@@ -43,11 +43,14 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
     final needsCategories = RegExp(r'\b(kategori)\b').hasMatch(normalized);
     final needsGoals = RegExp(r'\b(target|goal|tujuan)\b').hasMatch(normalized);
     final needsAccounts = RegExp(r'\b(rekening|akun)\b').hasMatch(normalized);
-    // Jika spesifik akun/budget/kategori/goal, tetap butuh financial+master minimal
+    final needsFamily = RegExp(
+      r'\b(suami|istri|pasangan|keluarga|rumah tangga|nama)\b',
+    ).hasMatch(normalized);
+    // Jika spesifik akun/budget/kategori/goal/family, tetap butuh master minimal
     final specificMaster =
-        needsBudget || needsCategories || needsGoals || needsAccounts;
+        needsBudget || needsCategories || needsGoals || needsAccounts || needsFamily;
     return FfmAssistantReasoningEvidenceScope(
-      includeFinancialSummary: needsFinancial || specificMaster,
+      includeFinancialSummary: needsFinancial || (specificMaster && !needsFamily),
       includeMasterData: needsMasterData || specificMaster,
       includeRecentTransactions: needsRecentTransactions && needsFinancial,
     );

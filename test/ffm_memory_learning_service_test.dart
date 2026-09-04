@@ -23,7 +23,7 @@ void main() {
   });
 
   group('extractCandidates', () {
-    test('extracts name pattern', () async {
+    test('extracts name pattern cleanly without unknown', () async {
       final candidates = await service.extractCandidates(
         userQuery: 'panggil saya Budi',
         assistantResponse: null,
@@ -32,7 +32,18 @@ void main() {
 
       expect(candidates, isNotEmpty);
       expect(candidates.first.key, 'preferred_name');
+      expect(candidates.first.value, 'Budi');
+      expect(candidates.first.value, isNot('unknown'));
       expect(candidates.first.type, FfmMemoryType.identity);
+
+      final candidatesNaya = await service.extractCandidates(
+        userQuery: 'nama saya Naya',
+        assistantResponse: null,
+        usedMemories: [],
+      );
+      expect(candidatesNaya, isNotEmpty);
+      expect(candidatesNaya.first.value, 'Naya');
+      expect(candidatesNaya.first.value, isNot('unknown'));
     });
 
     test('extracts payday pattern', () async {
@@ -103,6 +114,54 @@ void main() {
 
       expect(candidates, isEmpty);
     });
+
+    test('returns empty for questions and transactional commands', () async {
+      final q1 = await service.extractCandidates(
+        userQuery: 'berapa sisa saldo saya?',
+        assistantResponse: 'Saldo Anda Rp 500.000',
+        usedMemories: [],
+      );
+      expect(q1, isEmpty);
+
+      final q2 = await service.extractCandidates(
+        userQuery: 'catat pengeluaran makan siang 25000',
+        assistantResponse: 'Berhasil dicatat',
+        usedMemories: [],
+      );
+      expect(q2, isEmpty);
+
+      final q3 = await service.extractCandidates(
+        userQuery: 'kapan saya gajian ya?',
+        assistantResponse: 'Tanggal 25',
+        usedMemories: [],
+      );
+      expect(q3, isEmpty);
+
+      // Pertanyaan tanpa tanda tanya
+      final q4 = await service.extractCandidates(
+        userQuery: 'kamu tahu siapa nama saya',
+        assistantResponse: 'Saya asisten FFM',
+        usedMemories: [],
+      );
+      expect(q4, isEmpty);
+
+      // Obrolan santai yang memuat kata 'biasa'
+      final q5 = await service.extractCandidates(
+        userQuery: 'biasa aja sih',
+        assistantResponse: 'Siap',
+        usedMemories: [],
+      );
+      expect(q5, isEmpty);
+
+      // Perintah transaksi / mutasi
+      final q6 = await service.extractCandidates(
+        userQuery: 'beli pulsa 50rb di konter',
+        assistantResponse: 'Siap dicatat',
+        usedMemories: [],
+      );
+      expect(q6, isEmpty);
+    });
+
 
     test('extracts usage-based patterns when many memories used', () async {
       final usedMemories = List.generate(

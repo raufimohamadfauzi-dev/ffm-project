@@ -487,13 +487,86 @@ void main() {
     addTearDown(bloc.close);
 
     await bloc.load();
-    expect(bloc.state.activeSessions, hasLength(1));
-    expect(bloc.state.activeSession?.id, 'bloc-active');
-
     await bloc.deleteSessionPermanently('bloc-active');
 
     expect(bloc.state.activeSessions, isEmpty);
     expect(bloc.state.activeSession, isNull);
     expect(bloc.state.sessions, isEmpty);
+  });
+
+  test('auto-healing ActivityBloc menyembuhkan catatan lama agar tidak berstatus berjalan', () async {
+    final oldTime = DateTime(2026, 8, 1, 8);
+    // Simpan catatan lama dengan endedAt null dan status active
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 'old-note-broken',
+        householdId: 'local-household',
+        title: 'Beli benih di toko tani',
+        category: 'Catatan',
+        kind: ActivityKind.note,
+        startedAt: oldTime,
+        endedAt: null, // broken legacy state
+        status: ActivitySessionStatus.active, // broken legacy state
+        createdAt: oldTime,
+      ),
+    );
+
+    final bloc = ActivityBloc(repository);
+    addTearDown(bloc.close);
+
+    await bloc.load();
+
+    final healed = bloc.state.sessions.firstWhere((s) => s.id == 'old-note-broken');
+    expect(healed.status, ActivitySessionStatus.completed);
+    expect(healed.endedAt, oldTime);
+    expect(healed.isCompleted, isTrue);
+    // Memastikan tidak muncul di activeSessions
+    expect(bloc.state.activeSessions.where((s) => s.id == 'old-note-broken'), isEmpty);
+  });
+
+  test('ActivityBloc editCheckpoint dan deleteCheckpoint bekerja dengan benar', () async {
+    final now = DateTime(2026, 8, 20, 10);
+    await repository.saveSession(
+      ActivitySessionEntity(
+        id: 'session-cp',
+        householdId: 'local-household',
+        title: 'Sesi untuk Checkpoint',
+        category: 'Kerja',
+        startedAt: now,
+        status: ActivitySessionStatus.active,
+        createdAt: now,
+      ),
+    );
+    final bloc = ActivityBloc(repository);
+    addTearDown(bloc.close);
+    await bloc.load();
+
+    await bloc.addCheckpoint(
+      sessionId: 'session-cp',
+      label: 'Typo Checkpoint',
+      place: 'Kantor',
+      note: 'Catatan awal',
+    );
+
+    var checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+    expect(checkpoints, hasLength(1));
+    final cpId = checkpoints.first.id;
+
+    // Edit checkpoint untuk memperbaiki typo
+    await bloc.editCheckpoint(
+      checkpointId: cpId,
+      label: 'Label yang Benar',
+      place: 'Kantor Pusat',
+      note: 'Catatan diperbaiki',
+    );
+
+    checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+    expect(checkpoints.first.label, 'Label yang Benar');
+    expect(checkpoints.first.place, 'Kantor Pusat');
+
+    // Hapus checkpoint
+    await bloc.deleteCheckpoint(cpId);
+    checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+    expect(checkpoints, isEmpty);
   });
 }

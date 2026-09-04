@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/network/supabase_client_provider.dart';
 import '../../../../core/network/supabase_service.dart';
+import '../../../settings/presentation/pages/supabase_setup_page.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_personal_memory_control_service.dart';
 
@@ -25,6 +28,7 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   String? _error;
   var _loading = true;
   var _loadingCloud = false;
+  var _supabaseConnected = false;
 
   @override
   void initState() {
@@ -39,9 +43,25 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
   Future<void> _loadCloud() async {
     setState(() => _loadingCloud = true);
     try {
+      final client = await SupabaseClientProvider.getInstance();
+      if (client == null) {
+        if (mounted) {
+          setState(() {
+            _supabaseConnected = false;
+            _cloudItems = const [];
+          });
+        }
+        return;
+      }
       final cloud = await _supabase.fetchAll();
-      if (mounted) setState(() => _cloudItems = cloud);
+      if (mounted) {
+        setState(() {
+          _supabaseConnected = true;
+          _cloudItems = cloud;
+        });
+      }
     } catch (_) {
+      if (mounted) setState(() => _supabaseConnected = false);
     } finally {
       if (mounted) setState(() => _loadingCloud = false);
     }
@@ -179,6 +199,11 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
             ),
           ],
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: () => _showAddMemoryDialog(context),
+          icon: const Icon(Icons.add),
+          label: const Text('Tambah Memori'),
+        ),
         body: TabBarView(
           children: [
             _loading
@@ -193,8 +218,274 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
     );
   }
 
+  Future<void> _showAddMemoryDialog(BuildContext context) async {
+    var selectedScope = FfmPersonalMemoryControlScope.userModel;
+    var targetStorage = 'local';
+    final labelController = TextEditingController();
+    final valueController = TextEditingController();
+    String? formError;
+    var saving = false;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !saving,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final theme = Theme.of(context);
+          final colorScheme = theme.colorScheme;
+          final isCloudTarget = targetStorage == 'cloud';
+          final canSave = !saving &&
+              labelController.text.trim().isNotEmpty &&
+              valueController.text.trim().isNotEmpty &&
+              (!isCloudTarget || _supabaseConnected);
+
+          return AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.add_circle_outline),
+                SizedBox(width: 8),
+                Text('Tambah Memori Manual'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Simpan fakta, preferensi, atau koreksi agar Asisten AI mengingatnya saat berinteraksi.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    initialValue: targetStorage,
+                    decoration: const InputDecoration(
+                      labelText: 'Target Penyimpanan',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'local',
+                        child: Text('Memori Lokal (HP Saya)'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'cloud',
+                        child: Text('Memori Cloud (Supabase)'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() {
+                          targetStorage = val;
+                          formError = null;
+                        });
+                      }
+                    },
+                  ),
+                  if (isCloudTarget && !_supabaseConnected) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.errorContainer.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colorScheme.error),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded, size: 16, color: colorScheme.error),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Supabase belum terhubung di FFM.',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Silakan hubungkan Supabase terlebih dahulu atau pilih penyimpanan Memori Lokal.',
+                            style: TextStyle(fontSize: 11, color: colorScheme.onErrorContainer),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(dialogContext).pop();
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
+                                  ).then((_) {
+                                    _load();
+                                    _loadCloud();
+                                  });
+                                },
+                                style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                                child: const Text('Buka Setup Supabase'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<FfmPersonalMemoryControlScope>(
+                    initialValue: selectedScope,
+                    decoration: const InputDecoration(
+                      labelText: 'Kategori Memori',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: FfmPersonalMemoryControlScope.userModel,
+                        child: Text('Profil Pengguna (Nama/Domisili)'),
+                      ),
+                      DropdownMenuItem(
+                        value: FfmPersonalMemoryControlScope.personalMemory,
+                        child: Text('Preferensi & Kebiasaan Keuangan'),
+                      ),
+                      DropdownMenuItem(
+                        value: FfmPersonalMemoryControlScope.aliasCorrection,
+                        child: Text('Koreksi / Catatan Asisten'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setDialogState(() => selectedScope = val);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: labelController,
+                    decoration: InputDecoration(
+                      labelText: 'Topik / Label',
+                      hintText: selectedScope == FfmPersonalMemoryControlScope.userModel
+                          ? 'Contoh: Nama Panggilan, Domisili, Pekerjaan'
+                          : selectedScope == FfmPersonalMemoryControlScope.personalMemory
+                              ? 'Contoh: Tanggal Gajian, Batas Makan Siang'
+                              : 'Contoh: Koreksi Nama Toko',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (_) => setDialogState(() => formError = null),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: valueController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      labelText: 'Isi Fakta Memori',
+                      hintText: selectedScope == FfmPersonalMemoryControlScope.userModel
+                          ? 'Contoh: Panggil saya Mas Budi'
+                          : selectedScope == FfmPersonalMemoryControlScope.personalMemory
+                              ? 'Contoh: Gajian setiap tanggal 25'
+                              : 'Contoh: Warung Berkah maksudnya Toko Berkah',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (_) => setDialogState(() => formError = null),
+                  ),
+                  if (formError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      formError!,
+                      style: TextStyle(color: colorScheme.error, fontSize: 12),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Batal'),
+              ),
+              FilledButton(
+                onPressed: !canSave
+                    ? null
+                    : () async {
+                        final label = labelController.text.trim();
+                        final value = valueController.text.trim();
+                        if (label.isEmpty || value.isEmpty) {
+                          setDialogState(() => formError = 'Semua field wajib diisi.');
+                          return;
+                        }
+                        if (!FfmPersonalMemorySafetyPolicy.isSafeForPersonalContext(
+                          key: label,
+                          value: value,
+                        )) {
+                          setDialogState(
+                            () => formError =
+                                'Memori tidak boleh memuat kata sensitif (PIN/password) atau nominal uang di atas 4 digit.',
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => saving = true);
+                        try {
+                          if (targetStorage == 'local') {
+                            await _service.saveManualMemory(
+                              label: label,
+                              value: value,
+                              scope: selectedScope,
+                            );
+                            await _load();
+                          } else {
+                            await _supabase.saveMemory(
+                              content: '$label: $value',
+                              category: selectedScope.name,
+                            );
+                            await _loadCloud();
+                          }
+                          if (!context.mounted) return;
+                          Navigator.of(dialogContext).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                targetStorage == 'local'
+                                    ? 'Memori lokal “$label” berhasil disimpan.'
+                                    : 'Memori cloud “$label” berhasil disimpan.',
+                              ),
+                            ),
+                          );
+                        } catch (e) {
+                          setDialogState(() {
+                            saving = false;
+                            formError = 'Gagal menyimpan: $e';
+                          });
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Simpan'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildCloudContent(ThemeData theme) {
     if (_loadingCloud) return const Center(child: CircularProgressIndicator());
+    if (!_supabaseConnected) return _buildCloudNotConnected(theme);
     if (_cloudItems.isEmpty) return const _EmptyState(hasItems: false);
 
     return ListView.builder(
@@ -214,6 +505,78 @@ class _FfmMemoryViewerPageState extends State<FfmMemoryViewerPage> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCloudNotConnected(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.cloud_off_outlined,
+                size: 48,
+                color: colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Memori Cloud Belum Terhubung',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Hubungkan project Supabase Anda untuk menyinkronkan dan mencadangkan memori jangka panjang Asisten ke Cloud secara aman.',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context)
+                  .push(
+                    MaterialPageRoute(builder: (_) => const SupabaseSetupPage()),
+                  )
+                  .then((_) {
+                    _load();
+                    _loadCloud();
+                  }),
+              icon: const Icon(Icons.settings),
+              label: const Text('Atur Supabase di FFM'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => launchUrl(
+                Uri.parse('https://supabase.com/'),
+                mode: LaunchMode.externalApplication,
+              ),
+              icon: const Icon(Icons.open_in_new, size: 16),
+              label: const Text('Buka supabase.com'),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Gratis di supabase.com. Buat project baru, lalu salin URL dan Anon Key ke pengaturan FFM.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -297,9 +297,17 @@ class FfmAssistantActionPlanner {
 
   List<String> _prerequisiteReadCapabilitiesFor(FfmAssistantIntent intent) {
     final reads = <String>[];
-    final explicitRead = _readCapabilityFor(intent.type);
-    if (explicitRead != null) {
-      reads.add(explicitRead);
+    // Gemini Cloud answers queries directly in its bounded orchestrator turn.
+    // Do not plan redundant read capabilities if there is no draft to populate.
+    final isGeminiCloudWithoutDraft =
+        intent.responseOrigin == FfmAssistantResponseOrigin.geminiCloud &&
+        intent.draft == null;
+
+    if (!isGeminiCloudWithoutDraft) {
+      final explicitRead = _readCapabilityFor(intent.type);
+      if (explicitRead != null) {
+        reads.add(explicitRead);
+      }
     }
 
     final draft = intent.draft;

@@ -262,6 +262,17 @@ class ActivityRepository {
     );
   }
 
+  Future<void> deleteCheckpoint(String checkpointId) async {
+    await (database.delete(database.activityCheckpoints)
+          ..where((row) => row.id.equals(checkpointId)))
+        .go();
+    await auditLogger.record(
+      action: 'delete_checkpoint',
+      entity: 'activity_checkpoint',
+      newValue: {'id': checkpointId},
+    );
+  }
+
   Future<void> saveEntry(ActivityJournalEntryEntity entity) async {
     await database
         .into(database.activityEntries)

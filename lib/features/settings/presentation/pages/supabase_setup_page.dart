@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -36,6 +38,8 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
   Color _geminiColor = Colors.grey;
   final List<GeminiDiagnosticEvent> _geminiDiagnostics = [];
   GeminiUsageSnapshot? _lastGeminiUsage;
+  GeminiDailyQuotaSnapshot? _geminiQuota;
+  Timer? _quotaTimer;
 
   @override
   void initState() {
@@ -44,6 +48,18 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
     _keyController = TextEditingController();
     _geminiController = TextEditingController();
     _loadCredentials();
+    _quotaTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) _loadQuota();
+    });
+  }
+
+  @override
+  void dispose() {
+    _quotaTimer?.cancel();
+    _urlController.dispose();
+    _keyController.dispose();
+    _geminiController.dispose();
+    super.dispose();
   }
 
   void _addGeminiDiagnostic({
@@ -74,6 +90,13 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
     });
   }
 
+  Future<void> _loadQuota() async {
+    final quota = await _config.getGeminiDailyQuota();
+    if (mounted) {
+      setState(() => _geminiQuota = quota);
+    }
+  }
+
   Future<void> _loadCredentials() async {
     final url = await _config.getUrl();
     final key = await _config.getAnonKey();
@@ -81,6 +104,7 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
     final geminiModel = await _config.getGeminiModel();
     final geminiVerified = await _config.isGeminiVerified();
     final lastUsage = await _config.getGeminiUsage();
+    final quota = await _config.getGeminiDailyQuota();
 
     if (mounted) {
       setState(() {
@@ -92,6 +116,7 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
             : geminiModel;
         _geminiVerified = geminiVerified;
         _lastGeminiUsage = lastUsage;
+        _geminiQuota = quota;
         _loading = false;
       });
       if (lastUsage != null) {
@@ -260,6 +285,15 @@ class _SupabaseSetupPageState extends State<SupabaseSetupPage> {
       model: model,
     );
     final result = await _gemini.testConnection(apiKey: key, model: model);
+    if (result.usageMetadata != null) {
+      await _config.recordGeminiDailyUsage(
+        promptTokens: result.usageMetadata!.promptTokenCount,
+        candidateTokens: result.usageMetadata!.candidatesTokenCount,
+        totalTokens: result.usageMetadata!.totalTokenCount,
+        now: DateTime.now(),
+      );
+      await _loadQuota();
+    }
     _addGeminiDiagnostic(
       code:
           result.diagnosticCode ??
@@ -442,6 +476,8 @@ end; \$\$;
                   _buildSupabaseSection(theme),
                   const SizedBox(height: 24),
                   _buildGeminiSection(theme),
+                  const SizedBox(height: 16),
+                  _buildGeminiQuotaCard(theme),
                   const SizedBox(height: 16),
                   _buildGeminiDiagnostics(theme),
                   const SizedBox(height: 24),
@@ -770,6 +806,253 @@ end; \$\$;
     );
   }
 
+  Widget _buildGeminiQuotaCard(ThemeData theme) {
+    final quota = _geminiQuota;
+    final colorScheme = theme.colorScheme;
+    final remaining = quota?.requestsRemaining ?? 1500;
+    final used = quota?.requestsUsed ?? 0;
+    final limit = quota?.requestsLimit ?? 1500;
+    final ratio = quota?.usageRatio ?? 0.0;
+    final countdown = quota?.formattedCountdown ?? '-';
+
+    Color progressColor = Colors.green;
+    if (ratio >= 0.9) {
+      progressColor = Colors.red;
+    } else if (ratio >= 0.7) {
+      progressColor = Colors.orange;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const AppSectionHeader(title: 'Status Kuota & Token (Google Free Tier)'),
+        const SizedBox(height: 8),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.pie_chart_outline, color: colorScheme.primary, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Jatah Harian Gemini Cloud',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Segarkan Kuota',
+                    icon: const Icon(Icons.refresh, size: 20),
+                    onPressed: _loadQuota,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Countdown Container
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colorScheme.primary.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.schedule, color: colorScheme.primary, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Reset kuota dalam: $countdown lagi',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Jatah di-reset otomatis setiap tengah malam Pacific Time (~14:00/15:00 WIB).',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Request Quota Progress
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Sisa Permintaan Hari Ini:',
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+                  ),
+                  Text(
+                    '$remaining / $limit request',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: progressColor,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: (1.0 - ratio).clamp(0.0, 1.0),
+                  minHeight: 8,
+                  backgroundColor: colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Terpakai: $used request (${(ratio * 100).toStringAsFixed(1)}%)',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  Text(
+                    'Batas: 1.500 RPD',
+                    style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              // Token Accumulation Today
+              const Text(
+                'Akumulasi Token Hari Ini:',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Kirim (Prompt)',
+                            style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${quota?.promptTokens ?? 0}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Terima (AI)',
+                            style: TextStyle(fontSize: 10, color: colorScheme.onSurfaceVariant),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${quota?.candidateTokens ?? 0}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total Hari Ini',
+                            style: TextStyle(fontSize: 10, color: colorScheme.primary),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${quota?.totalTokens ?? 0}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // API Key status info
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.verified_outlined, size: 16, color: Colors.green),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'API Key bersifat permanen dan tidak pernah di-reset harian oleh Google. Hanya jatah pemakaian kuota gratis (RPD) yang di-reset setiap 24 jam.',
+                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.speed, size: 16, color: colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Batas kecepatan Free Tier: 15 request/menit (RPM) dan 1.000.000 token/menit (TPM).',
+                      style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLastGeminiUsageCard() {
     final usage = _lastGeminiUsage;
     return AppCard(
@@ -805,6 +1088,11 @@ end; \$\$;
             Text(
               'HTTP: ${usage.httpStatus?.toString() ?? '-'} · Waktu: ${usage.latencyMs?.toString() ?? '-'} ms',
             ),
+            if (usage.totalTokens != null && usage.totalTokens! > 0)
+              Text(
+                'Token: Kirim ${usage.promptTokens ?? 0} · Terima ${usage.candidateTokens ?? 0} · Total ${usage.totalTokens} token',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
             Text('Terakhir: ${_formatTime(usage.at)}'),
           ],
           const SizedBox(height: 6),

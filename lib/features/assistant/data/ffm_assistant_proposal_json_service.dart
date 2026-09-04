@@ -57,9 +57,17 @@ class FfmAssistantProposalJsonService {
       final period = arguments is Map
           ? arguments['period']?.toString().trim()
           : null;
-      if (period != null && period.isNotEmpty && period != 'current_month') {
+      const allowedPeriods = {
+        'current_month',
+        'last_month',
+        'last_3_months',
+        'last_year',
+        'year_to_date',
+        'all_time',
+      };
+      if (period != null && period.isNotEmpty && !allowedPeriods.contains(period)) {
         return const FfmAssistantReadCapabilityRequestParseResult.invalid(
-          'Capability baca Gemini hanya mendukung periode current_month.',
+          'Periode capability baca tidak valid.',
         );
       }
       final argumentMap = arguments is Map
@@ -91,15 +99,15 @@ class FfmAssistantProposalJsonService {
       }
       if (startDate != null &&
           (endDate!.isBefore(startDate) ||
-              endDate.difference(startDate).inDays > 13)) {
+              endDate.difference(startDate).inDays > 730)) {
         return const FfmAssistantReadCapabilityRequestParseResult.invalid(
-          'Rentang transaksi harus berurutan dan maksimal 14 hari.',
+          'Rentang transaksi harus berurutan dan maksimal 730 hari (2 tahun).',
         );
       }
       return FfmAssistantReadCapabilityRequestParseResult.request(
         FfmAssistantReadCapabilityRequest(
           capabilityId: capabilityId,
-          period: 'current_month',
+          period: period ?? 'current_month',
           startDate: startDate,
           endDate: endDate,
         ),

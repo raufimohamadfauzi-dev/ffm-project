@@ -109,6 +109,57 @@ class FfmPersonalMemoryControlService {
 
   Future<void> forget(String id) => _repository.archive(id);
 
+  /// Menyimpan memori personal baru secara manual yang diinput langsung oleh pengguna.
+  ///
+  /// Memori yang diinput manual langsung berstatus aktif dan disetujui (`approved == true`).
+  Future<FfmPersonalMemoryControlItem> saveManualMemory({
+    required String label,
+    required String value,
+    required FfmPersonalMemoryControlScope scope,
+  }) async {
+    final cleanLabel = label.trim();
+    final cleanValue = value.trim();
+    if (cleanLabel.isEmpty || cleanValue.isEmpty) {
+      throw ArgumentError('Label dan isi memori tidak boleh kosong.');
+    }
+    if (!FfmPersonalMemorySafetyPolicy.isSafeForPersonalContext(
+      key: cleanLabel,
+      value: cleanValue,
+    )) {
+      throw ArgumentError(
+        'Memori mengandung data sensitif atau nominal yang tidak diizinkan.',
+      );
+    }
+
+    final (kind, scopeStr) = switch (scope) {
+      FfmPersonalMemoryControlScope.userModel => ('user_identity', 'user-model'),
+      FfmPersonalMemoryControlScope.personalMemory => (
+        'personal_memory_preference',
+        'personal-memory'
+      ),
+      FfmPersonalMemoryControlScope.aliasCorrection => ('alias', 'alias'),
+    };
+
+    final record = await _repository.save(
+      kind: kind,
+      triggerText: cleanLabel,
+      valueText: cleanValue,
+      source: 'manual_input',
+      metadata: {
+        'scope': scopeStr,
+        'approved': true,
+        'humanLabel': cleanLabel,
+        'manual': true,
+      },
+    );
+
+    final item = _toItem(record);
+    if (item == null) {
+      throw StateError('Gagal memformat memori yang baru disimpan.');
+    }
+    return item;
+  }
+
   /// Memori hasil pembelajaran otomatis yang masih menunggu keputusan user.
   ///
   /// Hanya baris aktif dengan penanda `approved == false` dari pipeline

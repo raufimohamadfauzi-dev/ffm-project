@@ -194,7 +194,25 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // Notification Access Bridge — Fitur 02 (Pendeteksi QRIS & Bank)
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            NOTIFICATION_ACCESS_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isEnabled" -> result.success(
+                    FfmNotificationListenerService.isEnabled(this)
+                )
+                "openSettings" -> {
+                    FfmNotificationListenerService.openSettings(this)
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
+
 
     private fun checkPermissions(): Map<String, String> {
         val camera = if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -337,6 +355,7 @@ class MainActivity : FlutterFragmentActivity() {
         private const val SOUND_CHANNEL = "ffm/reminder_sound"
         private const val PRIVACY_CHANNEL = "ffm/privacy"
         private const val SPEECH_CHANNEL = "ffm/activity_speech"
+        private const val NOTIFICATION_ACCESS_CHANNEL = "ffm/notification_access"
         private const val TTS_PREFERENCES = "ffm_tts_preferences"
         private const val TTS_VOICE_KEY = "selected_voice_name"
         private const val REQUEST_CODE = 7201

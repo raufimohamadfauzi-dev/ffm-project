@@ -352,6 +352,9 @@ class FfmAssistantInterpreter {
             ),
           )
         : '';
+    final householdContext = await _financialSnapshot.buildHouseholdProfileContext(
+      householdId: AppContext.householdId,
+    );
     final masterDataContext = evidenceScope.includeMasterData
         ? await _financialSnapshot.buildMasterDataContext(
             householdId: AppContext.householdId,
@@ -436,6 +439,21 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
+    final goalsContext =
+        _containsAny(normalized, const [
+          'target',
+          'goal',
+          'tujuan',
+          'dana darurat',
+          'cadangan',
+          'darurat',
+          'impian',
+        ])
+        ? await _financialSnapshot.buildGoalsDigest(
+            householdId: AppContext.householdId,
+            now: capturedAt,
+          )
+        : '';
     final approvedUserContext = await FfmAssistantUserModelService(
       _taughtMemory,
     ).buildContext(query: normalized);
@@ -450,6 +468,7 @@ class FfmAssistantInterpreter {
       currentPage: currentDestination,
       pageSummary: [
         if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
+        if (householdContext.trim().isNotEmpty) householdContext,
         financialContext,
         masterDataContext,
         hijriContext,
@@ -458,6 +477,7 @@ class FfmAssistantInterpreter {
         remindersContext,
         assetsContext,
         liabilitiesContext,
+        goalsContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -595,6 +615,8 @@ class FfmAssistantInterpreter {
       'model': turn.model,
       'statusCode': turn.statusCode,
       'latencyMs': turn.latency?.inMilliseconds,
+      if (turn.usageMetadata != null)
+        'tokenUsage': turn.usageMetadata!.toJson(),
       'proposal':
           proposal.drafts.isNotEmpty || proposal.teachingProposals.isNotEmpty,
       'usedReadCapability': turn.usedReadCapability,
@@ -750,11 +772,20 @@ class FfmAssistantInterpreter {
         ),
       );
     }
+    final isGreeting = _isGreetingWord(normalized);
+    final isConversationalOrHelp =
+        isGreeting ||
+        requestClassForMeta == FfmAssistantCloudRequestClass.help ||
+        requestClassForMeta == FfmAssistantCloudRequestClass.general;
+    final resolvedIntentType = isConversationalOrHelp
+        ? FfmAssistantIntentType.help
+        : FfmAssistantIntentType.queryData;
+
     return _InterpretResult.single(
       FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
-        type: FfmAssistantIntentType.queryData,
+        type: resolvedIntentType,
         confidence: 1.0,
         response: turn.text,
         responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
@@ -895,6 +926,9 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
+    final householdContext = await _financialSnapshot.buildHouseholdProfileContext(
+      householdId: AppContext.householdId,
+    );
     final approvedUserContext = await FfmAssistantUserModelService(
       _taughtMemory,
     ).buildContext(query: normalized);
@@ -905,6 +939,7 @@ class FfmAssistantInterpreter {
         );
     return [
           if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
+          if (householdContext.trim().isNotEmpty) householdContext,
           financialContext,
           masterDataContext,
           approvedUserContext,
@@ -7931,6 +7966,7 @@ class FfmAssistantInterpreter {
     required bool ok,
     int? httpStatus,
     Duration? latency,
+    GeminiUsageMetadata? usageMetadata,
   }) async {
     try {
       await _config.saveGeminiUsage(
@@ -7940,6 +7976,7 @@ class FfmAssistantInterpreter {
         at: _clock(),
         httpStatus: httpStatus,
         latency: latency,
+        usageMetadata: usageMetadata,
       );
     } on Object {
       // Diagnostik tidak boleh mengubah jawaban atau memutus alur chatbot.
@@ -8210,7 +8247,7 @@ class FfmAssistantInterpreter {
   }
 
   static final RegExp _greetingPattern = RegExp(
-    r'\b(?:halo|hai|hello|hi|hei|assalamualaikum|assalamu alaikum|'
+    r'\b(?:hallo|halo|hai|hello|hi|hei|assalamualaikum|assalamu alaikum|'
     r'selamat pagi|selamat siang|selamat sore|selamat malam|'
     r'tes|test|ping)\b',
   );

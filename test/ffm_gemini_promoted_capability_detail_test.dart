@@ -139,29 +139,39 @@ void main() {
       expect(dateMatches, lessThanOrEqualTo(8));
     });
 
-    test('read.transactions arg validation: range, bulan, 14 hari', () async {
+    test('read.transactions arg validation: rentang fleksibel & validasi aman', () async {
       final now = DateTime(2026, 8, 15);
-      // Rentang >14 hari ditolak di parser
+      // Rentang 20 hari / lintas bulan sekarang diizinkan
+      final validCrossMonth =
+          FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"startDate":"2026-07-01","endDate":"2026-08-20"}}',
+          );
+      expect(validCrossMonth.error, isNull);
+      expect(validCrossMonth.request, isNotNull);
+
+      // Eksekusi rentang lintas bulan/tahun berhasil tanpa melempar exception
+      final evidence = await readService.execute(
+        validCrossMonth.request!,
+        householdId: AppContext.householdId,
+        now: now,
+      );
+      expect(evidence, contains('Transaction digest'));
+
+      // Rentang > 730 hari (2 tahun) ditolak di parser
       final tooLong =
           FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"startDate":"2026-08-01","endDate":"2026-08-20"}}',
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"startDate":"2023-01-01","endDate":"2026-08-20"}}',
           );
       expect(tooLong.error, isNotNull);
       expect(tooLong.request, isNull);
 
-      // Di luar bulan berjalan ditolak di executor (parser lolos)
-      final outOfMonth =
+      // Rentang terbalik (endDate sebelum startDate) ditolak
+      final inverted =
           FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"startDate":"2026-07-01","endDate":"2026-07-10"}}',
-          ).request!;
-      expect(
-        () => readService.execute(
-          outOfMonth,
-          householdId: AppContext.householdId,
-          now: now,
-        ),
-        throwsA(isA<StateError>()),
-      );
+            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"startDate":"2026-08-20","endDate":"2026-08-01"}}',
+          );
+      expect(inverted.error, isNotNull);
+      expect(inverted.request, isNull);
 
       // Half range (hanya start) ditolak di parser
       final half = FfmAssistantProposalJsonService.parseReadCapabilityRequest(

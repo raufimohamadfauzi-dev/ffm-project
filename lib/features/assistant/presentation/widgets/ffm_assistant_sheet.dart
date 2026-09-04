@@ -267,6 +267,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final capabilityDetail = usedReadCapability != null
         ? _readCapabilityDetail(usedReadCapability, intent)
         : null;
+    final tokenUsage =
+        intent.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?;
 
     return FfmAssistantProcessTrace(
       origin: origin,
@@ -278,6 +280,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : null,
       pluginName: pluginName,
       pluginCategory: pluginCategory,
+      tokenUsage: tokenUsage,
       events: [
         FfmAssistantProcessEvent(
           label: 'Memahami: $intentLabel',

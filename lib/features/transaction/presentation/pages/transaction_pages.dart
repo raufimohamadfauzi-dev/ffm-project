@@ -1272,7 +1272,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _openDetail(TransactionWithItems entry) async {
-    await Navigator.of(context).push<void>(
+    final action = await Navigator.of(context).push<TransactionDetailAction>(
       MaterialPageRoute(
         builder: (_) => TransactionDetailPage(
           entry: entry,
@@ -1282,6 +1282,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ),
       ),
     );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case TransactionDetailAction.edit:
+        await _openEdit(entry);
+      case TransactionDetailAction.delete:
+        await _deleteTransaction(entry);
+    }
   }
 
   Future<void> _deleteTransaction(TransactionWithItems entry) async {

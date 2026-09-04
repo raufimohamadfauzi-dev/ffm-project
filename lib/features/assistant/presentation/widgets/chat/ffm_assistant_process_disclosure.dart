@@ -138,11 +138,22 @@ class _FfmAssistantProcessDisclosureState
     final plan = widget.actionPlan;
     final isAllPending = plan != null &&
         plan.steps.every((s) => s.status == FfmAssistantActionStepStatus.pending);
-    final planSummary = plan == null
+
+    final tokenUsage = widget.trace.tokenUsage;
+    final totalTokens = tokenUsage?['totalTokenCount'] as int?;
+    final promptTokens = tokenUsage?['promptTokenCount'] as int?;
+    final candidateTokens = tokenUsage?['candidatesTokenCount'] as int?;
+    final tokenBadge = (totalTokens != null && totalTokens > 0)
+        ? ' · 🪙 $totalTokens tkn'
+        : '';
+
+    final baseSummary = plan == null
         ? '${origin.label} · $_duration'
         : (plan.status == FfmAssistantActionPlanStatus.planned || isAllPending)
         ? 'Menunggu ${plan.steps.length} langkah · perlu konfirmasi'
         : 'Menjalankan ${plan.steps.length} langkah · $_duration';
+    final planSummary = '$baseSummary$tokenBadge';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -206,6 +217,42 @@ class _FfmAssistantProcessDisclosureState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (tokenUsage != null && totalTokens != null && totalTokens > 0) ...[
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF14191D) : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.05)
+                              : Colors.black.withValues(alpha: 0.05),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.token_outlined,
+                            size: 13,
+                            color: Color(0xFFE5A000),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Konsumsi Token: Kirim $promptTokens · Terima $candidateTokens · Total $totalTokens token',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   for (final event in widget.trace.events) ...[
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
