@@ -40,6 +40,7 @@ class GeminiHeader extends StatelessWidget {
     required this.onToggleFullScreen,
     this.showFullscreenToggle = true,
     required this.onOpenVoicePicker,
+    this.onOpenConversations,
     required this.onResetChat,
     required this.onClose,
     required this.cloudChecking,
@@ -59,6 +60,7 @@ class GeminiHeader extends StatelessWidget {
   final VoidCallback onToggleFullScreen;
   final bool showFullscreenToggle;
   final VoidCallback onOpenVoicePicker;
+  final VoidCallback? onOpenConversations;
   final VoidCallback onResetChat;
   final VoidCallback onClose;
   final bool cloudChecking;
@@ -171,6 +173,19 @@ class GeminiHeader extends StatelessWidget {
                         : const Color(0xFF6B5E4F),
                   ),
                 ),
+              if (onOpenConversations != null)
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Percakapan',
+                  onPressed: onOpenConversations,
+                  icon: Icon(
+                    Icons.forum_outlined,
+                    size: 21,
+                    color: isDark
+                        ? const Color(0xFF9A9590)
+                        : const Color(0xFF6B5E4F),
+                  ),
+                ),
               if (onOpenMemory != null)
                 Stack(
                   alignment: Alignment.topRight,
@@ -231,11 +246,11 @@ class GeminiHeader extends StatelessWidget {
                         size: 21,
                         color: inboxCount > 0
                             ? (isDark
-                                ? const Color(0xFFC49A6B)
-                                : const Color(0xFFB07A4A))
+                                  ? const Color(0xFFC49A6B)
+                                  : const Color(0xFFB07A4A))
                             : (isDark
-                                ? const Color(0xFF9A9590)
-                                : const Color(0xFF6B5E4F)),
+                                  ? const Color(0xFF9A9590)
+                                  : const Color(0xFF6B5E4F)),
                       ),
                     ),
                     if (inboxCount > 0)
@@ -326,7 +341,10 @@ class GeminiHeader extends StatelessWidget {
                 onTap: onRefreshCloudStatus,
                 borderRadius: BorderRadius.circular(20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(20),
@@ -385,6 +403,5 @@ class GeminiHeader extends StatelessWidget {
         ],
       ),
     );
-
   }
 }

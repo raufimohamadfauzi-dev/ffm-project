@@ -117,7 +117,9 @@ class ActivitySessionChatCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: isActive
                             ? (isDark ? const Color(0xFF75D89B) : const Color(0xFF155724))
-                            : Colors.grey[700],
+                          : (isDark
+                            ? theme.colorScheme.onSurfaceVariant
+                            : Colors.grey[700]),
                       ),
                     ),
                   ],
@@ -142,7 +144,11 @@ class ActivitySessionChatCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.timer_outlined, size: 14, color: Colors.grey),
+                    Icon(
+                      Icons.timer_outlined,
+                      size: 14,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Total Durasi',
@@ -181,7 +187,13 @@ class ActivitySessionChatCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Text(' └─ ', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(
+                    ' └─ ',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   Expanded(
                     child: Text(
                       c['title'] as String? ?? 'Sub-kegiatan',
@@ -230,7 +242,10 @@ class ActivitySessionChatCard extends StatelessWidget {
                   if (cp['timeDiff'] != null)
                     Text(
                       '+${cp['timeDiff']}',
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),

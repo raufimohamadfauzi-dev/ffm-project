@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('manifest memiliki permission jaringan untuk download SLM', () {
+  test('manifest memiliki permission jaringan untuk fitur online', () {
     final manifest = File('android/app/src/main/AndroidManifest.xml')
         .readAsStringSync();
     expect(manifest, contains('android.permission.INTERNET'));

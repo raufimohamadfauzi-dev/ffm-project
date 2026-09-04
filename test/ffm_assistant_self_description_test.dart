@@ -7,7 +7,6 @@ void main() {
 
   test('self-description menyebut kemampuan nyata dan batas keamanan', () {
     final response = service.build(
-      slmConfigured: true,
       includeCreatorLinks: true,
     );
 
@@ -47,7 +46,6 @@ void main() {
     () {
       final response = service.build(
         implementedCapabilityIds: const ['read.summary'],
-        slmConfigured: false,
       );
 
       expect(response, contains('baca ringkasan'));

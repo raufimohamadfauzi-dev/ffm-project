@@ -43,11 +43,10 @@ Aplikasi dibangun dengan prinsip **Offline-First & Hybrid AI Architecture**. Alu
 1. **Data Keuangan Lokal & Keamanan Perangkat**:
    - Seluruh data keuangan (transaksi, rekening, anggaran, hutang & piutang, aset, dan target) tersimpan secara lokal dan privat di perangkat pengguna menggunakan **SQLite melalui Drift ORM**.
    - Keamanan menggunakan **PIN 6-digit & Biometrik lokal** (`AppPinService`), tanpa bergantung pada server eksternal.
-    - Alur keuangan inti dapat digunakan tanpa koneksi internet. Gemini Cloud, unduhan model lokal pertama kali, sinkronisasi Supabase, dan data pasar terbaru memerlukan jaringan.
+    - Alur keuangan inti dapat digunakan tanpa koneksi internet. Gemini Cloud, sinkronisasi Supabase, dan data pasar terbaru memerlukan jaringan.
 
 2. **Hybrid AI & Bounded Orchestrator**:
     - **Deterministic Financial Logic & Agent Harness**: Komputasi aritmatika, saldo, rasio anggaran, evaluasi status jatuh tempo, serta capability dan Action Plan berjalan melalui aturan aplikasi yang dapat divalidasi.
-    - **Model lokal Qwen2-VL (opsional)**: Model dapat diunduh atau diimpor sebagai bundle terverifikasi, lalu digunakan melalui native llama.cpp pada Android ARM64. Model tidak dibundel ke source atau APK secara default.
     - **Gemini Cloud Orchestrator (bounded reasoning)**: Digunakan untuk pemahaman bahasa alami, penalaran, proposal/draft, dan penjelasan setelah API key serta model berhasil diverifikasi. Data yang dikirim ke cloud dibatasi dan tidak memberi model akses mutasi database langsung.
     - **Supabase Cloud Memory (opsional)**: Dipakai untuk kebutuhan memori atau persistence cloud sesuai konfigurasi pengguna, bukan sebagai sumber kebenaran transaksi lokal.
 
@@ -242,7 +241,7 @@ Build release memerlukan `android/key.properties` dan keystore yang sesuai. Jang
 ## ⚠️ Batasan Validasi Saat Ini
 
 - `flutter analyze lib test` dan `flutter test` memvalidasi kode serta test otomatis, bukan seluruh perilaku hardware.
-- Belum ada validasi inference model lokal end-to-end pada perangkat Android fisik/emulator, profiling temperatur/memori/latensi, atau pengujian foto nyata.
+- Belum ada profiling temperatur/memori/latensi atau pengujian foto nyata pada perangkat Android.
 - Kompatibilitas APDU NFC, pengiriman notifikasi di background, izin CalendarProvider, sinkronisasi smartwatch, serta konektivitas Gemini/Supabase perlu diuji pada konfigurasi perangkat masing-masing.
 - Build ARM64 membuktikan kompilasi, packaging, dan signature; tidak membuktikan keberhasilan koneksi cloud atau inference perangkat.
 
@@ -260,4 +259,4 @@ Build release memerlukan `android/key.properties` dan keystore yang sesuai. Jang
 ## 📄 Lisensi & Hak Cipta
 
 Hak Cipta © 2026 **Rafi Sinkkat / Clipsmart (FFM Project)**. Seluruh hak cipta dilindungi undang-undang.
-Pustaka pihak ketiga diatur berdasarkan lisensi masing-masing yang tercantum di [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Pustaka pihak ketiga mengikuti lisensi masing-masing yang tercantum pada distribusi dependency terkait.

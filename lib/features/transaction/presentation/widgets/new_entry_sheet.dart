@@ -56,7 +56,7 @@ class _NewEntrySheetBodyState extends State<NewEntrySheetBody> {
               : _section == 2
               ? 'Input manual dan impor JSON dari LLM eksternal.'
               : 'Pilih alurnya.',
-          style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),

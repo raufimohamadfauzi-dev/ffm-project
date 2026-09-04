@@ -1,5 +1,7 @@
 enum FfmAssistantWidgetAction {
   openAssistant('assistant'),
+  quickNote('quick_note'),
+  scanNfc('scan_nfc'),
   readSummary('summary'),
   openTransactions('transaction'),
   openScan('scan'),

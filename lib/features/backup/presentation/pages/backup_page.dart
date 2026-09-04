@@ -61,6 +61,7 @@ class _BackupPageState extends State<BackupPage> {
     try {
       final historyRepo = FfmAssistantChatHistoryRepository();
       final historyRows = await historyRepo.readRaw();
+      final conversationRows = await historyRepo.readConversationsRaw();
       final filteredHistory = historyRows
           .map((row) {
             final mutable = Map<String, Object?>.of(row);
@@ -73,6 +74,10 @@ class _BackupPageState extends State<BackupPage> {
         assistantChatHistory:
             _exportIncludeChatHistory && filteredHistory.isNotEmpty
             ? filteredHistory
+            : null,
+        assistantChatConversations:
+            _exportIncludeChatHistory && conversationRows.isNotEmpty
+            ? conversationRows
             : null,
       );
 
@@ -174,6 +179,11 @@ class _BackupPageState extends State<BackupPage> {
         path,
         onRestoreChatHistory: (rows) async {
           await FfmAssistantChatHistoryRepository().importRaw(rows);
+        },
+        onRestoreChatConversations: (rows) async {
+          await FfmAssistantChatHistoryRepository().importConversationsRaw(
+            rows,
+          );
         },
       );
       if (!mounted) return;

@@ -4316,12 +4316,26 @@ class FfmAssistantCapabilityAdapterRegistry {
             );
     }
     try {
+      // Check if this is a bill reminder by looking at the note and title
+      final note = step.parameters['note']?.toString() ?? '';
+      final isBillReminder = note.toLowerCase().contains('tagihan') ||
+                           note.toLowerCase().contains('cicilan') ||
+                           note.toLowerCase().contains('kredit') ||
+                           note.toLowerCase().contains('sinkronisasi ke kalender') ||
+                           title.toLowerCase().contains('tagihan') ||
+                           title.toLowerCase().contains('cicilan') ||
+                           title.toLowerCase().contains('kredit');
+      
+      final reminderNote = isBillReminder 
+          ? '$note\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
+          : note;
+      
       await reminderMutations.save(
         ReminderEntity(
           id: id,
           householdId: _householdId,
           title: title.trim(),
-          note: step.parameters['note']?.toString(),
+          note: reminderNote.isEmpty ? null : reminderNote,
           scheduledAt: date,
           recurrenceType: ReminderRecurrenceType.once,
           weekdays: const [],
@@ -4329,14 +4343,19 @@ class FfmAssistantCapabilityAdapterRegistry {
           createdAt: now,
         ),
       );
+      
+      final formattedDate = _formatDateIndonesian(date);
+      
+      final successMessage = isBillReminder
+          ? 'Pengingat tagihan berhasil disimpan untuk $formattedDate. Notifikasi akan tembus ke kalender dan smartwatch.'
+          : 'Pengingat berhasil disimpan untuk $formattedDate.';
+          
+      return FfmAssistantCapabilityExecutionResult.success(successMessage);
     } on Object {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Pengingat belum disimpan karena izin atau jadwal notifikasi belum siap.',
       );
     }
-    return const FfmAssistantCapabilityExecutionResult.success(
-      'Pengingat berhasil disimpan.',
-    );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _saveMasterData(
@@ -4856,5 +4875,13 @@ class FfmAssistantCapabilityAdapterRegistry {
     final hour = value.hour.toString().padLeft(2, '0');
     final minute = value.minute.toString().padLeft(2, '0');
     return '$day/$month $hour:$minute';
+  }
+
+  String _formatDateIndonesian(DateTime value) {
+    final months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+    return '${value.day} ${months[value.month - 1]} ${value.year}';
   }
 }

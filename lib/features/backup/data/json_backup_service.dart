@@ -27,70 +27,24 @@ class JsonBackupService {
 
   final AppDatabase database;
 
-  static const _tables = <String>[
-    'transaction_tags',
-    'transaction_items',
-    'attachments',
-    'transactions',
-    'transfers',
-    'envelope_transfers',
-    'envelope_budgets',
-    'recurring_transactions',
-    'recurring_transaction_runs',
-    'receivables',
-    'liabilities',
-    'goals',
-    'assets',
-    'transaction_parties',
-    'accounts',
-    'tags',
-    'merchants',
-    'categories',
-    'activity_checkpoints',
-    'activity_entries',
-    'activity_sessions',
-    'activity_notes',
-    'harvest_events',
-    'hijri_correction_logs',
-    'hijri_month_overrides',
-    'hijri_settings',
-    'households',
-    'reminder_histories',
-    'reminders',
-    'account_reconciliation_logs',
-    'audit_logs',
-    'assistant_memories',
-    'assistant_learning_examples',
-    'assistant_unanswered_questions',
-    'assistant_response_feedbacks',
-    'user_corrections',
-    'user_preferences',
-    'interaction_patterns',
-    'daily_notes',
-    'tasks',
-    'daily_routines',
-    'daily_routine_completions',
-    'schedule_entries',
-    'assistant_agent_task_executions',
-    'assistant_agent_tasks',
-    'assistant_agent_goals',
-    'assistant_agent_tool_executions',
-    'assistant_agent_approvals',
-    'assistant_agent_events',
-    'assistant_agent_runs',
-  ];
-
   Future<String> exportJson({
     List<Map<String, Object?>>? assistantChatHistory,
+    List<Map<String, Object?>>? assistantChatConversations,
   }) async {
+    final tables = await _getUserTableNames();
     final modules = <String, Object?>{};
-    for (final table in _tables.reversed) {
-      if (!await _tableExists(table)) continue;
+    for (final table in tables) {
       final rows = await database.customSelect('SELECT * FROM "$table"').get();
       modules[table] = rows.map((row) => _jsonSafe(row.data)).toList();
     }
     if (assistantChatHistory != null) {
       modules['assistant_chat_history'] = assistantChatHistory
+          .map(_jsonSafe)
+          .whereType<Map<String, Object?>>()
+          .toList(growable: false);
+    }
+    if (assistantChatConversations != null) {
+      modules['assistant_chat_conversations'] = assistantChatConversations
           .map(_jsonSafe)
           .whereType<Map<String, Object?>>()
           .toList(growable: false);
@@ -166,6 +120,8 @@ class JsonBackupService {
     String path, {
     Future<void> Function(List<Map<String, Object?>> rows)?
     onRestoreChatHistory,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreChatConversations,
   }) async {
     final content = await File(path).readAsString();
     final decoded = jsonDecode(content);
@@ -180,8 +136,9 @@ class JsonBackupService {
     if (rawModules['activity_notes'] is List) {
       await _ensureActivityNotesTable();
     }
+    final tables = await _getUserTableNames();
     final modules = <String, List<Map<String, dynamic>>>{};
-    for (final table in _tables) {
+    for (final table in tables) {
       final rows = rawModules[table];
       if (rows is! List) continue;
       modules[table] = rows
@@ -190,24 +147,26 @@ class JsonBackupService {
           .toList();
     }
     final chatHistoryRows = rawModules['assistant_chat_history'];
+    final chatConversationRows = rawModules['assistant_chat_conversations'];
     final safeChatHistory = chatHistoryRows is List
         ? chatHistoryRows
               .whereType<Map>()
               .map((row) => Map<String, Object?>.from(row))
               .toList()
         : null;
+    final safeChatConversations = chatConversationRows is List
+        ? chatConversationRows
+              .whereType<Map>()
+              .map((row) => Map<String, Object?>.from(row))
+              .toList()
+        : null;
 
-    final tableColumnsMap = await _getTableColumnsMap();
+    final tableColumnsMap = await _getTableColumnsMap(tables);
 
     await database.transaction(() async {
       await database.customStatement('PRAGMA foreign_keys = OFF');
       try {
-        for (final table in modules.keys) {
-          if (tableColumnsMap.containsKey(table)) {
-            await database.customStatement('DELETE FROM "$table"');
-          }
-        }
-        for (final table in _tables.reversed) {
+        for (final table in tables) {
           final validColumns = tableColumnsMap[table];
           if (validColumns == null || validColumns.isEmpty) continue;
           for (final row in modules[table] ?? const <Map<String, dynamic>>[]) {
@@ -222,16 +181,29 @@ class JsonBackupService {
     if (onRestoreChatHistory != null && safeChatHistory != null) {
       await onRestoreChatHistory(safeChatHistory);
     }
+    if (onRestoreChatConversations != null && safeChatConversations != null) {
+      await onRestoreChatConversations(safeChatConversations);
+    }
+  }
+
+  Future<List<String>> _getUserTableNames() async {
+    final rows = await database
+        .customSelect(
+          "SELECT name FROM sqlite_master "
+          "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
+          'ORDER BY name',
+        )
+        .get();
+    return rows
+        .map((row) => row.data['name']?.toString())
+        .whereType<String>()
+        .where((name) => RegExp(r'^[a-z0-9_]+$').hasMatch(name))
+        .toList(growable: false);
   }
 
   Future<bool> _tableExists(String table) async {
-    final rows = await database
-        .customSelect(
-          'SELECT name FROM sqlite_master WHERE type = ? AND name = ?',
-          variables: [Variable.withString('table'), Variable.withString(table)],
-        )
-        .get();
-    return rows.isNotEmpty;
+    final tables = await _getUserTableNames();
+    return tables.contains(table);
   }
 
   Future<void> _ensureAuditTable() async {
@@ -253,9 +225,11 @@ class JsonBackupService {
     );
   }
 
-  Future<Map<String, Set<String>>> _getTableColumnsMap() async {
+  Future<Map<String, Set<String>>> _getTableColumnsMap(
+    List<String> tables,
+  ) async {
     final columnsMap = <String, Set<String>>{};
-    for (final table in _tables) {
+    for (final table in tables) {
       if (!await _tableExists(table)) continue;
       final rows = await database
           .customSelect('PRAGMA table_info("$table")')
@@ -289,7 +263,7 @@ class JsonBackupService {
         .toList();
 
     await database.customStatement(
-      'INSERT INTO "$table" ($columns) VALUES ($placeholders)',
+      'INSERT OR IGNORE INTO "$table" ($columns) VALUES ($placeholders)',
       values,
     );
   }

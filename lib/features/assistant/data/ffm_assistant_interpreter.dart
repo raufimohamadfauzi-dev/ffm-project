@@ -51,23 +51,18 @@ import 'ffm_agent_plugins.dart';
 
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
-import 'ffm_assistant_local_model_gateway.dart';
-import 'ffm_assistant_answer_composer.dart';
 import 'ffm_category_suggestion_service.dart';
 
 class FfmAssistantInterpreter {
   FfmAssistantInterpreter(
     this._database, {
     FfmAssistantLocalMemory? memory,
-    FfmAssistantLocalModelGateway? modelGateway,
     DateTime Function()? clock,
     AppDiagnosticsService? diagnostics,
     FfmAssistantSelfDescriptionService? selfDescription,
     FfmAssistantPersonalizationRepository? personalization,
     FfmAssistantMemoryRepository? taughtMemory,
     FfmPersonalContextProvider? Function()? personalContextProvider,
-    Future<bool> Function()? slmReadyCheck,
-    FfmAssistantAnswerComposer? answerComposer,
     FfmCategorySuggestionService? categorySuggestion,
     GeminiService? geminiService,
     SupabaseConfig? config,
@@ -101,9 +96,6 @@ class FfmAssistantInterpreter {
                : null) {
     _personalContextProvider = personalContextProvider;
     _categorySuggestion = categorySuggestion;
-    _modelGateway = modelGateway;
-    _slmReadyCheck = slmReadyCheck;
-    _answerComposer = answerComposer;
     _financialSnapshot = FfmAssistantFinancialSnapshotService(
       _database,
       HijriCalendarService(_database),
@@ -134,9 +126,6 @@ class FfmAssistantInterpreter {
   final FfmAssistantLocalMemory _memory;
   final AppThemeController? _themeController;
   FfmCategorySuggestionService? _categorySuggestion;
-  FfmAssistantLocalModelGateway? _modelGateway;
-  Future<bool> Function()? _slmReadyCheck;
-  FfmAssistantAnswerComposer? _answerComposer;
   final FfmAssistantPersonalizationRepository _personalization;
   final FfmAssistantMemoryRepository _taughtMemory;
   final FfmPersonalMemoryService _personalMemoryService;
@@ -815,159 +804,6 @@ class FfmAssistantInterpreter {
         analysisResults: analysisForIntent,
       ),
     );
-  }
-
-  /// Menjawab pertanyaan bebas Mode Agent dengan SLM lokal yang tersedia.
-  ///
-  /// Hanya merangkai jawaban dari fakta terarah yang sudah dibangun oleh aturan
-  /// lokal (tidak boleh mengarang nilai). Mengembalikan null bila SLM tidak
-  /// dipasang, belum siap, sibuk, atau outputnya gagal lolos sanitasi — lalu
-  /// interpreter jatuh ke `_unknown` secara jujur tanpa berpindah provider.
-  Future<FfmAssistantIntent?> _tryLocalModelResponse(
-    String rawText,
-    String normalized, {
-    required FfmAssistantDestination? currentDestination,
-    required String? pageContext,
-    required List<String> capabilityIds,
-  }) async {
-    final readyCheck = _slmReadyCheck;
-    if (readyCheck != null) {
-      try {
-        if (!await readyCheck()) return null;
-      } on Object {
-        return null;
-      }
-    }
-    if (_modelGateway == null && _answerComposer == null) return null;
-
-    final composer = _answerComposer;
-    if (composer != null) {
-      final facts = await _buildLocalAnswerFacts(
-        normalized: normalized,
-        currentDestination: currentDestination,
-        pageContext: pageContext,
-      );
-      if (facts.trim().isNotEmpty) {
-        String? answer;
-        try {
-          answer = await composer.composeGroundedAnswer(
-            question: rawText,
-            facts: facts,
-          );
-        } on Object {
-          return null;
-        }
-        final sanitized = FfmAssistantComposedAnswerContract.sanitize(
-          answer ?? '',
-        );
-        if (sanitized != null) {
-          return FfmAssistantIntent(
-            rawText: rawText,
-            normalizedText: normalized,
-            type: FfmAssistantIntentType.queryData,
-            confidence: .8,
-            response: sanitized,
-            responseOrigin: FfmAssistantResponseOrigin.localSlm,
-            responseMode: FfmAssistantResponseMode.localModel,
-            pluginName: 'slm_generator',
-            pluginCategory: '🧠 SLM Lokal',
-          );
-        }
-      }
-    }
-
-    // Jalur proposal: SLM hanya memberi pemahaman/maksud; teks jawaban yang
-    // boleh dipakai hanyalah pesan bantuan terstruktur — bukan draft mutasi.
-    final gateway = _modelGateway;
-    if (gateway == null) return null;
-    final accounts = await _activeAccounts();
-    final categories = await _activeCategories();
-    final FfmAssistantModelProposal? proposal;
-    try {
-      proposal = await gateway.proposeWithContext(
-        input: rawText,
-        pageContext: pageContext,
-        capabilityIds: capabilityIds,
-        activeAccountNames: accounts.map((account) => account.name).toList(),
-        activeCategoryNames: categories
-            .map((category) => category.name)
-            .toList(),
-      );
-    } on Object {
-      return null;
-    }
-    if (proposal == null || !proposal.isUsable) return null;
-    if (proposal.draft != null) return null;
-    final safeIntents = const {
-      FfmAssistantIntentType.help,
-      FfmAssistantIntentType.outOfDomain,
-    };
-    if (!safeIntents.contains(proposal.intent)) return null;
-    final message = proposal.notes?.trim() ?? proposal.clarification?.trim();
-    if (message == null || message.isEmpty) return null;
-    final sanitized = FfmAssistantComposedAnswerContract.sanitize(message);
-    if (sanitized == null) return null;
-    return FfmAssistantIntent(
-      rawText: rawText,
-      normalizedText: normalized,
-      type: proposal.intent,
-      confidence: proposal.confidence,
-      response: sanitized,
-      responseOrigin: FfmAssistantResponseOrigin.localSlm,
-      responseMode: FfmAssistantResponseMode.localModel,
-      pluginName: 'slm_local',
-      pluginCategory: '🧠 SLM Lokal',
-      clarification: proposal.clarification,
-    );
-  }
-
-  /// Membangun fakta terarah (bounded, aman-pribadi) untuk penyusun jawaban
-  /// SLM lokal. Tidak pernah menyertakan PIN, token, saldo per transaksi, atau
-  /// data mentah sensitif — hanya ringkasan keuangan dan konteks halaman.
-  Future<String> _buildLocalAnswerFacts({
-    required String normalized,
-    required FfmAssistantDestination? currentDestination,
-    required String? pageContext,
-  }) async {
-    final evidenceScope = FfmAssistantReasoningEvidencePolicy.forRequest(
-      normalized,
-    );
-    final financialContext = evidenceScope.includeFinancialSummary
-        ? _financialSnapshot.buildBoundedPrompt(
-            await _financialSnapshot.readCurrentMonth(
-              householdId: AppContext.householdId,
-              now: _clock(),
-            ),
-          )
-        : '';
-    final masterDataContext = evidenceScope.includeMasterData
-        ? await _financialSnapshot.buildMasterDataContext(
-            householdId: AppContext.householdId,
-          )
-        : '';
-    final householdContext = await _financialSnapshot.buildHouseholdProfileContext(
-      householdId: AppContext.householdId,
-    );
-    final approvedUserContext = await FfmAssistantUserModelService(
-      _taughtMemory,
-    ).buildContext(query: normalized);
-    final personalizationContext = await _personalization
-        .buildPersonalizedContext(
-          householdId: AppContext.householdId,
-          query: normalized,
-        );
-    return [
-          if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
-          if (householdContext.trim().isNotEmpty) householdContext,
-          financialContext,
-          masterDataContext,
-          approvedUserContext,
-          personalizationContext,
-        ]
-        .where((value) => value.trim().isNotEmpty)
-        .map((value) => value.trim())
-        .join('\n\n')
-        .trim();
   }
 
   Future<FfmAssistantUnderstandingResult> interpretMany(
@@ -1868,7 +1704,6 @@ class FfmAssistantInterpreter {
       'tugas kamu',
     ])) {
       final cannedResponse = _selfDescription.build(
-        slmConfigured: false,
         includeCreatorLinks: RegExp(
           r'pembuat|developer|pengembang|creator|pencipta|rafi',
           caseSensitive: false,
@@ -2588,25 +2423,6 @@ class FfmAssistantInterpreter {
             : const [];
         return list.first;
       }
-    }
-
-    // Jalur jawaban SLM lokal untuk Mode Agent. Pertanyaan bebas tanpa aksi atau
-    // nominal yang tidak terselesaikan aturan deterministik dicoba dijawab oleh
-    // penyusun jawaban lokal yang hanya merangkai fakta terarah dari konteks
-    // (tidak boleh mengarang nilai). Jika SLM tidak siap/sibuk/gagal, tetap
-    // jatuh ke _unknown secara jujur — tidak diam-diam beralih provider.
-    if (routingMode == FfmAssistantRoutingMode.agent &&
-        !hasActionVerb &&
-        !hasDraftOrientedVerb &&
-        !hasAmount) {
-      final localSlmIntent = await _tryLocalModelResponse(
-        rawText,
-        normalized,
-        currentDestination: currentDestination,
-        pageContext: pageContext,
-        capabilityIds: capabilityIds,
-      );
-      if (localSlmIntent != null) return localSlmIntent;
     }
 
     return _unknown(
@@ -8776,10 +8592,6 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'databasestructure' ||
     'struktur database' ||
     'tabel database' => FfmAssistantDestination.databaseStructure,
-    'localmodel' ||
-    'local_model' ||
-    'model lokal' ||
-    'model tanpa internet' ||
     'assistantprofile' ||
     'profil personalisasi' => FfmAssistantDestination.assistantProfile,
     'intelligencedashboard' ||

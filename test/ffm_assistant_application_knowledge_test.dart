@@ -10,10 +10,7 @@ void main() {
 
   setUp(() {
     database = createInMemoryDatabaseForTests();
-    interpreter = FfmAssistantInterpreter(
-      database,
-      slmReadyCheck: () async => false,
-    );
+    interpreter = FfmAssistantInterpreter(database);
   });
 
   tearDown(() => database.close());

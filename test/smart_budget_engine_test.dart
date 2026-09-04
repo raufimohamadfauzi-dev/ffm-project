@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/advisor/domain/services/smart_budget_engine.dart';
 import 'package:ffm_manager/features/advisor/domain/services/smart_envelope_rebalance.dart';
-import 'package:ffm_manager/features/transaction/domain/entities/transaction_entity.dart';
+import 'package:ffm_manager/features/transaction/domain/usecases/transaction_crud_usecases.dart';
 
 void main() {
   group('SmartBudgetEngine - Dynamic Category Baseline', () {
@@ -14,51 +14,56 @@ void main() {
         // Bulan Agustus (Month -1)
         TransactionEntity(
           id: '1',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Makanan & Minuman',
           amount: 3000000,
-          category: 'Makanan & Minuman',
           date: DateTime(2026, 8, 10),
-          note: '',
+          recordedAt: DateTime(2026, 8, 10),
           source: 'expense',
         ),
         TransactionEntity(
           id: '2',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Transportasi',
           amount: 1000000,
-          category: 'Transportasi',
           date: DateTime(2026, 8, 12),
-          note: '',
+          recordedAt: DateTime(2026, 8, 12),
           source: 'expense',
         ),
 
         // Bulan Juli (Month -2)
         TransactionEntity(
           id: '3',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Makanan & Minuman',
           amount: 2000000,
-          category: 'Makanan & Minuman',
           date: DateTime(2026, 7, 20),
-          note: '',
+          recordedAt: DateTime(2026, 7, 20),
           source: 'expense',
         ),
         TransactionEntity(
           id: '4',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Transportasi',
           amount: 800000,
-          category: 'Transportasi',
           date: DateTime(2026, 7, 22),
-          note: '',
+          recordedAt: DateTime(2026, 7, 22),
           source: 'expense',
         ),
 
         // Bulan Juni (Month -3)
         TransactionEntity(
           id: '5',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Makanan & Minuman',
           amount: 2500000,
-          category: 'Makanan & Minuman',
           date: DateTime(2026, 6, 15),
-          note: '',
+          recordedAt: DateTime(2026, 6, 15),
           source: 'expense',
         ),
       ];
@@ -82,20 +87,22 @@ void main() {
       final currentMonthExpenses = [
         TransactionEntity(
           id: '1',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Makanan & Minuman',
           amount: 1500000,
-          category: 'Makanan & Minuman',
           date: DateTime(2026, 9, 5),
-          note: '',
+          recordedAt: DateTime(2026, 9, 5),
           source: 'expense',
         ),
         TransactionEntity(
           id: '2',
-          type: TransactionType.expense,
+          householdId: 'local',
+          owner: 'Pengguna',
+          categoryId: 'Belanja',
           amount: 1000000,
-          category: 'Belanja',
           date: DateTime(2026, 9, 10),
-          note: '',
+          recordedAt: DateTime(2026, 9, 10),
           source: 'expense',
         ),
       ];

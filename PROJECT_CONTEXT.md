@@ -1,4 +1,8 @@
-# PROJECT CONTEXT — FFM Local SLM
+# PROJECT CONTEXT — FFM Gemini Agent
+
+## Catatan Status
+
+Jalur SLM/model lokal Qwen dan native `llama.cpp` telah dihapus dari source aktif. Assistant saat ini menggunakan aturan deterministic lokal dan Gemini Cloud melalui orchestrator berbatas; bagian historis di bawah ini tidak lagi menjadi kontrak implementasi.
 
 ## Identitas
 

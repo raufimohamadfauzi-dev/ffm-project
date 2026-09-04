@@ -1005,10 +1005,6 @@ class _AppShellState extends State<AppShell> {
           MaterialPageRoute(builder: (_) => const DatabaseStructurePage()),
         );
 
-      case FfmAssistantDestination.localModel:
-        // Legacy route retained only for persisted intents. The local model
-        // feature was removed; navigation requests must target real pages.
-        return;
       case FfmAssistantDestination.assistantProfile:
         await Navigator.of(
           context,

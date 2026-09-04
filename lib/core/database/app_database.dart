@@ -67,7 +67,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 52;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -299,6 +299,19 @@ class AppDatabase extends _$AppDatabase {
           await _hasTable('activity_sessions') &&
           !await _hasColumns('activity_sessions', const ['scheduled_at'])) {
         await m.addColumn(activitySessions, activitySessions.scheduledAt);
+      }
+      if (from < 52) {
+        if (await _hasTable('reminders')) {
+          if (!await _hasColumns('reminders', const ['calendar_event_id'])) {
+            await m.addColumn(reminders, reminders.calendarEventId);
+          }
+          if (!await _hasColumns('reminders', const ['is_synced_to_calendar'])) {
+            await m.addColumn(reminders, reminders.isSyncedToCalendar);
+          }
+          if (!await _hasColumns('reminders', const ['synced_at'])) {
+            await m.addColumn(reminders, reminders.syncedAt);
+          }
+        }
       }
       if (from < 20) {
         await _seedInitialData();

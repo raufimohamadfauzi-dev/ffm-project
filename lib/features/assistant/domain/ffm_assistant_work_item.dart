@@ -155,8 +155,6 @@ class FfmAssistantWorkItem {
       case FfmAssistantDestination.databaseStructure:
         return 'Struktur Database';
 
-      case FfmAssistantDestination.localModel:
-        return 'Model Lokal';
       case FfmAssistantDestination.assistantProfile:
         return 'Profil Asisten';
       case FfmAssistantDestination.intelligenceDashboard:

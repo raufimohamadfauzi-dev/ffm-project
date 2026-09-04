@@ -77,7 +77,7 @@ class FfmAssistantFeedbackToolbar extends StatelessWidget {
               icon: Icons.edit,
               label: 'Koreksi',
               color: isDark 
-                  ? const Color(0xFF9C27B0)
+                  ? const Color(0xFFE1BEE7)
                   : const Color(0xFF6A1B9A),
               onTap: onProvideCorrection!,
             ),

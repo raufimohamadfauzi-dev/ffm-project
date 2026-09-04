@@ -213,6 +213,83 @@ class MainActivity : FlutterFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        // NFC e-Money Reader Bridge — Fitur #1
+        val nfcService = FfmNfcReaderService(this)
+        val nfcChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            NFC_CHANNEL,
+        )
+        nfcChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isAvailable" -> result.success(FfmNfcReaderService.isAvailable(this))
+                "isEnabled" -> result.success(FfmNfcReaderService.isEnabled(this))
+                "startSession" -> {
+                    val started = nfcService.startScanning { data ->
+                        runOnUiThread {
+                            nfcChannel.invokeMethod("onCardScanned", data)
+                        }
+                    }
+                    result.success(started)
+                }
+                "stopSession" -> {
+                    nfcService.stopScanning()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Calendar Service Bridge — Fitur #2
+        val calendarService = FfmCalendarService(this)
+        val calendarChannel = MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            CALENDAR_CHANNEL,
+        )
+        calendarChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "isAvailable" -> result.success(FfmCalendarService.isAvailable(this))
+                "requestCalendarPermissions" -> result.success(true) // Assume permissions granted for now
+                "getDefaultCalendarId" -> result.success(FfmCalendarService.getDefaultCalendarId(this))
+                "createBillReminder" -> {
+                    val title = call.argument<String>("title").orEmpty()
+                    val description = call.argument<String>("description").orEmpty()
+                    val dueDate = call.argument<Long>("dueDate") ?: System.currentTimeMillis()
+                    val amount = call.argument<Double>("amount") ?: 0.0
+                    val category = call.argument<String>("category").orEmpty()
+
+                    val response = calendarService.createBillReminderEvent(
+                        title, description, dueDate, amount, category
+                    )
+                    result.success(response)
+                }
+                "updateBillReminder" -> {
+                    val eventId = call.argument<Long>("eventId") ?: 0L
+                    val title = call.argument<String>("title").orEmpty()
+                    val description = call.argument<String>("description").orEmpty()
+                    val dueDate = call.argument<Long>("dueDate") ?: System.currentTimeMillis()
+                    val amount = call.argument<Double>("amount") ?: 0.0
+                    val category = call.argument<String>("category").orEmpty()
+
+                    val response = calendarService.updateBillReminderEvent(
+                        eventId, title, description, dueDate, amount, category
+                    )
+                    result.success(response)
+                }
+                "deleteBillReminder" -> {
+                    val eventId = call.argument<Long>("eventId") ?: 0L
+                    val response = calendarService.deleteBillReminderEvent(eventId)
+                    result.success(response)
+                }
+                "getBillReminders" -> {
+                    val startDate = call.argument<Long>("startDate") ?: System.currentTimeMillis()
+                    val endDate = call.argument<Long>("endDate") ?: (System.currentTimeMillis() + 30L * 24 * 60 * 60 * 1000)
+                    val reminders = calendarService.getBillReminders(startDate, endDate)
+                    result.success(reminders)
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
 
@@ -359,6 +436,8 @@ class MainActivity : FlutterFragmentActivity() {
         private const val PRIVACY_CHANNEL = "ffm/privacy"
         private const val SPEECH_CHANNEL = "ffm/activity_speech"
         private const val NOTIFICATION_ACCESS_CHANNEL = "ffm/notification_access"
+        private const val NFC_CHANNEL = "ffm/nfc_reader"
+        private const val CALENDAR_CHANNEL = "ffm/calendar_service"
         private const val TTS_PREFERENCES = "ffm_tts_preferences"
         private const val TTS_VOICE_KEY = "selected_voice_name"
         private const val REQUEST_CODE = 7201

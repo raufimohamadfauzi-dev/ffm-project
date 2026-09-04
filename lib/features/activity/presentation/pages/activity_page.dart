@@ -1435,6 +1435,10 @@ class _SessionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPriority = session.priority > 0;
     final isNote = session.isHistory;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final modeBadgeColor = isDark ? scheme.onSurface : Colors.teal.shade900;
+    final priorityBadgeColor = isDark ? const Color(0xFFFFD180) : Colors.amber.shade900;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
@@ -1476,7 +1480,7 @@ class _SessionCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isNote ? Colors.purple.shade900 : Colors.teal.shade900,
+                    color: modeBadgeColor,
                   ),
                 ),
               ),
@@ -1494,7 +1498,7 @@ class _SessionCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Colors.amber.shade900,
+                      color: priorityBadgeColor,
                     ),
                   ),
                 ),
@@ -1866,7 +1870,7 @@ class _SessionFormState extends State<_SessionForm> {
                           Icon(
                             Icons.edit_note_outlined,
                             color: _mode == ActivityMode.history
-                                ? Colors.purple.shade800
+                                ? Theme.of(context).colorScheme.onSurface
                                 : Theme.of(context).colorScheme.onSurfaceVariant,
                             size: 20,
                           ),
@@ -1877,7 +1881,7 @@ class _SessionFormState extends State<_SessionForm> {
                               fontWeight: FontWeight.w800,
                               fontSize: 14,
                               color: _mode == ActivityMode.history
-                                  ? Colors.purple.shade900
+                                  ? Theme.of(context).colorScheme.onSurface
                                   : Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
@@ -1889,7 +1893,7 @@ class _SessionFormState extends State<_SessionForm> {
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           fontSize: 11,
                           color: _mode == ActivityMode.history
-                              ? Colors.purple.shade900.withValues(alpha: 0.8)
+                              ? Theme.of(context).colorScheme.onSurface
                               : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,

@@ -120,6 +120,21 @@ void main() {
         0,
       ],
     );
+    await source.customStatement(
+      'CREATE TABLE future_feature_records ('
+      'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, value TEXT NOT NULL, '
+      'created_at INTEGER NOT NULL)',
+    );
+    await source.customStatement(
+      'INSERT INTO future_feature_records '
+      '(id, household_id, value, created_at) VALUES (?, ?, ?, ?)',
+      [
+        'future-1',
+        AppContext.householdId,
+        'ikut backup otomatis',
+        now.microsecondsSinceEpoch,
+      ],
+    );
 
     final service = JsonBackupService(source);
     final historyRows = [
@@ -184,6 +199,7 @@ void main() {
         'assistant_agent_tasks',
         'assistant_agent_task_executions',
         'assistant_chat_history',
+        'future_feature_records',
       ]),
     );
     expect((modules['audit_logs'] as List), hasLength(1));
@@ -203,6 +219,21 @@ void main() {
     await closeSource();
     final restored = createInMemoryDatabaseForTests();
     addTearDown(restored.close);
+    await restored.customStatement(
+      'CREATE TABLE future_feature_records ('
+      'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, value TEXT NOT NULL, '
+      'created_at INTEGER NOT NULL, new_column TEXT)',
+    );
+    await restored.customStatement(
+      'INSERT INTO future_feature_records '
+      '(id, household_id, value, created_at) VALUES (?, ?, ?, ?)',
+      [
+        'future-old',
+        AppContext.householdId,
+        'data lama HP B',
+        now.microsecondsSinceEpoch,
+      ],
+    );
     List<Map<String, Object?>>? restoredHistory;
     await JsonBackupService(restored).importAndRestore(
       file.path,
@@ -226,6 +257,9 @@ void main() {
     final activityNoteRows = await restored
         .customSelect('SELECT text FROM activity_notes')
         .get();
+    final futureFeatureRows = await restored
+        .customSelect('SELECT value FROM future_feature_records ORDER BY id')
+        .get();
     expect(auditRows, hasLength(1));
     expect(auditRows.single.read<String>('action'), 'create');
     expect(reconciliationRows, hasLength(1));
@@ -237,6 +271,11 @@ void main() {
     );
     expect(agentRunRows, hasLength(1));
     expect(activityNoteRows.single.read<String>('text'), 'Menyiram kebun');
+    expect(futureFeatureRows, hasLength(2));
+    expect(
+      futureFeatureRows.map((row) => row.read<String>('value')),
+      containsAll(['data lama HP B', 'ikut backup otomatis']),
+    );
 
     expect(restoredHistory, isNotNull);
     expect(restoredHistory, hasLength(1));

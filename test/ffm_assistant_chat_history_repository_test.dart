@@ -60,4 +60,26 @@ void main() {
 
     expect(await repository.load(), isEmpty);
   });
+
+  test('import menggabungkan history lama dan mencegah duplikat', () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    await repository.save([
+      const FfmAssistantChatEntry(isUser: true, text: 'Data lama HP B'),
+    ]);
+
+    final imported = [
+      {
+        'isUser': true,
+        'text': 'Data baru HP A',
+        'createdAt': '2026-08-23T02:00:00.000',
+      },
+    ];
+    await repository.importRaw(imported);
+    await repository.importRaw(imported);
+
+    final restored = await repository.readRaw();
+    expect(restored, hasLength(2));
+    expect(restored.map((row) => row['text']),
+        containsAll(['Data lama HP B', 'Data baru HP A']));
+  });
 }

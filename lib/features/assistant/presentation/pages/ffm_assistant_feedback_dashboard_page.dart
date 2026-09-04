@@ -333,28 +333,29 @@ class _FfmAssistantFeedbackDashboardPageState
   }
 
   Widget _buildTypeChip(FfmAssistantFeedbackType type) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
     String label;
     
     switch (type) {
       case FfmAssistantFeedbackType.thumbsUp:
-        color = Colors.green;
+        color = isDark ? Colors.green.shade200 : Colors.green;
         label = 'Berguna';
         break;
       case FfmAssistantFeedbackType.thumbsDown:
-        color = Colors.red;
+        color = isDark ? Colors.red.shade200 : Colors.red;
         label = 'Tidak Berguna';
         break;
       case FfmAssistantFeedbackType.incorrect:
-        color = Colors.orange;
+        color = isDark ? Colors.orange.shade200 : Colors.orange;
         label = 'Salah';
         break;
       case FfmAssistantFeedbackType.issue:
-        color = Colors.blue;
+        color = isDark ? Colors.blue.shade200 : Colors.blue;
         label = 'Lapor';
         break;
       case FfmAssistantFeedbackType.correction:
-        color = Colors.purple;
+        color = isDark ? Colors.purple.shade200 : Colors.purple;
         label = 'Koreksi';
         break;
     }
@@ -367,26 +368,27 @@ class _FfmAssistantFeedbackDashboardPageState
   }
 
   Widget _buildCategoryChip(FfmAssistantFeedbackCategory category) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color;
     
     switch (category) {
       case FfmAssistantFeedbackCategory.factual:
-        color = Colors.red;
+        color = isDark ? Colors.red.shade200 : Colors.red;
         break;
       case FfmAssistantFeedbackCategory.confusing:
-        color = Colors.orange;
+        color = isDark ? Colors.orange.shade200 : Colors.orange;
         break;
       case FfmAssistantFeedbackCategory.helpful:
-        color = Colors.green;
+        color = isDark ? Colors.green.shade200 : Colors.green;
         break;
       case FfmAssistantFeedbackCategory.hallucination:
-        color = Colors.purple;
+        color = isDark ? Colors.purple.shade200 : Colors.purple;
         break;
       case FfmAssistantFeedbackCategory.missingContext:
-        color = Colors.blue;
+        color = isDark ? Colors.blue.shade200 : Colors.blue;
         break;
       case FfmAssistantFeedbackCategory.other:
-        color = Colors.grey;
+        color = isDark ? Colors.grey.shade300 : Colors.grey;
         break;
     }
     

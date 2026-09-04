@@ -11730,6 +11730,42 @@ class $RemindersTable extends Reminders
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _calendarEventIdMeta = const VerificationMeta(
+    'calendarEventId',
+  );
+  @override
+  late final GeneratedColumn<int> calendarEventId = GeneratedColumn<int>(
+    'calendar_event_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isSyncedToCalendarMeta =
+      const VerificationMeta('isSyncedToCalendar');
+  @override
+  late final GeneratedColumn<bool> isSyncedToCalendar = GeneratedColumn<bool>(
+    'is_synced_to_calendar',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_synced_to_calendar" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -11746,6 +11782,9 @@ class $RemindersTable extends Reminders
     notificationId,
     createdAt,
     updatedAt,
+    calendarEventId,
+    isSyncedToCalendar,
+    syncedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -11870,6 +11909,30 @@ class $RemindersTable extends Reminders
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('calendar_event_id')) {
+      context.handle(
+        _calendarEventIdMeta,
+        calendarEventId.isAcceptableOrUnknown(
+          data['calendar_event_id']!,
+          _calendarEventIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('is_synced_to_calendar')) {
+      context.handle(
+        _isSyncedToCalendarMeta,
+        isSyncedToCalendar.isAcceptableOrUnknown(
+          data['is_synced_to_calendar']!,
+          _isSyncedToCalendarMeta,
+        ),
+      );
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    }
     return context;
   }
 
@@ -11935,6 +11998,18 @@ class $RemindersTable extends Reminders
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       ),
+      calendarEventId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}calendar_event_id'],
+      ),
+      isSyncedToCalendar: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_synced_to_calendar'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      ),
     );
   }
 
@@ -11959,6 +12034,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
   final int notificationId;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int? calendarEventId;
+  final bool isSyncedToCalendar;
+  final DateTime? syncedAt;
   const Reminder({
     required this.id,
     required this.householdId,
@@ -11974,6 +12052,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     required this.notificationId,
     required this.createdAt,
     this.updatedAt,
+    this.calendarEventId,
+    required this.isSyncedToCalendar,
+    this.syncedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -12000,6 +12081,13 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     if (!nullToAbsent || updatedAt != null) {
       map['updated_at'] = Variable<DateTime>(updatedAt);
     }
+    if (!nullToAbsent || calendarEventId != null) {
+      map['calendar_event_id'] = Variable<int>(calendarEventId);
+    }
+    map['is_synced_to_calendar'] = Variable<bool>(isSyncedToCalendar);
+    if (!nullToAbsent || syncedAt != null) {
+      map['synced_at'] = Variable<DateTime>(syncedAt);
+    }
     return map;
   }
 
@@ -12025,6 +12113,13 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       updatedAt: updatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(updatedAt),
+      calendarEventId: calendarEventId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(calendarEventId),
+      isSyncedToCalendar: Value(isSyncedToCalendar),
+      syncedAt: syncedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncedAt),
     );
   }
 
@@ -12050,6 +12145,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       notificationId: serializer.fromJson<int>(json['notificationId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+      calendarEventId: serializer.fromJson<int?>(json['calendarEventId']),
+      isSyncedToCalendar: serializer.fromJson<bool>(json['isSyncedToCalendar']),
+      syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
     );
   }
   @override
@@ -12070,6 +12168,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       'notificationId': serializer.toJson<int>(notificationId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+      'calendarEventId': serializer.toJson<int?>(calendarEventId),
+      'isSyncedToCalendar': serializer.toJson<bool>(isSyncedToCalendar),
+      'syncedAt': serializer.toJson<DateTime?>(syncedAt),
     };
   }
 
@@ -12088,6 +12189,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     int? notificationId,
     DateTime? createdAt,
     Value<DateTime?> updatedAt = const Value.absent(),
+    Value<int?> calendarEventId = const Value.absent(),
+    bool? isSyncedToCalendar,
+    Value<DateTime?> syncedAt = const Value.absent(),
   }) => Reminder(
     id: id ?? this.id,
     householdId: householdId ?? this.householdId,
@@ -12103,6 +12207,11 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     notificationId: notificationId ?? this.notificationId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+    calendarEventId: calendarEventId.present
+        ? calendarEventId.value
+        : this.calendarEventId,
+    isSyncedToCalendar: isSyncedToCalendar ?? this.isSyncedToCalendar,
+    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
   );
   Reminder copyWithCompanion(RemindersCompanion data) {
     return Reminder(
@@ -12132,6 +12241,13 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           : this.notificationId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      calendarEventId: data.calendarEventId.present
+          ? data.calendarEventId.value
+          : this.calendarEventId,
+      isSyncedToCalendar: data.isSyncedToCalendar.present
+          ? data.isSyncedToCalendar.value
+          : this.isSyncedToCalendar,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
     );
   }
 
@@ -12151,7 +12267,10 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           ..write('defaultSnoozeMinutes: $defaultSnoozeMinutes, ')
           ..write('notificationId: $notificationId, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('calendarEventId: $calendarEventId, ')
+          ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
+          ..write('syncedAt: $syncedAt')
           ..write(')'))
         .toString();
   }
@@ -12172,6 +12291,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     notificationId,
     createdAt,
     updatedAt,
+    calendarEventId,
+    isSyncedToCalendar,
+    syncedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -12190,7 +12312,10 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           other.defaultSnoozeMinutes == this.defaultSnoozeMinutes &&
           other.notificationId == this.notificationId &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.calendarEventId == this.calendarEventId &&
+          other.isSyncedToCalendar == this.isSyncedToCalendar &&
+          other.syncedAt == this.syncedAt);
 }
 
 class RemindersCompanion extends UpdateCompanion<Reminder> {
@@ -12208,6 +12333,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
   final Value<int> notificationId;
   final Value<DateTime> createdAt;
   final Value<DateTime?> updatedAt;
+  final Value<int?> calendarEventId;
+  final Value<bool> isSyncedToCalendar;
+  final Value<DateTime?> syncedAt;
   final Value<int> rowid;
   const RemindersCompanion({
     this.id = const Value.absent(),
@@ -12224,6 +12352,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.notificationId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.calendarEventId = const Value.absent(),
+    this.isSyncedToCalendar = const Value.absent(),
+    this.syncedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RemindersCompanion.insert({
@@ -12241,6 +12372,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     required int notificationId,
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
+    this.calendarEventId = const Value.absent(),
+    this.isSyncedToCalendar = const Value.absent(),
+    this.syncedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        householdId = Value(householdId),
@@ -12263,6 +12397,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Expression<int>? notificationId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<int>? calendarEventId,
+    Expression<bool>? isSyncedToCalendar,
+    Expression<DateTime>? syncedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -12281,6 +12418,10 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       if (notificationId != null) 'notification_id': notificationId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (calendarEventId != null) 'calendar_event_id': calendarEventId,
+      if (isSyncedToCalendar != null)
+        'is_synced_to_calendar': isSyncedToCalendar,
+      if (syncedAt != null) 'synced_at': syncedAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -12300,6 +12441,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Value<int>? notificationId,
     Value<DateTime>? createdAt,
     Value<DateTime?>? updatedAt,
+    Value<int?>? calendarEventId,
+    Value<bool>? isSyncedToCalendar,
+    Value<DateTime?>? syncedAt,
     Value<int>? rowid,
   }) {
     return RemindersCompanion(
@@ -12317,6 +12461,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       notificationId: notificationId ?? this.notificationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      calendarEventId: calendarEventId ?? this.calendarEventId,
+      isSyncedToCalendar: isSyncedToCalendar ?? this.isSyncedToCalendar,
+      syncedAt: syncedAt ?? this.syncedAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -12366,6 +12513,15 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (calendarEventId.present) {
+      map['calendar_event_id'] = Variable<int>(calendarEventId.value);
+    }
+    if (isSyncedToCalendar.present) {
+      map['is_synced_to_calendar'] = Variable<bool>(isSyncedToCalendar.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -12389,6 +12545,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
           ..write('notificationId: $notificationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('calendarEventId: $calendarEventId, ')
+          ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
+          ..write('syncedAt: $syncedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -36668,6 +36827,9 @@ typedef $$RemindersTableCreateCompanionBuilder =
       required int notificationId,
       required DateTime createdAt,
       Value<DateTime?> updatedAt,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
       Value<int> rowid,
     });
 typedef $$RemindersTableUpdateCompanionBuilder =
@@ -36686,6 +36848,9 @@ typedef $$RemindersTableUpdateCompanionBuilder =
       Value<int> notificationId,
       Value<DateTime> createdAt,
       Value<DateTime?> updatedAt,
+      Value<int?> calendarEventId,
+      Value<bool> isSyncedToCalendar,
+      Value<DateTime?> syncedAt,
       Value<int> rowid,
     });
 
@@ -36765,6 +36930,21 @@ class $$RemindersTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get calendarEventId => $composableBuilder(
+    column: $table.calendarEventId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isSyncedToCalendar => $composableBuilder(
+    column: $table.isSyncedToCalendar,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -36847,6 +37027,21 @@ class $$RemindersTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get calendarEventId => $composableBuilder(
+    column: $table.calendarEventId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isSyncedToCalendar => $composableBuilder(
+    column: $table.isSyncedToCalendar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$RemindersTableAnnotationComposer
@@ -36911,6 +37106,19 @@ class $$RemindersTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get calendarEventId => $composableBuilder(
+    column: $table.calendarEventId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isSyncedToCalendar => $composableBuilder(
+    column: $table.isSyncedToCalendar,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 }
 
 class $$RemindersTableTableManager
@@ -36955,6 +37163,9 @@ class $$RemindersTableTableManager
                 Value<int> notificationId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int?> calendarEventId = const Value.absent(),
+                Value<bool> isSyncedToCalendar = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RemindersCompanion(
                 id: id,
@@ -36971,6 +37182,9 @@ class $$RemindersTableTableManager
                 notificationId: notificationId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                calendarEventId: calendarEventId,
+                isSyncedToCalendar: isSyncedToCalendar,
+                syncedAt: syncedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -36989,6 +37203,9 @@ class $$RemindersTableTableManager
                 required int notificationId,
                 required DateTime createdAt,
                 Value<DateTime?> updatedAt = const Value.absent(),
+                Value<int?> calendarEventId = const Value.absent(),
+                Value<bool> isSyncedToCalendar = const Value.absent(),
+                Value<DateTime?> syncedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => RemindersCompanion.insert(
                 id: id,
@@ -37005,6 +37222,9 @@ class $$RemindersTableTableManager
                 notificationId: notificationId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                calendarEventId: calendarEventId,
+                isSyncedToCalendar: isSyncedToCalendar,
+                syncedAt: syncedAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -84,6 +84,10 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
     final isPriority = session.priority > 0;
     final isRunning = !isNote && session.status == ActivitySessionStatus.active;
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final modeBadgeColor = isDark ? scheme.onSurface : scheme.onSurface;
+    final statusBadgeColor = isDark ? const Color(0xFF9BE7B3) : Colors.green.shade800;
+    final runningBadgeColor = isDark ? const Color(0xFFFFD180) : Colors.amber.shade900;
 
     return Scaffold(
       appBar: AppBar(
@@ -137,10 +141,10 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                               ? scheme.primary
                               : Colors.teal.withValues(alpha: 0.18)),
                       foregroundColor: isNote
-                          ? Colors.purple.shade800
+                          ? (isDark ? scheme.onSurface : Colors.purple.shade800)
                           : (isRunning
                               ? scheme.onPrimary
-                              : Colors.teal.shade800),
+                            : (isDark ? scheme.onSurface : Colors.teal.shade800)),
                       child: Icon(
                         isNote
                             ? Icons.edit_note_rounded
@@ -184,9 +188,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
-                                    color: isNote
-                                        ? Colors.purple.shade900
-                                        : Colors.teal.shade900,
+                                    color: modeBadgeColor,
                                   ),
                                 ),
                               ),
@@ -225,7 +227,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.green.shade800,
+                                      color: statusBadgeColor,
                                     ),
                                   ),
                                 )
@@ -244,7 +246,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.amber.shade900,
+                                      color: runningBadgeColor,
                                     ),
                                   ),
                                 )
@@ -263,7 +265,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.green.shade800,
+                                      color: statusBadgeColor,
                                     ),
                                   ),
                                 ),
@@ -282,7 +284,7 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w800,
-                                      color: Colors.amber.shade900,
+                                      color: runningBadgeColor,
                                     ),
                                   ),
                                 ),
@@ -466,12 +468,12 @@ class _ActivityDetailViewState extends State<_ActivityDetailView> {
             ),
             const SizedBox(height: 8),
             if (widget.checkpoints.isEmpty)
-              const AppCard(
+              AppCard(
                 child: Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
                   child: Text(
                     'Belum ada update aktivitas. Tekan tombol Tambah untuk mencatat momen atau checkpoint.',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                 ),
               )

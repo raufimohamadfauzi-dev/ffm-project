@@ -77,7 +77,6 @@ class FfmAssistantSelfDescriptionService {
 
   String build({
     Iterable<String> implementedCapabilityIds = defaultImplementedCapabilityIds,
-    bool slmConfigured = false,
     bool includeCreatorLinks = false,
     FfmAssistantDestination? currentDestination,
   }) {

@@ -6,8 +6,9 @@ abstract final class GeminiColors {
   static const Color onPrimary = Colors.white;
   static const Color surface = Color(0xFF1E1E1E);
   static const Color background = Color(0xFF121212);
-  static const Color onSurface = Colors.white70;
-  static const Color outline = Color(0xFF555555);
+  static const Color onSurface = Colors.white;
+  static const Color onSurfaceVariant = Color(0xFFD0E2DE);
+  static const Color outline = Color(0xFF789A93);
 }
 
 class GeminiTheme {
@@ -26,6 +27,9 @@ class GeminiTheme {
       onPrimary: GeminiColors.onPrimary,
       surface: isDark ? GeminiColors.surface : Colors.white,
       onSurface: isDark ? GeminiColors.onSurface : const Color(0xFF10201F),
+        onSurfaceVariant: isDark
+          ? GeminiColors.onSurfaceVariant
+          : const Color(0xFF3F514F),
       outline: GeminiColors.outline,
     );
     return base.copyWith(

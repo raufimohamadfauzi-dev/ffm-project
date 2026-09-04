@@ -29,11 +29,6 @@ class _FfmAssistantProcessDisclosureState
           icon: Icons.account_tree_outlined,
           color: const Color(0xFF00727A),
         ),
-        FfmAssistantResponseOrigin.localSlm => (
-          label: 'Agent lokal',
-          icon: Icons.auto_awesome_outlined,
-          color: const Color(0xFF3B6EC4),
-        ),
         FfmAssistantResponseOrigin.localFallback => (
           label: 'Agent fallback deterministik',
           icon: Icons.info_outline,

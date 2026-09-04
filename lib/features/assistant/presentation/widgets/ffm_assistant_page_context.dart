@@ -125,8 +125,6 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.monthlyReport =>
       'Sedang melihat laporan periode bulanan.',
 
-    FfmAssistantDestination.localModel =>
-      'Pengaturan model lokal tidak tersedia; gunakan Gemini Cloud.',
     FfmAssistantDestination.intelligenceDashboard =>
       'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
     _ => 'Sedang melihat halaman fitur FFM.',

@@ -249,10 +249,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 label: 'Data lokal FFM menyelesaikan permintaan',
                 detail: 'Jawaban berasal dari aturan, katalog, atau query lokal yang sesuai.',
               ),
-      FfmAssistantResponseOrigin.localSlm => const (
-        label: 'Agent lokal menyusun jawaban terarah',
-        detail: 'Jawaban hanya dirangkai dari konteks terbatas dan tidak mengubah data.',
-      ),
       FfmAssistantResponseOrigin.localFallback => const (
         label: 'Agent memakai fallback deterministik',
         detail: 'FFM memakai aturan aman tanpa membuat atau mengubah data secara otomatis.',
@@ -1216,10 +1212,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         for (final intent in intents) {
           String response = intent.response ?? intent.clarification ?? '';
           if (response.isEmpty) {
-            if (intent.responseMode == FfmAssistantResponseMode.localModel &&
-                intent.type == FfmAssistantIntentType.help) {
-              response = 'Aku memahami permintaanmu. Gemini belum menghasilkan jawaban yang dapat dipakai.';
-            } else if (intent.draft != null) {
+            if (intent.draft != null) {
               response =
                   'Aku sudah memahami permintaannya. Cek draft ini dulu, ya.';
             } else {

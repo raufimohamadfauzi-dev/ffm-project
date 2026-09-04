@@ -300,17 +300,17 @@ abstract final class AppTheme {
   }
 
   static ThemeData dark() {
-    const background = Color(0xFF0D1717);
-    const surface = Color(0xFF142322);
-    const surfaceContainer = Color(0xFF1B302E);
-    const surfaceContainerHigh = Color(0xFF24413E);
-    const ink = Color(0xFFF0F7F5);
-    const inkMuted = Color(0xFFB8CBC7);
-    const outline = Color(0xFF55736E);
-    const primary = Color(0xFF62D9D0);
-    const primaryContainer = Color(0xFF0C6864);
+    const background = Color(0xFF081110);
+    const surface = Color(0xFF101D1C);
+    const surfaceContainer = Color(0xFF19312F);
+    const surfaceContainerHigh = Color(0xFF234743);
+    const ink = Color(0xFFFFFFFF);
+    const inkMuted = Color(0xFFD0E2DE);
+    const outline = Color(0xFF789A93);
+    const primary = Color(0xFF7FF5EA);
+    const primaryContainer = Color(0xFF0B716B);
     const onPrimary = Color(0xFF00201E);
-    const primarySoft = Color(0xFF184A47);
+    const primarySoft = Color(0xFF18514D);
     const negative = Color(0xFFFFB4AB);
     const negativeSoft = Color(0xFF5B2523);
 

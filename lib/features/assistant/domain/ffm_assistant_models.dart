@@ -4,13 +4,12 @@ library;
 
 import '../../activity/domain/activity_voice.dart';
 
-enum FfmAssistantResponseMode { localRules, localModel }
+enum FfmAssistantResponseMode { localRules }
 
 enum FfmAssistantRoutingMode { agent, geminiCloud }
 
 enum FfmAssistantResponseOrigin {
   agentOrchestrator,
-  localSlm,
   localFallback,
   geminiCloud,
   cloudError,
@@ -177,7 +176,6 @@ enum FfmAssistantDestination {
   recurringTransaction,
   privacyCenter,
   databaseStructure,
-  localModel,
   assistantProfile,
   intelligenceDashboard,
   paymentDetector,
@@ -429,6 +427,7 @@ class FfmAssistantDraft {
     this.merchantName,
     this.location,
     this.slmFieldValues = const <String, String>{},
+    this.metadata,
   });
 
   final FfmAssistantDraftKind kind;
@@ -452,6 +451,9 @@ class FfmAssistantDraft {
   final String? location;
   final Map<String, String> slmFieldValues;
 
+  /// Metadata tambahan untuk integrasi spesifik (misal: calendar sync)
+  final Map<String, dynamic>? metadata;
+
   bool get hasAmount => amount != null && amount! > 0;
 
   FfmAssistantDraft copyWith({
@@ -470,6 +472,7 @@ class FfmAssistantDraft {
     String? merchantName,
     String? location,
     Map<String, String>? slmFieldValues,
+    Map<String, dynamic>? metadata,
   }) => FfmAssistantDraft(
     kind: kind,
     createdAt: createdAt,
@@ -488,6 +491,7 @@ class FfmAssistantDraft {
     merchantName: merchantName ?? this.merchantName,
     location: location ?? this.location,
     slmFieldValues: slmFieldValues ?? this.slmFieldValues,
+    metadata: metadata ?? this.metadata,
   );
 }
 
@@ -1206,7 +1210,6 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
         FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
         FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
-        FfmAssistantDestination.localModel => 'Pengaturan model lokal tidak tersedia pada jalur produk Gemini-only.',
         FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas dan preferensi.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
         FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
