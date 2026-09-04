@@ -31,7 +31,9 @@ import '../../domain/usecases/advisor_suggestion_generator.dart';
 import '../../domain/usecases/budget_guard_service.dart';
 import '../../domain/usecases/financial_analysis.dart';
 import '../../domain/usecases/financial_health_calculator.dart';
+import '../widgets/adaptive_cash_flow_card.dart';
 import 'analysis_page.dart';
+import 'flexible_cash_flow_page.dart';
 
 class SummaryPage extends StatefulWidget {
   const SummaryPage({super.key});
@@ -298,6 +300,14 @@ class _SummaryContent extends StatelessWidget {
                 icon: const Icon(Icons.auto_graph_outlined),
               ),
             IconButton(
+              tooltip: 'Siklus Kas & Musiman',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const FlexibleCashFlowPage()),
+              ).then((_) => onRefresh()),
+              icon: const Icon(Icons.eco_outlined),
+            ),
+            IconButton(
               tooltip: 'Pengingat',
               onPressed: () => Navigator.push(
                 context,
@@ -318,6 +328,7 @@ class _SummaryContent extends StatelessWidget {
           sliver: SliverList.list(
             children: [
               PendingPaymentDraftsCard(onDraftProcessed: onRefresh),
+              AdaptiveCashFlowCard(onProfileChanged: onRefresh),
               Row(
                 children: [
                   ClipRRect(

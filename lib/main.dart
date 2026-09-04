@@ -27,6 +27,7 @@ import 'features/assistant/domain/ffm_assistant_widget_protocol.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
+import 'features/assistant/presentation/widgets/nfc_scan_dialog.dart';
 
 import 'features/assistant/presentation/pages/assistant_profile_page.dart';
 import 'features/assistant/presentation/pages/agent_inbox_page.dart';
@@ -656,8 +657,11 @@ class _AppShellState extends State<AppShell> {
         ? null
         : FfmAssistantWidgetAction.fromWireName(action);
     switch (parsed) {
-      case FfmAssistantWidgetAction.openAssistant:
+      case FfmAssistantWidgetAction.openAssistant ||
+          FfmAssistantWidgetAction.quickNote:
         _openAssistant();
+      case FfmAssistantWidgetAction.scanNfc:
+        NfcScanDialog.show(context);
       case FfmAssistantWidgetAction.readSummary:
         setState(() => _index = 0);
       case FfmAssistantWidgetAction.openModelSetup:

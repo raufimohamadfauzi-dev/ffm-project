@@ -1,4 +1,5 @@
 import '../domain/ffm_assistant_analysis_engine.dart';
+import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_cloud_context.dart';
 import '../domain/ffm_assistant_cloud_rollout_config.dart';
 import '../domain/ffm_assistant_grounding_validator.dart';
@@ -34,7 +35,6 @@ import '../../../core/network/supabase_config.dart';
 import '../domain/ffm_assistant_action_tool.dart';
 import '../domain/ffm_assistant_execution_limits.dart';
 import '../domain/ffm_assistant_draft_validator.dart';
-import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_self_description.dart';
 import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
@@ -6878,18 +6878,58 @@ class FfmAssistantInterpreter {
       'ingatkan saya',
       'pasang pengingat',
     ]);
-    if (createReminder) {
+    
+    // Detect bill reminder patterns for calendar sync
+    final billReminder = _containsAny(normalized, const [
+      'tagihan listrik',
+      'tagihan air',
+      'tagihan internet',
+      'tagihan bpjs',
+      'tagihan indihome',
+      'tagihan pulsa',
+      'tagihan cicilan',
+      'tagihan pdam',
+      'tagihan gas',
+      'tagihan tv kabel',
+      'bayar listrik',
+      'bayar bpjs',
+      'bayar indihome',
+      'bayar pdam',
+      'bayar gas',
+      'bayar cicilan',
+      'jatuh tempo',
+      'due date',
+      'tanggal jatuh tempo',
+      'cicilan motor',
+      'cicilan mobil',
+      'cicilan rumah',
+      'kredit',
+      'pinjaman',
+    ]);
+    
+    if (createReminder || billReminder) {
+      final title = _draftTitle(normalized, const [
+        'buat pengingat',
+        'tambah pengingat',
+        'ingatkan saya',
+        'pasang pengingat',
+        'tagihan',
+        'bayar',
+      ]);
+      
+      final note = billReminder 
+          ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]' 
+          : rawText.trim();
+      
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
-        title: _draftTitle(normalized, const [
-          'buat pengingat',
-          'tambah pengingat',
-          'ingatkan saya',
-          'pasang pengingat',
-        ]),
-        note: rawText.trim(),
+        title: title,
+        note: note,
         date: now.add(const Duration(hours: 1)),
+        metadata: billReminder 
+            ? {'calendar_sync': true, 'is_bill_reminder': true} 
+            : null,
       );
     }
     final asset = _containsAny(normalized, const [

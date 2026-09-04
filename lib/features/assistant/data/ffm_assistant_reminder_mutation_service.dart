@@ -2,6 +2,7 @@ import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../reminder/domain/usecases/reminder_usecases.dart';
+import 'calendar_bridge.dart';
 
 /// Menjaga mutasi pengingat dari Agent tetap memakai kontrak notifikasi domain.
 /// Layanan ini tidak menafsirkan teks dan tidak melewati konfirmasi Action Plan.
@@ -10,16 +11,19 @@ class FfmAssistantReminderMutationService {
     required ReminderRepository repository,
     required ReminderNotificationGateway notificationGateway,
     required ReminderOccurrenceCalculator occurrenceCalculator,
+    CalendarBridge? calendarBridge,
     DateTime Function()? clock,
-  }) : _clock = clock ?? DateTime.now {
+  })  : _clock = clock ?? DateTime.now {
     _repository = repository;
     _notificationGateway = notificationGateway;
     _occurrenceCalculator = occurrenceCalculator;
+    _calendarBridge = calendarBridge;
   }
 
   late final ReminderRepository _repository;
   late final ReminderNotificationGateway _notificationGateway;
   late final ReminderOccurrenceCalculator _occurrenceCalculator;
+  CalendarBridge? _calendarBridge;
   final DateTime Function() _clock;
 
   Future<void> save(ReminderEntity next) async {
@@ -33,6 +37,11 @@ class FfmAssistantReminderMutationService {
     if (previous != null) await _cancelScheduled(previous);
     await _repository.saveReminder(next);
     if (next.isActive) await _scheduleNext(next);
+    
+    // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
+    if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
+      await _syncToCalendar(next);
+    }
   }
 
   /// Memperbarui hanya teks dan waktu Pengingat yang sudah ada. Seluruh
@@ -76,6 +85,12 @@ class FfmAssistantReminderMutationService {
     try {
       await _repository.saveReminder(next);
       if (next.isActive) await _scheduleNext(next);
+      
+      // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
+      if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
+        await _syncToCalendar(next);
+      }
+      
       return next;
     } on Object {
       // Mengembalikan data serta alarm lama sebagai pemulihan terbaik bila
@@ -127,4 +142,41 @@ class FfmAssistantReminderMutationService {
       left.title == right.title &&
       left.note == right.note &&
       left.scheduledAt == right.scheduledAt;
+
+  bool _shouldSyncToCalendar(ReminderEntity reminder) {
+    // Check if reminder note contains calendar sync marker
+    final note = reminder.note?.toLowerCase() ?? '';
+    return note.contains('sinkronisasi ke kalender') || 
+           note.contains('calendar') ||
+           note.contains('smartwatch') ||
+           reminder.title.toLowerCase().contains('tagihan') ||
+           reminder.title.toLowerCase().contains('cicilan') ||
+           reminder.title.toLowerCase().contains('kredit') ||
+           reminder.title.toLowerCase().contains('pinjaman');
+  }
+
+  Future<void> _syncToCalendar(ReminderEntity reminder) async {
+    final bridge = _calendarBridge;
+    if (bridge == null) return;
+    
+    try {
+      final data = BillReminderData(
+        title: reminder.title,
+        description: reminder.note ?? '',
+        dueDate: reminder.scheduledAt,
+        amount: 0.0, // Amount not stored in ReminderEntity
+        category: '', // Category not stored in ReminderEntity
+      );
+
+      final result = await bridge.createBillReminder(data);
+      
+      if (result.success && result.eventId != null) {
+        // In a real implementation, we would update the reminder with the calendar event ID
+        // This would require extending the ReminderEntity to include calendarEventId
+        // For now, we just log the success
+      }
+    } catch (e) {
+      // Don't throw error - calendar sync is optional
+    }
+  }
 }

@@ -15,11 +15,11 @@ Roadmap ini disusun berdasarkan urutan prioritas yang telah disepakati bersama: 
 - [x] **Fitur 02 (Prioritas 4)**: [Pendeteksi Notifikasi Pembayaran QRIS & Bank (Android Notification Listener)](#fitur-02---pendeteksi-notifikasi-pembayaran-qris--bank)
   - *Status*: Selesai Terverifikasi (100%) ✅
   - *Ringkasan*: Menangkap notifikasi pop-up pembayaran QRIS/m-banking/e-wallet di Android dan membuat draft transaksi 1-ketukan konfirmasi di Beranda & Pengaturan.
-- [ ] **Fitur 03 (Prioritas 3)**: [Model Arus Kas Fleksibel & Siklus Pertanian / Musiman](#fitur-03---model-arus-kas-fleksibel--siklus-pertanian)
-  - *Status*: Siap Dikerjakan (Prioritas Selanjutnya)
-  - *Ringkasan*: Menghitung ketahanan modal dan cadangan kas keluarga (*Runway to Harvest*) tanpa asumsi kaku gajian tanggal 25.
+- [x] **Fitur 03 (Prioritas 3)**: [Model Arus Kas Fleksibel & Siklus Pertanian / Musiman](#fitur-03---model-arus-kas-fleksibel--siklus-pertanian)
+  - *Status*: Selesai Terverifikasi (100%) ✅
+  - *Ringkasan*: Menghitung ketahanan modal dan cadangan kas keluarga (*Runway to Harvest*) tanpa asumsi kaku gajian tanggal 25 serta batas belanja aman dapur harian.
 - [ ] **Fitur 04 (Prioritas 2)**: [Akses Web Radar Pasar Terkini (Valuasi Emas & Kurs Valas)](#fitur-04---akses-web-radar-pasar-terkini)
-  - *Status*: Menunggu Penyelesaian Fitur 03
+  - *Status*: Siap Dikerjakan (Prioritas Selanjutnya)
   - *Ringkasan*: Mengambil harga resmi emas Antam/Pegadaian & kurs harian untuk memperbarui valuasi nilai kekayaan bersih keluarga secara otomatis.
 
 ---

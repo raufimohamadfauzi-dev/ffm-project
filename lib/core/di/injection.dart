@@ -16,6 +16,7 @@ import '../../features/advisor/domain/usecases/budget_guard_service.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
 import '../../features/assistant/data/ffm_assistant_response_feedback_repository.dart';
+import '../../features/assistant/data/calendar_bridge.dart';
 import '../../features/assistant/data/ffm_assistant_interpreter.dart';
 
 import '../../features/assistant/data/ffm_assistant_learning_repository.dart';
@@ -38,6 +39,8 @@ import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dar
 import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
+import '../../features/assistant/data/nfc_bridge.dart';
+import '../../features/assistant/data/nfc_card_repository.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
 import '../../features/assistant/data/ffm_assistant_foreground_service.dart';
 import '../../features/assistant/data/ffm_assistant_proactive_evaluation_task.dart';
@@ -50,6 +53,8 @@ import '../../features/assistant/data/telegram_config_repository.dart';
 import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
+import '../../features/advisor/data/cash_flow_profile_repository.dart';
+import '../../features/advisor/domain/usecases/flexible_cash_flow_calculator.dart';
 import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import '../../features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
@@ -289,6 +294,18 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<NotificationListenerBridge>(
     () => NotificationListenerBridge(getIt<PaymentDraftRepository>()),
   );
+  // Fitur #1: Pembaca NFC e-Money & Adaptasi Saldo
+  getIt.registerLazySingleton<NfcBridge>(NfcBridge.new);
+  getIt.registerLazySingleton<NfcCardRepository>(
+    () => NfcCardRepository(getIt<PaymentDraftRepository>()),
+  );
+  // Fitur 03: Model Arus Kas Fleksibel & Siklus Pertanian / Musiman / Bisnis
+  getIt.registerLazySingleton<CashFlowProfileRepository>(
+    CashFlowProfileRepository.new,
+  );
+  getIt.registerLazySingleton<FlexibleCashFlowCalculator>(
+    FlexibleCashFlowCalculator.new,
+  );
   getIt.registerLazySingleton<AutonomousEvaluationCoordinator>(
     () => AutonomousEvaluationCoordinator(
       database: db,
@@ -341,6 +358,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
         repository: getIt<ReminderRepository>(),
         notificationGateway: getIt<ReminderNotificationService>(),
         occurrenceCalculator: getIt<ReminderOccurrenceCalculator>(),
+        calendarBridge: CalendarBridge(),
       ),
       habitLearner: getIt<FfmActivityHabitLearner>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
