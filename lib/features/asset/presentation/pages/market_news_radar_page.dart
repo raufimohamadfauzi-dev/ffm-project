@@ -166,6 +166,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
 
   // ==================== TAB 1: MARKET PRICES ====================
   Widget _buildMarketPricesTab(ThemeData theme, ColorScheme colorScheme) {
+    final isDark = theme.brightness == Brightness.dark;
     final snapshot = _priceSnapshot ?? MarketPriceSnapshot.initialFallback();
     final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
 
@@ -223,7 +224,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Emas 24K (Antam)',
                   price: _currencyFormat.format(snapshot.goldPerGram24K),
                   subtitle: 'per gram (Jual)',
-                  color: const Color(0xFFEAB308),
+                  color: isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309),
                   icon: Icons.workspace_premium,
                 ),
               ),
@@ -233,7 +234,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Buyback Emas',
                   price: _currencyFormat.format(snapshot.goldPerGramBuyback),
                   subtitle: 'per gram (Beli Balik)',
-                  color: const Color(0xFFCA8A04),
+                  color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
                   icon: Icons.swap_horizontal_circle,
                 ),
               ),
@@ -260,28 +261,28 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 title: 'USD (Dolar AS)',
                 price: _currencyFormat.format(snapshot.usdToIdr),
                 subtitle: '1 USD = IDR',
-                color: Colors.green,
+                color: isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
                 icon: Icons.attach_money,
               ),
               _buildPriceCard(
                 title: 'SGD (Dolar SG)',
                 price: _currencyFormat.format(snapshot.sgdToIdr),
                 subtitle: '1 SGD = IDR',
-                color: Colors.teal,
+                color: isDark ? const Color(0xFF2DD4BF) : Colors.teal.shade800,
                 icon: Icons.account_balance,
               ),
               _buildPriceCard(
                 title: 'SAR (Riyal Arab)',
                 price: _currencyFormat.format(snapshot.sarToIdr),
                 subtitle: '1 SAR = IDR (Haji/Umrah)',
-                color: Colors.amber.shade700,
+                color: isDark ? const Color(0xFFFBBF24) : Colors.amber.shade900,
                 icon: Icons.mosque,
               ),
               _buildPriceCard(
                 title: 'EUR (Euro)',
                 price: _currencyFormat.format(snapshot.eurToIdr),
                 subtitle: '1 EUR = IDR',
-                color: Colors.indigo,
+                color: isDark ? const Color(0xFF818CF8) : Colors.indigo.shade800,
                 icon: Icons.euro,
               ),
             ],
@@ -298,7 +299,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Bitcoin (BTC)',
                   price: _currencyFormat.format(snapshot.btcToIdr),
                   subtitle: '1 BTC',
-                  color: Colors.deepOrange,
+                  color: isDark ? const Color(0xFFFB923C) : Colors.deepOrange.shade800,
                   icon: Icons.currency_bitcoin,
                 ),
               ),
@@ -308,7 +309,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Ethereum (ETH)',
                   price: _currencyFormat.format(snapshot.ethToIdr),
                   subtitle: '1 ETH',
-                  color: Colors.purple,
+                  color: isDark ? const Color(0xFFC084FC) : Colors.purple.shade800,
                   icon: Icons.token,
                 ),
               ),
@@ -402,6 +403,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     final estimatedVal = _calcKarat.calculateValue(
       weightGrams: _calcGrams,
       pricePerGram24K: snapshot.goldPerGram24K,
@@ -501,7 +503,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   _currencyFormat.format(estimatedVal),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.amber.shade800,
+                    color: isDark ? const Color(0xFFFACC15) : Colors.amber.shade900,
                   ),
                 ),
               ],
@@ -625,13 +627,13 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     Color tagColor;
     switch (item.category) {
       case NewsCategory.agriculture:
-        tagColor = Colors.green;
+        tagColor = isDark ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
       case NewsCategory.weatherDisaster:
-        tagColor = Colors.blue;
+        tagColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8);
       case NewsCategory.finance:
-        tagColor = Colors.amber.shade800;
+        tagColor = isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309);
       case NewsCategory.all:
-        tagColor = Colors.grey;
+        tagColor = colorScheme.outline;
     }
 
     return Card(
@@ -748,6 +750,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            final theme = Theme.of(ctx);
+            final colorScheme = theme.colorScheme;
+
             return Padding(
               padding: EdgeInsets.only(
                 left: 16,
@@ -774,9 +779,11 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                       ),
                     ],
                   ),
-                  const Text(
+                  Text(
                     'Berita yang mengandung kata kunci ini akan ditandai dengan badge peringatan merah.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(

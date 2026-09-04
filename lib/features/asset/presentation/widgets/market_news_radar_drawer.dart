@@ -168,7 +168,9 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
             Container(
               height: 48,
               padding: const EdgeInsets.symmetric(vertical: 6),
-              color: isDark ? Colors.black12 : Colors.grey.shade100,
+              color: isDark
+                  ? colorScheme.surfaceContainer
+                  : colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -176,31 +178,31 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                   _buildMiniChip(
                     'Emas 24K',
                     _currencyFormat.format(snapshot.goldPrice24K),
-                    const Color(0xFFCA8A04),
+                    isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309),
                   ),
                   const SizedBox(width: 8),
                   _buildMiniChip(
                     'USD',
                     _currencyFormat.format(snapshot.usdRate),
-                    Colors.green,
+                    isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
                   ),
                   const SizedBox(width: 8),
                   _buildMiniChip(
                     'SGD',
                     _currencyFormat.format(snapshot.sgdRate),
-                    Colors.teal,
+                    isDark ? const Color(0xFF60A5FA) : Colors.blue.shade800,
                   ),
                   const SizedBox(width: 8),
                   _buildMiniChip(
                     'SAR',
                     _currencyFormat.format(snapshot.sarRate),
-                    Colors.amber.shade700,
+                    isDark ? const Color(0xFF2DD4BF) : Colors.teal.shade800,
                   ),
                   const SizedBox(width: 8),
                   _buildMiniChip(
                     'BTC',
                     _currencyFormat.format(snapshot.btcPrice),
-                    Colors.deepOrange,
+                    isDark ? const Color(0xFFFB923C) : Colors.deepOrange.shade800,
                   ),
                 ],
               ),
@@ -271,13 +273,13 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
               color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
               child: Row(
                 children: [
-                  Icon(Icons.history_toggle_off, size: 14, color: colorScheme.outline),
+                  Icon(Icons.history_toggle_off, size: 14, color: colorScheme.onSurfaceVariant),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Cache sementara 48 jam • Bebas database',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: colorScheme.outline,
+                        color: colorScheme.onSurfaceVariant,
                         fontSize: 10,
                       ),
                     ),
@@ -327,7 +329,20 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
     ThemeData theme,
     ColorScheme colorScheme,
   ) {
+    final isDark = theme.brightness == Brightness.dark;
     final timeStr = DateFormat('dd MMM, HH:mm').format(item.publishedAt);
+
+    Color tagColor;
+    switch (item.category) {
+      case NewsCategory.agriculture:
+        tagColor = isDark ? const Color(0xFF4ADE80) : const Color(0xFF15803D);
+      case NewsCategory.weatherDisaster:
+        tagColor = isDark ? const Color(0xFF60A5FA) : const Color(0xFF1D4ED8);
+      case NewsCategory.finance:
+        tagColor = isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309);
+      case NewsCategory.all:
+        tagColor = colorScheme.outline;
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -337,7 +352,7 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: item.isHighAlert
-              ? Colors.red.withValues(alpha: 0.5)
+              ? (isDark ? const Color(0xFFEF4444) : Colors.red)
               : colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
@@ -351,17 +366,18 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                 style: theme.textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   fontSize: 10,
+                  color: tagColor,
                 ),
               ),
               if (item.isHighAlert) ...[
                 const SizedBox(width: 4),
-                const Icon(Icons.warning, size: 12, color: Colors.red),
+                Icon(Icons.warning, size: 12, color: isDark ? const Color(0xFFEF4444) : Colors.red),
               ],
               const Spacer(),
               Text(
                 timeStr,
                 style: theme.textTheme.labelSmall?.copyWith(
-                  color: colorScheme.outline,
+                  color: colorScheme.onSurfaceVariant,
                   fontSize: 10,
                 ),
               ),

@@ -681,10 +681,12 @@ class _AssetFormPageState extends State<AssetFormPage> {
                         const Text('Hasil Konversi:'),
                         Text(
                           'Rp ${formatRupiahInput(calculatedRupiah.toString())}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green,
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF4ADE80)
+                                : Colors.green.shade800,
                           ),
                         ),
                       ],
