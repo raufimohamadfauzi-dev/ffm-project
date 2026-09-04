@@ -14,6 +14,7 @@ import '../../../../shared/widgets/date_time_components.dart';
 import '../../../assistant/data/ffm_assistant_widget_sync_service.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../assistant/presentation/widgets/pending_payment_drafts_card.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
 import '../../../budget/presentation/pages/budget_page.dart';
@@ -316,6 +317,7 @@ class _SummaryContent extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
           sliver: SliverList.list(
             children: [
+              PendingPaymentDraftsCard(onDraftProcessed: onRefresh),
               Row(
                 children: [
                   ClipRRect(
