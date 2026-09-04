@@ -18,11 +18,11 @@ void main() {
     );
     expect(
       FfmAssistantCatalog.pages,
-      hasLength(FfmAssistantDestination.values.length - 1),
+      hasLength(FfmAssistantDestination.values.length),
     );
     expect(
       FfmAssistantCatalog.pages.map((page) => page.destination).toSet(),
-      hasLength(FfmAssistantDestination.values.length - 1),
+      hasLength(FfmAssistantDestination.values.length),
     );
   });
 

@@ -12,6 +12,10 @@ void main() {
   testWidgets('monitor menampilkan run terbaru secara read-only', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final repository = FfmAssistantAutonomyRepository(database);
@@ -34,13 +38,17 @@ void main() {
 
     expect(find.text('Monitoring Agent'), findsOneWidget);
     expect(find.text('Batas kerja Agent'), findsOneWidget);
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
-    await tester.pump();
+    await tester.ensureVisible(find.text('Run monitoring'));
+    await tester.pumpAndSettle();
     expect(find.text('Run monitoring'), findsOneWidget);
     expect(find.textContaining('completed'), findsOneWidget);
   });
 
   testWidgets('monitor menerapkan batas Agent yang dipilih', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
     final database = AppDatabase(NativeDatabase.memory());
     addTearDown(database.close);
     final repository = FfmAssistantAutonomyRepository(database);
@@ -53,6 +61,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Batas tersimpan'), findsOneWidget);
+    await tester.ensureVisible(
+      find.byType(DropdownButtonFormField<FfmAssistantAutonomyLevel>),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(
       find.byType(DropdownButtonFormField<FfmAssistantAutonomyLevel>),
     );

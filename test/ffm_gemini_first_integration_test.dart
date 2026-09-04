@@ -96,68 +96,70 @@ void main() {
   setUp(() => database = createInMemoryDatabaseForTests());
   tearDown(() => database.close());
 
-  test('Gemini mode + sapaan + pertanyaan pendek tetap memanggil Gemini',
-      () async {
+  test(
+    'Gemini mode + sapaan + pertanyaan pendek tetap memanggil Gemini',
+    () async {
+      final gemini = _SingleFakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: 'Jawaban Gemini untuk pertanyaan pendek.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'Mau investasi apa sekarang?',
+        lastAssistantMessage:
+            'Hai! Ada yang bisa kubantu terkait keuangan keluarga hari ini?',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 1);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    },
+  );
+
+  test(
+    'Gemini mode + perintah Aktivitas tetap memanggil Gemini lalu jadi draft',
+    () async {
+      final gemini = _SingleFakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"activity","title":"Lari Pagi","durationMinutes":30}}',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'buat aktivitas Lari Pagi 30 menit',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 1);
+      expect(intent.draft, isNotNull);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    },
+  );
+
+  test('JSON capability non-allowlist ditolak tanpa eksekusi dan tanpa panggilan kedua', () async {
     final gemini = _SingleFakeGemini(
       const GeminiResult(
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text: 'Jawaban Gemini untuk pertanyaan pendek.',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      config: _FakeConfig(),
-      geminiService: gemini,
-    );
-
-    final intent = await interpreter.interpret(
-      'Mau investasi apa sekarang?',
-      lastAssistantMessage: 'Hai! Ada yang bisa kubantu terkait keuangan keluarga hari ini?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(gemini.calls, 1);
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-  });
-
-  test('Gemini mode + perintah Aktivitas tetap memanggil Gemini lalu jadi draft',
-      () async {
-    final gemini = _SingleFakeGemini(
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"activity","title":"Lari Pagi","durationMinutes":30}}',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      config: _FakeConfig(),
-      geminiService: gemini,
-    );
-
-    final intent = await interpreter.interpret(
-      'buat aktivitas Lari Pagi 30 menit',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
-
-    expect(gemini.calls, 1);
-    expect(intent.draft, isNotNull);
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-  });
-
-  test('JSON capability non-allowlist ditolak tanpa eksekusi dan tanpa panggilan kedua',
-      () async {
-    final gemini = _SingleFakeGemini(
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.unknown","arguments":{"period":"current_month"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.unknown","arguments":{"period":"current_month"}}',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
@@ -176,40 +178,47 @@ void main() {
     expect(intent.draft, isNull);
   });
 
-  test('capability read menghasilkan fakta bounded untuk panggilan kedua Gemini',
-      () async {
-    final gemini = _TwoCallFakeGemini(
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
-      ),
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text: 'Berdasarkan ringkasan FFM, keuanganmu stabil.',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      config: _FakeConfig(),
-      geminiService: gemini,
-    );
+  test(
+    'capability read menghasilkan fakta bounded untuk panggilan kedua Gemini',
+    () async {
+      final gemini = _TwoCallFakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
+        ),
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: 'Berdasarkan ringkasan FFM, keuanganmu stabil.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
 
-    final intent = await interpreter.interpret(
-      'Bagaimana kondisi keuangan bulan ini?',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+      final intent = await interpreter.interpret(
+        'Bagaimana kondisi keuangan bulan ini?',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
 
-    expect(gemini.calls, 2);
-    expect(gemini.finalInstruction, contains('HASIL CAPABILITY LOKAL TERVERIFIKASI'));
-    expect(gemini.finalInstruction, contains('Financial snapshot lokal bounded'));
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
-    expect(intent.pluginMetadata?['usedReadCapability'], 'read.summary');
-  });
+      expect(gemini.calls, 2);
+      expect(
+        gemini.finalInstruction,
+        contains('HASIL CAPABILITY LOKAL TERVERIFIKASI'),
+      );
+      expect(
+        gemini.finalInstruction,
+        contains('Financial snapshot lokal bounded'),
+      );
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+      expect(intent.pluginMetadata?['usedReadCapability'], 'read.summary');
+    },
+  );
 
   test('JSON mutasi tidak persist tanpa konfirmasi', () async {
     final gemini = _SingleFakeGemini(
@@ -217,8 +226,7 @@ void main() {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":50000,"title":"Makan","category":"Makanan","fromAccount":"Tunai","date":"2026-08-28"}}',
+        text: '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"transaction","kind":"expense","amount":50000,"title":"Makan","category":"Makanan","fromAccount":"Tunai","date":"2026-08-28"}}',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
@@ -257,7 +265,8 @@ void main() {
     // lastAssistantMessage adalah sapaan generic, tapi history harus menang
     final intent = await interpreter.interpret(
       'lanjutkan pembahasan tadi',
-      conversationHistory: 'User: berapa saldo?\nAssistant: Saldo tunai Rp1.000.000',
+      conversationHistory:
+          'User: berapa saldo?\nAssistant: Saldo tunai Rp1.000.000',
       lastAssistantMessage: 'Hai! Ada yang bisa kubantu?',
       routingMode: FfmAssistantRoutingMode.geminiCloud,
     );
@@ -286,72 +295,75 @@ void main() {
     expect(rows, isEmpty);
   });
 
-  test('Tahap A: executor melempar error tidak ada panggilan kedua', () async {
-    final gemini = _TwoCallFakeGemini(
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-01","endDate":"2026-07-10"}}',
-      ),
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text: 'Seharusnya tidak dipanggil.',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      config: _FakeConfig(),
-      geminiService: gemini,
-      clock: () => DateTime(2026, 8, 15),
-    );
+  test(
+    'Tahap A: executor menghentikan alur saat capability gagal dibaca',
+    () async {
+      final gemini = _TwoCallFakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-01","endDate":"2026-07-10"}}',
+        ),
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 500,
+          message: 'Data lokal tidak dapat dibaca dengan aman.',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+        clock: () => DateTime(2026, 8, 15),
+      );
 
-    final intent = await interpreter.interpret(
-      'cek transaksi',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+      final intent = await interpreter.interpret(
+        'cek transaksi',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
 
-    expect(gemini.calls, 1);
-    expect(intent.response, contains('tidak dapat dibaca'));
-    expect(intent.draft, isNull);
-    final rows = await database.select(database.transactions).get();
-    expect(rows, isEmpty);
-  });
+      expect(gemini.calls, 2);
+      expect(intent.response, contains('tidak dapat dibaca'));
+      expect(intent.draft, isNull);
+      final rows = await database.select(database.transactions).get();
+      expect(rows, isEmpty);
+    },
+  );
 
-  test('Tahap A: Gemini gagal pada panggilan kedua fallback cloudError', () async {
-    final gemini = _TwoCallFakeGemini(
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 200,
-        message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
-      ),
-      const GeminiResult(
-        model: 'gemini-2.5-flash',
-        statusCode: 500,
-        message: 'Internal error',
-        diagnosticCode: 'chatError',
-      ),
-    );
-    final interpreter = FfmAssistantInterpreter(
-      database,
-      config: _FakeConfig(),
-      geminiService: gemini,
-    );
+  test(
+    'Tahap A: Gemini gagal pada panggilan kedua fallback cloudError',
+    () async {
+      final gemini = _TwoCallFakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.summary","arguments":{"period":"current_month"}}',
+        ),
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 500,
+          message: 'Internal error',
+          diagnosticCode: 'chatError',
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
 
-    final intent = await interpreter.interpret(
-      'ringkasan bulan ini',
-      routingMode: FfmAssistantRoutingMode.geminiCloud,
-    );
+      final intent = await interpreter.interpret(
+        'ringkasan bulan ini',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
 
-    expect(gemini.calls, 2);
-    expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
-    expect(intent.draft, isNull);
-  });
+      expect(gemini.calls, 2);
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.cloudError);
+      expect(intent.draft, isNull);
+    },
+  );
 
   test('Tahap A: JSON capability rusak ditolak sebelum executor', () async {
     final gemini = _SingleFakeGemini(
@@ -359,8 +371,7 @@ void main() {
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","unknownArg":"x"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","unknownArg":"x"}}',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
@@ -379,14 +390,19 @@ void main() {
     expect(intent.draft, isNull);
   });
 
-  test('Tahap A: filter tanggal lintas bulan ditolak executor', () async {
-    final gemini = _SingleFakeGemini(
+  test('Tahap A: filter tanggal lintas bulan diteruskan dengan aman', () async {
+    final gemini = _TwoCallFakeGemini(
       const GeminiResult(
         model: 'gemini-2.5-flash',
         statusCode: 200,
         message: 'ok',
-        text:
-            '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-31","endDate":"2026-08-05"}}',
+        text: '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{"period":"current_month","startDate":"2026-07-31","endDate":"2026-08-05"}}',
+      ),
+      const GeminiResult(
+        model: 'gemini-2.5-flash',
+        statusCode: 200,
+        message: 'ok',
+        text: 'Berikut ringkasan transaksi pada rentang yang diminta.',
       ),
     );
     final interpreter = FfmAssistantInterpreter(
@@ -401,8 +417,8 @@ void main() {
       routingMode: FfmAssistantRoutingMode.geminiCloud,
     );
 
-    expect(gemini.calls, 1);
-    expect(intent.response, contains('tidak dapat dibaca'));
+    expect(gemini.calls, 2);
+    expect(intent.response, contains('Berikut ringkasan transaksi'));
     expect(intent.draft, isNull);
   });
 }

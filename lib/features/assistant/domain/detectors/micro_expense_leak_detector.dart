@@ -29,7 +29,7 @@ class MicroExpenseLeakDetector {
     final expenses = txs.where((t) {
       final isExpense = t.type == 'expense' || t.source == 'expense';
       final notIncomeOrTransfer = t.type != 'income' && t.type != 'transfer';
-      return (isExpense || notIncomeOrTransfer) && t.amount > 0;
+      return (isExpense || notIncomeOrTransfer) && t.amount.abs() > 0;
     }).toList();
     if (expenses.length < 5) return null;
 

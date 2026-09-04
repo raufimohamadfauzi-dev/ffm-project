@@ -8,6 +8,8 @@ import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../data/notification_listener_bridge.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
+import '../../domain/ffm_assistant_models.dart';
+import '../widgets/ffm_assistant_page_context.dart';
 
 /// Halaman pengaturan Pendeteksi Bayar Otomatis (QRIS & Bank).
 ///
@@ -208,7 +210,9 @@ class _PaymentDetectorSettingsPageState
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
 
-    return Scaffold(
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.paymentDetector,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Pendeteksi Bayar Otomatis'),
         actions: [
@@ -311,6 +315,7 @@ class _PaymentDetectorSettingsPageState
                 ),
               ],
             ),
+      ),
     );
   }
 }

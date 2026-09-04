@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../../core/database/app_database.dart';
@@ -181,6 +183,7 @@ class PdfReportService {
     required Map<String, String> categoryLabels,
     required FinancialHealthScore score,
   }) async {
+    WidgetsFlutterBinding.ensureInitialized();
     final rows = transactions.toList();
     final income = rows
         .where(
@@ -210,10 +213,17 @@ class PdfReportService {
     final totalDebtVal = liabilities.fold<int>(0, (sum, l) => sum + l.remainingBalance);
     final netWorth = totalAssetsVal - totalDebtVal;
 
+    final font = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/DejaVuSans.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'),
+    );
     final document = pw.Document();
     document.addPage(
       pw.MultiPage(
-        pageTheme: const pw.PageTheme(margin: pw.EdgeInsets.all(28)),
+        margin: const pw.EdgeInsets.all(28),
+        theme: pw.ThemeData.withFont(base: font, bold: boldFont),
         build: (context) => [
           pw.Header(
             level: 0,

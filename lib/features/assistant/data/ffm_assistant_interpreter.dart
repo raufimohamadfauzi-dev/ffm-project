@@ -5,7 +5,9 @@ import '../domain/ffm_assistant_cloud_rollout_config.dart';
 import '../domain/ffm_assistant_grounding_validator.dart';
 import '../domain/ffm_assistant_verified_fact_service.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
+
 import 'package:flutter/material.dart' show ThemeMode;
+
 import '../../../core/theme/app_theme_controller.dart';
 import '../../../core/di/injection.dart';
 
@@ -351,9 +353,8 @@ class FfmAssistantInterpreter {
             ),
           )
         : '';
-    final householdContext = await _financialSnapshot.buildHouseholdProfileContext(
-      householdId: AppContext.householdId,
-    );
+    final householdContext = await _financialSnapshot
+        .buildHouseholdProfileContext(householdId: AppContext.householdId);
     final masterDataContext = evidenceScope.includeMasterData
         ? await _financialSnapshot.buildMasterDataContext(
             householdId: AppContext.householdId,
@@ -2951,9 +2952,13 @@ class FfmAssistantInterpreter {
     String normalized,
   ) {
     final clean = normalized.toLowerCase().trim();
+    bool matchesThemePattern(String pattern) => pattern.contains(' ')
+        ? clean.contains(pattern)
+        : RegExp(r'\b' + RegExp.escape(pattern) + r'\b').hasMatch(clean);
 
     // 1. Cek query status tema saat ini (misal: "mode apa sekarang?", "lagi mode apa?", "cek mode")
-    final isQueryMode = clean.contains('mode apa') ||
+    final isQueryMode =
+        clean.contains('mode apa') ||
         clean.contains('tema apa') ||
         clean.contains('apakah sekarang mode') ||
         clean.contains('apakah ini mode') ||
@@ -2981,8 +2986,10 @@ class FfmAssistantInterpreter {
     // 2. Variasi Dark Mode: redup, gelap, hitam, malam, dark, black, matiin lampu
     final darkPatterns = [
       'gelap',
+      'gelapkan',
       'dark',
       'hitam',
+      'hitamkan',
       'redup',
       'malam',
       'black',
@@ -2990,11 +2997,12 @@ class FfmAssistantInterpreter {
       'matikan lampu',
       'padamkan lampu',
     ];
-    final hasDark = darkPatterns.any(clean.contains);
+    final hasDark = darkPatterns.any(matchesThemePattern);
 
     // 3. Variasi Light Mode: terang, light, putih, siang, white, nyalain lampu
     final lightPatterns = [
       'terang',
+      'terangkan',
       'light',
       'putih',
       'siang',
@@ -3003,21 +3011,23 @@ class FfmAssistantInterpreter {
       'nyalakan lampu',
       'hidupkan lampu',
     ];
-    final hasLight = lightPatterns.any(clean.contains);
+    final hasLight = lightPatterns.any(matchesThemePattern);
 
     // 4. Variasi Sistem: sistem, default, hp, bawaan
     final systemPatterns = ['sistem', 'default', 'bawaan hp', 'sesuai sistem'];
-    final hasSystem = systemPatterns.any(clean.contains);
+    final hasSystem = systemPatterns.any(matchesThemePattern);
 
     // Kata-kata tema & aksi
-    final isThemeWord = clean.contains('tema') ||
+    final isThemeWord =
+        clean.contains('tema') ||
         clean.contains('theme') ||
         clean.contains('mode') ||
         clean.contains('tampilan') ||
         clean.contains('layar') ||
         clean.contains('warna');
 
-    final isActionWord = clean.contains('ubah') ||
+    final isActionWord =
+        clean.contains('ubah') ||
         clean.contains('ganti') ||
         clean.contains('tukar') ||
         clean.contains('pindah') ||
@@ -3030,7 +3040,8 @@ class FfmAssistantInterpreter {
         clean.contains('setel') ||
         clean.contains('atur');
 
-    final isDirectThemeCommand = clean.endsWith('kan') ||
+    final isDirectThemeCommand =
+        clean.endsWith('kan') ||
         clean.endsWith('in') ||
         clean.startsWith('gelap') ||
         clean.startsWith('terang') ||
@@ -3039,7 +3050,8 @@ class FfmAssistantInterpreter {
         clean.startsWith('putih');
 
     // Perintah toggle umum tanpa menyebut gelap/terang: "ubah mode", "ganti tema", "ganti warna", "tema ganti"
-    final isGenericToggle = (isThemeWord &&
+    final isGenericToggle =
+        (isThemeWord &&
             (isActionWord ||
                 clean.startsWith('tema ganti') ||
                 clean.startsWith('mode ganti') ||
@@ -3070,8 +3082,7 @@ class FfmAssistantInterpreter {
       responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode terang ☀️';
     } else if (hasSystem) {
       themeTarget = 'system';
-      responseText =
-          'Baik, tema aplikasi sekarang mengikuti pengaturan sistem perangkat Anda 📱';
+      responseText = 'Baik, tema aplikasi sekarang mengikuti pengaturan sistem perangkat Anda 📱';
     } else if (isGenericToggle) {
       final currentIsDark = _themeController?.isDark ?? false;
       if (currentIsDark) {
@@ -6805,7 +6816,7 @@ class FfmAssistantInterpreter {
       'ingatkan saya',
       'pasang pengingat',
     ]);
-    
+
     // Detect bill reminder patterns for calendar sync
     final billReminder = _containsAny(normalized, const [
       'tagihan listrik',
@@ -6833,7 +6844,7 @@ class FfmAssistantInterpreter {
       'kredit',
       'pinjaman',
     ]);
-    
+
     if (createReminder || billReminder) {
       final title = _draftTitle(normalized, const [
         'buat pengingat',
@@ -6843,19 +6854,19 @@ class FfmAssistantInterpreter {
         'tagihan',
         'bayar',
       ]);
-      
-      final note = billReminder 
-          ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]' 
+
+      final note = billReminder
+          ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
           : rawText.trim();
-      
+
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
         title: title,
         note: note,
         date: now.add(const Duration(hours: 1)),
-        metadata: billReminder 
-            ? {'calendar_sync': true, 'is_bill_reminder': true} 
+        metadata: billReminder
+            ? {'calendar_sync': true, 'is_bill_reminder': true}
             : null,
       );
     }
@@ -6920,9 +6931,8 @@ class FfmAssistantInterpreter {
       if (from == null || to == null) {
         from ??= _matchAccountAfterMarker(normalized, accounts, 'dari');
         final mentioned = _mentionedAccounts(normalized, accounts);
-        Account? firstOther(Account? exclude) => mentioned
-            .where((account) => account.id != exclude?.id)
-            .firstOrNull;
+        Account? firstOther(Account? exclude) =>
+            mentioned.where((account) => account.id != exclude?.id).firstOrNull;
         to ??= firstOther(from);
       }
       return FfmAssistantDraft(
@@ -7052,12 +7062,14 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final isReceivable = !isReceivableReceipt && _containsAny(normalized, const [
-      'piutang',
-      'pinjam uang dari saya',
-      'minjam uang dari saya',
-      'meminjam dari saya',
-    ]);
+    final isReceivable =
+        !isReceivableReceipt &&
+        _containsAny(normalized, const [
+          'piutang',
+          'pinjam uang dari saya',
+          'minjam uang dari saya',
+          'meminjam dari saya',
+        ]);
     if (isReceivable) {
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.receivable,
@@ -7071,12 +7083,14 @@ class FfmAssistantInterpreter {
         date: now,
       );
     }
-    final isLiability = !isDebtPayment && _containsAny(normalized, const [
-      'hutang',
-      'utang',
-      'saya pinjam dari',
-      'saya meminjam dari',
-    ]);
+    final isLiability =
+        !isDebtPayment &&
+        _containsAny(normalized, const [
+          'hutang',
+          'utang',
+          'saya pinjam dari',
+          'saya meminjam dari',
+        ]);
     if (isLiability) {
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.liability,
@@ -7092,30 +7106,34 @@ class FfmAssistantInterpreter {
       );
     }
 
-    final income = isReceivableReceipt || _containsAny(normalized, const [
-      'pemasukan',
-      'uang masuk',
-      'terima',
-      'menerima',
-      'gaji',
-      'pendapatan',
-      'hasil panen',
-      'terjual',
-      'dapat uang',
-      'dapet uang',
-      'dikasih uang',
-    ]);
-    final expense = isDebtPayment || _containsAny(normalized, const [
-      'pengeluaran',
-      'uang keluar',
-      'beli',
-      'belanja',
-      'bayar',
-      'jajan',
-      'dibeli',
-      'keluar uang',
-      'bayarin',
-    ]);
+    final income =
+        isReceivableReceipt ||
+        _containsAny(normalized, const [
+          'pemasukan',
+          'uang masuk',
+          'terima',
+          'menerima',
+          'gaji',
+          'pendapatan',
+          'hasil panen',
+          'terjual',
+          'dapat uang',
+          'dapet uang',
+          'dikasih uang',
+        ]);
+    final expense =
+        isDebtPayment ||
+        _containsAny(normalized, const [
+          'pengeluaran',
+          'uang keluar',
+          'beli',
+          'belanja',
+          'bayar',
+          'jajan',
+          'dibeli',
+          'keluar uang',
+          'bayarin',
+        ]);
     if (!income && !expense) return null;
     final transactionType = income && !expense ? 'income' : 'expense';
     final category = _matchCategory(normalized, categories, transactionType);
@@ -7130,8 +7148,8 @@ class FfmAssistantInterpreter {
 
     var fromAccountName = expense ? selectedAccount?.name : null;
     if (fromAccountName == null && expense) {
-      fromAccountName =
-          _personalMemoryService.feedbackService.findPreferredAccount();
+      fromAccountName = _personalMemoryService.feedbackService
+          .findPreferredAccount();
     }
 
     final slmFieldValues = <String, String>{};
@@ -7261,9 +7279,8 @@ class FfmAssistantInterpreter {
     List<Account> accounts,
     String marker,
   ) {
-    final match = RegExp(
-      '\\b$marker\\s+([a-z0-9][a-z0-9 .&-]{1,60})',
-    ).firstMatch(text);
+    final match = RegExp('\\b$marker\\s+([a-z0-9][a-z0-9 .&-]{1,60})')
+        .firstMatch(text);
     if (match == null) return null;
     return _matchAccount(match.group(1)!, accounts);
   }
@@ -8067,7 +8084,8 @@ class FfmAssistantInterpreter {
     if (lowered.contains('json proposal') || lowered.contains('markdown')) {
       return 'Aku menerima permintaan yang formatnya tidak bisa kubaca. Coba tulis ulang dengan kalimat biasa yang lebih sederhana.';
     }
-    if (lowered.contains('objek “proposal”') || lowered.contains('objek proposal')) {
+    if (lowered.contains('objek “proposal”') ||
+        lowered.contains('objek proposal')) {
       return 'Aku belum bisa membaca isi permintaan itu. Silakan coba lagi dengan kalimat yang lebih jelas.';
     }
     return 'Aku belum bisa menangani permintaan itu dengan benar. Silakan urai ulang maksudmu dengan kalimat biasa, atau beri tahu apa yang ingin kamu lakukan dan nominalnya bila ada.';

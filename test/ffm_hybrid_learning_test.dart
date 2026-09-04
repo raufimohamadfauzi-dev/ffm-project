@@ -328,14 +328,14 @@ void main() {
     );
   });
 
-  group('Tahap 3: memori belajar mengalir ke konteks SLM', () {
+  group('Tahap 3: memori belajar mengalir ke konteks asisten', () {
     test('memori approved ikut, yang pending tidak', () async {
       final repo = FfmAssistantMemoryRepository(db);
-      await repo.save(
+      final userModel = FfmAssistantUserModelService(repo);
+      await userModel.saveApproved(
         kind: 'explicitfact',
-        triggerText: 'payday',
-        valueText: 'gajian tanggal 25',
-        metadata: {'approved': true},
+        key: 'payday',
+        value: 'gajian tanggal 25',
       );
       await repo.save(
         kind: 'explicitfact',
@@ -343,9 +343,8 @@ void main() {
         valueText: 'gajian tanggal 1',
         metadata: {'approved': false},
       );
-      final userModel = FfmAssistantUserModelService(repo);
 
-      final context = await userModel.buildContext();
+      final context = await userModel.buildContext(query: 'payday');
 
       expect(context, contains('gajian tanggal 25'));
       expect(context, isNot(contains('gajian tanggal 1')));

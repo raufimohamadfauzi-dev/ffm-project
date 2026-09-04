@@ -49,6 +49,8 @@ void main() {
       FfmAssistantDestination.assistantProfile: 'lib/features/assistant/presentation/pages/assistant_profile_page.dart',
       FfmAssistantDestination.intelligenceDashboard:
           'lib/features/settings/presentation/pages/supabase_setup_page.dart',
+      FfmAssistantDestination.paymentDetector:
+          'lib/features/assistant/presentation/pages/payment_detector_settings_page.dart',
     };
 
     expect(roots.keys.toSet(), FfmAssistantDestination.values.toSet());
