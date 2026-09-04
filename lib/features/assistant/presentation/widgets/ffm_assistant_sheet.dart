@@ -195,6 +195,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   StreamSubscription<ActivitySpeechPlaybackState>? _speechStateSubscription;
   Future<void>? _historyRestoreFuture;
   var _historyWasRestored = false;
+  String? _conversationId;
+  List<FfmAssistantChatConversation> _conversations = const [];
   List<String> _onboardingSuggestions = const <String>[];
 
   // Streaming state
@@ -405,7 +407,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _ => pluginName,
   };
 
-
   void _appendProcessEventsToTrace(
     FfmAssistantProcessTrace trace,
     int initialEventCount,
@@ -419,7 +420,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   void _appendEntry(FfmAssistantChatEntry entry) {
     _entries.add(entry);
-    unawaited(_historyRepository.save(_entries));
+    unawaited(_saveCurrentConversation());
     unawaited(_refreshProactiveSuggestion());
 
     // Start streaming for assistant text responses
@@ -551,14 +552,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _restoreChatHistory() async {
-    final restored = await _historyRepository.load();
+    _conversations = await _historyRepository.loadConversations();
+    final selected = _conversations.isEmpty ? null : _conversations.first;
+    final restored = selected?.entries ?? const <FfmAssistantChatEntry>[];
     if (!mounted) return;
     if (restored.isEmpty) {
-      await _historyRepository.save(_entries);
+      _conversationId = selected?.id ?? _historyRepository.newConversationId();
+      await _saveCurrentConversation();
       return;
     }
     if (_entries.length != 1) return;
     setState(() {
+      _conversationId = selected!.id;
       _entries
         ..clear()
         ..addAll(restored);
@@ -580,6 +585,137 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _followLatestMessages = true;
       _showScrollToBottom = false;
     });
+  }
+
+  Future<void> _saveCurrentConversation() async {
+    final id = _conversationId;
+    if (id == null) return;
+    await _historyRepository.saveConversation(
+      FfmAssistantChatConversation(
+        id: id,
+        title: _conversationTitle(_entries),
+        updatedAt: DateTime.now(),
+        entries: List<FfmAssistantChatEntry>.of(_entries),
+      ),
+    );
+  }
+
+  String _conversationTitle(List<FfmAssistantChatEntry> entries) {
+    var text = 'Percakapan baru';
+    for (final entry in entries) {
+      if (entry.isUser && entry.text.trim().isNotEmpty) {
+        text = entry.text.trim();
+        break;
+      }
+    }
+    return text.length > 42 ? '${text.substring(0, 42)}...' : text;
+  }
+
+  Future<void> _openConversations() async {
+    _conversations = await _historyRepository.loadConversations();
+    if (!mounted) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(sheetContext).height * 0.7,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.add_comment_outlined),
+                title: const Text('Percakapan baru'),
+                onTap: () => Navigator.pop(sheetContext, 'new'),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: _conversations.isEmpty
+                    ? const Center(
+                        child: Text('Belum ada percakapan tersimpan.'),
+                      )
+                    : ListView.builder(
+                        itemCount: _conversations.length,
+                        itemBuilder: (context, index) {
+                          final conversation = _conversations[index];
+                          return ListTile(
+                            selected: conversation.id == _conversationId,
+                            leading: const Icon(Icons.chat_bubble_outline),
+                            title: Text(
+                              conversation.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${conversation.entries.length} pesan',
+                            ),
+                            onTap: () => Navigator.pop(
+                              sheetContext,
+                              'open:${conversation.id}',
+                            ),
+                            trailing: IconButton(
+                              tooltip: 'Hapus percakapan',
+                              icon: const Icon(Icons.delete_outline),
+                              onPressed: () => Navigator.pop(
+                                sheetContext,
+                                'delete:${conversation.id}',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'new') {
+      await _startNewConversation();
+    } else if (action.startsWith('open:')) {
+      await _openConversation(action.substring(5));
+    } else if (action.startsWith('delete:')) {
+      await _deleteConversation(action.substring(7));
+    }
+  }
+
+  Future<void> _startNewConversation() async {
+    setState(() {
+      widget.session.reset();
+      _conversationId = _historyRepository.newConversationId();
+      _historyWasRestored = false;
+      _technicalDetailsExpanded.clear();
+    });
+    await _saveCurrentConversation();
+    _scrollToEnd();
+  }
+
+  Future<void> _openConversation(String id) async {
+    final conversation = _conversations.firstWhere(
+      (item) => item.id == id,
+      orElse: () => _conversations.first,
+    );
+    setState(() {
+      widget.session.reset();
+      widget.session.entries
+        ..clear()
+        ..addAll(conversation.entries);
+      _conversationId = conversation.id;
+      _historyWasRestored = true;
+      _technicalDetailsExpanded.clear();
+    });
+    _scrollToEnd();
+  }
+
+  Future<void> _deleteConversation(String id) async {
+    await _historyRepository.deleteConversation(id);
+    _conversations = await _historyRepository.loadConversations();
+    if (!mounted) return;
+    if (id == _conversationId) {
+      await _startNewConversation();
+    } else {
+      setState(() {});
+    }
   }
 
   List<FfmAssistantIntent> get _queuedIntents => widget.session.queuedIntents;
@@ -1094,6 +1230,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           if (actionPlan != null) {
             _actionPlanController.register(actionPlan);
             if (!actionPlan.hasMutation) readPlanIds.add(actionPlan.id);
+          }
+          if (intent.type == FfmAssistantIntentType.changeTheme) {
+            final theme =
+                intent.pluginMetadata?['theme']?.toString() ?? 'system';
+            if (getIt.isRegistered<AppThemeController>()) {
+              unawaited(getIt<AppThemeController>().setByName(theme));
+            }
           }
           final review = intent.draft == null
               ? null
@@ -2162,17 +2305,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       'pemberi hutang' ||
       'pemberi pinjaman' ||
       'peminjam' ||
-      'sumber' =>
-        draft.copyWith(
-          partyName: value,
-          formValues: {
-            ...draft.formValues,
-            'party': value,
-            'partyName': value,
-            if (draft.kind == FfmAssistantDraftKind.income)
-              'incomeSource': value,
-          },
-        ),
+      'sumber' => draft.copyWith(
+        partyName: value,
+        formValues: {
+          ...draft.formValues,
+          'party': value,
+          'partyName': value,
+          if (draft.kind == FfmAssistantDraftKind.income) 'incomeSource': value,
+        },
+      ),
       'toko' || 'tempat' => draft.copyWith(
         merchantName: value,
         formValues: {...draft.formValues, 'merchant': value},
@@ -2684,6 +2825,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 showFullscreenToggle: false,
                 onToggleFullScreen: () {},
                 onOpenVoicePicker: _openVoicePicker,
+                onOpenConversations: _openConversations,
                 onResetChat: _confirmResetSession,
                 onClose: () => Navigator.of(context).pop(),
                 cloudChecking: _cloudChecking,
@@ -2731,7 +2873,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                           return GeminiTypingIndicator(
                             message: _activeProcessLabel,
                             steps: _activeProcessEvents
-                                .map((e) => '${e.label} (T+${e.elapsed.inMilliseconds} ms)')
+                                .map(
+                                  (e) =>
+                                      '${e.label} (T+${e.elapsed.inMilliseconds} ms)',
+                                )
                                 .toList(),
                             currentStepIndex: _activeProcessEvents.isNotEmpty
                                 ? _activeProcessEvents.length - 1
@@ -2814,14 +2959,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               ? null
                               : () {
                                   setState(() {
-                                    if (_technicalDetailsExpanded.contains(index)) {
+                                    if (_technicalDetailsExpanded.contains(
+                                      index,
+                                    )) {
                                       _technicalDetailsExpanded.remove(index);
                                     } else {
                                       _technicalDetailsExpanded.add(index);
                                     }
                                   });
                                 },
-                          showTechnicalDetails: _technicalDetailsExpanded.contains(index),
+                          showTechnicalDetails: _technicalDetailsExpanded
+                              .contains(index),
                           onRetryGemini:
                               entry.intent?.responseOrigin ==
                                   FfmAssistantResponseOrigin.cloudError
@@ -2923,7 +3071,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal,
                                 child: Row(
-                                  children: _onboardingSuggestions.map((suggestion) {
+                                  children: _onboardingSuggestions.map((
+                                    suggestion,
+                                  ) {
                                     return Padding(
                                       padding: const EdgeInsets.only(right: 8),
                                       child: ActionChip(

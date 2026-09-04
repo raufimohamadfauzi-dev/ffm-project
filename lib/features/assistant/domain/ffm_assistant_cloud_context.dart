@@ -259,6 +259,8 @@ class FfmAssistantCloudContextEnvelope {
       'routingMode': routingMode.name,
       'requestClass': requestClass.name,
       'destination': currentDestination?.name,
+      if (reasoningContext.currentTheme != null)
+        'currentTheme': reasoningContext.currentTheme,
       'evidenceScope': {
         'financialSummary': evidenceScope.includeFinancialSummary,
         'recentTransactions': evidenceScope.includeRecentTransactions,

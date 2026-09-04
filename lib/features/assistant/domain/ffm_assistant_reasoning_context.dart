@@ -63,6 +63,7 @@ class FfmAssistantReasoningContext {
     required this.capturedAt,
     this.currentPage,
     this.pageSummary,
+    this.currentTheme,
     this.activeFilters = const <String, String>{},
     this.capabilityIds = const <String>[],
     this.approvedUserContext = '',
@@ -78,6 +79,7 @@ class FfmAssistantReasoningContext {
   final DateTime capturedAt;
   final FfmAssistantDestination? currentPage;
   final String? pageSummary;
+  final String? currentTheme;
   final Map<String, String> activeFilters;
   final List<String> capabilityIds;
   final String approvedUserContext;
@@ -93,6 +95,8 @@ class FfmAssistantReasoningContext {
       'Reasoning context FFM (captured ${capturedAt.toIso8601String()}):',
       'Request user: ${_clip(request, 1000)}',
       'Halaman aktif: ${_pageLabel(currentPage)}.',
+      if (currentTheme != null && currentTheme!.trim().isNotEmpty)
+        'Tema tampilan aplikasi saat ini: $currentTheme.',
       if (pageSummary?.trim().isNotEmpty == true)
         'Ringkasan halaman: ${_clip(pageSummary!, 900)}',
       if (verifiedFacts.trim().isNotEmpty)
@@ -124,6 +128,7 @@ class FfmAssistantReasoningContext {
       capturedAt: capturedAt,
       currentPage: currentPage,
       pageSummary: pageSummary,
+      currentTheme: currentTheme,
       activeFilters: activeFilters,
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -144,6 +149,7 @@ class FfmAssistantReasoningContext {
       capturedAt: capturedAt,
       currentPage: currentPage,
       pageSummary: pageSummary,
+      currentTheme: currentTheme,
       activeFilters: activeFilters,
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -162,6 +168,7 @@ class FfmAssistantReasoningContext {
       capturedAt: capturedAt,
       currentPage: currentPage,
       pageSummary: pageSummary,
+      currentTheme: currentTheme,
       activeFilters: activeFilters,
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -215,6 +222,7 @@ class FfmAssistantReasoningContext {
       capturedAt: capturedAt,
       currentPage: currentPage,
       pageSummary: pageSummary,
+      currentTheme: currentTheme,
       activeFilters: activeFilters,
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -232,6 +240,7 @@ class FfmAssistantReasoningContext {
     DateTime? capturedAt,
     FfmAssistantDestination? currentPage,
     String? pageSummary,
+    String? currentTheme,
     Map<String, String>? activeFilters,
     List<String>? capabilityIds,
     String? approvedUserContext,
@@ -247,6 +256,7 @@ class FfmAssistantReasoningContext {
       capturedAt: capturedAt ?? this.capturedAt,
       currentPage: currentPage ?? this.currentPage,
       pageSummary: pageSummary ?? this.pageSummary,
+      currentTheme: currentTheme ?? this.currentTheme,
       activeFilters: activeFilters ?? this.activeFilters,
       capabilityIds: capabilityIds ?? this.capabilityIds,
       approvedUserContext: approvedUserContext ?? this.approvedUserContext,

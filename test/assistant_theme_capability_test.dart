@@ -38,31 +38,75 @@ void main() {
       expect(plan!.steps.length, 1);
       expect(plan.steps.first.capabilityId, 'system.set_theme');
       expect(plan.steps.first.parameters['theme'], 'dark');
+      expect(plan.requiresConfirmation, isFalse,
+          reason: 'Ganti tema adalah UI preference aman, tidak boleh menuntut dialog konfirmasi');
     });
 
-    test('FfmAssistantInterpreter mengenali berbagai variasi permintaan tema', () async {
+    test('FfmAssistantInterpreter mengenali berbagai variasi ekspresi tema bahasa Indonesia', () async {
       final db = AppDatabase(NativeDatabase.memory());
       final interpreter = FfmAssistantInterpreter(db);
 
-      // Skenario 1: Mode Gelap
-      final darkIntent = await interpreter.interpret('ubah ke dark mode');
-      expect(darkIntent.type, FfmAssistantIntentType.changeTheme);
-      expect(darkIntent.pluginMetadata?['theme'], 'dark');
-      expect(darkIntent.response, contains('mode gelap'));
+      // 1. Variasi Gelap: mode redup, mode hitam, gelapkan, bikin gelap, matiin lampu
+      final phrasesDark = [
+        'ubah ke dark mode',
+        'mode redup',
+        'mode hitam',
+        'gelapkan',
+        'hitamkan',
+        'bikin gelap',
+        'matiin lampu',
+        'layar hitam',
+        'tema malam',
+      ];
+      for (final phrase in phrasesDark) {
+        final res = await interpreter.interpret(phrase);
+        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
+        expect(res.pluginMetadata?['theme'], 'dark', reason: 'Failed theme on: $phrase');
+        expect(res.response, contains('mode gelap'), reason: 'Failed response on: $phrase');
+      }
 
-      // Skenario 2: Mode Terang
-      final lightIntent = await interpreter.interpret('ganti tema terang');
-      expect(lightIntent.type, FfmAssistantIntentType.changeTheme);
-      expect(lightIntent.pluginMetadata?['theme'], 'light');
-      expect(lightIntent.response, contains('mode terang'));
+      // 2. Variasi Terang: mode terang, mode putih, terangkan, nyalain lampu, bikin terang
+      final phrasesLight = [
+        'ganti tema terang',
+        'mode putih',
+        'terangkan',
+        'nyalain lampu',
+        'bikin terang',
+        'layar putih',
+      ];
+      for (final phrase in phrasesLight) {
+        final res = await interpreter.interpret(phrase);
+        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
+        expect(res.pluginMetadata?['theme'], 'light', reason: 'Failed theme on: $phrase');
+        expect(res.response, contains('mode terang'), reason: 'Failed response on: $phrase');
+      }
 
-      // Skenario 3: Mode Sistem
+      // 3. Variasi Sistem
       final systemIntent = await interpreter.interpret('tema ikuti sistem');
       expect(systemIntent.type, FfmAssistantIntentType.changeTheme);
       expect(systemIntent.pluginMetadata?['theme'], 'system');
       expect(systemIntent.response, contains('sistem'));
 
-      // Skenario 4: Mode Gemini Cloud tetap deterministik menangani ganti tema
+      // 4. Perintah Toggle Umum: ubah mode, ganti tema, ganti warna, tema ganti
+      final phrasesToggle = [
+        'ubah mode',
+        'ganti tema',
+        'ganti warna',
+        'tema ganti',
+      ];
+      for (final phrase in phrasesToggle) {
+        final res = await interpreter.interpret(phrase);
+        expect(res.type, FfmAssistantIntentType.changeTheme, reason: 'Failed on: $phrase');
+        // Default awal adalah light, jadi toggle menghasilkan dark
+        expect(res.pluginMetadata?['theme'], 'dark', reason: 'Failed toggle on: $phrase');
+      }
+
+      // 5. Query / Deteksi Status Tema: "mode apa sekarang?", "cek mode"
+      final queryIntent = await interpreter.interpret('mode apa sekarang?');
+      expect(queryIntent.type, FfmAssistantIntentType.queryData);
+      expect(queryIntent.response, contains('Mode Terang'));
+
+      // 6. Gemini Cloud routing tetap deterministik menangani ganti tema secara instan
       final geminiCloudDarkIntent = await interpreter.interpret(
         'pindah mode gelap',
         routingMode: FfmAssistantRoutingMode.geminiCloud,
@@ -71,7 +115,7 @@ void main() {
       expect(geminiCloudDarkIntent.pluginMetadata?['theme'], 'dark');
       expect(geminiCloudDarkIntent.response, contains('mode gelap'));
 
-      // Skenario 5: Koreksi user "salah, sekarang harusnya mode gelap"
+      // 7. Koreksi user
       final correctionIntent = await interpreter.interpret(
         'salah, sekarang harusnya mode gelap',
         routingMode: FfmAssistantRoutingMode.geminiCloud,

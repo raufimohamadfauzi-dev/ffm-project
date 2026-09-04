@@ -5,6 +5,9 @@ import '../domain/ffm_assistant_cloud_rollout_config.dart';
 import '../domain/ffm_assistant_grounding_validator.dart';
 import '../domain/ffm_assistant_verified_fact_service.dart';
 import '../domain/ffm_assistant_reasoning_context.dart';
+import 'package:flutter/material.dart' show ThemeMode;
+import '../../../core/theme/app_theme_controller.dart';
+import '../../../core/di/injection.dart';
 
 import 'package:drift/drift.dart' hide Column;
 
@@ -72,6 +75,7 @@ class FfmAssistantInterpreter {
     FfmAssistantAnalysisEngine? analysisEngine,
     FfmAssistantVerifiedFactService? verifiedFactService,
     bool? geminiContextFirstEnabled,
+    AppThemeController? themeController,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
@@ -89,7 +93,12 @@ class FfmAssistantInterpreter {
            geminiContextFirstEnabled ??
            FfmAssistantCloudRolloutConfig.contextFirstEnabled,
        _gemini = geminiService ?? GeminiService(),
-       _config = config ?? SupabaseConfig() {
+       _config = config ?? SupabaseConfig(),
+       _themeController =
+           themeController ??
+           (getIt.isRegistered<AppThemeController>()
+               ? getIt<AppThemeController>()
+               : null) {
     _personalContextProvider = personalContextProvider;
     _categorySuggestion = categorySuggestion;
     _modelGateway = modelGateway;
@@ -123,6 +132,7 @@ class FfmAssistantInterpreter {
 
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
+  final AppThemeController? _themeController;
   FfmCategorySuggestionService? _categorySuggestion;
   FfmAssistantLocalModelGateway? _modelGateway;
   Future<bool> Function()? _slmReadyCheck;
@@ -462,12 +472,21 @@ class FfmAssistantInterpreter {
           householdId: AppContext.householdId,
           query: normalized,
         );
+    final activeThemeMode = _themeController?.themeMode;
+    final currentThemeLabel = switch (activeThemeMode) {
+      ThemeMode.dark => 'Mode Gelap (Dark Mode 🌙)',
+      ThemeMode.light => 'Mode Terang (Light Mode ☀️)',
+      ThemeMode.system => 'Mode Sistem (Mengikuti setelan perangkat 📱)',
+      null => 'Mode Terang (Light Mode ☀️)',
+    };
     final reasoningContext = FfmAssistantReasoningContext(
       request: rawText,
       capturedAt: capturedAt,
       currentPage: currentDestination,
+      currentTheme: currentThemeLabel,
       pageSummary: [
         if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
+        'Tema UI aplikasi: $currentThemeLabel',
         if (householdContext.trim().isNotEmpty) householdContext,
         financialContext,
         masterDataContext,
@@ -3115,30 +3134,113 @@ class FfmAssistantInterpreter {
     String rawText,
     String normalized,
   ) {
-    final clean = normalized.toLowerCase();
+    final clean = normalized.toLowerCase().trim();
 
-    final hasDark = clean.contains('dark') ||
-        clean.contains('gelap') ||
-        clean.contains('malam');
-    final hasLight = clean.contains('light') ||
-        clean.contains('terang') ||
-        clean.contains('siang');
-    final hasSystem = clean.contains('sistem') ||
-        clean.contains('default') ||
-        clean.contains('hp');
+    // 1. Cek query status tema saat ini (misal: "mode apa sekarang?", "lagi mode apa?", "cek mode")
+    final isQueryMode = clean.contains('mode apa') ||
+        clean.contains('tema apa') ||
+        clean.contains('apakah sekarang mode') ||
+        clean.contains('apakah ini mode') ||
+        clean.contains('apakah mode gelap') ||
+        clean.contains('apakah mode terang') ||
+        clean.contains('sedang mode apa') ||
+        clean.contains('lagi mode apa') ||
+        clean.contains('status tema') ||
+        clean.contains('status mode') ||
+        clean.contains('cek tema') ||
+        clean.contains('cek mode');
 
+    if (isQueryMode) {
+      final isDark = _themeController?.isDark ?? false;
+      final modeLabel = isDark ? 'Mode Gelap 🌙' : 'Mode Terang ☀️';
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.queryData,
+        confidence: 1.0,
+        response: 'Saat ini aplikasi FFM sedang aktif dalam **$modeLabel**.',
+      );
+    }
+
+    // 2. Variasi Dark Mode: redup, gelap, hitam, malam, dark, black, matiin lampu
+    final darkPatterns = [
+      'gelap',
+      'dark',
+      'hitam',
+      'redup',
+      'malam',
+      'black',
+      'matiin lampu',
+      'matikan lampu',
+      'padamkan lampu',
+    ];
+    final hasDark = darkPatterns.any(clean.contains);
+
+    // 3. Variasi Light Mode: terang, light, putih, siang, white, nyalain lampu
+    final lightPatterns = [
+      'terang',
+      'light',
+      'putih',
+      'siang',
+      'white',
+      'nyalain lampu',
+      'nyalakan lampu',
+      'hidupkan lampu',
+    ];
+    final hasLight = lightPatterns.any(clean.contains);
+
+    // 4. Variasi Sistem: sistem, default, hp, bawaan
+    final systemPatterns = ['sistem', 'default', 'bawaan hp', 'sesuai sistem'];
+    final hasSystem = systemPatterns.any(clean.contains);
+
+    // Kata-kata tema & aksi
     final isThemeWord = clean.contains('tema') ||
         clean.contains('theme') ||
         clean.contains('mode') ||
         clean.contains('tampilan') ||
+        clean.contains('layar') ||
         clean.contains('warna');
 
-    if (!isThemeWord &&
-        !clean.contains('dark mode') &&
-        !clean.contains('light mode') &&
-        !clean.startsWith('gelap') &&
-        !clean.startsWith('terang')) {
+    final isActionWord = clean.contains('ubah') ||
+        clean.contains('ganti') ||
+        clean.contains('tukar') ||
+        clean.contains('pindah') ||
+        clean.contains('aktifkan') ||
+        clean.contains('hidupkan') ||
+        clean.contains('gantiin') ||
+        clean.contains('bikin') ||
+        clean.contains('jadikan') ||
+        clean.contains('buat') ||
+        clean.contains('setel') ||
+        clean.contains('atur');
+
+    final isDirectThemeCommand = clean.endsWith('kan') ||
+        clean.endsWith('in') ||
+        clean.startsWith('gelap') ||
+        clean.startsWith('terang') ||
+        clean.startsWith('hitam') ||
+        clean.startsWith('redup') ||
+        clean.startsWith('putih');
+
+    // Perintah toggle umum tanpa menyebut gelap/terang: "ubah mode", "ganti tema", "ganti warna", "tema ganti"
+    final isGenericToggle = (isThemeWord &&
+            (isActionWord ||
+                clean.startsWith('tema ganti') ||
+                clean.startsWith('mode ganti') ||
+                clean.startsWith('warna ganti'))) &&
+        !hasDark &&
+        !hasLight &&
+        !hasSystem;
+
+    if (!hasDark && !hasLight && !hasSystem && !isGenericToggle) {
       return null;
+    }
+
+    if (!isGenericToggle &&
+        !isThemeWord &&
+        !isActionWord &&
+        !isDirectThemeCommand) {
+      if (clean.length > 25) return null;
     }
 
     String themeTarget;
@@ -3154,6 +3256,15 @@ class FfmAssistantInterpreter {
       themeTarget = 'system';
       responseText =
           'Baik, tema aplikasi sekarang mengikuti pengaturan sistem perangkat Anda 📱';
+    } else if (isGenericToggle) {
+      final currentIsDark = _themeController?.isDark ?? false;
+      if (currentIsDark) {
+        themeTarget = 'light';
+        responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode terang ☀️';
+      } else {
+        themeTarget = 'dark';
+        responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode gelap 🌙';
+      }
     } else {
       return null;
     }

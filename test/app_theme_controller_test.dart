@@ -11,9 +11,9 @@ void main() {
   });
 
   group('AppThemeController Unit Tests', () {
-    test('default initial theme mode adalah system', () {
+    test('default initial theme mode adalah light', () {
       final controller = AppThemeController();
-      expect(controller.themeMode, ThemeMode.system);
+      expect(controller.themeMode, ThemeMode.light);
       expect(controller.isDark, isFalse);
     });
 
@@ -34,7 +34,7 @@ void main() {
       expect(notifyCount, 2);
     });
 
-    test('setByName mengenali kata kunci gelap/dark/malam', () async {
+    test('setByName mengenali kata kunci gelap/dark/malam/hitam/redup', () async {
       final controller = AppThemeController();
 
       var result = await controller.setByName('ubah ke dark mode');
@@ -48,9 +48,17 @@ void main() {
       result = await controller.setByName('aktifkan mode malam');
       expect(result, 'dark');
       expect(controller.themeMode, ThemeMode.dark);
+
+      result = await controller.setByName('mode hitam');
+      expect(result, 'dark');
+      expect(controller.themeMode, ThemeMode.dark);
+
+      result = await controller.setByName('mode redup');
+      expect(result, 'dark');
+      expect(controller.themeMode, ThemeMode.dark);
     });
 
-    test('setByName mengenali kata kunci terang/light/siang', () async {
+    test('setByName mengenali kata kunci terang/light/siang/putih', () async {
       final controller = AppThemeController(initialMode: ThemeMode.dark);
 
       var result = await controller.setByName('ubah ke light mode');
@@ -62,6 +70,22 @@ void main() {
       expect(controller.themeMode, ThemeMode.light);
 
       result = await controller.setByName('mode siang');
+      expect(result, 'light');
+      expect(controller.themeMode, ThemeMode.light);
+
+      result = await controller.setByName('mode putih');
+      expect(result, 'light');
+      expect(controller.themeMode, ThemeMode.light);
+    });
+
+    test('setByName toggleTheme membalikkan tema', () async {
+      final controller = AppThemeController(initialMode: ThemeMode.light);
+
+      var result = await controller.setByName('ganti tema');
+      expect(result, 'dark');
+      expect(controller.themeMode, ThemeMode.dark);
+
+      result = await controller.setByName('tukar tema');
       expect(result, 'light');
       expect(controller.themeMode, ThemeMode.light);
     });

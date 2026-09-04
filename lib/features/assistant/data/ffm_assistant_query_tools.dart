@@ -1,6 +1,8 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
+import '../../advisor/domain/services/smart_budget_engine.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
+import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 import '../domain/ffm_assistant_analysis_engine.dart';
@@ -55,6 +57,7 @@ class FfmAssistantQueryRegistry {
         _LoanAffordabilityQueryTool(database),
         _DataCompletenessQueryTool(database),
         _PersonalProfileQueryTool(database),
+        _SmartBudgetQueryTool(database),
       ] {
         // Initialize analysis tools after _analysisEngine is set
         _tools.addAll([
@@ -1315,5 +1318,92 @@ class _PersonalProfileQueryTool implements FfmAssistantQueryTool {
       title: 'Profil & Kebiasaan',
       message: buffer.toString(),
     );
+  }
+}
+
+class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
+  const _SmartBudgetQueryTool(this._database);
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final lower = normalizedText.toLowerCase();
+    return lower.contains('anggaran') ||
+        lower.contains('budget') ||
+        lower.contains('burn rate') ||
+        lower.contains('batas harian') ||
+        lower.contains('sisa belanja');
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final now = request.now;
+    final transactions = await (_database.select(_database.transactions)
+          ..where((row) => row.householdId.equals(request.householdId)))
+        .get();
+
+    final txEntities = transactions
+        .map((t) => TransactionEntity(
+              id: t.id,
+              householdId: t.householdId,
+              date: t.date,
+              amount: t.amount,
+              owner: t.owner ?? '',
+              categoryId: t.categoryId,
+              note: t.note,
+              source: t.source ?? 'manual',
+              recordedAt: t.recordedAt,
+            ))
+        .toList();
+
+    const engine = SmartBudgetEngine();
+    final baselines = engine.calculateDynamicBaselines(
+      transactions: txEntities,
+      now: now,
+    );
+
+    final currentMonthTxs = txEntities
+        .where((t) => t.date.year == now.year && t.date.month == now.month)
+        .toList();
+
+    final totalBaseline = baselines.fold(0.0, (sum, b) => sum + b.averageMonthlyAmount);
+
+    final burnRate = engine.calculateBurnRate(
+      currentMonthExpenses: currentMonthTxs,
+      monthlyBudgetLimit: totalBaseline > 0 ? totalBaseline : 5000000.0,
+      now: now,
+    );
+
+    final buf = StringBuffer();
+    buf.writeln('📊 **Status Anggaran Pintar & Laju Belanja**:');
+    buf.writeln('- Status: ${burnRate.statusLabel}');
+    buf.writeln('- Total Terpakai Bulan Ini: Rp ${_formatNum(burnRate.totalExpenseSoFar)}');
+    buf.writeln('- Batas Belanja Harian Aman: **Rp ${_formatNum(burnRate.safeDailySpendingLimit)}/hari** (${burnRate.remainingDays} hari tersisa)');
+
+    if (baselines.isNotEmpty) {
+      buf.writeln('\n📈 **Baseline Dynamic Moving Average (3 Bulan)**:');
+      for (final b in baselines.take(4)) {
+        buf.writeln('• ${b.categoryName}: ~Rp ${_formatNum(b.averageMonthlyAmount)}/bulan');
+      }
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Status Anggaran Pintar',
+      message: buf.toString(),
+    );
+  }
+
+  String _formatNum(double n) {
+    final str = n.toStringAsFixed(0);
+    final buf = StringBuffer();
+    int count = 0;
+    for (int i = str.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0) buf.write('.');
+      buf.write(str[i]);
+      count++;
+    }
+    return buf.toString().split('').reversed.join();
   }
 }

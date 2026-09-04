@@ -13,6 +13,8 @@ import '../../features/activity/domain/activity_analysis_engine.dart';
 import '../../features/activity/domain/activity_verified_fact_layer.dart';
 import '../../features/activity/domain/activity_mode_detector.dart';
 import '../../features/advisor/domain/usecases/budget_guard_service.dart';
+import '../../features/advisor/domain/services/smart_budget_engine.dart';
+import '../../features/advisor/domain/services/smart_envelope_rebalance.dart';
 import '../../features/assistant/data/ffm_assistant_capability_adapters.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_mutation_service.dart';
 import '../../features/assistant/data/ffm_assistant_response_feedback_repository.dart';
@@ -311,6 +313,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<NfcCardRepository>(
     () => NfcCardRepository(getIt<PaymentDraftRepository>()),
   );
+  // Smart Budget Engine & Envelope Rebalance
+  getIt.registerLazySingleton<SmartBudgetEngine>(SmartBudgetEngine.new);
+  getIt.registerLazySingleton<SmartEnvelopeRebalance>(SmartEnvelopeRebalance.new);
   // Fitur 03: Model Arus Kas Fleksibel & Siklus Pertanian / Musiman / Bisnis
   getIt.registerLazySingleton<CashFlowProfileRepository>(
     CashFlowProfileRepository.new,
@@ -395,6 +400,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
+      themeController: getIt<AppThemeController>(),
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(

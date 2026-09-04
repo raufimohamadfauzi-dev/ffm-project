@@ -56,6 +56,10 @@ class TransactionEntity {
   final int? receiptChangeAmount;
   final DateTime recordedAt;
   final DateTime? updatedAt;
+
+  bool get isExpense => source != 'income';
+  bool get isInternalTransfer => source == 'transfer';
+  String get category => categoryId ?? '';
 }
 
 class TransactionItemEntity {
