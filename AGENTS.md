@@ -589,3 +589,15 @@ When deciding between the current implementation and an alternative framework, t
 When this rule conflicts with an older "prefer/reuse existing" instruction, **this section wins** — the goal is the best long-term tool, not loyalty to whatever is already there.
 
 Proactively flag, in your final report to the user, any component where you believe a clearly better alternative exists, even if swapping it is not part of the current request.
+
+---
+
+## 27. Git Operations & Interactive Commands (The Devin Workflow Standard)
+
+When executing version control and interactive terminal operations:
+
+1. **Do not prematurely kill interactive commands**: When executing operations like `git push`, `git fetch`, or other network/credential-sensitive commands, do NOT cancel or kill the task prematurely with a short timeout. Systems like Windows Git Credential Manager (GCM) often open an interactive GUI modal (e.g. *"Select an account"*) for user confirmation.
+2. **Support the complete Git lifecycle**: The agent must confidently handle full Git workflows — inspecting status (`git status`), staging relevant files (`git add`), crafting clear conventional commits (`git commit`), and publishing to remote (`git push`) directly, instead of claiming it can only work on the local filesystem.
+3. **Notify and allow time for user authorization**: When a command triggers an external modal or browser authentication, keep the command active, inform the user that an account selection or sign-in prompt is visible on their screen, and wait patiently for the user to complete the interaction.
+4. **Clean commit hygiene**: Ensure all changes pass static analysis (`flutter analyze lib test`) and applicable tests before committing, with informative conventional commit messages (`feat:`, `fix:`, `refactor:`, `test:`).
+
