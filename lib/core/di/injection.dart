@@ -60,6 +60,9 @@ import '../../features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
 import '../../features/backup/data/json_export_studio_service.dart';
 import '../../features/asset/domain/usecases/asset_crud_usecases.dart';
+import '../../features/asset/data/repositories/market_news_cache_repository.dart';
+import '../../features/asset/data/services/market_news_radar_service.dart';
+import '../../features/asset/domain/usecases/asset_auto_valuation_service.dart';
 import '../../features/audit/data/repositories/audit_log_repository.dart';
 import '../../features/audit/domain/usecases/audit_log_usecases.dart';
 import '../../features/goal/domain/usecases/goal_balance_usecases.dart';
@@ -120,6 +123,15 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<GetAssets>(() => GetAssets(db));
   getIt.registerLazySingleton<SaveAsset>(() => SaveAsset(db));
   getIt.registerLazySingleton<ArchiveAsset>(() => ArchiveAsset(db));
+  getIt.registerLazySingleton<MarketNewsRadarService>(
+    MarketNewsRadarService.new,
+  );
+  getIt.registerLazySingleton<MarketNewsCacheRepository>(
+    MarketNewsCacheRepository.new,
+  );
+  getIt.registerLazySingleton<AssetAutoValuationService>(
+    () => AssetAutoValuationService(db),
+  );
   getIt.registerLazySingleton<GetGoals>(() => GetGoals(db));
   getIt.registerLazySingleton<GetGoal>(() => GetGoal(db));
   getIt.registerLazySingleton<SaveGoal>(() => SaveGoal(db));

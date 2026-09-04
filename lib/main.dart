@@ -35,6 +35,7 @@ import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/audit/presentation/pages/activity_log_page.dart';
 import 'features/backup/presentation/pages/backup_page.dart';
 import 'features/backup/presentation/pages/monthly_report_page.dart';
+import 'features/asset/presentation/widgets/market_news_radar_drawer.dart';
 import 'features/goal/presentation/pages/goal_pages.dart';
 import 'features/goal/domain/entities/goal_entity.dart';
 import 'features/goal/domain/usecases/goal_crud_usecases.dart';
@@ -1060,6 +1061,7 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    drawer: const MarketNewsRadarDrawer(),
     body: SafeArea(
       bottom: false,
       child: IndexedStack(index: _index, children: _pages),

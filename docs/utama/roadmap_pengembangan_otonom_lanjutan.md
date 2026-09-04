@@ -19,7 +19,8 @@ Roadmap ini disusun berdasarkan urutan prioritas yang telah disepakati bersama: 
   - *Status*: Selesai Terverifikasi (100%) ✅
   - *Ringkasan*: Menghitung ketahanan modal dan cadangan kas keluarga (*Runway to Harvest*) tanpa asumsi kaku gajian tanggal 25 serta batas belanja aman dapur harian.
 - [ ] **Fitur 04 (Prioritas 2)**: [Akses Web Radar Pasar Terkini (Valuasi Emas & Kurs Valas)](#fitur-04---akses-web-radar-pasar-terkini)
-  - *Status*: Siap Dikerjakan (Prioritas Selanjutnya)
+  - *Status*: Siap Dikerjakan (Dokumen Rencana Teknis Siap)
+  - *Dokumen Rincian*: [rencana_paket_radar_pasar_emas_valas_4.md](file:///c:/Users/naya/Documents/ffm-project/docs/utama/rencana_paket_radar_pasar_emas_valas_4.md)
   - *Ringkasan*: Mengambil harga resmi emas Antam/Pegadaian & kurs harian untuk memperbarui valuasi nilai kekayaan bersih keluarga secara otomatis.
 
 ---
@@ -56,12 +57,15 @@ Roadmap ini disusun berdasarkan urutan prioritas yang telah disepakati bersama: 
 
 ---
 
-### Fitur 04 - Akses Web Radar Pasar Terkini (Emas & Kurs)
-* **Tujuan**: Memperbarui valuasi aset riil keluarga secara otomatis setiap hari.
+### Fitur 04 - Akses Web Radar Pasar Terkini (Emas Karat, Valas, Kripto) & Radar Warta Terpilih [x] Selesai Terverifikasi (100%) ✅
+* **Tujuan**: Memperbarui valuasi aset riil keluarga (Emas batangan 24K, perhiasan 22K/18K/16K/10K, Valas USD/SGD/EUR/SAR, dan Kripto) serta menyediakan radar warta berita pertanian, BMKG, dan finansial.
 * **Target Kemampuan**:
-  1. Penjadwalan fetch harian data pasar publik (harga emas batangan Antam/Pegadaian per gram).
-  2. Auto-kalkulasi nilai portofolio aset logam mulia pada total Kekayaan Bersih (*Net Worth*).
-  3. Laporan wawasan pertumbuhan aset bulanan.
+  1. [x] Fetch HTTP hening (<0.2s) harga pasar publik & kurs valas tanpa API key berbayar.
+  2. [x] Standar kadar karat emas Indonesia (24K, 22K, 18K, 16K, 10K) dengan kalkulator valuasi deterministik.
+  3. [x] Radar Berita & Peringatan Terpilih (Pertanian, BMKG Bencana/Cuaca, Finansial) dengan cache SharedPreferences sementara (auto-prune >48 jam, bebas database).
+  4. [x] Ticker harga horizontal & asisten valuasi pasar di halaman Aset.
+  5. [x] Halaman `MarketNewsRadarPage` (2 tab: Harga & Warta) dengan pengaturan kata kunci peringatan khusus.
+  6. [x] Drawer kiri (`MarketNewsRadarDrawer`) yang dapat ditarik/digeser ke kanan dari layar utama untuk intip cepat warta dan pasar.
 
 ---
 
