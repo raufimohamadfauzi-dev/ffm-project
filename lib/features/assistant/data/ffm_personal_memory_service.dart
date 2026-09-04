@@ -350,10 +350,37 @@ class FfmPersonalMemoryService {
   }
 
   /// Membangun string konteks memori yang bisa diinjeksikan ke prompt interpreter.
-  Future<String> buildContext() async {
+  /// Memori dideduplikasi berdasarkan key (mengambil versi paling baru) dan
+  /// dibatasi maksimal [maxItems] (default 8) agar prompt LLM tetap ringkas & fokus.
+  Future<String> buildContext({String? query, int maxItems = 8}) async {
     final all = await readAll();
     if (all.isEmpty) return '';
-    return all.map((i) => '• ${i.humanLabel}').join('\n');
+
+    // 1. Deduplikasi berdasarkan key (mengambil entri unik teranyar)
+    final uniqueMap = <String, FfmPersonalMemoryInsight>{};
+    for (final m in all) {
+      if (!uniqueMap.containsKey(m.key)) {
+        uniqueMap[m.key] = m;
+      }
+    }
+
+    var list = uniqueMap.values.toList();
+
+    // 2. Jika ada query, prioritaskan memori yang cocok kata kunci
+    if (query != null && query.trim().isNotEmpty) {
+      final q = query.toLowerCase();
+      list.sort((a, b) {
+        final aScore = (a.key.toLowerCase().contains(q) ? 2 : 0) +
+            (a.humanLabel.toLowerCase().contains(q) ? 1 : 0);
+        final bScore = (b.key.toLowerCase().contains(q) ? 2 : 0) +
+            (b.humanLabel.toLowerCase().contains(q) ? 1 : 0);
+        return bScore.compareTo(aScore);
+      });
+    }
+
+    // 3. Batasi hanya [maxItems] agar LLM tidak kebanjiran konteks
+    final bounded = list.take(maxItems);
+    return bounded.map((i) => '• ${i.humanLabel}').join('\n');
   }
 
   /// Belajar otonom dari koreksi draft pengguna (Modul 3A).

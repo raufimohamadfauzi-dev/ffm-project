@@ -116,8 +116,19 @@ class FfmAssistantMemoryRepository {
       throw ArgumentError('Jenis, pemicu, dan isi ajaran wajib diisi.');
     }
     final now = DateTime.now();
-    final memoryId = id ??
-        'assistant-memory-${now.microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
+    String memoryId;
+    if (id != null) {
+      memoryId = id;
+    } else {
+      final query = _db.select(_db.assistantMemories)
+        ..where((row) => row.householdId.equals(householdId))
+        ..where((row) => row.kind.equals(safeKind))
+        ..where((row) => row.triggerText.equals(safeTrigger))
+        ..where((row) => row.isArchived.equals(false));
+      final existing = await query.getSingleOrNull();
+      memoryId = existing?.id ??
+          'assistant-memory-${now.microsecondsSinceEpoch}-${_random.nextInt(1 << 32)}';
+    }
     await _db
         .into(_db.assistantMemories)
         .insertOnConflictUpdate(

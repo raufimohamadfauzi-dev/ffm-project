@@ -7304,19 +7304,38 @@ class FfmAssistantInterpreter {
     final transactionType = income && !expense ? 'income' : 'expense';
     final category = _matchCategory(normalized, categories, transactionType);
     final selectedAccount = _matchAccount(normalized, accounts);
-    final slmFieldValues = <String, String>{
-      if (category != null) 'category': category.name,
-      if (selectedAccount != null) 'account': selectedAccount.name,
-    };
+    final merchantName = _extractMerchant(normalized);
+
+    var categoryName = category?.name;
+    if (categoryName == null && merchantName != null) {
+      categoryName = _personalMemoryService.feedbackService
+          .findCategoryForMerchant(merchantName);
+    }
+
+    var fromAccountName = expense ? selectedAccount?.name : null;
+    if (fromAccountName == null && expense) {
+      fromAccountName =
+          _personalMemoryService.feedbackService.findPreferredAccount();
+    }
+
+    final slmFieldValues = <String, String>{};
+    if (categoryName != null) {
+      slmFieldValues['category'] = categoryName;
+    }
+    if (selectedAccount != null) {
+      slmFieldValues['account'] = selectedAccount.name;
+    } else if (fromAccountName != null) {
+      slmFieldValues['account'] = fromAccountName;
+    }
     return FfmAssistantDraft(
       kind: income && !expense
           ? FfmAssistantDraftKind.income
           : FfmAssistantDraftKind.expense,
       createdAt: now,
       amount: amount,
-      categoryName: category?.name,
+      categoryName: categoryName,
       toAccountName: income ? selectedAccount?.name : null,
-      fromAccountName: expense ? selectedAccount?.name : null,
+      fromAccountName: fromAccountName,
       note: rawText.trim(),
       partyName: income
           ? _extractParty(normalized, const ['dari', 'sumber'])
@@ -7326,7 +7345,7 @@ class FfmAssistantInterpreter {
               'untuk',
               'oleh',
             ]),
-      merchantName: _extractMerchant(normalized),
+      merchantName: merchantName,
       location: _extractLocation(normalized),
       slmFieldValues: slmFieldValues,
       linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,

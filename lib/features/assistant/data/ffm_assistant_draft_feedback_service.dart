@@ -22,11 +22,11 @@ class FfmAssistantDraftFeedbackService {
       List.unmodifiable(_learnedRules);
 
   /// Mencatat perubahan draft saat user mengedit draft dan belajar aturan personal secara otonom
-  void recordDraftEdit({
+  Future<void> recordDraftEdit({
     required FfmAssistantDraft originalDraft,
     required FfmAssistantDraft editedDraft,
     required DateTime timestamp,
-  }) {
+  }) async {
     final changedFields = _identifyChangedFields(originalDraft, editedDraft);
     
     if (changedFields.isEmpty) return;
@@ -44,13 +44,13 @@ class FfmAssistantDraftFeedbackService {
       _changeHistory.removeAt(0);
     }
 
-    _extractAndLearnRules(originalDraft, editedDraft);
+    await _extractAndLearnRules(originalDraft, editedDraft);
   }
 
-  void _extractAndLearnRules(
+  Future<void> _extractAndLearnRules(
     FfmAssistantDraft original,
     FfmAssistantDraft edited,
-  ) {
+  ) async {
     // 1. Koreksi Kategori berdasarkan Toko / Merchant
     final merchant = edited.merchantName?.trim();
     final editedCategory = edited.categoryName?.trim();
@@ -61,13 +61,14 @@ class FfmAssistantDraftFeedbackService {
         original.categoryName != edited.categoryName) {
       final key = 'merchant_category_${merchant.toLowerCase()}';
       final label = 'Toko "$merchant" dikategorikan sebagai: $editedCategory';
+      _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: editedCategory, label: label));
       if (onRuleLearned != null) {
-        unawaited(onRuleLearned!(
+        await onRuleLearned!(
           key: key,
           value: editedCategory,
           label: label,
-        ));
+        );
       }
     }
 
@@ -81,13 +82,14 @@ class FfmAssistantDraftFeedbackService {
         original.categoryName != edited.categoryName) {
       final key = 'item_category_${title.toLowerCase()}';
       final label = 'Item "$title" dikategorikan sebagai: $editedCategory';
+      _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: editedCategory, label: label));
       if (onRuleLearned != null) {
-        unawaited(onRuleLearned!(
+        await onRuleLearned!(
           key: key,
           value: editedCategory,
           label: label,
-        ));
+        );
       }
     }
 
@@ -96,17 +98,44 @@ class FfmAssistantDraftFeedbackService {
     if (fromAccount != null &&
         fromAccount.isNotEmpty &&
         original.fromAccountName != edited.fromAccountName) {
-      final key = 'preferred_account';
+      const key = 'preferred_account';
       final label = 'Rekening sumber utama pilihan: $fromAccount';
+      _learnedRules.removeWhere((r) => r.key == key);
       _learnedRules.add((key: key, value: fromAccount, label: label));
       if (onRuleLearned != null) {
-        unawaited(onRuleLearned!(
+        await onRuleLearned!(
           key: key,
           value: fromAccount,
           label: label,
-        ));
+        );
       }
     }
+  }
+
+  /// Mencari kategori yang dipelajari untuk merchant tertentu (lookup deterministik).
+  String? findCategoryForMerchant(String merchant) {
+    final key = 'merchant_category_${merchant.trim().toLowerCase()}';
+    for (final rule in _learnedRules.reversed) {
+      if (rule.key == key) return rule.value;
+    }
+    return null;
+  }
+
+  /// Mencari kategori yang dipelajari untuk judul item tertentu (lookup deterministik).
+  String? findCategoryForItem(String item) {
+    final key = 'item_category_${item.trim().toLowerCase()}';
+    for (final rule in _learnedRules.reversed) {
+      if (rule.key == key) return rule.value;
+    }
+    return null;
+  }
+
+  /// Mendapatkan rekening sumber preferensi yang dipelajari (lookup deterministik).
+  String? findPreferredAccount() {
+    for (final rule in _learnedRules.reversed) {
+      if (rule.key == 'preferred_account') return rule.value;
+    }
+    return null;
   }
 
   /// Mendapatkan feedback message untuk dikirim ke LLM

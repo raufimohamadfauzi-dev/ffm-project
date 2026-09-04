@@ -50,7 +50,7 @@ void main() {
       );
 
       // User mengoreksi kategori menjadi Minuman
-      feedbackService.recordDraftEdit(
+      await feedbackService.recordDraftEdit(
         originalDraft: originalDraft,
         editedDraft: editedDraft,
         timestamp: DateTime(2026, 9, 4),
@@ -63,6 +63,9 @@ void main() {
       expect(rule.value, 'Minuman');
       expect(rule.label, contains('Kopi Kenangan'));
 
+      // Lookup deterministik harus langsung bekerja
+      expect(feedbackService.findCategoryForMerchant('Kopi Kenangan'), 'Minuman');
+
       // Rule harus tersimpan ke memory repository
       final allMemories = await memoryService.readAll();
       expect(
@@ -73,6 +76,28 @@ void main() {
         ),
         isTrue,
       );
+
+      // Uji jika user mengoreksi lagi (update preferensi), tidak boleh terjadi duplikasi memori
+      final secondEdit = editedDraft.copyWith(categoryName: 'Kopi & Minuman');
+      await feedbackService.recordDraftEdit(
+        originalDraft: editedDraft,
+        editedDraft: secondEdit,
+        timestamp: DateTime(2026, 9, 4),
+      );
+
+      expect(feedbackService.learnedRules.length, 1);
+      expect(feedbackService.findCategoryForMerchant('Kopi Kenangan'), 'Kopi & Minuman');
+
+      final updatedMemories = await memoryService.readAll();
+      final merchantMemories = updatedMemories
+          .where((m) => m.key == 'merchant_category_kopi kenangan')
+          .toList();
+      expect(merchantMemories.length, 1);
+      expect(merchantMemories.first.value, 'Kopi & Minuman');
+
+      // Bounded context test: pastikan buildContext membatasi maksimal dan terdeduplikasi
+      final contextStr = await memoryService.buildContext(maxItems: 5);
+      expect(contextStr, contains('Kopi & Minuman'));
     });
 
     test('ekstraksi rule koreksi judul transaksi tanpa merchant', () async {
@@ -93,7 +118,7 @@ void main() {
         categoryName: 'Tagihan Listrik',
       );
 
-      feedbackService.recordDraftEdit(
+      await feedbackService.recordDraftEdit(
         originalDraft: originalDraft,
         editedDraft: editedDraft,
         timestamp: DateTime(2026, 9, 4),
@@ -133,7 +158,7 @@ void main() {
         fromAccountName: 'BCA',
       );
 
-      feedbackService.recordDraftEdit(
+      await feedbackService.recordDraftEdit(
         originalDraft: originalDraft,
         editedDraft: editedDraft,
         timestamp: DateTime(2026, 9, 4),
