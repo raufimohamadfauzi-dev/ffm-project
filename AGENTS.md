@@ -106,6 +106,8 @@ Before creating new infrastructure, inspect and reuse the existing implementatio
 - proposal/draft validation
 - assistant query tools
 - assistant integration and test harnesses
+- `FamilyProfilePage` (`lib/features/settings/presentation/pages/family_profile_page.dart`) — family profile and assistant identity, intentionally **separate** from Master Data (the combined page replaced the old header card in `master_data_page.dart`)
+- assistant destination catalog and page-context mapping (`familyProfile` destination, alias `profil keluarga`/`data keluarga`)
 
 Do not create a parallel orchestrator, planner, capability system, or AI framework unless there is a clear architectural reason and the existing abstraction cannot support the requirement. See section 26 for the standing rule when a clearly better tool/framework exists.
 
@@ -256,6 +258,8 @@ The primary reasoning path is **orkestrator → deterministic logic → Gemini C
 The orchestrator assembles bounded context (conversation, financial snapshot, page context, approved memory) and decides routing. Gemini Cloud is used via `FfmGeminiCloudOrchestrator` with allowlisted read capabilities `read.summary`/`read.transactions` (max 8 items, no merchant/category/account detail). Supabase is used for backend persistence where required. The application remains authoritative for financial truth.
 
 Do not let the model fabricate financial numbers; all claims must be grounded in authoritative application data. Do not let the model directly mutate state — it may only propose a draft/action plan that passes validation/confirmation/executor.
+
+Active-draft corrections follow the routing mode. In `geminiCloud` mode they are delegated to Gemini as `requestClass: draftReview` (Gemini is the primary conversational layer even for draft revision). In Agent mode they use the deterministic multi-turn draft revision (Module 2), grounded to the database, so "bukan 50rb tapi 75rb", account/category changes, and cancellation are handled instantly without a cloud round trip. Do not intercept active-draft corrections deterministically in Gemini Cloud mode; do not bypass Gemini draftReview when an active draft exists and the route is `geminiCloud`.
 
 ---
 
@@ -463,7 +467,7 @@ For normal Dart/Flutter validation, use the project's existing test/lint strateg
 flutter analyze lib test
 ```
 
-Run relevant assistant tests before completing assistant-related work.
+Run relevant assistant tests before completing assistant-related work. Before any commit, both `flutter analyze lib test` **and** the full suite (`flutter test`, currently ~1,104 tests, ~2–3 minutes) must pass. Use the default reporter for speed; if the final status is truncated, re-run with `--reporter expanded`. Do not use `--concurrency=1` for the full suite (several minutes slower) unless isolating a hang.
 
 For release validation, the canonical command is:
 
@@ -508,6 +512,8 @@ Never commit or embed privileged secrets such as:
 Treat Gemini credentials according to the project's existing security architecture.
 
 Do not move secrets into source code simply to make a build succeed.
+
+Do not mint unique IDs from a bare `DateTime.now().microsecondsSinceEpoch` — rapid same-microsecond inserts collide (observed with recurring transactions). Use `Uuid().v4()` or timestamp + counter/random suffix in every new ID generator.
 
 ---
 
@@ -554,9 +560,11 @@ A change is complete when applicable conditions are met:
 - Gemini/Supabase/local-AI responsibilities remain clear,
 - mutation safety and confirmation boundaries are preserved,
 - relevant tests pass,
+- the full test suite (`flutter test`) is green,
 - analyzer is clean,
 - error states are handled honestly,
 - secrets are not exposed,
+- generated IDs are collision-safe (UUID or timestamp + counter/random),
 - the Android ARM64 release remains buildable.
 
 ---
@@ -599,5 +607,5 @@ When executing version control and interactive terminal operations:
 1. **Do not prematurely kill interactive commands**: When executing operations like `git push`, `git fetch`, or other network/credential-sensitive commands, do NOT cancel or kill the task prematurely with a short timeout. Systems like Windows Git Credential Manager (GCM) often open an interactive GUI modal (e.g. *"Select an account"*) for user confirmation.
 2. **Support the complete Git lifecycle**: The agent must confidently handle full Git workflows — inspecting status (`git status`), staging relevant files (`git add`), crafting clear conventional commits (`git commit`), and publishing to remote (`git push`) directly, instead of claiming it can only work on the local filesystem.
 3. **Notify and allow time for user authorization**: When a command triggers an external modal or browser authentication, keep the command active, inform the user that an account selection or sign-in prompt is visible on their screen, and wait patiently for the user to complete the interaction.
-4. **Clean commit hygiene**: Ensure all changes pass static analysis (`flutter analyze lib test`) and applicable tests before committing, with informative conventional commit messages (`feat:`, `fix:`, `refactor:`, `test:`).
+4. **Clean commit hygiene**: Ensure all changes pass static analysis (`flutter analyze lib test`) and the full test suite (`flutter test`, currently ~1,104 tests) before committing, with informative conventional commit messages (`feat:`, `fix:`, `refactor:`, `test:`).
 
