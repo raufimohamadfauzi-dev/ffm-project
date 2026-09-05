@@ -119,6 +119,37 @@ Aplikasi dibangun dengan prinsip **Offline-First & Hybrid AI Architecture**. Alu
 - **Estimasi Cadangan Kas Aman & Runway:** Menghitung sisa hari hingga musim panen/termin pencairan berikutnya, memproyeksikan laju belanja harian aman (*safe burn-rate*), dan menampilkan kartu adaptif `AdaptiveCashFlowCard` di Beranda.
 - **Manajemen Profil Terintegrasi (`FlexibleCashFlowPage`):** Memungkinkan pengaturan target modal kerja, tanggal target pencairan/panen, dan alokasi dana darurat per siklus.
 
+### 📸 11. Pemindai Struk Cerdas & Vision AI Multimodal (`ReceiptScannerService`)
+- **Ekstraksi Struk Foto Otomatis:** Mengunggah foto struk belanja dari kamera atau galeri langsung di lembar obrolan Asisten AI.
+- **Deteksi Batch Multi-Item Cerdas:** Mengurai banyak transaksi sekaligus (pembelian, diskon, biaya admin, hingga pembayaran multi-metode) ke dalam draf transaksi terstruktur.
+- **Pengenal Token Listrik PLN Otomatis:** Mengenali secara presisi nomor IDPEL, tarif/daya, dan 20 digit nomor stroom/token listrik PLN untuk langsung disalin atau dicatat ke riwayat meteran.
+- **Instruksi Pengguna Interaktif (Captioning):** Pengguna dapat menyertakan instruksi khusus saat mengunggah struk (*"Gunakan rekening BCA dan pos Belanja Dapur"*), yang dipadukan ke dalam prompt multimodal Gemini Vision.
+- **Kompresi Aman & Real-time Token Tracking:** Otomatis menurunkan resolusi gambar di atas 10MB serta mencatat estimasi konsumsi token Gemini secara transparan.
+
+### 🏍️ 12. Garasi Digital & Manajemen Kendaraan Keluarga (`VehiclePage`)
+- **Pencatatan Aset Kendaraan Lengkap:** Mengelola inventaris motor, mobil, dan armada usaha keluarga (merk, tipe, nomor polisi, tahun).
+- **Pengingat Perawatan & Pajak Terjadwal:** Memantau jatuh tempo pajak tahunan STNK, perpanjangan plat 5 tahunan, serta jadwal servis dan penggantian oli berkala.
+- **Sinkronisasi Cadangan Penuh:** Data log servis dan profil kendaraan terintegrasi 100% ke dalam sistem pencadangan JSON mandiri (*offline backup & restore*).
+
+### ⚡ 13. Pelacak Meteran Utilitas (Token PLN & Air)
+- **Monitoring Konsumsi Energi Rumah Tangga:** Mencatat riwayat pengisian token listrik prabayar PLN dan meteran air PDAM keluarga.
+- **Tautan Riwayat Struk & Token:** Terintegrasi langsung dengan modul OCR Pemindai Struk, memudahkan pencatatan riwayat kode token listrik tanpa input manual.
+
+### 📉 14. Strategi Pelunasan Hutang Cerdas (*Debt Payoff Strategist*)
+- **Simulasi Bebas Hutang (Debt Snowball vs Avalanche):**
+  - **Debt Snowball:** Memprioritaskan pelunasan dari saldo hutang terkecil untuk momentum kemenangan psikologis.
+  - **Debt Avalanche:** Memprioritaskan pelunasan dari tingkat suku bunga tertinggi untuk memangkas beban biaya bunga secara optimal.
+- **Proyeksi Tanggal Lunas (*Debt-Free Date*):** Menghitung proyeksi bulan bebas hutang keluarga dan perkiraan total rupiah bunga yang berhasil dihemat berdasarkan alokasi anggaran ekstra bulanan.
+
+### ☕ 15. Mesin Intelijen Analisis Keuangan / Personal CFO (`AnalysisPage`)
+- **Daily Burn Rate & Proyeksi Kas Akhir Bulan:** Menghitung laju pengeluaran rata-rata per hari, sisa hari aktif, serta memproyeksikan saldo akhir bulan (status *Surplus Aman* vs *Potensi Defisit*) beserta batas belanja harian aman (*Safe Daily Spend*).
+- **Detektor Kebocoran Kas Mikro Pareto 80/20:** Mengidentifikasi akumulasi transaksi kecil berulang (< Rp 50.000, $\ge 3\times$) yang menggerus kas tanpa disadari, serta visualisasi pos pengeluaran terbesar berproporsi rapi.
+- **Stress-Test AgroTrack:** Menjalankan simulasi skenario ketahanan kas keluarga apabila panen atau termin pembayaran mundur 14 hari.
+
+### 🌅 16. Executive Morning Briefing & Penambang Pola Kebiasaan (*Habit Miner*)
+- **Morning Briefing Harian:** Menampilkan ringkasan eksekutif pagi hari berisi agenda tagihan jatuh tempo, batas belanja aman hari ini, dan wawasan arus kas terkini.
+- **Pola Transaksi Berulang & Tindak Lanjut Cerdas:** Mengenali kebiasaan belanja rutin pengguna dan menyajikan saran tindak lanjut proaktif (*smart follow-up suggestions*) di lembar Asisten AI.
+
 ---
 
 ## 🤖 Alur Eksekusi AI & Batasan Keamanan
@@ -161,6 +192,11 @@ Post-Execution Verification
 - **Ekspor Laporan PDF & Excel**: Laporan bulanan, mingguan, dan analisis rasio kesehatan keuangan (Financial Health Score).
 - **Penanggalan Ganda (Masehi & Hijriah)**: Konversi penanggalan Islam dengan koreksi hisab/rukyat Hilal (-2 s/d +2 hari).
 - **Pengingat Lokal (Local Reminders)**: Pengingat pembayaran tagihan dan agenda keuangan dengan alarm notifikasi lokal.
+- **Pemindai Struk Multimodal Vision**: Pindai struk belanja fisik langsung via kamera/galeri dengan pengurai transaksi batch dan pengenal token listrik PLN otomatis.
+- **Garasi Digital Kendaraan**: Manajemen armada motor/mobil keluarga, riwayat servis berkala, ganti oli, dan pengingat jatuh tempo pajak STNK.
+- **Pencatatan Meteran Utilitas (PLN & Air)**: Pemantauan pemakaian energi rumah tangga serta penyimpanan riwayat kode token listrik PLN.
+- **Strategi Pelunasan Hutang Cerdas**: Simulasi metode Debt Snowball dan Debt Avalanche untuk mempercepat keluarga bebas dari beban hutang.
+- **Intelijen Analisis Personal CFO**: Proyeksi burn rate harian, deteksi kebocoran kas mikro Pareto 80/20, dan stress test arus kas AgroTrack.
 - **Audit Log & Activity History**: Jejak audit komprehensif atas setiap aksi penambahan, perubahan, dan rekonsiliasi data keuangan keluarga.
 - **Keamanan Aplikasi**: Sensor Biometrik (sidik jari/wajah) dan PIN 6 digit lokal (`AppPinService`).
 - **Mode Gelap Kontras Tinggi (High Contrast Dark Mode)**: Memenuhi standar WCAG AAA/AA, dapat diaktifkan manual atau diperintahkan lewat agen AI secara natural.
