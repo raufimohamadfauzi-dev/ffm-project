@@ -45,6 +45,7 @@ dependencies:
   encrypt: ^5.0.3
   flutter_foreground_task: ^11.0.2
   permission_handler: ^11.3.1
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:

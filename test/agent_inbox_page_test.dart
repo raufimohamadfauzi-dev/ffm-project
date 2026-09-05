@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/di/injection.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_insight_repository.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_insight.dart';
+import 'package:ffm_manager/features/assistant/data/autonomous_activity_repository.dart';
+import 'package:ffm_manager/features/assistant/domain/entities/autonomous_activity_models.dart';
 import 'package:ffm_manager/features/assistant/presentation/pages/agent_inbox_page.dart';
 
 void main() {
@@ -11,6 +14,7 @@ void main() {
   late FfmAssistantInsightRepository repo;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     db = createInMemoryDatabaseForTests();
     if (getIt.isRegistered<AppDatabase>()) {
       getIt.unregister<AppDatabase>();
@@ -82,5 +86,39 @@ void main() {
       expect(find.text('Sembunyikan data pendukung'), findsOneWidget);
       expect(find.textContaining('daysToPayday:'), findsOneWidget);
     });
+
+    testWidgets('Renders autonomous activities tab and activity cards', (tester) async {
+      final actRepo = AutonomousActivityRepository(
+        database: db,
+      );
+      await actRepo.recordActivity(
+        AutonomousActivityRecord(
+          id: 'act-test-ui',
+          householdId: 'local-household',
+          title: 'Pergeseran Plafon Anggaran (Rebalance)',
+          description: 'Menggeser Rp 50.000 dari Belanja ke Bahan Pokok.',
+          activityType: AutonomousActivityType.envelopeRebalance,
+          occurredAt: DateTime(2026, 9, 5, 12, 0),
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AgentInboxPage(activityRepository: actRepo),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Ketuk tab Aktivitas Otonom
+      await tester.tap(find.textContaining('Aktivitas Otonom'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pergeseran Plafon Anggaran (Rebalance)'), findsOneWidget);
+      expect(find.text('Menggeser Rp 50.000 dari Belanja ke Bahan Pokok.'), findsOneWidget);
+      expect(find.text('Aktif'), findsNWidgets(2));
+      expect(find.text('Koreksi'), findsOneWidget);
+      expect(find.text('Batalkan'), findsOneWidget);
+    });
   });
 }
+

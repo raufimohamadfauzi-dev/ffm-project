@@ -888,12 +888,30 @@ void main() {
       final image = await interpreter.interpret('bisa lihat gambar?');
 
       expect(app.type, FfmAssistantIntentType.assistantIdentity);
-      // Fitur pembacaan gambar/struk sudah dihapus: pertanyaan kemampuan
-      // gambar dijawab jujur sebagai bantuan teks, bukan unknown.
-      expect(image.type, FfmAssistantIntentType.help);
-      expect(image.response, contains('hanya menerima perintah teks'));
+      // Pemindaian foto struk tersedia lewat tombol lampirkan; pertanyaan
+      // kemampuan gambar diarahkan ke fitur tersebut, bukan ditolak.
+      expect(image.type, FfmAssistantIntentType.featureHelp);
+      expect(image.response, contains('lampirkan'));
+      expect(image.response, contains('foto struk'));
     },
   );
+
+  test('perintah pindai struk diarahkan ke tombol lampirkan foto', () async {
+    final intent = await interpreter.interpret('pindai struk');
+
+    expect(intent.type, FfmAssistantIntentType.featureHelp);
+    expect(intent.destination, FfmAssistantDestination.transactions);
+    expect(intent.response, contains('lampirkan'));
+    expect(intent.response, contains('Gemini Cloud'));
+  });
+
+  test('perintah scan resep diarahkan ke tombol lampirkan foto', () async {
+    final intent = await interpreter.interpret('scan resep');
+
+    expect(intent.type, FfmAssistantIntentType.featureHelp);
+    expect(intent.response, contains('lampirkan'));
+    expect(intent.response, contains('foto struk'));
+  });
 
   test('Cash satu kata meminta klarifikasi tanpa action plan', () async {
     final intent = await interpreter.interpret('cash');

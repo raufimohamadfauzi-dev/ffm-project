@@ -557,6 +557,7 @@ class FfmAssistantChatEntry {
     this.receivedAt,
     this.modelUsed,
     this.absorbedMemory,
+    this.suggestedQuestions = const [],
   });
 
   final bool isUser;
@@ -586,6 +587,9 @@ class FfmAssistantChatEntry {
 
   /// Fakta/pola memori personal yang diserap asisten dari pesan ini.
   final String? absorbedMemory;
+
+  /// 3 saran pertanyaan lanjutan kontekstual untuk dipilih pengguna (indikator lampu 💡).
+  final List<String> suggestedQuestions;
 }
 
 /// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.

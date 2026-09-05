@@ -166,7 +166,7 @@ class GeminiService {
           'topP': 0.95,
           'maxOutputTokens': maxOutputTokens ?? 1024,
         },
-      })).timeout(const Duration(seconds: 30));
+      })).timeout(const Duration(seconds: 60));
       stopwatch.stop();
       if (response.statusCode != 200) return GeminiResult(model: model, statusCode: response.statusCode, message: _statusMessage(response.statusCode, response.body), latency: stopwatch.elapsed, diagnosticCode: _diagnosticCodeFor(response.statusCode));
       
@@ -195,7 +195,7 @@ class GeminiService {
     } on Exception catch (error) {
       stopwatch.stop();
       final isTimeout = error.toString().toLowerCase().contains('timeout');
-      return GeminiResult(model: model, statusCode: null, message: isTimeout ? 'Request Gemini timeout setelah 30 detik. Periksa stabilitas koneksi internet.' : 'Request Gemini gagal: ${error.runtimeType}.', latency: stopwatch.elapsed, diagnosticCode: isTimeout ? GeminiDiagnosticCodes.timeout : GeminiDiagnosticCodes.network);
+      return GeminiResult(model: model, statusCode: null, message: isTimeout ? 'Request Gemini timeout setelah 60 detik. Periksa stabilitas koneksi internet.' : 'Request Gemini gagal: ${error.runtimeType}.', latency: stopwatch.elapsed, diagnosticCode: isTimeout ? GeminiDiagnosticCodes.timeout : GeminiDiagnosticCodes.network);
     }
   }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -51,6 +52,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onFeedbackMarkIncorrect,
     this.onFeedbackReportIssue,
     this.onFeedbackProvideCorrection,
+    this.onShowFollowUpQuestions,
   });
 
   final FfmAssistantChatEntry entry;
@@ -73,6 +75,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onRetryGemini;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
+  final void Function(List<String> questions)? onShowFollowUpQuestions;
 
   /// Teks yang ditampilkan (progressive reveal saat streaming).
   /// Null berarti gunakan entry.text biasa.
@@ -327,6 +330,10 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onApproveTeaching: onApproveTeaching,
             teachingSaved: teachingSaved,
             foregroundColor: textColor,
+            onShowFollowUpQuestions: onShowFollowUpQuestions != null && entry.suggestedQuestions.isNotEmpty
+                ? () => onShowFollowUpQuestions!(entry.suggestedQuestions)
+                : null,
+            followUpCount: entry.suggestedQuestions.length,
           ),
         ],
         if (showTechnicalDetails && intent != null) ...[
@@ -493,7 +500,119 @@ class FfmChatFileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fileName = path.split('/').last;
+    final fileName = path.split(RegExp(r'[/\\]')).last;
+    final isImage = format?.toLowerCase() == 'image' ||
+        path.toLowerCase().endsWith('.jpg') ||
+        path.toLowerCase().endsWith('.jpeg') ||
+        path.toLowerCase().endsWith('.png') ||
+        path.toLowerCase().endsWith('.webp');
+
+    if (isImage) {
+      final file = File(path);
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface.withValues(alpha: .72),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () {
+              showDialog<void>(
+                context: context,
+                builder: (ctx) => Dialog(
+                  backgroundColor: Colors.black87,
+                  insetPadding: const EdgeInsets.all(12),
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Center(
+                          child: InteractiveViewer(
+                            child: Image.file(
+                              file,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, _, _) => const Center(
+                                child: Text(
+                                  'Gambar struk tidak dapat ditampilkan.',
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          tooltip: 'Tutup pratinjau',
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(11),
+                    bottomLeft: Radius.circular(11),
+                  ),
+                  child: Image.file(
+                    file,
+                    width: 54,
+                    height: 54,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => Container(
+                      width: 54,
+                      height: 54,
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      child: const Icon(Icons.receipt_long_outlined, size: 24),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                      ),
+                      Text(
+                        'Foto struk • Ketuk untuk lihat',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (onShare != null)
+                  IconButton(
+                    tooltip: 'Bagikan file',
+                    onPressed: onShare,
+                    icon: const Icon(Icons.share_outlined, size: 20),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     final icon = switch (format?.toLowerCase()) {
       'pdf' => Icons.picture_as_pdf_outlined,
       'json' => Icons.data_object_outlined,

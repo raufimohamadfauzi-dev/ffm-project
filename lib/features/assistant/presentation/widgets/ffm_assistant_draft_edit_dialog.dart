@@ -271,6 +271,7 @@ class _FfmAssistantDraftEditDialogState
       _isTransaction ||
       _isDebtOrReceivable ||
       widget.draft.kind == FfmAssistantDraftKind.goal ||
+      widget.draft.kind == FfmAssistantDraftKind.reminder ||
       _isActivityDraft;
 
   bool get _isGoalContribution =>
@@ -354,6 +355,8 @@ class _FfmAssistantDraftEditDialogState
     FfmAssistantDraftKind.liabilityPayment => 'Pembayaran Hutang',
     FfmAssistantDraftKind.receivable => 'Piutang',
     FfmAssistantDraftKind.receivablePayment => 'Penerimaan Piutang',
+    FfmAssistantDraftKind.reminder => 'Pengingat / Alarm',
+    FfmAssistantDraftKind.cashFlowProfile => 'Profil Arus Kas / Siklus Tani',
     _ => 'Draft',
   };
 
@@ -448,25 +451,31 @@ class _FfmAssistantDraftEditDialogState
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.expense ||
               widget.draft.kind == FfmAssistantDraftKind.transfer ||
-              widget.draft.kind == FfmAssistantDraftKind.goalDeposit)
+              widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
+              widget.draft.kind == FfmAssistantDraftKind.liabilityPayment)
             _accountField(
               initial: _fromAccount,
               onChanged: (value) => setState(() => _fromAccount = value),
               label:
                   widget.draft.kind == FfmAssistantDraftKind.goalDeposit
                   ? 'Rekening sumber dana'
+                  : widget.draft.kind == FfmAssistantDraftKind.liabilityPayment
+                  ? 'Rekening sumber bayar'
                   : 'Rekening asal',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
             ),
           if (widget.draft.kind == FfmAssistantDraftKind.income ||
               widget.draft.kind == FfmAssistantDraftKind.transfer ||
-              widget.draft.kind == FfmAssistantDraftKind.goalUsage)
+              widget.draft.kind == FfmAssistantDraftKind.goalUsage ||
+              widget.draft.kind == FfmAssistantDraftKind.receivablePayment)
             _accountField(
               initial: _toAccount,
               onChanged: (value) => setState(() => _toAccount = value),
               label:
                   widget.draft.kind == FfmAssistantDraftKind.goalUsage
                   ? 'Rekening tujuan dana'
+                  : widget.draft.kind == FfmAssistantDraftKind.receivablePayment
+                  ? 'Rekening tujuan terima'
                   : 'Rekening tujuan',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
             ),
@@ -528,6 +537,8 @@ class _FfmAssistantDraftEditDialogState
                     ? 'Tanggal jatuh tempo'
                     : widget.draft.kind == FfmAssistantDraftKind.goal
                     ? 'Target tanggal tercapai'
+                    : widget.draft.kind == FfmAssistantDraftKind.reminder
+                    ? 'Waktu pengingat'
                     : 'Tanggal aktivitas',
               ),
               subtitle: Text(
@@ -546,6 +557,8 @@ class _FfmAssistantDraftEditDialogState
                         ? 'Pilih tanggal jatuh tempo'
                         : widget.draft.kind == FfmAssistantDraftKind.goal
                         ? 'Pilih target tanggal tercapai'
+                        : widget.draft.kind == FfmAssistantDraftKind.reminder
+                        ? 'Pilih tanggal pengingat'
                         : 'Pilih tanggal transaksi',
                   );
                   if (picked != null && mounted) {

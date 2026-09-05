@@ -1,6 +1,8 @@
+import 'package:drift/drift.dart' as drift;
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/onboarding_preference.dart';
 import 'package:ffm_manager/features/assistant/domain/assistant_onboarding_orchestrator.dart';
@@ -15,6 +17,7 @@ void main() {
 
     setUp(() async {
       FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
       database = AppDatabase(NativeDatabase.memory());
 
       // Inisialisasi household default
@@ -81,6 +84,80 @@ void main() {
       // 6. Verifikasi OnboardingPreference ditandai selesai
       final completed = await OnboardingPreference.isCompleted();
       expect(completed, isTrue);
+    });
+
+    test('evaluateAdaptiveStage transitions correctly through multi-visit lifecycle', () async {
+      // 1. Awal mula: belum ada akun -> emptyData
+      expect(
+        await orchestrator.evaluateAdaptiveStage(),
+        AdaptiveOnboardingStage.emptyData,
+      );
+
+      // 2. Buat akun -> needsFirstTransaction
+      await database.into(database.accounts).insert(
+        AccountsCompanion.insert(
+          id: 'acc-1',
+          householdId: testHouseholdId,
+          name: 'Dompet Tunai',
+          type: 'cash',
+          createdAt: DateTime.now(),
+        ),
+      );
+      expect(
+        await orchestrator.evaluateAdaptiveStage(),
+        AdaptiveOnboardingStage.needsFirstTransaction,
+      );
+
+      // Cek sapaan bimbingan transaksi pertama
+      final greeting1 = await orchestrator.checkAdaptiveGreeting();
+      expect(greeting1, isNotNull);
+      expect(greeting1!.message, contains('transaksi pertama'));
+      expect(greeting1.suggestions, contains('Beli bensin 25rb'));
+
+      // Sapaan kedua di tahap yang sama tidak boleh spam
+      final greeting1Again = await orchestrator.checkAdaptiveGreeting();
+      expect(greeting1Again, isNull);
+
+      // 3. Catat transaksi -> needsBudget
+      await database.into(database.transactions).insert(
+        TransactionsCompanion.insert(
+          id: 'tx-1',
+          householdId: testHouseholdId,
+          type: 'expense',
+          date: DateTime.now(),
+          recordedAt: DateTime.now(),
+          amount: 25000,
+          createdAt: DateTime.now(),
+        ),
+      );
+      expect(
+        await orchestrator.evaluateAdaptiveStage(),
+        AdaptiveOnboardingStage.needsBudget,
+      );
+
+      // Cek sapaan bimbingan anggaran
+      final greeting2 = await orchestrator.checkAdaptiveGreeting();
+      expect(greeting2, isNotNull);
+      expect(greeting2!.message, contains('anggaran bulanan'));
+      expect(greeting2.suggestions, contains('Buat anggaran makan 1.5jt'));
+
+      // 4. Buat anggaran -> graduated
+      await database.into(database.envelopeBudgets).insert(
+        EnvelopeBudgetsCompanion.insert(
+          id: 'bgt-1',
+          householdId: testHouseholdId,
+          name: 'Makan & Minum',
+          allocated: const drift.Value(1500000),
+          startDate: DateTime.now(),
+          endDate: DateTime.now().add(const Duration(days: 30)),
+          createdAt: DateTime.now(),
+        ),
+      );
+      expect(
+        await orchestrator.evaluateAdaptiveStage(),
+        AdaptiveOnboardingStage.graduated,
+      );
+      expect(await orchestrator.checkAdaptiveGreeting(), isNull);
     });
   });
 }

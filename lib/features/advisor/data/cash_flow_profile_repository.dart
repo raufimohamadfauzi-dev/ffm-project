@@ -94,4 +94,35 @@ class CashFlowProfileRepository {
       jsonEncode(updated.map((p) => p.toJson()).toList()),
     );
   }
+
+  /// Ekspor seluruh profil arus kas dalam bentuk data map mentah untuk Full Backup.
+  Future<List<Map<String, Object?>>> exportRaw(String householdId) async {
+    final list = await getAllProfiles(householdId);
+    return list.map((p) => p.toJson()).toList();
+  }
+
+  /// Impor dan pulihkan profil arus kas dari Full Backup dengan sistem penggabungan (merge & append).
+  /// Data profil yang sudah ada di HP baru tidak akan terhapus, melainkan disatukan.
+  Future<void> importRaw(
+    String householdId,
+    List<Map<String, Object?>> rows,
+  ) async {
+    final incoming = rows.map((e) => CashFlowProfile.fromJson(e)).toList();
+    final existing = await getAllProfiles(householdId);
+    final idMap = {for (final p in existing) p.id: p};
+
+    final merged = List<CashFlowProfile>.from(existing);
+    for (final p in incoming) {
+      if (!idMap.containsKey(p.id)) {
+        merged.add(p);
+        idMap[p.id] = p;
+      }
+    }
+
+    final prefs = await _prefs();
+    await prefs.setString(
+      _getKey(householdId),
+      jsonEncode(merged.map((p) => p.toJson()).toList()),
+    );
+  }
 }

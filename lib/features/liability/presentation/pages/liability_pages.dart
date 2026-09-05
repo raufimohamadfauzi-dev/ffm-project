@@ -12,6 +12,7 @@ import '../../../receivable/presentation/pages/receivable_pages.dart';
 import '../../domain/entities/liability_entity.dart';
 import '../../domain/debt_receivable_validation.dart';
 import '../../domain/usecases/liability_crud_usecases.dart';
+import 'debt_payoff_strategy_page.dart';
 import 'liability_detail_page.dart';
 
 enum _LiabilitySort {
@@ -33,6 +34,20 @@ class LiabilityReceivablePage extends StatelessWidget {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('Hutang & piutang'),
+            actions: [
+              IconButton(
+                tooltip: 'Simulator Bebas Hutang',
+                icon: const Icon(Icons.calculate_outlined),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DebtPayoffStrategyPage(),
+                    ),
+                  );
+                },
+              ),
+            ],
             bottom: const TabBar(
               tabs: [
                 Tab(text: 'Hutang'),
@@ -400,6 +415,61 @@ class _LiabilityListPageState extends State<LiabilityListPage> {
                               ],
                             ),
                           ),
+                          if (total > 0) ...[
+                            const SizedBox(height: 8),
+                            InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        const DebtPayoffStrategyPage(),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primarySoft,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.primary.withAlpha(50),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.bolt,
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Simulasi Bebas Hutang (Snowball vs Avalanche)',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.primary,
+                                            ),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.chevron_right,
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 8),
                           // Search field
                           TextField(

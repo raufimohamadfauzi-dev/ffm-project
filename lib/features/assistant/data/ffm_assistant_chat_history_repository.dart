@@ -324,6 +324,8 @@ class FfmAssistantChatHistoryRepository {
     'receivedAt': entry.receivedAt?.toIso8601String(),
     'modelUsed': entry.modelUsed,
     'absorbedMemory': entry.absorbedMemory,
+    if (entry.suggestedQuestions.isNotEmpty)
+      'suggestedQuestions': entry.suggestedQuestions,
   };
 
   FfmAssistantChatEntry? _decodeEntry(Map raw) {
@@ -342,6 +344,10 @@ class FfmAssistantChatHistoryRepository {
     final feedbackType = raw['feedbackType'];
     final feedbackCategory = raw['feedbackCategory'];
     final absorbedMemory = raw['absorbedMemory'];
+    final rawSuggested = raw['suggestedQuestions'];
+    final suggestedQuestions = rawSuggested is List
+        ? rawSuggested.map((e) => e.toString()).toList()
+        : const <String>[];
     return FfmAssistantChatEntry(
       isUser: isUser,
       text: text,
@@ -358,6 +364,7 @@ class FfmAssistantChatHistoryRepository {
       feedbackType: feedbackType is String ? feedbackType : null,
       feedbackCategory: feedbackCategory is String ? feedbackCategory : null,
       absorbedMemory: absorbedMemory is String ? absorbedMemory : null,
+      suggestedQuestions: suggestedQuestions,
     );
   }
 
@@ -387,6 +394,8 @@ class FfmAssistantChatHistoryRepository {
         sentAt: entry.sentAt,
         receivedAt: entry.receivedAt,
         modelUsed: entry.modelUsed,
+        absorbedMemory: entry.absorbedMemory,
+        suggestedQuestions: entry.suggestedQuestions,
       );
       await save(entries);
     }

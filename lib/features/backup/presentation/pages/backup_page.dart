@@ -10,6 +10,7 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../advisor/data/cash_flow_profile_repository.dart';
 import '../../../advisor/domain/usecases/financial_health_calculator.dart';
 import '../../../asset/domain/usecases/asset_crud_usecases.dart';
 import '../../../assistant/data/ffm_assistant_chat_history_repository.dart';
@@ -18,6 +19,8 @@ import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart'
 import '../../../goal/domain/usecases/goal_crud_usecases.dart';
 import '../../../liability/domain/usecases/liability_crud_usecases.dart';
 import '../../../receivable/domain/usecases/receivable_crud_usecases.dart';
+import '../../../settings/data/utility_meter_repository.dart';
+import '../../../settings/data/vehicle_repository.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../data/json_backup_service.dart';
 import '../../data/pdf_report_service.dart';
@@ -70,6 +73,20 @@ class _BackupPageState extends State<BackupPage> {
           })
           .toList(growable: false);
 
+      final householdId = AppContext.householdId;
+      final utilityRepo = getIt.isRegistered<UtilityMeterRepository>()
+          ? getIt<UtilityMeterRepository>()
+          : UtilityMeterRepository();
+      final cashFlowRepo = getIt.isRegistered<CashFlowProfileRepository>()
+          ? getIt<CashFlowProfileRepository>()
+          : CashFlowProfileRepository();
+      final vehicleRepo = getIt.isRegistered<VehicleRepository>()
+          ? getIt<VehicleRepository>()
+          : VehicleRepository();
+      final utilityRows = await utilityRepo.exportRaw(householdId);
+      final cashFlowRows = await cashFlowRepo.exportRaw(householdId);
+      final vehicleRows = await vehicleRepo.exportRaw(householdId);
+
       final content = await _service.exportJson(
         assistantChatHistory:
             _exportIncludeChatHistory && filteredHistory.isNotEmpty
@@ -79,6 +96,9 @@ class _BackupPageState extends State<BackupPage> {
             _exportIncludeChatHistory && conversationRows.isNotEmpty
             ? conversationRows
             : null,
+        utilityMeters: utilityRows.isNotEmpty ? utilityRows : null,
+        cashFlowProfiles: cashFlowRows.isNotEmpty ? cashFlowRows : null,
+        vehicles: vehicleRows.isNotEmpty ? vehicleRows : null,
       );
 
       final bytes = Uint8List.fromList(utf8.encode(content));
@@ -184,6 +204,24 @@ class _BackupPageState extends State<BackupPage> {
           await FfmAssistantChatHistoryRepository().importConversationsRaw(
             rows,
           );
+        },
+        onRestoreUtilityMeters: (rows) async {
+          final repo = getIt.isRegistered<UtilityMeterRepository>()
+              ? getIt<UtilityMeterRepository>()
+              : UtilityMeterRepository();
+          await repo.importRaw(AppContext.householdId, rows);
+        },
+        onRestoreCashFlowProfiles: (rows) async {
+          final repo = getIt.isRegistered<CashFlowProfileRepository>()
+              ? getIt<CashFlowProfileRepository>()
+              : CashFlowProfileRepository();
+          await repo.importRaw(AppContext.householdId, rows);
+        },
+        onRestoreVehicles: (rows) async {
+          final repo = getIt.isRegistered<VehicleRepository>()
+              ? getIt<VehicleRepository>()
+              : VehicleRepository();
+          await repo.importRaw(AppContext.householdId, rows);
         },
       );
       if (!mounted) return;
@@ -460,6 +498,8 @@ class _BackupPageState extends State<BackupPage> {
     final rekonsiliasi = preview.counts['reconciliations'] ?? 0;
     final aktivitas = preview.counts['activity_logs'] ?? 0;
     final pengingat = preview.counts['reminders'] ?? 0;
+    final meteran = preview.counts['utility_meters'] ?? 0;
+    final kendaraan = preview.counts['vehicles'] ?? 0;
     final rentang = preview.transactionFrom == null
         ? 'belum ada data transaksi'
         : '${_dateLabel(preview.transactionFrom!)} s/d ${_dateLabel(preview.transactionTo!)}';
@@ -473,7 +513,9 @@ class _BackupPageState extends State<BackupPage> {
         '• Batas Anggaran: $anggaran\n'
         '• Pengingat Lokal: $pengingat\n'
         '• Rekonsiliasi Saldo: $rekonsiliasi\n'
-        '• Log Aktivitas: $aktivitas';
+        '• Log Aktivitas: $aktivitas'
+        '${meteran > 0 ? '\n• Buku Saku Meteran & Token: $meteran' : ''}'
+        '${kendaraan > 0 ? '\n• Kendaraan & Log BBM: $kendaraan' : ''}';
   }
 
   String _dateLabel(DateTime date) {

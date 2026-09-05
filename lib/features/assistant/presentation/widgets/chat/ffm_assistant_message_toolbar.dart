@@ -55,6 +55,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
     required this.teachingSaved,
     required this.foregroundColor,
     this.actionPlan,
+    this.onShowFollowUpQuestions,
+    this.followUpCount = 0,
   });
 
   final bool isUser;
@@ -76,6 +78,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   final bool teachingSaved;
   final Color foregroundColor;
   final FfmAssistantActionPlan? actionPlan;
+  final VoidCallback? onShowFollowUpQuestions;
+  final int followUpCount;
 
   @override
   Widget build(BuildContext context) {
@@ -163,6 +167,15 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
               onPressed: onCopyText,
               style: IconButton.styleFrom(foregroundColor: foregroundColor),
               icon: const Icon(Icons.copy_outlined),
+            ),
+          ),
+        if (!isUser && onShowFollowUpQuestions != null && followUpCount > 0)
+          Tooltip(
+            message: 'Saran pertanyaan lanjutan ($followUpCount)',
+            child: IconButton(
+              onPressed: onShowFollowUpQuestions,
+              style: IconButton.styleFrom(foregroundColor: const Color(0xFFEAB308)),
+              icon: const Icon(Icons.lightbulb_rounded),
             ),
           ),
         if (hasMoreActions)

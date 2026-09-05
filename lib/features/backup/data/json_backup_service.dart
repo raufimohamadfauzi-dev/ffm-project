@@ -30,6 +30,9 @@ class JsonBackupService {
   Future<String> exportJson({
     List<Map<String, Object?>>? assistantChatHistory,
     List<Map<String, Object?>>? assistantChatConversations,
+    List<Map<String, Object?>>? utilityMeters,
+    List<Map<String, Object?>>? cashFlowProfiles,
+    List<Map<String, Object?>>? vehicles,
   }) async {
     final tables = await _getUserTableNames();
     final modules = <String, Object?>{};
@@ -45,6 +48,24 @@ class JsonBackupService {
     }
     if (assistantChatConversations != null) {
       modules['assistant_chat_conversations'] = assistantChatConversations
+          .map(_jsonSafe)
+          .whereType<Map<String, Object?>>()
+          .toList(growable: false);
+    }
+    if (utilityMeters != null) {
+      modules['utility_meters'] = utilityMeters
+          .map(_jsonSafe)
+          .whereType<Map<String, Object?>>()
+          .toList(growable: false);
+    }
+    if (cashFlowProfiles != null) {
+      modules['cash_flow_profiles'] = cashFlowProfiles
+          .map(_jsonSafe)
+          .whereType<Map<String, Object?>>()
+          .toList(growable: false);
+    }
+    if (vehicles != null) {
+      modules['vehicles'] = vehicles
           .map(_jsonSafe)
           .whereType<Map<String, Object?>>()
           .toList(growable: false);
@@ -122,6 +143,12 @@ class JsonBackupService {
     onRestoreChatHistory,
     Future<void> Function(List<Map<String, Object?>> rows)?
     onRestoreChatConversations,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreUtilityMeters,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreCashFlowProfiles,
+    Future<void> Function(List<Map<String, Object?>> rows)?
+    onRestoreVehicles,
   }) async {
     final content = await File(path).readAsString();
     final decoded = jsonDecode(content);
@@ -148,6 +175,9 @@ class JsonBackupService {
     }
     final chatHistoryRows = rawModules['assistant_chat_history'];
     final chatConversationRows = rawModules['assistant_chat_conversations'];
+    final utilityMeterRows = rawModules['utility_meters'];
+    final cashFlowProfileRows = rawModules['cash_flow_profiles'];
+    final vehicleRows = rawModules['vehicles'];
     final safeChatHistory = chatHistoryRows is List
         ? chatHistoryRows
               .whereType<Map>()
@@ -156,6 +186,24 @@ class JsonBackupService {
         : null;
     final safeChatConversations = chatConversationRows is List
         ? chatConversationRows
+              .whereType<Map>()
+              .map((row) => Map<String, Object?>.from(row))
+              .toList()
+        : null;
+    final safeUtilityMeters = utilityMeterRows is List
+        ? utilityMeterRows
+              .whereType<Map>()
+              .map((row) => Map<String, Object?>.from(row))
+              .toList()
+        : null;
+    final safeCashFlowProfiles = cashFlowProfileRows is List
+        ? cashFlowProfileRows
+              .whereType<Map>()
+              .map((row) => Map<String, Object?>.from(row))
+              .toList()
+        : null;
+    final safeVehicles = vehicleRows is List
+        ? vehicleRows
               .whereType<Map>()
               .map((row) => Map<String, Object?>.from(row))
               .toList()
@@ -183,6 +231,15 @@ class JsonBackupService {
     }
     if (onRestoreChatConversations != null && safeChatConversations != null) {
       await onRestoreChatConversations(safeChatConversations);
+    }
+    if (onRestoreUtilityMeters != null && safeUtilityMeters != null) {
+      await onRestoreUtilityMeters(safeUtilityMeters);
+    }
+    if (onRestoreCashFlowProfiles != null && safeCashFlowProfiles != null) {
+      await onRestoreCashFlowProfiles(safeCashFlowProfiles);
+    }
+    if (onRestoreVehicles != null && safeVehicles != null) {
+      await onRestoreVehicles(safeVehicles);
     }
   }
 
@@ -270,6 +327,15 @@ class JsonBackupService {
 
   bool _isSecretField(String key) {
     final normalized = key.toLowerCase().replaceAll('-', '_');
+    // Field token listrik PLN (misal: lastTokenNumber, tokenNumber, lastToken) bukan token auth rahasia
+    if (normalized.contains('tokennumber') ||
+        normalized.contains('token_number') ||
+        normalized.contains('lasttoken') ||
+        normalized.contains('last_token') ||
+        normalized.contains('tokenhistory') ||
+        normalized.contains('token_history')) {
+      return false;
+    }
     return normalized.contains('api_key') ||
         normalized.contains('token') ||
         normalized.contains('password') ||
@@ -361,6 +427,9 @@ class JsonBackupService {
     'assistant_memories' => 'assistant_memories',
     'assistant_learning_examples' => 'assistant_learning_examples',
     'assistant_chat_history' => 'assistant_chat_history',
+    'utility_meters' => 'utility_meters',
+    'cash_flow_profiles' => 'cash_flow_profiles',
+    'vehicles' => 'vehicles',
     _ => table,
   };
 }

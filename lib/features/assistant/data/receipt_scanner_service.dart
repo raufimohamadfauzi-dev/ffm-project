@@ -16,6 +16,7 @@ class ReceiptScanOutcome {
     this.latency,
     this.model,
     this.imagePath,
+    this.tokenUsage,
   });
 
   final bool ok;
@@ -25,6 +26,7 @@ class ReceiptScanOutcome {
   final Duration? latency;
   final String? model;
   final String? imagePath;
+  final Map<String, dynamic>? tokenUsage;
 
   int get transactionCount => batch?.entries.length ?? 0;
 }
@@ -34,6 +36,22 @@ class ReceiptScannerService {
       : _gemini = gemini ?? GeminiService();
 
   final GeminiService _gemini;
+
+  /// Menandai teks struk yang plausibel sebagai pembelian token listrik PLN.
+  /// Deteksi meteran/token otomatis hanya aman untuk teks seperti ini;
+  /// nomor panjang pada struk lain tidak boleh memicu meteran baru.
+  static bool isPlnTokenText(String text) {
+    final lower = text.toLowerCase();
+    return lower.contains('pln') ||
+        lower.contains('idpel') ||
+        lower.contains('meter pln') ||
+        lower.contains('token listrik') ||
+        lower.contains('pulsa listrik') ||
+        lower.contains('voucher listrik') ||
+        lower.contains('kwh') ||
+        lower.contains('prabayar') ||
+        lower.contains('listrik');
+  }
 
   /// Batas ukuran inline image yang dikirim tanpa diubah (10 MB).
   static const int _maxInlineBytes = 10 * 1024 * 1024;
@@ -47,6 +65,7 @@ class ReceiptScannerService {
     required Uint8List bytes,
     String mimeType = 'image/jpeg',
     String? imagePath,
+    String? userCaption,
     String? apiKey,
     String? model,
   }) async {
@@ -58,7 +77,11 @@ class ReceiptScannerService {
       );
     }
 
-    final prompt = ReceiptImportService.buildExternalLlmBatchPrompt();
+    final basePrompt = ReceiptImportService.buildExternalLlmBatchPrompt();
+    final prompt = (userCaption != null && userCaption.trim().isNotEmpty)
+        ? '$basePrompt\n\nCatatan instruksi dari pengguna: "${userCaption.trim()}". Sesuaikan kategori, nama toko, atau rekening transaksi bila relevan.'
+        : basePrompt;
+
     final imageInput = GeminiImageInput(
       base64Data: base64Encode(prepared.$1),
       mimeType: prepared.$2,
@@ -71,6 +94,7 @@ class ReceiptScannerService {
       model: model,
       maxOutputTokens: 2048,
     );
+    final tokenUsage = result.usageMetadata?.toJson();
     if (!result.ok) {
       return ReceiptScanOutcome(
         ok: false,
@@ -78,6 +102,7 @@ class ReceiptScannerService {
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
+        tokenUsage: tokenUsage,
       );
     }
     final text = result.text?.trim();
@@ -88,6 +113,7 @@ class ReceiptScannerService {
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
+        tokenUsage: tokenUsage,
       );
     }
 
@@ -102,6 +128,7 @@ class ReceiptScannerService {
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
+        tokenUsage: tokenUsage,
       );
     } on ReceiptImportException catch (error) {
       return ReceiptScanOutcome(
@@ -110,14 +137,16 @@ class ReceiptScannerService {
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
+        tokenUsage: tokenUsage,
       );
-    } on Object {
+    } on Object catch (error) {
       return ReceiptScanOutcome(
         ok: false,
-        message: 'Struk terbaca tetapi hasilnya tidak sesuai format. Coba lagi dengan foto lain.',
+        message: 'Format hasil baca struk tidak dapat diolah: $error',
         latency: result.latency,
         model: result.model,
         imagePath: imagePath,
+        tokenUsage: tokenUsage,
       );
     }
   }
@@ -151,25 +180,30 @@ Kamu menerima sebuah FOTO STRUK/NOTA/BUKTI PEMBAYARAN.
 Perhatikan baik-baik gambar sebelum menulis JSON:
 - Baca nomor, rincian barang, total, tanggal, nama toko dengan teliti sesuai teks di foto.
 - Jangan menebak angka yang buram; jika sebuah angka tidak terbaca, gunakan null untuk field itu, bukan menebak.
-- Struk pembelian TOKEN LISTRIK PLN: tulis sebagai satu transaksi expense; isi budget_name dengan pos anggaran listrik yang paling cocok (misalnya "Listrik") bila tersirat; masukkan visible token 20 digit dan IDPEL ke note bila terbaca. Total pembelian token adalah jumlah yang dibayar, bukan jumlah kWh.
+- Struk pembelian TOKEN LISTRIK PLN: tulis sebagai satu transaksi expense; isi budget_name dengan "Listrik" atau pos anggaran utilitas yang cocok; masukkan nomor token 20 digit (format 5 blok: xxxx-xxxx-xxxx-xxxx-xxxx atau 20 angka) dan IDPEL / nomor meteran ke note dan items. Total pembelian token adalah jumlah yang dibayar (Rupiah), bukan kWh.
+- Struk pembelian BBM di SPBU (Pertamina/Shell/BP/dll): tulis sebagai transaksi expense dengan merchant nama SPBU; isi budget_name "Transportasi" atau "BBM"; tulis jenis BBM (Pertalite/Pertamax/Solar/Dexlite) dan jumlah liter ke note atau rincian items, serta plat nomor kendaraan bila terbaca.
 - Struk isi ulang pulsa/kuota/data/saldo e-wallet: satu transaksi expense dengan merchant sesuai merek.
 - Struk yang hanya berisi rincian (bukan pembelian, misal rekening tagihan) tetap satu transaksi expense.
 - Jangan menggabungkan beberapa transaksi yang jelas terpisah menjadi satu.
 - Aplikasi menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.''';
 
-  /// Menyiapkan bytes image; menurunkan resolusi bila melebihi kapasitas inline.
+  /// Menyiapkan bytes image; menurunkan resolusi bila gambar terlalu besar
+  /// (>10MB atau sisi terpanjang >1600px) untuk upload cepat & konsisten.
   Future<(Uint8List, String)?> _prepareImage(
     Uint8List bytes,
     String mimeType,
   ) async {
-    if (bytes.lengthInBytes <= _maxInlineBytes) {
-      return (bytes, mimeType);
-    }
     try {
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       final image = frame.image;
       try {
+        final longest = math.max(image.width, image.height);
+        final needsDownscale =
+            bytes.lengthInBytes > _maxInlineBytes || longest > _maxDimension;
+        if (!needsDownscale) {
+          return (bytes, mimeType);
+        }
         final resized = await _resize(image, _maxDimension);
         final byteData = await resized.toByteData(
           format: ui.ImageByteFormat.png,

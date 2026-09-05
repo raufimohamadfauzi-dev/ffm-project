@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -20,6 +22,17 @@ import '../../../activity/domain/services/activity_application_service.dart';
 import '../../../activity/presentation/bloc/activity_bloc.dart';
 import '../../../activity/presentation/widgets/activity_live_bar.dart';
 import '../../../settings/data/account_repository.dart';
+import '../../../settings/data/utility_meter_repository.dart';
+import '../../../settings/domain/entities/utility_meter_models.dart';
+import '../../../settings/data/vehicle_repository.dart';
+import '../../../settings/domain/entities/vehicle_models.dart';
+import '../../domain/services/ffm_follow_up_suggestion_engine.dart';
+import '../../../advisor/domain/services/proactive_cash_flow_checkin_service.dart';
+import '../../../advisor/data/cash_flow_profile_repository.dart';
+import '../../../advisor/domain/entities/cash_flow_profile_models.dart';
+import '../../domain/entities/autonomous_activity_models.dart';
+import '../../data/autonomous_activity_repository.dart';
+import '../../domain/detectors/intelligent_envelope_rebalance_detector.dart';
 import '../../data/ffm_assistant_capability_adapters.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
 import '../../domain/ffm_assistant_capability_executor.dart';
@@ -32,6 +45,8 @@ import '../../data/ffm_assistant_chat_export_service.dart';
 import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_memory_learning_service.dart';
+import '../../data/receipt_scanner_service.dart';
+import '../../../transaction/data/services/receipt_import_service.dart';
 import '../../domain/ffm_memory_candidate.dart';
 import '../../domain/ffm_memory_type.dart';
 
@@ -67,6 +82,14 @@ import 'ffm_assistant_markdown_text.dart';
 import 'ffm_assistant_global_launcher.dart';
 import '../pages/ffm_memory_viewer_page.dart';
 import 'ffm_memory_nudge_card.dart';
+import 'ffm_habit_suggestion_card.dart';
+import 'morning_briefing_card.dart';
+import '../../domain/services/transaction_pattern_miner.dart';
+import '../../domain/services/executive_morning_briefing_service.dart';
+import '../../data/habit_pattern_repository.dart';
+import '../../data/plugins/ffm_logic_plugins.dart';
+import '../../domain/ffm_agent_harness.dart';
+import '../../../liability/presentation/pages/debt_payoff_strategy_page.dart';
 import '../../../settings/presentation/pages/supabase_setup_page.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
@@ -174,6 +197,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final List<FfmAssistantProcessEvent> _activeProcessEvents =
       <FfmAssistantProcessEvent>[];
   var _submitting = false;
+  var _scanning = false;
+  String? _pendingAttachmentPath;
+  String? _pendingAttachmentName;
+
+  final _receiptScanner = ReceiptScannerService();
   var _activeProcessLabel = 'Menyiapkan permintaan...';
   var _navigatingFromChat = false;
   var _cloudReady = false;
@@ -199,6 +227,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   String? _conversationId;
   List<FfmAssistantChatConversation> _conversations = const [];
   List<String> _onboardingSuggestions = const <String>[];
+  List<String> _activeSuggestedQuestions = const <String>[];
+  final _followUpEngine = const FfmFollowUpSuggestionEngine();
 
   // Streaming state
   final _streamingController = FfmStreamingTextController();
@@ -214,6 +244,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _memoryCount = 0;
   var _inboxCount = 0;
   FfmPersonalMemoryInsight? _pendingMemoryInsight;
+  MinedTransactionPattern? _dueHabitPattern;
+  ExecutiveMorningBriefing? _activeMorningBriefing;
+  var _briefingAudioPlaying = false;
+  var _briefingAudioPaused = false;
+  String? _briefingSpeechSessionId;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
   List<FfmAssistantDraftQueueItem> get _draftQueue => widget.session.draftQueue;
@@ -231,8 +266,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   FfmAssistantProcessTrace _traceFor(
     FfmAssistantIntent intent,
-    Duration elapsed,
-  ) {
+    Duration elapsed, {
+    Map<String, dynamic>? tokenUsage,
+  }) {
     final origin = intent.responseOrigin;
     final pluginName = intent.pluginName;
     final pluginCategory = intent.pluginCategory;
@@ -270,8 +306,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final capabilityDetail = usedReadCapability != null
         ? _readCapabilityDetail(usedReadCapability, intent)
         : null;
-    final tokenUsage =
-        intent.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?;
+    final effectiveTokenUsage = tokenUsage ??
+        (intent.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?);
 
     return FfmAssistantProcessTrace(
       origin: origin,
@@ -283,7 +319,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : null,
       pluginName: pluginName,
       pluginCategory: pluginCategory,
-      tokenUsage: tokenUsage,
+      tokenUsage: effectiveTokenUsage,
       events: [
         FfmAssistantProcessEvent(
           label: 'Memahami: $intentLabel',
@@ -417,8 +453,149 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     trace.events.insertAll(trace.events.length - 1, newEvents);
   }
 
+  String? _lastUserQuery() {
+    for (var i = _entries.length - 1; i >= 0; i--) {
+      if (_entries[i].isUser) {
+        return _entries[i].text;
+      }
+    }
+    return null;
+  }
+
+  void _showFollowUpQuestionsSheet(List<String> questions) {
+    if (questions.isEmpty) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 16,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.lightbulb_rounded,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Saran Pertanyaan Lanjutan',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Pilih pertanyaan di bawah untuk langsung dikirim ke asisten:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ...questions.map(
+                  (q) => Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: isDark
+                          ? const Color(0xFF2A2A2A)
+                          : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          _submit(q);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                                color: Colors.blueAccent,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  q,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _appendEntry(FfmAssistantChatEntry entry) {
     final now = DateTime.now();
+    final suggestedQuestions = !entry.isUser
+        ? (entry.suggestedQuestions.isNotEmpty
+            ? entry.suggestedQuestions
+            : _followUpEngine.generateSuggestions(
+                userText: _lastUserQuery() ?? '',
+                assistantResponse: entry.text,
+              ))
+        : const <String>[];
+
     final enriched = FfmAssistantChatEntry(
       isUser: entry.isUser,
       text: entry.text,
@@ -440,8 +617,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : (entry.receivedAt ?? now),
       modelUsed: entry.modelUsed ?? _modelLabelFor(entry),
       absorbedMemory: entry.absorbedMemory,
+      suggestedQuestions: suggestedQuestions,
     );
     _entries.add(enriched);
+    if (!enriched.isUser && suggestedQuestions.isNotEmpty) {
+      _activeSuggestedQuestions = suggestedQuestions;
+    } else if (enriched.isUser) {
+      _activeSuggestedQuestions = const <String>[];
+    }
     unawaited(_saveCurrentConversation());
     unawaited(_refreshProactiveSuggestion());
 
@@ -611,6 +794,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       for (final entry in restored.reversed) {
         if (!entry.isUser) {
           lastAssistantText = entry.text;
+          if (entry.suggestedQuestions.isNotEmpty) {
+            _activeSuggestedQuestions = entry.suggestedQuestions;
+          }
           break;
         }
       }
@@ -781,6 +967,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       await WidgetsBinding.instance.endOfFrame;
        if (!mounted) return;
        await _checkAndInitiateGreetings();
+       unawaited(_checkDueHabitPatterns());
        await WidgetsBinding.instance.endOfFrame;
        if (!mounted || !_scrollController.hasClients) return;
        // Greeting/onboarding dapat menambah entry setelah posisi awal dihitung.
@@ -809,8 +996,90 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         });
         return;
       }
+
+      // Evaluasi Onboarding Adaptif Berjenjang (Multi-Visit)
+      final adaptiveTurn = await onboarding.checkAdaptiveGreeting();
+      if (adaptiveTurn != null && mounted) {
+        setState(() {
+          _entries.clear();
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: adaptiveTurn.message,
+              createdAt: DateTime.now(),
+              suggestedQuestions: adaptiveTurn.suggestions,
+            ),
+          );
+          widget.session.lastAssistantText = adaptiveTurn.message;
+          _onboardingSuggestions = adaptiveTurn.suggestions;
+        });
+        return;
+      }
     }
     _checkAndInitiateProactiveGreeting();
+    final presentedMorning = await _checkAndInitiateMorningBriefing();
+    if (presentedMorning) return;
+    await _checkAndInitiateCashFlowCheckIn();
+  }
+
+  Future<bool> _checkAndInitiateMorningBriefing() async {
+    if (_historyWasRestored || _entries.length > 1) return false;
+    if (getIt.isRegistered<ExecutiveMorningBriefingService>()) {
+      final briefingService = getIt<ExecutiveMorningBriefingService>();
+      final shouldShow = await briefingService.shouldPresentBriefing(
+        AppContext.householdId,
+      );
+      if (shouldShow && mounted) {
+        final briefing = await briefingService.generateBriefing(
+          AppContext.householdId,
+        );
+        await briefingService.markBriefingPresented(AppContext.householdId);
+        if (!mounted) return false;
+        setState(() {
+          _activeMorningBriefing = briefing;
+          _entries.clear();
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: briefing.textSummary,
+              createdAt: DateTime.now(),
+              suggestedQuestions: const [
+                'Dengarkan briefing pagi 🔊',
+                'Cek saldo kas',
+                'Catat pengeluaran hari ini',
+              ],
+            ),
+          );
+          widget.session.lastAssistantText = briefing.textSummary;
+        });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  Future<void> _checkAndInitiateCashFlowCheckIn() async {
+    if (_historyWasRestored || _entries.length > 1) return;
+    if (getIt.isRegistered<ProactiveCashFlowCheckInService>()) {
+      final checkInService = getIt<ProactiveCashFlowCheckInService>();
+      final prompt =
+          await checkInService.evaluateCheckIn(AppContext.householdId);
+      if (prompt != null && mounted) {
+        setState(() {
+          _entries.clear();
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: prompt.greetingMessage,
+              createdAt: DateTime.now(),
+              suggestedQuestions: prompt.suggestedQuestions,
+            ),
+          );
+          widget.session.lastAssistantText = prompt.greetingMessage;
+        });
+        return;
+      }
+    }
     _checkAndInitiateContextualGreeting();
   }
 
@@ -843,6 +1112,179 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         });
         _scrollToEnd();
       }
+    }
+  }
+
+  Future<void> _checkDueHabitPatterns() async {
+    if (!getIt.isRegistered<TransactionPatternMiner>() ||
+        !getIt.isRegistered<HabitPatternRepository>()) {
+      return;
+    }
+    try {
+      final miner = getIt<TransactionPatternMiner>();
+      final habitRepo = getIt<HabitPatternRepository>();
+      final householdId = AppContext.householdId;
+      final patterns = await miner.minePatterns(householdId: householdId);
+      for (final p in patterns) {
+        if (!p.isDueToday) continue;
+        final suppressed = await habitRepo.isPatternSuppressed(
+          householdId,
+          p.id,
+        );
+        if (!suppressed && mounted) {
+          setState(() {
+            _dueHabitPattern = p;
+          });
+          break;
+        }
+      }
+    } catch (_) {
+      // Best-effort check
+    }
+  }
+
+  Future<void> _acceptHabitPattern(MinedTransactionPattern pattern) async {
+    final now = DateTime.now();
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.expense,
+      createdAt: now,
+      amount: pattern.amount,
+      title: pattern.title,
+      merchantName: pattern.merchant,
+      categoryName: pattern.categoryName,
+      date: now,
+      note: 'Pola rutin: ${pattern.title}',
+    );
+    final response =
+        'Saya siapkan draf pengeluaran untuk ${pattern.title} sebesar Rp ${pattern.amount}. Silakan periksa atau konfirmasi untuk menyimpan.';
+    final intent = FfmAssistantIntent(
+      rawText: 'catat ${pattern.title}',
+      normalizedText: 'catat ${pattern.title.toLowerCase()}',
+      type: FfmAssistantIntentType.createExpense,
+      draft: draft,
+      destination: FfmAssistantDestination.transactions,
+      confidence: 0.95,
+      response: response,
+      responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+      pluginName: 'routine_sense',
+      pluginCategory: 'Pola Rutin',
+    );
+    final review = FfmAssistantDraftReview(
+      draft: draft,
+      version: 1,
+      issues: FfmAssistantDraftValidator.validate(draft),
+    );
+
+    setState(() {
+      widget.session
+        ..activeDraftReview = review
+        ..activeDraftIntent = intent;
+      _enqueueDraft(intent, review);
+      widget.session.lastAssistantText = response;
+      final processTrace = _traceFor(intent, Duration.zero);
+      _appendEntry(
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: response,
+          intent: intent,
+          review: review,
+          processTrace: processTrace,
+        ),
+      );
+      _dueHabitPattern = null;
+    });
+    _scrollToEnd();
+
+    if (getIt.isRegistered<HabitPatternRepository>()) {
+      await getIt<HabitPatternRepository>().snoozePattern(
+        AppContext.householdId,
+        pattern.id,
+      );
+    }
+  }
+
+  Future<void> _snoozeHabitPattern(MinedTransactionPattern pattern) async {
+    setState(() {
+      _dueHabitPattern = null;
+    });
+    if (getIt.isRegistered<HabitPatternRepository>()) {
+      await getIt<HabitPatternRepository>().snoozePattern(
+        AppContext.householdId,
+        pattern.id,
+      );
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saran rutin dilewati untuk minggu ini.'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _dismissHabitPattern(MinedTransactionPattern pattern) async {
+    setState(() {
+      _dueHabitPattern = null;
+    });
+    if (getIt.isRegistered<HabitPatternRepository>()) {
+      await getIt<HabitPatternRepository>().ignorePattern(
+        AppContext.householdId,
+        pattern.id,
+      );
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Saran kebiasaan telah dimatikan.'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _playBriefingAudio(ExecutiveMorningBriefing briefing) async {
+    if (_briefingAudioPaused) {
+      final resumed = await _speech.resumeSpeaking();
+      if (resumed && mounted) {
+        setState(() {
+          _briefingAudioPlaying = true;
+          _briefingAudioPaused = false;
+        });
+        return;
+      }
+    }
+
+    final sessionId = await _speech.speak(briefing.spokenScript);
+    if (sessionId != null && mounted) {
+      setState(() {
+        _briefingAudioPlaying = true;
+        _briefingAudioPaused = false;
+        _briefingSpeechSessionId = sessionId;
+      });
+    }
+  }
+
+  Future<void> _pauseBriefingAudio() async {
+    await _speech.stopSpeaking(sessionId: _briefingSpeechSessionId);
+    if (mounted) {
+      setState(() {
+        _briefingAudioPlaying = false;
+        _briefingAudioPaused = true;
+      });
+    }
+  }
+
+  Future<void> _stopBriefingAudio() async {
+    await _speech.cancelSpeaking();
+    if (mounted) {
+      setState(() {
+        _briefingAudioPlaying = false;
+        _briefingAudioPaused = false;
+        _briefingSpeechSessionId = null;
+      });
     }
   }
 
@@ -1128,7 +1570,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   Future<void> _submit([String? overrideText]) async {
     await _historyRestoreFuture;
+    final attachedPath = _pendingAttachmentPath;
     final text = (overrideText ?? _controller.text).trim();
+
+    if (attachedPath != null) {
+      setState(() {
+        _pendingAttachmentPath = null;
+        _pendingAttachmentName = null;
+        _controller.clear();
+      });
+      await _scanReceiptFromPhoto(
+        customPath: attachedPath,
+        userCaption: text.isNotEmpty ? text : null,
+      );
+      return;
+    }
+
     if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
@@ -1147,6 +1604,302 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd(force: true);
     _checkForMemoryNudge(text);
+
+    final normalized = text.toLowerCase().trim();
+
+    // 0. Permintaan Executive Morning Briefing
+    if (normalized == 'briefing pagi' ||
+        normalized == 'morning briefing' ||
+        normalized == 'ringkasan pagi' ||
+        normalized == 'dengarkan briefing pagi 🔊' ||
+        normalized == 'dengarkan briefing pagi' ||
+        normalized.contains('briefing pagi')) {
+      if (getIt.isRegistered<ExecutiveMorningBriefingService>()) {
+        final briefingService = getIt<ExecutiveMorningBriefingService>();
+        final briefing = await briefingService.generateBriefing(
+          AppContext.householdId,
+        );
+        if (!mounted) return;
+        setState(() {
+          _submitting = false;
+          _activeMorningBriefing = briefing;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: briefing.textSummary,
+              createdAt: DateTime.now(),
+              suggestedQuestions: const [
+                'Dengarkan briefing pagi 🔊',
+                'Cek saldo kas',
+                'Catat pengeluaran hari ini',
+              ],
+            ),
+          );
+          widget.session.lastAssistantText = briefing.textSummary;
+        });
+        _scrollToEnd(force: true);
+
+        if (normalized.contains('dengarkan') || normalized.contains('🔊')) {
+          await _playBriefingAudio(briefing);
+        }
+        return;
+      }
+    }
+
+    // 0.5. Permintaan Buka Simulator atau Konsultasi Strategi Bebas Hutang
+    if (normalized == 'buka simulator bebas hutang' ||
+        normalized == 'buka simulator hutang' ||
+        normalized == 'simulator bebas hutang' ||
+        normalized == 'simulator hutang') {
+      setState(() => _submitting = false);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DebtPayoffStrategyPage(),
+        ),
+      );
+      return;
+    }
+
+    if (normalized.contains('strategi pelunasan hutang') ||
+        normalized.contains('simulasi bebas hutang') ||
+        normalized.contains('simulasi hutang') ||
+        normalized.contains('cara cepat lunas hutang') ||
+        normalized.contains('snowball avalanche') ||
+        normalized.contains('debt snowball') ||
+        normalized.contains('debt avalanche') ||
+        normalized.contains('strategi hutang') ||
+        normalized.contains('rekomendasi cicilan')) {
+      final db = getIt<AppDatabase>();
+      final plugin = FfmDebtSnowballLogicPlugin(db);
+      final result = await plugin.execute(
+        FfmHarnessContext(
+          rawText: text,
+          normalizedText: normalized,
+          householdId: AppContext.householdId,
+          now: DateTime.now(),
+        ),
+      );
+      if (!mounted) return;
+      if (result != null) {
+        setState(() {
+          _submitting = false;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: result.text,
+              createdAt: DateTime.now(),
+              suggestedQuestions: const [
+                'Buka simulator bebas hutang',
+                'Berapa sisa pokok hutang dan total cicilan bulanan saya?',
+                'Apakah rasio cicilan hutang saya saat ini masih aman?',
+              ],
+            ),
+          );
+          widget.session.lastAssistantText = result.text;
+        });
+        _scrollToEnd(force: true);
+        return;
+      }
+    }
+
+    // 1. Perintah Penyeimbangan Anggaran ("seimbangkan anggaran")
+    if (normalized.contains('seimbangkan anggaran') ||
+        normalized.contains('rebalance anggaran') ||
+        normalized.contains('seimbangkan pos anggaran') ||
+        normalized.contains('penyeimbang anggaran')) {
+      final db = getIt<AppDatabase>();
+      final detector = IntelligentEnvelopeRebalanceDetector(db);
+      final insight = await detector.detect(
+        householdId: AppContext.householdId,
+        now: DateTime.now(),
+      );
+      if (!mounted) return;
+      if (insight == null) {
+        setState(() {
+          _submitting = false;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: '⚖️ **Status Anggaran Sehat & Seimbang**\n\n'
+                  'Seluruh pos anggaran aktif Anda saat ini dalam batas aman. Belum ada pos yang over-budget atau membutuhkan pergeseran dana.',
+              createdAt: DateTime.now(),
+            ),
+          );
+        });
+        _scrollToEnd(force: true);
+        return;
+      }
+
+      final payload = insight.actionPayload;
+      final fromName = payload?['fromBudgetName']?.toString() ?? 'Surplus';
+      final toName = payload?['toBudgetName']?.toString() ?? 'Defisit';
+      final amount = (payload?['amount'] as num?)?.toInt() ?? 0;
+
+      setState(() {
+        _submitting = false;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: '⚖️ **Rekomendasi Penyeimbangan Anggaran**\n\n'
+                '${insight.summary}\n\n'
+                '💡 Anda dapat langsung menekan tombol **Terapkan Pergeseran Sekarang** di Kotak Masuk Agen untuk menggeser Rp $amount dari **$fromName** ke **$toName**.',
+            createdAt: DateTime.now(),
+            verifiedFacts: 'Pergeseran Plafon: $fromName -> $toName (Rp $amount)',
+          ),
+        );
+      });
+      _scrollToEnd(force: true);
+      return;
+    }
+
+    // 2. Pendaftaran Kebiasaan Langsung di Chat
+    final isHabitQuery = normalized.endsWith('?') ||
+        normalized.contains(' apa ') ||
+        normalized.contains(' apa?') ||
+        normalized.contains(' berapa ') ||
+        normalized.contains(' berapa?') ||
+        normalized.contains(' mana ') ||
+        normalized.contains('adakah') ||
+        normalized.contains('sebutkan') ||
+        normalized.contains('tampilkan') ||
+        normalized.contains('cek kebiasaan') ||
+        normalized.contains('lihat kebiasaan') ||
+        normalized.contains('riwayat kebiasaan');
+    final isHabitDeclaration = !isHabitQuery &&
+        normalized.contains('kebiasaan') &&
+        (normalized.contains('tiap') ||
+            normalized.contains('setiap') ||
+            normalized.contains('rutin') ||
+            normalized.contains('jadwal') ||
+            normalized.contains('catat kebiasaan'));
+
+    if (isHabitDeclaration) {
+      await _personalMemoryService.saveApproved(
+        FfmPersonalMemoryInsight(
+          kind: FfmPersonalMemoryKind.habitData,
+          key:
+              'habit_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+          value: text,
+          humanLabel: 'Kebiasaan Rutin: $text',
+          sourceMessage: text,
+        ),
+      );
+
+      if (getIt.isRegistered<AutonomousActivityRepository>()) {
+        await getIt<AutonomousActivityRepository>().recordActivity(
+          AutonomousActivityRecord(
+            id: 'act_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+            householdId: AppContext.householdId,
+            title: 'Pendaftaran Kebiasaan Rutin',
+            description: text,
+            activityType: AutonomousActivityType.habitDeclaration,
+            occurredAt: DateTime.now(),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: '💡 **Kebiasaan Rutin Berhasil Didaftarkan!**\n\n'
+                'Saya telah mencatat kebiasaan ini ke dalam memori asisten Anda:\n'
+                '> "$text"\n\n'
+                '✨ Sistem otonom akan memantau pola ini dan siap menyarankan catatan rutin saat harinya tiba.',
+            createdAt: DateTime.now(),
+            absorbedMemory: 'Kebiasaan Rutin',
+          ),
+        );
+      });
+      _scrollToEnd(force: true);
+      return;
+    }
+
+    // 3. Penyesuaian Tanggal Panen / Siklus Tani ("panen mundur / maju / tunda")
+    final isHarvestShift = normalized.contains('panen') &&
+        (normalized.contains('mundur') ||
+            normalized.contains('maju') ||
+            normalized.contains('tunda') ||
+            normalized.contains('geser'));
+    if (isHarvestShift && getIt.isRegistered<CashFlowProfileRepository>()) {
+      final repo = getIt<CashFlowProfileRepository>();
+      final profile = await repo.getActiveProfile(AppContext.householdId);
+      if (profile != null &&
+          profile.profileType == CashFlowProfileType.agriculture) {
+        int daysShift = 0;
+        final weekMatch =
+            RegExp(r'(\d+)\s*(minggu|pekan)').firstMatch(normalized);
+        final dayMatch = RegExp(r'(\d+)\s*(hari)').firstMatch(normalized);
+        final monthMatch = RegExp(r'(\d+)\s*(bulan)').firstMatch(normalized);
+
+        if (weekMatch != null) {
+          final count = int.tryParse(weekMatch.group(1) ?? '1') ?? 1;
+          daysShift = count * 7;
+        } else if (monthMatch != null) {
+          final count = int.tryParse(monthMatch.group(1) ?? '1') ?? 1;
+          daysShift = count * 30;
+        } else if (dayMatch != null) {
+          daysShift = int.tryParse(dayMatch.group(1) ?? '0') ?? 0;
+        } else {
+          daysShift = 14;
+        }
+
+        final isAdvancing = normalized.contains('maju');
+        final actualDelta = isAdvancing ? -daysShift : daysShift;
+        final newTargetDate =
+            profile.targetHarvestDate.add(Duration(days: actualDelta));
+        final updatedProfile =
+            profile.copyWith(targetHarvestDate: newTargetDate);
+        await repo.saveProfile(updatedProfile);
+
+        final directionText = isAdvancing ? 'maju' : 'mundur';
+        final formattedDate =
+            '${newTargetDate.day}/${newTargetDate.month}/${newTargetDate.year}';
+
+        if (getIt.isRegistered<AutonomousActivityRepository>()) {
+          await getIt<AutonomousActivityRepository>().recordActivity(
+            AutonomousActivityRecord(
+              id: 'act_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+              householdId: AppContext.householdId,
+              title: 'Pembaruan Jadwal Panen (${profile.name})',
+              description:
+                  'Menyesuaikan tanggal panen menjadi $formattedDate ($directionText $daysShift hari).',
+              activityType: AutonomousActivityType.harvestShift,
+              occurredAt: DateTime.now(),
+              payload: {
+                'profileId': profile.id,
+                'previousHarvestDate': profile.targetHarvestDate.toIso8601String(),
+                'newHarvestDate': newTargetDate.toIso8601String(),
+              },
+            ),
+          );
+        }
+
+        if (!mounted) return;
+        setState(() {
+          _submitting = false;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text: '🌾 **Jadwal Panen Berhasil Disesuaikan!**\n\n'
+                  'Estimasi panen untuk siklus **${profile.name}** (${profile.commodityOrBusinessType}) telah diperbarui:\n'
+                  '• Tanggal Panen Baru: **$formattedDate** ($directionText $daysShift hari)\n'
+                  '• Sisa Waktu Siklus: **${updatedProfile.daysRemaining} hari lagi**\n\n'
+                  '💡 Proyeksi arus kas harian dan pengingat biaya operasional telah dihitung ulang secara otomatis.',
+              createdAt: DateTime.now(),
+              verifiedFacts:
+                  'Update Panen: ${profile.name} -> $formattedDate',
+            ),
+          );
+        });
+        _scrollToEnd(force: true);
+        return;
+      }
+    }
 
     if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
       final onboarding = getIt<AssistantOnboardingOrchestrator>();
@@ -1379,6 +2132,639 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     ).hasMatch(normalized);
   }
 
+  /// Membuka opsi sumber foto: Kamera (ambil langsung) atau Galeri / Berkas.
+  void _showImagePickerOptions() {
+    if (_submitting || _scanning) return;
+    showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Pindai Struk dengan Gemini AI',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.camera_alt, color: theme.colorScheme.primary),
+                  ),
+                  title: const Text('Ambil Foto Struk (Kamera)'),
+                  subtitle: const Text('Gunakan kamera untuk memotret struk fisik'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.photo_library, color: theme.colorScheme.secondary),
+                  ),
+                  title: const Text('Pilih dari Galeri / Berkas'),
+                  subtitle: const Text('Import file foto struk yang sudah ada di perangkat'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+      if (!mounted) return;
+      setState(() {
+        _pendingAttachmentPath = pickedFile.path;
+        _pendingAttachmentName = pickedFile.name;
+      });
+      _inputFocusNode.requestFocus();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memilih gambar: $e')),
+      );
+    }
+  }
+
+  /// Alur B1 — pemindaian foto struk:
+  /// pilih foto → kirim ke Gemini vision → parse deterministik → draft chat.
+  Future<void> _scanReceiptFromPhoto({
+    String? customPath,
+    String? userCaption,
+  }) async {
+    if (_submitting || _scanning) return;
+    String path;
+    if (customPath != null) {
+      path = customPath;
+    } else {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      );
+      if (picked.isEmpty || picked.single.path == null) return;
+      path = picked.single.path!;
+    }
+    if (!mounted) return;
+    if (!_cloudReady) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pemindaian struk butuh koneksi Gemini Cloud. Aktifkan dulu di Pengaturan Asisten.',
+          ),
+        ),
+      );
+      return;
+    }
+    Uint8List bytes;
+    try {
+      bytes = await File(path).readAsBytes();
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _submitting = false;
+        _scanning = false;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                'Foto struk tidak dapat dibaca dari berkas yang dipilih. Coba pilih foto lain.',
+            filePath: path,
+            fileFormat: 'image',
+            createdAt: DateTime.now(),
+          ),
+        );
+      });
+      unawaited(_saveCurrentConversation());
+      _scrollToEnd(force: true);
+      return;
+    }
+    if (!mounted) return;
+
+    final caption = (userCaption != null && userCaption.trim().isNotEmpty)
+        ? userCaption.trim()
+        : 'Aku lampirkan foto struk untuk dipindai.';
+
+    final userEntry = FfmAssistantChatEntry(
+      isUser: true,
+      text: caption,
+      filePath: path,
+      fileFormat: 'image',
+      createdAt: DateTime.now(),
+    );
+    FfmAssistantChatEntry placeholder = FfmAssistantChatEntry(
+      isUser: false,
+      text: 'Membaca struk dari foto…',
+      filePath: path,
+      fileFormat: 'image',
+      createdAt: DateTime.now(),
+    );
+    setState(() {
+      _submitting = true;
+      _scanning = true;
+      _appendEntry(userEntry);
+      _appendEntry(placeholder);
+    });
+    _scrollToEnd(force: true);
+
+    final outcome = await _receiptScanner.scanImage(
+      bytes: bytes,
+      mimeType: _mimeTypeFor(path),
+      imagePath: path,
+      userCaption: userCaption,
+    );
+
+    if (!mounted) return;
+    final placeholderIndex = _entries.indexOf(
+      _entries.firstWhere(
+        (entry) =>
+            entry.text == 'Membaca struk dari foto…' &&
+            entry.filePath == path,
+        orElse: () => placeholder,
+      ),
+    );
+    setState(() {
+      _submitting = false;
+      _scanning = false;
+      if (placeholderIndex >= 0) {
+        _entries.removeAt(placeholderIndex);
+      }
+      if (!outcome.ok) {
+        final errorTrace = outcome.tokenUsage != null
+            ? FfmAssistantProcessTrace(
+                origin: FfmAssistantResponseOrigin.cloudError,
+                elapsed: outcome.latency ?? Duration.zero,
+                tokenUsage: outcome.tokenUsage,
+                events: [
+                  FfmAssistantProcessEvent(
+                    label: 'Gemini Cloud memproses struk',
+                    detail: outcome.message,
+                    elapsed: outcome.latency ?? Duration.zero,
+                  ),
+                ],
+              )
+            : null;
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: outcome.message,
+            filePath: path,
+            fileFormat: 'image',
+            processTrace: errorTrace,
+            createdAt: DateTime.now(),
+          ),
+        );
+      }
+    });
+    if (outcome.ok) {
+      try {
+        await _appendScanOutcome(outcome);
+      } on Object {
+        if (!mounted) return;
+        setState(() {
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text:
+                  'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
+              filePath: path,
+              fileFormat: 'image',
+              createdAt: DateTime.now(),
+            ),
+          );
+        });
+      }
+    }
+    unawaited(_saveCurrentConversation());
+    _scrollToEnd(force: true);
+  }
+
+  String _mimeTypeFor(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    return 'image/jpeg';
+  }
+
+  Future<void> _appendScanOutcome(ReceiptScanOutcome outcome) async {
+    final batch = outcome.batch;
+    if (batch == null) return;
+    final now = DateTime.now();
+    final warnings = outcome.warnings;
+
+    final utilityRepo = getIt.isRegistered<UtilityMeterRepository>()
+        ? getIt<UtilityMeterRepository>()
+        : UtilityMeterRepository();
+
+    for (var index = 0; index < batch.entries.length; index++) {
+      var entry = batch.entries[index];
+      var draft = _draftForBatchEntry(entry, now);
+      var response = _scanEntryResponse(entry, index + 1);
+
+      final allText = '${entry.note ?? ''} ${entry.merchant ?? ''} ${entry.items.map((i) => "${i.name} ${i.unit ?? ''}").join(" ")}';
+      final lowerText = allText.toLowerCase();
+
+      // Deteksi meteran PLN hanya dijalankan bila teks benar-benar
+      // mengindikasikan struk token listrik. Nomor panjang pada struk lain
+      // (faktur, referensi transfer) tidak boleh memicu meteran baru.
+      final isTokenReceipt = ReceiptScannerService.isPlnTokenText(allText);
+
+      String? cleanToken;
+      String? cleanMeterNumber;
+      String? meterLabel;
+
+      if (isTokenReceipt) {
+        // Kesalahan penyimpanan meteran tidak boleh menghilangkan draft
+        // transaksi: hasil OCR Gemini tetap dipakai bila langkah ini gagal.
+        try {
+          final tokenRegex = RegExp(r'\b(\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4})\b');
+          final tokenMatch = tokenRegex.firstMatch(allText);
+          if (tokenMatch != null) {
+            final raw = tokenMatch.group(1)!.replaceAll(RegExp(r'\D'), '');
+            if (raw.length == 20) {
+              cleanToken = raw;
+            }
+          }
+
+          final meterRegex = RegExp(r'(?:idpel|meter|no\.?\s*meter|nomor\s*meteran?)[:\s]*(\d{11,12})', caseSensitive: false);
+          final meterMatch = meterRegex.firstMatch(allText);
+          if (meterMatch != null) {
+            cleanMeterNumber = meterMatch.group(1);
+          } else {
+            final fallbackMeterRegex = RegExp(r'\b(\d{11,12})\b');
+            for (final m in fallbackMeterRegex.allMatches(allText)) {
+              final candidate = m.group(1)!;
+              if (cleanToken == null || !cleanToken.contains(candidate)) {
+                cleanMeterNumber = candidate;
+                break;
+              }
+            }
+          }
+
+          if (cleanToken != null) {
+            final formattedToken = '${cleanToken.substring(0, 4)}-${cleanToken.substring(4, 8)}-${cleanToken.substring(8, 12)}-${cleanToken.substring(12, 16)}-${cleanToken.substring(16, 20)}';
+            UtilityMeter? matchedMeter;
+            if (cleanMeterNumber != null) {
+              matchedMeter = await utilityRepo.findMeterByNumber(AppContext.householdId, cleanMeterNumber);
+            }
+
+            if (matchedMeter != null) {
+              await utilityRepo.updateLastToken(
+                householdId: AppContext.householdId,
+                meterNumber: matchedMeter.meterNumber,
+                tokenCode: cleanToken,
+                amount: entry.amount?.toDouble(),
+                timestamp: now,
+              );
+              if (getIt.isRegistered<AutonomousActivityRepository>()) {
+                await getIt<AutonomousActivityRepository>().recordActivity(
+                  AutonomousActivityRecord(
+                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_meter_$index',
+                    householdId: AppContext.householdId,
+                    title: 'Pencatatan Token Listrik (${matchedMeter.name})',
+                    description:
+                        'Memperbarui token $formattedToken untuk meteran ${matchedMeter.formattedMeterNumber}.',
+                    activityType: AutonomousActivityType.utilityMeter,
+                    occurredAt: now,
+                    payload: {
+                      'meterId': matchedMeter.id,
+                      'isNewMeter': false,
+                      'token': cleanToken,
+                    },
+                  ),
+                );
+              }
+              meterLabel = 'Token Listrik ${matchedMeter.name} ($formattedToken)';
+              response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
+                  '• Properti: **${matchedMeter.name}**\n'
+                  '• No. Meter: `${matchedMeter.formattedMeterNumber}`\n'
+                  '• Kode Token: `${matchedMeter.formattedTokenNumber}`\n\n'
+                  'Kode token telah otomatis diperbarui di Buku Saku & riwayat token.\n\n'
+                  '$response';
+            } else if (cleanMeterNumber != null) {
+              final newMeter = UtilityMeter(
+                id: 'meter_${DateTime.now().microsecondsSinceEpoch}_$index',
+                householdId: AppContext.householdId,
+                name: 'Meteran PLN $cleanMeterNumber',
+                meterNumber: cleanMeterNumber,
+                createdAt: now,
+                lastTokenNumber: cleanToken,
+                lastAmount: entry.amount?.toDouble(),
+                lastPurchasedAt: now,
+              );
+              await utilityRepo.saveMeter(newMeter);
+              if (getIt.isRegistered<AutonomousActivityRepository>()) {
+                await getIt<AutonomousActivityRepository>().recordActivity(
+                  AutonomousActivityRecord(
+                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_meter_$index',
+                    householdId: AppContext.householdId,
+                    title: 'Pendaftaran Meteran Baru (${newMeter.name})',
+                    description:
+                        'Mendaftarkan meteran baru ${newMeter.formattedMeterNumber} dengan token $formattedToken.',
+                    activityType: AutonomousActivityType.utilityMeter,
+                    occurredAt: now,
+                    payload: {
+                      'meterId': newMeter.id,
+                      'isNewMeter': true,
+                      'token': cleanToken,
+                    },
+                  ),
+                );
+              }
+              meterLabel = 'Token Listrik PLN ($formattedToken)';
+              response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
+                  '• No. Meter: `${newMeter.formattedMeterNumber}`\n'
+                  '• Kode Token: `$formattedToken`\n\n'
+                  '✨ Meteran baru ini otomatis didaftarkan ke Buku Saku Meteran & Token Anda!\n\n'
+                  '$response';
+            }
+          }
+        } on Object {
+          // Draft transaksi tetap menggunakan hasil OCR Gemini.
+        }
+      }
+
+      if (meterLabel != null) {
+        draft = draft.copyWith(categoryName: 'Listrik', note: meterLabel);
+      }
+
+      final isFuelReceipt = lowerText.contains('spbu') ||
+          lowerText.contains('pertamina') ||
+          lowerText.contains('pertalite') ||
+          lowerText.contains('pertamax') ||
+          lowerText.contains('solar') ||
+          lowerText.contains('dexlite');
+
+      if (isFuelReceipt && cleanToken == null) {
+        draft = draft.copyWith(
+          categoryName: draft.categoryName ?? 'Transportasi',
+        );
+        try {
+          final vehicleRepo = getIt.isRegistered<VehicleRepository>()
+              ? getIt<VehicleRepository>()
+              : VehicleRepository();
+          final vehicles = await vehicleRepo.getAllVehicles(AppContext.householdId);
+
+          Vehicle? matchedVehicle;
+          for (final v in vehicles) {
+            final cleanVPlate = VehicleRepository.normalizePlate(v.plateNumber);
+            final cleanText = VehicleRepository.normalizePlate(allText);
+            if (cleanVPlate.isNotEmpty && cleanText.contains(cleanVPlate)) {
+              matchedVehicle = v;
+              break;
+            }
+            if (v.name.isNotEmpty && lowerText.contains(v.name.toLowerCase())) {
+              matchedVehicle = v;
+              break;
+            }
+            if (v.brandModel.isNotEmpty && lowerText.contains(v.brandModel.toLowerCase())) {
+              matchedVehicle = v;
+              break;
+            }
+          }
+
+          double? detectedLiters;
+          for (final it in entry.items) {
+            if (it.quantity > 0 && (it.unit?.toLowerCase() == 'l' || it.unit?.toLowerCase() == 'liter')) {
+              detectedLiters = it.quantity;
+              break;
+            }
+          }
+          if (detectedLiters == null) {
+            final literRegex = RegExp(r'(\d+(?:[.,]\d+)?)\s*(?:liter|ltr|l\b)', caseSensitive: false);
+            final match = literRegex.firstMatch(allText);
+            if (match != null) {
+              detectedLiters = double.tryParse(match.group(1)!.replaceAll(',', '.'));
+            }
+          }
+
+          String detectedFuel = 'Pertalite';
+          if (lowerText.contains('pertamax turbo')) {
+            detectedFuel = 'Pertamax Turbo';
+          } else if (lowerText.contains('pertamax')) {
+            detectedFuel = 'Pertamax';
+          } else if (lowerText.contains('dexlite')) {
+            detectedFuel = 'Dexlite';
+          } else if (lowerText.contains('solar') || lowerText.contains('biosolar')) {
+            detectedFuel = 'Solar';
+          }
+
+          if (matchedVehicle != null && (detectedLiters != null || (entry.amount != null && entry.amount! > 0))) {
+            final litersVal = detectedLiters ?? 0.0;
+            final amountVal = entry.amount?.toDouble() ?? 0.0;
+            if (litersVal > 0 && amountVal > 0) {
+              final fuelLogId = 'fuel_${DateTime.now().microsecondsSinceEpoch}_$index';
+              await vehicleRepo.addFuelLog(
+                householdId: AppContext.householdId,
+                vehicleId: matchedVehicle.id,
+                fuelLog: FuelLogEntry(
+                  id: fuelLogId,
+                  date: now,
+                  liters: litersVal,
+                  totalAmount: amountVal,
+                  fuelType: detectedFuel,
+                  spbuLocation: entry.merchant ?? 'SPBU',
+                ),
+              );
+              if (getIt.isRegistered<AutonomousActivityRepository>()) {
+                await getIt<AutonomousActivityRepository>().recordActivity(
+                  AutonomousActivityRecord(
+                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_fuel_$index',
+                    householdId: AppContext.householdId,
+                    title: 'Pencatatan BBM (${matchedVehicle.name})',
+                    description:
+                        'Mencatat pengisian ${litersVal}L $detectedFuel seharga Rp ${amountVal.toInt()} untuk ${matchedVehicle.formattedPlateNumber}.',
+                    activityType: AutonomousActivityType.fuelLog,
+                    occurredAt: now,
+                    payload: {
+                      'vehicleId': matchedVehicle.id,
+                      'logId': fuelLogId,
+                      'liters': litersVal,
+                      'totalAmount': amountVal,
+                    },
+                  ),
+                );
+              }
+            }
+
+            final fuelNote = 'BBM $detectedFuel ${matchedVehicle.name} (${matchedVehicle.formattedPlateNumber})${litersVal > 0 ? ' - ${litersVal}L' : ''}';
+            draft = draft.copyWith(
+              categoryName: 'Transportasi',
+              note: fuelNote,
+            );
+
+            response = '⛽ **Struk BBM Terdeteksi & Dicocokkan!**\n'
+                '• Kendaraan: **${matchedVehicle.name}** (`${matchedVehicle.formattedPlateNumber}`)\n'
+                '• Bahan Bakar: **$detectedFuel**${litersVal > 0 ? ' ($litersVal Liter)' : ''}\n\n'
+                'Riwayat pengisian telah otomatis dicatat ke Buku Saku Kendaraan.\n\n'
+                '$response';
+          } else if (vehicles.isNotEmpty) {
+            response = '$response\n\n'
+                '💡 *Tip: Anda memiliki ${vehicles.length} kendaraan di Buku Saku Kendaraan. Transaksi ini dapat dikaitkan langsung ke kendaraan Anda.*';
+          } else {
+            response = '$response\n\n'
+                '💡 *Tip: Daftarkan kendaraan (motor/mobil/traktor) di menu "Kendaraan & Catatan BBM" agar konsumsi liter dan efisiensi KM/L tercatat otomatis.*';
+          }
+        } on Object {
+          // Fallback aman
+        }
+      }
+
+      final intentType = switch (entry.type) {
+        'income' => FfmAssistantIntentType.createIncome,
+        'transfer' => FfmAssistantIntentType.createTransfer,
+        _ => FfmAssistantIntentType.createExpense,
+      };
+      final intent = FfmAssistantIntent(
+        rawText: 'pindai struk',
+        normalizedText: 'pindai struk',
+        type: intentType,
+        destination: FfmAssistantDestination.transactions,
+        draft: draft,
+        confidence: 0.9,
+        response: response,
+        responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+        pluginName: 'receipt_scan',
+        pluginCategory: 'Impor Struk',
+        verifiedFacts: warnings.isEmpty ? null : warnings.join('\n'),
+        pluginMetadata: {
+          if (outcome.tokenUsage != null) 'tokenUsage': outcome.tokenUsage,
+        },
+      );
+      final review = FfmAssistantDraftReview(
+        draft: draft,
+        version: 1,
+        issues: FfmAssistantDraftValidator.validate(draft),
+      );
+      if (!mounted) return;
+      setState(() {
+        widget.session
+          ..activeDraftReview = review
+          ..activeDraftIntent = intent;
+        _enqueueDraft(intent, review);
+        widget.session.lastAssistantText = response;
+        final processTrace = _traceFor(
+          intent,
+          outcome.latency ?? Duration.zero,
+          tokenUsage: outcome.tokenUsage,
+        );
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: response,
+            intent: intent,
+            review: review,
+            filePath: outcome.imagePath,
+            fileFormat: 'image',
+            processTrace: processTrace,
+            verifiedFacts: intent.verifiedFacts,
+          ),
+        );
+      });
+    }
+
+    if (batch.entries.length > 1) {
+      if (!mounted) return;
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                '${batch.entries.length} transaksi terbaca dari satu struk. '
+                'Periksa setiap draft sebelum menyimpan.',
+            createdAt: now,
+          ),
+        );
+      });
+    }
+  }
+
+  FfmAssistantDraft _draftForBatchEntry(
+    ReceiptBatchEntry entry,
+    DateTime now,
+  ) {
+    final itemsText = entry.items.isEmpty
+        ? null
+        : entry.items.map((item) => item.name).where((name) => name.isNotEmpty).join(', ');
+    final kind = switch (entry.type) {
+      'income' => FfmAssistantDraftKind.income,
+      'transfer' => FfmAssistantDraftKind.transfer,
+      _ => FfmAssistantDraftKind.expense,
+    };
+    return FfmAssistantDraft(
+      kind: kind,
+      createdAt: now,
+      amount: entry.amount,
+      title: entry.merchant ?? itemsText,
+      partyName: entry.partyName,
+      categoryName: entry.budgetName,
+      adminFee: entry.adminFee,
+      note: entry.note,
+      date: entry.date,
+      location: entry.location,
+      merchantName: entry.merchant,
+      metadata: entry.receiptNumber != null
+          ? {'receipt_number': entry.receiptNumber}
+          : null,
+    );
+  }
+
+  String _scanEntryResponse(ReceiptBatchEntry entry, int number) {
+    final typeLabel = switch (entry.type) {
+      'income' => 'pemasukan',
+      'transfer' => 'transfer',
+      _ => 'pengeluaran',
+    };
+    final merchant = entry.merchant;
+    final amount = entry.amount;
+    final prefix = merchant != null && merchant.isNotEmpty
+        ? 'Struk $merchant terbaca'
+        : 'Struk terbaca';
+    final amountText = amount != null ? 'Rp${_formatRupiah(amount)}' : null;
+    final detail = <String>[
+      if (amountText != null) '$typeLabel $amountText',
+      if (entry.budgetName != null) 'kategori ${entry.budgetName}',
+    ].join(', ');
+    return '$prefix: $detail. Periksa draft ini sebelum disimpan.';
+  }
+
+  static String _formatRupiah(int value) =>
+      value.toString().replaceAllMapped(
+        RegExp(r'\B(?=(\d{3})+(?!\d))'),
+        (_) => '.',
+      );
+
   Future<bool> _tryHandleActivityRequest(String text) async {
     final normalized = text.toLowerCase().trim();
     // Pada mode Gemini, semua percakapan Aktivitas masuk ke Gemini dulu.
@@ -1605,6 +2991,31 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   void _onSpeechState(ActivitySpeechPlaybackState state) {
+    if (state.sessionId == _briefingSpeechSessionId) {
+      switch (state.status) {
+        case ActivitySpeechPlaybackStatus.started:
+          setState(() {
+            _briefingAudioPlaying = true;
+            _briefingAudioPaused = false;
+          });
+          return;
+        case ActivitySpeechPlaybackStatus.stopped:
+          setState(() {
+            _briefingAudioPlaying = false;
+            _briefingAudioPaused = true;
+          });
+          return;
+        case ActivitySpeechPlaybackStatus.completed:
+        case ActivitySpeechPlaybackStatus.error:
+          setState(() {
+            _briefingAudioPlaying = false;
+            _briefingAudioPaused = false;
+            _briefingSpeechSessionId = null;
+          });
+          return;
+      }
+    }
+
     if (!mounted || state.sessionId != _speakingSessionId) return;
     switch (state.status) {
       case ActivitySpeechPlaybackStatus.started:
@@ -3053,6 +4464,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               _submit('update aktivitas $sessionId: '),
                           onActivityChat: (sessionId) =>
                               _submit('cek aktivitas $sessionId'),
+                          onShowFollowUpQuestions: (questions) =>
+                              _showFollowUpQuestionsSheet(questions),
                         );
                       },
                     ),
@@ -3106,7 +4519,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     valueListenable: _controller,
                     builder: (context, value, _) {
                       final canSend =
-                          !_submitting && value.text.trim().isNotEmpty;
+                          !_submitting &&
+                          (value.text.trim().isNotEmpty ||
+                              _pendingAttachmentPath != null);
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -3134,6 +4549,30 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   }).toList(),
                                 ),
                               ),
+                            ),
+                          if (_activeMorningBriefing != null)
+                            MorningBriefingCard(
+                              briefing: _activeMorningBriefing!,
+                              isPlaying: _briefingAudioPlaying,
+                              isPaused: _briefingAudioPaused,
+                              onPlayAudio: () =>
+                                  _playBriefingAudio(_activeMorningBriefing!),
+                              onPauseAudio: _pauseBriefingAudio,
+                              onStopAudio: _stopBriefingAudio,
+                              onClose: () {
+                                _stopBriefingAudio();
+                                setState(() => _activeMorningBriefing = null);
+                              },
+                            ),
+                          if (_dueHabitPattern != null)
+                            FfmHabitSuggestionCard(
+                              pattern: _dueHabitPattern!,
+                              onAccept: () =>
+                                  _acceptHabitPattern(_dueHabitPattern!),
+                              onSnooze: () =>
+                                  _snoozeHabitPattern(_dueHabitPattern!),
+                              onDismiss: () =>
+                                  _dismissHabitPattern(_dueHabitPattern!),
                             ),
                           if (_pendingMemoryInsight != null)
                             FfmMemoryNudgeCard(
@@ -3203,6 +4642,73 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                 setState(() => _pendingMemoryInsight = null);
                               },
                             ),
+                          if (_pendingAttachmentPath != null)
+                            Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1B2227)
+                                    : const Color(0xFFEBF1F3),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Image.file(
+                                      File(_pendingAttachmentPath!),
+                                      width: 38,
+                                      height: 38,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) =>
+                                          const Icon(Icons.receipt_long, size: 28),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _pendingAttachmentName ?? 'Foto struk siap dikirim',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                        Text(
+                                          'Ketik catatan/instruksi lalu kirim',
+                                          style: theme.textTheme.labelSmall?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close, size: 18),
+                                    tooltip: 'Batalkan lampiran',
+                                    onPressed: () {
+                                      setState(() {
+                                        _pendingAttachmentPath = null;
+                                        _pendingAttachmentName = null;
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
                           Container(
                             decoration: BoxDecoration(
                               color: isDark
@@ -3232,13 +4738,48 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   tooltip: _listening
                                       ? 'Berhenti dengar'
                                       : 'Bicara ke Asisten',
-                                  onPressed: _submitting
+                                  onPressed: (_submitting || _scanning)
                                       ? null
                                       : _toggleListening,
                                   icon: Icon(
                                     _listening ? Icons.stop : Icons.mic_none,
                                   ),
                                 ),
+                                IconButton(
+                                  tooltip: 'Ambil atau import foto struk',
+                                  onPressed: (_submitting || _scanning)
+                                      ? null
+                                      : _showImagePickerOptions,
+                                  icon: _scanning
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.add_photo_alternate_outlined,
+                                        ),
+                                ),
+                                if (_activeSuggestedQuestions.isNotEmpty)
+                                  IconButton(
+                                    tooltip:
+                                        'Ide pertanyaan lanjutan (${_activeSuggestedQuestions.length})',
+                                    onPressed: () =>
+                                        _showFollowUpQuestionsSheet(
+                                      _activeSuggestedQuestions,
+                                    ),
+                                    icon: Badge.count(
+                                      count: _activeSuggestedQuestions.length,
+                                      backgroundColor: Colors.amber[700],
+                                      textColor: Colors.white,
+                                      child: const Icon(
+                                        Icons.lightbulb,
+                                        color: Colors.amber,
+                                      ),
+                                    ),
+                                  ),
                                 Expanded(
                                   child: TextField(
                                     controller: _controller,
@@ -3247,11 +4788,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     maxLines: 5,
                                     textInputAction: TextInputAction.newline,
                                     onTap: _scrollToEnd,
-                                    decoration: const InputDecoration(
-                                      hintText:
-                                          'Tulis perintah atau pertanyaan…',
+                                    decoration: InputDecoration(
+                                      hintText: _pendingAttachmentPath != null
+                                          ? 'Tambah instruksi untuk struk ini (opsional)…'
+                                          : 'Tulis perintah atau pertanyaan…',
                                       border: InputBorder.none,
-                                      contentPadding: EdgeInsets.symmetric(
+                                      contentPadding: const EdgeInsets.symmetric(
                                         vertical: 13,
                                       ),
                                     ),

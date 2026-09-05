@@ -23,6 +23,7 @@ import 'family_profile_page.dart';
 import '../../../advisor/presentation/pages/analysis_page.dart';
 import 'master_data_page.dart';
 import 'utility_meter_page.dart';
+import 'vehicle_page.dart';
 
 import '../../../recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -370,6 +371,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Buku Saku Meteran Token listrik pln idpel pulsa rumah ladang sawah ruko',
                 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.directions_car_rounded,
+              title: 'Kendaraan & Catatan BBM',
+              subtitle: 'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
+              iconColor: const Color(0xFF0D9488),
+              iconBackgroundColor: const Color(0xFFCCFBF1),
+              badgeText: 'KENDARAAN',
+              onTap: () => _open(context, const VehiclePage()),
+              visible: _matches(
+                'Kendaraan Catatan BBM bensin motor mobil no pol plat pertalite solar spbu traktor',
+                'Daftarkan motor/mobil/traktor, no polisi, kapasitas tangki, serta riwayat pengisian & analisa BBM.',
               ),
             ),
             _MenuCard(

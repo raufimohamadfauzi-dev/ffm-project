@@ -7,6 +7,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../advisor/domain/usecases/financial_health_calculator.dart';
+import '../../../liability/domain/services/debt_payoff_strategist_service.dart';
 import '../../domain/ffm_agent_harness.dart';
 
 String _rupiah(int amount) {
@@ -907,8 +908,10 @@ class FfmEmergencyFundLogicPlugin extends FfmAgentPlugin {
 
 /// Plugin Logika: Menghitung strategi pelunasan hutang (Debt Snowball vs Debt Avalanche).
 class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
-  FfmDebtSnowballLogicPlugin(this._db);
-  final AppDatabase _db;
+  FfmDebtSnowballLogicPlugin(AppDatabase db, [DebtPayoffStrategistService? strategist])
+      : _strategist = strategist ?? DebtPayoffStrategistService(db);
+
+  final DebtPayoffStrategistService _strategist;
 
   @override
   String get name => 'debt_snowball_logic';
@@ -927,20 +930,16 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
     'bebas hutang',
     'lunasi hutang',
     'cara melunasi hutang',
+    'simulasi bebas hutang',
   ];
 
   @override
   Future<FfmHarnessResult?> execute(FfmHarnessContext context) async {
     final householdId = _householdId();
-    final debts = await (_db.select(_db.liabilities)
-          ..where(
-            (row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true),
-          ))
-        .get();
+    final adaptiveDebts =
+        await _strategist.getAdaptiveLiabilities(householdId);
 
-    if (debts.isEmpty) {
+    if (adaptiveDebts.isEmpty) {
       return const FfmHarnessResult(
         pluginName: 'debt_snowball_logic',
         category: FfmPluginCategory.logic,
@@ -951,55 +950,97 @@ class FfmDebtSnowballLogicPlugin extends FfmAgentPlugin {
 
     var totalDebt = 0;
     var totalMonthlyInstallment = 0;
-    for (final d in debts) {
+    var hasInferredInstallment = false;
+
+    for (final d in adaptiveDebts) {
       totalDebt += d.remainingBalance;
       totalMonthlyInstallment += d.monthlyInstallment;
+      if (!d.isExplicitInstallment) {
+        hasInferredInstallment = true;
+      }
     }
 
+    // Hitung rekomendasi surplus & perbandingan simulasi
+    final suggestedExtra =
+        await _strategist.estimateSuggestedExtraPayment(householdId);
+    final comparison = _strategist.compareStrategies(
+      liabilities: adaptiveDebts,
+      extraMonthlyPayment: suggestedExtra,
+    );
+
     // Urutan 1: Snowball (Saldo terkecil ke terbesar)
-    final snowballList = List.of(debts)
+    final snowballList = List.of(adaptiveDebts)
       ..sort((a, b) => a.remainingBalance.compareTo(b.remainingBalance));
 
     // Urutan 2: Avalanche (Bunga tertinggi ke terendah)
-    final avalancheList = List.of(debts)
-      ..sort((a, b) => b.interestRate.compareTo(a.interestRate));
+    final avalancheList = List.of(adaptiveDebts)
+      ..sort((a, b) {
+        final rateCmp = b.interestRate.compareTo(a.interestRate);
+        if (rateCmp != 0) return rateCmp;
+        return a.remainingBalance.compareTo(b.remainingBalance);
+      });
 
     final snowballLines = <String>[];
     for (var i = 0; i < snowballList.length; i++) {
       final d = snowballList[i];
+      final originBadge = d.isExplicitInstallment
+          ? ''
+          : ' *(adaptif)*';
       snowballLines.add(
-        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)} (Cicilan: ${_rupiah(d.monthlyInstallment)}/bln)',
+        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)} (Cicilan: ${_rupiah(d.monthlyInstallment)}/bln$originBadge)',
       );
     }
 
     final avalancheLines = <String>[];
     for (var i = 0; i < avalancheList.length; i++) {
       final d = avalancheList[i];
-      final rateStr = d.interestRate > 0 ? ' (Bunga: ${d.interestRate}%)' : '';
+      final rateStr = d.interestRate > 0 ? ' (Bunga: ${d.interestRate}%)' : ' (Bunga: 0%)';
+      final originBadge = d.isExplicitInstallment
+          ? ''
+          : ' *(cicilan adaptif ${_rupiah(d.monthlyInstallment)}/bln)*';
       avalancheLines.add(
-        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)}$rateStr',
+        '${i + 1}. **${d.name}**: ${_rupiah(d.remainingBalance)}$rateStr$originBadge',
       );
+    }
+
+    final buffer = StringBuffer();
+    buffer.writeln('🎯 **Strategi & Simulasi Percepatan Bebas Hutang**\n');
+    buffer.writeln('📊 **Total Sisa Pokok:** **${_rupiah(totalDebt)}** (${adaptiveDebts.length} kewajiban)');
+    buffer.writeln('💳 **Total Beban Cicilan:** ${_rupiah(totalMonthlyInstallment)}/bulan');
+    if (hasInferredInstallment) {
+      buffer.writeln('ℹ️ *Beberapa cicilan dihitung adaptif dari riwayat transaksi/amortisasi.*');
+    }
+    buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
+    buffer.writeln('🏔️ **Metode 1: Debt Snowball (Kemenangan Cepat)**');
+    buffer.writeln('*Fokus lunasi nominal saldo TERKECIL dulu untuk motivasi mental:*\n');
+    buffer.writeln(snowballLines.join('\n'));
+    buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
+    buffer.writeln('⚡ **Metode 2: Debt Avalanche (Penghematan Maksimal)**');
+    buffer.writeln('*Fokus lunasi bunga TERTINGGI dulu untuk pangkas biaya bunga:*\n');
+    buffer.writeln(avalancheLines.join('\n'));
+    buffer.writeln('\n━━━━━━━━━━━━━━━━━━━━');
+    buffer.writeln('💡 **Simulasi Alokasi Surplus Ekstra:**');
+    buffer.writeln(comparison.recommendationText);
+    if (comparison.baselineResult.totalMonths > 0) {
+      buffer.writeln('\n• Waktu lunas normal: **${comparison.baselineResult.totalMonths} bulan**');
+      if (comparison.monthsSavedAvalanche > 0) {
+        buffer.writeln('• Waktu lunas via Avalanche + Ekstra: **${comparison.avalancheResult.totalMonths} bulan** *(lebih cepat ${comparison.monthsSavedAvalanche} bulan)*');
+      }
     }
 
     return FfmHarnessResult(
       pluginName: name,
       category: category,
-      text: '🎯 **Strategi Percepatan Pelunasan Hutang Keluarga**\n\n'
-          '📊 **Total Sisa Pokok Hutang:** **${_rupiah(totalDebt)}** (${debts.length} kewajiban)\n'
-          '💳 **Total Cicilan Wajib:** ${_rupiah(totalMonthlyInstallment)}/bulan\n\n'
-          '━━━━━━━━━━━━━━━━━━━━\n'
-          '🏔️ **Metode 1: Debt Snowball (Sangat Direkomendasikan)**\n'
-          '*Fokus lunasi dari nominal saldo TERKECIL dulu untuk kemenangan cepat & motivasi psikologis:*\n\n'
-          '${snowballLines.join('\n')}\n\n'
-          '━━━━━━━━━━━━━━━━━━━━\n'
-          '⚡ **Metode 2: Debt Avalanche**\n'
-          '*Fokus lunasi dari bunga TERTINGGI dulu untuk menghemat total biaya bunga:*\n\n'
-          '${avalancheLines.join('\n')}\n\n'
-          '💡 **Langkah Aksi:** Bayar cicilan minimum untuk semua hutang, lalu arahkan semua kelebihan dana bulanan ke **Prioritas #1** sampai lunas, lalu beralih ke #2!',
+      text: buffer.toString().trim(),
       metadata: {
         'totalDebt': totalDebt,
         'totalMonthlyInstallment': totalMonthlyInstallment,
-        'count': debts.length,
+        'count': adaptiveDebts.length,
+        'suggestedExtra': suggestedExtra,
+        'monthsSavedAvalanche': comparison.monthsSavedAvalanche,
+        'interestSavedAvalanche': comparison.interestSavedAvalanche,
+        'monthsSavedSnowball': comparison.monthsSavedSnowball,
+        'interestSavedSnowball': comparison.interestSavedSnowball,
       },
     );
   }

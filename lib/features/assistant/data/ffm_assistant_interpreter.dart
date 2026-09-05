@@ -1978,7 +1978,9 @@ class FfmAssistantInterpreter {
       );
     }
 
-    // Input gambar tidak tersedia; asisten menerima perintah teks.
+    // Foto struk/nota dapat dipindai lewat tombol lampirkan di kolom chat.
+    // Interpreter hanya menjelaskan jalur yang benar; pemindaian dilakukan
+    // deterministik dari UI (tombol lampirkan), bukan dari teks ini.
     if (_containsAny(normalized, const [
       'bisa membaca struk',
       'bisa baca struk',
@@ -1995,16 +1997,23 @@ class FfmAssistantInterpreter {
       'bisa vision',
       'ekstrak nota',
       'baca bukti transfer',
+      'scan resep',
+      'pindai struk',
     ])) {
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
-        type: FfmAssistantIntentType.help,
+        type: FfmAssistantIntentType.featureHelp,
         confidence: 1,
+        destination: FfmAssistantDestination.transactions,
         response:
-            'Asisten saat ini hanya menerima perintah teks. '
-            'Ketikkan rincian belanja secara manual atau tempel hasil JSON '
-            'nota di menu impor transaksi.',
+            'Aku bisa membaca foto struk atau nota.\n\n'
+            '• Ketuk ikon **kamera/lampirkan** di kolom chat ini.\n'
+            '• Pilih foto struk dari galeri.\n'
+            '• Aku akan membacanya dan mengubahnya menjadi draft transaksi untuk kamu periksa sebelum disimpan.\n\n'
+            'Catatan: untuk membaca struk Aku butuh koneksi Gemini Cloud aktif. '
+            'Untuk mencatat transaksi tanpa foto, ketik rinciannya langsung, '
+            'misalnya “catat belanja 50 ribu di Indomaret”.',
       );
     }
 

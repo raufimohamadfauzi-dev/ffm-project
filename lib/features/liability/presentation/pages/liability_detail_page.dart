@@ -13,6 +13,7 @@ import '../../domain/debt_receivable_validation.dart';
 import '../../domain/entities/liability_entity.dart';
 import '../../domain/usecases/liability_crud_usecases.dart';
 import '../widgets/debt_payment_dialog.dart';
+import 'debt_payoff_strategy_page.dart';
 
 class LiabilityDetailPage extends StatefulWidget {
   const LiabilityDetailPage({super.key, required this.liability});
@@ -263,6 +264,57 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                   ],
                 ),
               ),
+
+              if (_liability.remainingBalance > 0) ...[
+                const SizedBox(height: 16),
+                AppCard(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.bolt,
+                                color: AppColors.primary, size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Strategi Bebas Hutang',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _liability.monthlyInstallment > 0
+                              ? 'Dengan cicilan Rp ${_liability.monthlyInstallment}/bln, pelunasan hutang ini dapat dipercepat dengan metode Snowball atau Avalanche.'
+                              : 'Cicilan belum diisi manual; sistem akan menggunakan estimasi pembayaran adaptif.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: AppColors.inkMuted,
+                              ),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    const DebtPayoffStrategyPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.calculate_outlined, size: 18),
+                          label: const Text('Buka Simulator Bebas Hutang'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 20),
 

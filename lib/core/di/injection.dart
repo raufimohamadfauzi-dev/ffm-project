@@ -56,8 +56,15 @@ import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
 import '../../features/advisor/data/cash_flow_profile_repository.dart';
+import '../../features/advisor/domain/services/proactive_cash_flow_checkin_service.dart';
 import '../../features/advisor/domain/usecases/flexible_cash_flow_calculator.dart';
+import '../../features/assistant/data/habit_pattern_repository.dart';
+import '../../features/assistant/domain/services/transaction_pattern_miner.dart';
+import '../../features/assistant/domain/services/executive_morning_briefing_service.dart';
+import '../../features/assistant/domain/services/ffm_follow_up_suggestion_engine.dart';
+import '../../features/assistant/data/autonomous_activity_repository.dart';
 import '../../features/settings/data/utility_meter_repository.dart';
+import '../../features/settings/data/vehicle_repository.dart';
 import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import '../../features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
@@ -71,6 +78,7 @@ import '../../features/audit/domain/usecases/audit_log_usecases.dart';
 import '../../features/goal/domain/usecases/goal_balance_usecases.dart';
 import '../../features/goal/domain/usecases/goal_crud_usecases.dart';
 import '../../features/hijri/domain/hijri_calendar_service.dart';
+import '../../features/liability/domain/services/debt_payoff_strategist_service.dart';
 import '../../features/liability/domain/usecases/liability_crud_usecases.dart';
 import '../../features/liability/domain/usecases/process_debt_payment.dart';
 import '../../features/receivable/domain/usecases/receivable_crud_usecases.dart';
@@ -254,6 +262,35 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantAutonomyRepository>(
     () => FfmAssistantAutonomyRepository(db),
   );
+  getIt.registerLazySingleton<AutonomousActivityRepository>(
+    () => AutonomousActivityRepository(
+      database: db,
+      vehicleRepository: getIt.isRegistered<VehicleRepository>()
+          ? getIt<VehicleRepository>()
+          : VehicleRepository(),
+      meterRepository: getIt.isRegistered<UtilityMeterRepository>()
+          ? getIt<UtilityMeterRepository>()
+          : UtilityMeterRepository(),
+      cashFlowProfileRepository: getIt.isRegistered<CashFlowProfileRepository>()
+          ? getIt<CashFlowProfileRepository>()
+          : CashFlowProfileRepository(),
+    ),
+  );
+  getIt.registerLazySingleton<HabitPatternRepository>(
+    () => HabitPatternRepository(),
+  );
+  getIt.registerLazySingleton<TransactionPatternMiner>(
+    () => TransactionPatternMiner(db),
+  );
+  getIt.registerLazySingleton<ExecutiveMorningBriefingService>(
+    () => ExecutiveMorningBriefingService(
+      database: db,
+      patternMiner: getIt<TransactionPatternMiner>(),
+    ),
+  );
+  getIt.registerLazySingleton<DebtPayoffStrategistService>(
+    () => DebtPayoffStrategistService(db),
+  );
   getIt.registerLazySingleton<FfmAssistantAutonomyTriggerService>(
     () => FfmAssistantAutonomyTriggerService(
       getIt<FfmAssistantAutonomyRepository>(),
@@ -330,6 +367,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   // Buku Saku Meteran & Token Listrik PLN
   getIt.registerLazySingleton<UtilityMeterRepository>(
     UtilityMeterRepository.new,
+  );
+  // Buku Saku Kendaraan & Log BBM
+  getIt.registerLazySingleton<VehicleRepository>(
+    VehicleRepository.new,
+  );
+  // Saran Pertanyaan Lanjutan Adaptif (💡) & Wawancara Proaktif Usaha/Tani
+  getIt.registerLazySingleton<ProactiveCashFlowCheckInService>(
+    () => ProactiveCashFlowCheckInService(getIt<CashFlowProfileRepository>()),
+  );
+  getIt.registerLazySingleton<FfmFollowUpSuggestionEngine>(
+    FfmFollowUpSuggestionEngine.new,
   );
   getIt.registerLazySingleton<AutonomousEvaluationCoordinator>(
     () => AutonomousEvaluationCoordinator(

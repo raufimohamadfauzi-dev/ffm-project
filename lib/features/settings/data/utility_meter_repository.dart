@@ -108,4 +108,43 @@ class UtilityMeterRepository {
       );
     }
   }
+
+  /// Ekspor seluruh meteran dalam bentuk data map mentah untuk Full Backup.
+  Future<List<Map<String, Object?>>> exportRaw(String householdId) async {
+    final list = await getAllMeters(householdId);
+    return list.map((m) => m.toJson()).toList();
+  }
+
+  /// Impor dan pulihkan meteran dari Full Backup dengan sistem penggabungan (merge & append).
+  /// Data yang sudah ada di HP baru tidak akan terhapus, melainkan disatukan.
+  Future<void> importRaw(
+    String householdId,
+    List<Map<String, Object?>> rows,
+  ) async {
+    final incoming = rows.map((e) => UtilityMeter.fromJson(e)).toList();
+    final existing = await getAllMeters(householdId);
+    final idMap = <String, UtilityMeter>{};
+    final numberMap = <String, UtilityMeter>{};
+    for (final m in existing) {
+      idMap[m.id] = m;
+      final clean = m.meterNumber.replaceAll(RegExp(r'\D'), '');
+      if (clean.isNotEmpty) numberMap[clean] = m;
+    }
+
+    final merged = List<UtilityMeter>.from(existing);
+    for (final m in incoming) {
+      final clean = m.meterNumber.replaceAll(RegExp(r'\D'), '');
+      if (!idMap.containsKey(m.id) && !numberMap.containsKey(clean)) {
+        merged.add(m);
+        idMap[m.id] = m;
+        if (clean.isNotEmpty) numberMap[clean] = m;
+      }
+    }
+
+    final prefs = await _prefs();
+    await prefs.setString(
+      _getKey(householdId),
+      jsonEncode(merged.map((m) => m.toJson()).toList()),
+    );
+  }
 }
