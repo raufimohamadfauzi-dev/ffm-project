@@ -1002,4 +1002,91 @@ void main() {
     expect(dataLokalIntent.response, contains('Data Lokal'));
     expect(dataLokalIntent.response, contains('100% Offline'));
   });
+
+  test(
+    'revisi draf aktif: mengubah pengeluaran menjadi pemasukan saat user bilang uang masuk',
+    () async {
+      final activeDraft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.expense,
+        createdAt: DateTime(2026, 9, 6),
+        amount: 367000,
+        title: 'Nota Pembelian',
+        fromAccountName: 'Tunai',
+      );
+
+      final intent = await interpreter.interpret(
+        'itu uang masuk bukan uang keluar',
+        activeDraft: activeDraft,
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind, FfmAssistantDraftKind.income);
+      expect(intent.draft!.amount, 367000);
+      expect(intent.draft!.toAccountName, 'Tunai');
+    },
+  );
+
+  test(
+    'revisi draf aktif: mengubah pemasukan menjadi pengeluaran saat user bilang uang keluar',
+    () async {
+      final activeDraft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.income,
+        createdAt: DateTime(2026, 9, 6),
+        amount: 50000,
+        title: 'Gaji',
+        toAccountName: 'SeaBank',
+      );
+
+      final intent = await interpreter.interpret(
+        'itu pengeluaran bukan pemasukan',
+        activeDraft: activeDraft,
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.kind, FfmAssistantDraftKind.expense);
+      expect(intent.draft!.amount, 50000);
+      expect(intent.draft!.fromAccountName, 'SeaBank');
+    },
+  );
+
+  test(
+    'revisi draf aktif: komplain "itu salah" mempertahankan draf dan meminta klarifikasi perbaikan',
+    () async {
+      final activeDraft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.expense,
+        createdAt: DateTime(2026, 9, 6),
+        amount: 367000,
+        title: 'Nota Pembelian',
+      );
+
+      final intent = await interpreter.interpret(
+        'itu salah',
+        activeDraft: activeDraft,
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.amount, 367000);
+      expect(intent.response, contains('belum disimpan'));
+    },
+  );
+
+  test(
+    'revisi draf aktif: menyebut nama rekening melengkapi rekening pada draf aktif',
+    () async {
+      final activeDraft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.income,
+        createdAt: DateTime(2026, 9, 6),
+        amount: 367000,
+        title: 'Nota Pembelian',
+      );
+
+      final intent = await interpreter.interpret(
+        'pakai SeaBank',
+        activeDraft: activeDraft,
+      );
+
+      expect(intent.draft, isNotNull);
+      expect(intent.draft!.toAccountName, 'SeaBank');
+    },
+  );
 }

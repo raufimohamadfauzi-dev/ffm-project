@@ -179,7 +179,10 @@ Kamu menerima sebuah FOTO STRUK/NOTA/BUKTI PEMBAYARAN.
 
 Perhatikan baik-baik gambar sebelum menulis JSON:
 - Baca nomor, rincian barang, total, tanggal, nama toko dengan teliti sesuai teks di foto.
-- Jangan menebak angka yang buram; jika sebuah angka tidak terbaca, gunakan null untuk field itu, bukan menebak.
+- Tentukan jenis transaksi (type):
+  * Jika nota merupakan struk belanja, pembelian barang/jasa, atau tagihan: gunakan type "expense".
+  * Jika nota merupakan faktur penjualan barang/jasa, kuitansi penerimaan pembayaran, bukti transfer masuk, atau nota uang masuk: gunakan type "income".
+  * Jika bukti mutasi kirim uang / setor tunai antar-rekening: gunakan type "transfer".
 - Struk pembelian TOKEN LISTRIK PLN: tulis sebagai satu transaksi expense; isi budget_name dengan "Listrik" atau pos anggaran utilitas yang cocok; masukkan nomor token 20 digit (format 5 blok: xxxx-xxxx-xxxx-xxxx-xxxx atau 20 angka) dan IDPEL / nomor meteran ke note dan items. Total pembelian token adalah jumlah yang dibayar (Rupiah), bukan kWh.
 - Struk pembelian BBM di SPBU (Pertamina/Shell/BP/dll): tulis sebagai transaksi expense dengan merchant nama SPBU; isi budget_name "Transportasi" atau "BBM"; tulis jenis BBM (Pertalite/Pertamax/Solar/Dexlite) dan jumlah liter ke note atau rincian items, serta plat nomor kendaraan bila terbaca.
 - Struk isi ulang pulsa/kuota/data/saldo e-wallet: satu transaksi expense dengan merchant sesuai merek.

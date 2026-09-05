@@ -45,10 +45,12 @@ class _FfmAssistantDraftEditDialogState
   late String? _toAccount;
   late DateTime? _date;
   late ActivityMode _activityMode;
+  late FfmAssistantDraftKind _selectedKind;
 
   @override
   void initState() {
     super.initState();
+    _selectedKind = widget.draft.kind;
     _amountController = TextEditingController(
       text: widget.draft.amount?.toString() ?? '',
     );
@@ -192,18 +194,29 @@ class _FfmAssistantDraftEditDialogState
     final partyName = (_isTransaction || _isDebtOrReceivable)
         ? _textOrNull(_partyController)
         : widget.draft.partyName;
+    final isIncome = _selectedKind == FfmAssistantDraftKind.income;
+    final isExpense = _selectedKind == FfmAssistantDraftKind.expense;
+    final fromAcc = isIncome
+        ? null
+        : (_fromAccount?.trim().isNotEmpty == true
+            ? _fromAccount!.trim()
+            : _toAccount?.trim());
+    final toAcc = isExpense
+        ? null
+        : (_toAccount?.trim().isNotEmpty == true
+            ? _toAccount!.trim()
+            : _fromAccount?.trim());
+
     final editedDraft = FfmAssistantDraft(
-      kind: widget.draft.kind,
+      kind: _selectedKind,
       createdAt: widget.draft.createdAt,
       amount: amount,
       title: title,
       partyName: partyName,
-      fromAccountName:
-          _fromAccount?.trim().isNotEmpty == true ? _fromAccount!.trim() : null,
-      toAccountName:
-          _toAccount?.trim().isNotEmpty == true ? _toAccount!.trim() : null,
+      fromAccountName: fromAcc,
+      toAccountName: toAcc,
       categoryName: _textOrNull(_categoryController),
-      adminFee: widget.draft.kind == FfmAssistantDraftKind.transfer
+      adminFee: _selectedKind == FfmAssistantDraftKind.transfer
           ? adminFee
           : widget.draft.adminFee,
       goalName: goalName,
@@ -212,26 +225,26 @@ class _FfmAssistantDraftEditDialogState
       linkedActivityId: widget.draft.linkedActivityId,
       formValues: {
         ...widget.draft.formValues,
-        if (widget.draft.kind == FfmAssistantDraftKind.budget)
+        if (_selectedKind == FfmAssistantDraftKind.budget)
           'periodType': _budgetPeriod,
         if (_isDebtOrReceivable && partyName != null) 'partyName': partyName,
         if (_isDebtOrReceivable && monthlyInstallment.isNotEmpty)
           'monthlyInstallment': monthlyInstallment,
         if (_isDebtOrReceivable && _date != null)
           'dueDate': _date!.toIso8601String(),
-        if (widget.draft.kind == FfmAssistantDraftKind.goal && _date != null)
+        if (_selectedKind == FfmAssistantDraftKind.goal && _date != null)
           'targetDate': _date!.toIso8601String(),
-        if (widget.draft.kind == FfmAssistantDraftKind.activity)
+        if (_selectedKind == FfmAssistantDraftKind.activity)
           'activityMode': _activityMode.value,
-        if (widget.draft.kind == FfmAssistantDraftKind.activity)
+        if (_selectedKind == FfmAssistantDraftKind.activity)
           'kind': _activityMode.activityKind.value,
-        if (widget.draft.kind == FfmAssistantDraftKind.activity)
+        if (_selectedKind == FfmAssistantDraftKind.activity)
           'modeNeedsConfirmation': 'false',
-        if (widget.draft.kind == FfmAssistantDraftKind.income &&
+        if (_selectedKind == FfmAssistantDraftKind.income &&
             partyName != null)
           'incomeSource': partyName,
-        if (widget.draft.kind == FfmAssistantDraftKind.income ||
-            widget.draft.kind == FfmAssistantDraftKind.expense)
+        if (_selectedKind == FfmAssistantDraftKind.income ||
+            _selectedKind == FfmAssistantDraftKind.expense)
           'tags': _tags.join(', '),
         if (_isTransaction && merchantName != null) 'merchant': merchantName,
         if (_isTransaction && location != null) 'location': location,
@@ -252,7 +265,7 @@ class _FfmAssistantDraftEditDialogState
     Navigator.of(context).pop(editedDraft);
   }
 
-  bool get _isTransaction => switch (widget.draft.kind) {
+  bool get _isTransaction => switch (_selectedKind) {
     FfmAssistantDraftKind.income ||
     FfmAssistantDraftKind.expense ||
     FfmAssistantDraftKind.transfer => true,
@@ -339,7 +352,7 @@ class _FfmAssistantDraftEditDialogState
         _ => false,
       };
 
-  String _draftTypeLabel() => switch (widget.draft.kind) {
+  String _draftTypeLabel() => switch (_selectedKind) {
     FfmAssistantDraftKind.income => 'Pemasukan',
     FfmAssistantDraftKind.expense => 'Pengeluaran',
     FfmAssistantDraftKind.transfer => 'Transfer Dana',
@@ -363,13 +376,13 @@ class _FfmAssistantDraftEditDialogState
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(
-      widget.draft.kind == FfmAssistantDraftKind.masterData
+      _selectedKind == FfmAssistantDraftKind.masterData
           ? 'Ubah Draft Data Utama'
-          : widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+          : _selectedKind == FfmAssistantDraftKind.goalDeposit
           ? 'Ubah Draft Setor Target'
-          : widget.draft.kind == FfmAssistantDraftKind.goalUsage
+          : _selectedKind == FfmAssistantDraftKind.goalUsage
           ? 'Ubah Draft Pakai Target'
-          : widget.draft.kind == FfmAssistantDraftKind.goal
+          : _selectedKind == FfmAssistantDraftKind.goal
           ? 'Ubah Draft Target Keuangan'
           : 'Ubah draft di chat',
     ),
@@ -388,13 +401,53 @@ class _FfmAssistantDraftEditDialogState
               ).colorScheme.secondaryContainer.withValues(alpha: .45),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              'Jenis draft: ${_draftTypeLabel()}',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).colorScheme.onSecondaryContainer,
-                fontSize: 12,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Jenis draft: ${_draftTypeLabel()}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                    fontSize: 12,
+                  ),
+                ),
+                if (widget.draft.kind == FfmAssistantDraftKind.expense ||
+                    widget.draft.kind == FfmAssistantDraftKind.income) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<FfmAssistantDraftKind>(
+                      segments: const [
+                        ButtonSegment(
+                          value: FfmAssistantDraftKind.expense,
+                          label: Text('Pengeluaran'),
+                          icon: Icon(Icons.arrow_upward, size: 16),
+                        ),
+                        ButtonSegment(
+                          value: FfmAssistantDraftKind.income,
+                          label: Text('Pemasukan'),
+                          icon: Icon(Icons.arrow_downward, size: 16),
+                        ),
+                      ],
+                      selected: {_selectedKind},
+                      onSelectionChanged: (newSelection) {
+                        setState(() {
+                          _selectedKind = newSelection.first;
+                          if (_selectedKind == FfmAssistantDraftKind.income &&
+                              _toAccount == null) {
+                            _toAccount = _fromAccount;
+                          } else if (_selectedKind ==
+                                  FfmAssistantDraftKind.expense &&
+                              _fromAccount == null) {
+                            _fromAccount = _toAccount;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           if (!_isTransaction && !_isGoalContribution) ...[
@@ -449,32 +502,32 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: 500000',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.expense ||
-              widget.draft.kind == FfmAssistantDraftKind.transfer ||
-              widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
-              widget.draft.kind == FfmAssistantDraftKind.liabilityPayment)
+          if (_selectedKind == FfmAssistantDraftKind.expense ||
+              _selectedKind == FfmAssistantDraftKind.transfer ||
+              _selectedKind == FfmAssistantDraftKind.goalDeposit ||
+              _selectedKind == FfmAssistantDraftKind.liabilityPayment)
             _accountField(
               initial: _fromAccount,
               onChanged: (value) => setState(() => _fromAccount = value),
               label:
-                  widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+                  _selectedKind == FfmAssistantDraftKind.goalDeposit
                   ? 'Rekening sumber dana'
-                  : widget.draft.kind == FfmAssistantDraftKind.liabilityPayment
+                  : _selectedKind == FfmAssistantDraftKind.liabilityPayment
                   ? 'Rekening sumber bayar'
                   : 'Rekening asal',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.transfer ||
-              widget.draft.kind == FfmAssistantDraftKind.goalUsage ||
-              widget.draft.kind == FfmAssistantDraftKind.receivablePayment)
+          if (_selectedKind == FfmAssistantDraftKind.income ||
+              _selectedKind == FfmAssistantDraftKind.transfer ||
+              _selectedKind == FfmAssistantDraftKind.goalUsage ||
+              _selectedKind == FfmAssistantDraftKind.receivablePayment)
             _accountField(
               initial: _toAccount,
               onChanged: (value) => setState(() => _toAccount = value),
               label:
-                  widget.draft.kind == FfmAssistantDraftKind.goalUsage
+                  _selectedKind == FfmAssistantDraftKind.goalUsage
                   ? 'Rekening tujuan dana'
-                  : widget.draft.kind == FfmAssistantDraftKind.receivablePayment
+                  : _selectedKind == FfmAssistantDraftKind.receivablePayment
                   ? 'Rekening tujuan terima'
                   : 'Rekening tujuan',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
@@ -595,7 +648,7 @@ class _FfmAssistantDraftEditDialogState
                     'Dipisahkan sebagai pengeluaran dari rekening asal.',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.income)
+          if (_selectedKind == FfmAssistantDraftKind.income)
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(
@@ -603,7 +656,7 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Gaji, Usaha',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.expense)
+          if (_selectedKind == FfmAssistantDraftKind.expense)
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(

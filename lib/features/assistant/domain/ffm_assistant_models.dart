@@ -483,6 +483,7 @@ class FfmAssistantDraft {
   bool get hasAmount => amount != null && amount! > 0;
 
   FfmAssistantDraft copyWith({
+    FfmAssistantDraftKind? kind,
     int? amount,
     String? title,
     String? partyName,
@@ -507,7 +508,7 @@ class FfmAssistantDraft {
     int? dailyOperationalBudget,
     String? cycleProfileType,
   }) => FfmAssistantDraft(
-    kind: kind,
+    kind: kind ?? this.kind,
     createdAt: createdAt,
     amount: amount ?? this.amount,
     title: title ?? this.title,

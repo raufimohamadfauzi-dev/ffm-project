@@ -201,10 +201,6 @@ class _ActivityViewState extends State<_ActivityView>
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      useSafeArea: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
-      ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -236,10 +232,6 @@ class _ActivityViewState extends State<_ActivityView>
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      useSafeArea: true,
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
-      ),
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1460,160 +1452,201 @@ class _SessionCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
-        child: ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: isPriority
-                ? Colors.amber.withValues(alpha: 0.2)
-                : (isNote ? Colors.purple.withValues(alpha: 0.15) : null),
-            foregroundColor: isPriority
-                ? Colors.amber.shade900
-                : (isNote ? Colors.purple.shade800 : null),
-            child: Icon(
-              isNote
-                  ? Icons.edit_note_outlined
-                  : (session.status == ActivitySessionStatus.completed
-                      ? Icons.check
-                      : (isPriority ? Icons.star_rounded : Icons.timer_outlined)),
-            ),
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  session.title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isNote
-                      ? Colors.purple.withValues(alpha: 0.12)
-                      : Colors.teal.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  isNote ? '📝 Catatan' : '⏱️ Timer',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: modeBadgeColor,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+        onTap: onOpen,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Baris Judul & Badge: Full width ke kanan tanpa terhalang icon
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    session.title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
+                    ),
                   ),
                 ),
-              ),
-              if (isPriority) ...[
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
+                    color: isNote
+                        ? Colors.purple.withValues(alpha: 0.12)
+                        : Colors.teal.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.amber.shade700, width: 0.8),
                   ),
                   child: Text(
-                    '⭐ Prioritas',
+                    isNote ? '📝 Catatan' : '⏱️ Timer',
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: priorityBadgeColor,
+                      color: modeBadgeColor,
                     ),
                   ),
                 ),
-              ],
-            ],
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 2),
-              Text(
-                isNote
-                    ? '${session.category} • ${_dateTime(session.startedAt)}'
-                    : '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                ),
-              ),
-              if (isNote && session.notes?.trim().isNotEmpty == true) ...[
-                const SizedBox(height: 4),
-                Text(
-                  session.notes!.trim(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.85),
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          onTap: onOpen,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (onTogglePriority != null)
-                IconButton(
-                  icon: Icon(
-                    isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
-                    color: isPriority ? Colors.amber : null,
-                  ),
-                  tooltip: isPriority
-                      ? 'Prioritas aktif (klik untuk lepas)'
-                      : 'Tandai sebagai prioritas',
-                  onPressed: onTogglePriority,
-                ),
-              PopupMenuButton<String>(
-                tooltip: 'Kelola aktivitas',
-                onSelected: (value) {
-                  if (value == 'edit') onEdit?.call();
-                  if (value == 'priority') onTogglePriority?.call();
-                  if (value == 'archive') onArchive();
-                  if (value == 'delete') onDelete();
-                },
-                itemBuilder: (_) => [
-                  if (onEdit != null)
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.edit_outlined),
-                        title: Text('Edit aktivitas'),
+                if (isPriority) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.amber.shade700, width: 0.8),
+                    ),
+                    child: Text(
+                      '⭐ Prioritas',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: priorityBadgeColor,
                       ),
-                    ),
-                  PopupMenuItem(
-                    value: 'priority',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(isPriority ? Icons.star_outline : Icons.star),
-                      title: Text(isPriority ? 'Lepas prioritas' : 'Jadikan prioritas'),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'archive',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.archive_outlined),
-                      title: Text('Arsipkan'),
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(Icons.delete_forever_outlined),
-                      title: Text('Hapus permanen'),
                     ),
                   ),
                 ],
+              ],
+            ),
+            const SizedBox(height: 4),
+
+            // Baris Kategori, Waktu, Durasi (Mentok kiri dan kanan tanpa terhalang)
+            Text(
+              isNote
+                  ? '${session.category} • ${_dateTime(session.startedAt)}'
+                  : '${session.category} • ${_dateTime(session.startedAt)} • ${calculator.format(session.durationAt())}${checkpoints.isEmpty ? '' : ' • ${checkpoints.length} update'}',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+
+            // Isi Catatan (jika ada) - Melebar bebas ke kanan
+            if (isNote && session.notes?.trim().isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              Text(
+                session.notes!.trim(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.85),
+                  fontSize: 13,
+                ),
               ),
             ],
-          ),
+            const SizedBox(height: 8),
+
+            // Baris Bawah: Icon di KIRI BAWAH, Bintang & Titik 3 di KANAN BAWAH
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Icon tipe aktivitas disamakan di kiri bawah
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isPriority
+                        ? Colors.amber.withValues(alpha: 0.2)
+                        : (isNote
+                            ? Colors.purple.withValues(alpha: 0.15)
+                            : scheme.primary.withValues(alpha: 0.12)),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isNote
+                        ? Icons.edit_note_outlined
+                        : (session.status == ActivitySessionStatus.completed
+                            ? Icons.check
+                            : (isPriority ? Icons.star_rounded : Icons.timer_outlined)),
+                    size: 18,
+                    color: isPriority
+                        ? Colors.amber.shade900
+                        : (isNote
+                            ? Colors.purple.shade800
+                            : scheme.primary),
+                  ),
+                ),
+
+                // Tombol Bintang & Titik 3 di kanan bawah
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onTogglePriority != null)
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        icon: Icon(
+                          isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
+                          color: isPriority ? Colors.amber : scheme.onSurfaceVariant,
+                          size: 22,
+                        ),
+                        tooltip: isPriority
+                            ? 'Prioritas aktif (klik untuk lepas)'
+                            : 'Tandai sebagai prioritas',
+                        onPressed: onTogglePriority,
+                      ),
+                    PopupMenuButton<String>(
+                      tooltip: 'Kelola aktivitas',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: scheme.onSurfaceVariant,
+                        size: 22,
+                      ),
+                      onSelected: (value) {
+                        if (value == 'edit') onEdit?.call();
+                        if (value == 'priority') onTogglePriority?.call();
+                        if (value == 'archive') onArchive();
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => [
+                        if (onEdit != null)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.edit_outlined),
+                              title: Text('Edit aktivitas'),
+                            ),
+                          ),
+                        PopupMenuItem(
+                          value: 'priority',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(isPriority ? Icons.star_outline : Icons.star),
+                            title: Text(isPriority ? 'Lepas prioritas' : 'Jadikan prioritas'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'archive',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.archive_outlined),
+                            title: Text('Arsipkan'),
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(Icons.delete_forever_outlined),
+                            title: Text('Hapus permanen'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -1688,7 +1721,6 @@ class _SessionFormState extends State<_SessionForm> {
     _notes = TextEditingController(text: widget.initialNotes ?? '');
     if (widget.initialStartedAt != null) _startedAt = widget.initialStartedAt!;
     if (widget.initialMode != null) _mode = widget.initialMode!;
-    _notes = TextEditingController(text: widget.initialNotes ?? '');
     _loadActivityCategories();
   }
 

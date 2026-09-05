@@ -7,7 +7,8 @@ abstract final class ThemePreference {
 
   static Future<String> getThemeMode() async {
     final value = await _storage.read(key: _key);
-    return value ?? 'light';
+    if (value == null || value.isEmpty || value == 'system') return 'light';
+    return value;
   }
 
   static Future<bool> isDark() async {

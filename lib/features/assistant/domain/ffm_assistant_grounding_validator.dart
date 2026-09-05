@@ -65,11 +65,27 @@ class FfmAssistantGroundingValidator {
 
     if (hasDate) {
       final normalizedEvidence = evidence.toLowerCase();
+      final now = DateTime.now();
+      final currentYear = now.year.toString();
+      final currentMonthNum = now.month.toString().padLeft(2, '0');
+      final currentDayNum = now.day.toString().padLeft(2, '0');
+      final currentDateIso = '$currentYear-$currentMonthNum-$currentDayNum';
+      const indonesianMonths = [
+        'januari', 'februari', 'maret', 'april', 'mei', 'juni',
+        'juli', 'agustus', 'september', 'oktober', 'november', 'desember'
+      ];
+      final currentMonthName = indonesianMonths[now.month - 1];
+      final currentDayMonth = '${now.day} $currentMonthName';
+
       final dates = _dateLike
           .allMatches(geminiText)
           .map((match) => match.group(0)!.toLowerCase())
           .toList(growable: false);
-      if (dates.any((date) => !normalizedEvidence.contains(date))) {
+      if (dates.any((date) =>
+          !normalizedEvidence.contains(date) &&
+          !date.contains(currentDateIso) &&
+          !date.contains(currentDayMonth) &&
+          date != currentMonthName)) {
         return 'Tanggal pada jawaban belum dapat diverifikasi dari data lokal. Minta ringkasan terbaru untuk tanggal yang pasti.';
       }
     }

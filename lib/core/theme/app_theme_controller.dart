@@ -12,6 +12,7 @@ class AppThemeController extends ChangeNotifier {
   bool get isDark => _themeMode == ThemeMode.dark;
 
   /// Memuat preferensi tema yang tersimpan di lokal.
+  /// Default aplikasi adalah ThemeMode.light (tidak mengikuti tema perangkat).
   Future<void> loadSavedTheme() async {
     final saved = await ThemePreference.getThemeMode();
     _themeMode = switch (saved.toLowerCase()) {
@@ -19,6 +20,11 @@ class AppThemeController extends ChangeNotifier {
       'system' => ThemeMode.system,
       _ => ThemeMode.light,
     };
+    if (saved.toLowerCase() == 'system') {
+      // Normalisasi agar tidak mengikuti perangkat saat startup
+      _themeMode = ThemeMode.light;
+      await ThemePreference.saveThemeMode('light');
+    }
     notifyListeners();
   }
 
@@ -29,8 +35,8 @@ class AppThemeController extends ChangeNotifier {
     notifyListeners();
     final modeName = switch (mode) {
       ThemeMode.dark => 'dark',
-      ThemeMode.light => 'light',
       ThemeMode.system => 'system',
+      ThemeMode.light => 'light',
     };
     await ThemePreference.saveThemeMode(modeName);
   }
@@ -45,12 +51,7 @@ class AppThemeController extends ChangeNotifier {
   /// Mengubah tema berdasarkan string kata kunci (misal dari perintah teks asisten).
   Future<String> setByName(String name) async {
     final clean = name.trim().toLowerCase();
-    if (clean.contains('sistem') ||
-        clean.contains('system') ||
-        clean.contains('default')) {
-      await setThemeMode(ThemeMode.system);
-      return 'system';
-    } else if (clean.contains('dark') ||
+    if (clean.contains('dark') ||
         clean.contains('gelap') ||
         clean.contains('hitam') ||
         clean.contains('redup') ||
@@ -62,17 +63,26 @@ class AppThemeController extends ChangeNotifier {
         clean.contains('terang') ||
         clean.contains('putih') ||
         clean.contains('white') ||
-        clean.contains('siang')) {
+        clean.contains('siang') ||
+        clean.contains('default') ||
+        clean.contains('defaut')) {
       await setThemeMode(ThemeMode.light);
       return 'light';
+    } else if (clean.contains('sistem') ||
+        clean.contains('system') ||
+        clean.contains('perangkat') ||
+        clean.contains('device') ||
+        clean.contains('bawaan')) {
+      await setThemeMode(ThemeMode.system);
+      return 'system';
     } else if (clean.contains('toggle') ||
         clean.contains('tukar') ||
         clean.contains('ganti') ||
         clean.contains('ubah')) {
       return toggleTheme();
     } else {
-      await setThemeMode(ThemeMode.system);
-      return 'system';
+      await setThemeMode(ThemeMode.light);
+      return 'light';
     }
   }
 }

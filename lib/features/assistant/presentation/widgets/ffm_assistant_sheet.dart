@@ -226,8 +226,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _historyWasRestored = false;
   String? _conversationId;
   List<FfmAssistantChatConversation> _conversations = const [];
-  List<String> _onboardingSuggestions = const <String>[];
-  List<String> _activeSuggestedQuestions = const <String>[];
   final _followUpEngine = const FfmFollowUpSuggestionEngine();
 
   // Streaming state
@@ -620,11 +618,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       suggestedQuestions: suggestedQuestions,
     );
     _entries.add(enriched);
-    if (!enriched.isUser && suggestedQuestions.isNotEmpty) {
-      _activeSuggestedQuestions = suggestedQuestions;
-    } else if (enriched.isUser) {
-      _activeSuggestedQuestions = const <String>[];
-    }
     unawaited(_saveCurrentConversation());
     unawaited(_refreshProactiveSuggestion());
 
@@ -793,10 +786,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       String? lastAssistantText;
       for (final entry in restored.reversed) {
         if (!entry.isUser) {
-          lastAssistantText = entry.text;
-          if (entry.suggestedQuestions.isNotEmpty) {
-            _activeSuggestedQuestions = entry.suggestedQuestions;
-          }
           break;
         }
       }
@@ -989,10 +978,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               isUser: false,
               text: startTurn.message,
               createdAt: DateTime.now(),
+              suggestedQuestions: startTurn.suggestions,
             ),
           );
           widget.session.lastAssistantText = startTurn.message;
-          _onboardingSuggestions = startTurn.suggestions;
         });
         return;
       }
@@ -1011,7 +1000,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             ),
           );
           widget.session.lastAssistantText = adaptiveTurn.message;
-          _onboardingSuggestions = adaptiveTurn.suggestions;
         });
         return;
       }
@@ -1913,10 +1901,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               isUser: false,
               text: response.message,
               createdAt: DateTime.now(),
+              suggestedQuestions: response.suggestions,
             ),
           );
           widget.session.lastAssistantText = response.message;
-          _onboardingSuggestions = response.suggestions;
         });
         _scrollToEnd(force: true);
         return;
@@ -2031,19 +2019,36 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
           if (intent.type == FfmAssistantIntentType.changeTheme) {
             final theme =
-                intent.pluginMetadata?['theme']?.toString() ?? 'system';
+                intent.pluginMetadata?['theme']?.toString() ?? 'light';
             if (getIt.isRegistered<AppThemeController>()) {
               unawaited(getIt<AppThemeController>().setByName(theme));
             }
           }
-          final review = intent.draft == null
-              ? null
-              : FfmAssistantDraftReview(
-                  draft: intent.draft!,
-                  version: 1,
-                  issues: FfmAssistantDraftValidator.validate(intent.draft!),
-                );
-          if (review != null) {
+          final currentActiveReview = widget.session.activeDraftReview;
+          final FfmAssistantDraftReview? review;
+          final FfmAssistantIntent entryIntent;
+
+          if (intent.type == FfmAssistantIntentType.cancel) {
+            review = null;
+            entryIntent = intent;
+            widget.session
+              ..activeDraftReview = null
+              ..activeDraftIntent = null
+              ..activeDraftQueueId = null;
+          } else if (intent.draft != null) {
+            final nextVersion = (currentActiveReview != null &&
+                    currentActiveReview.draft.kind == intent.draft!.kind)
+                ? currentActiveReview.version + 1
+                : 1;
+            review = FfmAssistantDraftReview(
+              draft: intent.draft!,
+              version: nextVersion,
+              issues: FfmAssistantDraftValidator.validate(intent.draft!),
+              changeSummary: currentActiveReview != null
+                  ? _revisionSummary(currentActiveReview.draft, intent.draft!)
+                  : null,
+            );
+            entryIntent = intent;
             widget.session
               ..activeDraftReview = review
               ..activeDraftIntent = intent;
@@ -2051,15 +2056,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 .where((item) => identical(item.sourceIntent, intent))
                 .firstOrNull;
             _enqueueDraft(intent, review, workItem: workItem);
+          } else if (currentActiveReview != null &&
+              intent.destination == null &&
+              intent.type != FfmAssistantIntentType.openPage) {
+            review = currentActiveReview;
+            entryIntent = intent.copyWith(draft: currentActiveReview.draft);
+          } else {
+            review = null;
+            entryIntent = intent;
           }
           widget.session.lastAssistantText = response;
           final traceEventCount = _activeProcessEvents.length;
-          final processTrace = _traceFor(intent, stopwatch.elapsed);
+          final processTrace = _traceFor(entryIntent, stopwatch.elapsed);
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
               text: response,
-              intent: intent,
+              intent: entryIntent,
               review: review,
               processTrace: processTrace,
               verifiedFacts: intent.verifiedFacts,
@@ -2756,7 +2769,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (amountText != null) '$typeLabel $amountText',
       if (entry.budgetName != null) 'kategori ${entry.budgetName}',
     ].join(', ');
-    return '$prefix: $detail. Periksa draft ini sebelum disimpan.';
+    return '$prefix: $detail. Periksa draft di atas.\n\n💡 *Tip: Jika ini struk penerimaan dana (uang masuk), cukup ketik "itu uang masuk" atau ubah jenisnya lewat tombol Ubah.*';
   }
 
   static String _formatRupiah(int value) =>
@@ -3119,7 +3132,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _handleIntent(FfmAssistantIntent intent) async {
     if (_navigatingFromChat) return;
     if (intent.type == FfmAssistantIntentType.changeTheme) {
-      final theme = intent.pluginMetadata?['theme']?.toString() ?? 'system';
+      final theme = intent.pluginMetadata?['theme']?.toString() ?? 'light';
       if (getIt.isRegistered<AppThemeController>()) {
         await getIt<AppThemeController>().setByName(theme);
       }
@@ -3642,11 +3655,52 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final sourceIntent = widget.session.activeDraftIntent;
     if (review == null || sourceIntent == null) return false;
     final normalized = text.toLowerCase().trim();
+    final isCancel = RegExp(
+      r'^\s*(?:batal(?:kan)?|hapus\s+draft|batal\s+draft|jangan\s+disimpan|cancel)\s*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isCancel) {
+      _cancelActiveDraft(sourceIntent);
+      return true;
+    }
+
+    final isGenericObjection = RegExp(
+      r'^\s*(?:(?:itu|ini)?\s*(?:salah|keliru|bukan\s+gitu|ngg?ak\s+gitu|salah\s+semua|salah\s+total|salah\s+draf(?:nya)?)|(?:salah|keliru)\s*(?:itu|ini)?)\s*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isGenericObjection) {
+      setState(() {
+        _appendEntry(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text:
+                'Baik, draf belum disimpan. Bagian mana yang keliru atau ingin diubah? '
+                'Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori). '
+                'Kamu juga bisa mengetuk tombol "Ubah" pada draf di atas.',
+            intent: sourceIntent,
+            review: review,
+          ),
+        );
+      });
+      _scrollToEnd();
+      return true;
+    }
+
     final looksLikeProposalJson = text.contains(
       FfmAssistantProposalJsonService.formatVersion,
     );
+    final isKindSwitch = RegExp(
+      r'(?:uang\s+(?:masuk|keluar)|pemasukan|pengeluaran|penerimaan|pendapatan|belanja)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    final mentionsAccount = RegExp(
+      r'\b(rekening|akun|dompet|bank|sumber|tujuan|dari|ke|pakai|pake|gunakan|lewat)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
     if (!looksLikeProposalJson &&
-        !RegExp(r'\b(ubah|ganti|revisi|koreksi)\b').hasMatch(normalized)) {
+        !isKindSwitch &&
+        !mentionsAccount &&
+        !RegExp(r'\b(ubah|ganti|revisi|koreksi|bukan|jadikan|nominal|harga|jumlah|kategori|catatan|toko)\b').hasMatch(normalized)) {
       return false;
     }
     if (_activeDraftIsOpeningForm) {
@@ -3736,64 +3790,156 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     FfmAssistantDraft draft,
     String normalized,
   ) {
-    final amountMatch = RegExp(
-      r'(?:nominal|jumlah|nilai|jadi)\s*(?:rp\.?\s*)?([\d.,]+)\s*(ribu|rb|k|juta|jt)?',
-    ).firstMatch(normalized);
-    if (amountMatch != null) {
-      final amount = _parseRupiah(amountMatch.group(1)!, amountMatch.group(2));
-      if (amount != null) return draft.copyWith(amount: amount);
+    var current = draft;
+    var changed = false;
+
+    final isToIncome = RegExp(
+      r'(?:(?:itu|ini|jadikan|ubah|ganti|bukan)\s+)?(?:uang\s+masuk|pemasukan|penerimaan|pendapatan)(?:\s+(?:bukan|bukanlah)\s+(?:uang\s+keluar|pengeluaran))?|(?:bukan\s+(?:uang\s+keluar|pengeluaran)\s*(?:tapi|melainkan)?\s*(?:uang\s+masuk|pemasukan|penerimaan|pendapatan)?)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final isToExpense = RegExp(
+      r'(?:(?:itu|ini|jadikan|ubah|ganti|bukan)\s+)?(?:uang\s+keluar|pengeluaran|belanja)(?:\s+(?:bukan|bukanlah)\s+(?:uang\s+masuk|pemasukan))?|(?:bukan\s+(?:uang\s+masuk|pemasukan)\s*(?:tapi|melainkan)?\s*(?:uang\s+keluar|pengeluaran|belanja)?)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (isToIncome && current.kind != FfmAssistantDraftKind.income) {
+      current = current.copyWith(
+        kind: FfmAssistantDraftKind.income,
+        toAccountName: current.toAccountName ?? current.fromAccountName,
+        fromAccountName: null,
+      );
+      changed = true;
+    } else if (isToExpense && current.kind != FfmAssistantDraftKind.expense) {
+      current = current.copyWith(
+        kind: FfmAssistantDraftKind.expense,
+        fromAccountName: current.fromAccountName ?? current.toAccountName,
+        toAccountName: null,
+      );
+      changed = true;
     }
-    final fieldMatch = RegExp(
-      r'(rekening asal|asal|rekening tujuan|tujuan|kategori|target|catatan|judul|nama|pihak|pemberi hutang|pemberi pinjaman|peminjam|sumber|toko|tempat|lokasi|cicilan|periode)\s*(?:jadi|ke)\s+(.+)$',
+
+    final bukanTapiMatch = RegExp(
+      r'bukan\s+(?:rp\s*)?[\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?\s*(?:,|tapi|melainkan)?\s*(?:rp\s*)?([\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?)',
+      caseSensitive: false,
     ).firstMatch(normalized);
-    if (fieldMatch == null) return null;
-    final field = fieldMatch.group(1)!;
-    final value = fieldMatch.group(2)!.trim();
-    if (value.isEmpty) return null;
-    return switch (field) {
-      'rekening asal' || 'asal' => draft.copyWith(fromAccountName: value),
-      'rekening tujuan' || 'tujuan' => draft.copyWith(toAccountName: value),
-      'kategori' => draft.copyWith(categoryName: value),
-      'target' => draft.copyWith(goalName: value),
-      'catatan' => draft.copyWith(note: value),
-      'judul' || 'nama' => draft.copyWith(title: value),
-      'pihak' ||
-      'pemberi hutang' ||
-      'pemberi pinjaman' ||
-      'peminjam' ||
-      'sumber' => draft.copyWith(
-        partyName: value,
-        formValues: {
-          ...draft.formValues,
-          'party': value,
-          'partyName': value,
-          if (draft.kind == FfmAssistantDraftKind.income) 'incomeSource': value,
-        },
-      ),
-      'toko' || 'tempat' => draft.copyWith(
-        merchantName: value,
-        formValues: {...draft.formValues, 'merchant': value},
-      ),
-      'lokasi' => draft.copyWith(
-        location: value,
-        formValues: {...draft.formValues, 'location': value},
-      ),
-      'cicilan' => draft.copyWith(
-        formValues: {...draft.formValues, 'monthlyInstallment': value},
-      ),
-      'periode' => draft.copyWith(
-        formValues: {
-          ...draft.formValues,
-          'periodType': switch (value.toLowerCase()) {
-            'mingguan' || 'weekly' => 'weekly',
-            'per dua minggu' || 'biweekly' => 'biweekly',
-            'tidak rutin' || 'nonrecurring' => 'nonrecurring',
-            _ => 'monthly',
-          },
-        },
-      ),
-      _ => null,
-    };
+    if (bukanTapiMatch != null) {
+      final amount = FfmAssistantAmountParser.parse(bukanTapiMatch.group(1)!);
+      if (amount != null && amount > 0) {
+        current = current.copyWith(amount: amount);
+        changed = true;
+      }
+    } else {
+      final amountMatch = RegExp(
+        r'(?:nominal|jumlah|nilai|harga|jadi|menjadi|ke|sebesar)\s*(?:rp\.?\s*)?([\d.,]+)\s*(ribu|rb|k|juta|jt)?',
+      ).firstMatch(normalized);
+      if (amountMatch != null) {
+        final amount = _parseRupiah(amountMatch.group(1)!, amountMatch.group(2));
+        if (amount != null && amount > 0) {
+          current = current.copyWith(amount: amount);
+          changed = true;
+        }
+      } else if (RegExp(r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$', caseSensitive: false).hasMatch(normalized.trim())) {
+        final amount = FfmAssistantAmountParser.parse(normalized.trim());
+        if (amount != null && amount > 0) {
+          current = current.copyWith(amount: amount);
+          changed = true;
+        }
+      }
+    }
+
+    final fieldMatch = RegExp(
+      r'(rekening asal|asal|rekening tujuan|tujuan|rekening|akun|pakai|pake|dari|ke|kategori|target|catatan|judul|nama|pihak|pemberi hutang|pemberi pinjaman|peminjam|sumber|toko|tempat|lokasi|cicilan|periode)\s*(?::|jadi|ke|=|adalah|\s+)\s*(.+)$',
+    ).firstMatch(normalized);
+    if (fieldMatch != null) {
+      final field = fieldMatch.group(1)!;
+      final value = fieldMatch.group(2)!.trim();
+      if (value.isNotEmpty) {
+        switch (field) {
+          case 'rekening asal':
+          case 'asal':
+          case 'dari':
+            current = current.copyWith(fromAccountName: value);
+            changed = true;
+          case 'rekening tujuan':
+          case 'tujuan':
+          case 'ke':
+            current = current.copyWith(toAccountName: value);
+            changed = true;
+          case 'rekening':
+          case 'akun':
+          case 'pakai':
+          case 'pake':
+            if (current.kind == FfmAssistantDraftKind.income) {
+              current = current.copyWith(toAccountName: value);
+            } else {
+              current = current.copyWith(fromAccountName: value);
+            }
+            changed = true;
+          case 'kategori':
+            current = current.copyWith(categoryName: value);
+            changed = true;
+          case 'target':
+            current = current.copyWith(goalName: value);
+            changed = true;
+          case 'catatan':
+            current = current.copyWith(note: value);
+            changed = true;
+          case 'judul':
+          case 'nama':
+            current = current.copyWith(title: value);
+            changed = true;
+          case 'pihak':
+          case 'pemberi hutang':
+          case 'pemberi pinjaman':
+          case 'peminjam':
+          case 'sumber':
+            current = current.copyWith(
+              partyName: value,
+              formValues: {
+                ...current.formValues,
+                'party': value,
+                'partyName': value,
+                if (current.kind == FfmAssistantDraftKind.income) 'incomeSource': value,
+              },
+            );
+            changed = true;
+          case 'toko':
+          case 'tempat':
+            current = current.copyWith(
+              merchantName: value,
+              formValues: {...current.formValues, 'merchant': value},
+            );
+            changed = true;
+          case 'lokasi':
+            current = current.copyWith(
+              location: value,
+              formValues: {...current.formValues, 'location': value},
+            );
+            changed = true;
+          case 'cicilan':
+            current = current.copyWith(
+              formValues: {...current.formValues, 'monthlyInstallment': value},
+            );
+            changed = true;
+          case 'periode':
+            current = current.copyWith(
+              formValues: {
+                ...current.formValues,
+                'periodType': switch (value.toLowerCase()) {
+                  'mingguan' || 'weekly' => 'weekly',
+                  'per dua minggu' || 'biweekly' => 'biweekly',
+                  'tidak rutin' || 'nonrecurring' => 'nonrecurring',
+                  _ => 'monthly',
+                },
+              },
+            );
+            changed = true;
+        }
+      }
+    }
+
+    return changed ? current : null;
   }
 
   int? _parseRupiah(String raw, String? unit) {
@@ -3808,6 +3954,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   String _revisionSummary(FfmAssistantDraft before, FfmAssistantDraft after) {
+    if (before.kind != after.kind) {
+      final label = after.kind == FfmAssistantDraftKind.income
+          ? 'Pemasukan (Uang Masuk)'
+          : after.kind == FfmAssistantDraftKind.expense
+              ? 'Pengeluaran (Uang Keluar)'
+              : after.kind.name;
+      return 'jenis transaksi diubah menjadi $label.';
+    }
     if (before.amount != after.amount) {
       return 'nominal diubah dari ${FfmAssistantDraftPreview.rupiah(before.amount ?? 0)} menjadi ${FfmAssistantDraftPreview.rupiah(after.amount ?? 0)}.';
     }
@@ -4231,9 +4385,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             : snippet;
         lines.add('$role: $truncated');
       }
-      if (entry.intent?.draft != null) {
-        final draft = entry.intent!.draft!;
-        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}]');
+      final draft = entry.intent?.draft ?? entry.review?.draft;
+      if (draft != null) {
+        final toAcc = draft.toAccountName != null ? ' ke ${draft.toAccountName}' : '';
+        final fromAcc = draft.fromAccountName != null ? ' dari ${draft.fromAccountName}' : '';
+        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc]');
       }
     }
     return lines.isEmpty ? null : lines.join('\n');
@@ -4525,31 +4681,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       return Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_onboardingSuggestions.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: _onboardingSuggestions.map((
-                                    suggestion,
-                                  ) {
-                                    return Padding(
-                                      padding: const EdgeInsets.only(right: 8),
-                                      child: ActionChip(
-                                        label: Text(
-                                          suggestion,
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                        onPressed: _submitting
-                                            ? null
-                                            : () => _submit(suggestion),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                            ),
                           if (_activeMorningBriefing != null)
                             MorningBriefingCard(
                               briefing: _activeMorningBriefing!,
@@ -4762,24 +4893,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                           Icons.add_photo_alternate_outlined,
                                         ),
                                 ),
-                                if (_activeSuggestedQuestions.isNotEmpty)
-                                  IconButton(
-                                    tooltip:
-                                        'Ide pertanyaan lanjutan (${_activeSuggestedQuestions.length})',
-                                    onPressed: () =>
-                                        _showFollowUpQuestionsSheet(
-                                      _activeSuggestedQuestions,
-                                    ),
-                                    icon: Badge.count(
-                                      count: _activeSuggestedQuestions.length,
-                                      backgroundColor: Colors.amber[700],
-                                      textColor: Colors.white,
-                                      child: const Icon(
-                                        Icons.lightbulb,
-                                        color: Colors.amber,
-                                      ),
-                                    ),
-                                  ),
                                 Expanded(
                                   child: TextField(
                                     controller: _controller,

@@ -90,12 +90,41 @@ void main() {
       expect(controller.themeMode, ThemeMode.light);
     });
 
-    test('setByName fallback ke sistem untuk kata kunci sistem/default', () async {
+    test('setByName kata kunci default/defaut dan kata tidak dikenal beralih ke mode terang', () async {
+      final controller = AppThemeController(initialMode: ThemeMode.dark);
+
+      var result = await controller.setByName('kembalikan ke default');
+      expect(result, 'light');
+      expect(controller.themeMode, ThemeMode.light);
+
+      await controller.setThemeMode(ThemeMode.dark);
+      result = await controller.setByName('jadikan defaut mode terang ya, jangan mengikuti device');
+      expect(result, 'light');
+      expect(controller.themeMode, ThemeMode.light);
+
+      await controller.setThemeMode(ThemeMode.dark);
+      result = await controller.setByName('random text fallback');
+      expect(result, 'light');
+      expect(controller.themeMode, ThemeMode.light);
+    });
+
+    test('setByName mengenali kata kunci sistem jika diminta secara eksplisit', () async {
       final controller = AppThemeController(initialMode: ThemeMode.dark);
 
       final result = await controller.setByName('kembalikan ke sistem');
       expect(result, 'system');
       expect(controller.themeMode, ThemeMode.system);
+    });
+
+    test('loadSavedTheme menormalkan preferensi system atau kosong ke light mode', () async {
+      final controller = AppThemeController();
+      await controller.loadSavedTheme();
+      expect(controller.themeMode, ThemeMode.light);
+
+      // Simulasikan nilai tersimpan lama 'system'
+      await FlutterSecureStorage().write(key: 'ffm_theme_mode', value: 'system');
+      await controller.loadSavedTheme();
+      expect(controller.themeMode, ThemeMode.light);
     });
   });
 }

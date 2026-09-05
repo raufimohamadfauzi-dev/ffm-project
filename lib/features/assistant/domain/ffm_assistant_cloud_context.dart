@@ -224,7 +224,7 @@ class FfmAssistantCloudDraftContext {
               'missing=${missingFields.isEmpty ? '-' : missingFields.join(',')}; '
               'warnings=${warnings.isEmpty ? '-' : warnings.join('; ')}.';
     return _clip(
-      '$base$reviewPart Pertahankan kind dan jangan klaim sudah tersimpan.',
+      '$base$reviewPart Bila pengguna meminta koreksi (termasuk ganti pemasukan/pengeluaran), panggil create_draft yang sudah direvisi. Jangan klaim sudah tersimpan.',
       maxCharacters,
     );
   }

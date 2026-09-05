@@ -73,6 +73,8 @@ void main() {
         'nyalain lampu',
         'bikin terang',
         'layar putih',
+        'mode default',
+        'jadikan defaut mode terang ya, jangan mengikuti device',
       ];
       for (final phrase in phrasesLight) {
         final res = await interpreter.interpret(phrase);

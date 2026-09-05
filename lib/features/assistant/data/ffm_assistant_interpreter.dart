@@ -799,6 +799,36 @@ class FfmAssistantInterpreter {
         ? FfmAssistantIntentType.help
         : FfmAssistantIntentType.queryData;
 
+    if (activeDraft != null &&
+        requestClassForMeta == FfmAssistantCloudRequestClass.draftReview) {
+      final revisedIntent = await _tryReviseActiveDraft(
+        rawText,
+        normalized,
+        activeDraft: activeDraft,
+        accounts: accounts,
+        categories: categories,
+      );
+      final draftToKeep = revisedIntent?.draft ?? activeDraft;
+      final issues = FfmAssistantDraftValidator.validate(draftToKeep);
+      final keepReview = FfmAssistantDraftReview(
+        draft: draftToKeep,
+        version: (revisedIntent != null && revisedIntent.draft != activeDraft)
+            ? 2
+            : 1,
+        issues: issues,
+      );
+      return _InterpretResult.single(
+        _intentForDraft(rawText, normalized, draftToKeep).copyWith(
+          response: turn.text,
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'gemini_cloud',
+          pluginCategory: 'gemini_cloud',
+          pluginMetadata: geminiMetadata,
+          review: keepReview,
+        ),
+      );
+    }
+
     return _InterpretResult.single(
       FfmAssistantIntent(
         rawText: rawText,
@@ -1242,6 +1272,34 @@ class FfmAssistantInterpreter {
     final changes = <String>[];
     var revised = activeDraft;
 
+    // 2b. Koreksi Jenis Transaksi (Pengeluaran <-> Pemasukan)
+    // Contoh: "itu uang masuk bukan uang keluar", "ini pemasukan bukan pengeluaran", "ubah jadi pemasukan", "bukan pengeluaran tapi pemasukan"
+    final isToIncome = RegExp(
+      r'(?:(?:itu|ini|jadikan|ubah|ganti|bukan)\s+)?(?:uang\s+masuk|pemasukan)(?:\s+(?:bukan|bukanlah)\s+(?:uang\s+keluar|pengeluaran))?|(?:bukan\s+(?:uang\s+keluar|pengeluaran)\s*(?:tapi|melainkan)?\s*(?:uang\s+masuk|pemasukan)?)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    final isToExpense = RegExp(
+      r'(?:(?:itu|ini|jadikan|ubah|ganti|bukan)\s+)?(?:uang\s+keluar|pengeluaran)(?:\s+(?:bukan|bukanlah)\s+(?:uang\s+masuk|pemasukan))?|(?:bukan\s+(?:uang\s+masuk|pemasukan)\s*(?:tapi|melainkan)?\s*(?:uang\s+keluar|pengeluaran)?)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (isToIncome && revised.kind == FfmAssistantDraftKind.expense) {
+      revised = revised.copyWith(
+        kind: FfmAssistantDraftKind.income,
+        toAccountName: revised.toAccountName ?? revised.fromAccountName,
+        fromAccountName: null,
+      );
+      changes.add('Jenis transaksi diubah menjadi Pemasukan (Uang Masuk)');
+    } else if (isToExpense && revised.kind == FfmAssistantDraftKind.income) {
+      revised = revised.copyWith(
+        kind: FfmAssistantDraftKind.expense,
+        fromAccountName: revised.fromAccountName ?? revised.toAccountName,
+        toAccountName: null,
+      );
+      changes.add('Jenis transaksi diubah menjadi Pengeluaran (Uang Keluar)');
+    }
+
     // 3. Koreksi Nominal / Amount
     // Contoh: "bukan 50rb tapi 75rb", "ubah nominal jadi 75rb", "ganti ke 80.000", "75rb"
     int? newAmount;
@@ -1279,9 +1337,10 @@ class FfmAssistantInterpreter {
     // 4. Koreksi Rekening (Grounded terhadap DB accounts)
     // Contoh: "ganti rekening ke BCA", "pakai Mandiri", "dari dompet Tunai", "bukan BCA tapi Mandiri"
     final mentionsAccount = RegExp(
-      r'\b(rekening|dompet|bank|sumber|tujuan|dari|ke|pakai|gunakan|lewat)\b',
+      r'\b(rekening|dompet|bank|sumber|tujuan|dari|ke|pakai|pake|gunakan|lewat)\b',
       caseSensitive: false,
-    ).hasMatch(normalized);
+    ).hasMatch(normalized) ||
+        accounts.any((a) => a.name.toLowerCase() == normalized.trim());
     if (mentionsAccount) {
       Account? matchedAccount;
       for (final acc in accounts) {
@@ -1494,6 +1553,33 @@ class FfmAssistantInterpreter {
         revised = revised.copyWith(note: noteText);
         changes.add('Catatan diperbarui');
       }
+    }
+
+    final isGenericObjection = RegExp(
+      r'^\s*(?:(?:itu|ini)?\s*(?:salah|keliru|bukan\s+gitu|ngg?ak\s+gitu|salah\s+semua|salah\s+total|salah\s+draf(?:nya)?)|(?:salah|keliru)\s*(?:itu|ini)?)\s*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isGenericObjection && changes.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.reviseDraft,
+        destination:
+            _intentForDraft(rawText, normalized, activeDraft).destination,
+        draft: activeDraft,
+        review: FfmAssistantDraftReview(
+          draft: activeDraft,
+          version: 1,
+          issues: FfmAssistantDraftValidator.validate(activeDraft),
+        ),
+        confidence: 1.0,
+        response:
+            'Baik, draf belum disimpan. Bagian mana yang keliru atau ingin diubah? '
+            'Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori). '
+            'Kamu juga bisa mengetuk tombol "Ubah" pada draf di atas untuk mengedit langsung.',
+        clarification:
+            'Bagian mana yang keliru? Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori).',
+      );
     }
 
     // Jika tidak ada perubahan yang terdeteksi, return null agar flow lain (Gemini / query) dapat berjalan
@@ -3382,15 +3468,20 @@ class FfmAssistantInterpreter {
       'putih',
       'siang',
       'white',
+      'default',
+      'defaut',
+      'mode bawaan',
       'nyalain lampu',
       'nyalakan lampu',
       'hidupkan lampu',
     ];
     final hasLight = lightPatterns.any(matchesThemePattern);
 
-    // 4. Variasi Sistem: sistem, default, hp, bawaan
-    final systemPatterns = ['sistem', 'default', 'bawaan hp', 'sesuai sistem'];
-    final hasSystem = systemPatterns.any(matchesThemePattern);
+    // 4. Variasi Sistem: sistem, perangkat, hp, bawaan
+    final systemPatterns = ['sistem', 'bawaan hp', 'sesuai sistem', 'perangkat', 'device'];
+    final hasSystem = systemPatterns.any(matchesThemePattern) &&
+        !clean.contains('jangan') &&
+        !clean.contains('bukan');
 
     // Kata-kata tema & aksi
     final isThemeWord =
