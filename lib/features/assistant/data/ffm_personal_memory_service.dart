@@ -189,6 +189,42 @@ class FfmPersonalMemoryService {
       ),
       labeler: (m) => 'Jumlah anggota keluarga: ${m.group(1)} orang',
     ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'agriculture_field',
+      pattern: RegExp(
+        r'(?:lahan|tanah|sawah|ladang|kebun)(?:\s*(?:ku|saya|kami))?\s+(?:luas(?:nya)?\s+)?(?:ada|sekitar|seluas)?\s*([\d.,]+\s*(?:hektar|ha|meter|m2|ubin|bata|ru))',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Luas lahan tani/kebun: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'commodity',
+      pattern: RegExp(
+        r'(?:tanam|budidaya|komoditas|kebun|sawah|panen|usaha)\s+(?:nya\s+)?(padi|jagung|kopi|cengkeh|sawit|sayur(?:an)?|cabai|cabe|bawang|singkong|ubi|kakao|cokelat|teh|buah|melon|semangka|tomat|ikan|lele|ayam|bebek|kambing|sapi)',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Komoditas tani/usaha: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.preference,
+      key: 'harvest_target',
+      pattern: RegExp(
+        r'(?:panen|estimasi\s+panen|jadwal\s+panen|perkiraan\s+panen)(?:\s*(?:ku|saya|kami))?\s+(?:sekitar|pada|bulan|tanggal|tgl)?\s*([\w\s\d]{3,25})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Perkiraan panen: ${m.group(1)?.trim()}',
+    ),
+    _MemoryPattern(
+      kind: FfmPersonalMemoryKind.habitData,
+      key: 'electricity_meter',
+      pattern: RegExp(
+        r'(?:nomor|no)?\s*(?:meteran|meter|id\s*pelanggan|idpel|token)\s*(?:pln|listrik)?\s*(?:rumah|ladang|sawah|toko|ruko|kontrakan)?\s*(?:adalah|:)?\s*(\d{11,12})',
+        caseSensitive: false,
+      ),
+      labeler: (m) => 'Nomor Meteran PLN: ${m.group(1)?.trim()}',
+    ),
   ];
 
   /// Mendapatkan context lengkap untuk LLM termasuk draft feedback

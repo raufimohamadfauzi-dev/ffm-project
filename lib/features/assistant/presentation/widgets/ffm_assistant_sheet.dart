@@ -66,6 +66,7 @@ import '../../domain/ffm_assistant_insight.dart';
 import 'ffm_assistant_markdown_text.dart';
 import 'ffm_assistant_global_launcher.dart';
 import '../pages/ffm_memory_viewer_page.dart';
+import 'ffm_memory_nudge_card.dart';
 import '../../../settings/presentation/pages/supabase_setup_page.dart';
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
@@ -212,6 +213,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       getIt<FfmAssistantIntentClassificationService>();
   var _memoryCount = 0;
   var _inboxCount = 0;
+  FfmPersonalMemoryInsight? _pendingMemoryInsight;
 
   List<FfmAssistantChatEntry> get _entries => widget.session.entries;
   List<FfmAssistantDraftQueueItem> get _draftQueue => widget.session.draftQueue;
@@ -416,15 +418,55 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   void _appendEntry(FfmAssistantChatEntry entry) {
-    _entries.add(entry);
+    final now = DateTime.now();
+    final enriched = FfmAssistantChatEntry(
+      isUser: entry.isUser,
+      text: entry.text,
+      intent: entry.intent,
+      activityIntent: entry.activityIntent,
+      understanding: entry.understanding,
+      review: entry.review,
+      filePath: entry.filePath,
+      fileFormat: entry.fileFormat,
+      processTrace: entry.processTrace,
+      createdAt: entry.createdAt ?? now,
+      verifiedFacts: entry.verifiedFacts,
+      analysisResults: entry.analysisResults,
+      feedbackType: entry.feedbackType,
+      feedbackCategory: entry.feedbackCategory,
+      sentAt: entry.sentAt ?? now,
+      receivedAt: entry.isUser
+          ? null
+          : (entry.receivedAt ?? now),
+      modelUsed: entry.modelUsed ?? _modelLabelFor(entry),
+      absorbedMemory: entry.absorbedMemory,
+    );
+    _entries.add(enriched);
     unawaited(_saveCurrentConversation());
     unawaited(_refreshProactiveSuggestion());
 
     // Start streaming for assistant text responses
-    if (!entry.isUser && entry.text.isNotEmpty) {
-      _startStreaming(entry);
+    if (!enriched.isUser && enriched.text.isNotEmpty) {
+      _startStreaming(enriched);
     }
   }
+
+  String? _modelLabelFor(FfmAssistantChatEntry entry) {
+    final origin = entry.intent?.responseOrigin;
+    if (origin == FfmAssistantResponseOrigin.geminiCloud) {
+      return 'Gemini Cloud';
+    }
+    if (origin == FfmAssistantResponseOrigin.cloudError) {
+      return 'Error Cloud ($_routingModeName)';
+    }
+    if (origin == FfmAssistantResponseOrigin.localFallback) return 'Lokal';
+    return _routingModeName;
+  }
+
+  String get _routingModeName => switch (_routingMode) {
+    FfmAssistantRoutingMode.geminiCloud => 'Gemini Cloud',
+    FfmAssistantRoutingMode.agent => 'Agent',
+  };
 
   void _startStreaming(FfmAssistantChatEntry entry) {
     _streamingSubscription?.cancel();
@@ -884,7 +926,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   void _checkForMemoryNudge(String userMessage) {
     if (userMessage.trim().isEmpty) return;
-    _personalMemoryService.extractFromMessage(userMessage);
+    final insight = _personalMemoryService.extractFromMessage(userMessage);
+    if (insight != null && mounted) {
+      setState(() {
+        _pendingMemoryInsight = insight;
+      });
+    }
   }
 
   @override
@@ -3087,6 +3134,74 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                   }).toList(),
                                 ),
                               ),
+                            ),
+                          if (_pendingMemoryInsight != null)
+                            FfmMemoryNudgeCard(
+                              insight: _pendingMemoryInsight!,
+                              onSave: () async {
+                                final toSave = _pendingMemoryInsight!;
+                                final messenger = ScaffoldMessenger.of(this.context);
+                                setState(() => _pendingMemoryInsight = null);
+                                final saved =
+                                    await _personalMemoryService.saveApproved(
+                                  toSave,
+                                );
+                                _refreshMemoryCount();
+                                if (_entries.isNotEmpty) {
+                                  for (var i = _entries.length - 1; i >= 0; i--) {
+                                    if (_entries[i].isUser) {
+                                      final old = _entries[i];
+                                      _entries[i] = FfmAssistantChatEntry(
+                                        isUser: old.isUser,
+                                        text: old.text,
+                                        intent: old.intent,
+                                        activityIntent: old.activityIntent,
+                                        understanding: old.understanding,
+                                        review: old.review,
+                                        filePath: old.filePath,
+                                        fileFormat: old.fileFormat,
+                                        processTrace: old.processTrace,
+                                        createdAt: old.createdAt,
+                                        verifiedFacts: old.verifiedFacts,
+                                        analysisResults: old.analysisResults,
+                                        feedbackType: old.feedbackType,
+                                        feedbackCategory: old.feedbackCategory,
+                                        sentAt: old.sentAt,
+                                        receivedAt: old.receivedAt,
+                                        modelUsed: old.modelUsed,
+                                        absorbedMemory: saved.humanLabel,
+                                      );
+                                      unawaited(_saveCurrentConversation());
+                                      break;
+                                    }
+                                  }
+                                }
+                                if (!mounted) return;
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.auto_awesome,
+                                          color: Colors.white,
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            '✨ Tersimpan ke memori: ${saved.humanLabel}',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    backgroundColor: const Color(0xFF00A876),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              },
+                              onDismiss: () {
+                                setState(() => _pendingMemoryInsight = null);
+                              },
                             ),
                           Container(
                             decoration: BoxDecoration(

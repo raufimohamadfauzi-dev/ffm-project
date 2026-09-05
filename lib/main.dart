@@ -28,6 +28,7 @@ import 'features/assistant/presentation/widgets/ffm_assistant_global_launcher.da
 import 'features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 import 'features/assistant/presentation/widgets/nfc_scan_dialog.dart';
+import 'features/assistant/data/nfc_bridge.dart';
 
 import 'features/assistant/presentation/pages/assistant_profile_page.dart';
 import 'features/assistant/presentation/pages/agent_inbox_page.dart';
@@ -75,6 +76,7 @@ import 'features/assistant/presentation/pages/ffm_assistant_autonomy_monitor_pag
 import 'features/hijri/presentation/pages/hijri_settings_page.dart';
 import 'features/settings/presentation/pages/calendar_settings_page.dart';
 import 'features/asset/presentation/pages/market_news_radar_page.dart';
+import 'features/settings/presentation/pages/utility_meter_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -597,10 +599,13 @@ class _AppShellState extends State<AppShell> {
   FfmAssistantDraft? _assistantTransactionDraft;
   final _assistantSession = FfmAssistantChatSession();
 
+  final _nfcBridge = NfcBridge();
+
   @override
   void initState() {
     super.initState();
     _widgetChannel.setMethodCallHandler(_handleWidgetCall);
+    _nfcBridge.setTagTriggerListener(_handleNfcSmartTagTrigger);
     _reminderNotifications.openTarget.addListener(
       _openReminderFromNotification,
     );
@@ -614,6 +619,7 @@ class _AppShellState extends State<AppShell> {
     )..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _consumePendingWidgetAction();
+      _consumePendingNfcTagTrigger();
       _openReminderFromNotification();
       _openInboxFromNotification();
     });
@@ -687,6 +693,32 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  Future<void> _consumePendingNfcTagTrigger() async {
+    final uriStr = await _nfcBridge.consumePendingTagTrigger();
+    if (mounted && uriStr != null) {
+      _handleNfcSmartTagTrigger(uriStr);
+    }
+  }
+
+  void _handleNfcSmartTagTrigger(String uriString) {
+    if (!mounted) return;
+    final uri = Uri.tryParse(uriString);
+    if (uri == null || uri.scheme != 'ffm') return;
+
+    final type = uri.queryParameters['type'];
+    switch (type) {
+      case 'voice_assistant':
+        _openAssistant();
+      case 'timer_activity':
+        setState(() => _index = 2);
+      case 'fuel' || 'groceries' || 'custom':
+        setState(() => _index = 1);
+        _openAssistant();
+      default:
+        _openAssistant();
+    }
+  }
+
   @override
   void dispose() {
     _proactiveMonitor?.stop();
@@ -697,6 +729,7 @@ class _AppShellState extends State<AppShell> {
       _openInboxFromNotification,
     );
     _widgetChannel.setMethodCallHandler(null);
+    _nfcBridge.setTagTriggerListener(null);
     super.dispose();
   }
 
@@ -1063,6 +1096,12 @@ class _AppShellState extends State<AppShell> {
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const MarketNewsRadarPage(),
+          ),
+        );
+      case FfmAssistantDestination.utilityMeter:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const UtilityMeterPage(),
           ),
         );
     }

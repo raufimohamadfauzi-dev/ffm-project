@@ -15,18 +15,29 @@ class NfcCardAccount {
     required this.cardType,
     required this.lastKnownBalance,
     required this.lastScannedAt,
+    this.issuer,
+    this.accountId,
   });
 
   final String cardId;
   final String cardType;
   final double lastKnownBalance;
   final DateTime lastScannedAt;
+  final String? issuer;
+  final String? accountId;
+
+  /// Nama tampilan kartu (mengutamakan alias kustom pengguna, misal "Flazz Avanza Ayah").
+  String get displayName => (issuer != null && issuer!.trim().isNotEmpty)
+      ? issuer!.trim()
+      : cardType;
 
   Map<String, dynamic> toJson() => {
         'cardId': cardId,
         'cardType': cardType,
         'lastKnownBalance': lastKnownBalance,
         'lastScannedAt': lastScannedAt.toIso8601String(),
+        'issuer': issuer,
+        'accountId': accountId,
       };
 
   factory NfcCardAccount.fromJson(Map<String, dynamic> json) => NfcCardAccount(
@@ -34,17 +45,23 @@ class NfcCardAccount {
         cardType: json['cardType'] as String? ?? 'emoney_generic',
         lastKnownBalance: (json['lastKnownBalance'] as num).toDouble(),
         lastScannedAt: DateTime.parse(json['lastScannedAt'] as String),
+        issuer: json['issuer'] as String?,
+        accountId: json['accountId'] as String?,
       );
 
   NfcCardAccount copyWith({
     double? lastKnownBalance,
     DateTime? lastScannedAt,
+    String? issuer,
+    String? accountId,
   }) {
     return NfcCardAccount(
       cardId: cardId,
       cardType: cardType,
       lastKnownBalance: lastKnownBalance ?? this.lastKnownBalance,
       lastScannedAt: lastScannedAt ?? this.lastScannedAt,
+      issuer: issuer ?? this.issuer,
+      accountId: accountId ?? this.accountId,
     );
   }
 }
@@ -59,6 +76,7 @@ class NfcAdaptationResult {
     required this.isBaseline,
     required this.balanceAvailable,
     this.draft,
+    this.historyDrafts = const <PaymentDraft>[],
   });
 
   final NfcCardAccount cardAccount;
@@ -77,6 +95,9 @@ class NfcAdaptationResult {
 
   /// Draft transaksi yang dihasilkan (jika ada perubahan saldo).
   final PaymentDraft? draft;
+
+  /// Rincian draft riwayat transaksi individu yang diekstrak langsung dari chip kartu.
+  final List<PaymentDraft> historyDrafts;
 }
 
 /// Repositori untuk mengelola catatan saldo kartu e-Money
@@ -205,6 +226,39 @@ class NfcCardRepository {
     );
   }
 
+  /// Mengubah nama alias kustom kartu e-Money (contoh: "Flazz Avanza Ayah")
+  /// dan otomatis memperbarui nama rekening terkait di Data Utama.
+  Future<bool> updateCardAlias(String cardIdOrHash, String newAlias) async {
+    final database = _database;
+    if (database == null) return false;
+    final cleanAlias = newAlias.trim();
+    if (cleanAlias.isEmpty) return false;
+
+    final cardHash = cardIdOrHash.length >= 64
+        ? cardIdOrHash
+        : sha256.convert(utf8.encode(cardIdOrHash)).toString();
+
+    final row = await (database.select(database.nfcCardAccounts)
+          ..where((r) =>
+              r.householdId.equals(_householdId) &
+              (r.cardUidHash.equals(cardHash) |
+                  r.cardUidHash.equals(cardIdOrHash) |
+                  r.id.equals(cardIdOrHash))))
+        .getSingleOrNull();
+    if (row == null) return false;
+
+    await database.transaction(() async {
+      await (database.update(database.nfcCardAccounts)
+            ..where((r) => r.id.equals(row.id)))
+          .write(NfcCardAccountsCompanion(issuer: Value(cleanAlias)));
+
+      await (database.update(database.accounts)
+            ..where((a) => a.id.equals(row.accountId)))
+          .write(AccountsCompanion(name: Value(cleanAlias)));
+    });
+    return true;
+  }
+
   /// Mengambil semua daftar kartu e-Money yang pernah di-scan.
   Future<List<NfcCardAccount>> getCardAccounts() async {
     if (_database case final AppDatabase database) {
@@ -218,6 +272,8 @@ class NfcCardRepository {
               cardType: row.cardType,
               lastKnownBalance: (row.lastKnownBalance ?? 0).toDouble(),
               lastScannedAt: row.lastScannedAt ?? row.createdAt,
+              issuer: row.issuer,
+              accountId: row.accountId,
             ),
           )
           .toList(growable: false);
@@ -238,12 +294,45 @@ class NfcCardRepository {
                 row.cardUidHash.equals(cardHash),
           ))
         .getSingleOrNull();
+
     final card = NfcCardAccount(
       cardId: cardHash,
       cardType: scan.cardType,
       lastKnownBalance: scan.balance,
       lastScannedAt: now,
+      issuer: previous?.issuer,
+      accountId: previous?.accountId,
     );
+
+    // Proses riwayat log transaksi chip APDU jika tersedia
+    final historyDrafts = <PaymentDraft>[];
+    if (scan.history.isNotEmpty) {
+      for (final item in scan.history) {
+        if (item.amount > 0) {
+          final recordSig = item.rawHex != null && item.rawHex!.isNotEmpty
+              ? sha256.convert(utf8.encode(item.rawHex!)).toString().substring(0, 12)
+              : 'rec${item.recordIndex}_${item.amount.toInt()}';
+          final draftId = 'nfc_hist_${cardHash.substring(0, 8)}_$recordSig';
+          final hDraft = await _draftRepository.addIfNotDuplicate(
+            PaymentDraft(
+              id: draftId,
+              sourceApp: 'nfc_${scan.cardType}',
+              rawTitle: 'NFC ${card.displayName}',
+              rawBody: 'Transaksi Tol/Parkir chip #${item.recordIndex}',
+              amount: item.amount,
+              merchantName: 'Tol / Parkir (${card.displayName})',
+              mutationType: PaymentMutationType.debit,
+              createdAt: now.subtract(Duration(minutes: item.recordIndex * 15)),
+              suggestedCategory: 'Transportasi',
+            ),
+          );
+          if (hDraft != null) {
+            historyDrafts.add(hDraft);
+          }
+        }
+      }
+    }
+
     final oldBalance = previous?.lastKnownBalance?.toDouble();
     final isNewMonth = previous == null ||
         previous.lastScannedAt == null ||
@@ -253,7 +342,7 @@ class NfcCardRepository {
         !previous.balanceAvailable ||
         oldBalance == null;
     if (isNewMonth) {
-      await _persistDatabaseScan(scan, now);
+      await _persistDatabaseScan(scan, now, previous?.issuer);
       return NfcAdaptationResult(
         cardAccount: card,
         previousBalance: oldBalance,
@@ -261,11 +350,12 @@ class NfcCardRepository {
         difference: 0,
         isBaseline: true,
         balanceAvailable: scan.balanceAvailable,
+        historyDrafts: historyDrafts,
       );
     }
     final difference = oldBalance - scan.balance;
-    final draft = await _createDraft(scan, difference, now);
-    await _persistDatabaseScan(scan, now);
+    final draft = await _createDraft(scan, difference, now, card.displayName);
+    await _persistDatabaseScan(scan, now, previous.issuer);
     return NfcAdaptationResult(
       cardAccount: card,
       previousBalance: oldBalance,
@@ -274,24 +364,27 @@ class NfcCardRepository {
       isBaseline: false,
       balanceAvailable: true,
       draft: draft,
+      historyDrafts: historyDrafts,
     );
   }
 
   Future<PaymentDraft?> _createDraft(
     NfcCardScanResult scan,
     double difference,
-    DateTime now,
-  ) {
+    DateTime now, [
+    String? cardDisplayName,
+  ]) {
     if (!scan.balanceAvailable || difference == 0) return Future.value(null);
     final isDebit = difference > 0;
+    final displayName = cardDisplayName ?? scan.cardTypeLabel;
     return _draftRepository.addIfNotDuplicate(
       PaymentDraft(
         id: 'nfc_${now.microsecondsSinceEpoch}',
         sourceApp: 'nfc_${scan.cardType}',
-        rawTitle: 'NFC ${scan.cardTypeLabel}',
+        rawTitle: 'NFC $displayName',
         rawBody: '${isDebit ? 'Pengeluaran' : 'Isi ulang'} e-Money sebesar ${scan.formattedBalance}',
         amount: difference.abs(),
-        merchantName: '${isDebit ? 'Pengeluaran' : 'Isi Ulang'} ${scan.cardTypeLabel}',
+        merchantName: '${isDebit ? 'Pengeluaran' : 'Isi Ulang'} $displayName',
         mutationType: isDebit
             ? PaymentMutationType.debit
             : PaymentMutationType.credit,
@@ -303,17 +396,24 @@ class NfcCardRepository {
 
   Future<void> _persistDatabaseScan(
     NfcCardScanResult scan,
-    DateTime scannedAt,
-  ) async {
+    DateTime scannedAt, [
+    String? existingCustomIssuer,
+  ]) async {
     final database = _database;
     if (database == null) return;
 
     final cardHash = sha256.convert(utf8.encode(scan.cardId)).toString();
     final cardId = 'nfc-card-${cardHash.substring(0, 24)}';
     final accountId = 'nfc-account-${cardHash.substring(0, 24)}';
-    final accountName = scan.cardType == 'emoney_generic'
-        ? 'Kartu NFC'
-        : scan.cardTypeLabel;
+
+    // Periksa apakah nama akun sudah pernah diubah kustom oleh user
+    final existingAccount = await (database.select(database.accounts)
+          ..where((a) => a.id.equals(accountId)))
+        .getSingleOrNull();
+
+    final accountName = existingCustomIssuer ??
+        existingAccount?.name ??
+        (scan.cardType == 'emoney_generic' ? 'Kartu NFC' : scan.cardTypeLabel);
     final accountType = scan.cardType.contains('bank') ? 'bank' : 'ewallet';
 
     await database.transaction(() async {

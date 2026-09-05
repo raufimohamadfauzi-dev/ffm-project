@@ -145,8 +145,10 @@ class PaymentDraftRepository {
   Future<PaymentDraft?> addIfNotDuplicate(PaymentDraft draft) async {
     final drafts = await _loadAll();
 
-    // Periksa duplikat dalam window 5 menit
+    // Periksa duplikat: ID sama (sudah pernah dibuat/disimpan/diabaikan),
+    // ATAU nominal, source, dan status pending sama dalam rentang 5 menit
     final isDuplicate = drafts.any((d) {
+      if (d.id == draft.id) return true;
       final timeDiff = draft.createdAt.difference(d.createdAt).abs();
       return d.amount == draft.amount &&
           d.sourceApp == draft.sourceApp &&

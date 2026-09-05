@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
+import '../../../core/di/injection.dart';
+import '../../advisor/data/cash_flow_profile_repository.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
 import '../data/ffm_assistant_insight_repository.dart';
 import 'detectors/anomaly_spike_detector.dart';
@@ -24,10 +26,17 @@ class AutonomousEvaluationCoordinator {
     this.deliveryPolicy,
     this.telegramBotService,
     this.telegramConfigRepository,
+    CashFlowProfileRepository? cashFlowProfileRepository,
   })  : _db = database,
         _repo = insightRepository,
         _clock = clock ?? DateTime.now,
-        _runwayDetector = PredictiveRunwayDetector(database),
+        _runwayDetector = PredictiveRunwayDetector(
+          database,
+          cashFlowRepo: cashFlowProfileRepository ??
+              (getIt.isRegistered<CashFlowProfileRepository>()
+                  ? getIt<CashFlowProfileRepository>()
+                  : null),
+        ),
         _rebalanceDetector = IntelligentEnvelopeRebalanceDetector(database),
         _spikeDetector = AnomalySpikeDetector(database),
         _latteDetector = MicroExpenseLeakDetector(database),

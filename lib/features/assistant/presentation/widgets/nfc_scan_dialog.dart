@@ -3,7 +3,7 @@ import 'package:drift/drift.dart' hide Column;
 
 import '../../../../core/di/injection.dart';
 import '../../../../core/database/app_context.dart';
-import '../../../../core/database/app_database.dart';
+import '../../../../core/database/app_database.dart' hide NfcCardAccount;
 import '../../data/nfc_bridge.dart';
 import '../../data/nfc_card_repository.dart';
 import '../../data/payment_draft_repository.dart';
@@ -223,6 +223,63 @@ class _NfcScanDialogState extends State<NfcScanDialog>
     Navigator.of(context).pop();
   }
 
+  Future<void> _editCardAlias(NfcCardAccount account) async {
+    final ctrl = TextEditingController(
+      text: account.issuer?.isNotEmpty == true ? account.issuer! : account.cardType,
+    );
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Beri Nama Kartu'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(
+            labelText: 'Nama / Panggilan Kartu',
+            hintText: 'Contoh: Flazz Avanza Ayah',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (newName != null && newName.isNotEmpty && mounted) {
+      await _nfcRepo.updateCardAlias(account.cardId, newName);
+      setState(() {
+        final updatedAccount = account.copyWith(issuer: newName);
+        _adaptationResult = NfcAdaptationResult(
+          cardAccount: updatedAccount,
+          previousBalance: _adaptationResult!.previousBalance,
+          newBalance: _adaptationResult!.newBalance,
+          difference: _adaptationResult!.difference,
+          isBaseline: _adaptationResult!.isBaseline,
+          balanceAvailable: _adaptationResult!.balanceAvailable,
+          draft: _adaptationResult!.draft,
+          historyDrafts: _adaptationResult!.historyDrafts,
+        );
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nama kartu diubah menjadi "$newName"'),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _dismissDraft(PaymentDraft draft) async {
     await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.dismissed);
     if (!mounted) return;
@@ -400,22 +457,36 @@ class _NfcScanDialogState extends State<NfcScanDialog>
             children: [
               Row(
                 children: [
-                  const Icon(Icons.credit_card, color: Colors.white, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    account.cardType,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+                  const Icon(Icons.credit_card, color: Colors.white, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          account.displayName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          'ID: ${account.cardId.length > 16 ? "${account.cardId.substring(0, 14)}..." : account.cardId}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  Text(
-                    'ID: ${account.cardId}',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                    ),
+                  IconButton(
+                    tooltip: 'Ubah Nama Kartu',
+                    icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                    onPressed: () => _editCardAlias(account),
                   ),
                 ],
               ),
@@ -539,6 +610,75 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                 ),
               ),
             ],
+          ),
+        ],
+
+        // ── DAFTAR RIWAYAT LOG TRANSAKSI CHIP APDU ──
+        if (result.historyDrafts.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(Icons.history_toggle_off_rounded, size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Log Transaksi Terbaca dari Chip (${result.historyDrafts.length})',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ...result.historyDrafts.map(
+            (hDraft) => Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: colors.primaryContainer.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colors.primary.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.toll_outlined, size: 20, color: colors.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hDraft.merchantName,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          hDraft.rawBody,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    hDraft.formattedAmount,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade700,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Simpan',
+                    icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                    onPressed: () => _confirmDraft(hDraft),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
 

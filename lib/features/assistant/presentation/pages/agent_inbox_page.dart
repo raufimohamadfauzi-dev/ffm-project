@@ -1,4 +1,6 @@
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
@@ -102,6 +104,8 @@ class _AgentInboxPageState extends State<AgentInboxPage>
   Future<void> _handleAction(FfmAssistantInsight insight) async {
     // Jika insight memiliki usulan mutasi/payload, tampilkan preview dan konfirmasi eksplisit
     if (insight.actionPayload != null && insight.actionPayload!.isNotEmpty) {
+      final payload = insight.actionPayload!;
+      final isRebalance = payload['type'] == 'envelope_transfer';
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (dialogCtx) => AlertDialog(
@@ -111,6 +115,36 @@ class _AgentInboxPageState extends State<AgentInboxPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(insight.summary),
+              if (isRebalance) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(dialogCtx).colorScheme.primaryContainer.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.swap_horiz_rounded, color: Theme.of(dialogCtx).colorScheme.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Detail Pergeseran Saldo',
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(dialogCtx).colorScheme.primary),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text('• Dari: ${payload['fromBudgetName'] ?? 'Pos Sumber'}'),
+                      Text('• Ke: ${payload['toBudgetName'] ?? 'Pos Target'}'),
+                      Text('• Nominal: Rp ${payload['amount']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
@@ -135,12 +169,42 @@ class _AgentInboxPageState extends State<AgentInboxPage>
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogCtx).pop(true),
-              child: const Text('Lanjutkan'),
+              child: Text(isRebalance ? 'Terapkan Sekarang' : 'Lanjutkan'),
             ),
           ],
         ),
       );
       if (confirmed != true || !mounted) return;
+
+      if (isRebalance) {
+        final db = getIt<AppDatabase>();
+        final now = DateTime.now();
+        final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+        await db.into(db.envelopeTransfers).insert(
+          EnvelopeTransfersCompanion.insert(
+            id: const Uuid().v4(),
+            householdId: AppContext.householdId,
+            month: Value(monthKey),
+            fromEnvelopeId: payload['fromEnvelopeId'].toString(),
+            toEnvelopeId: payload['toEnvelopeId'].toString(),
+            amount: (payload['amount'] as num).toInt(),
+            note: const Value('Penyeimbangan anggaran otonom (Zero-Sum)'),
+            createdAt: now,
+          ),
+        );
+        await _markActed(insight.id);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Pergeseran anggaran Rp ${payload['amount']} berhasil diterapkan!',
+            ),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       await _markActed(insight.id);
     }
     _handleNavigate(insight.destination);

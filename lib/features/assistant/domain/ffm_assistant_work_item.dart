@@ -175,6 +175,8 @@ class FfmAssistantWorkItem {
         return 'Pengaturan Kalender';
       case FfmAssistantDestination.marketNewsRadar:
         return 'Radar Pasar & Berita';
+      case FfmAssistantDestination.utilityMeter:
+        return 'Meteran & Token';
     }
   }
 

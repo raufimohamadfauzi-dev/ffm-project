@@ -47,6 +47,8 @@ class _FakeGemini extends GeminiService {
     String? apiKey,
     String? model,
     List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
+    int? maxOutputTokens,
   }) async {
     calls++;
     receivedModel = model;
@@ -66,6 +68,8 @@ class _SecondCallFailsGemini extends GeminiService {
     String? apiKey,
     String? model,
     List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
+    int? maxOutputTokens,
   }) async {
     calls++;
     return calls == 1
@@ -94,6 +98,8 @@ class _OutsideMonthReadGemini extends GeminiService {
     String? apiKey,
     String? model,
     List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
+    int? maxOutputTokens,
   }) async {
     calls++;
     return const GeminiResult(

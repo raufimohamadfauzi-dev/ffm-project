@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import android.nfc.NfcAdapter
 import java.util.Locale
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -20,7 +21,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterFragmentActivity() {
     private var pendingResult: MethodChannel.Result? = null
     private var pendingWidgetAction: String? = null
+    private var pendingNfcTagTrigger: String? = null
     private var widgetChannel: MethodChannel? = null
+    private var nfcChannel: MethodChannel? = null
     private var textToSpeech: TextToSpeech? = null
     private var speechSegments: List<String> = emptyList()
     private var nextSpeechSegment = 0
@@ -32,6 +35,11 @@ class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         FlutterEngineCache.getInstance().put("ffm_flutter_engine", flutterEngine)
+        pendingNfcTagTrigger = if (intent?.action == NfcAdapter.ACTION_NDEF_DISCOVERED || intent?.data?.scheme == "ffm") {
+            intent?.data?.toString()
+        } else {
+            null
+        }
         textToSpeech = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 textToSpeech?.language = Locale("id", "ID")
@@ -216,18 +224,19 @@ class MainActivity : FlutterFragmentActivity() {
 
         // NFC e-Money Reader Bridge — Fitur #1
         val nfcService = FfmNfcReaderService(this)
-        val nfcChannel = MethodChannel(
+        val channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             NFC_CHANNEL,
         )
-        nfcChannel.setMethodCallHandler { call, result ->
+        nfcChannel = channel
+        channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "isAvailable" -> result.success(FfmNfcReaderService.isAvailable(this))
                 "isEnabled" -> result.success(FfmNfcReaderService.isEnabled(this))
                 "startSession" -> {
                     val started = nfcService.startScanning { data ->
                         runOnUiThread {
-                            nfcChannel.invokeMethod("onCardScanned", data)
+                            channel.invokeMethod("onCardScanned", data)
                         }
                     }
                     result.success(started)
@@ -235,6 +244,25 @@ class MainActivity : FlutterFragmentActivity() {
                 "stopSession" -> {
                     nfcService.stopScanning()
                     result.success(true)
+                }
+                "writeTag" -> {
+                    val uri = call.argument<String>("uri").orEmpty()
+                    val started = nfcService.startWritingTag(uri) { res ->
+                        runOnUiThread {
+                            result.success(res)
+                        }
+                    }
+                    if (!started) {
+                        result.success(mapOf("success" to false, "error" to "NFC tidak aktif atau tidak tersedia."))
+                    }
+                }
+                "cancelWrite" -> {
+                    nfcService.cancelWriting()
+                    result.success(true)
+                }
+                "consumePendingTagTrigger" -> {
+                    result.success(pendingNfcTagTrigger)
+                    pendingNfcTagTrigger = null
                 }
                 else -> result.notImplemented()
             }
@@ -390,6 +418,14 @@ class MainActivity : FlutterFragmentActivity() {
                 pendingWidgetAction = action
             } else {
                 widgetChannel?.invokeMethod("openAction", action)
+            }
+        }
+        if (intent.action == NfcAdapter.ACTION_NDEF_DISCOVERED || intent.data?.scheme == "ffm") {
+            val tagUri = intent.data?.toString()
+            if (nfcChannel == null) {
+                pendingNfcTagTrigger = tagUri
+            } else {
+                nfcChannel?.invokeMethod("onTagTriggered", tagUri)
             }
         }
     }

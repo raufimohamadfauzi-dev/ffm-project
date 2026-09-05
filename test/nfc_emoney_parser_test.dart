@@ -258,5 +258,162 @@ void main() {
       expect(await database.select(database.nfcScanSnapshots).get(), hasLength(2));
       await database.close();
     });
+
+    test('updateCardAlias memperbarui alias kartu di nfcCardAccounts dan accounts', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'alias-household',
+      );
+
+      const scan = NfcCardScanResult(
+        cardId: 'MANDIRI-ALIAS-99',
+        balance: 150000,
+        cardType: 'mandiri_emoney',
+        success: true,
+      );
+      await repository.processCardScan(scan);
+
+      // Pastikan akun terbentuk
+      var cards = await repository.getCardAccounts();
+      expect(cards, hasLength(1));
+      expect(cards.first.displayName, 'Mandiri e-Money');
+
+      // Update alias kartu menjadi nama kustom
+      final updated = await repository.updateCardAlias('MANDIRI-ALIAS-99', 'e-Money Pajero Ayah');
+      expect(updated, isTrue);
+
+      // Cek di domain model repository
+      cards = await repository.getCardAccounts();
+      expect(cards.first.displayName, 'e-Money Pajero Ayah');
+      expect(cards.first.issuer, 'e-Money Pajero Ayah');
+
+      // Cek di SQLite database: nfcCardAccounts & accounts
+      final dbCards = await database.select(database.nfcCardAccounts).get();
+      expect(dbCards.single.issuer, 'e-Money Pajero Ayah');
+
+      final dbAccounts = await database.select(database.accounts).get();
+      expect(dbAccounts.single.name, 'e-Money Pajero Ayah');
+
+      await database.close();
+    });
+
+    test('Scan kartu dengan history transaksi APDU membuat historyDrafts', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'history-household',
+      );
+
+      final historyItems = [
+        const NfcTransactionLogItem(
+          recordIndex: 1,
+          amount: 15000,
+        ),
+        const NfcTransactionLogItem(
+          recordIndex: 2,
+          amount: 5000,
+        ),
+      ];
+
+      final scanWithHistory = NfcCardScanResult(
+        cardId: 'MANDIRI-HIST-1',
+        balance: 80000,
+        cardType: 'mandiri_emoney',
+        success: true,
+        history: historyItems,
+      );
+
+      final res = await repository.processCardScan(scanWithHistory);
+
+      expect(res.isBaseline, isTrue);
+      expect(res.historyDrafts, hasLength(2));
+      expect(res.historyDrafts.first.amount, 15000);
+      expect(res.historyDrafts.first.rawBody, contains('#1'));
+      expect(res.historyDrafts.last.amount, 5000);
+      expect(res.historyDrafts.last.rawBody, contains('#2'));
+
+      final pendingDrafts = await draftRepo.getPendingDrafts();
+      expect(pendingDrafts, hasLength(2));
+
+      await database.close();
+    });
+
+    test('Scan hari ini lalu scan besok tidak menduplikasi draft yang sudah dikonfirmasi', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      var currentTime = DateTime(2026, 9, 5, 10, 0);
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'dedup-household',
+        clock: () => currentTime,
+      );
+
+      const historyItems = [
+        NfcTransactionLogItem(
+          recordIndex: 1,
+          amount: 15000,
+          rawHex: '0102030405060708090A0B0C0D0E0F10',
+        ),
+      ];
+
+      // Hari ini: Scan pertama kali
+      final scanToday = NfcCardScanResult(
+        cardId: 'MANDIRI-DEDUP-1',
+        balance: 85000,
+        cardType: 'mandiri_emoney',
+        success: true,
+        history: historyItems,
+      );
+      final resToday = await repository.processCardScan(scanToday);
+      expect(resToday.historyDrafts, hasLength(1));
+
+      // Pengguna mengonfirmasi draft menjadi transaksi
+      final draftId = resToday.historyDrafts.first.id;
+      await draftRepo.updateStatus(draftId, PaymentDraftStatus.confirmed);
+      expect(await draftRepo.getPendingDrafts(), isEmpty);
+
+      // Besok: 24 jam kemudian kartu di-scan lagi dengan saldo dan log chip yang masih sama
+      currentTime = currentTime.add(const Duration(hours: 24));
+      final scanTomorrow = NfcCardScanResult(
+        cardId: 'MANDIRI-DEDUP-1',
+        balance: 85000,
+        cardType: 'mandiri_emoney',
+        success: true,
+        history: historyItems,
+      );
+      final resTomorrow = await repository.processCardScan(scanTomorrow);
+
+      // Saldo sama => tidak ada draft saldo baru
+      expect(resTomorrow.draft, isNull);
+      // Log chip sama & sudah pernah dikonfirmasi => tidak dibuatkan draft duplikat
+      expect(resTomorrow.historyDrafts, isEmpty);
+      expect(await draftRepo.getPendingDrafts(), isEmpty);
+
+      await database.close();
+    });
+
+    test('Parsing URI NDEF Smart Tag Trigger ffm://action', () {
+      const fuelUriString = 'ffm://action?type=fuel&title=Bensin&category=Transportasi';
+      final fuelUri = Uri.parse(fuelUriString);
+      expect(fuelUri.scheme, 'ffm');
+      expect(fuelUri.host, 'action');
+      expect(fuelUri.queryParameters['type'], 'fuel');
+      expect(fuelUri.queryParameters['title'], 'Bensin');
+      expect(fuelUri.queryParameters['category'], 'Transportasi');
+
+      const voiceUriString = 'ffm://action?type=voice_assistant';
+      final voiceUri = Uri.parse(voiceUriString);
+      expect(voiceUri.scheme, 'ffm');
+      expect(voiceUri.queryParameters['type'], 'voice_assistant');
+
+      const timerUriString = 'ffm://action?type=timer_activity&title=Sesi+Kerja+Tani';
+      final timerUri = Uri.parse(timerUriString);
+      expect(timerUri.scheme, 'ffm');
+      expect(timerUri.queryParameters['type'], 'timer_activity');
+      expect(timerUri.queryParameters['title'], 'Sesi Kerja Tani');
+    });
   });
 }

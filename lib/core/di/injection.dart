@@ -57,6 +57,7 @@ import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
 import '../../features/advisor/data/cash_flow_profile_repository.dart';
 import '../../features/advisor/domain/usecases/flexible_cash_flow_calculator.dart';
+import '../../features/settings/data/utility_meter_repository.dart';
 import '../../features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import '../../features/assistant/domain/assistant_onboarding_orchestrator.dart';
 import '../../features/assistant/domain/ffm_proactive_delivery_policy.dart';
@@ -325,6 +326,10 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FlexibleCashFlowCalculator>(
     FlexibleCashFlowCalculator.new,
+  );
+  // Buku Saku Meteran & Token Listrik PLN
+  getIt.registerLazySingleton<UtilityMeterRepository>(
+    UtilityMeterRepository.new,
   );
   getIt.registerLazySingleton<AutonomousEvaluationCoordinator>(
     () => AutonomousEvaluationCoordinator(

@@ -53,6 +53,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.reconciliation,
     FfmAssistantDestination.recurringTransaction,
     FfmAssistantDestination.intelligenceDashboard,
+    FfmAssistantDestination.utilityMeter,
   };
 
   /// Halaman yang menampilkan data keuangan mentah \u2014 gunakan ringkasan generik
@@ -130,6 +131,8 @@ abstract final class FfmAssistantScreenContextPolicy {
       'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
     FfmAssistantDestination.familyProfile =>
       'Sedang melihat profil keluarga.',
+    FfmAssistantDestination.utilityMeter =>
+      'Sedang melihat Buku Saku Meteran & Token Listrik PLN.',
     _ => 'Sedang melihat halaman fitur FFM.',
   };
 

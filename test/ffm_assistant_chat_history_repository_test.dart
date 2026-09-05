@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -81,5 +83,82 @@ void main() {
     expect(restored, hasLength(2));
     expect(restored.map((row) => row['text']),
         containsAll(['Data lama HP B', 'Data baru HP A']));
+  });
+
+  test('entry chat menyimpan waktu kirim, terima, dan model', () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    final sentAt = DateTime(2026, 9, 5, 9, 12, 5);
+    final receivedAt = DateTime(2026, 9, 5, 9, 12, 9);
+    await repository.save([
+      FfmAssistantChatEntry(
+        isUser: true,
+        text: 'Cek saldo',
+        sentAt: sentAt,
+        modelUsed: 'user',
+      ),
+      FfmAssistantChatEntry(
+        isUser: false,
+        text: 'Saldo lokal tersedia.',
+        sentAt: sentAt,
+        receivedAt: receivedAt,
+        modelUsed: 'gemini-cloud',
+      ),
+    ]);
+
+    final restored = await repository.load();
+
+    expect(restored.first.sentAt, sentAt);
+    expect(restored.first.receivedAt, isNull);
+    expect(restored.first.modelUsed, 'user');
+    expect(restored.last.sentAt, sentAt);
+    expect(restored.last.receivedAt, receivedAt);
+    expect(restored.last.modelUsed, 'gemini-cloud');
+  });
+
+  test('entry legacy tanpa field metadata tetap terbaca dan fallback ke createdAt',
+      () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      'ffm_assistant_chat_history_v1',
+      jsonEncode([
+        {
+          'isUser': true,
+          'text': 'Pesan lama',
+          'createdAt': '2026-08-23T02:00:00.000',
+        },
+      ]),
+    );
+
+    final restored = await repository.load();
+    final entry = restored.single;
+
+    expect(entry.text, 'Pesan lama');
+    expect(entry.createdAt, DateTime(2026, 8, 23, 2));
+    expect(entry.sentAt, isNull);
+    expect(entry.receivedAt, isNull);
+    expect(entry.modelUsed, isNull);
+  });
+
+  test('updateEntryWithFeedback mempertahankan metadata chat', () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    final sentAt = DateTime(2026, 9, 5, 9, 12, 5);
+    await repository.save([
+      FfmAssistantChatEntry(
+        isUser: false,
+        text: 'Jawaban asisten.',
+        sentAt: sentAt,
+        receivedAt: sentAt.add(const Duration(seconds: 4)),
+        modelUsed: 'gemini-cloud',
+      ),
+    ]);
+
+    await repository.updateEntryWithFeedback(0, 'thumbsup', null);
+
+    final restored = await repository.load();
+    expect(restored.single.feedbackType, 'thumbsup');
+    expect(restored.single.sentAt, sentAt);
+    expect(restored.single.receivedAt, sentAt.add(const Duration(seconds: 4)));
+    expect(restored.single.modelUsed, 'gemini-cloud');
   });
 }

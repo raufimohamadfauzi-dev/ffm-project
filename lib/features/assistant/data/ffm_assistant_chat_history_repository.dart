@@ -320,6 +320,10 @@ class FfmAssistantChatHistoryRepository {
     'analysisResults': entry.analysisResults,
     'feedbackType': entry.feedbackType,
     'feedbackCategory': entry.feedbackCategory,
+    'sentAt': entry.sentAt?.toIso8601String(),
+    'receivedAt': entry.receivedAt?.toIso8601String(),
+    'modelUsed': entry.modelUsed,
+    'absorbedMemory': entry.absorbedMemory,
   };
 
   FfmAssistantChatEntry? _decodeEntry(Map raw) {
@@ -330,18 +334,30 @@ class FfmAssistantChatHistoryRepository {
     final parsedDate = createdAt is String
         ? DateTime.tryParse(createdAt)
         : null;
+    final sentAt = raw['sentAt'];
+    final receivedAt = raw['receivedAt'];
+    final modelUsed = raw['modelUsed'];
     final verifiedFacts = raw['verifiedFacts'];
     final analysisResults = raw['analysisResults'];
     final feedbackType = raw['feedbackType'];
     final feedbackCategory = raw['feedbackCategory'];
+    final absorbedMemory = raw['absorbedMemory'];
     return FfmAssistantChatEntry(
       isUser: isUser,
       text: text,
       createdAt: parsedDate,
+      sentAt: sentAt is String ? DateTime.tryParse(sentAt) : null,
+      receivedAt: receivedAt is String
+          ? DateTime.tryParse(receivedAt)
+          : null,
+      modelUsed: modelUsed is String && modelUsed.isNotEmpty
+          ? modelUsed
+          : null,
       verifiedFacts: verifiedFacts is String ? verifiedFacts : null,
       analysisResults: analysisResults is String ? analysisResults : null,
       feedbackType: feedbackType is String ? feedbackType : null,
       feedbackCategory: feedbackCategory is String ? feedbackCategory : null,
+      absorbedMemory: absorbedMemory is String ? absorbedMemory : null,
     );
   }
 
@@ -368,6 +384,9 @@ class FfmAssistantChatHistoryRepository {
         analysisResults: entry.analysisResults,
         feedbackType: feedbackType,
         feedbackCategory: feedbackCategory,
+        sentAt: entry.sentAt,
+        receivedAt: entry.receivedAt,
+        modelUsed: entry.modelUsed,
       );
       await save(entries);
     }

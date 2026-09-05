@@ -187,6 +187,7 @@ enum FfmAssistantDestination {
   hijriSettings,
   calendarSettings,
   marketNewsRadar,
+  utilityMeter,
 }
 
 enum FfmAssistantDraftKind {
@@ -552,6 +553,10 @@ class FfmAssistantChatEntry {
     this.analysisResults,
     this.feedbackType,
     this.feedbackCategory,
+    this.sentAt,
+    this.receivedAt,
+    this.modelUsed,
+    this.absorbedMemory,
   });
 
   final bool isUser;
@@ -568,6 +573,19 @@ class FfmAssistantChatEntry {
   final String? analysisResults;
   final String? feedbackType;
   final String? feedbackCategory;
+
+  /// Waktu user/assistant mengirim pesan. Fallback ke [createdAt] untuk data lama.
+  final DateTime? sentAt;
+
+  /// Waktu jawaban asisten diterima/ditampilkan. Bermakna untuk pesan bot.
+  final DateTime? receivedAt;
+
+  /// Id human-readable model/alur pembuat jawaban (mis. 'gemini-cloud',
+  /// 'agent', atau 'local'). Fallback dapat diturunkan dari [processTrace].
+  final String? modelUsed;
+
+  /// Fakta/pola memori personal yang diserap asisten dari pesan ini.
+  final String? absorbedMemory;
 }
 
 /// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.
@@ -792,6 +810,9 @@ class FfmAssistantChatSession {
         analysisResults: entry.analysisResults,
         feedbackType: feedbackType,
         feedbackCategory: feedbackCategory,
+        sentAt: entry.sentAt,
+        receivedAt: entry.receivedAt,
+        modelUsed: entry.modelUsed,
       );
     }
   }
@@ -1159,6 +1180,21 @@ abstract final class FfmAssistantCatalog {
         'radar pasar',
       ],
     ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.utilityMeter,
+      name: 'Buku Saku Meteran & Token',
+      description: 'Menyimpan daftar nomor meteran PLN dan token listrik 20-digit.',
+      aliases: [
+        'meteran listrik',
+        'token listrik',
+        'buku meteran',
+        'nomor meter',
+        'meteran pln',
+        'id pelanggan pln',
+        'idpel',
+        'pulsa listrik',
+      ],
+    ),
   ];
 
   static const otherMenuItems = <FfmAssistantOtherMenuItem>[
@@ -1361,5 +1397,6 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.hijriSettings => 'Kalender Hijriah & Hilal mengatur penetapan tanggal dan koreksi Hilal untuk penanggalan Islam.',
         FfmAssistantDestination.calendarSettings => 'Kalender & Smartwatch mengatur sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
         FfmAssistantDestination.marketNewsRadar => 'Radar Berita Pasar menampilkan berita dan perkembangan isu finansial terkini.',
+        FfmAssistantDestination.utilityMeter => 'Buku Saku Meteran & Token menyimpan daftar IDPEL atau nomor meteran PLN properti rumah, ladang/sawah, dan toko, lengkap dengan 20 digit token listrik terakhir untuk disalin instan.',
       };
 }

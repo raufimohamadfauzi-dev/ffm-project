@@ -1,5 +1,32 @@
 import 'package:flutter/services.dart';
 
+/// Catatan log transaksi individu yang dibaca dari memori siklik chip kartu e-Money.
+class NfcTransactionLogItem {
+  const NfcTransactionLogItem({
+    required this.recordIndex,
+    required this.amount,
+    this.rawHex,
+  });
+
+  final int recordIndex;
+  final double amount;
+  final String? rawHex;
+
+  factory NfcTransactionLogItem.fromMap(Map<dynamic, dynamic> map) {
+    return NfcTransactionLogItem(
+      recordIndex: (map['recordIndex'] as num?)?.toInt() ?? 0,
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      rawHex: map['rawHex'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'recordIndex': recordIndex,
+        'amount': amount,
+        'rawHex': rawHex,
+      };
+}
+
 /// Hasil pembacaan kartu e-Money via NFC.
 class NfcCardScanResult {
   const NfcCardScanResult({
@@ -8,6 +35,7 @@ class NfcCardScanResult {
     required this.cardType,
     required this.success,
     this.balanceAvailable = true,
+    this.history = const <NfcTransactionLogItem>[],
     this.error,
   });
 
@@ -17,15 +45,25 @@ class NfcCardScanResult {
   final bool success;
   /// False untuk kartu yang terdeteksi tetapi tidak memberikan saldo melalui NFC.
   final bool balanceAvailable;
+  final List<NfcTransactionLogItem> history;
   final String? error;
 
   factory NfcCardScanResult.fromMap(Map<dynamic, dynamic> map) {
+    final rawHistory = map['history'] as List<dynamic>?;
+    final parsedHistory = rawHistory != null
+        ? rawHistory
+            .whereType<Map<dynamic, dynamic>>()
+            .map(NfcTransactionLogItem.fromMap)
+            .toList()
+        : const <NfcTransactionLogItem>[];
+
     return NfcCardScanResult(
       cardId: map['cardId'] as String? ?? 'UNKNOWN',
       balance: (map['balance'] as num?)?.toDouble() ?? 0.0,
       cardType: map['cardType'] as String? ?? 'emoney_generic',
       success: map['success'] as bool? ?? false,
       balanceAvailable: map['balanceAvailable'] as bool? ?? true,
+      history: parsedHistory,
       error: map['error'] as String?,
     );
   }
@@ -102,10 +140,48 @@ class NfcBridge {
     }
   }
 
+  void Function(String uri)? _onTagTriggerCallback;
+
+  /// Mendaftarkan listener global saat HP men-tap stiker NFC Smart Tag (NDEF).
+  void setTagTriggerListener(void Function(String uri)? onTrigger) {
+    _onTagTriggerCallback = onTrigger;
+    _channel.setMethodCallHandler(_handleMethodCall);
+  }
+
+  /// Mengambil aksi tag pemicu jika aplikasi dibuka dari kondisi tertutup via tap NFC.
+  Future<String?> consumePendingTagTrigger() async {
+    try {
+      return await _channel.invokeMethod<String>('consumePendingTagTrigger');
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  /// Memprogram stiker koin NFC fisik dengan URI aksi cepat.
+  Future<Map<String, dynamic>> writeTag(String uri) async {
+    try {
+      final res = await _channel.invokeMapMethod<String, dynamic>(
+        'writeTag',
+        {'uri': uri},
+      );
+      return res ?? {'success': false, 'error': 'Tidak ada respon dari NFC'};
+    } on PlatformException catch (e) {
+      return {'success': false, 'error': e.message ?? 'Gagal menulis tag NFC'};
+    }
+  }
+
+  /// Membatalkan mode penulisan stiker NFC.
+  Future<void> cancelWrite() async {
+    try {
+      await _channel.invokeMethod('cancelWrite');
+    } on PlatformException {
+      // Abaikan jika platform tidak merespons
+    }
+  }
+
   /// Hentikan sesi pemindaian NFC.
   Future<void> stopScanning() async {
     _onScanCallback = null;
-    _channel.setMethodCallHandler(null);
     try {
       await _channel.invokeMethod('stopSession');
     } on PlatformException {
@@ -119,6 +195,11 @@ class NfcBridge {
       if (args != null && _onScanCallback != null) {
         final result = NfcCardScanResult.fromMap(args);
         _onScanCallback!(result);
+      }
+    } else if (call.method == 'onTagTriggered') {
+      final uri = call.arguments?.toString();
+      if (uri != null && _onTagTriggerCallback != null) {
+        _onTagTriggerCallback!(uri);
       }
     }
   }

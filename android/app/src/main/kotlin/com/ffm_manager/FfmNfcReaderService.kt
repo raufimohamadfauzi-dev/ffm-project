@@ -2,9 +2,14 @@ package com.ffm_manager
 
 import android.app.Activity
 import android.content.Context
+import android.net.Uri
+import android.nfc.NdefMessage
+import android.nfc.NdefRecord
 import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.nfc.tech.IsoDep
+import android.nfc.tech.Ndef
+import android.nfc.tech.NdefFormatable
 import android.nfc.tech.NfcA
 import android.util.Log
 import java.io.IOException
@@ -13,12 +18,15 @@ import java.io.IOException
  * FfmNfcReaderService
  *
  * Layanan pemindaian NFC 100% lokal untuk membaca kartu e-Money Indonesia
- * (Mandiri e-Money, BCA Flazz, BNI TapCash, BRI Brizzi).
+ * (Mandiri e-Money, BCA Flazz, BNI TapCash, BRI Brizzi) serta memprogram
+ * stiker koin NFC Pintar (NFC Smart Tag Writer).
  */
 class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCallback {
 
     private var nfcAdapter: NfcAdapter? = NfcAdapter.getDefaultAdapter(activity)
     private var onResultListener: ((Map<String, Any?>) -> Unit)? = null
+    private var writePayloadUri: String? = null
+    private var onWriteResultListener: ((Map<String, Any?>) -> Unit)? = null
 
     /**
      * Mulai mendengarkan pemindaian NFC saat aktivitas di depan (foreground).
@@ -27,6 +35,8 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
         val adapter = nfcAdapter ?: return false
         if (!adapter.isEnabled) return false
 
+        writePayloadUri = null
+        onWriteResultListener = null
         onResultListener = listener
         val flags = NfcAdapter.FLAG_READER_NFC_A or
                 NfcAdapter.FLAG_READER_NFC_B or
@@ -37,15 +47,48 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
     }
 
     /**
+     * Memprogram stiker/koin NFC fisik dengan format NDEF Deep Link URI.
+     */
+    fun startWritingTag(uriString: String, listener: (Map<String, Any?>) -> Unit): Boolean {
+        val adapter = nfcAdapter ?: return false
+        if (!adapter.isEnabled) return false
+
+        writePayloadUri = uriString
+        onWriteResultListener = listener
+        onResultListener = null
+
+        val flags = NfcAdapter.FLAG_READER_NFC_A or
+                NfcAdapter.FLAG_READER_NFC_B or
+                NfcAdapter.FLAG_READER_NFC_F or
+                NfcAdapter.FLAG_READER_NFC_V
+
+        adapter.enableReaderMode(activity, this, flags, null)
+        return true
+    }
+
+    fun cancelWriting() {
+        writePayloadUri = null
+        onWriteResultListener = null
+        stopScanning()
+    }
+
+    /**
      * Hentikan mode pemindaian NFC.
      */
     fun stopScanning() {
         nfcAdapter?.disableReaderMode(activity)
         onResultListener = null
+        writePayloadUri = null
+        onWriteResultListener = null
     }
 
     override fun onTagDiscovered(tag: Tag?) {
         if (tag == null) return
+
+        if (writePayloadUri != null) {
+            handleTagWrite(tag)
+            return
+        }
 
         val tagIdHex = bytesToHex(tag.id)
         val isoDep = IsoDep.get(tag)
@@ -57,6 +100,7 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
                 "balance" to 0.0,
                 "balanceAvailable" to false,
                 "cardType" to "unknown_nfc",
+                "history" to emptyList<Map<String, Any>>(),
                 "success" to true,
             )
             activity.runOnUiThread { onResultListener?.invoke(result) }
@@ -81,11 +125,101 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
                 "cardId" to tagIdHex,
                 "balance" to 0.0,
                 "cardType" to "unknown",
+                "history" to emptyList<Map<String, Any>>(),
                 "success" to false,
                 "error" to (e.message ?: "Gagal membaca tag NFC"),
             )
             activity.runOnUiThread { onResultListener?.invoke(errorResult) }
         }
+    }
+
+    private fun handleTagWrite(tag: Tag) {
+        val uriStr = writePayloadUri ?: return
+        val listener = onWriteResultListener
+        writePayloadUri = null
+        onWriteResultListener = null
+        stopScanning()
+
+        try {
+            val record = NdefRecord.createUri(Uri.parse(uriStr))
+            val message = NdefMessage(arrayOf(record))
+
+            val ndef = Ndef.get(tag)
+            if (ndef != null) {
+                ndef.connect()
+                if (!ndef.isWritable) {
+                    activity.runOnUiThread {
+                        listener?.invoke(mapOf("success" to false, "error" to "Tag NFC terkunci / tidak dapat ditulis."))
+                    }
+                    try { ndef.close() } catch (_: Exception) {}
+                    return
+                }
+                if (ndef.maxSize < message.byteArrayLength) {
+                    activity.runOnUiThread {
+                        listener?.invoke(mapOf("success" to false, "error" to "Kapasitas memori tag NFC tidak mencukupi."))
+                    }
+                    try { ndef.close() } catch (_: Exception) {}
+                    return
+                }
+                ndef.writeNdefMessage(message)
+                ndef.close()
+                activity.runOnUiThread {
+                    listener?.invoke(mapOf("success" to true, "message" to "Tag NFC berhasil diprogram."))
+                }
+                return
+            }
+
+            val formatable = NdefFormatable.get(tag)
+            if (formatable != null) {
+                formatable.connect()
+                formatable.format(message)
+                formatable.close()
+                activity.runOnUiThread {
+                    listener?.invoke(mapOf("success" to true, "message" to "Tag NFC berhasil diformat dan diprogram."))
+                }
+                return
+            }
+
+            activity.runOnUiThread {
+                listener?.invoke(mapOf("success" to false, "error" to "Tag ini tidak mendukung format NDEF."))
+            }
+        } catch (e: Exception) {
+            activity.runOnUiThread {
+                listener?.invoke(mapOf("success" to false, "error" to (e.message ?: "Gagal menulis ke tag NFC")))
+            }
+        }
+    }
+
+    /**
+     * Membaca riwayat transaksi (cyclic records) dari kartu e-Money jika didukung.
+     */
+    private fun readTransactionHistory(isoDep: IsoDep, cardType: String): List<Map<String, Any>> {
+        val history = mutableListOf<Map<String, Any>>()
+        try {
+            for (recNo in 1..3) {
+                val apdu = if (cardType == "flazz_bca") {
+                    byteArrayOf(0x00.toByte(), 0xB2.toByte(), recNo.toByte(), 0xC4.toByte(), 0x00.toByte())
+                } else {
+                    byteArrayOf(0x00.toByte(), 0xB2.toByte(), recNo.toByte(), 0x0C.toByte(), 0x00.toByte())
+                }
+                val resp = isoDep.transceive(apdu)
+                if (isSuccessApdu(resp) && resp.size >= 16) {
+                    val amount = parseBalanceFromBuffer(resp)
+                    if (amount > 0) {
+                        history.add(
+                            mapOf(
+                                "recordIndex" to recNo,
+                                "amount" to amount,
+                                "rawHex" to bytesToHex(resp),
+                            )
+                        )
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Graceful fallback jika chip tidak mengizinkan read records
+        }
+        return history
     }
 
     /**
@@ -102,10 +236,13 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
             val readBalance = hexToBytes("00B0810000")
             val balanceRes = isoDep.transceive(readBalance)
             val balance = parseBalanceFromBuffer(balanceRes)
+            val history = readTransactionHistory(isoDep, "mandiri_emoney")
             return mapOf(
                 "cardId" to (extractCardNumber(balanceRes) ?: "MANDIRI-$tagIdHex"),
                 "balance" to balance,
                 "cardType" to "mandiri_emoney",
+                "balanceAvailable" to true,
+                "history" to history,
                 "success" to true,
             )
         }
@@ -119,10 +256,13 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
             val readFlazz = hexToBytes("00B0810010")
             val balanceRes = isoDep.transceive(readFlazz)
             val balance = parseBalanceFromBuffer(balanceRes)
+            val history = readTransactionHistory(isoDep, "flazz_bca")
             return mapOf(
                 "cardId" to "FLAZZ-$tagIdHex",
                 "balance" to balance,
                 "cardType" to "flazz_bca",
+                "balanceAvailable" to true,
+                "history" to history,
                 "success" to true,
             )
         }
@@ -137,6 +277,7 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
             "balance" to balance,
             "balanceAvailable" to (balance > 0.0),
             "cardType" to "emoney_generic",
+            "history" to emptyList<Map<String, Any>>(),
             "success" to true,
         )
     }

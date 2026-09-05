@@ -36,6 +36,8 @@ class _SpyGeminiService extends GeminiService {
     String? apiKey,
     String? model,
     List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
+    int? maxOutputTokens,
   }) async {
     calls++;
     lastSystemInstruction = systemInstruction;

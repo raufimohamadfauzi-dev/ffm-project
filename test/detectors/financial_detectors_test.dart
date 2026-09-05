@@ -8,6 +8,9 @@ import 'package:ffm_manager/features/assistant/domain/detectors/intelligent_enve
 import 'package:ffm_manager/features/assistant/domain/detectors/micro_expense_leak_detector.dart';
 import 'package:ffm_manager/features/assistant/domain/detectors/predictive_runway_detector.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_insight.dart';
+import 'package:ffm_manager/features/advisor/data/cash_flow_profile_repository.dart';
+import 'package:ffm_manager/features/advisor/domain/entities/cash_flow_profile_models.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late AppDatabase db;
@@ -67,6 +70,69 @@ void main() {
       expect(insight.evidence['daysToPayday'], 14);
       expect(insight.title, contains('Peringatan Laju Pengeluaran'));
       expect(insight.summary, contains('Laju pengeluaran Anda'));
+    });
+
+    test('PredictiveRunwayDetector adapts target date to harvest date when CashFlowProfile exists', () async {
+      SharedPreferences.setMockInitialValues({});
+      final cashFlowRepo = CashFlowProfileRepository();
+      final harvestDate = now.add(const Duration(days: 45));
+      await cashFlowRepo.saveProfile(
+        CashFlowProfile(
+          id: 'profile_tani',
+          householdId: householdId,
+          name: 'Tani Padi Musim Hujan',
+          profileType: CashFlowProfileType.agriculture,
+          commodityOrBusinessType: 'Padi Ciherang',
+          startDate: now.subtract(const Duration(days: 45)),
+          targetHarvestDate: harvestDate,
+          initialCapital: 10000000,
+          estimatedInflow: 25000000,
+          dailyLivingBudget: 50000,
+          dailyOperationalBudget: 30000,
+          isActive: true,
+        ),
+      );
+
+      await db.into(db.accounts).insert(
+            AccountsCompanion.insert(
+              id: 'acc-tani',
+              householdId: householdId,
+              name: 'BRI Agro',
+              type: 'bank',
+              openingBalance: const Value(2150000),
+              isActive: const Value(true),
+              isArchived: const Value(false),
+              createdAt: now.subtract(const Duration(days: 30)),
+            ),
+          );
+
+      for (int i = 1; i <= 14; i++) {
+        final txDate = now.subtract(Duration(days: i));
+        await db.into(db.transactions).insert(
+              TransactionsCompanion.insert(
+                id: 'tx-tani-$i',
+                householdId: householdId,
+                type: 'expense',
+                amount: -100000,
+                date: txDate,
+                recordedAt: txDate,
+                accountId: const Value('acc-tani'),
+                note: const Value('Biaya operasional & hidup'),
+                isArchived: const Value(false),
+                isDeleted: const Value(false),
+                createdAt: txDate,
+              ),
+            );
+      }
+
+      final detector = PredictiveRunwayDetector(db, cashFlowRepo: cashFlowRepo);
+      final insight = await detector.detect(householdId: householdId, now: now, defaultPaydayDay: 25);
+
+      expect(insight, isNotNull);
+      expect(insight!.type, FfmAssistantInsightType.runwayRisk);
+      expect(insight.evidence['daysToPayday'], 45);
+      expect(insight.evidence['targetInflowType'], 'agriculture');
+      expect(insight.summary, contains('estimasi panen Padi Ciherang'));
     });
 
     test('IntelligentEnvelopeRebalanceDetector triggers when budget A is deficit and B is surplus', () async {

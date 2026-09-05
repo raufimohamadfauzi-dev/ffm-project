@@ -17,6 +17,16 @@ class GeminiFunctionCall {
   final Map<String, dynamic> args;
 }
 
+class GeminiImageInput {
+  const GeminiImageInput({
+    required this.base64Data,
+    required this.mimeType,
+  });
+
+  final String base64Data;
+  final String mimeType;
+}
+
 class GeminiUsageMetadata {
   const GeminiUsageMetadata({
     required this.promptTokenCount,
@@ -79,12 +89,12 @@ class GeminiService {
   final http.Client _client;
   final SupabaseConfig _config;
 
-  Future<GeminiResult> chat({required String prompt, String? systemInstruction, List<Map<String, String>> history = const [], List<Map<String, dynamic>>? tools, String? apiKey, String? model}) async {
+  Future<GeminiResult> chat({required String prompt, String? systemInstruction, List<Map<String, String>> history = const [], List<Map<String, dynamic>>? tools, String? apiKey, String? model, GeminiImageInput? image, int? maxOutputTokens}) async {
     final key = apiKey ?? await _config.getGeminiKey();
     final selectedModel = (model ?? await _config.getGeminiModel())?.trim() ?? '';
     if (key == null || key.trim().isEmpty) return GeminiResult(model: selectedModel, statusCode: null, message: 'API key Gemini belum diisi.', diagnosticCode: GeminiDiagnosticCodes.keyEmpty);
     if (selectedModel.isEmpty) return const GeminiResult(model: '', statusCode: null, message: 'Model Gemini belum dipilih.', diagnosticCode: GeminiDiagnosticCodes.modelEmpty);
-    return _generate(apiKey: key.trim(), model: selectedModel, prompt: prompt, systemInstruction: _hardenSystemInstruction(prompt, systemInstruction), history: history, tools: tools);
+    return _generate(apiKey: key.trim(), model: selectedModel, prompt: prompt, systemInstruction: _hardenSystemInstruction(prompt, systemInstruction), history: history, tools: tools, image: image, maxOutputTokens: maxOutputTokens);
   }
 
   String? _hardenSystemInstruction(String prompt, String? systemInstruction) {
@@ -127,7 +137,7 @@ class GeminiService {
 
   Future<List<GeminiModelOption>> listModels({required String apiKey}) async => (await fetchModels(apiKey: apiKey)).models;
 
-  Future<GeminiResult> _generate({required String apiKey, required String model, required String prompt, required String? systemInstruction, required List<Map<String, String>> history, List<Map<String, dynamic>>? tools}) async {
+  Future<GeminiResult> _generate({required String apiKey, required String model, required String prompt, required String? systemInstruction, required List<Map<String, String>> history, List<Map<String, dynamic>>? tools, GeminiImageInput? image, int? maxOutputTokens}) async {
     final url = Uri.https('generativelanguage.googleapis.com', '/v1beta/models/$model:generateContent');
     final stopwatch = Stopwatch()..start();
     try {
@@ -136,9 +146,26 @@ class GeminiService {
         if (tools != null && tools.isNotEmpty) 'tools': tools,
         'contents': [
           ...history.map((item) => {'role': item['role'] == 'user' ? 'user' : 'model', 'parts': [{'text': item['text'] ?? ''}]}),
-          {'role': 'user', 'parts': [{'text': prompt}]},
+          {
+            'role': 'user',
+            'parts': [
+              {'text': prompt},
+              if (image != null)
+                {
+                  'inline_data': {
+                    'mime_type': image.mimeType,
+                    'data': image.base64Data,
+                  },
+                },
+            ],
+          },
         ],
-        'generationConfig': {'temperature': 0.7, 'topK': 40, 'topP': 0.95, 'maxOutputTokens': 1024},
+        'generationConfig': {
+          'temperature': 0.7,
+          'topK': 40,
+          'topP': 0.95,
+          'maxOutputTokens': maxOutputTokens ?? 1024,
+        },
       })).timeout(const Duration(seconds: 30));
       stopwatch.stop();
       if (response.statusCode != 200) return GeminiResult(model: model, statusCode: response.statusCode, message: _statusMessage(response.statusCode, response.body), latency: stopwatch.elapsed, diagnosticCode: _diagnosticCodeFor(response.statusCode));

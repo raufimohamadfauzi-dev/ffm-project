@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../domain/ffm_assistant_action_plan.dart';
@@ -170,6 +172,43 @@ class FfmAssistantMessageCard extends StatelessWidget {
               ),
             ),
         ],
+        if (entry.absorbedMemory != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF132A1F) : const Color(0xFFE8F8F0),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFF00A876).withValues(alpha: 0.4),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.auto_awesome,
+                  size: 13,
+                  color: Color(0xFF00A876),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '✨ Memori Terserap: ${entry.absorbedMemory}',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? const Color(0xFF56E3A6)
+                          : const Color(0xFF007552),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         // Rich Activity Card — shown when assistant response carries live activity metadata
         if (!isUser && intent?.pluginMetadata != null) ...[
           () {
@@ -309,35 +348,42 @@ class FfmAssistantMessageCard extends StatelessWidget {
                 ? constraints.maxWidth * .78
                 : constraints.maxWidth * .90,
           ),
-          child: isUser
-              ? DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: userBubbleColor,
-                    border: Border.all(
-                      color: isDark
-                          ? const Color(0xFF666666)
-                          : const Color(0xFF333333),
-                      width: 2.0,
+          child: _BubbleTapReveal(
+            isUser: isUser,
+            sentAt: entry.sentAt ?? entry.createdAt,
+            receivedAt: entry.receivedAt,
+            modelUsed: entry.modelUsed,
+            textColor: textColor,
+            child: isUser
+                ? DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: userBubbleColor,
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFF666666)
+                            : const Color(0xFF333333),
+                        width: 2.0,
+                      ),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                        bottomLeft: Radius.circular(20),
+                        bottomRight: Radius.circular(4),
+                      ),
                     ),
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(20),
-                      topRight: Radius.circular(20),
-                      bottomLeft: Radius.circular(20),
-                      bottomRight: Radius.circular(4),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      child: content,
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.fromLTRB(2, 2, 4, 4),
                     child: content,
                   ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.fromLTRB(2, 2, 4, 4),
-                  child: content,
-                ),
+          ),
         ),
       ),
     );
@@ -491,5 +537,125 @@ class FfmChatFileCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Layout metadata yang tersembunyi dan muncul saat bubble pesan ditekan.
+/// Memberi transparansi eksekusi tanpa mencemari tampilan percakapan.
+class _BubbleTapReveal extends StatefulWidget {
+  const _BubbleTapReveal({
+    required this.isUser,
+    required this.sentAt,
+    required this.receivedAt,
+    required this.modelUsed,
+    required this.textColor,
+    required this.child,
+  });
+
+  final bool isUser;
+  final DateTime? sentAt;
+  final DateTime? receivedAt;
+  final String? modelUsed;
+  final Color textColor;
+  final Widget child;
+
+  @override
+  State<_BubbleTapReveal> createState() => _BubbleTapRevealState();
+}
+
+class _BubbleTapRevealState extends State<_BubbleTapReveal> {
+  bool _visible = false;
+  Timer? _hideTimer;
+  DateTime? _downAt;
+  Offset? _downPosition;
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    _hideTimer?.cancel();
+    final next = !_visible;
+    setState(() => _visible = next);
+    if (next) {
+      _hideTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _visible = false);
+      });
+    }
+  }
+
+  void _down(PointerDownEvent event) {
+    _downAt = DateTime.now();
+    _downPosition = event.position;
+  }
+
+  void _up(PointerUpEvent event) {
+    final downAt = _downAt;
+    final downPosition = _downPosition;
+    _downAt = null;
+    _downPosition = null;
+    if (downAt == null || downPosition == null) return;
+    final elapsed = DateTime.now().difference(downAt);
+    final distance = (event.position - downPosition).distance;
+    if (elapsed < const Duration(milliseconds: 400) && distance < 20) {
+      _handleTap();
+    }
+  }
+
+  void _cancel(PointerEvent event) {
+    _downAt = null;
+    _downPosition = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: _down,
+      onPointerUp: _up,
+      onPointerCancel: _cancel,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: widget.isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          widget.child,
+          if (_visible) ...[
+            const SizedBox(height: 4),
+            _metadataLine(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _metadataLine(BuildContext context) {
+    final theme = Theme.of(context);
+    final parts = <String>[];
+    final sent = widget.sentAt;
+    if (sent != null) parts.add('Kirim ${_formatTime(sent)}');
+    final received = widget.receivedAt;
+    if (widget.receivedAt != null &&
+        (sent == null || received!.isAfter(sent))) {
+      parts.add('Terima ${_formatTime(received!)}');
+    }
+    final model = widget.modelUsed;
+    if (model != null && model.isNotEmpty) parts.add(model);
+    if (parts.isEmpty) parts.add('Pesan');
+    return Text(
+      parts.join(' • '),
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: widget.textColor.withValues(alpha: 0.55),
+        fontStyle: FontStyle.italic,
+      ),
+      textAlign: widget.isUser ? TextAlign.end : TextAlign.start,
+    );
+  }
+
+  String _formatTime(DateTime value) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(value.hour)}:${two(value.minute)}:${two(value.second)}';
   }
 }

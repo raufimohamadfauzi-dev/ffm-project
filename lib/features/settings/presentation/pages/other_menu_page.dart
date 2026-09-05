@@ -22,6 +22,7 @@ import 'database_structure_page.dart';
 import 'family_profile_page.dart';
 import '../../../advisor/presentation/pages/analysis_page.dart';
 import 'master_data_page.dart';
+import 'utility_meter_page.dart';
 
 import '../../../recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -30,6 +31,7 @@ import 'privacy_center_page.dart';
 import 'supabase_setup_page.dart';
 import 'calendar_settings_page.dart';
 import '../../../assistant/presentation/widgets/nfc_scan_dialog.dart';
+import '../../../assistant/presentation/widgets/nfc_smart_tag_writer_dialog.dart';
 
 class OtherMenuPage extends StatefulWidget {
   const OtherMenuPage({super.key});
@@ -68,11 +70,13 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
       ['Kalender & Smartwatch', 'Google Calendar jam tangan pintar sinkronisasi tagihan'],
       ['Pemindai NFC e-Money', 'kartu tol flazz brizzi tap saldo selisih'],
+      ['Program Tag Pintar NFC', 'stiker koin tombol bensin mobil dapur shortcut nfc ntag'],
       ['Kunci aplikasi', 'PIN keamanan'],
       ['Bantuan perbaikan', 'error laporan'],
       ['Monitoring Agent', 'riwayat run tool eksekusi autonomy'],
       ['Pusat privasi', 'data enkripsi izin'],
       ['Struktur database', 'tabel database'],
+      ['Buku Saku Meteran & Token', 'meteran listrik pln idpel token sawah ladang pompa rumah'],
     ];
     final query = _searchQuery.trim().toLowerCase();
     return menuItems.any((item) => '${item[0]} ${item[1]}'.contains(query));
@@ -356,6 +360,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
+              icon: Icons.electric_bolt_rounded,
+              title: 'Buku Saku Meteran & Token',
+              subtitle: 'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+              iconColor: const Color(0xFFD97706),
+              iconBackgroundColor: const Color(0xFFFEF3C7),
+              badgeText: 'UTILITAS',
+              onTap: () => _open(context, const UtilityMeterPage()),
+              visible: _matches(
+                'Buku Saku Meteran Token listrik pln idpel pulsa rumah ladang sawah ruko',
+                'Simpan nomor IDPEL/meteran PLN, salin nomor meter dan 20-digit token dengan 1-ketukan.',
+              ),
+            ),
+            _MenuCard(
               icon: Icons.auto_graph_rounded,
               title: 'Analisa',
               subtitle:
@@ -433,6 +450,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Pemindai Kartu NFC e-Money cek saldo kartu tol mutasi otomatis tap flazz brizzi',
                 'Pindai kartu tol/e-Money langsung untuk cek saldo dan hitung selisih mutasi otomatis.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.tag_rounded,
+              title: 'Program Tag Pintar NFC',
+              subtitle: 'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
+              iconColor: const Color(0xFF0284C7),
+              iconBackgroundColor: const Color(0xFFE0F2FE),
+              badgeText: 'SMART TAG',
+              onTap: () => NfcSmartTagWriterDialog.show(context),
+              visible: _matches(
+                'Program Tag Pintar NFC stiker koin tombol bensin mobil dapur shortcut ntag',
+                'Program stiker koin NFC untuk tombol instan bensin, dapur, atau asisten suara.',
               ),
             ),
 
