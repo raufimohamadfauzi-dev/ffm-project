@@ -55,14 +55,17 @@ void main() {
       final interpreter = FfmAssistantInterpreter(database);
       const cases = <String, FfmAssistantDestination>{
         'log aktivitas': FfmAssistantDestination.activityLog,
-
         'pemasukan berkala': FfmAssistantDestination.recurringTransaction,
-
         'pusat privasi': FfmAssistantDestination.privacyCenter,
         'struktur database': FfmAssistantDestination.databaseStructure,
-
         'gemini cloud': FfmAssistantDestination.intelligenceDashboard,
         'analisa': FfmAssistantDestination.analysis,
+        'telegram': FfmAssistantDestination.telegramSetup,
+        'agent inbox': FfmAssistantDestination.agentInbox,
+        'otonomi': FfmAssistantDestination.autonomyMonitor,
+        'kalender hijriah': FfmAssistantDestination.hijriSettings,
+        'pengaturan kalender': FfmAssistantDestination.calendarSettings,
+        'radar pasar': FfmAssistantDestination.marketNewsRadar,
       };
       for (final entry in cases.entries) {
         final intent = await interpreter.interpret('buka ${entry.key}');

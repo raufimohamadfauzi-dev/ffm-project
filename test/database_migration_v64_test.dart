@@ -92,8 +92,15 @@ void main() {
             "WHERE type = 'table' AND name = 'assistant_agent_approvals'",
           )
           .getSingleOrNull();
+      final nfcTables = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name IN "
+            "('nfc_card_accounts', 'nfc_scan_snapshots')",
+          )
+          .get();
 
-      expect(version.data['user_version'], 52);
+      expect(version.data['user_version'], 53);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -104,6 +111,7 @@ void main() {
       expect(scheduleTable, isNotNull);
       expect(personalizationTables, hasLength(3));
       expect(approvalTable, isNotNull);
+      expect(nfcTables, hasLength(2));
     });
 
     test(

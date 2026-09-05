@@ -9,6 +9,7 @@ import '../../domain/ffm_assistant_insight.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../../domain/ffm_proactive_delivery_policy.dart';
 import '../widgets/proactive_settings_dialog.dart';
+import '../widgets/ffm_assistant_page_context.dart';
 
 class AgentInboxPage extends StatefulWidget {
   const AgentInboxPage({super.key});
@@ -174,57 +175,60 @@ class _AgentInboxPageState extends State<AgentInboxPage>
     final newCount =
         _activeInsights.where((i) => i.status == FfmAssistantInsightStatus.newInsight).length;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Laporan & Kotak Masuk Asisten'),
-        actions: [
-          IconButton(
-            tooltip: 'Pengaturan Wawasan',
-            onPressed: () => ProactiveSettingsDialog.show(
-              context,
-              getIt<FfmProactiveDeliveryPolicy>(),
-            ),
-            icon: const Icon(Icons.tune_rounded),
-          ),
-          IconButton(
-            tooltip: 'Evaluasi Sekarang',
-            onPressed: () => _loadInsights(evaluate: true),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Aktif'),
-                  if (newCount > 0) ...[
-                    const SizedBox(width: 8),
-                    Badge.count(
-                      count: newCount,
-                      backgroundColor: theme.colorScheme.primary,
-                    ),
-                  ],
-                ],
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.agentInbox,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Laporan & Kotak Masuk Asisten'),
+          actions: [
+            IconButton(
+              tooltip: 'Pengaturan Wawasan',
+              onPressed: () => ProactiveSettingsDialog.show(
+                context,
+                getIt<FfmProactiveDeliveryPolicy>(),
               ),
+              icon: const Icon(Icons.tune_rounded),
             ),
-            Tab(
-              text: 'Riwayat (${_historyInsights.length})',
+            IconButton(
+              tooltip: 'Evaluasi Sekarang',
+              onPressed: () => _loadInsights(evaluate: true),
+              icon: const Icon(Icons.refresh_rounded),
             ),
           ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: [
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Aktif'),
+                    if (newCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Badge.count(
+                        count: newCount,
+                        backgroundColor: theme.colorScheme.primary,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Tab(
+                text: 'Riwayat (${_historyInsights.length})',
+              ),
+            ],
+          ),
         ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildActiveList(theme),
+                  _buildHistoryList(theme),
+                ],
+              ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildActiveList(theme),
-                _buildHistoryList(theme),
-              ],
-            ),
     );
   }
 

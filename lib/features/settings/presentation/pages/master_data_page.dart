@@ -24,14 +24,12 @@ class MasterDataPage extends StatefulWidget {
     super.key,
     this.assistantTab,
     this.assistantName,
-    this.assistantProfileName,
     this.assistantFormValues,
     this.returnOnCreate = false,
   });
 
   final int? assistantTab;
   final String? assistantName;
-  final String? assistantProfileName;
   final Map<String, String>? assistantFormValues;
   final bool returnOnCreate;
 
@@ -61,9 +59,6 @@ class _MasterDataPageState extends State<MasterDataPage>
   var _accountCount = 0;
   var _merchantCount = 0;
   var _incomeSourceCount = 0;
-  String _householdName = 'Keluarga';
-  String? _husbandName;
-  String? _wifeName;
 
   static const _tabLabels = [
     'Kategori transaksi & aktivitas',
@@ -78,15 +73,8 @@ class _MasterDataPageState extends State<MasterDataPage>
     super.initState();
     _tabs = TabController(length: _tabLabels.length, vsync: this)
       ..addListener(_onTabChanged);
-    _loadProfile();
+    _loading = false;
     _loadCounts();
-    if (widget.assistantProfileName?.trim().isNotEmpty == true) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _editProfile(initialHouseholdName: widget.assistantProfileName);
-        }
-      });
-    }
     final tab = widget.assistantTab;
     if (tab != null && tab >= 0 && tab < _tabLabels.length) {
       _tabs.index = tab;
@@ -117,20 +105,6 @@ class _MasterDataPageState extends State<MasterDataPage>
     setState(() => _activeTab = _tabs.index);
   }
 
-  Future<void> _loadProfile() async {
-    final row =
-        await (_database.select(_database.households)
-              ..where((item) => item.id.equals(AppContext.householdId)))
-            .getSingleOrNull();
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-      _householdName = row?.name ?? 'Keluarga';
-      _husbandName = row?.husbandName;
-      _wifeName = row?.wifeName;
-    });
-  }
-
   Future<void> _loadCounts() async {
     final householdId = AppContext.householdId;
     final results = await Future.wait([
@@ -146,83 +120,6 @@ class _MasterDataPageState extends State<MasterDataPage>
       _merchantCount = results[2].length;
       _incomeSourceCount = results[3].length;
     });
-  }
-
-  Future<void> _editProfile({String? initialHouseholdName}) async {
-    final result = await showDialog<_ProfileValues>(
-      context: context,
-      builder: (_) => _ProfileDialog(
-        initial: _ProfileValues(
-          initialHouseholdName?.trim().isNotEmpty == true
-              ? initialHouseholdName!.trim()
-              : _householdName,
-          _husbandName ?? '',
-          _wifeName ?? '',
-        ),
-      ),
-    );
-    if (result == null) return;
-    final now = DateTime.now();
-    await _database
-        .into(_database.households)
-        .insertOnConflictUpdate(
-          HouseholdsCompanion.insert(
-            id: AppContext.householdId,
-            name: result.householdName.isEmpty
-                ? 'Keluarga'
-                : result.householdName,
-            husbandName: Value(
-              result.husbandName.isEmpty ? null : result.husbandName,
-            ),
-            wifeName: Value(result.wifeName.isEmpty ? null : result.wifeName),
-            createdAt: now,
-            updatedAt: Value(now),
-          ),
-        );
-    await _saveParty(result.husbandName, 'husband');
-    await _saveParty(result.wifeName, 'wife');
-    if (!mounted) return;
-    setState(() {
-      _householdName = result.householdName.isEmpty
-          ? 'Keluarga'
-          : result.householdName;
-      _husbandName = result.husbandName;
-      _wifeName = result.wifeName;
-      _refreshTick++;
-    });
-    _showMessage('Profil keluarga sudah disimpan.');
-  }
-
-  Future<void> _saveParty(String name, String kind) async {
-    final existing =
-        await (_database.select(_database.transactionParties)..where(
-              (row) =>
-                  row.householdId.equals(AppContext.householdId) &
-                  row.kind.equals(kind),
-            ))
-            .getSingleOrNull();
-    if (name.trim().isEmpty) {
-      if (existing != null) {
-        await (_database.update(_database.transactionParties)
-              ..where((row) => row.id.equals(existing.id)))
-            .write(const TransactionPartiesCompanion(isArchived: Value(true)));
-      }
-      return;
-    }
-    await _database
-        .into(_database.transactionParties)
-        .insertOnConflictUpdate(
-          TransactionPartiesCompanion.insert(
-            id: existing?.id ?? const Uuid().v4(),
-            householdId: AppContext.householdId,
-            name: name.trim(),
-            role: Value(kind == 'husband' ? 'Suami' : 'Istri'),
-            kind: Value(kind),
-            details: const Value(null),
-            isArchived: const Value(false),
-            createdAt: existing?.createdAt ?? DateTime.now(),
-          ),
-        );
   }
 
   Future<List<_MasterItem>> _items(int tab) async {
@@ -684,25 +581,14 @@ class _MasterDataPageState extends State<MasterDataPage>
 
   @override
   Widget build(BuildContext context) {
-    final profileNames = [
-      _husbandName,
-      _wifeName,
-    ].whereType<String>().where((item) => item.trim().isNotEmpty).join(' • ');
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.masterData,
       dataSummary: _loading
           ? 'Sedang memuat data utama...'
-          : 'Melihat Data Utama keluarga: $_categoryCount kategori, $_accountCount rekening, $_merchantCount toko, dan $_incomeSourceCount sumber pemasukan.',
+          : 'Melihat Data Utama: $_categoryCount kategori, $_accountCount rekening, $_merchantCount toko, dan $_incomeSourceCount sumber pemasukan.',
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Data Utama'),
-          actions: [
-            IconButton(
-              onPressed: _editProfile,
-              tooltip: 'Atur profil keluarga',
-              icon: const Icon(Icons.family_restroom_outlined),
-            ),
-          ],
         ),
         floatingActionButton: FloatingActionButton.extended(
           heroTag: 'master_data_add_fab',
@@ -712,29 +598,6 @@ class _MasterDataPageState extends State<MasterDataPage>
         ),
         body: Column(
           children: [
-            if (!_loading)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: AppCard(
-                  color: Theme.of(context).colorScheme.primaryContainer
-                      .withValues(alpha: .45),
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.family_restroom_outlined),
-                    title: Text(
-                      _householdName,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      profileNames.isEmpty
-                          ? 'Profil keluarga belum lengkap'
-                          : profileNames,
-                    ),
-                    trailing: const Icon(Icons.edit_outlined),
-                    onTap: _editProfile,
-                  ),
-                ),
-              ),
             TabBar(
               controller: _tabs,
               isScrollable: true,
@@ -1307,91 +1170,4 @@ class _MasterEditorDialogState extends State<_MasterEditorDialog> {
     'Contoh: Tunai rumah',
     'Contoh: Gaji atau panen pepaya',
   ][tab];
-}
-
-class _ProfileValues {
-  const _ProfileValues(this.householdName, this.husbandName, this.wifeName);
-
-  final String householdName;
-  final String husbandName;
-  final String wifeName;
-}
-
-class _ProfileDialog extends StatefulWidget {
-  const _ProfileDialog({required this.initial});
-
-  final _ProfileValues initial;
-
-  @override
-  State<_ProfileDialog> createState() => _ProfileDialogState();
-}
-
-class _ProfileDialogState extends State<_ProfileDialog> {
-  late final TextEditingController _household;
-  late final TextEditingController _husband;
-  late final TextEditingController _wife;
-
-  @override
-  void initState() {
-    super.initState();
-    _household = TextEditingController(text: widget.initial.householdName);
-    _husband = TextEditingController(text: widget.initial.husbandName);
-    _wife = TextEditingController(text: widget.initial.wifeName);
-  }
-
-  @override
-  void dispose() {
-    _household.dispose();
-    _husband.dispose();
-    _wife.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Profil keluarga'),
-    content: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _household,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nama rumah tangga'),
-          ),
-          TextField(
-            controller: _husband,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Nama Suami (opsional)',
-            ),
-          ),
-          TextField(
-            controller: _wife,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Nama Istri (opsional)',
-            ),
-          ),
-        ],
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Batal'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(
-          context,
-          _ProfileValues(
-            _household.text.trim(),
-            _husband.text.trim(),
-            _wife.text.trim(),
-          ),
-        ),
-        child: const Text('Simpan'),
-      ),
-    ],
-  );
 }

@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/native.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/nfc_bridge.dart';
 import 'package:ffm_manager/features/assistant/data/nfc_card_repository.dart';
 import 'package:ffm_manager/features/assistant/data/payment_draft_repository.dart';
@@ -145,6 +147,116 @@ void main() {
 
       expect(res2.difference, equals(0.0));
       expect(res2.draft, isNull);
+    });
+
+    test('Kartu terdeteksi tanpa saldo tidak membuat draft nominal', () async {
+      const scan1 = NfcCardScanResult(
+        cardId: 'DEBIT-4004',
+        balance: 0.0,
+        cardType: 'bank_card',
+        success: true,
+        balanceAvailable: false,
+      );
+      await nfcRepo.processCardScan(scan1);
+
+      const scan2 = NfcCardScanResult(
+        cardId: 'DEBIT-4004',
+        balance: 0.0,
+        cardType: 'bank_card',
+        success: true,
+        balanceAvailable: false,
+      );
+      final result = await nfcRepo.processCardScan(scan2);
+
+      expect(result.balanceAvailable, isFalse);
+      expect(result.draft, isNull);
+      expect(await draftRepo.getAllDrafts(), isEmpty);
+    });
+
+    test('Scan pertama pada bulan baru menjadi baseline baru', () async {
+      var now = DateTime(2026, 9, 30, 12);
+      final monthlyRepo = NfcCardRepository(draftRepo, clock: () => now);
+      await monthlyRepo.processCardScan(
+        const NfcCardScanResult(
+          cardId: 'MONTHLY-5005',
+          balance: 100000,
+          cardType: 'mandiri_emoney',
+          success: true,
+        ),
+      );
+
+      now = DateTime(2026, 10, 1, 8);
+      final result = await monthlyRepo.processCardScan(
+        const NfcCardScanResult(
+          cardId: 'MONTHLY-5005',
+          balance: 50000,
+          cardType: 'mandiri_emoney',
+          success: true,
+        ),
+      );
+
+      expect(result.isBaseline, isTrue);
+      expect(result.difference, 0);
+      expect(result.draft, isNull);
+    });
+
+    test('menyimpan metadata dan snapshot scan hanya ke database NFC', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'migration-household',
+      );
+
+      await repository.processCardScan(
+        const NfcCardScanResult(
+          cardId: 'DATABASE-1',
+          balance: 75000,
+          cardType: 'mandiri_emoney',
+          success: true,
+        ),
+      );
+
+      final cards = await database.select(database.nfcCardAccounts).get();
+      final snapshots = await database.select(database.nfcScanSnapshots).get();
+      expect(cards, hasLength(1));
+      expect(cards.single.cardType, 'mandiri_emoney');
+      expect(cards.single.cardUidHash, isNot('DATABASE-1'));
+      expect(snapshots, hasLength(1));
+      await database.close();
+    });
+
+    test('scan database kedua membuat satu draft dari selisih saldo', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      var now = DateTime(2026, 9, 10, 8);
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'database-household',
+        clock: () => now,
+      );
+      const initial = NfcCardScanResult(
+        cardId: 'DATABASE-2',
+        balance: 100000,
+        cardType: 'mandiri_emoney',
+        success: true,
+      );
+      await repository.processCardScan(initial);
+      now = now.add(const Duration(hours: 1));
+      final result = await repository.processCardScan(
+        const NfcCardScanResult(
+          cardId: 'DATABASE-2',
+          balance: 80000,
+          cardType: 'mandiri_emoney',
+          success: true,
+        ),
+      );
+
+      expect(result.draft?.amount, 20000);
+      expect(await draftRepo.getPendingDrafts(), hasLength(1));
+      expect(await database.select(database.accounts).get(), hasLength(1));
+      expect(await database.select(database.nfcScanSnapshots).get(), hasLength(2));
+      await database.close();
     });
   });
 }

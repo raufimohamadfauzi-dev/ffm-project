@@ -64,6 +64,37 @@ class Accounts extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Metadata kartu yang terhubung ke rekening FFM. Identifier kartu disimpan
+/// dalam bentuk hash, bukan UID mentah.
+class NfcCardAccounts extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get accountId => text()();
+  TextColumn get cardUidHash => text()();
+  TextColumn get issuer => text().nullable()();
+  TextColumn get cardType => text()();
+  IntColumn get lastKnownBalance => integer().nullable()();
+  BoolColumn get balanceAvailable => boolean().withDefault(const Constant(false))();
+  DateTimeColumn get lastScannedAt => dateTime().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class NfcScanSnapshots extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get nfcCardAccountId => text()();
+  IntColumn get balance => integer().nullable()();
+  BoolColumn get balanceAvailable => boolean().withDefault(const Constant(false))();
+  TextColumn get periodKey => text()();
+  DateTimeColumn get scannedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
 class TransactionParties extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

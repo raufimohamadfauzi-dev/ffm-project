@@ -200,6 +200,15 @@ class _ActivityViewState extends State<_ActivityView>
     final result = await showModalBottomSheet<_SessionDraft>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => _SessionForm(
         parentSessionTitle: parentTitle,
         initialTitle: initialTitle,
@@ -226,6 +235,15 @@ class _ActivityViewState extends State<_ActivityView>
     final result = await showModalBottomSheet<_CheckpointDraft>(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+      ),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (_) => const _CheckpointForm(),
     );
     if (result == null || !mounted) return;
@@ -809,7 +827,7 @@ class _ActivityViewState extends State<_ActivityView>
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
               icon: const Icon(Icons.timer_outlined),
-              label: const Text('Mulai Timer'),
+              label: const Text('Timer'),
             ),
             const SizedBox(width: 8),
             FloatingActionButton.extended(
@@ -819,7 +837,7 @@ class _ActivityViewState extends State<_ActivityView>
               backgroundColor: Colors.purple.shade700,
               foregroundColor: Colors.white,
               icon: const Icon(Icons.edit_note_rounded),
-              label: const Text('Catat Riwayat'),
+              label: const Text('Catat'),
             ),
           ],
         ),
@@ -834,7 +852,7 @@ class _ActivityViewState extends State<_ActivityView>
               onRefresh: context.read<ActivityBloc>().load,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
                 children: [
                   const AppHelpBanner(
                     title: 'Waktu kamu bisa dilacak',
@@ -1718,9 +1736,16 @@ class _SessionFormState extends State<_SessionForm> {
       if (!mounted) return;
 
       setState(() {
-        _activityCategories = categories.map((c) => c.name).toList();
+        final uniqueNames = categories
+            .map((c) => c.name.trim())
+            .where((name) => name.isNotEmpty)
+            .toSet()
+            .toList();
+        _activityCategories = uniqueNames.isNotEmpty
+            ? uniqueNames
+            : ['Umum', 'Kerja', 'Perjalanan', 'Kebun', 'Rumah'];
         _activityCategoryIds = {
-          for (final category in categories) category.name: category.id,
+          for (final category in categories) category.name.trim(): category.id,
         };
         _loadingCategories = false;
 
@@ -1743,7 +1768,9 @@ class _SessionFormState extends State<_SessionForm> {
       if (!mounted) return;
 
       setState(() {
-        _activityCategories = [];
+        _activityCategories = ['Umum', 'Kerja', 'Perjalanan', 'Kebun', 'Rumah'];
+        _selectedCategory ??= _activityCategories.first;
+        _category.text = _selectedCategory!;
         _loadingCategories = false;
       });
     }
@@ -1759,216 +1786,221 @@ class _SessionFormState extends State<_SessionForm> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      left: 16,
-      right: 16,
-      top: 16,
-      bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-    ),
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        Text(
-          widget.parentSessionTitle == null
-              ? 'Mulai sesi aktivitas'
-              : 'Tambah aktivitas di dalamnya',
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        if (widget.parentSessionTitle != null) ...[
-          const SizedBox(height: 6),
-          Text('Induk: ${widget.parentSessionTitle}'),
-        ],
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() => _mode = ActivityMode.timeTracking),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: _mode == ActivityMode.timeTracking
-                        ? Theme.of(context).colorScheme.primaryContainer
-                        : Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _mode == ActivityMode.timeTracking
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outlineVariant,
-                      width: _mode == ActivityMode.timeTracking ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.timer_outlined,
-                            color: _mode == ActivityMode.timeTracking
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '⏱️ Pakai Timer',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                              color: _mode == ActivityMode.timeTracking
-                                  ? Theme.of(context).colorScheme.onPrimaryContainer
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Lacak durasi berjalan',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: _mode == ActivityMode.timeTracking
-                              ? Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() => _mode = ActivityMode.history),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: _mode == ActivityMode.history
-                        ? Colors.purple.withValues(alpha: 0.15)
-                        : Theme.of(context).colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _mode == ActivityMode.history
-                          ? Colors.purple.shade700
-                          : Theme.of(context).colorScheme.outlineVariant,
-                      width: _mode == ActivityMode.history ? 2 : 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.edit_note_outlined,
-                            color: _mode == ActivityMode.history
-                                ? Theme.of(context).colorScheme.onSurface
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '📝 Catat Saja',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 14,
-                              color: _mode == ActivityMode.history
-                                  ? Theme.of(context).colorScheme.onSurface
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Kejadian sekali catat',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          fontSize: 11,
-                          color: _mode == ActivityMode.history
-                              ? Theme.of(context).colorScheme.onSurface
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _title,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: 'Nama aktivitas',
-            hintText: 'Misalnya ke pasar lalu ke kebun',
-            prefixIcon: Icon(
-              Icons.directions_run_outlined,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            suffixIcon: IconButton(
-              icon: Icon(_isListeningFormVoice ? Icons.mic : Icons.mic_none),
-              color: _isListeningFormVoice
-                  ? Theme.of(context).colorScheme.error
-                  : Theme.of(context).colorScheme.primary,
-              tooltip: _isListeningFormVoice
-                  ? 'Stop dengar'
-                  : 'Bicara nama aktivitas (Voice)',
-              onPressed: _captureFormVoice,
-            ),
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
           ),
-        ),
-        const SizedBox(height: 12),
-        if (_loadingCategories)
-          const Center(child: CircularProgressIndicator())
-        else
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                decoration: InputDecoration(
-                  labelText: 'Kategori aktivitas',
-                  hintText: 'Pilih kategori aktivitas',
-                  prefixIcon: Icon(
-                    Icons.category_outlined,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  widget.parentSessionTitle == null
+                      ? 'Mulai sesi aktivitas'
+                      : 'Tambah aktivitas di dalamnya',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                 ),
-                items: _activityCategories
-                    .map(
-                      (item) => DropdownMenuItem(
-                        value: item,
-                        child: Text(
-                          item,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                if (widget.parentSessionTitle != null) ...[
+                  const SizedBox(height: 6),
+                  Text('Induk: ${widget.parentSessionTitle}'),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setState(() => _mode = ActivityMode.timeTracking),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _mode == ActivityMode.timeTracking
+                                ? Theme.of(context).colorScheme.primaryContainer
+                                : Theme.of(context).colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _mode == ActivityMode.timeTracking
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.outlineVariant,
+                              width: _mode == ActivityMode.timeTracking ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.timer_outlined,
+                                    color: _mode == ActivityMode.timeTracking
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '⏱️ Pakai Timer',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: _mode == ActivityMode.timeTracking
+                                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                                          : Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Lacak durasi berjalan',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: _mode == ActivityMode.timeTracking
+                                      ? Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
+                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                    _category.text = value ?? '';
-                  });
-                },
-              ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setState(() => _mode = ActivityMode.history),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _mode == ActivityMode.history
+                                ? Colors.purple.withValues(alpha: 0.15)
+                                : Theme.of(context).colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _mode == ActivityMode.history
+                                  ? Colors.purple.shade700
+                                  : Theme.of(context).colorScheme.outlineVariant,
+                              width: _mode == ActivityMode.history ? 2 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.edit_note_outlined,
+                                    color: _mode == ActivityMode.history
+                                        ? Theme.of(context).colorScheme.onSurface
+                                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '📝 Catat Saja',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                      color: _mode == ActivityMode.history
+                                          ? Theme.of(context).colorScheme.onSurface
+                                          : Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Kejadian sekali catat',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: _mode == ActivityMode.history
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _title,
+                  autofocus: false,
+                  decoration: InputDecoration(
+                    labelText: 'Nama aktivitas',
+                    hintText: 'Misalnya ke pasar lalu ke kebun',
+                    prefixIcon: Icon(
+                      Icons.directions_run_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    suffixIcon: IconButton(
+                      icon: Icon(_isListeningFormVoice ? Icons.mic : Icons.mic_none),
+                      color: _isListeningFormVoice
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.primary,
+                      tooltip: _isListeningFormVoice
+                          ? 'Stop dengar'
+                          : 'Bicara nama aktivitas (Voice)',
+                      onPressed: _captureFormVoice,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (_loadingCategories)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: _selectedCategory,
+                        decoration: InputDecoration(
+                          labelText: 'Kategori aktivitas',
+                          hintText: 'Pilih kategori aktivitas',
+                          prefixIcon: Icon(
+                            Icons.category_outlined,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        items: _activityCategories
+                            .map(
+                              (item) => DropdownMenuItem(
+                                value: item,
+                                child: Text(
+                                  item,
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedCategory = value;
+                            _category.text = value ?? '';
+                          });
+                        },
+                      ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
@@ -2133,7 +2165,9 @@ class _SessionFormState extends State<_SessionForm> {
         ),
       ],
     ),
-  );
+  ),
+  ),
+);
 }
 
 class _CheckpointDraft {
@@ -2163,60 +2197,67 @@ class _CheckpointFormState extends State<_CheckpointForm> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(
-      left: 16,
-      right: 16,
-      top: 16,
-      bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
-    ),
-    child: ListView(
-      shrinkWrap: true,
-      children: [
-        const Text(
-          'Update aktivitas',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _label,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Sudah sampai/menjalankan apa?',
-            hintText: 'Misalnya sampai pasar',
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 8,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Update aktivitas',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _label,
+                  autofocus: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Sudah sampai/menjalankan apa?',
+                    hintText: 'Misalnya sampai pasar',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _place,
+                  decoration: const InputDecoration(labelText: 'Lokasi (opsional)'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _note,
+                  maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
+                ),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () {
+                    if (_label.text.trim().isEmpty) return;
+                    FocusManager.instance.primaryFocus?.unfocus();
+                    Navigator.pop(
+                      context,
+                      _CheckpointDraft(
+                        _label.text.trim(),
+                        _place.text.trim().isEmpty ? null : _place.text.trim(),
+                        _note.text.trim().isEmpty ? null : _note.text.trim(),
+                        DateTime.now(),
+                      ),
+                    );
+                  },
+                  child: const Text('Simpan update'),
+                ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _place,
-          decoration: const InputDecoration(labelText: 'Lokasi (opsional)'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _note,
-          maxLines: 2,
-          decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: () {
-            if (_label.text.trim().isEmpty) return;
-            FocusManager.instance.primaryFocus?.unfocus();
-            Navigator.pop(
-              context,
-              _CheckpointDraft(
-                _label.text.trim(),
-                _place.text.trim().isEmpty ? null : _place.text.trim(),
-                _note.text.trim().isEmpty ? null : _note.text.trim(),
-                DateTime.now(),
-              ),
-            );
-          },
-          child: const Text('Simpan update'),
-        ),
-      ],
-    ),
-  );
+      );
 }
 
 String _two(int value) => value.toString().padLeft(2, '0');

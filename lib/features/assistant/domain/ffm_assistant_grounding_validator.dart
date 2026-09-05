@@ -63,6 +63,17 @@ class FfmAssistantGroundingValidator {
       }
     }
 
+    if (hasDate) {
+      final normalizedEvidence = evidence.toLowerCase();
+      final dates = _dateLike
+          .allMatches(geminiText)
+          .map((match) => match.group(0)!.toLowerCase())
+          .toList(growable: false);
+      if (dates.any((date) => !normalizedEvidence.contains(date))) {
+        return 'Tanggal pada jawaban belum dapat diverifikasi dari data lokal. Minta ringkasan terbaru untuk tanggal yang pasti.';
+      }
+    }
+
     return null;
   }
 

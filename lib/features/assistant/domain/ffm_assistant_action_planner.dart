@@ -268,6 +268,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.activityFinish => 'draft.activity_finish',
     FfmAssistantDraftKind.activityUpdate => 'draft.activity_update',
     FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
+    FfmAssistantDraftKind.cashFlowProfile => 'draft.cash_flow_profile',
   };
 
   static String _mutationCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
@@ -467,6 +468,18 @@ class FfmAssistantActionPlanner {
     if (draft.date != null) 'date': draft.date!.toIso8601String(),
     if (draft.location != null) 'location': draft.location,
     if (draft.linkedActivityId != null) 'linkedActivityId': draft.linkedActivityId,
+    if (draft.commodityOrBusinessType != null)
+      'commodityOrBusinessType': draft.commodityOrBusinessType,
+    if (draft.targetHarvestDate != null)
+      'targetHarvestDate': draft.targetHarvestDate!.toIso8601String(),
+    if (draft.initialCapital != null) 'initialCapital': draft.initialCapital,
+    if (draft.estimatedInflow != null) 'estimatedInflow': draft.estimatedInflow,
+    if (draft.dailyLivingBudget != null)
+      'dailyLivingBudget': draft.dailyLivingBudget,
+    if (draft.dailyOperationalBudget != null)
+      'dailyOperationalBudget': draft.dailyOperationalBudget,
+    if (draft.cycleProfileType != null)
+      'cycleProfileType': draft.cycleProfileType,
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.
     if (draft.merchantName != null)

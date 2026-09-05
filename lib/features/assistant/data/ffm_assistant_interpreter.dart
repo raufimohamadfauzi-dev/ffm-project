@@ -19,7 +19,11 @@ import 'dart:convert';
 import '../../../core/database/app_context.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/diagnostics/app_diagnostics_service.dart';
+import '../../advisor/data/cash_flow_profile_repository.dart';
+import '../../advisor/domain/entities/cash_flow_profile_models.dart';
 import '../../advisor/domain/usecases/budget_guard_service.dart';
+import '../../advisor/domain/usecases/flexible_cash_flow_calculator.dart';
+import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_user_model_service.dart';
@@ -73,6 +77,7 @@ class FfmAssistantInterpreter {
     FfmAssistantVerifiedFactService? verifiedFactService,
     bool? geminiContextFirstEnabled,
     AppThemeController? themeController,
+    MarketNewsCacheRepository? marketCache,
   }) : _memory = memory ?? FfmAssistantLocalMemory(),
        _personalization =
            personalization ?? FfmAssistantPersonalizationRepository(_database),
@@ -112,7 +117,11 @@ class FfmAssistantInterpreter {
       clock: _clock,
       recordUsage: _recordGeminiUsage,
     );
-    _queryRegistry = FfmAssistantQueryRegistry(_database, clock: _clock);
+    _queryRegistry = FfmAssistantQueryRegistry(
+      _database,
+      clock: _clock,
+      marketCache: marketCache,
+    );
     _actionRegistry = FfmAssistantContextualActionRegistry(clock: _clock);
     _harness = createDefaultHarness(_database);
     _analysisEngine = analysisEngine ?? FfmAssistantAnalysisEngine(_database);
@@ -251,11 +260,11 @@ class FfmAssistantInterpreter {
       return FfmAssistantCloudRequestClass.draftReview;
     }
     if (RegExp(
-      r'\b(analisa|analisis|trend|tren|pola|frekuensi|perbandingan|bandingkan|saran|rekomendasi|evaluasi|apa yang harus saya lakukan|harus lakukan|langkah apa|tips|strategi|bulan depan|3 bulan|tiga bulan)\b',
+      r'\b(analisa|analisis|trend|tren|pola|frekuensi|perbandingan|bandingkan|saran|rekomendasi|evaluasi|apa yang harus saya lakukan|harus lakukan|langkah apa|tips|strategi|bulan depan|3 bulan|tiga bulan|kesehatan|rapor|sehat|diagnosa|diagnosis|kebocoran|boros|runway|agrotrack|panen|ketahanan kas|kondisi keuangan)\b',
     ).hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.analysis;
     }
-    if (RegExp(r'\b(bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b')
+    if (RegExp(r'\b(onboarding|bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b')
         .hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.help;
     }
@@ -1196,6 +1205,342 @@ class FfmAssistantInterpreter {
     ];
   }
 
+  /// Menangani koreksi percakapan bertingkat terhadap activeDraft (Module 2).
+  /// Mendeteksi perubahan nominal ("bukan 50rb tapi 75rb"), rekening (grounded ke DB),
+  /// kategori (grounded ke DB), toko, tanggal, agrotrack, atau pembatalan draft.
+  Future<FfmAssistantIntent?> _tryReviseActiveDraft(
+    String rawText,
+    String normalized, {
+    required FfmAssistantDraft activeDraft,
+    required List<Account> accounts,
+    required List<Category> categories,
+  }) async {
+    // 1. Pembatalan draft aktif
+    final isCancel = RegExp(
+      r'\b(batal(?:kan)?|jangan jadi|gak jadi|ga jadi|hapus draft|tutup draft|cancel)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isCancel && !RegExp(r'\b(buat|tambah|catat)\b').hasMatch(normalized)) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.cancel,
+        confidence: 1.0,
+        response:
+            'Oke, ${_draftKindLabel(activeDraft.kind)} dibatalkan. Belum ada data yang disimpan.',
+      );
+    }
+
+    // 2. Jika merupakan perintah mutasi baru yang terpisah, jangan tangkap sebagai revisi draft
+    final isExplicitNewMutation =
+        RegExp(r'\b(buat|tambah|catat)\b').hasMatch(normalized) &&
+        RegExp(
+          r'\b(kategori|rekening|toko|sumber|anggaran|target|transaksi|pemasukan|pengeluaran|transfer|aktivitas|pengingat|siklus|agrotrack)\b',
+        ).hasMatch(normalized);
+    if (isExplicitNewMutation) return null;
+
+    final changes = <String>[];
+    var revised = activeDraft;
+
+    // 3. Koreksi Nominal / Amount
+    // Contoh: "bukan 50rb tapi 75rb", "ubah nominal jadi 75rb", "ganti ke 80.000", "75rb"
+    int? newAmount;
+    final bukanTapiMatch = RegExp(
+      r'bukan\s+(?:rp\s*)?[\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?\s*(?:,|tapi|melainkan)?\s*(?:rp\s*)?([\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (bukanTapiMatch != null) {
+      newAmount = FfmAssistantAmountParser.parse(bukanTapiMatch.group(1)!);
+    } else {
+      final changeAmountMatch = RegExp(
+        r'(?:ubah|ganti|koreksi|jadikan|set)\s+(?:nominal(?:nya)?|jumlah(?:nya)?|harga(?:nya)?\s+)?(?:ke|jadi|menjadi)?\s*(?:rp\s*)?([\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (changeAmountMatch != null) {
+        newAmount = FfmAssistantAmountParser.parse(changeAmountMatch.group(1)!);
+      } else if (RegExp(r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$', caseSensitive: false).hasMatch(normalized.trim())) {
+        newAmount = FfmAssistantAmountParser.parse(normalized.trim());
+      } else {
+        final nominalNyaMatch = RegExp(
+          r'(?:nominal(?:nya)?|harga(?:nya)?|jumlah(?:nya)?)\s*(?:ke|jadi|menjadi|sebesar|:)?\s*(?:rp\s*)?([\d\.,\s]+(?:rb|ribu|jt|juta|k|000)?)',
+          caseSensitive: false,
+        ).firstMatch(rawText);
+        if (nominalNyaMatch != null) {
+          newAmount = FfmAssistantAmountParser.parse(nominalNyaMatch.group(1)!);
+        }
+      }
+    }
+
+    if (newAmount != null && newAmount > 0 && newAmount != activeDraft.amount) {
+      revised = revised.copyWith(amount: newAmount);
+      changes.add('Nominal diubah menjadi ${_money(newAmount)}');
+    }
+
+    // 4. Koreksi Rekening (Grounded terhadap DB accounts)
+    // Contoh: "ganti rekening ke BCA", "pakai Mandiri", "dari dompet Tunai", "bukan BCA tapi Mandiri"
+    final mentionsAccount = RegExp(
+      r'\b(rekening|dompet|bank|sumber|tujuan|dari|ke|pakai|gunakan|lewat)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (mentionsAccount) {
+      Account? matchedAccount;
+      for (final acc in accounts) {
+        if (normalized.contains(acc.name.toLowerCase())) {
+          matchedAccount = acc;
+          break;
+        }
+      }
+
+      if (matchedAccount != null) {
+        if (activeDraft.kind == FfmAssistantDraftKind.income) {
+          revised = revised.copyWith(toAccountName: matchedAccount.name);
+          changes.add('Rekening tujuan diubah ke ${matchedAccount.name}');
+        } else if (activeDraft.kind == FfmAssistantDraftKind.transfer) {
+          final isDest = normalized.contains('ke') || normalized.contains('tujuan');
+          if (isDest) {
+            revised = revised.copyWith(toAccountName: matchedAccount.name);
+            changes.add('Rekening tujuan transfer diubah ke ${matchedAccount.name}');
+          } else {
+            revised = revised.copyWith(fromAccountName: matchedAccount.name);
+            changes.add('Rekening asal transfer diubah ke ${matchedAccount.name}');
+          }
+        } else {
+          revised = revised.copyWith(fromAccountName: matchedAccount.name);
+          changes.add('Rekening sumber diubah ke ${matchedAccount.name}');
+        }
+      } else {
+        // Cek jika user menyebut nama rekening tertentu tapi tidak ada di DB
+        final ungroundedMatch = RegExp(
+          r'(?:ganti\s+rekening(?:nya)?\s+ke|pakai\s+rekening|rekening(?:nya)?\s+ke|rekening(?:nya)?\s+jadi)\s+([a-zA-Z0-9\s]+)',
+          caseSensitive: false,
+        ).firstMatch(rawText);
+        if (ungroundedMatch != null) {
+          final requestedName = ungroundedMatch.group(1)?.trim();
+          if (requestedName != null && requestedName.isNotEmpty) {
+            final available = accounts.map((a) => a.name).join(', ');
+            return FfmAssistantIntent(
+              rawText: rawText,
+              normalizedText: normalized,
+              type: _intentForDraft(rawText, normalized, activeDraft).type,
+              destination: _intentForDraft(rawText, normalized, activeDraft).destination,
+              draft: activeDraft,
+              review: FfmAssistantDraftReview(
+                draft: activeDraft,
+                version: 1,
+                issues: const [],
+              ),
+              confidence: 0.9,
+              response:
+                  'Rekening “$requestedName” belum terdaftar di Data Utama. Rekening yang aktif saat ini: $available. Kamu bisa memilih salah satu rekening di atas, atau buat dulu lewat “tambah rekening $requestedName”.',
+            );
+          }
+        }
+      }
+    }
+
+    // 5. Koreksi Kategori (Grounded terhadap DB categories)
+    // Contoh: "kategori jajan", "ganti kategori ke Transportasi", "kategorinya belanja"
+    final mentionsCategory = RegExp(
+      r'\b(kategori(?:nya)?)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (mentionsCategory) {
+      Category? matchedCat;
+      for (final cat in categories) {
+        if (normalized.contains(cat.name.toLowerCase())) {
+          matchedCat = cat;
+          break;
+        }
+      }
+      if (matchedCat != null) {
+        revised = revised.copyWith(categoryName: matchedCat.name);
+        changes.add('Kategori diubah ke ${matchedCat.name}');
+      } else {
+        final catMatch = RegExp(
+          r'(?:kategori(?:nya)?\s*(?:ke|jadi|menjadi|:)?\s*)([a-zA-Z0-9\s]+)',
+          caseSensitive: false,
+        ).firstMatch(rawText);
+        if (catMatch != null) {
+          final requestedCat = catMatch.group(1)?.trim();
+          if (requestedCat != null && requestedCat.isNotEmpty) {
+            final available = categories.take(6).map((c) => c.name).join(', ');
+            return FfmAssistantIntent(
+              rawText: rawText,
+              normalizedText: normalized,
+              type: _intentForDraft(rawText, normalized, activeDraft).type,
+              destination: _intentForDraft(rawText, normalized, activeDraft).destination,
+              draft: activeDraft,
+              review: FfmAssistantDraftReview(
+                draft: activeDraft,
+                version: 1,
+                issues: const [],
+              ),
+              confidence: 0.9,
+              response:
+                  'Kategori “$requestedCat” belum terdaftar di Data Utama. Kategori yang tersedia antara lain: $available. Kamu bisa memilih kategori tersebut, atau buat dulu lewat “buat kategori $requestedCat”.',
+            );
+          }
+        }
+      }
+    }
+
+    // 6. Koreksi Toko / Merchant
+    final merchantMatch = RegExp(
+      r'(?:toko(?:nya)?|tempat(?:nya)?|beli di|di toko)\s*[:=]?\s*([a-zA-Z0-9\s]+?)(?:\s+(?:pakai|rekening|nominal|catatan)|$)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (merchantMatch != null) {
+      final merchant = merchantMatch.group(1)?.trim();
+      if (merchant != null && merchant.isNotEmpty) {
+        revised = revised.copyWith(merchantName: merchant);
+        changes.add('Toko diubah ke $merchant');
+      }
+    }
+
+    // 7. Koreksi Tanggal
+    if (normalized.contains('kemarin')) {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      revised = revised.copyWith(date: yesterday);
+      changes.add('Tanggal diubah ke kemarin (${yesterday.day}/${yesterday.month}/${yesterday.year})');
+    } else if (normalized.contains('besok')) {
+      final tomorrow = DateTime.now().add(const Duration(days: 1));
+      revised = revised.copyWith(date: tomorrow);
+      changes.add('Tanggal diubah ke besok (${tomorrow.day}/${tomorrow.month}/${tomorrow.year})');
+    } else if (normalized.contains('hari ini')) {
+      final today = DateTime.now();
+      revised = revised.copyWith(date: today);
+      changes.add('Tanggal diubah ke hari ini');
+    }
+
+    // 8. Koreksi Siklus Kas / AgroTrack (jika draft aktif adalah cashFlowProfile)
+    if (activeDraft.kind == FfmAssistantDraftKind.cashFlowProfile) {
+      // Komoditas
+      final comMatch = RegExp(
+        r'(?:komoditas|tanaman|usaha)(?:nya)?\s*(?:ke|jadi|menjadi|:)?\s*([a-zA-Z0-9\s]+?)(?:\s+(?:modal|panen|estimasi|dapur|operasional)|$)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (comMatch != null) {
+        final com = comMatch.group(1)?.trim();
+        if (com != null && com.isNotEmpty) {
+          revised = revised.copyWith(
+            commodityOrBusinessType: com,
+            title: 'Siklus $com',
+          );
+          changes.add('Komoditas diubah ke $com');
+        }
+      }
+
+      // Modal awal
+      final modalMatch = RegExp(
+        r'modal(?:nya)?(?:\s+awal)?\s*(?:ke|jadi|menjadi|sebesar|:)?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (modalMatch != null) {
+        final modal = FfmAssistantAmountParser.parse(modalMatch.group(1)!);
+        if (modal != null) {
+          revised = revised.copyWith(initialCapital: modal, amount: modal);
+          changes.add('Modal awal diubah ke ${_money(modal)}');
+        }
+      }
+
+      // Estimasi Panen
+      final estMatch = RegExp(
+        r'(?:panen|estimasi|hasil|omzet)(?:nya)?\s*(?:ke|jadi|menjadi|sebesar|:)?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (estMatch != null) {
+        final est = FfmAssistantAmountParser.parse(estMatch.group(1)!);
+        if (est != null) {
+          revised = revised.copyWith(estimatedInflow: est);
+          changes.add('Estimasi hasil diubah ke ${_money(est)}');
+        }
+      }
+
+      // Dapur harian
+      final livingMatch = RegExp(
+        r'(?:dapur|kebutuhan)(?:nya)?(?:\s+harian)?\s*(?:ke|jadi|menjadi|sebesar|:)?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (livingMatch != null) {
+        final liv = FfmAssistantAmountParser.parse(livingMatch.group(1)!);
+        if (liv != null) {
+          revised = revised.copyWith(dailyLivingBudget: liv);
+          changes.add('Jatah dapur harian diubah ke ${_money(liv)}');
+        }
+      }
+
+      // Operasional harian
+      final opMatch = RegExp(
+        r'(?:operasional)(?:nya)?(?:\s+harian)?\s*(?:ke|jadi|menjadi|sebesar|:)?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+        caseSensitive: false,
+      ).firstMatch(rawText);
+      if (opMatch != null) {
+        final op = FfmAssistantAmountParser.parse(opMatch.group(1)!);
+        if (op != null) {
+          revised = revised.copyWith(dailyOperationalBudget: op);
+          changes.add('Jatah operasional harian diubah ke ${_money(op)}');
+        }
+      }
+    }
+
+    // 9. Koreksi Catatan / Keterangan
+    final noteMatch = RegExp(
+      r'(?:catatan(?:nya)?|keterangan(?:nya)?)\s*[:=]\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (noteMatch != null) {
+      final noteText = noteMatch.group(1)?.trim();
+      if (noteText != null && noteText.isNotEmpty) {
+        revised = revised.copyWith(note: noteText);
+        changes.add('Catatan diperbarui');
+      }
+    }
+
+    // Jika tidak ada perubahan yang terdeteksi, return null agar flow lain (Gemini / query) dapat berjalan
+    if (changes.isEmpty) return null;
+
+    final issues = FfmAssistantDraftValidator.validate(revised);
+    final draftLabel = _draftKindLabel(revised.kind);
+    final responseBuf = StringBuffer('Sip, $draftLabel telah disesuaikan:\n');
+    for (final change in changes) {
+      responseBuf.writeln('• $change');
+    }
+    if (issues.any((i) => i.blocksContinuation)) {
+      final blocked = issues
+          .where((i) => i.blocksContinuation)
+          .map((i) => i.field ?? i.code)
+          .join(', ');
+      responseBuf.writeln('\nMasih ada kolom yang perlu dilengkapi: $blocked.');
+    } else {
+      responseBuf.writeln('\nSilakan periksa pratinjau draft di bawah sebelum disimpan.');
+    }
+
+    final baseIntent = _intentForDraft(rawText, normalized, revised);
+    return baseIntent.copyWith(
+      response: responseBuf.toString().trim(),
+      review: FfmAssistantDraftReview(
+        draft: revised,
+        version: 2,
+        issues: issues,
+      ),
+    );
+  }
+
+  static String _draftKindLabel(FfmAssistantDraftKind kind) => switch (kind) {
+    FfmAssistantDraftKind.income => 'Draft Pemasukan',
+    FfmAssistantDraftKind.expense => 'Draft Pengeluaran',
+    FfmAssistantDraftKind.transfer => 'Draft Transfer',
+    FfmAssistantDraftKind.budget => 'Draft Anggaran',
+    FfmAssistantDraftKind.goal => 'Draft Target Keuangan',
+    FfmAssistantDraftKind.cashFlowProfile => 'Draft Siklus Kas (AgroTrack)',
+    FfmAssistantDraftKind.liability => 'Draft Hutang',
+    FfmAssistantDraftKind.receivable => 'Draft Piutang',
+    FfmAssistantDraftKind.asset => 'Draft Aset',
+    FfmAssistantDraftKind.reminder => 'Draft Pengingat',
+    FfmAssistantDraftKind.activity => 'Draft Aktivitas',
+    _ => 'Draft ${kind.name}',
+  };
+
   Future<FfmAssistantIntent> interpret(
     String rawText, {
     FfmAssistantDestination? currentDestination,
@@ -1282,6 +1627,25 @@ class FfmAssistantInterpreter {
         lastAssistantMessage: lastAssistantMessage,
       );
       if (conversationalTurn != null) return conversationalTurn;
+    }
+
+    // ── MULTI-TURN DRAFT REVISION & CANCELLATION (Module 2) ───────────────────
+    // Jika ada activeDraft di percakapan dan user memberikan koreksi deterministik
+    // ("bukan 50rb tapi 75rb", "ganti rekening ke BCA", "kategori jajan", "batalkan"),
+    // tangani secara instan, grounded ke database, tanpa halusinasi dan tanpa roundtrip lambat.
+    // Revisi deterministik (Module 2) berlaku di mode Agent agar koreksi
+    // nominal/rekening/kategori instan dan grounded. Di mode Gemini Cloud,
+    // koreksi draft aktif diteruskan ke Gemini sebagai draftReview karena Gemini
+    // adalah lawan bicara utama konteks percakapan.
+    if (activeDraft != null && !isGeminiConversationMode) {
+      final revisedIntent = await _tryReviseActiveDraft(
+        rawText,
+        normalized,
+        activeDraft: activeDraft,
+        accounts: accounts,
+        categories: categories,
+      );
+      if (revisedIntent != null) return revisedIntent;
     }
 
     final proposal = FfmAssistantProposalJsonService.parse(
@@ -1429,7 +1793,9 @@ class FfmAssistantInterpreter {
 
     // Gemini dipanggil setelah guard deterministic dan parser draft selesai.
     // seperti “tanggal berapa sekarang”, jadi harus diprioritaskan.
-    if (_isHijriDateRequest(normalized)) {
+    if (_isHijriDateRequest(normalized) &&
+        !_isNavigationRequest(normalized) &&
+        !_isExplicitPageNavigationRequest(normalized)) {
       final now = _clock();
       DateTime targetDate = now;
       String dateLabel = 'sekarang';
@@ -3128,7 +3494,7 @@ class FfmAssistantInterpreter {
     final steps = <String>[];
     if (!hasNamedHousehold) {
       steps.add(
-        '1. Isi nama keluarga di Data Utama. Nama suami/istri boleh kamu isi kalau memang perlu.',
+        '1. Isi nama keluarga di halaman Profil Keluarga. Nama suami/istri boleh kamu isi kalau memang perlu.',
       );
     }
     if (accounts.isEmpty) {
@@ -3437,6 +3803,41 @@ class FfmAssistantInterpreter {
         : net < 0
         ? 'arus kas defisit ${_formatRupiah(net.abs())}'
         : 'arus kas seimbang';
+    final savingsPart = income > 0
+        ? (net > 0
+            ? ' Rasio tabungan: ${((net / income) * 100).round()}%${(net / income) >= 0.2 ? ' (sehat ≥20%)' : ' (di bawah target ideal 20%)'}.'
+            : ' Rasio tabungan: 0% (arus kas defisit, evaluasi pos pengeluaran terbesar).')
+        : '';
+    String cyclePart = '';
+    try {
+      if (getIt.isRegistered<CashFlowProfileRepository>() &&
+          getIt.isRegistered<FlexibleCashFlowCalculator>()) {
+        final repo = getIt<CashFlowProfileRepository>();
+        final flexCalc = getIt<FlexibleCashFlowCalculator>();
+        final profile = await repo.getActiveProfile(AppContext.householdId);
+        if (profile != null &&
+            profile.isActive &&
+            profile.profileType != CashFlowProfileType.salaried) {
+          final accounts = await (_database.select(_database.accounts)
+                ..where((row) =>
+                    row.householdId.equals(AppContext.householdId) &
+                    row.isArchived.equals(false)))
+              .get();
+          final totalLiquidCash = accounts.fold<int>(
+            0,
+            (sum, a) => sum + (a.openingBalance > 0 ? a.openingBalance : 0),
+          );
+          final runway = flexCalc.calculateRunway(
+            effectiveLiquidCash: totalLiquidCash,
+            dailyLivingBudget: profile.dailyLivingBudget,
+            dailyOperationalBudget: profile.dailyOperationalBudget,
+            daysRemainingToHarvest: profile.daysRemaining,
+          );
+          cyclePart = ' Siklus ${profile.name} (${profile.commodityOrBusinessType}): sisa ${profile.daysRemaining} hari ke panen, ketahanan kas ${runway.runwayDays} hari, batas belanja dapur aman ${_formatRupiah(runway.safeToSpendDaily)}/hari.';
+        }
+      }
+    } catch (_) {}
+
     return FfmAssistantIntent(
       rawText: rawText,
       normalizedText: normalized,
@@ -3444,7 +3845,7 @@ class FfmAssistantInterpreter {
       destination: FfmAssistantDestination.analysis,
       confidence: 1,
       response:
-          '$label, dari ${transactions.length} transaksi yang tersimpan: pemasukan ${_formatRupiah(income)}, pengeluaran ${_formatRupiah(expense)}, jadi $netText. $biggestText Ada ${transfers.length} transfer; transfer tidak masuk hitungan arus kas.',
+          '$label, dari ${transactions.length} transaksi yang tersimpan: pemasukan ${_formatRupiah(income)}, pengeluaran ${_formatRupiah(expense)}, jadi $netText. $biggestText$savingsPart$cyclePart Ada ${transfers.length} transfer; transfer tidak masuk hitungan arus kas.\n\nMau saya bantu buatkan draft batas anggaran atau target tabungan baru?',
     );
   }
 
@@ -4005,8 +4406,8 @@ class FfmAssistantInterpreter {
       ),
       FfmAssistantDraftKind.profile => (
         type: FfmAssistantIntentType.createProfile,
-        destination: FfmAssistantDestination.assistantProfile,
-        action: 'profil',
+        destination: FfmAssistantDestination.familyProfile,
+        action: 'profil keluarga',
       ),
       FfmAssistantDraftKind.reminderArchive => (
         type: FfmAssistantIntentType.archiveReminder,
@@ -4062,6 +4463,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.editActivity,
         destination: FfmAssistantDestination.activity,
         action: 'edit aktivitas',
+      ),
+      FfmAssistantDraftKind.cashFlowProfile => (
+        type: FfmAssistantIntentType.createCashFlowProfile,
+        destination: FfmAssistantDestination.analysis,
+        action: 'siklus kas / AgroTrack',
       ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
@@ -4181,10 +4587,11 @@ class FfmAssistantInterpreter {
     final categoryHint = draft.categoryName == null
         ? ''
         : ' Kategori ${draft.categoryName} sudah aku pilih dari Data Utama.';
+    final validatorIssues = FfmAssistantDraftValidator.validate(draft);
     final review = FfmAssistantDraftReview(
       draft: draft,
       version: 1,
-      issues: const [],
+      issues: validatorIssues,
     );
     return FfmAssistantIntent(
       rawText: rawText,
@@ -6676,6 +7083,123 @@ class FfmAssistantInterpreter {
   String _money(int amount) =>
       'Rp${amount.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (_) => '.')}';
 
+  FfmAssistantDraft _parseCycleDraft(
+    String rawText,
+    String normalized,
+    DateTime now,
+  ) {
+    final title = _draftTitle(normalized, const [
+      'buat siklus kas',
+      'tambah siklus kas',
+      'catat siklus kas',
+      'buat siklus tani',
+      'catat siklus tani',
+      'mulai siklus tani',
+      'buat agrotrack',
+      'catat agrotrack',
+      'tambah agrotrack',
+      'buat siklus panen',
+      'catat siklus panen',
+      'buat siklus usaha',
+      'catat siklus usaha',
+    ]);
+
+    String? commodity;
+    final comMatch = RegExp(
+      r'(?:komoditas|tanaman|usaha|tani)\s+([a-zA-Z0-9\s]+?)(?:\s+(?:modal|estimasi|panen|anggaran|dapur|operasional)|\s*$)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (comMatch != null) {
+      commodity = comMatch.group(1)?.trim();
+    } else {
+      const known = [
+        'padi ciherang', 'padi', 'jagung', 'cabai merah', 'cabai', 'bawang merah',
+        'bawang', 'kedelai', 'kopi', 'sawit', 'semangka', 'melon', 'sayuran',
+        'sayur', 'ayam broiler', 'ayam', 'lele', 'nila', 'warung sembako', 'toko',
+      ];
+      for (final k in known) {
+        if (normalized.contains(k)) {
+          commodity = k;
+          break;
+        }
+      }
+    }
+
+    int? initialCapital;
+    final modalMatch = RegExp(
+      r'modal(?:\s+awal)?(?:\s+sebesar)?\s*[:=]?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (modalMatch != null) {
+      initialCapital = FfmAssistantAmountParser.parse(modalMatch.group(1)!);
+    } else {
+      final amt = FfmAssistantAmountParser.parse(normalized);
+      if (amt != null) initialCapital = amt;
+    }
+
+    int? estimatedInflow;
+    final estMatch = RegExp(
+      r'(?:estimasi\s*)?(?:panen|kas masuk|hasil|omzet)(?:\s+sebesar)?\s*[:=]?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (estMatch != null) {
+      estimatedInflow = FfmAssistantAmountParser.parse(estMatch.group(1)!);
+    }
+
+    int? dailyLiving;
+    final livingMatch = RegExp(
+      r'(?:dapur|kebutuhan)(?:\s+harian)?(?:\s+sebesar)?\s*[:=]?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (livingMatch != null) {
+      dailyLiving = FfmAssistantAmountParser.parse(livingMatch.group(1)!);
+    }
+
+    int? dailyOp;
+    final opMatch = RegExp(
+      r'(?:operasional)(?:\s+harian)?(?:\s+sebesar)?\s*[:=]?\s*([0-9\.,\s]+(?:rb|ribu|jt|juta|k)?)',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (opMatch != null) {
+      dailyOp = FfmAssistantAmountParser.parse(opMatch.group(1)!);
+    }
+
+    DateTime? targetDate;
+    final daysMatch = RegExp(
+      r'(\d+)\s*hari(?:\s+lagi|\s+menuju panen)?',
+      caseSensitive: false,
+    ).firstMatch(rawText);
+    if (daysMatch != null) {
+      final days = int.tryParse(daysMatch.group(1)!);
+      if (days != null && days > 0) {
+        targetDate = now.add(Duration(days: days));
+      }
+    }
+
+    final isBusiness = _containsAny(normalized, const ['usaha', 'dagang', 'toko', 'warung', 'bisnis', 'umkm']);
+    final isFreelance = _containsAny(normalized, const ['freelance', 'proyek', 'lepas']);
+    final profileType = isBusiness ? 'business' : (isFreelance ? 'freelance' : 'agriculture');
+    final effectiveTitle = (title == null || title.trim().isEmpty)
+        ? (commodity != null ? 'Siklus $commodity' : 'Siklus Kas Baru')
+        : title.trim();
+
+    return FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.cashFlowProfile,
+      createdAt: now,
+      title: effectiveTitle,
+      amount: initialCapital,
+      commodityOrBusinessType: commodity ?? effectiveTitle,
+      initialCapital: initialCapital,
+      estimatedInflow: estimatedInflow,
+      dailyLivingBudget: dailyLiving,
+      dailyOperationalBudget: dailyOp,
+      targetHarvestDate: targetDate,
+      cycleProfileType: profileType,
+      note: rawText.trim(),
+      date: now,
+    );
+  }
+
   FfmAssistantDraft? _parseFinancialDraft(
     String rawText,
     String normalized,
@@ -6687,6 +7211,24 @@ class FfmAssistantInterpreter {
     final now = DateTime.now();
     final amount = FfmAssistantAmountParser.parse(normalized);
     final adminFee = _parseAdminFee(normalized);
+    final createCycle = _containsAny(normalized, const [
+      'buat siklus kas',
+      'tambah siklus kas',
+      'catat siklus kas',
+      'buat siklus tani',
+      'catat siklus tani',
+      'mulai siklus tani',
+      'buat agrotrack',
+      'catat agrotrack',
+      'tambah agrotrack',
+      'buat siklus panen',
+      'catat siklus panen',
+      'buat siklus usaha',
+      'catat siklus usaha',
+    ]);
+    if (createCycle) {
+      return _parseCycleDraft(rawText, normalized, now);
+    }
     final createBudget = _containsAny(normalized, const [
       'atur anggaran',
       'buat anggaran',
@@ -8560,6 +9102,8 @@ abstract final class FfmAssistantAmountParser {
 
 FfmAssistantDestination? _destinationForName(String? raw) {
   if (raw == null || raw.isEmpty) return null;
+  final catalogMatch = FfmAssistantCatalog.findByText(raw);
+  if (catalogMatch != null) return catalogMatch.destination;
   final target = raw.trim().toLowerCase();
   return switch (target) {
     'summary' ||
@@ -8611,10 +9155,43 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'struktur database' ||
     'tabel database' => FfmAssistantDestination.databaseStructure,
     'assistantprofile' ||
-    'profil personalisasi' => FfmAssistantDestination.assistantProfile,
+    'profil personalisasi' ||
+    'profil' => FfmAssistantDestination.assistantProfile,
+    'familyprofile' ||
+    'profil keluarga' ||
+    'data keluarga' || 'profil rumah tangga' => FfmAssistantDestination
+        .familyProfile,
     'intelligencedashboard' ||
     'gemini' ||
     'cloud brain' => FfmAssistantDestination.intelligenceDashboard,
+    'paymentdetector' ||
+    'deteksi notifikasi' ||
+    'notifikasi' ||
+    'qris' => FfmAssistantDestination.paymentDetector,
+    'telegramsetup' ||
+    'telegram_setup' ||
+    'telegram' ||
+    'bot telegram' => FfmAssistantDestination.telegramSetup,
+    'agentinbox' ||
+    'agent_inbox' ||
+    'inbox' ||
+    'kotak masuk' => FfmAssistantDestination.agentInbox,
+    'autonomymonitor' ||
+    'autonomy_monitor' ||
+    'monitoring agent' ||
+    'monitor agent' => FfmAssistantDestination.autonomyMonitor,
+    'hijrisettings' ||
+    'hijri_settings' ||
+    'hijriah' ||
+    'hilal' => FfmAssistantDestination.hijriSettings,
+    'calendarsettings' ||
+    'calendar_settings' ||
+    'smartwatch' ||
+    'google calendar' => FfmAssistantDestination.calendarSettings,
+    'marketnewsradar' ||
+    'market_news_radar' ||
+    'berita pasar' ||
+    'radar berita' => FfmAssistantDestination.marketNewsRadar,
     _ => null,
   };
 }

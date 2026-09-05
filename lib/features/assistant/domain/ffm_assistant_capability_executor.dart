@@ -140,6 +140,11 @@ class FfmAssistantCapabilityExecutor {
 
   Future<FfmAssistantActionPlan?> _executeInternal(String planId) async {
     var plan = _controller.get(planId);
+    if (plan == null) return null;
+    if (plan.status == FfmAssistantActionPlanStatus.failed &&
+        !plan.hasMutation) {
+      plan = _controller.retryReadOnly(planId);
+    }
     if (plan == null || plan.isTerminal) return plan;
     final policyReason = _autonomyPolicy.validatePlan(
       plan,
@@ -337,7 +342,6 @@ class FfmAssistantCapabilityExecutor {
         );
       }
       _report(_controller.startStep(planId, step.id));
-      _executedSteps.add(executionKey);
       final startedAt = DateTime.now();
       await _recordToolExecution(
         FfmAssistantToolExecution(
@@ -385,6 +389,7 @@ class FfmAssistantCapabilityExecutor {
         }
         if (result.isSuccess) {
           succeeded = true;
+          _executedSteps.add(executionKey);
           _circuitBreaker.recordSuccess(step.capabilityId);
         } else if (!isReadOnly || attempts >= maxAttempts) {
           _circuitBreaker.recordFailure(step.capabilityId);
@@ -428,6 +433,24 @@ class FfmAssistantCapabilityExecutor {
 
 extension FfmAssistantActionPlanControllerExecution
     on FfmAssistantActionPlanController {
+  FfmAssistantActionPlan? retryReadOnly(String id) {
+    final plan = get(id);
+    if (plan == null || plan.status != FfmAssistantActionPlanStatus.failed) {
+      return plan;
+    }
+    return replace(
+      plan.copyWith(
+        status: FfmAssistantActionPlanStatus.planned,
+        steps: [
+          for (final step in plan.steps)
+            step.status == FfmAssistantActionStepStatus.failed
+                ? step.copyWith(status: FfmAssistantActionStepStatus.pending)
+                : step,
+        ],
+      ),
+    );
+  }
+
   FfmAssistantActionPlan? start(String id) {
     final plan = get(id);
     if (plan == null || plan.isTerminal) return plan;
@@ -519,7 +542,12 @@ extension FfmAssistantActionPlanControllerExecution
   FfmAssistantActionPlan? failPlan(String id, String message) {
     final plan = get(id);
     if (plan == null || plan.isTerminal) return plan;
-    return replace(plan.copyWith(status: FfmAssistantActionPlanStatus.failed));
+    return replace(
+      plan.copyWith(
+        status: FfmAssistantActionPlanStatus.failed,
+        blockedReason: message,
+      ),
+    );
   }
 
   FfmAssistantActionPlan? block(String id, String message) {

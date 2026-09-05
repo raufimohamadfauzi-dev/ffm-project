@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
@@ -536,4 +537,4 @@ DateTime _nextOccurrence(DateTime current, String periodType) {
 }
 
 String _newId(String prefix) =>
-    '$prefix-${DateTime.now().microsecondsSinceEpoch}';
+    '$prefix-${const Uuid().v4()}';

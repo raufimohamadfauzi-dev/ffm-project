@@ -54,5 +54,17 @@ void main() {
       );
       expect(error, isNotNull);
     });
+
+    test('memblokir tanggal yang tidak ada dalam evidence', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Jatuh tempo pada 2026-08-15.',
+        verifiedFacts: 'Jatuh tempo pada 2026-08-20.',
+        analysisFacts: null,
+        capabilityEvidence: null,
+      );
+
+      expect(error, isNotNull);
+      expect(error, contains('Tanggal pada jawaban'));
+    });
   });
 }

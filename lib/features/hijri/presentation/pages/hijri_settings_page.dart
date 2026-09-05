@@ -5,6 +5,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../domain/hijri_calendar_service.dart';
 
 class HijriSettingsPage extends StatefulWidget {
@@ -264,7 +266,9 @@ class _HijriSettingsPageState extends State<HijriSettingsPage> {
     final theme = Theme.of(context);
     final todayDisplay = _todayDisplay;
 
-    return Scaffold(
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.hijriSettings,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Kalender Hijriah & Hilal'),
         actions: [
@@ -460,6 +464,7 @@ class _HijriSettingsPageState extends State<HijriSettingsPage> {
                 ],
               ],
             ),
+      ),
     );
   }
 }

@@ -46,6 +46,7 @@ import 'features/reminder/data/services/reminder_notification_service.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/reminder/presentation/pages/reminder_page.dart';
 import 'features/settings/presentation/pages/master_data_page.dart';
+import 'features/settings/presentation/pages/family_profile_page.dart';
 import 'features/activity/presentation/pages/activity_page.dart';
 import 'features/advisor/presentation/pages/summary_page.dart';
 import 'features/advisor/presentation/pages/analysis_page.dart';
@@ -69,6 +70,11 @@ import 'features/assistant/domain/autonomous_evaluation_coordinator.dart';
 import 'features/activity/data/repositories/activity_repository.dart';
 import 'features/assistant/data/notification_listener_bridge.dart';
 import 'features/assistant/presentation/pages/payment_detector_settings_page.dart';
+import 'features/assistant/presentation/pages/telegram_setup_page.dart';
+import 'features/assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
+import 'features/hijri/presentation/pages/hijri_settings_page.dart';
+import 'features/settings/presentation/pages/calendar_settings_page.dart';
+import 'features/asset/presentation/pages/market_news_radar_page.dart';
 import 'features/transaction/presentation/pages/transaction_pages.dart';
 import 'features/recurring_transaction/presentation/pages/recurring_transaction_page.dart';
 
@@ -673,16 +679,7 @@ class _AppShellState extends State<AppShell> {
       case FfmAssistantWidgetAction.openBudget:
         setState(() => _index = 3);
       case FfmAssistantWidgetAction.openActivity:
-        if (_index == 2) {
-          return;
-        }
         setState(() => _index = 2);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && !Navigator.of(context).canPop()) {
-            Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const ActivityPage()));
-          }
-        });
       case FfmAssistantWidgetAction.openScan:
         setState(() => _index = 1);
       case null:
@@ -849,31 +846,45 @@ class _AppShellState extends State<AppShell> {
         setState(() => _index = 4);
       case FfmAssistantDestination.masterData:
         final draft = intent.draft;
+        final isProfileTarget =
+            draft?.kind == FfmAssistantDraftKind.masterData &&
+            draft?.categoryName == 'profil';
         final createdId = await Navigator.of(context).push<String>(
           MaterialPageRoute(
-            builder: (_) => MasterDataPage(
-              assistantTab: draft?.kind == FfmAssistantDraftKind.masterData
-                  ? _masterDataTab(draft)
+            builder: (_) => isProfileTarget
+                ? FamilyProfilePage(initialHouseholdName: draft?.title)
+                : MasterDataPage(
+                    assistantTab: draft?.kind == FfmAssistantDraftKind.masterData
+                        ? _masterDataTab(draft)
+                        : null,
+                    assistantName:
+                        draft?.kind == FfmAssistantDraftKind.masterData
+                        ? draft?.title
+                        : null,
+                    assistantFormValues:
+                        draft?.kind == FfmAssistantDraftKind.masterData
+                        ? draft?.formValues
+                        : null,
+                    returnOnCreate:
+                        draft?.kind == FfmAssistantDraftKind.masterData,
+                  ),
+          ),
+        );
+        if (!isProfileTarget &&
+            draft?.kind == FfmAssistantDraftKind.masterData) {
+          await _syncAssistantDraftAfterForm(createdId != null);
+        }
+      case FfmAssistantDestination.familyProfile:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FamilyProfilePage(
+              initialIdentityName:
+                  intent.draft?.kind == FfmAssistantDraftKind.profile
+                  ? intent.draft?.title
                   : null,
-              assistantName: draft?.kind == FfmAssistantDraftKind.masterData
-                  ? draft?.title
-                  : null,
-              assistantFormValues:
-                  draft?.kind == FfmAssistantDraftKind.masterData
-                  ? draft?.formValues
-                  : null,
-              assistantProfileName:
-                  draft?.kind == FfmAssistantDraftKind.masterData &&
-                      draft?.categoryName == 'profil'
-                  ? draft?.title
-                  : null,
-              returnOnCreate: draft?.kind == FfmAssistantDraftKind.masterData,
             ),
           ),
         );
-        if (draft?.kind == FfmAssistantDraftKind.masterData) {
-          await _syncAssistantDraftAfterForm(createdId != null);
-        }
       case FfmAssistantDestination.assets:
         final draft = intent.draft;
         final saved = await Navigator.of(context).push<bool>(
@@ -1016,6 +1027,42 @@ class _AppShellState extends State<AppShell> {
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const PaymentDetectorSettingsPage(),
+          ),
+        );
+      case FfmAssistantDestination.telegramSetup:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const TelegramSetupPage(),
+          ),
+        );
+      case FfmAssistantDestination.agentInbox:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const AgentInboxPage(),
+          ),
+        );
+      case FfmAssistantDestination.autonomyMonitor:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const FfmAssistantAutonomyMonitorPage(),
+          ),
+        );
+      case FfmAssistantDestination.hijriSettings:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const HijriSettingsPage(),
+          ),
+        );
+      case FfmAssistantDestination.calendarSettings:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const CalendarSettingsPage(),
+          ),
+        );
+      case FfmAssistantDestination.marketNewsRadar:
+        await Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const MarketNewsRadarPage(),
           ),
         );
     }

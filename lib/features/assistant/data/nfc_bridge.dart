@@ -7,6 +7,7 @@ class NfcCardScanResult {
     required this.balance,
     required this.cardType,
     required this.success,
+    this.balanceAvailable = true,
     this.error,
   });
 
@@ -14,6 +15,8 @@ class NfcCardScanResult {
   final double balance;
   final String cardType;
   final bool success;
+  /// False untuk kartu yang terdeteksi tetapi tidak memberikan saldo melalui NFC.
+  final bool balanceAvailable;
   final String? error;
 
   factory NfcCardScanResult.fromMap(Map<dynamic, dynamic> map) {
@@ -22,6 +25,7 @@ class NfcCardScanResult {
       balance: (map['balance'] as num?)?.toDouble() ?? 0.0,
       cardType: map['cardType'] as String? ?? 'emoney_generic',
       success: map['success'] as bool? ?? false,
+      balanceAvailable: map['balanceAvailable'] as bool? ?? true,
       error: map['error'] as String?,
     );
   }
@@ -37,6 +41,8 @@ class NfcCardScanResult {
         return 'BNI TapCash';
       case 'bri_brizzi':
         return 'BRI Brizzi';
+      case 'bank_card':
+        return 'Kartu Bank';
       default:
         return 'Kartu e-Money';
     }

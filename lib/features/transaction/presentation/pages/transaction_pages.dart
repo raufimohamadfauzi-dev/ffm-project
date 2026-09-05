@@ -2330,11 +2330,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
                                       ),
                                     ),
                                   ],
-                                  HijriDateText(
-                                    date: item.date,
-                                    includeSeconds: false,
-                                    compact: true,
-                                    color: AppColors.inkMuted,
+                                  Flexible(
+                                    child: HijriDateText(
+                                      date: item.date,
+                                      includeSeconds: false,
+                                      compact: true,
+                                      color: AppColors.inkMuted,
+                                    ),
                                   ),
                                 ],
                               ),

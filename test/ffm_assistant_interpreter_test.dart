@@ -249,7 +249,7 @@ void main() {
     final intent = await interpreter.interpret('apakah profil sudah lengkap?');
 
     expect(intent.type, FfmAssistantIntentType.queryData);
-    expect(intent.response, contains('Kelengkapan Profil Asisten'));
+    expect(intent.response, contains('Kelengkapan Profil Keluarga'));
     expect(intent.response, contains('nama/panggilan'));
     expect(intent.draft, isNull);
   });
@@ -259,7 +259,7 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.featureHelp);
     expect(intent.destination, FfmAssistantDestination.masterData);
-    expect(intent.response, contains('enam bagian'));
+    expect(intent.response, contains('lima bagian'));
     expect(intent.draft, isNull);
   });
 
@@ -355,7 +355,7 @@ void main() {
     );
 
     expect(intent.type, FfmAssistantIntentType.setupGuide);
-    expect(intent.response, contains('Data Utama'));
+    expect(intent.response, contains('Profil Keluarga'));
     expect(intent.response, contains('Catat transaksi pertama'));
     expect(intent.draft, isNull);
   });
@@ -584,7 +584,7 @@ void main() {
     );
 
     expect(intent.type, FfmAssistantIntentType.createProfile);
-    expect(intent.destination, FfmAssistantDestination.assistantProfile);
+    expect(intent.destination, FfmAssistantDestination.familyProfile);
     expect(intent.draft?.kind, FfmAssistantDraftKind.profile);
     expect(intent.draft?.title, 'Perkenalan Diri');
     expect(intent.needsClarification, isTrue);

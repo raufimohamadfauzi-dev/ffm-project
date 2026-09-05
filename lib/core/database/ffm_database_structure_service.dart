@@ -337,6 +337,16 @@ class FfmDatabaseStructureService {
       'Personalisasi',
       'Ringkasan deterministik pola koreksi yang sudah cukup konsisten.',
     ),
+    'nfc_card_accounts': _TableDefinition(
+      'Kartu NFC',
+      'Kartu & Integrasi',
+      'Metadata kartu terhubung ke rekening FFM; identifier tersimpan sebagai hash, bukan UID mentah.',
+    ),
+    'nfc_scan_snapshots': _TableDefinition(
+      'Riwayat pindai NFC',
+      'Kartu & Integrasi',
+      'Cepat pindai kartu NFC bertanggal dengan nilai saldo yang tersedia.',
+    ),
   };
 }
 

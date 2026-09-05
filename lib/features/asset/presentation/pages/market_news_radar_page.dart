@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/di/injection.dart';
+import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/repositories/market_news_cache_repository.dart';
 import '../../data/services/market_news_radar_service.dart';
 import '../../domain/entities/market_news_models.dart';
@@ -125,9 +127,11 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Radar Pasar & Berita'),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.marketNewsRadar,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Radar Pasar & Berita'),
         actions: [
           IconButton(
             icon: const Icon(Icons.tune),
@@ -161,8 +165,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
           _buildNewsRadarTab(theme, colorScheme),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ==================== TAB 1: MARKET PRICES ====================
   Widget _buildMarketPricesTab(ThemeData theme, ColorScheme colorScheme) {

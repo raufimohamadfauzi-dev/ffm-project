@@ -7,6 +7,8 @@ import '../../data/ffm_assistant_foreground_service.dart';
 import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/ffm_assistant_autonomy_policy.dart';
 import '../../domain/ffm_assistant_insight.dart';
+import '../../domain/ffm_assistant_models.dart';
+import '../widgets/ffm_assistant_page_context.dart';
 import 'agent_inbox_page.dart';
 
 class FfmAssistantAutonomyMonitorPage extends StatefulWidget {
@@ -119,49 +121,52 @@ class _FfmAssistantAutonomyMonitorPageState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Monitoring Agent'),
-        actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            tooltip: 'Muat ulang riwayat Agent',
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                children: [
-                  _buildIntro(context),
-                  const SizedBox(height: 16),
-                  _buildForegroundServiceCard(context),
-                  const SizedBox(height: 16),
-                  _buildInsightSummary(context),
-                  const SizedBox(height: 16),
-                  _buildPolicyCard(context),
-                  const SizedBox(height: 16),
-                  if (_error != null) _buildError(context),
-                  if (_error == null && _runs.isEmpty) _buildEmpty(context),
-                  if (_error == null && _runs.isNotEmpty) ...[
-                    _buildSummary(context),
-                    const SizedBox(height: 16),
-                    ..._runs.map(
-                      (run) => _RunCard(
-                        run: run,
-                        repository: _repository,
-                        householdId: widget.householdId,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.autonomyMonitor,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Monitoring Agent'),
+          actions: [
+            IconButton(
+              onPressed: _loading ? null : _load,
+              tooltip: 'Muat ulang riwayat Agent',
+              icon: const Icon(Icons.refresh),
             ),
+          ],
+        ),
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                  children: [
+                    _buildIntro(context),
+                    const SizedBox(height: 16),
+                    _buildForegroundServiceCard(context),
+                    const SizedBox(height: 16),
+                    _buildInsightSummary(context),
+                    const SizedBox(height: 16),
+                    _buildPolicyCard(context),
+                    const SizedBox(height: 16),
+                    if (_error != null) _buildError(context),
+                    if (_error == null && _runs.isEmpty) _buildEmpty(context),
+                    if (_error == null && _runs.isNotEmpty) ...[
+                      _buildSummary(context),
+                      const SizedBox(height: 16),
+                      ..._runs.map(
+                        (run) => _RunCard(
+                          run: run,
+                          repository: _repository,
+                          householdId: widget.householdId,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+      ),
     );
   }
 

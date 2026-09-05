@@ -177,6 +177,11 @@ class FfmAssistantProposalJsonService {
         'budget' => _parseBudget(proposal, createdAt),
         'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
         'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
+        'cash_flow_profile' ||
+        'cashFlowProfile' ||
+        'cycle' ||
+        'agrotrack' =>
+          _parseCashFlowProfile(proposal, createdAt),
         'memory' => _parseMemory(proposal),
         'navigation' => _parseNavigation(proposal),
         _ => const FfmAssistantProposalParseResult.invalid(_userFriendlyError),
@@ -227,6 +232,11 @@ class FfmAssistantProposalJsonService {
             'budget' => _parseBudget(proposal, createdAt),
             'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
             'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
+            'cash_flow_profile' ||
+            'cashFlowProfile' ||
+            'cycle' ||
+            'agrotrack' =>
+              _parseCashFlowProfile(proposal, createdAt),
             'memory' => _parseMemory(proposal),
             'navigation' => _parseNavigation(proposal),
             _ => const FfmAssistantProposalParseResult.invalid(
@@ -854,6 +864,75 @@ class FfmAssistantProposalJsonService {
         formValues: {'navigation': 'true', 'destination': navigationTarget},
       ),
     );
+  }
+
+  static FfmAssistantProposalParseResult _parseCashFlowProfile(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final title = _boundedText(proposal['title'] ?? proposal['name'], 80);
+    if (title == null || title.isEmpty) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Proposal siklus kas belum punya nama atau judul siklus.',
+      );
+    }
+    final commodity = _boundedText(
+          proposal['commodity'] ??
+              proposal['commodityOrBusinessType'] ??
+              proposal['businessType'],
+          60,
+        ) ??
+        'Pertanian/Usaha';
+
+    final initialCapital =
+        _positiveInt(proposal['initialCapital'] ?? proposal['amount']) ?? 0;
+    final estimatedInflow =
+        _positiveInt(proposal['estimatedInflow'] ?? proposal['inflow']) ?? 0;
+    final dailyLiving = _positiveInt(
+          proposal['dailyLivingBudget'] ?? proposal['dailyBudget'],
+        ) ??
+        0;
+    final dailyOps = _positiveInt(
+          proposal['dailyOperationalBudget'] ?? proposal['operationalBudget'],
+        ) ??
+        0;
+
+    DateTime targetHarvest;
+    if (proposal['targetHarvestDate'] != null) {
+      targetHarvest = _dateOr(
+        proposal['targetHarvestDate'],
+        createdAt.add(const Duration(days: 90)),
+      );
+    } else if (proposal['daysRemaining'] != null) {
+      final days = _positiveInt(proposal['daysRemaining']) ?? 90;
+      targetHarvest = createdAt.add(Duration(days: days));
+    } else {
+      targetHarvest = createdAt.add(const Duration(days: 90));
+    }
+
+    final rawType = _boundedText(
+          proposal['cycleProfileType'] ?? proposal['profileType'],
+          30,
+        )?.toLowerCase() ??
+        'agriculture';
+
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.cashFlowProfile,
+      createdAt: createdAt,
+      title: title,
+      amount: initialCapital,
+      commodityOrBusinessType: commodity,
+      initialCapital: initialCapital,
+      estimatedInflow: estimatedInflow,
+      dailyLivingBudget: dailyLiving,
+      dailyOperationalBudget: dailyOps,
+      targetHarvestDate: targetHarvest,
+      cycleProfileType: rawType,
+      date: createdAt,
+      note: _boundedText(proposal['note'], 160),
+    );
+
+    return FfmAssistantProposalParseResult.draft(draft);
   }
 
   static String? _extractJson(String text) {

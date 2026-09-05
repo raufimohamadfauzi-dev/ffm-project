@@ -50,6 +50,9 @@ void main() {
       final draft = FfmAssistantReasoningEvidencePolicy.forRequest(
         'catat pengeluaran dari rekening tunai',
       );
+      final onboarding = FfmAssistantReasoningEvidencePolicy.forRequest(
+        'saya sudah mengisi nama keluarga, setelah itu harus isi apa?',
+      );
 
       expect(identity.includeFinancialSummary, isFalse);
       expect(identity.includeMasterData, isFalse);
@@ -60,6 +63,9 @@ void main() {
       expect(draft.includeFinancialSummary, isTrue);
       expect(draft.includeMasterData, isTrue);
       expect(draft.includeRecentTransactions, isFalse);
+      expect(onboarding.includeFinancialSummary, isTrue);
+      expect(onboarding.includeMasterData, isTrue);
+      expect(onboarding.includeRecentTransactions, isTrue);
     },
   );
 }

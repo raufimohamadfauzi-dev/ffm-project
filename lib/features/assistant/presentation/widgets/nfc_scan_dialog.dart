@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:drift/drift.dart' hide Column;
 
 import '../../../../core/di/injection.dart';
+import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
 import '../../data/nfc_bridge.dart';
 import '../../data/nfc_card_repository.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
+import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 
 /// Modal BottomSheet untuk memindai kartu e-Money via NFC
 /// dan menampilkan hasil adaptasi saldo secara otomatis.
@@ -121,6 +125,92 @@ class _NfcScanDialogState extends State<NfcScanDialog>
   }
 
   Future<void> _confirmDraft(PaymentDraft draft) async {
+    final db = getIt<AppDatabase>();
+    final isDebit = draft.mutationType == PaymentMutationType.debit;
+    final accounts = await (db.select(db.accounts)
+          ..where(
+            (account) =>
+                account.householdId.equals(AppContext.householdId) &
+                account.isArchived.equals(false),
+          ))
+        .get();
+    final displayLabel = draft.sourceApp.startsWith('nfc_')
+        ? draft.rawTitle.replaceFirst('NFC ', '')
+        : draft.accountLabel;
+    final label = displayLabel.toLowerCase();
+    final source = draft.sourceApp.toLowerCase();
+    Account? account = accounts.cast<Account?>().firstWhere(
+      (item) {
+        final name = item!.name.toLowerCase();
+        return (label.contains('bca') || source.contains('bca')) &&
+                name.contains('bca') ||
+            (label.contains('mandiri') || source.contains('mandiri')) &&
+                name.contains('mandiri') ||
+            (label.contains('bni') || source.contains('bni')) &&
+                name.contains('bni') ||
+            (label.contains('bri') || source.contains('bri')) &&
+                name.contains('bri') ||
+            (label.contains('gopay') || source.contains('gopay')) &&
+                name.contains('gopay') ||
+            (label.contains('ovo') || source.contains('ovo')) &&
+                name.contains('ovo') ||
+            (label.contains('dana') || source.contains('dana')) &&
+                name.contains('dana') ||
+            name == label;
+      },
+      orElse: () => null,
+    );
+    if (account == null) {
+      final accountId =
+          'nfc-account-${label.replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
+      final accountName = displayLabel == 'Kartu e-Money'
+          ? 'Kartu NFC'
+          : displayLabel;
+      await db.into(db.accounts).insertOnConflictUpdate(
+        AccountsCompanion.insert(
+          id: accountId,
+          householdId: AppContext.householdId,
+          name: accountName,
+          type: source.contains('bank') ? 'bank' : 'ewallet',
+          openingBalance: const Value(0),
+          isActive: const Value(true),
+          isArchived: const Value(false),
+          createdAt: draft.createdAt,
+        ),
+      );
+      account = await (db.select(db.accounts)
+            ..where(
+              (item) =>
+                  item.id.equals(accountId) &
+                  item.householdId.equals(AppContext.householdId),
+            ))
+          .getSingle();
+    }
+    final categories = await (db.select(db.categories)
+          ..where((category) => category.isActive.equals(true)))
+        .get();
+    final category = categories.where((item) {
+      final suggestion = draft.suggestedCategory?.toLowerCase();
+      return suggestion != null &&
+          (item.name.toLowerCase().contains(suggestion) ||
+              suggestion.contains(item.name.toLowerCase()));
+    }).firstOrNull;
+    await SaveTransaction(db)(
+      TransactionEntity(
+        id: 'tx_nfc_${draft.id}',
+        householdId: AppContext.householdId,
+        date: draft.createdAt,
+        amount: isDebit ? -draft.amount.round() : draft.amount.round(),
+        owner: 'Asisten (NFC)',
+        categoryId: category?.id,
+        accountId: account.id,
+        note: 'Agregat perubahan saldo dari ${draft.accountLabel}',
+        source: 'nfc',
+        sourceId: draft.id,
+        partyName: draft.merchantName,
+        recordedAt: DateTime.now(),
+      ),
+    );
     await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -349,7 +439,16 @@ class _NfcScanDialogState extends State<NfcScanDialog>
         const SizedBox(height: 16),
 
         // Hasil Adaptasi
-        if (result.isBaseline)
+        if (!result.balanceAvailable)
+          _buildInfoBanner(
+            theme,
+            colors,
+            Icons.account_balance_outlined,
+            Colors.orange,
+            'Kartu terdeteksi',
+            'Saldo kartu ini tidak tersedia melalui NFC. Tidak ada nominal transaksi yang dibuat.',
+          )
+        else if (result.isBaseline)
           _buildInfoBanner(
             theme,
             colors,

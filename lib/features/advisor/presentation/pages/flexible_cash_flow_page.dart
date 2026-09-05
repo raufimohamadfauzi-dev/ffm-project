@@ -79,22 +79,25 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
       text: existing?.commodityOrBusinessType ?? 'Padi',
     );
     final capitalCtrl = TextEditingController(
-      text: existing != null ? existing.initialCapital.toString() : '15000000',
+      text: existing != null ? _formatNumber(existing.initialCapital) : '15.000.000',
     );
     final inflowCtrl = TextEditingController(
-      text: existing != null ? existing.estimatedInflow.toString() : '45000000',
+      text: existing != null ? _formatNumber(existing.estimatedInflow) : '45.000.000',
     );
     final livingCtrl = TextEditingController(
-      text: existing != null ? existing.dailyLivingBudget.toString() : '85000',
+      text: existing != null ? _formatNumber(existing.dailyLivingBudget) : '85.000',
     );
     final operationalCtrl = TextEditingController(
-      text: existing != null ? existing.dailyOperationalBudget.toString() : '50000',
+      text: existing != null ? _formatNumber(existing.dailyOperationalBudget) : '50.000',
     );
 
     var selectedType = existing?.profileType ?? CashFlowProfileType.agriculture;
     var startDate = existing?.startDate ?? DateTime.now();
     var harvestDate = existing?.targetHarvestDate ??
         DateTime.now().add(const Duration(days: 105));
+    if (harvestDate.isBefore(startDate)) {
+      harvestDate = startDate.add(const Duration(days: 105));
+    }
 
     await showModalBottomSheet(
       context: context,
@@ -191,11 +194,8 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
                     Row(
                       children: [
                         Expanded(
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Tanggal Mulai', style: TextStyle(fontSize: 12)),
-                            subtitle: Text('${startDate.day}/${startDate.month}/${startDate.year}'),
-                            leading: const Icon(Icons.calendar_today_outlined, size: 20),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
@@ -204,21 +204,54 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
                                 lastDate: DateTime(2035),
                               );
                               if (picked != null) {
-                                setSheetState(() => startDate = picked);
+                                setSheetState(() {
+                                  startDate = picked;
+                                  if (harvestDate.isBefore(startDate)) {
+                                    harvestDate = startDate.add(const Duration(days: 90));
+                                  }
+                                });
                               }
                             },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Tanggal Mulai',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.calendar_today_outlined, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${startDate.day}/${startDate.month}/${startDate.year}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 10),
                         Expanded(
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Estimasi Panen/Selesai', style: TextStyle(fontSize: 12)),
-                            subtitle: Text('${harvestDate.day}/${harvestDate.month}/${harvestDate.year}'),
-                            leading: const Icon(Icons.event_available_outlined, size: 20),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate: harvestDate,
+                                initialDate: harvestDate.isBefore(startDate) ? startDate : harvestDate,
                                 firstDate: startDate,
                                 lastDate: DateTime(2035),
                               );
@@ -226,6 +259,36 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
                                 setSheetState(() => harvestDate = picked);
                               }
                             },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Estimasi Panen',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.event_available_outlined, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${harvestDate.day}/${harvestDate.month}/${harvestDate.year}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -286,7 +349,15 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
                       height: 48,
                       child: FilledButton(
                         onPressed: () async {
-                          if (nameCtrl.text.trim().isEmpty) return;
+                          if (nameCtrl.text.trim().isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Nama siklus wajib diisi'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                            return;
+                          }
 
                           final newProfile = CashFlowProfile(
                             id: existing?.id ?? 'cycle_${DateTime.now().millisecondsSinceEpoch}',
@@ -296,10 +367,10 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
                             commodityOrBusinessType: commodityCtrl.text.trim(),
                             startDate: startDate,
                             targetHarvestDate: harvestDate,
-                            initialCapital: int.tryParse(capitalCtrl.text) ?? 0,
-                            estimatedInflow: int.tryParse(inflowCtrl.text) ?? 0,
-                            dailyLivingBudget: int.tryParse(livingCtrl.text) ?? 0,
-                            dailyOperationalBudget: int.tryParse(operationalCtrl.text) ?? 0,
+                            initialCapital: _parseCurrency(capitalCtrl.text),
+                            estimatedInflow: _parseCurrency(inflowCtrl.text),
+                            dailyLivingBudget: _parseCurrency(livingCtrl.text),
+                            dailyOperationalBudget: _parseCurrency(operationalCtrl.text),
                             isActive: existing?.isActive ?? true,
                           );
 
@@ -321,13 +392,13 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
   }
 
   void _showHarvestSimulatorDialog() {
-    final revenueCtrl = TextEditingController(text: '50000000');
+    final revenueCtrl = TextEditingController(text: '50.000.000');
     showDialog(
       context: context,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
-            final revenue = int.tryParse(revenueCtrl.text) ?? 0;
+            final revenue = _parseCurrency(revenueCtrl.text);
             final alloc = _calculator.simulateHarvestAllocation(actualHarvestRevenue: revenue);
 
             return AlertDialog(
@@ -560,5 +631,10 @@ class _FlexibleCashFlowPageState extends State<FlexibleCashFlowPage> {
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (m) => '${m[1]}.',
         );
+  }
+
+  static int _parseCurrency(String text) {
+    final clean = text.replaceAll(RegExp(r'[^\d]'), '');
+    return int.tryParse(clean) ?? 0;
   }
 }

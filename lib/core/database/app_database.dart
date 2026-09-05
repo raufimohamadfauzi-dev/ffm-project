@@ -16,6 +16,8 @@ part 'app_database.g.dart';
     Merchants,
     Tags,
     Accounts,
+    NfcCardAccounts,
+    NfcScanSnapshots,
     TransactionParties,
     Transactions,
     TransactionItems,
@@ -67,7 +69,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 52;
+  int get schemaVersion => 53;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -96,6 +98,10 @@ class AppDatabase extends _$AppDatabase {
       // tidak mencoba membuat ulang tabel yang sudah ada.
       if (from < 21) {
         await m.addColumn(tags, tags.isArchived);
+      }
+      if (from < 53) {
+        await m.createTable(nfcCardAccounts);
+        await m.createTable(nfcScanSnapshots);
       }
       if (from < 22) {
         await m.addColumn(transactions, transactions.receiptRawText);

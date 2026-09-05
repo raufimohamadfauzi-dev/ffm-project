@@ -93,6 +93,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.activityFinish => 'Preview Selesaikan Aktivitas',
     FfmAssistantDraftKind.activityUpdate => 'Preview Update Aktivitas',
     FfmAssistantDraftKind.activityEdit => 'Preview Edit Aktivitas',
+    FfmAssistantDraftKind.cashFlowProfile => 'Draft Siklus Kas / AgroTrack',
   };
 
   static String rupiah(int amount) =>
@@ -246,6 +247,23 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
           'Biaya Admin',
           FfmAssistantDraftPreview.rupiah(draft.adminFee!),
         ),
+      if (draft.commodityOrBusinessType != null)
+        MapEntry('Komoditas/Usaha', draft.commodityOrBusinessType!),
+      if (draft.initialCapital != null)
+        MapEntry('Modal Awal', FfmAssistantDraftPreview.rupiah(draft.initialCapital!)),
+      if (draft.estimatedInflow != null)
+        MapEntry('Estimasi Panen/Masuk', FfmAssistantDraftPreview.rupiah(draft.estimatedInflow!)),
+      if (draft.dailyLivingBudget != null)
+        MapEntry('Jatah Dapur Harian', FfmAssistantDraftPreview.rupiah(draft.dailyLivingBudget!)),
+      if (draft.dailyOperationalBudget != null)
+        MapEntry('Operasional Harian', FfmAssistantDraftPreview.rupiah(draft.dailyOperationalBudget!)),
+      if (draft.targetHarvestDate != null)
+        MapEntry(
+          'Target Panen/Selesai',
+          '${draft.targetHarvestDate!.day.toString().padLeft(2, '0')}/${draft.targetHarvestDate!.month.toString().padLeft(2, '0')}/${draft.targetHarvestDate!.year}',
+        ),
+      if (draft.cycleProfileType != null)
+        MapEntry('Tipe Siklus', draft.cycleProfileType!),
       if (draft.note != null) MapEntry('Catatan', draft.note!),
     ];
 
@@ -275,7 +293,9 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
             child: Row(
               children: [
                 Icon(
-                  Icons.receipt_long_rounded,
+                  draft.kind == FfmAssistantDraftKind.cashFlowProfile
+                      ? Icons.agriculture_rounded
+                      : Icons.receipt_long_rounded,
                   size: 18,
                   color: isDark
                       ? const Color(0xFFC9B8A8)

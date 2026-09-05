@@ -311,7 +311,10 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   // Fitur #1: Pembaca NFC e-Money & Adaptasi Saldo
   getIt.registerLazySingleton<NfcBridge>(NfcBridge.new);
   getIt.registerLazySingleton<NfcCardRepository>(
-    () => NfcCardRepository(getIt<PaymentDraftRepository>()),
+    () => NfcCardRepository(
+      getIt<PaymentDraftRepository>(),
+      database: getIt<AppDatabase>(),
+    ),
   );
   // Smart Budget Engine & Envelope Rebalance
   getIt.registerLazySingleton<SmartBudgetEngine>(SmartBudgetEngine.new);
@@ -401,6 +404,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       personalContextProvider: () => FfmPersonalContextProvider.maybeInstance,
       categorySuggestion: getIt<FfmCategorySuggestionService>(),
       themeController: getIt<AppThemeController>(),
+      marketCache: getIt<MarketNewsCacheRepository>(),
     ),
   );
   getIt.registerLazySingleton<JsonExportStudioService>(

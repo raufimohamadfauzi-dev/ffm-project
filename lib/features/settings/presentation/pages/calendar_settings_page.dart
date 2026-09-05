@@ -4,6 +4,8 @@ import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/di/injection.dart';
 import 'package:ffm_manager/features/assistant/data/bill_reminder_repository.dart';
 import 'package:ffm_manager/features/assistant/data/calendar_bridge.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 
 /// Halaman pengaturan integrasi kalender dan sinkronisasi smartwatch.
 class CalendarSettingsPage extends StatefulWidget {
@@ -89,29 +91,32 @@ class _CalendarSettingsPageState extends State<CalendarSettingsPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Pengaturan Kalender & Smartwatch'),
-        backgroundColor: colorScheme.surface,
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildStatusCard(colorScheme),
-                  const SizedBox(height: 24),
-                  _buildSettingsCard(colorScheme),
-                  const SizedBox(height: 24),
-                  _buildSyncActionsCard(colorScheme),
-                  const SizedBox(height: 24),
-                  _buildInfoCard(colorScheme),
-                ],
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.calendarSettings,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Pengaturan Kalender & Smartwatch'),
+          backgroundColor: colorScheme.surface,
+          elevation: 0,
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatusCard(colorScheme),
+                    const SizedBox(height: 24),
+                    _buildSettingsCard(colorScheme),
+                    const SizedBox(height: 24),
+                    _buildSyncActionsCard(colorScheme),
+                    const SizedBox(height: 24),
+                    _buildInfoCard(colorScheme),
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 

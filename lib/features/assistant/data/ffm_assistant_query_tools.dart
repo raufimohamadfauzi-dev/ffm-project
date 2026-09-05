@@ -1,6 +1,7 @@
 import '../../../core/database/app_database.dart';
 import '../../../core/database/ffm_database_structure_service.dart';
 import '../../advisor/domain/services/smart_budget_engine.dart';
+import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../domain/ffm_assistant_models.dart';
@@ -9,6 +10,7 @@ import '../domain/ffm_assistant_analysis_engine.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 
 import 'package:drift/drift.dart';
+import 'package:intl/intl.dart';
 
 /// Kontrak baca data Asisten. Tidak ada tool di berkas ini yang memiliki
 /// akses insert, update, delete, atau side effect lain pada database FFM.
@@ -42,23 +44,28 @@ abstract interface class FfmAssistantQueryTool {
 /// Registry tool baca lokal. Query lebih spesifik dikembalikan lebih awal agar
 /// tidak jatuh ke fallback penjelasan fitur atau parser draft transaksi.
 class FfmAssistantQueryRegistry {
-  FfmAssistantQueryRegistry(AppDatabase database, {DateTime Function()? clock})
-    : _clock = clock ?? DateTime.now,
-      _analysisEngine = FfmAssistantAnalysisEngine(database),
-      _tools = <FfmAssistantQueryTool>[
-        _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
-        _AccountBalanceQueryTool(database),
-        _TobaccoPurchaseQueryTool(database),
-        _TransactionSummaryQueryTool(database),
-        _ActiveActivityQueryTool(database),
-        _GoalStatusQueryTool(database),
-        _DebtStatusQueryTool(database),
-        _AssetSummaryQueryTool(database),
-        _LoanAffordabilityQueryTool(database),
-        _DataCompletenessQueryTool(database),
-        _PersonalProfileQueryTool(database),
-        _SmartBudgetQueryTool(database),
-      ] {
+  FfmAssistantQueryRegistry(
+    AppDatabase database, {
+    DateTime Function()? clock,
+    MarketNewsCacheRepository? marketCache,
+  })  : _clock = clock ?? DateTime.now,
+        _analysisEngine = FfmAssistantAnalysisEngine(database),
+        _tools = <FfmAssistantQueryTool>[
+          _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
+          _AccountBalanceQueryTool(database),
+          _TobaccoPurchaseQueryTool(database),
+          _TransactionSummaryQueryTool(database),
+          _ActiveActivityQueryTool(database),
+          _GoalStatusQueryTool(database),
+          _DebtStatusQueryTool(database),
+          _AssetSummaryQueryTool(database),
+          _LoanAffordabilityQueryTool(database),
+          _DataCompletenessQueryTool(database),
+          _PersonalProfileQueryTool(database),
+          _SmartBudgetQueryTool(database),
+          if (marketCache != null) _MarketPriceQueryTool(marketCache),
+          if (marketCache != null) _AssetCalculationQueryTool(marketCache),
+        ] {
         // Initialize analysis tools after _analysisEngine is set
         _tools.addAll([
           _FrequencyAnalysisQueryTool(_analysisEngine),
@@ -616,6 +623,294 @@ class _AssetSummaryQueryTool implements FfmAssistantQueryTool {
   }
 }
 
+/// Tool untuk menjawab pertanyaan tentang harga pasar (emas, valas, kripto)
+class _MarketPriceQueryTool implements FfmAssistantQueryTool {
+  const _MarketPriceQueryTool(this._marketCache);
+
+  final MarketNewsCacheRepository _marketCache;
+
+  static const _priceKeywords = [
+    'harga',
+    'kurs',
+    'rate',
+    'dolar',
+    'dollar',
+    'usd',
+    'btc',
+    'bitcoin',
+    'ethereum',
+    'eth',
+    'emas',
+    'gold',
+    'sgd',
+    'sar',
+    'euro',
+    'eur',
+    'valas',
+    'kripto',
+    'crypto',
+    'rupiah',
+    'idr',
+  ];
+
+  @override
+  bool canHandle(String normalizedText) {
+    return _priceKeywords.any(normalizedText.contains) &&
+        (normalizedText.contains('berapa') ||
+            normalizedText.contains('sekarang') ||
+            normalizedText.contains('saat ini') ||
+            normalizedText.contains('terkini') ||
+            normalizedText.contains('hari ini'));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final snapshot = await _marketCache.getLatestPriceSnapshot();
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp',
+      decimalDigits: 0,
+    );
+
+    final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
+    final dataSource = snapshot.isOfflineCache ? 'cache offline' : 'data real-time';
+
+    // Build response based on what user is asking about
+    final text = request.normalizedText.toLowerCase();
+    final List<String> priceDetails = [];
+
+    if (text.contains('emas') || text.contains('gold')) {
+      priceDetails.add(
+        'Harga Emas 24K: ${currencyFormat.format(snapshot.goldPrice24K)} per gram',
+      );
+      priceDetails.add(
+        'Harga Buyback Emas: ${currencyFormat.format(snapshot.goldBuybackPrice)} per gram',
+      );
+    }
+
+    if (text.contains('dolar') || text.contains('dollar') || text.contains('usd')) {
+      priceDetails.add('Kurs USD: ${currencyFormat.format(snapshot.usdRate)}');
+    }
+
+    if (text.contains('sgd')) {
+      priceDetails.add('Kurs SGD: ${currencyFormat.format(snapshot.sgdRate)}');
+    }
+
+    if (text.contains('sar') || text.contains('riyal')) {
+      priceDetails.add('Kurs SAR: ${currencyFormat.format(snapshot.sarRate)}');
+    }
+
+    if (text.contains('euro') || text.contains('eur')) {
+      priceDetails.add('Kurs EUR: ${currencyFormat.format(snapshot.eurRate)}');
+    }
+
+    if (text.contains('btc') || text.contains('bitcoin')) {
+      priceDetails.add('Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}');
+    }
+
+    if (text.contains('eth') || text.contains('ethereum')) {
+      priceDetails.add('Harga Ethereum: ${currencyFormat.format(snapshot.ethPrice)}');
+    }
+
+    if (text.contains('usdt') || text.contains('tether')) {
+      priceDetails.add('Harga USDT: ${currencyFormat.format(snapshot.usdtPrice)}');
+    }
+
+    // If no specific asset mentioned, show all major prices
+    if (priceDetails.isEmpty) {
+      priceDetails.addAll([
+        'Harga Emas 24K: ${currencyFormat.format(snapshot.goldPrice24K)} per gram',
+        'Kurs USD: ${currencyFormat.format(snapshot.usdRate)}',
+        'Kurs SGD: ${currencyFormat.format(snapshot.sgdRate)}',
+        'Kurs SAR: ${currencyFormat.format(snapshot.sarRate)}',
+        'Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}',
+        'Harga Ethereum: ${currencyFormat.format(snapshot.ethPrice)}',
+      ]);
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Harga Pasar Terkini',
+      message: 'Berdasarkan $dataSource pada $timeStr:\n\n${priceDetails.join('\n')}',
+    );
+  }
+}
+
+/// Tool untuk perhitungan matematika aset berbasis harga pasar
+class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
+  const _AssetCalculationQueryTool(this._marketCache);
+
+  final MarketNewsCacheRepository _marketCache;
+
+  static const _calcKeywords = [
+    'hitung',
+    'kalkulasi',
+    'berapa',
+    'nilai',
+    'konversi',
+    'gram',
+    'emas',
+    'gold',
+    'usd',
+    'dolar',
+    'btc',
+    'bitcoin',
+    'eth',
+    'ethereum',
+    'usdt',
+    'tether',
+    'euro',
+    'eur',
+    'sgd',
+    'sar',
+    'riyal',
+    'kali',
+    'kali lipat',
+  ];
+
+  @override
+  bool canHandle(String normalizedText) {
+    return _calcKeywords.any(normalizedText.contains) &&
+        (normalizedText.contains('gram') ||
+            normalizedText.contains('kali') ||
+            normalizedText.contains('konversi') ||
+            normalizedText.contains('hitung'));
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final snapshot = await _marketCache.getLatestPriceSnapshot();
+    final text = request.normalizedText.toLowerCase();
+    final currencyFormat = NumberFormat.currency(
+      locale: 'id_ID',
+      symbol: 'Rp',
+      decimalDigits: 0,
+    );
+
+    // Extract numbers and calculations
+    final calculations = <String>[];
+
+    // Extract gold weight in grams
+    final goldMatch = RegExp(r'(\d+([.,]\d+)?)\s*(gram|gr|g)\s*(emas|gold)?').firstMatch(text);
+    if (goldMatch != null) {
+      final weightStr = goldMatch.group(1)!.replaceAll(',', '.');
+      final weight = double.tryParse(weightStr);
+      if (weight != null && weight > 0) {
+        final value = (weight * snapshot.goldPrice24K).round();
+        calculations.add(
+          '${weight.toStringAsFixed(2).replaceAll('.', ',')} gram emas 24K = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract USD amount
+    final usdMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usd|dolar|\$)').firstMatch(text);
+    if (usdMatch != null) {
+      final amountStr = usdMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.usdRate).round();
+        calculations.add(
+          '\$${amount.toStringAsFixed(2).replaceAll('.', ',')} USD = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract SGD amount
+    final sgdMatch = RegExp(r'(\d+([.,]\d+)?)\s*(sgd)').firstMatch(text);
+    if (sgdMatch != null) {
+      final amountStr = sgdMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.sgdRate).round();
+        calculations.add(
+          'S\$${amount.toStringAsFixed(2).replaceAll('.', ',')} SGD = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract SAR amount
+    final sarMatch = RegExp(r'(\d+([.,]\d+)?)\s*(sar|riyal)').firstMatch(text);
+    if (sarMatch != null) {
+      final amountStr = sarMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.sarRate).round();
+        calculations.add(
+          '${amount.toStringAsFixed(2).replaceAll('.', ',')} SAR = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract BTC amount
+    final btcMatch = RegExp(r'(\d+([.,]\d+)?)\s*(btc|bitcoin)').firstMatch(text);
+    if (btcMatch != null) {
+      final amountStr = btcMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.btcPrice).round();
+        calculations.add(
+          '${amount.toStringAsFixed(8).replaceAll('.', ',')} BTC = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract ETH amount
+    final ethMatch = RegExp(r'(\d+([.,]\d+)?)\s*(eth|ethereum)').firstMatch(text);
+    if (ethMatch != null) {
+      final amountStr = ethMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.ethPrice).round();
+        calculations.add(
+          '${amount.toStringAsFixed(8).replaceAll('.', ',')} ETH = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract USDT amount
+    final usdtMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usdt|tether)').firstMatch(text);
+    if (usdtMatch != null) {
+      final amountStr = usdtMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.usdtPrice).round();
+        calculations.add(
+          '${amount.toStringAsFixed(2).replaceAll('.', ',')} USDT = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract EUR amount
+    final eurMatch = RegExp(r'(\d+([.,]\d+)?)\s*(eur|euro)').firstMatch(text);
+    if (eurMatch != null) {
+      final amountStr = eurMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.eurRate).round();
+        calculations.add(
+          '€${amount.toStringAsFixed(2).replaceAll('.', ',')} EUR = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    if (calculations.isEmpty) {
+      return null; // No valid calculation found
+    }
+
+    final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
+    final dataSource = snapshot.isOfflineCache ? 'cache offline' : 'data real-time';
+
+    return FfmAssistantQueryAnswer(
+      title: 'Perhitungan Nilai Aset',
+      message: 'Berdasarkan $dataSource pada $timeStr:\n\n${calculations.join('\n')}',
+    );
+  }
+}
+
 String _fold(String value) =>
     value.toLowerCase().trim().replaceAll(RegExp(r'\s+'), ' ');
 
@@ -1131,10 +1426,10 @@ class _DataCompletenessQueryTool implements FfmAssistantQueryTool {
         .map((entry) => entry.value)
         .toList(growable: false);
     return FfmAssistantQueryAnswer(
-      title: 'Kelengkapan Profil Asisten',
+      title: 'Kelengkapan Profil Keluarga',
       message: missing.isEmpty
-          ? 'Profil personalisasi sudah lengkap: nama/panggilan, pekerjaan/peran, rutinitas penting, dan tujuan/prioritas sudah terisi.'
-          : 'Profil personalisasi belum lengkap. Yang masih kosong: ${missing.join(', ')}. Ini opsional dan tidak menghalangi pencatatan keuangan; isi di Lainnya > Profil Personalisasi Asisten > Kenalkan Diri bila kamu ingin jawaban lebih sesuai konteksmu.',
+          ? 'Profil keluarga sudah lengkap: nama/panggilan, pekerjaan/peran, rutinitas penting, dan tujuan/prioritas sudah terisi.'
+          : 'Profil keluarga belum lengkap. Yang masih kosong: ${missing.join(', ')}. Ini opsional dan tidak menghalangi pencatatan keuangan; isi di menu Lainnya > Profil Keluarga bila kamu ingin jawaban yang lebih sesuai konteks keluargamu.',
     );
   }
 

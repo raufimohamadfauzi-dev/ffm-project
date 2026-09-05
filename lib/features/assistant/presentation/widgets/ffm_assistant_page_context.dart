@@ -48,6 +48,7 @@ abstract final class FfmAssistantScreenContextPolicy {
 
     FfmAssistantDestination.assistantProfile,
     FfmAssistantDestination.masterData,
+    FfmAssistantDestination.familyProfile,
     FfmAssistantDestination.activityLog,
     FfmAssistantDestination.reconciliation,
     FfmAssistantDestination.recurringTransaction,
@@ -127,6 +128,8 @@ abstract final class FfmAssistantScreenContextPolicy {
 
     FfmAssistantDestination.intelligenceDashboard =>
       'Sedang melihat pengaturan Gemini Cloud dan memori Supabase.',
+    FfmAssistantDestination.familyProfile =>
+      'Sedang melihat profil keluarga.',
     _ => 'Sedang melihat halaman fitur FFM.',
   };
 

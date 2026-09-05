@@ -641,11 +641,63 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.cashFlowProfile:
+        if (_isBlank(draft.title) && _isBlank(draft.commodityOrBusinessType)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'cycle_name_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'nama siklus atau komoditas',
+              message: 'Nama siklus atau jenis komoditas belum ada. Contoh: "Siklus Padi Ciherang".',
+            ),
+          );
+        }
+        if (draft.initialCapital != null && draft.initialCapital! < 0) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'initial_capital_negative',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'modal awal',
+              message: 'Modal awal tidak boleh negatif.',
+            ),
+          );
+        }
+        if (draft.estimatedInflow != null && draft.estimatedInflow! < 0) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'estimated_inflow_negative',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'estimasi panen/pemasukan',
+              message: 'Estimasi panen atau pemasukan tidak boleh negatif.',
+            ),
+          );
+        }
+        if (draft.dailyLivingBudget != null && draft.dailyLivingBudget! < 0) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_living_budget_negative',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'jatah dapur harian',
+              message: 'Jatah dapur harian tidak boleh negatif.',
+            ),
+          );
+        }
+        if (draft.dailyOperationalBudget != null && draft.dailyOperationalBudget! < 0) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_operational_budget_negative',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'jatah operasional harian',
+              message: 'Jatah operasional harian tidak boleh negatif.',
+            ),
+          );
+        }
     }
     return issues;
   }
 
   static bool _needsAmount(FfmAssistantDraftKind kind) => switch (kind) {
+    FfmAssistantDraftKind.cashFlowProfile ||
     FfmAssistantDraftKind.masterData ||
     FfmAssistantDraftKind.reminder ||
     FfmAssistantDraftKind.activity ||

@@ -6,7 +6,10 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
+import '../../../core/di/injection.dart';
 import '../../../core/theme/app_theme_controller.dart';
+import '../../advisor/data/cash_flow_profile_repository.dart';
+import '../../advisor/domain/entities/cash_flow_profile_models.dart';
 import '../../budget/data/budget_repository.dart';
 import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
@@ -3009,6 +3012,12 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'asset') return _saveAsset(step, idempotencyKey);
     if (kind == 'liability') return _saveLiability(step, idempotencyKey);
     if (kind == 'receivable') return _saveReceivable(step, idempotencyKey);
+    if (kind == 'cash_flow_profile' ||
+        kind == 'cycle' ||
+        kind == 'cashFlowProfile' ||
+        kind == 'agrotrack') {
+      return _saveCashFlowProfile(step, idempotencyKey);
+    }
     if (kind == 'budget') {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Pembuatan Anggaran oleh Agent tidak diizinkan. Buat pos Anggaran secara manual, atau ubah batas satu pos yang sudah ada melalui draft khusus.',
@@ -3417,6 +3426,12 @@ class FfmAssistantCapabilityAdapterRegistry {
           : FfmAssistantCapabilityExecutionResult.success(
               'verified: pengingat “${reminder.title}” berhasil dibaca kembali dari data lokal.',
             );
+    }
+    if (kind == 'cash_flow_profile' ||
+        kind == 'cycle' ||
+        kind == 'cashFlowProfile' ||
+        kind == 'agrotrack') {
+      return _verifyCashFlowProfileSaved(id);
     }
     if (kind == 'master_data') {
       return _verifyMasterDataSaved(step, id);
@@ -4883,5 +4898,88 @@ class FfmAssistantCapabilityAdapterRegistry {
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     return '${value.day} ${months[value.month - 1]} ${value.year}';
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveCashFlowProfile(
+    FfmAssistantActionStep step,
+    String idempotencyKey,
+  ) async {
+    final id = _stableId(idempotencyKey);
+    final title = step.parameters['title']?.toString().trim() ??
+        step.parameters['name']?.toString().trim() ??
+        'Siklus Kas Baru';
+    final commodity = step.parameters['commodityOrBusinessType']?.toString().trim() ??
+        step.parameters['commodity']?.toString().trim() ??
+        'Pertanian/Usaha';
+    final initialCapital = _positiveInt(step.parameters['initialCapital']) ??
+        _positiveInt(step.parameters['amount']) ??
+        0;
+    final estimatedInflow = _positiveInt(step.parameters['estimatedInflow']) ?? 0;
+    final dailyLiving = _positiveInt(step.parameters['dailyLivingBudget']) ?? 0;
+    final dailyOps = _positiveInt(step.parameters['dailyOperationalBudget']) ?? 0;
+
+    DateTime targetHarvest;
+    if (step.parameters['targetHarvestDate'] != null) {
+      targetHarvest = DateTime.tryParse(step.parameters['targetHarvestDate'].toString()) ??
+          _clock().add(const Duration(days: 90));
+    } else {
+      targetHarvest = _clock().add(const Duration(days: 90));
+    }
+
+    final rawType = step.parameters['cycleProfileType']?.toString().toLowerCase() ?? 'agriculture';
+    final profileType = switch (rawType) {
+      'business' || 'bisnis' => CashFlowProfileType.business,
+      'freelance' => CashFlowProfileType.freelance,
+      'salaried' || 'gaji' => CashFlowProfileType.salaried,
+      _ => CashFlowProfileType.agriculture,
+    };
+
+    final profile = CashFlowProfile(
+      id: id,
+      householdId: _householdId,
+      profileType: profileType,
+      name: title,
+      commodityOrBusinessType: commodity,
+      startDate: _clock(),
+      targetHarvestDate: targetHarvest,
+      initialCapital: initialCapital,
+      estimatedInflow: estimatedInflow,
+      dailyLivingBudget: dailyLiving,
+      dailyOperationalBudget: dailyOps,
+      isActive: true,
+    );
+
+    CashFlowProfileRepository repo;
+    if (getIt.isRegistered<CashFlowProfileRepository>()) {
+      repo = getIt<CashFlowProfileRepository>();
+    } else {
+      repo = CashFlowProfileRepository();
+    }
+    await repo.saveProfile(profile);
+
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Siklus Kas "$title" ($commodity) berhasil disimpan dan diaktifkan.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyCashFlowProfileSaved(
+    String id,
+  ) async {
+    CashFlowProfileRepository repo;
+    if (getIt.isRegistered<CashFlowProfileRepository>()) {
+      repo = getIt<CashFlowProfileRepository>();
+    } else {
+      repo = CashFlowProfileRepository();
+    }
+    final profiles = await repo.getAllProfiles(_householdId);
+    final found = profiles.where((p) => p.id == id).firstOrNull;
+    if (found == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: profil siklus kas belum ditemukan di data lokal.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'verified: siklus kas "${found.name}" berhasil diverifikasi di data lokal.',
+    );
   }
 }

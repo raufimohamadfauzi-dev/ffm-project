@@ -19,6 +19,9 @@ class FfmAssistantReasoningEvidenceScope {
 abstract final class FfmAssistantReasoningEvidencePolicy {
   static FfmAssistantReasoningEvidenceScope forRequest(String request) {
     final normalized = request.toLowerCase();
+    final needsOnboarding = RegExp(
+      r'\b(onboarding|mulai|pertama kali|langkah berikutnya|harus saya lakukan|harus dilakukan|isi apa|setelah itu)\b',
+    ).hasMatch(normalized);
     final needsHelp = RegExp(
       r'\b(bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b',
     ).hasMatch(normalized);
@@ -30,10 +33,10 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
         includeRecentTransactions: false,
       );
     }
-    final needsFinancial = RegExp(
+    final needsFinancial = needsOnboarding || RegExp(
       r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap|saran|rekomendasi|evaluasi|bulan lalu|bulan depan|3 bulan|tiga bulan|harus saya lakukan|harus lakukan)\b',
     ).hasMatch(normalized);
-    final needsMasterData = RegExp(
+    final needsMasterData = needsOnboarding || RegExp(
       r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi|suami|istri|pasangan|keluarga|rumah tangga|nama)\b',
     ).hasMatch(normalized);
     final needsRecentTransactions = RegExp(
@@ -52,7 +55,8 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
     return FfmAssistantReasoningEvidenceScope(
       includeFinancialSummary: needsFinancial || (specificMaster && !needsFamily),
       includeMasterData: needsMasterData || specificMaster,
-      includeRecentTransactions: needsRecentTransactions && needsFinancial,
+      includeRecentTransactions:
+          (needsRecentTransactions || needsOnboarding) && needsFinancial,
     );
   }
 }

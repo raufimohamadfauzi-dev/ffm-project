@@ -322,6 +322,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         FfmAssistantDraftKind.tagDelete => 'Hapus Tag',
         FfmAssistantDraftKind.merchantDelete => 'Hapus Toko',
         FfmAssistantDraftKind.incomeSourceDelete => 'Hapus Sumber Pemasukan',
+        FfmAssistantDraftKind.cashFlowProfile => 'Siklus Kas (AgroTrack)',
         _ => draft.kind.name,
       };
       return 'Menyusun draft $kind${draft.amount != null ? ' Rp ${draft.amount}' : ''}';
@@ -736,10 +737,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
-      if (!mounted || !_scrollController.hasClients) return;
-      _scrollToEnd(force: true, animated: false);
-      _checkAndInitiateGreetings();
-    });
+       if (!mounted) return;
+       await _checkAndInitiateGreetings();
+       await WidgetsBinding.instance.endOfFrame;
+       if (!mounted || !_scrollController.hasClients) return;
+       // Greeting/onboarding dapat menambah entry setelah posisi awal dihitung.
+       // Hitung ulang setelah entry tersebut selesai dirender.
+       _scrollToEnd(force: true, animated: false);
+     });
   }
 
   Future<void> _checkAndInitiateGreetings() async {

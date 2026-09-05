@@ -92,6 +92,55 @@ void main() {
       expect(llmContext, contains('Belanja dapur: Rp9.000.000 (avg: Rp3.000.000/month)'));
       expect(llmContext, contains('Transportasi: Rp3.000.000 (avg: Rp1.000.000/month)'));
     });
+
+    test('FfmAnalysisFacts menyertakan Diagnosis Kesehatan Finansial & Siklus AgroTrack', () {
+      final facts = FfmAnalysisFacts(
+        period: FfmAnalysisPeriod.last30Days,
+        periodLabel: '30 hari terakhir',
+        income: 10000000,
+        expense: 6000000,
+        netCashflow: 4000000,
+        transactionCount: 20,
+        topCategory: 'Belanja dapur',
+        mostFrequentCategory: 'Belanja dapur',
+        mostFrequentMerchant: 'Pasar Induk',
+        categoryBreakdown: {'Belanja dapur': 4000000},
+        categoryFrequency: {'Belanja dapur': 15},
+        capturedAt: DateTime(2026, 9, 3),
+        healthScore: 85,
+        healthStatusLabel: 'Sehat',
+        savingsRate: 0.40,
+        debtToIncomeRatio: 0.15,
+        emergencyMonths: 4.5,
+        netWorth: 50000000,
+        healthWarnings: const ['Evaluasi belanja non-pokok'],
+        healthRecommendations: const ['Tingkatkan alokasi tabungan darurat'],
+        activeCycleProfileName: 'Musim Tanam Padi Ciherang',
+        cycleCommodity: 'Padi',
+        cycleRunwayDays: 75,
+        cycleDaysRemaining: 60,
+        cycleSafeToSpendDaily: 150000,
+        cycleHealthStatus: 'Aman',
+      );
+
+      final llmContext = facts.toLLMContext();
+
+      expect(llmContext, contains('Financial Health Diagnosis:'));
+      expect(llmContext, contains('- Health Score: 85/100 (Sehat)'));
+      expect(llmContext, contains('- Savings Rate: 40%'));
+      expect(llmContext, contains('- Debt-to-Income (DSR): 15%'));
+      expect(llmContext, contains('- Emergency Fund: 4.5 months coverage'));
+      expect(llmContext, contains('- Net Worth: Rp50.000.000'));
+      expect(llmContext, contains('- Health Warnings: Evaluasi belanja non-pokok'));
+      expect(llmContext, contains('- Key Recommendations: Tingkatkan alokasi tabungan darurat'));
+
+      expect(llmContext, contains('Active Cash Flow Cycle (AgroTrack/Business):'));
+      expect(llmContext, contains('- Cycle: Musim Tanam Padi Ciherang (Padi)'));
+      expect(llmContext, contains('- Days Remaining to Inflow/Harvest: 60 days'));
+      expect(llmContext, contains('- Cash Runway: 75 days'));
+      expect(llmContext, contains('- Safe Daily Living Spend: Rp150.000/day'));
+      expect(llmContext, contains('- Cycle Health: Aman'));
+    });
   });
 
   group('Interpreter Historical Lookback & Advisory Integration', () {

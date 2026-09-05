@@ -86,6 +86,7 @@ enum FfmAssistantIntentType {
   updateAsset,
   archiveAsset,
   createBudget,
+  createCashFlowProfile,
   createMasterData,
   createTag,
   editDraft,
@@ -162,6 +163,7 @@ enum FfmAssistantDestination {
   analysis,
   otherMenu,
   masterData,
+  familyProfile,
   assets,
   goals,
   liabilities,
@@ -179,6 +181,12 @@ enum FfmAssistantDestination {
   assistantProfile,
   intelligenceDashboard,
   paymentDetector,
+  telegramSetup,
+  agentInbox,
+  autonomyMonitor,
+  hijriSettings,
+  calendarSettings,
+  marketNewsRadar,
 }
 
 enum FfmAssistantDraftKind {
@@ -202,6 +210,7 @@ enum FfmAssistantDraftKind {
   budget,
   budgetUpdate,
   budgetArchive,
+  cashFlowProfile,
   masterData,
   merchantUpdate,
   merchantArchive,
@@ -428,6 +437,13 @@ class FfmAssistantDraft {
     this.location,
     this.slmFieldValues = const <String, String>{},
     this.metadata,
+    this.commodityOrBusinessType,
+    this.targetHarvestDate,
+    this.initialCapital,
+    this.estimatedInflow,
+    this.dailyLivingBudget,
+    this.dailyOperationalBudget,
+    this.cycleProfileType,
   });
 
   final FfmAssistantDraftKind kind;
@@ -454,6 +470,15 @@ class FfmAssistantDraft {
   /// Metadata tambahan untuk integrasi spesifik (misal: calendar sync)
   final Map<String, dynamic>? metadata;
 
+  /// Field khusus untuk Siklus Kas / AgroTrack
+  final String? commodityOrBusinessType;
+  final DateTime? targetHarvestDate;
+  final int? initialCapital;
+  final int? estimatedInflow;
+  final int? dailyLivingBudget;
+  final int? dailyOperationalBudget;
+  final String? cycleProfileType;
+
   bool get hasAmount => amount != null && amount! > 0;
 
   FfmAssistantDraft copyWith({
@@ -473,6 +498,13 @@ class FfmAssistantDraft {
     String? location,
     Map<String, String>? slmFieldValues,
     Map<String, dynamic>? metadata,
+    String? commodityOrBusinessType,
+    DateTime? targetHarvestDate,
+    int? initialCapital,
+    int? estimatedInflow,
+    int? dailyLivingBudget,
+    int? dailyOperationalBudget,
+    String? cycleProfileType,
   }) => FfmAssistantDraft(
     kind: kind,
     createdAt: createdAt,
@@ -492,6 +524,15 @@ class FfmAssistantDraft {
     location: location ?? this.location,
     slmFieldValues: slmFieldValues ?? this.slmFieldValues,
     metadata: metadata ?? this.metadata,
+    commodityOrBusinessType:
+        commodityOrBusinessType ?? this.commodityOrBusinessType,
+    targetHarvestDate: targetHarvestDate ?? this.targetHarvestDate,
+    initialCapital: initialCapital ?? this.initialCapital,
+    estimatedInflow: estimatedInflow ?? this.estimatedInflow,
+    dailyLivingBudget: dailyLivingBudget ?? this.dailyLivingBudget,
+    dailyOperationalBudget:
+        dailyOperationalBudget ?? this.dailyOperationalBudget,
+    cycleProfileType: cycleProfileType ?? this.cycleProfileType,
   );
 }
 
@@ -858,9 +899,21 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.masterData,
       name: 'Data Utama',
-      description: 'Mengelola kategori, toko, tag, rekening, sumber pemasukan, dan keluarga.',
+      description: 'Mengelola kategori, toko, tag, rekening, dan sumber pemasukan.',
       aliases: ['data utama', 'rekening', 'kategori', 'master data'],
       dataSection: FfmAssistantDataSection.masterData,
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.familyProfile,
+      name: 'Profil Keluarga',
+      description: 'Mengisi profil keluarga dan data pribadi yang membantu Asisten memahami keluargamu.',
+      aliases: [
+        'profil keluarga',
+        'data keluarga',
+        'profil rumah tangga',
+        'isi nama keluarga',
+      ],
+      dataSection: FfmAssistantDataSection.profile,
     ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.assets,
@@ -1017,6 +1070,93 @@ abstract final class FfmAssistantCatalog {
         'notifikasi bank',
         'notifikasi gopay',
         'notifikasi seabank',
+        'pendeteksi bayar otomatis',
+        'deteksi bayar',
+        'qris',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.telegramSetup,
+      name: 'Telegram Bot Keluarga',
+      description: 'Mengatur bot Telegram keluarga untuk laporan mingguan dan alarm boncos.',
+      aliases: [
+        'telegram',
+        'bot telegram',
+        'halaman telegram',
+        'telegram setup',
+        'bot keluarga',
+        'integrasi telegram',
+        'setting telegram',
+        'pengaturan telegram',
+        'telegram bot',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.agentInbox,
+      name: 'Laporan & Kotak Masuk Asisten',
+      description: 'Melihat rekomendasi proaktif, deteksi runway, dan anomali belanja.',
+      aliases: [
+        'inbox',
+        'inbox agent',
+        'kotak masuk',
+        'kotak masuk asisten',
+        'laporan asisten',
+        'inbox asisten',
+        'rekomendasi proaktif',
+        'agent inbox',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.autonomyMonitor,
+      name: 'Monitoring Agent',
+      description: 'Memeriksa riwayat run dan eksekusi tool Agent secara read-only.',
+      aliases: [
+        'monitoring agent',
+        'monitor agent',
+        'autonomy monitor',
+        'riwayat tool',
+        'eksekusi agent',
+        'autonomous agent',
+        'monitor otonomi',
+        'otonomi',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.hijriSettings,
+      name: 'Kalender Hijriah & Hilal',
+      description: 'Mengatur koreksi Hilal dan penetapan awal bulan Hijriah.',
+      aliases: [
+        'kalender hijriah',
+        'hijriah',
+        'hilal',
+        'pengaturan hijriah',
+        'rukyat hilal',
+        'isbat',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.calendarSettings,
+      name: 'Kalender & Smartwatch',
+      description: 'Sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
+      aliases: [
+        'kalender smartwatch',
+        'google calendar',
+        'sinkronisasi kalender',
+        'smartwatch',
+        'jam tangan pintar',
+        'kalender',
+      ],
+    ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.marketNewsRadar,
+      name: 'Radar Berita Pasar',
+      description: 'Memantau berita dan isu pasar terkini.',
+      aliases: [
+        'radar berita',
+        'berita pasar',
+        'market news',
+        'news radar',
+        'radar pasar',
       ],
     ),
   ];
@@ -1195,7 +1335,8 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.transactions => 'Transaksi dipakai untuk catat pemasukan, pengeluaran, transfer antar rekening, setor atau pakai target, input banyak transaksi, serta impor JSON dari LLM eksternal. Transfer hanya memindahkan saldo; biaya adminnya dicatat sebagai pengeluaran terpisah.',
         FfmAssistantDestination.budget => 'Anggaran berisi batas total mingguan atau bulanan, target kategori yang opsional, dan mode Tidak Rutin untuk kebutuhan yang tidak dibeli rutin. Anggaran memantau pengeluaran yang tersimpan; tidak bergantung pada pemasukan.',
         FfmAssistantDestination.analysis => 'Analisa membaca transaksi nyata yang sudah tersimpan untuk melihat pola pemasukan, pengeluaran, dan anggaran. Kalau datanya masih kosong, Asisten akan bilang belum ada cukup data—tidak membuat angka sendiri.',
-        FfmAssistantDestination.masterData => 'Data Utama berisi enam bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, Sumber pemasukan, dan Profil keluarga. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan.',
+        FfmAssistantDestination.masterData => 'Data Utama berisi lima bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, dan Sumber pemasukan. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan. Profil keluarga dikelola terpisah di halaman Profil Keluarga.',
+        FfmAssistantDestination.familyProfile => 'Profil Keluarga menyimpan nama rumah tangga, nama suami/istri, dan data pribadi (Kenalkan Diri) yang membantu Asisten memberi jawaban lebih kontekstual. Data keluarga seperti aset, target keuangan, dan hutang & piutang dikelola pada menu masing-masing di Lainnya.',
         FfmAssistantDestination.assets => 'Aset keluarga dipakai untuk mencatat barang atau kepemilikan bernilai yang ingin dipantau, misalnya kebun, kendaraan, alat kerja, atau tabungan khusus. Aset bukan transaksi harian dan tidak otomatis mengubah saldo rekening.',
         FfmAssistantDestination.goals => 'Target keuangan dipakai untuk uang yang sedang dikumpulkan dengan tujuan tertentu. Kamu bisa setor ke target atau memakai uang target; keduanya dicatat terpisah agar progres target tetap jelas.',
         FfmAssistantDestination.liabilities => 'Hutang & piutang mencatat uang yang kamu pinjam atau uang yang harus diterima dari orang lain. Kamu bisa melihat sisa, membuat strategi pelunasan, dan mengarsipkan catatan yang selesai tanpa menghapus riwayat finansial.',
@@ -1210,9 +1351,15 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
         FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
         FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
-        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten menyimpan identitas dan preferensi.',
+        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten mengelola data belajar asisten: ekspor, impor, dan reset learning terenkripsi. Nama rumah tangga dan data pribadi seperti nama/panggilan dikelola di halaman Profil Keluarga.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
         FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
         FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
+        FfmAssistantDestination.telegramSetup => 'Telegram Bot Keluarga mengirimkan laporan mingguan dan notifikasi peringatan boncos ke grup chat keluarga.',
+        FfmAssistantDestination.agentInbox => 'Laporan & Kotak Masuk Asisten menampilkan rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+        FfmAssistantDestination.autonomyMonitor => 'Monitoring Agent menampilkan riwayat eksekusi tool dan aktivitas otonom agent secara read-only.',
+        FfmAssistantDestination.hijriSettings => 'Kalender Hijriah & Hilal mengatur penetapan tanggal dan koreksi Hilal untuk penanggalan Islam.',
+        FfmAssistantDestination.calendarSettings => 'Kalender & Smartwatch mengatur sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
+        FfmAssistantDestination.marketNewsRadar => 'Radar Berita Pasar menampilkan berita dan perkembangan isu finansial terkini.',
       };
 }

@@ -13,6 +13,7 @@ import '../../domain/entities/market_news_models.dart';
 import '../../domain/usecases/asset_auto_valuation_service.dart';
 import '../../domain/usecases/asset_crud_usecases.dart';
 import '../widgets/market_price_ticker_card.dart';
+import 'package:intl/intl.dart';
 
 class AssetListPage extends StatefulWidget {
   const AssetListPage({super.key});
@@ -24,6 +25,12 @@ class AssetListPage extends StatefulWidget {
 class _AssetListPageState extends State<AssetListPage> {
   var _items = <AssetEntity>[];
   var _loading = true;
+
+  final _currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp',
+    decimalDigits: 0,
+  );
 
   @override
   void initState() {
@@ -39,6 +46,8 @@ class _AssetListPageState extends State<AssetListPage> {
       _loading = false;
     });
   }
+
+  int get _totalAssetValue => _items.fold(0, (sum, item) => sum + item.value);
 
   Future<void> _add() async {
     final saved = await Navigator.push<bool>(
@@ -114,6 +123,10 @@ class _AssetListPageState extends State<AssetListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.assets,
       child: Scaffold(
@@ -154,94 +167,273 @@ class _AssetListPageState extends State<AssetListPage> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-                children: [
-                  const AppHelpBanner(
-                    title: 'Aset itu bukan rekening',
-                    message: 'Pakai bagian ini untuk memantau nilai barang atau kekayaan keluarga. Saldo rekening tetap dihitung dari transaksi dan transfer, bukan dari aset.',
-                    icon: Icons.inventory_2_outlined,
-                  ),
-                  const SizedBox(height: 16),
-                  MarketPriceTickerCard(
-                    onPricesUpdated: _load,
-                  ),
-                  if (_items.isEmpty)
-                    const AppEmptyState(
-                      icon: Icons.inventory_2_outlined,
-                      title: 'Belum ada aset',
-                      message: 'Belum ada data contoh. Tambahkan aset keluarga kalau memang perlu dipantau.',
-                    )
-                  else ...[
-                    Text(
-                      '${_items.length} aset tercatat',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    for (final item in _items)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: AppCard(
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 4,
+            : CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Column(
+                      children: [
+                        // Total Value Summary Card
+                        Container(
+                          margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: isDark
+                                  ? [
+                                      colorScheme.primaryContainer.withValues(alpha: 0.8),
+                                      colorScheme.primaryContainer.withValues(alpha: 0.4),
+                                    ]
+                                  : [
+                                      colorScheme.primaryContainer.withValues(alpha: 0.6),
+                                      colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                    ],
                             ),
-                            leading: CircleAvatar(
-                              backgroundColor: Theme.of(context)
-                                  .colorScheme
-                                  .primaryContainer,
-                              child: Icon(
-                                Icons.inventory_2_outlined,
-                                color: Theme.of(context).colorScheme.primary,
-                              ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
                             ),
-                            title: Text(
-                              item.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${item.assetType} • ${item.placement}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              tooltip: 'Kelola aset',
-                              onSelected: (value) {
-                                if (value == 'edit') {
-                                  _edit(item);
-                                } else if (value == 'archive') {
-                                  _archive(item);
-                                }
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.edit_outlined),
-                                    title: Text('Ubah aset'),
-                                  ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
-                                PopupMenuItem(
-                                  value: 'archive',
-                                  child: ListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.archive_outlined),
-                                    title: Text('Arsipkan aset'),
-                                  ),
+                                child: Icon(
+                                  Icons.account_balance_wallet,
+                                  color: colorScheme.primary,
+                                  size: 28,
                                 ),
-                              ],
-                            ),
-                            onTap: () => _openDetail(item),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Nilai Aset',
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _currencyFormat.format(_totalAssetValue),
+                                      style: theme.textTheme.headlineSmall?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+
+                        const SizedBox(height: 8),
+
+                        // Market Price Ticker
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: MarketPriceTickerCard(
+                            onPricesUpdated: _load,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Help Banner
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16),
+                          child: AppHelpBanner(
+                            title: 'Aset itu bukan rekening',
+                            message: 'Pakai bagian ini untuk memantau nilai barang atau kekayaan keluarga. Saldo rekening tetap dihitung dari transaksi dan transfer, bukan dari aset.',
+                            icon: Icons.inventory_2_outlined,
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+                      ],
+                    ),
+                  ),
+
+                  if (_items.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: AppEmptyState(
+                          icon: Icons.inventory_2_outlined,
+                          title: 'Belum ada aset',
+                          message: 'Belum ada data contoh. Tambahkan aset keluarga kalau memang perlu dipantau.',
+                        ),
                       ),
-                  ],
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final item = _items[index];
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildAssetCard(item, theme, colorScheme, isDark),
+                            );
+                          },
+                          childCount: _items.length,
+                        ),
+                      ),
+                    ),
                 ],
               ),
+      ),
+    );
+  }
+
+  Widget _buildAssetCard(
+    AssetEntity item,
+    ThemeData theme,
+    ColorScheme colorScheme,
+    bool isDark,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: InkWell(
+        onTap: () => _openDetail(item),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Asset Icon
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      colorScheme.primaryContainer.withValues(alpha: 0.8),
+                      colorScheme.primaryContainer.withValues(alpha: 0.4),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: colorScheme.primary,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 16),
+
+              // Asset Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            item.assetType,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onSecondaryContainer,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            item.placement,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _currencyFormat.format(item.value),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Menu Button
+              PopupMenuButton<String>(
+                tooltip: 'Kelola aset',
+                icon: Icon(
+                  Icons.more_vert,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    _edit(item);
+                  } else if (value == 'archive') {
+                    _archive(item);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'edit',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Ubah aset'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'archive',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.archive_outlined),
+                      title: Text('Arsipkan aset'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -288,110 +480,263 @@ class AssetDetailPage extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => FfmAssistantPageContext(
-    destination: FfmAssistantDestination.assets,
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Detail aset'),
-        actions: [
-          IconButton(
-            tooltip: 'Ubah aset',
-            onPressed: () => _edit(context),
-            icon: const Icon(Icons.edit_outlined),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          const AppHelpBanner(
-            title: 'Aset bukan rekening',
-            message: 'Nilai aset membantu memantau gambaran kekayaan keluarga. Nilai ini tidak otomatis menambah, mengurangi, atau memindahkan saldo rekening.',
-            icon: Icons.inventory_2_outlined,
-          ),
-          const SizedBox(height: 20),
-          Center(
-            child: CircleAvatar(
-              radius: 30,
-              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-              foregroundColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.inventory_2_outlined, size: 32),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.assets,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Detail aset'),
+          actions: [
+            IconButton(
+              tooltip: 'Ubah aset',
+              onPressed: () => _edit(context),
+              icon: const Icon(Icons.edit_outlined),
             ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            asset.name,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Center(child: AppMoneyText(asset.value, compact: false)),
-          const SizedBox(height: 24),
-          const AppSectionHeader(title: 'Informasi aset'),
-          const SizedBox(height: 8),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.category_outlined),
-                  title: const Text('Jenis aset'),
-                  subtitle: Text(asset.assetType),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.place_outlined),
-                  title: const Text('Lokasi atau penempatan'),
-                  subtitle: Text(asset.placement),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.event_note_outlined),
-                  title: const Text('Tanggal dicatat'),
-                  subtitle: HijriDateText(
-                    date: asset.createdAt,
-                    includeSeconds: true,
-                    compact: true,
-                  ),
-                ),
-                if (asset.updatedAt != null) ...[
-                  const Divider(height: 1),
-                  ListTile(
-                    leading: const Icon(Icons.update_outlined),
-                    title: const Text('Terakhir diperbarui'),
-                    subtitle: HijriDateText(
-                      date: asset.updatedAt!,
-                      includeSeconds: true,
-                      compact: true,
+          ],
+        ),
+        body: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Asset Header Card
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: isDark
+                            ? [
+                                colorScheme.primaryContainer.withValues(alpha: 0.8),
+                                colorScheme.primaryContainer.withValues(alpha: 0.4),
+                              ]
+                            : [
+                                colorScheme.primaryContainer.withValues(alpha: 0.6),
+                                colorScheme.primaryContainer.withValues(alpha: 0.3),
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.inventory_2_outlined,
+                            color: colorScheme.primary,
+                            size: 48,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          asset.name,
+                          textAlign: TextAlign.center,
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        AppMoneyText(asset.value, compact: false),
+                      ],
                     ),
                   ),
+
+                  const SizedBox(height: 8),
+
+                  // Help Banner
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: AppHelpBanner(
+                      title: 'Aset bukan rekening',
+                      message: 'Nilai aset membantu memantau gambaran kekayaan keluarga. Nilai ini tidak otomatis menambah, mengurangi, atau memindahkan saldo rekening.',
+                      icon: Icons.inventory_2_outlined,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Information Section
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Informasi aset',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildInfoTile(
+                            Icons.category_outlined,
+                            'Jenis aset',
+                            asset.assetType,
+                            theme,
+                            colorScheme,
+                          ),
+                          Divider(
+                            height: 1,
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                          ),
+                          _buildInfoTile(
+                            Icons.place_outlined,
+                            'Lokasi atau penempatan',
+                            asset.placement,
+                            theme,
+                            colorScheme,
+                          ),
+                          Divider(
+                            height: 1,
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                          ),
+                          _buildInfoTile(
+                            Icons.event_note_outlined,
+                            'Tanggal dicatat',
+                            HijriDateText(
+                              date: asset.createdAt,
+                              includeSeconds: true,
+                              compact: true,
+                            ).toString(),
+                            theme,
+                            colorScheme,
+                          ),
+                          if (asset.updatedAt != null) ...[
+                            Divider(
+                              height: 1,
+                              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                            ),
+                            _buildInfoTile(
+                              Icons.update_outlined,
+                              'Terakhir diperbarui',
+                              HijriDateText(
+                                date: asset.updatedAt!,
+                                includeSeconds: true,
+                                compact: true,
+                              ).toString(),
+                              theme,
+                              colorScheme,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  if (asset.note?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'Catatan',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          ),
+                        ),
+                        child: Text(asset.note!.trim()),
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 32),
+
+                  // Action Buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () => _edit(context),
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('Ubah aset'),
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () => _archive(context),
+                          icon: const Icon(Icons.archive_outlined),
+                          label: const Text('Arsipkan aset'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
                 ],
-              ],
+              ),
             ),
-          ),
-          if (asset.note?.trim().isNotEmpty == true) ...[
-            const SizedBox(height: 20),
-            const AppSectionHeader(title: 'Catatan'),
-            const SizedBox(height: 8),
-            AppCard(child: Text(asset.note!.trim())),
           ],
-          const SizedBox(height: 28),
-          FilledButton.icon(
-            onPressed: () => _edit(context),
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Ubah aset'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => _archive(context),
-            icon: const Icon(Icons.archive_outlined),
-            label: const Text('Arsipkan aset'),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildInfoTile(
+    IconData icon,
+    String title,
+    String subtitle,
+    ThemeData theme,
+    ColorScheme colorScheme,
+  ) {
+    return ListTile(
+      leading: Icon(icon, color: colorScheme.primary),
+      title: Text(
+        title,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: colorScheme.onSurfaceVariant,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    );
+  }
 }
 
 class AssetFormPage extends StatefulWidget {
@@ -739,6 +1084,10 @@ class _AssetFormPageState extends State<AssetFormPage> {
   @override
   Widget build(BuildContext context) {
     final editing = widget.initial != null;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.assets,
       child: Scaffold(
@@ -748,92 +1097,211 @@ class _AssetFormPageState extends State<AssetFormPage> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
             children: [
-              const AppHelpBanner(
-                title: 'Catat seperlunya',
-                message: 'Nilai aset hanya untuk melihat gambaran kekayaan keluarga. Data ini tidak mengubah saldo rekening dan tidak dianggap sebagai pemasukan.',
-                icon: Icons.info_outline,
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.event_note_outlined),
-                title: const Text('Tanggal dicatat'),
-                subtitle: HijriDateText(
-                  date: widget.initial?.createdAt ?? DateTime.now(),
-                  includeSeconds: true,
-                  compact: true,
+              // Help Banner with gradient
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [
+                            colorScheme.tertiaryContainer.withValues(alpha: 0.6),
+                            colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+                          ]
+                        : [
+                            colorScheme.tertiaryContainer.withValues(alpha: 0.4),
+                            colorScheme.tertiaryContainer.withValues(alpha: 0.2),
+                          ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: colorScheme.tertiary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Catat seperlunya',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.tertiary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Nilai aset hanya untuk melihat gambaran kekayaan keluarga. Data ini tidak mengubah saldo rekening dan tidak dianggap sebagai pemasukan.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _name,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Nama aset',
-                  hintText: 'Misalnya motor atau tanah',
+
+              // Date Info Card
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
                 ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.event_note_outlined,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Tanggal dicatat',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          HijriDateText(
+                            date: widget.initial?.createdAt ?? DateTime.now(),
+                            includeSeconds: true,
+                            compact: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Form Fields with enhanced styling
+              _buildFormField(
+                _name,
+                'Nama aset',
+                'Misalnya motor atau tanah',
+                Icons.inventory_2_outlined,
+                theme,
+                colorScheme,
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Nama aset wajib diisi.'
                     : null,
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _type,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Jenis aset (opsional)',
-                  hintText: 'Kendaraan, tanah, elektronik, dan lainnya',
-                ),
+
+              _buildFormField(
+                _type,
+                'Jenis aset (opsional)',
+                'Kendaraan, tanah, elektronik, dan lainnya',
+                Icons.category_outlined,
+                theme,
+                colorScheme,
               ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _value,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [RupiahInputFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: 'Nilai perkiraan',
-                        prefixText: 'Rp ',
+
+              // Value field with calculator button
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.attach_money,
+                                  color: colorScheme.primary,
+                                  size: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Nilai perkiraan',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _value,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [RupiahInputFormatter()],
+                              decoration: const InputDecoration(
+                                prefixText: 'Rp ',
+                                border: InputBorder.none,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                              validator: (value) => parseRupiah(value ?? '') <= 0
+                                  ? 'Isi nilai aset lebih dari nol.'
+                                  : null,
+                            ),
+                          ],
+                        ),
                       ),
-                      validator: (value) => parseRupiah(value ?? '') <= 0
-                          ? 'Isi nilai aset lebih dari nol.'
-                          : null,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: IconButton.filledTonal(
-                      tooltip: 'Hitung otomatis dari harga pasar (Emas / Valas)',
-                      icon: const Icon(Icons.calculate_outlined),
-                      onPressed: _showMarketValuationHelper,
+                    Container(
+                      margin: const EdgeInsets.all(8),
+                      child: IconButton.filledTonal(
+                        tooltip: 'Hitung otomatis dari harga pasar (Emas / Valas)',
+                        icon: const Icon(Icons.calculate_outlined),
+                        onPressed: _showMarketValuationHelper,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _placement,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Lokasi atau penempatan',
-                  hintText: 'Rumah, gudang, kebun, atau lainnya',
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _note,
+
+              _buildFormField(
+                _placement,
+                'Lokasi atau penempatan',
+                'Rumah, gudang, kebun, atau lainnya',
+                Icons.place_outlined,
+                theme,
+                colorScheme,
+              ),
+
+              _buildFormField(
+                _note,
+                'Catatan (opsional)',
+                'Kondisi, tahun beli, atau keterangan lain',
+                Icons.note_outlined,
+                theme,
+                colorScheme,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Catatan (opsional)',
-                  alignLabelWithHint: true,
-                  hintText: 'Kondisi, tahun beli, atau keterangan lain',
-                ),
               ),
-              const SizedBox(height: 20),
+
+              const SizedBox(height: 24),
+
+              // Save Button
               FilledButton.icon(
                 onPressed: _saving ? null : _save,
                 icon: _saving
@@ -843,10 +1311,48 @@ class _AssetFormPageState extends State<AssetFormPage> {
                       )
                     : const Icon(Icons.save_outlined),
                 label: Text(_saving ? 'Menyimpan…' : 'Simpan aset'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildFormField(
+    TextEditingController controller,
+    String label,
+    String hint,
+    IconData icon,
+    ThemeData theme,
+    ColorScheme colorScheme, {
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+        ),
+      ),
+      child: TextFormField(
+        controller: controller,
+        maxLines: maxLines,
+        textInputAction: maxLines == 1 ? TextInputAction.next : TextInputAction.newline,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: hint,
+          prefixIcon: Icon(icon, color: colorScheme.primary),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.all(16),
+        ),
+        validator: validator,
       ),
     );
   }

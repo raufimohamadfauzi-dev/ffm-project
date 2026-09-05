@@ -55,6 +55,7 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
             val result = mapOf(
                 "cardId" to tagIdHex,
                 "balance" to 0.0,
+                "balanceAvailable" to false,
                 "cardType" to "unknown_nfc",
                 "success" to true,
             )
@@ -134,6 +135,7 @@ class FfmNfcReaderService(private val activity: Activity) : NfcAdapter.ReaderCal
         return mapOf(
             "cardId" to "NFC-$tagIdHex",
             "balance" to balance,
+            "balanceAvailable" to (balance > 0.0),
             "cardType" to "emoney_generic",
             "success" to true,
         )

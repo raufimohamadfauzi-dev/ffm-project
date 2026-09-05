@@ -145,6 +145,21 @@ class FfmAssistantCloudDraftContext {
         add('amount', draft.amount);
         addDate();
         add('note', draft.note);
+      case FfmAssistantDraftKind.cashFlowProfile:
+        add('title', draft.title);
+        add('commodity', draft.commodityOrBusinessType);
+        add('initialCapital', draft.initialCapital);
+        add('estimatedInflow', draft.estimatedInflow);
+        add('dailyLivingBudget', draft.dailyLivingBudget);
+        add('dailyOperationalBudget', draft.dailyOperationalBudget);
+        if (draft.targetHarvestDate != null) {
+          add(
+            'targetHarvestDate',
+            draft.targetHarvestDate!.toIso8601String().substring(0, 10),
+          );
+        }
+        add('cycleProfileType', draft.cycleProfileType);
+        add('note', draft.note);
       default:
         add('title', draft.title);
         add('party', draft.partyName);

@@ -156,6 +156,14 @@ class FfmGeminiCloudOrchestrator {
           if (args['endDate'] != null) "endDate": args['endDate'],
         });
         finalText += '\n$jsonStr';
+      } else {
+        return FfmGeminiCloudTurnResult.failure(
+          errorMessage: 'Gemini memanggil fungsi yang tidak diizinkan: ${call.name}.',
+          model: result.model,
+          statusCode: result.statusCode,
+          latency: result.latency,
+          usageMetadata: result.usageMetadata,
+        );
       }
     }
 
@@ -354,7 +362,7 @@ class FfmGeminiCloudOrchestrator {
               'properties': {
                 'type': {
                   'type': 'STRING',
-                  'description': 'Jenis draft (contoh: expense, income, transfer, goal, goal_deposit, goal_usage, budget, master_data, activity, reminder, memory, liability, receivable)',
+                  'description': 'Jenis draft (contoh: expense, income, transfer, goal, goal_deposit, goal_usage, budget, master_data, activity, reminder, memory, liability, receivable, cash_flow_profile)',
                 },
                 'title': {'type': 'STRING', 'description': 'Judul atau nama'},
                 'party': {
@@ -449,6 +457,34 @@ class FfmGeminiCloudOrchestrator {
                   'type': 'STRING',
                   'description': 'Periode anggaran untuk type budget: weekly (mingguan), monthly (bulanan), atau nonrecurring (tidak rutin). Wajib diisi bila user menyebut periode; bila user tidak menyebut, kosongkan agar form memakai default.',
                 },
+                'commodity': {
+                  'type': 'STRING',
+                  'description': 'Jenis komoditas tani atau bidang usaha untuk type cash_flow_profile (contoh: Padi Ciherang, Cabai, Jagung, Warung Sembako)',
+                },
+                'initialCapital': {
+                  'type': 'NUMBER',
+                  'description': 'Modal awal yang dialokasikan untuk siklus kas / tani (angka)',
+                },
+                'estimatedInflow': {
+                  'type': 'NUMBER',
+                  'description': 'Estimasi kas masuk / hasil panen saat siklus selesai (angka)',
+                },
+                'dailyLivingBudget': {
+                  'type': 'NUMBER',
+                  'description': 'Anggaran harian kebutuhan pokok / dapur keluarga (angka)',
+                },
+                'dailyOperationalBudget': {
+                  'type': 'NUMBER',
+                  'description': 'Anggaran biaya operasional harian tani / usaha (angka)',
+                },
+                'daysRemaining': {
+                  'type': 'NUMBER',
+                  'description': 'Jumlah hari estimasi menuju panen / pencairan untuk type cash_flow_profile',
+                },
+                'cycleProfileType': {
+                  'type': 'STRING',
+                  'description': 'Tipe siklus: agriculture (pertanian/perkebunan), business (usaha/dagang/UMKM), freelance, atau salaried',
+                },
                 'note': {'type': 'STRING', 'description': 'Catatan tambahan'},
               },
               'required': ['type'],
@@ -496,10 +532,17 @@ ATURAN WAJIB JAWABAN:
 - Jika pertanyaan tidak berkaitan dengan data keuangan, jawab seperti asisten biasa yang ramah.
 - Gunakan bahasa yang personal dan sesuaikan dengan profil user jika ada.
 
+ATURAN ONBOARDING ADAPTIF:
+- Jika user menanyakan onboarding, cara mulai, "apa yang harus dilakukan", atau langkah berikutnya, jadilah pemandu penggunaan FFM secara bertahap.
+- Jangan hanya mengulang daftar fitur. Jelaskan urutan praktis: (1) lengkapi Data Utama dan rekening, (2) catat transaksi nyata pertama, (3) buat anggaran atau target bila relevan, (4) gunakan Ringkasan/Analisis untuk mengevaluasi, lalu (5) aktifkan pengingat, hutang/piutang, aset, aktivitas, atau fitur lanjutan sesuai kebutuhan.
+- Tentukan langkah berikutnya dari VERIFIED FACTS, ANALYSIS RESULTS, dan konteks halaman: jika rekening belum ada, arahkan membuat rekening; jika rekening sudah ada tetapi belum ada transaksi, arahkan mencatat transaksi; jika transaksi sudah ada, arahkan membuat anggaran dan membaca ringkasan. Jangan menyatakan sesuatu sudah terisi bila evidence tidak menunjukkannya.
+- Jawab step-by-step dengan contoh input yang bisa langsung diketik pengguna. Setelah setiap tahap, jelaskan indikator selesai dan tanyakan apakah pengguna ingin lanjut ke tahap berikutnya.
+- Bila user bertanya "sudah mengisi A, lalu apa?", jangan mengulang tahap A; lanjutkan dari progres terakhir yang terlihat di evidence. Fitur terbaru yang relevan harus dijelaskan bila tersedia di daftar halaman atau konteks aplikasi.
+
 ATURAN NAVIGASI HALAMAN:
 - HALAMAN AKTIF SAAT INI tercantum di KONTEKS TERARAH.
 - Jika user bertanya tentang fitur di halaman lain, usulkan pindah halaman dengan menggunakan tool `navigate`.
-- Daftar halaman: summary, transactions, budget, analysis, otherMenu, masterData, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard.
+- Daftar halaman: summary, transactions, budget, analysis, otherMenu, masterData, familyProfile, assets, goals, liabilities, activity, reminders, backup, monthlyReport, reconciliation, appSecurity, diagnostics, activityLog, recurringTransaction, privacyCenter, databaseStructure, assistantProfile, intelligenceDashboard, paymentDetector, telegramSetup, agentInbox, autonomyMonitor, hijriSettings, calendarSettings, marketNewsRadar.
 
 ATURAN TEMA TAMPILAN APLIKASI:
 - TEMA AKTIF SAAT INI (Mode Terang atau Mode Gelap) tercantum di REASONING CONTEXT.
@@ -512,6 +555,7 @@ ATURAN DATA & TRANSAKSI:
 - Untuk membuat/mengubah data (transaksi, transfer, goal, budget, reminder, dll), gunakan tool `create_draft`. Isi parameter yang relevan.
 - Fitur transaksi mendukung: pengeluaran/pemasukan dengan rincian belanja (`items`), toko/merchant (`merchant`), lokasi kejadian (`location`), sumber pemasukan (`incomeSource`/`party` untuk pemasukan, `party` untuk dipakai-oleh pengeluaran), nomor nota (`receiptNumber`), nominal dibayar (`paidAmount`), dan kembalian (`changeAmount`); serta transfer saldo antar-rekening (`fromAccount`, `toAccount`, `amount`, dan `adminFee` jika ada biaya admin). Top-up e-wallet ("isi saldo gopay", "top up ovo dari bca") adalah transfer: `toAccount` = e-wallet tujuan, `fromAccount` = sumber bila disebut, bila tidak disebut biarkan kosong agar pengguna memilih — jangan ditebak.
 - Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), bayar cicilan/pelunasan hutang (`type: "expense"`, `category: "Hutang"`, `note: "Bayar hutang ..."`), dan penerimaan piutang (`type: "income"`, `note: "Penerimaan piutang ..."`).
+- Fitur Siklus Kas / AgroTrack: catat siklus kas tani/usaha baru (`type: "cash_flow_profile"`, `title`, `commodity`, `initialCapital`, `estimatedInflow`, `dailyLivingBudget`, `dailyOperationalBudget`, `targetHarvestDate` atau `daysRemaining`, `cycleProfileType`).
 - WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
 - Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.
@@ -541,6 +585,24 @@ Asisten FFM adalah pusat kecerdasan holistik keluarga, bukan sekadar chatbot tra
 3. Belanja Online & Merchant: Kenali belanja di platform e-commerce (Shopee, Tokopedia, TikTok Shop, Lazada), toko fisik, atau pasar lokal. Perhatikan merchant, tag, dan ongkir untuk analisis pos konsumtif vs produktif.
 4. Aktivitas & Rutinitas: Kelola sesi kegiatan/tugas keluarga (jadwal pemupukan, ronda, pemeliharaan aset) dan pengingat jatuh tempo komitmen finansial.
 Gunakan pemahaman lintas sektor ini untuk memberikan analisis dan saran yang utuh serta relevan dengan kehidupan nyata pengguna.
+
+ATURAN DIAGNOSIS KESEHATAN FINANSIAL & AGROTRACK:
+- Jika pengguna meminta evaluasi keuangan, kondisi/rapor finansial ("gimana kondisi keuangan saya", "analisis kesehatan keuangan", "rapor keuangan", "kebocoran uang", "saran keuangan", atau evaluasi panen/agrotrack):
+  1. Status & Skor Finansial: Sebutkan skor kesehatan (skor/100) dan predikatnya (Prima, Sehat, Cukup, Perlu Dijaga, atau Perlu Dibenahi) dari `Financial Health Diagnosis` di ANALYSIS FACTS jika tersedia.
+  2. Diagnosis 4 Pilar Inti:
+     - Arus Kas & Rasio Tabungan (Savings Rate): Beritahu persentase tabungan riil. Jelaskan apakah sudah sehat (ideal minimal 20% dari pemasukan) atau perlu ditingkatkan.
+     - Beban Cicilan & Rasio Hutang (DSR): Beritahu beban cicilan terhadap pemasukan. Bila >30%, berikan peringatan lampu kuning/merah agar berhati-hati sebelum mengambil komitmen baru.
+     - Ketahanan Dana Darurat: Beritahu berapa bulan biaya hidup yang sanggup dicakup oleh dana tunai/darurat saat ini (target ideal 3-6 bulan pengeluaran keluarga).
+     - Kekayaan Bersih (Net Worth): Jelaskan selisih total aset terhadap kewajiban.
+  3. Ketahanan Siklus Kas Adaptif / AgroTrack (jika ada siklus aktif di konteks):
+     - Rujuk sisa hari menuju panen/inflow berikutnya dan ketahanan kas likuid (runway dalam hari).
+     - Ingatkan batas belanja harian dapur/keluarga yang aman (Safe Daily Living Spend) agar modal operasional siklus tidak terpakai habis sebelum panen tiba.
+  4. Analisis Kebocoran & Pos Pengeluaran:
+     - Soroti pos belanja terbesar (Top Category) dan toko/merchant yang paling sering dikunjungi.
+     - Rujuk Health Warnings atau area perhatian jika ada di fakta terverifikasi.
+  5. Rekomendasi Terukur & Aksi Nyata (Actionable Close):
+     - Berikan 2-3 langkah konkret dan realistis.
+     - Akhiri jawaban dengan menawarkan bantuan pembuatan draft konkret (misal: "Mau saya bantu buatkan draft batas anggaran untuk membatasi [Kategori] di Rp X?", atau "Mau saya buatkan draft target tabungan dana darurat?").
 
 ATURAN ANALISIS LAPORAN KEUANGAN & PEMBELAJARAN:
 - Jika pengguna meminta evaluasi dari halaman laporan ("analisis laporan ini", "evaluasi laporan", "cari kebocoran uang", "rekomendasi anggaran", dll.):

@@ -157,10 +157,24 @@ class FfmAssistantWorkItem {
 
       case FfmAssistantDestination.assistantProfile:
         return 'Profil Asisten';
+      case FfmAssistantDestination.familyProfile:
+        return 'Profil Keluarga';
       case FfmAssistantDestination.intelligenceDashboard:
         return 'Dashboard Intelijen';
       case FfmAssistantDestination.paymentDetector:
         return 'Pendeteksi Notifikasi';
+      case FfmAssistantDestination.telegramSetup:
+        return 'Bot Telegram';
+      case FfmAssistantDestination.agentInbox:
+        return 'Agent Inbox';
+      case FfmAssistantDestination.autonomyMonitor:
+        return 'Monitor Otonomi';
+      case FfmAssistantDestination.hijriSettings:
+        return 'Pengaturan Kalender Hijriah';
+      case FfmAssistantDestination.calendarSettings:
+        return 'Pengaturan Kalender';
+      case FfmAssistantDestination.marketNewsRadar:
+        return 'Radar Pasar & Berita';
     }
   }
 

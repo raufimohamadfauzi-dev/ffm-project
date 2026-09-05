@@ -7,6 +7,8 @@ import '../../../../core/di/injection.dart';
 import '../../data/telegram_bot_service.dart';
 import '../../data/telegram_config_repository.dart';
 import '../../domain/autonomous_evaluation_coordinator.dart';
+import '../../domain/ffm_assistant_models.dart';
+import '../widgets/ffm_assistant_page_context.dart';
 
 /// Halaman pengaturan integrasi Telegram Bot untuk asisten keuangan keluarga.
 class TelegramSetupPage extends StatefulWidget {
@@ -258,7 +260,9 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
+    return FfmAssistantPageContext(
+      destination: FfmAssistantDestination.telegramSetup,
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Telegram Bot Keluarga'),
         actions: [
@@ -295,6 +299,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
                 ],
               ),
             ),
+      ),
     );
   }
 

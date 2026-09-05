@@ -262,4 +262,56 @@ void main() {
       expect(result?.blockedReason, contains('Circuit breaker'));
     },
   );
+
+  test('executor mengizinkan retry read-only setelah kegagalan', () async {
+    final controller = FfmAssistantActionPlanController()
+      ..register(
+        FfmAssistantActionPlan(
+          id: 'retry-plan',
+          summary: 'Coba baca ulang',
+          createdAt: DateTime(2026, 9, 1),
+          steps: const [
+            FfmAssistantActionStep(id: 'summary', capabilityId: 'read.summary'),
+          ],
+        ),
+      );
+    var attempts = 0;
+    final executor = FfmAssistantCapabilityExecutor(
+      controller: controller,
+      maxRetries: 0,
+      handlers: {
+        'read.summary': (_) async {
+          attempts++;
+          return attempts == 1
+              ? const FfmAssistantCapabilityExecutionResult.failure(
+                  'gagal sementara',
+                )
+              : const FfmAssistantCapabilityExecutionResult.success('berhasil');
+        },
+      },
+    );
+
+    final first = await executor.execute('retry-plan');
+    final second = await executor.execute('retry-plan');
+
+    expect(first?.status, FfmAssistantActionPlanStatus.failed);
+    expect(second?.status, FfmAssistantActionPlanStatus.completed);
+    expect(attempts, 2);
+  });
+
+  test('failPlan mempertahankan pesan kegagalan', () {
+    final controller = FfmAssistantActionPlanController()
+      ..register(
+        FfmAssistantActionPlan(
+          id: 'failure-message-plan',
+          summary: 'Plan gagal',
+          createdAt: DateTime(2026, 9, 1),
+          steps: const [],
+        ),
+      );
+
+    final result = controller.failPlan('failure-message-plan', 'adapter timeout');
+
+    expect(result?.blockedReason, 'adapter timeout');
+  });
 }

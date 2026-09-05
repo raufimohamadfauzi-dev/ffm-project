@@ -279,6 +279,7 @@ class _SummaryContent extends StatelessWidget {
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
+          titleSpacing: 16,
           title: const Text(AppCopy.dashboard),
           actions: [
             IconButton(
@@ -320,7 +321,7 @@ class _SummaryContent extends StatelessWidget {
               onPressed: onRefresh,
               icon: const Icon(Icons.refresh),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
           ],
         ),
         SliverPadding(
@@ -1782,6 +1783,14 @@ class _MoneySummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isIncome = label == AppCopy.pemasukan;
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final badgeColor = isIncome
+        ? (isDark ? const Color(0xFF4ADE80) : const Color(0xFF15803D))
+        : (isDark ? const Color(0xFFF87171) : const Color(0xFFB91C1C));
+    final subtextColor = isDark
+        ? Colors.white.withValues(alpha: 0.85)
+        : scheme.onSurfaceVariant;
+
     return AppCard(
       padding: EdgeInsets.zero,
       color: (isIncome ? scheme.tertiaryContainer : scheme.errorContainer)
@@ -1797,23 +1806,23 @@ class _MoneySummaryCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: .18),
+                    color: badgeColor.withValues(alpha: .18),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: color, size: 24),
+                  child: Icon(icon, color: badgeColor, size: 24),
                 ),
                 const Spacer(),
                 Text(
                   isIncome ? 'Uang masuk' : 'Uang keluar',
                   style: Theme.of(context).textTheme.labelSmall
-                      ?.copyWith(color: color, fontWeight: FontWeight.w800),
+                      ?.copyWith(color: badgeColor, fontWeight: FontWeight.w800),
                 ),
               ],
             ),
             const SizedBox(height: 14),
             Text(label, style: AppTextStyles.labelCaps),
             const SizedBox(height: 5),
-            AppMoneyText(amount, compact: true, color: color),
+            AppMoneyText(amount, compact: true, color: badgeColor),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1822,7 +1831,7 @@ class _MoneySummaryCard extends StatelessWidget {
                       ? Icons.trending_up_rounded
                       : Icons.trending_down_rounded,
                   size: 16,
-                  color: color,
+                  color: badgeColor,
                 ),
                 const SizedBox(width: 5),
                 Expanded(
@@ -1831,7 +1840,7 @@ class _MoneySummaryCard extends StatelessWidget {
                         ? 'Yang diterima bulan ini'
                         : 'Yang dipakai bulan ini',
                     style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+                        ?.copyWith(color: subtextColor),
                   ),
                 ),
               ],

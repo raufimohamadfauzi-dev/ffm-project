@@ -47,10 +47,24 @@ void main() {
       FfmAssistantDestination.databaseStructure: 'lib/features/settings/presentation/pages/database_structure_page.dart',
 
       FfmAssistantDestination.assistantProfile: 'lib/features/assistant/presentation/pages/assistant_profile_page.dart',
+      FfmAssistantDestination.familyProfile:
+          'lib/features/settings/presentation/pages/family_profile_page.dart',
       FfmAssistantDestination.intelligenceDashboard:
           'lib/features/settings/presentation/pages/supabase_setup_page.dart',
       FfmAssistantDestination.paymentDetector:
           'lib/features/assistant/presentation/pages/payment_detector_settings_page.dart',
+      FfmAssistantDestination.telegramSetup:
+          'lib/features/assistant/presentation/pages/telegram_setup_page.dart',
+      FfmAssistantDestination.agentInbox:
+          'lib/features/assistant/presentation/pages/agent_inbox_page.dart',
+      FfmAssistantDestination.autonomyMonitor:
+          'lib/features/assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart',
+      FfmAssistantDestination.hijriSettings:
+          'lib/features/hijri/presentation/pages/hijri_settings_page.dart',
+      FfmAssistantDestination.calendarSettings:
+          'lib/features/settings/presentation/pages/calendar_settings_page.dart',
+      FfmAssistantDestination.marketNewsRadar:
+          'lib/features/asset/presentation/pages/market_news_radar_page.dart',
     };
 
     expect(roots.keys.toSet(), FfmAssistantDestination.values.toSet());

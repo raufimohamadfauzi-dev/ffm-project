@@ -162,6 +162,28 @@ void main() {
       expect(result.readEvidence, 'Saldo total: 1500000');
       expect(result.text, 'Saldo Anda adalah Rp 1.500.000.');
     });
+
+    test('Gemini mengembalikan function call tidak dikenal ditolak', () async {
+      final gemini = _MultiFunctionGeminiService([
+        const GeminiFunctionCall(name: 'delete_everything', args: {}),
+      ]);
+
+      final orchestrator = FfmGeminiCloudOrchestrator(
+        gemini: gemini,
+        config: _TestConfig(),
+        readCapabilities: _MockReadCapabilityService('evidence dummy'),
+        clock: () => DateTime(2026, 9, 3),
+      );
+
+      final result = await orchestrator.run(
+        userText: 'hapus semua data',
+        boundedContext: 'konteks dummy',
+        householdId: 'test-household',
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.errorMessage, contains('tidak diizinkan'));
+    });
   });
 
   group('P0 Carry Read Evidence into Grounding Validation', () {

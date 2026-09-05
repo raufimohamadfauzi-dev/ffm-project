@@ -2243,6 +2243,1127 @@ class AccountsCompanion extends UpdateCompanion<Account> {
   }
 }
 
+class $NfcCardAccountsTable extends NfcCardAccounts
+    with TableInfo<$NfcCardAccountsTable, NfcCardAccount> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NfcCardAccountsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _accountIdMeta = const VerificationMeta(
+    'accountId',
+  );
+  @override
+  late final GeneratedColumn<String> accountId = GeneratedColumn<String>(
+    'account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cardUidHashMeta = const VerificationMeta(
+    'cardUidHash',
+  );
+  @override
+  late final GeneratedColumn<String> cardUidHash = GeneratedColumn<String>(
+    'card_uid_hash',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _issuerMeta = const VerificationMeta('issuer');
+  @override
+  late final GeneratedColumn<String> issuer = GeneratedColumn<String>(
+    'issuer',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _cardTypeMeta = const VerificationMeta(
+    'cardType',
+  );
+  @override
+  late final GeneratedColumn<String> cardType = GeneratedColumn<String>(
+    'card_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastKnownBalanceMeta = const VerificationMeta(
+    'lastKnownBalance',
+  );
+  @override
+  late final GeneratedColumn<int> lastKnownBalance = GeneratedColumn<int>(
+    'last_known_balance',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _balanceAvailableMeta = const VerificationMeta(
+    'balanceAvailable',
+  );
+  @override
+  late final GeneratedColumn<bool> balanceAvailable = GeneratedColumn<bool>(
+    'balance_available',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("balance_available" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lastScannedAtMeta = const VerificationMeta(
+    'lastScannedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastScannedAt =
+      GeneratedColumn<DateTime>(
+        'last_scanned_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    accountId,
+    cardUidHash,
+    issuer,
+    cardType,
+    lastKnownBalance,
+    balanceAvailable,
+    lastScannedAt,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'nfc_card_accounts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NfcCardAccount> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('account_id')) {
+      context.handle(
+        _accountIdMeta,
+        accountId.isAcceptableOrUnknown(data['account_id']!, _accountIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_accountIdMeta);
+    }
+    if (data.containsKey('card_uid_hash')) {
+      context.handle(
+        _cardUidHashMeta,
+        cardUidHash.isAcceptableOrUnknown(
+          data['card_uid_hash']!,
+          _cardUidHashMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_cardUidHashMeta);
+    }
+    if (data.containsKey('issuer')) {
+      context.handle(
+        _issuerMeta,
+        issuer.isAcceptableOrUnknown(data['issuer']!, _issuerMeta),
+      );
+    }
+    if (data.containsKey('card_type')) {
+      context.handle(
+        _cardTypeMeta,
+        cardType.isAcceptableOrUnknown(data['card_type']!, _cardTypeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cardTypeMeta);
+    }
+    if (data.containsKey('last_known_balance')) {
+      context.handle(
+        _lastKnownBalanceMeta,
+        lastKnownBalance.isAcceptableOrUnknown(
+          data['last_known_balance']!,
+          _lastKnownBalanceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('balance_available')) {
+      context.handle(
+        _balanceAvailableMeta,
+        balanceAvailable.isAcceptableOrUnknown(
+          data['balance_available']!,
+          _balanceAvailableMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_scanned_at')) {
+      context.handle(
+        _lastScannedAtMeta,
+        lastScannedAt.isAcceptableOrUnknown(
+          data['last_scanned_at']!,
+          _lastScannedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NfcCardAccount map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NfcCardAccount(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      accountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}account_id'],
+      )!,
+      cardUidHash: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_uid_hash'],
+      )!,
+      issuer: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}issuer'],
+      ),
+      cardType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}card_type'],
+      )!,
+      lastKnownBalance: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_known_balance'],
+      ),
+      balanceAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}balance_available'],
+      )!,
+      lastScannedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_scanned_at'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $NfcCardAccountsTable createAlias(String alias) {
+    return $NfcCardAccountsTable(attachedDatabase, alias);
+  }
+}
+
+class NfcCardAccount extends DataClass implements Insertable<NfcCardAccount> {
+  final String id;
+  final String householdId;
+  final String accountId;
+  final String cardUidHash;
+  final String? issuer;
+  final String cardType;
+  final int? lastKnownBalance;
+  final bool balanceAvailable;
+  final DateTime? lastScannedAt;
+  final DateTime createdAt;
+  const NfcCardAccount({
+    required this.id,
+    required this.householdId,
+    required this.accountId,
+    required this.cardUidHash,
+    this.issuer,
+    required this.cardType,
+    this.lastKnownBalance,
+    required this.balanceAvailable,
+    this.lastScannedAt,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['account_id'] = Variable<String>(accountId);
+    map['card_uid_hash'] = Variable<String>(cardUidHash);
+    if (!nullToAbsent || issuer != null) {
+      map['issuer'] = Variable<String>(issuer);
+    }
+    map['card_type'] = Variable<String>(cardType);
+    if (!nullToAbsent || lastKnownBalance != null) {
+      map['last_known_balance'] = Variable<int>(lastKnownBalance);
+    }
+    map['balance_available'] = Variable<bool>(balanceAvailable);
+    if (!nullToAbsent || lastScannedAt != null) {
+      map['last_scanned_at'] = Variable<DateTime>(lastScannedAt);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  NfcCardAccountsCompanion toCompanion(bool nullToAbsent) {
+    return NfcCardAccountsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      accountId: Value(accountId),
+      cardUidHash: Value(cardUidHash),
+      issuer: issuer == null && nullToAbsent
+          ? const Value.absent()
+          : Value(issuer),
+      cardType: Value(cardType),
+      lastKnownBalance: lastKnownBalance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastKnownBalance),
+      balanceAvailable: Value(balanceAvailable),
+      lastScannedAt: lastScannedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastScannedAt),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory NfcCardAccount.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NfcCardAccount(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      accountId: serializer.fromJson<String>(json['accountId']),
+      cardUidHash: serializer.fromJson<String>(json['cardUidHash']),
+      issuer: serializer.fromJson<String?>(json['issuer']),
+      cardType: serializer.fromJson<String>(json['cardType']),
+      lastKnownBalance: serializer.fromJson<int?>(json['lastKnownBalance']),
+      balanceAvailable: serializer.fromJson<bool>(json['balanceAvailable']),
+      lastScannedAt: serializer.fromJson<DateTime?>(json['lastScannedAt']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'accountId': serializer.toJson<String>(accountId),
+      'cardUidHash': serializer.toJson<String>(cardUidHash),
+      'issuer': serializer.toJson<String?>(issuer),
+      'cardType': serializer.toJson<String>(cardType),
+      'lastKnownBalance': serializer.toJson<int?>(lastKnownBalance),
+      'balanceAvailable': serializer.toJson<bool>(balanceAvailable),
+      'lastScannedAt': serializer.toJson<DateTime?>(lastScannedAt),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  NfcCardAccount copyWith({
+    String? id,
+    String? householdId,
+    String? accountId,
+    String? cardUidHash,
+    Value<String?> issuer = const Value.absent(),
+    String? cardType,
+    Value<int?> lastKnownBalance = const Value.absent(),
+    bool? balanceAvailable,
+    Value<DateTime?> lastScannedAt = const Value.absent(),
+    DateTime? createdAt,
+  }) => NfcCardAccount(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    accountId: accountId ?? this.accountId,
+    cardUidHash: cardUidHash ?? this.cardUidHash,
+    issuer: issuer.present ? issuer.value : this.issuer,
+    cardType: cardType ?? this.cardType,
+    lastKnownBalance: lastKnownBalance.present
+        ? lastKnownBalance.value
+        : this.lastKnownBalance,
+    balanceAvailable: balanceAvailable ?? this.balanceAvailable,
+    lastScannedAt: lastScannedAt.present
+        ? lastScannedAt.value
+        : this.lastScannedAt,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  NfcCardAccount copyWithCompanion(NfcCardAccountsCompanion data) {
+    return NfcCardAccount(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      accountId: data.accountId.present ? data.accountId.value : this.accountId,
+      cardUidHash: data.cardUidHash.present
+          ? data.cardUidHash.value
+          : this.cardUidHash,
+      issuer: data.issuer.present ? data.issuer.value : this.issuer,
+      cardType: data.cardType.present ? data.cardType.value : this.cardType,
+      lastKnownBalance: data.lastKnownBalance.present
+          ? data.lastKnownBalance.value
+          : this.lastKnownBalance,
+      balanceAvailable: data.balanceAvailable.present
+          ? data.balanceAvailable.value
+          : this.balanceAvailable,
+      lastScannedAt: data.lastScannedAt.present
+          ? data.lastScannedAt.value
+          : this.lastScannedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NfcCardAccount(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('accountId: $accountId, ')
+          ..write('cardUidHash: $cardUidHash, ')
+          ..write('issuer: $issuer, ')
+          ..write('cardType: $cardType, ')
+          ..write('lastKnownBalance: $lastKnownBalance, ')
+          ..write('balanceAvailable: $balanceAvailable, ')
+          ..write('lastScannedAt: $lastScannedAt, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    accountId,
+    cardUidHash,
+    issuer,
+    cardType,
+    lastKnownBalance,
+    balanceAvailable,
+    lastScannedAt,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NfcCardAccount &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.accountId == this.accountId &&
+          other.cardUidHash == this.cardUidHash &&
+          other.issuer == this.issuer &&
+          other.cardType == this.cardType &&
+          other.lastKnownBalance == this.lastKnownBalance &&
+          other.balanceAvailable == this.balanceAvailable &&
+          other.lastScannedAt == this.lastScannedAt &&
+          other.createdAt == this.createdAt);
+}
+
+class NfcCardAccountsCompanion extends UpdateCompanion<NfcCardAccount> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> accountId;
+  final Value<String> cardUidHash;
+  final Value<String?> issuer;
+  final Value<String> cardType;
+  final Value<int?> lastKnownBalance;
+  final Value<bool> balanceAvailable;
+  final Value<DateTime?> lastScannedAt;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const NfcCardAccountsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.accountId = const Value.absent(),
+    this.cardUidHash = const Value.absent(),
+    this.issuer = const Value.absent(),
+    this.cardType = const Value.absent(),
+    this.lastKnownBalance = const Value.absent(),
+    this.balanceAvailable = const Value.absent(),
+    this.lastScannedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NfcCardAccountsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String accountId,
+    required String cardUidHash,
+    this.issuer = const Value.absent(),
+    required String cardType,
+    this.lastKnownBalance = const Value.absent(),
+    this.balanceAvailable = const Value.absent(),
+    this.lastScannedAt = const Value.absent(),
+    required DateTime createdAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       accountId = Value(accountId),
+       cardUidHash = Value(cardUidHash),
+       cardType = Value(cardType),
+       createdAt = Value(createdAt);
+  static Insertable<NfcCardAccount> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? accountId,
+    Expression<String>? cardUidHash,
+    Expression<String>? issuer,
+    Expression<String>? cardType,
+    Expression<int>? lastKnownBalance,
+    Expression<bool>? balanceAvailable,
+    Expression<DateTime>? lastScannedAt,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (accountId != null) 'account_id': accountId,
+      if (cardUidHash != null) 'card_uid_hash': cardUidHash,
+      if (issuer != null) 'issuer': issuer,
+      if (cardType != null) 'card_type': cardType,
+      if (lastKnownBalance != null) 'last_known_balance': lastKnownBalance,
+      if (balanceAvailable != null) 'balance_available': balanceAvailable,
+      if (lastScannedAt != null) 'last_scanned_at': lastScannedAt,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NfcCardAccountsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? accountId,
+    Value<String>? cardUidHash,
+    Value<String?>? issuer,
+    Value<String>? cardType,
+    Value<int?>? lastKnownBalance,
+    Value<bool>? balanceAvailable,
+    Value<DateTime?>? lastScannedAt,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return NfcCardAccountsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      accountId: accountId ?? this.accountId,
+      cardUidHash: cardUidHash ?? this.cardUidHash,
+      issuer: issuer ?? this.issuer,
+      cardType: cardType ?? this.cardType,
+      lastKnownBalance: lastKnownBalance ?? this.lastKnownBalance,
+      balanceAvailable: balanceAvailable ?? this.balanceAvailable,
+      lastScannedAt: lastScannedAt ?? this.lastScannedAt,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (accountId.present) {
+      map['account_id'] = Variable<String>(accountId.value);
+    }
+    if (cardUidHash.present) {
+      map['card_uid_hash'] = Variable<String>(cardUidHash.value);
+    }
+    if (issuer.present) {
+      map['issuer'] = Variable<String>(issuer.value);
+    }
+    if (cardType.present) {
+      map['card_type'] = Variable<String>(cardType.value);
+    }
+    if (lastKnownBalance.present) {
+      map['last_known_balance'] = Variable<int>(lastKnownBalance.value);
+    }
+    if (balanceAvailable.present) {
+      map['balance_available'] = Variable<bool>(balanceAvailable.value);
+    }
+    if (lastScannedAt.present) {
+      map['last_scanned_at'] = Variable<DateTime>(lastScannedAt.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NfcCardAccountsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('accountId: $accountId, ')
+          ..write('cardUidHash: $cardUidHash, ')
+          ..write('issuer: $issuer, ')
+          ..write('cardType: $cardType, ')
+          ..write('lastKnownBalance: $lastKnownBalance, ')
+          ..write('balanceAvailable: $balanceAvailable, ')
+          ..write('lastScannedAt: $lastScannedAt, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $NfcScanSnapshotsTable extends NfcScanSnapshots
+    with TableInfo<$NfcScanSnapshotsTable, NfcScanSnapshot> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NfcScanSnapshotsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nfcCardAccountIdMeta = const VerificationMeta(
+    'nfcCardAccountId',
+  );
+  @override
+  late final GeneratedColumn<String> nfcCardAccountId = GeneratedColumn<String>(
+    'nfc_card_account_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _balanceMeta = const VerificationMeta(
+    'balance',
+  );
+  @override
+  late final GeneratedColumn<int> balance = GeneratedColumn<int>(
+    'balance',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _balanceAvailableMeta = const VerificationMeta(
+    'balanceAvailable',
+  );
+  @override
+  late final GeneratedColumn<bool> balanceAvailable = GeneratedColumn<bool>(
+    'balance_available',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("balance_available" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _periodKeyMeta = const VerificationMeta(
+    'periodKey',
+  );
+  @override
+  late final GeneratedColumn<String> periodKey = GeneratedColumn<String>(
+    'period_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _scannedAtMeta = const VerificationMeta(
+    'scannedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> scannedAt = GeneratedColumn<DateTime>(
+    'scanned_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    nfcCardAccountId,
+    balance,
+    balanceAvailable,
+    periodKey,
+    scannedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'nfc_scan_snapshots';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NfcScanSnapshot> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('nfc_card_account_id')) {
+      context.handle(
+        _nfcCardAccountIdMeta,
+        nfcCardAccountId.isAcceptableOrUnknown(
+          data['nfc_card_account_id']!,
+          _nfcCardAccountIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nfcCardAccountIdMeta);
+    }
+    if (data.containsKey('balance')) {
+      context.handle(
+        _balanceMeta,
+        balance.isAcceptableOrUnknown(data['balance']!, _balanceMeta),
+      );
+    }
+    if (data.containsKey('balance_available')) {
+      context.handle(
+        _balanceAvailableMeta,
+        balanceAvailable.isAcceptableOrUnknown(
+          data['balance_available']!,
+          _balanceAvailableMeta,
+        ),
+      );
+    }
+    if (data.containsKey('period_key')) {
+      context.handle(
+        _periodKeyMeta,
+        periodKey.isAcceptableOrUnknown(data['period_key']!, _periodKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_periodKeyMeta);
+    }
+    if (data.containsKey('scanned_at')) {
+      context.handle(
+        _scannedAtMeta,
+        scannedAt.isAcceptableOrUnknown(data['scanned_at']!, _scannedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scannedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  NfcScanSnapshot map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NfcScanSnapshot(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      nfcCardAccountId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}nfc_card_account_id'],
+      )!,
+      balance: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}balance'],
+      ),
+      balanceAvailable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}balance_available'],
+      )!,
+      periodKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}period_key'],
+      )!,
+      scannedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}scanned_at'],
+      )!,
+    );
+  }
+
+  @override
+  $NfcScanSnapshotsTable createAlias(String alias) {
+    return $NfcScanSnapshotsTable(attachedDatabase, alias);
+  }
+}
+
+class NfcScanSnapshot extends DataClass implements Insertable<NfcScanSnapshot> {
+  final String id;
+  final String householdId;
+  final String nfcCardAccountId;
+  final int? balance;
+  final bool balanceAvailable;
+  final String periodKey;
+  final DateTime scannedAt;
+  const NfcScanSnapshot({
+    required this.id,
+    required this.householdId,
+    required this.nfcCardAccountId,
+    this.balance,
+    required this.balanceAvailable,
+    required this.periodKey,
+    required this.scannedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    map['nfc_card_account_id'] = Variable<String>(nfcCardAccountId);
+    if (!nullToAbsent || balance != null) {
+      map['balance'] = Variable<int>(balance);
+    }
+    map['balance_available'] = Variable<bool>(balanceAvailable);
+    map['period_key'] = Variable<String>(periodKey);
+    map['scanned_at'] = Variable<DateTime>(scannedAt);
+    return map;
+  }
+
+  NfcScanSnapshotsCompanion toCompanion(bool nullToAbsent) {
+    return NfcScanSnapshotsCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      nfcCardAccountId: Value(nfcCardAccountId),
+      balance: balance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(balance),
+      balanceAvailable: Value(balanceAvailable),
+      periodKey: Value(periodKey),
+      scannedAt: Value(scannedAt),
+    );
+  }
+
+  factory NfcScanSnapshot.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NfcScanSnapshot(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      nfcCardAccountId: serializer.fromJson<String>(json['nfcCardAccountId']),
+      balance: serializer.fromJson<int?>(json['balance']),
+      balanceAvailable: serializer.fromJson<bool>(json['balanceAvailable']),
+      periodKey: serializer.fromJson<String>(json['periodKey']),
+      scannedAt: serializer.fromJson<DateTime>(json['scannedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'nfcCardAccountId': serializer.toJson<String>(nfcCardAccountId),
+      'balance': serializer.toJson<int?>(balance),
+      'balanceAvailable': serializer.toJson<bool>(balanceAvailable),
+      'periodKey': serializer.toJson<String>(periodKey),
+      'scannedAt': serializer.toJson<DateTime>(scannedAt),
+    };
+  }
+
+  NfcScanSnapshot copyWith({
+    String? id,
+    String? householdId,
+    String? nfcCardAccountId,
+    Value<int?> balance = const Value.absent(),
+    bool? balanceAvailable,
+    String? periodKey,
+    DateTime? scannedAt,
+  }) => NfcScanSnapshot(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    nfcCardAccountId: nfcCardAccountId ?? this.nfcCardAccountId,
+    balance: balance.present ? balance.value : this.balance,
+    balanceAvailable: balanceAvailable ?? this.balanceAvailable,
+    periodKey: periodKey ?? this.periodKey,
+    scannedAt: scannedAt ?? this.scannedAt,
+  );
+  NfcScanSnapshot copyWithCompanion(NfcScanSnapshotsCompanion data) {
+    return NfcScanSnapshot(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      nfcCardAccountId: data.nfcCardAccountId.present
+          ? data.nfcCardAccountId.value
+          : this.nfcCardAccountId,
+      balance: data.balance.present ? data.balance.value : this.balance,
+      balanceAvailable: data.balanceAvailable.present
+          ? data.balanceAvailable.value
+          : this.balanceAvailable,
+      periodKey: data.periodKey.present ? data.periodKey.value : this.periodKey,
+      scannedAt: data.scannedAt.present ? data.scannedAt.value : this.scannedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NfcScanSnapshot(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('nfcCardAccountId: $nfcCardAccountId, ')
+          ..write('balance: $balance, ')
+          ..write('balanceAvailable: $balanceAvailable, ')
+          ..write('periodKey: $periodKey, ')
+          ..write('scannedAt: $scannedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    nfcCardAccountId,
+    balance,
+    balanceAvailable,
+    periodKey,
+    scannedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NfcScanSnapshot &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.nfcCardAccountId == this.nfcCardAccountId &&
+          other.balance == this.balance &&
+          other.balanceAvailable == this.balanceAvailable &&
+          other.periodKey == this.periodKey &&
+          other.scannedAt == this.scannedAt);
+}
+
+class NfcScanSnapshotsCompanion extends UpdateCompanion<NfcScanSnapshot> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String> nfcCardAccountId;
+  final Value<int?> balance;
+  final Value<bool> balanceAvailable;
+  final Value<String> periodKey;
+  final Value<DateTime> scannedAt;
+  final Value<int> rowid;
+  const NfcScanSnapshotsCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.nfcCardAccountId = const Value.absent(),
+    this.balance = const Value.absent(),
+    this.balanceAvailable = const Value.absent(),
+    this.periodKey = const Value.absent(),
+    this.scannedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  NfcScanSnapshotsCompanion.insert({
+    required String id,
+    required String householdId,
+    required String nfcCardAccountId,
+    this.balance = const Value.absent(),
+    this.balanceAvailable = const Value.absent(),
+    required String periodKey,
+    required DateTime scannedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       nfcCardAccountId = Value(nfcCardAccountId),
+       periodKey = Value(periodKey),
+       scannedAt = Value(scannedAt);
+  static Insertable<NfcScanSnapshot> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? nfcCardAccountId,
+    Expression<int>? balance,
+    Expression<bool>? balanceAvailable,
+    Expression<String>? periodKey,
+    Expression<DateTime>? scannedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (nfcCardAccountId != null) 'nfc_card_account_id': nfcCardAccountId,
+      if (balance != null) 'balance': balance,
+      if (balanceAvailable != null) 'balance_available': balanceAvailable,
+      if (periodKey != null) 'period_key': periodKey,
+      if (scannedAt != null) 'scanned_at': scannedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  NfcScanSnapshotsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String>? nfcCardAccountId,
+    Value<int?>? balance,
+    Value<bool>? balanceAvailable,
+    Value<String>? periodKey,
+    Value<DateTime>? scannedAt,
+    Value<int>? rowid,
+  }) {
+    return NfcScanSnapshotsCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      nfcCardAccountId: nfcCardAccountId ?? this.nfcCardAccountId,
+      balance: balance ?? this.balance,
+      balanceAvailable: balanceAvailable ?? this.balanceAvailable,
+      periodKey: periodKey ?? this.periodKey,
+      scannedAt: scannedAt ?? this.scannedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (nfcCardAccountId.present) {
+      map['nfc_card_account_id'] = Variable<String>(nfcCardAccountId.value);
+    }
+    if (balance.present) {
+      map['balance'] = Variable<int>(balance.value);
+    }
+    if (balanceAvailable.present) {
+      map['balance_available'] = Variable<bool>(balanceAvailable.value);
+    }
+    if (periodKey.present) {
+      map['period_key'] = Variable<String>(periodKey.value);
+    }
+    if (scannedAt.present) {
+      map['scanned_at'] = Variable<DateTime>(scannedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NfcScanSnapshotsCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('nfcCardAccountId: $nfcCardAccountId, ')
+          ..write('balance: $balance, ')
+          ..write('balanceAvailable: $balanceAvailable, ')
+          ..write('periodKey: $periodKey, ')
+          ..write('scannedAt: $scannedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TransactionPartiesTable extends TransactionParties
     with TableInfo<$TransactionPartiesTable, TransactionParty> {
   @override
@@ -30984,6 +32105,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $MerchantsTable merchants = $MerchantsTable(this);
   late final $TagsTable tags = $TagsTable(this);
   late final $AccountsTable accounts = $AccountsTable(this);
+  late final $NfcCardAccountsTable nfcCardAccounts = $NfcCardAccountsTable(
+    this,
+  );
+  late final $NfcScanSnapshotsTable nfcScanSnapshots = $NfcScanSnapshotsTable(
+    this,
+  );
   late final $TransactionPartiesTable transactionParties =
       $TransactionPartiesTable(this);
   late final $TransactionsTable transactions = $TransactionsTable(this);
@@ -31075,6 +32202,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     merchants,
     tags,
     accounts,
+    nfcCardAccounts,
+    nfcScanSnapshots,
     transactionParties,
     transactions,
     transactionItems,
@@ -32260,6 +33389,567 @@ typedef $$AccountsTableProcessedTableManager =
       $$AccountsTableUpdateCompanionBuilder,
       (Account, BaseReferences<_$AppDatabase, $AccountsTable, Account>),
       Account,
+      PrefetchHooks Function()
+    >;
+typedef $$NfcCardAccountsTableCreateCompanionBuilder =
+    NfcCardAccountsCompanion Function({
+      required String id,
+      required String householdId,
+      required String accountId,
+      required String cardUidHash,
+      Value<String?> issuer,
+      required String cardType,
+      Value<int?> lastKnownBalance,
+      Value<bool> balanceAvailable,
+      Value<DateTime?> lastScannedAt,
+      required DateTime createdAt,
+      Value<int> rowid,
+    });
+typedef $$NfcCardAccountsTableUpdateCompanionBuilder =
+    NfcCardAccountsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> accountId,
+      Value<String> cardUidHash,
+      Value<String?> issuer,
+      Value<String> cardType,
+      Value<int?> lastKnownBalance,
+      Value<bool> balanceAvailable,
+      Value<DateTime?> lastScannedAt,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$NfcCardAccountsTableFilterComposer
+    extends Composer<_$AppDatabase, $NfcCardAccountsTable> {
+  $$NfcCardAccountsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardUidHash => $composableBuilder(
+    column: $table.cardUidHash,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get issuer => $composableBuilder(
+    column: $table.issuer,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get cardType => $composableBuilder(
+    column: $table.cardType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastKnownBalance => $composableBuilder(
+    column: $table.lastKnownBalance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastScannedAt => $composableBuilder(
+    column: $table.lastScannedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NfcCardAccountsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NfcCardAccountsTable> {
+  $$NfcCardAccountsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get accountId => $composableBuilder(
+    column: $table.accountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cardUidHash => $composableBuilder(
+    column: $table.cardUidHash,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get issuer => $composableBuilder(
+    column: $table.issuer,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get cardType => $composableBuilder(
+    column: $table.cardType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastKnownBalance => $composableBuilder(
+    column: $table.lastKnownBalance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastScannedAt => $composableBuilder(
+    column: $table.lastScannedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NfcCardAccountsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NfcCardAccountsTable> {
+  $$NfcCardAccountsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get accountId =>
+      $composableBuilder(column: $table.accountId, builder: (column) => column);
+
+  GeneratedColumn<String> get cardUidHash => $composableBuilder(
+    column: $table.cardUidHash,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get issuer =>
+      $composableBuilder(column: $table.issuer, builder: (column) => column);
+
+  GeneratedColumn<String> get cardType =>
+      $composableBuilder(column: $table.cardType, builder: (column) => column);
+
+  GeneratedColumn<int> get lastKnownBalance => $composableBuilder(
+    column: $table.lastKnownBalance,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastScannedAt => $composableBuilder(
+    column: $table.lastScannedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$NfcCardAccountsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NfcCardAccountsTable,
+          NfcCardAccount,
+          $$NfcCardAccountsTableFilterComposer,
+          $$NfcCardAccountsTableOrderingComposer,
+          $$NfcCardAccountsTableAnnotationComposer,
+          $$NfcCardAccountsTableCreateCompanionBuilder,
+          $$NfcCardAccountsTableUpdateCompanionBuilder,
+          (
+            NfcCardAccount,
+            BaseReferences<
+              _$AppDatabase,
+              $NfcCardAccountsTable,
+              NfcCardAccount
+            >,
+          ),
+          NfcCardAccount,
+          PrefetchHooks Function()
+        > {
+  $$NfcCardAccountsTableTableManager(
+    _$AppDatabase db,
+    $NfcCardAccountsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NfcCardAccountsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NfcCardAccountsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NfcCardAccountsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> accountId = const Value.absent(),
+                Value<String> cardUidHash = const Value.absent(),
+                Value<String?> issuer = const Value.absent(),
+                Value<String> cardType = const Value.absent(),
+                Value<int?> lastKnownBalance = const Value.absent(),
+                Value<bool> balanceAvailable = const Value.absent(),
+                Value<DateTime?> lastScannedAt = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NfcCardAccountsCompanion(
+                id: id,
+                householdId: householdId,
+                accountId: accountId,
+                cardUidHash: cardUidHash,
+                issuer: issuer,
+                cardType: cardType,
+                lastKnownBalance: lastKnownBalance,
+                balanceAvailable: balanceAvailable,
+                lastScannedAt: lastScannedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String accountId,
+                required String cardUidHash,
+                Value<String?> issuer = const Value.absent(),
+                required String cardType,
+                Value<int?> lastKnownBalance = const Value.absent(),
+                Value<bool> balanceAvailable = const Value.absent(),
+                Value<DateTime?> lastScannedAt = const Value.absent(),
+                required DateTime createdAt,
+                Value<int> rowid = const Value.absent(),
+              }) => NfcCardAccountsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                accountId: accountId,
+                cardUidHash: cardUidHash,
+                issuer: issuer,
+                cardType: cardType,
+                lastKnownBalance: lastKnownBalance,
+                balanceAvailable: balanceAvailable,
+                lastScannedAt: lastScannedAt,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NfcCardAccountsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NfcCardAccountsTable,
+      NfcCardAccount,
+      $$NfcCardAccountsTableFilterComposer,
+      $$NfcCardAccountsTableOrderingComposer,
+      $$NfcCardAccountsTableAnnotationComposer,
+      $$NfcCardAccountsTableCreateCompanionBuilder,
+      $$NfcCardAccountsTableUpdateCompanionBuilder,
+      (
+        NfcCardAccount,
+        BaseReferences<_$AppDatabase, $NfcCardAccountsTable, NfcCardAccount>,
+      ),
+      NfcCardAccount,
+      PrefetchHooks Function()
+    >;
+typedef $$NfcScanSnapshotsTableCreateCompanionBuilder =
+    NfcScanSnapshotsCompanion Function({
+      required String id,
+      required String householdId,
+      required String nfcCardAccountId,
+      Value<int?> balance,
+      Value<bool> balanceAvailable,
+      required String periodKey,
+      required DateTime scannedAt,
+      Value<int> rowid,
+    });
+typedef $$NfcScanSnapshotsTableUpdateCompanionBuilder =
+    NfcScanSnapshotsCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String> nfcCardAccountId,
+      Value<int?> balance,
+      Value<bool> balanceAvailable,
+      Value<String> periodKey,
+      Value<DateTime> scannedAt,
+      Value<int> rowid,
+    });
+
+class $$NfcScanSnapshotsTableFilterComposer
+    extends Composer<_$AppDatabase, $NfcScanSnapshotsTable> {
+  $$NfcScanSnapshotsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nfcCardAccountId => $composableBuilder(
+    column: $table.nfcCardAccountId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get balance => $composableBuilder(
+    column: $table.balance,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get periodKey => $composableBuilder(
+    column: $table.periodKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get scannedAt => $composableBuilder(
+    column: $table.scannedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$NfcScanSnapshotsTableOrderingComposer
+    extends Composer<_$AppDatabase, $NfcScanSnapshotsTable> {
+  $$NfcScanSnapshotsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nfcCardAccountId => $composableBuilder(
+    column: $table.nfcCardAccountId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get balance => $composableBuilder(
+    column: $table.balance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get periodKey => $composableBuilder(
+    column: $table.periodKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get scannedAt => $composableBuilder(
+    column: $table.scannedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$NfcScanSnapshotsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NfcScanSnapshotsTable> {
+  $$NfcScanSnapshotsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get nfcCardAccountId => $composableBuilder(
+    column: $table.nfcCardAccountId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get balance =>
+      $composableBuilder(column: $table.balance, builder: (column) => column);
+
+  GeneratedColumn<bool> get balanceAvailable => $composableBuilder(
+    column: $table.balanceAvailable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get periodKey =>
+      $composableBuilder(column: $table.periodKey, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get scannedAt =>
+      $composableBuilder(column: $table.scannedAt, builder: (column) => column);
+}
+
+class $$NfcScanSnapshotsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NfcScanSnapshotsTable,
+          NfcScanSnapshot,
+          $$NfcScanSnapshotsTableFilterComposer,
+          $$NfcScanSnapshotsTableOrderingComposer,
+          $$NfcScanSnapshotsTableAnnotationComposer,
+          $$NfcScanSnapshotsTableCreateCompanionBuilder,
+          $$NfcScanSnapshotsTableUpdateCompanionBuilder,
+          (
+            NfcScanSnapshot,
+            BaseReferences<
+              _$AppDatabase,
+              $NfcScanSnapshotsTable,
+              NfcScanSnapshot
+            >,
+          ),
+          NfcScanSnapshot,
+          PrefetchHooks Function()
+        > {
+  $$NfcScanSnapshotsTableTableManager(
+    _$AppDatabase db,
+    $NfcScanSnapshotsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NfcScanSnapshotsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NfcScanSnapshotsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NfcScanSnapshotsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> nfcCardAccountId = const Value.absent(),
+                Value<int?> balance = const Value.absent(),
+                Value<bool> balanceAvailable = const Value.absent(),
+                Value<String> periodKey = const Value.absent(),
+                Value<DateTime> scannedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => NfcScanSnapshotsCompanion(
+                id: id,
+                householdId: householdId,
+                nfcCardAccountId: nfcCardAccountId,
+                balance: balance,
+                balanceAvailable: balanceAvailable,
+                periodKey: periodKey,
+                scannedAt: scannedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                required String nfcCardAccountId,
+                Value<int?> balance = const Value.absent(),
+                Value<bool> balanceAvailable = const Value.absent(),
+                required String periodKey,
+                required DateTime scannedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => NfcScanSnapshotsCompanion.insert(
+                id: id,
+                householdId: householdId,
+                nfcCardAccountId: nfcCardAccountId,
+                balance: balance,
+                balanceAvailable: balanceAvailable,
+                periodKey: periodKey,
+                scannedAt: scannedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$NfcScanSnapshotsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NfcScanSnapshotsTable,
+      NfcScanSnapshot,
+      $$NfcScanSnapshotsTableFilterComposer,
+      $$NfcScanSnapshotsTableOrderingComposer,
+      $$NfcScanSnapshotsTableAnnotationComposer,
+      $$NfcScanSnapshotsTableCreateCompanionBuilder,
+      $$NfcScanSnapshotsTableUpdateCompanionBuilder,
+      (
+        NfcScanSnapshot,
+        BaseReferences<_$AppDatabase, $NfcScanSnapshotsTable, NfcScanSnapshot>,
+      ),
+      NfcScanSnapshot,
       PrefetchHooks Function()
     >;
 typedef $$TransactionPartiesTableCreateCompanionBuilder =
@@ -46403,6 +48093,10 @@ class $AppDatabaseManager {
   $$TagsTableTableManager get tags => $$TagsTableTableManager(_db, _db.tags);
   $$AccountsTableTableManager get accounts =>
       $$AccountsTableTableManager(_db, _db.accounts);
+  $$NfcCardAccountsTableTableManager get nfcCardAccounts =>
+      $$NfcCardAccountsTableTableManager(_db, _db.nfcCardAccounts);
+  $$NfcScanSnapshotsTableTableManager get nfcScanSnapshots =>
+      $$NfcScanSnapshotsTableTableManager(_db, _db.nfcScanSnapshots);
   $$TransactionPartiesTableTableManager get transactionParties =>
       $$TransactionPartiesTableTableManager(_db, _db.transactionParties);
   $$TransactionsTableTableManager get transactions =>

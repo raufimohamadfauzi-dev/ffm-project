@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
+import '../../../settings/presentation/pages/family_profile_page.dart';
 import '../../data/ffm_assistant_personalization_repository.dart';
 import '../../data/ffm_assistant_profile_export_service.dart';
 import '../../domain/ffm_assistant_models.dart';
@@ -21,10 +22,6 @@ class AssistantProfilePage extends StatefulWidget {
 }
 
 class _AssistantProfilePageState extends State<AssistantProfilePage> {
-  final _nameController = TextEditingController();
-  final _occupationController = TextEditingController();
-  final _routineController = TextEditingController();
-  final _goalsController = TextEditingController();
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
   late final FfmAssistantProfileExportService _profileService;
@@ -40,33 +37,14 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
     super.initState();
     _repository = getIt<FfmAssistantPersonalizationRepository>();
     _profileService = FfmAssistantProfileExportService(_repository);
-    _loadProfile();
+    _loadSummary();
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _occupationController.dispose();
-    _routineController.dispose();
-    _goalsController.dispose();
     _passphraseController.dispose();
     _confirmPassphraseController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadProfile() async {
-    final preferences = await _repository.getPreferences(
-      AppContext.householdId,
-    );
-    final values = <String, String>{
-      for (final preference in preferences)
-        preference.preferenceKey: preference.preferenceValue,
-    };
-    _nameController.text = values['profile_name'] ?? '';
-    _occupationController.text = values['profile_occupation'] ?? '';
-    _routineController.text = values['profile_routine'] ?? '';
-    _goalsController.text = values['profile_goals'] ?? '';
-    await _loadSummary();
   }
 
   Future<void> _loadSummary() async {
@@ -86,38 +64,6 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
           )
           .length;
     });
-  }
-
-  Future<void> _saveIdentity() async {
-    setState(() => _working = true);
-    try {
-      final values = <String, String>{
-        'profile_name': _nameController.text,
-        'profile_occupation': _occupationController.text,
-        'profile_routine': _routineController.text,
-        'profile_goals': _goalsController.text,
-      };
-      for (final entry in values.entries) {
-        if (entry.value.trim().isEmpty) {
-          await _repository.deletePreference(
-            householdId: AppContext.householdId,
-            preferenceKey: entry.key,
-          );
-        } else {
-          await _repository.setPreference(
-            householdId: AppContext.householdId,
-            preferenceKey: entry.key,
-            preferenceValue: entry.value,
-          );
-        }
-      }
-      await _loadSummary();
-      _showMessage('Perkenalan diri tersimpan secara lokal.');
-    } catch (_) {
-      _showMessage('Perkenalan diri belum berhasil disimpan.');
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
   }
 
   Future<void> _resetLearning() async {
@@ -236,6 +182,12 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  void _openFamilyProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const FamilyProfilePage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
@@ -277,55 +229,21 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Kenalkan Diri',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Isi yang ingin dibantu asisten. Semua tersimpan lokal dan dapat diedit kapan saja.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Nama atau panggilan',
-                prefixIcon: Icon(Icons.person_outline),
+            AppCard(
+              color: Theme.of(context).colorScheme.primaryContainer
+                  .withValues(alpha: .45),
+              child: ListTile(
+                leading: const Icon(Icons.family_restroom_outlined),
+                title: const Text(
+                  'Nama rumah tangga & data pribadi',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                subtitle: const Text(
+                  'Nama rumah tangga, pasangan, nama/panggilan, pekerjaan, dan tujuan kini dikelola di satu halaman Profil Keluarga, bukan di sini.',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _openFamilyProfile,
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _occupationController,
-              decoration: const InputDecoration(
-                labelText: 'Pekerjaan atau peran utama',
-                prefixIcon: Icon(Icons.work_outline),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _routineController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Rutinitas penting',
-                hintText: 'Contoh: panen setiap Jumat pagi',
-                prefixIcon: Icon(Icons.repeat_outlined),
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _goalsController,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                labelText: 'Tujuan atau prioritas',
-                hintText: 'Contoh: menabung untuk modal usaha',
-                prefixIcon: Icon(Icons.flag_outlined),
-              ),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _working ? null : _saveIdentity,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('Simpan perkenalan diri'),
             ),
             const SizedBox(height: 22),
             const Text(

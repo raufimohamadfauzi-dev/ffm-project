@@ -19,6 +19,7 @@ import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
 import 'app_diagnostics_page.dart';
 import 'database_structure_page.dart';
+import 'family_profile_page.dart';
 import '../../../advisor/presentation/pages/analysis_page.dart';
 import 'master_data_page.dart';
 
@@ -54,6 +55,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
   bool _hasMatchingMenu() {
     const menuItems = <List<String>>[
       ['Data Utama', 'kategori toko tag rekening pemasukan'],
+      ['Profil Keluarga', 'nama rumah tangga suami istri pribadi keluarga'],
       ['Aset keluarga', 'barang kekayaan'],
       ['Target keuangan', 'uang dikumpulkan'],
       ['Hutang & piutang', 'kewajiban diterima'],
@@ -187,6 +189,20 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             const SizedBox(height: 16),
             const AppSectionHeader(title: 'Data keluarga'),
             const SizedBox(height: 8),
+            _MenuCard(
+              icon: Icons.family_restroom_rounded,
+              title: 'Profil Keluarga',
+              subtitle:
+                  'Isi nama rumah tangga, pasangan, dan data pribadi untuk Asisten.',
+              iconColor: const Color(0xFFDB2777),
+              iconBackgroundColor: const Color(0xFFFCE7F3),
+              badgeText: 'PROFIL',
+              onTap: () => _open(context, const FamilyProfilePage()),
+              visible: _matches(
+                'Profil Keluarga',
+                'Isi nama rumah tangga, pasangan, dan data pribadi untuk Asisten.',
+              ),
+            ),
             _MenuCard(
               icon: Icons.inventory_2_rounded,
               title: 'Aset keluarga',

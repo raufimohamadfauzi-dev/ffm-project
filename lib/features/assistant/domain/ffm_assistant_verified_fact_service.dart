@@ -1,4 +1,9 @@
 import '../../../core/database/app_database.dart';
+import '../../../core/di/injection.dart';
+import '../../advisor/data/cash_flow_profile_repository.dart';
+import '../../advisor/domain/entities/cash_flow_profile_models.dart';
+import '../../advisor/domain/usecases/financial_health_calculator.dart';
+import '../../advisor/domain/usecases/flexible_cash_flow_calculator.dart';
 import 'ffm_assistant_analysis_engine.dart';
 import 'ffm_assistant_reasoning_context.dart';
 import 'package:drift/drift.dart';
@@ -72,6 +77,120 @@ class FfmAssistantVerifiedFactService {
       end: periodAnalysis.end,
     );
 
+    int? healthScore;
+    String? healthStatusLabel;
+    double? savingsRate;
+    double? debtToIncomeRatio;
+    double? emergencyMonths;
+    int? netWorth;
+    List<String> healthWarnings = const [];
+    List<String> healthRecommendations = const [];
+
+    try {
+      final liabilities = await (database.select(database.liabilities)
+            ..where((row) =>
+                row.householdId.equals(householdId) &
+                row.isActive.equals(true)))
+          .get();
+      final totalMonthlyInstallments = liabilities.fold<int>(
+        0,
+        (sum, l) => sum + l.monthlyInstallment,
+      );
+      final totalLiabilitiesVal = liabilities.fold<int>(
+        0,
+        (sum, l) => sum + l.remainingBalance,
+      );
+
+      final assetRows = await (database.select(database.assets)
+            ..where((row) =>
+                row.householdId.equals(householdId) &
+                row.isArchived.equals(false)))
+          .get();
+      final totalAssetsVal = assetRows.fold<int>(
+        0,
+        (sum, a) => sum + a.value,
+      );
+      final emergencyFund = assetRows
+          .where((a) => a.assetType == 'cash')
+          .fold<int>(0, (sum, a) => sum + a.value);
+
+      final divisor = period == FfmAnalysisPeriod.last90Days ? 3 : 1;
+      final monthlyIncome = periodAnalysis.income ~/ divisor;
+      final monthlyExpense = periodAnalysis.expense ~/ divisor;
+
+      final calcScore = const FinancialHealthCalculator().calculate(
+        FinancialHealthInput(
+          totalIncome: monthlyIncome,
+          totalExpenses: monthlyExpense,
+          totalMonthlyInstallments: totalMonthlyInstallments,
+          emergencyFundAmount: emergencyFund,
+          averageMonthlyExpenses: monthlyExpense,
+          totalAssets: totalAssetsVal,
+          totalLiabilities: totalLiabilitiesVal,
+        ),
+      );
+
+      healthScore = calcScore.totalScore;
+      healthStatusLabel = calcScore.statusLabel;
+      savingsRate = calcScore.savingsRate;
+      debtToIncomeRatio = calcScore.debtToIncomeRatio;
+      emergencyMonths = calcScore.emergencyMonths;
+      netWorth = calcScore.netWorth;
+      healthWarnings = calcScore.warnings;
+      healthRecommendations = calcScore.recommendations;
+    } catch (_) {
+      // Graceful fallback jika query gagal
+    }
+
+    String? activeCycleProfileName;
+    String? cycleCommodity;
+    int? cycleRunwayDays;
+    int? cycleDaysRemaining;
+    int? cycleSafeToSpendDaily;
+    String? cycleHealthStatus;
+
+    try {
+      if (getIt.isRegistered<CashFlowProfileRepository>() &&
+          getIt.isRegistered<FlexibleCashFlowCalculator>()) {
+        final repo = getIt<CashFlowProfileRepository>();
+        final flexCalc = getIt<FlexibleCashFlowCalculator>();
+        final profile = await repo.getActiveProfile(householdId);
+        if (profile != null &&
+            profile.isActive &&
+            profile.profileType != CashFlowProfileType.salaried) {
+          final accounts = await (database.select(database.accounts)
+                ..where((row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false)))
+              .get();
+          final totalLiquidCash = accounts.fold<int>(
+            0,
+            (sum, a) => sum + (a.openingBalance > 0 ? a.openingBalance : 0),
+          );
+
+          final runway = flexCalc.calculateRunway(
+            effectiveLiquidCash: totalLiquidCash,
+            dailyLivingBudget: profile.dailyLivingBudget,
+            dailyOperationalBudget: profile.dailyOperationalBudget,
+            daysRemainingToHarvest: profile.daysRemaining,
+          );
+
+          activeCycleProfileName = profile.name;
+          cycleCommodity = profile.commodityOrBusinessType;
+          cycleRunwayDays = runway.runwayDays;
+          cycleDaysRemaining = profile.daysRemaining;
+          cycleSafeToSpendDaily = runway.safeToSpendDaily;
+          cycleHealthStatus = switch (runway.healthStatus) {
+            CycleHealthStatus.safe => 'Aman',
+            CycleHealthStatus.warning => 'Waspada',
+            CycleHealthStatus.critical => 'Kritis',
+          };
+        }
+      }
+    } catch (_) {
+      // Graceful fallback
+    }
+
     return FfmAnalysisFacts(
       period: period,
       periodLabel: periodAnalysis.periodLabel,
@@ -85,6 +204,20 @@ class FfmAssistantVerifiedFactService {
       categoryBreakdown: periodAnalysis.categoryBreakdown,
       categoryFrequency: frequencyAnalysis.categoryFrequency,
       capturedAt: now,
+      healthScore: healthScore,
+      healthStatusLabel: healthStatusLabel,
+      savingsRate: savingsRate,
+      debtToIncomeRatio: debtToIncomeRatio,
+      emergencyMonths: emergencyMonths,
+      netWorth: netWorth,
+      healthWarnings: healthWarnings,
+      healthRecommendations: healthRecommendations,
+      activeCycleProfileName: activeCycleProfileName,
+      cycleCommodity: cycleCommodity,
+      cycleRunwayDays: cycleRunwayDays,
+      cycleDaysRemaining: cycleDaysRemaining,
+      cycleSafeToSpendDaily: cycleSafeToSpendDaily,
+      cycleHealthStatus: cycleHealthStatus,
     );
   }
 
@@ -406,6 +539,20 @@ class FfmAnalysisFacts {
     required this.categoryBreakdown,
     required this.categoryFrequency,
     required this.capturedAt,
+    this.healthScore,
+    this.healthStatusLabel,
+    this.savingsRate,
+    this.debtToIncomeRatio,
+    this.emergencyMonths,
+    this.netWorth,
+    this.healthWarnings = const [],
+    this.healthRecommendations = const [],
+    this.activeCycleProfileName,
+    this.cycleCommodity,
+    this.cycleRunwayDays,
+    this.cycleDaysRemaining,
+    this.cycleSafeToSpendDaily,
+    this.cycleHealthStatus,
   });
 
   final FfmAnalysisPeriod period;
@@ -420,6 +567,20 @@ class FfmAnalysisFacts {
   final Map<String, int> categoryBreakdown;
   final Map<String, int> categoryFrequency;
   final DateTime capturedAt;
+  final int? healthScore;
+  final String? healthStatusLabel;
+  final double? savingsRate;
+  final double? debtToIncomeRatio;
+  final double? emergencyMonths;
+  final int? netWorth;
+  final List<String> healthWarnings;
+  final List<String> healthRecommendations;
+  final String? activeCycleProfileName;
+  final String? cycleCommodity;
+  final int? cycleRunwayDays;
+  final int? cycleDaysRemaining;
+  final int? cycleSafeToSpendDaily;
+  final String? cycleHealthStatus;
 
   String toLLMContext() {
     final sections = <String>[];
@@ -450,6 +611,48 @@ class FfmAnalysisFacts {
             ? ' (avg: ${_formatCurrency(entry.value ~/ 3)}/month)'
             : '';
         sections.add('  - ${entry.key}: ${_formatCurrency(entry.value)}$avgPart');
+      }
+    }
+
+    if (healthScore != null) {
+      sections.add('Financial Health Diagnosis:');
+      sections.add('- Health Score: $healthScore/100 (${healthStatusLabel ?? "Unknown"})');
+      if (savingsRate != null) {
+        final pct = (savingsRate! * 100).round();
+        sections.add('- Savings Rate: $pct%');
+      }
+      if (debtToIncomeRatio != null) {
+        final dsrPct = (debtToIncomeRatio! * 100).round();
+        sections.add('- Debt-to-Income (DSR): $dsrPct%');
+      }
+      if (emergencyMonths != null) {
+        sections.add('- Emergency Fund: ${emergencyMonths!.toStringAsFixed(1)} months coverage');
+      }
+      if (netWorth != null) {
+        sections.add('- Net Worth: ${_formatCurrency(netWorth!)}');
+      }
+      if (healthWarnings.isNotEmpty) {
+        sections.add('- Health Warnings: ${healthWarnings.join("; ")}');
+      }
+      if (healthRecommendations.isNotEmpty) {
+        sections.add('- Key Recommendations: ${healthRecommendations.join("; ")}');
+      }
+    }
+
+    if (activeCycleProfileName != null) {
+      sections.add('Active Cash Flow Cycle (AgroTrack/Business):');
+      sections.add('- Cycle: $activeCycleProfileName ($cycleCommodity)');
+      if (cycleDaysRemaining != null) {
+        sections.add('- Days Remaining to Inflow/Harvest: $cycleDaysRemaining days');
+      }
+      if (cycleRunwayDays != null) {
+        sections.add('- Cash Runway: $cycleRunwayDays days');
+      }
+      if (cycleSafeToSpendDaily != null) {
+        sections.add('- Safe Daily Living Spend: ${_formatCurrency(cycleSafeToSpendDaily!)}/day');
+      }
+      if (cycleHealthStatus != null) {
+        sections.add('- Cycle Health: $cycleHealthStatus');
       }
     }
     
