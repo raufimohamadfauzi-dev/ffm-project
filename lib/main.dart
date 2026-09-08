@@ -617,6 +617,7 @@ class _AppShellState extends State<AppShell> {
       householdId: 'local-household',
     )..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.pageContextController.setShellTab(_assistantCurrentDestination);
       _consumePendingWidgetAction();
       _consumePendingNfcTagTrigger();
       _openReminderFromNotification();
@@ -1117,23 +1118,24 @@ class _AppShellState extends State<AppShell> {
       isSheetOpen: true,
     );
     try {
+      final activeDestination =
+          widget.pageContextController.currentDestination;
+      final activeSnapshot = widget.pageContextController.currentSnapshot;
       await showFfmAssistantSheet(
         context,
         onIntent: _handleAssistantIntent,
         onIntents: _handleAssistantIntents,
         session: _assistantSession,
         launcherState: widget.launcherState,
-        currentDestination:
-            widget.pageContext.value ?? _assistantCurrentDestination,
-        currentPageContext: widget.pageContextController.currentSnapshot,
+        currentDestination: activeDestination,
+        currentPageContext: activeSnapshot,
       );
     } finally {
-      if (mounted) {
-        setState(() => _assistantSheetOpen = false);
-        widget.launcherState.value = const FfmAssistantLauncherState(
-          isSheetOpen: false,
-        );
-      }
+      _assistantSheetOpen = false;
+      widget.launcherState.value = const FfmAssistantLauncherState(
+        isSheetOpen: false,
+      );
+      if (mounted) setState(() {});
     }
   }
 
@@ -1146,7 +1148,17 @@ class _AppShellState extends State<AppShell> {
     ),
     bottomNavigationBar: NavigationBar(
       selectedIndex: _index,
-      onDestinationSelected: (value) => setState(() => _index = value),
+      onDestinationSelected: (value) {
+        setState(() => _index = value);
+        final dest = switch (value) {
+          0 => FfmAssistantDestination.summary,
+          1 => FfmAssistantDestination.transactions,
+          2 => FfmAssistantDestination.activity,
+          3 => FfmAssistantDestination.budget,
+          _ => FfmAssistantDestination.otherMenu,
+        };
+        widget.pageContextController.setShellTab(dest);
+      },
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.home_outlined),

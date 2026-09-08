@@ -82,4 +82,52 @@ void main() {
     expect(restored.dx, closeTo(savedX!, 1));
     expect(restored.dy, closeTo(savedY!, 1));
   });
+
+  testWidgets('launcher Asisten memicu onOpen pada tap dan pergeseran mikro', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    var openCount = 0;
+    final launcherState = ValueNotifier<FfmAssistantLauncherState>(
+      const FfmAssistantLauncherState(isSheetOpen: false),
+    );
+    addTearDown(launcherState.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Stack(
+            children: [
+              FfmAssistantGlobalLauncher(
+                state: launcherState,
+                onOpen: () async => openCount++,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final launcher = find.byType(FloatingActionButton);
+    expect(launcher, findsOneWidget);
+
+    // 1. Ketukan biasa
+    await tester.tap(launcher);
+    await tester.pumpAndSettle();
+    expect(openCount, 1);
+
+    // 2. Pergeseran mikro (micro-drag < 10px, jari bergerak sedikit di touchscreen)
+    await tester.drag(launcher, const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(openCount, 2);
+
+    // 3. Sembunyikan saat sheet terbuka dan munculkan kembali saat sheet ditutup
+    launcherState.value = const FfmAssistantLauncherState(isSheetOpen: true);
+    await tester.pumpAndSettle();
+    expect(find.byType(FloatingActionButton), findsNothing);
+
+    launcherState.value = const FfmAssistantLauncherState(isSheetOpen: false);
+    await tester.pumpAndSettle();
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+  });
 }
+

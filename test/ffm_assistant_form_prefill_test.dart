@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_form_prefill.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/transaction/data/services/receipt_import_models.dart';
 
 void main() {
   test('mapper transaksi hanya mengirim nilai prefill yang aman', () {
@@ -140,4 +141,41 @@ void main() {
     expect(prefill.values.containsKey('password'), isFalse);
     expect(prefill.values.containsKey('secret'), isFalse);
   });
+
+  test('prefill mempertahankan rincian item belanja nota dan nomor struk', () {
+    final prefill = FfmAssistantFormPrefillMapper.fromDraft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.expense,
+        createdAt: DateTime(2026, 8, 28),
+        amount: 85000,
+        fromAccountName: 'BCA',
+        categoryName: 'Dapur',
+        receiptNumber: 'STRUK-999',
+        receiptPaidAmount: 100000,
+        receiptChangeAmount: 15000,
+        items: const [
+          ReceiptOcrItem(
+            name: 'Minyak Goreng 2L',
+            price: 35000,
+            quantity: 1,
+            unit: 'PCS',
+          ),
+          ReceiptOcrItem(
+            name: 'Beras 5kg',
+            price: 50000,
+            quantity: 1,
+            unit: 'SAK',
+          ),
+        ],
+      ),
+    );
+
+    expect(prefill.values['receiptNumber'], 'STRUK-999');
+    expect(prefill.values['receiptPaidAmount'], '100000');
+    expect(prefill.values['receiptChangeAmount'], '15000');
+    expect(prefill.values['itemsJson'], isNotNull);
+    expect(prefill.values['itemsJson'], contains('Minyak Goreng 2L'));
+    expect(prefill.values['itemsJson'], contains('Beras 5kg'));
+  });
 }
+

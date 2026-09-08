@@ -552,13 +552,13 @@ class FfmAssistantInterpreter {
       draftFeedback: draftFeedbackText,
       conversationHistory: _boundedConversationHistory(
         conversationHistory,
-        maxLines: 12,
+        maxLines: 35,
       ),
       cloudMemoryContext: cloudContext,
     ).toBoundedPrompt();
   }
 
-  String _boundedConversationHistory(String? history, {int maxLines = 12}) {
+  String _boundedConversationHistory(String? history, {int maxLines = 35}) {
     if (history == null || history.trim().isEmpty) return '';
     final lines = history
         .split('\n')
@@ -762,6 +762,12 @@ class FfmAssistantInterpreter {
         analysisForIntent = null;
       }
     }
+    final isGreeting = _isGreetingWord(normalized);
+    final isConversationalOrHelp =
+        isGreeting ||
+        requestClassForMeta == FfmAssistantCloudRequestClass.help ||
+        requestClassForMeta == FfmAssistantCloudRequestClass.general;
+
     final verifiedForIntent = await _generateVerifiedFactsForQuery(normalized);
     final groundingError = FfmAssistantGroundingValidator.validatePlainText(
       geminiText: turn.text!,
@@ -772,6 +778,8 @@ class FfmAssistantInterpreter {
           (geminiMetadata['usedReadCapability'] != null
               ? verifiedForIntent
               : null),
+      conversationHistory: conversationHistory,
+      isGeneralOrHelp: isConversationalOrHelp,
     );
     if (groundingError != null) {
       return _InterpretResult.single(
@@ -791,11 +799,6 @@ class FfmAssistantInterpreter {
         ),
       );
     }
-    final isGreeting = _isGreetingWord(normalized);
-    final isConversationalOrHelp =
-        isGreeting ||
-        requestClassForMeta == FfmAssistantCloudRequestClass.help ||
-        requestClassForMeta == FfmAssistantCloudRequestClass.general;
     final resolvedIntentType = isConversationalOrHelp
         ? FfmAssistantIntentType.help
         : FfmAssistantIntentType.queryData;

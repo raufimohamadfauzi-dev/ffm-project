@@ -137,13 +137,39 @@ class ReceiptImportService {
       warnings.add('Field items harus berupa array.');
     }
 
+    var total = _money(data['total'] ?? data['amount']);
+    final paidAmount = _money(data['paid_amount'] ?? data['bayar']);
+    final changeAmount = _money(data['change_amount'] ?? data['kembalian']);
+
+    // Rekonsiliasi jumlah belanja vs uang tunai pembeli:
+    // Jika ada bayar (tunai pembeli) dan kembalian, total belanja adalah paidAmount - changeAmount.
+    // Jika total == paidAmount dan ada changeAmount > 0, berarti LLM keliru mengisi total dengan uang tunai pembeli.
+    if (paidAmount != null && changeAmount != null && changeAmount > 0) {
+      if (total == null || total == paidAmount) {
+        total = paidAmount - changeAmount;
+      }
+    }
+
+    // Jika ada rincian item, dan jumlah harga item valid:
+    // Jika total == paidAmount dan total > itemsTotal, rekonsiliasi total ke itemsTotal
+    if (items.isNotEmpty) {
+      final itemsTotal =
+          items.fold<int>(0, (sum, item) => sum + item.calculatedTotal);
+      if (itemsTotal > 0 &&
+          total != null &&
+          total > itemsTotal &&
+          total == paidAmount) {
+        total = itemsTotal;
+      }
+    }
+
     final result = ReceiptOcrResult(
       merchant: _text(data['merchant'] ?? data['toko']),
-      total: _money(data['total'] ?? data['amount']),
+      total: total,
       date: _date(data['date'] ?? data['tanggal']),
       time: _text(data['time'] ?? data['waktu']),
-      paidAmount: _money(data['paid_amount'] ?? data['bayar']),
-      changeAmount: _money(data['change_amount'] ?? data['kembalian']),
+      paidAmount: paidAmount,
+      changeAmount: changeAmount,
       receiptNumber: _text(
         data['receipt_number'] ?? data['nomor_nota'] ?? data['nomor_struk'],
       ),
@@ -276,11 +302,29 @@ class ReceiptImportService {
         final parsed = _parseItem(data, 0, warnings);
         if (parsed != null) items.add(parsed);
       }
-      final amount =
+      var amount =
           _money(data['amount'] ?? data['total']) ??
           (items.isEmpty
               ? null
               : items.fold<int>(0, (sum, item) => sum + item.calculatedTotal));
+      final paidAmount = _money(data['paid_amount'] ?? data['bayar']);
+      final changeAmount = _money(data['change_amount'] ?? data['kembalian']);
+      final itemsTotal = items.isEmpty
+          ? null
+          : items.fold<int>(0, (sum, item) => sum + item.calculatedTotal);
+
+      if (paidAmount != null && changeAmount != null && changeAmount > 0) {
+        if (amount == null || amount == paidAmount) {
+          amount = paidAmount - changeAmount;
+        }
+      } else if (itemsTotal != null &&
+          itemsTotal > 0 &&
+          amount != null &&
+          amount > itemsTotal &&
+          amount == paidAmount) {
+        amount = itemsTotal;
+      }
+
       if (amount == null || amount <= 0) {
         warnings.add('Transaksi ke-${index + 1} belum memiliki nominal valid.');
       }
@@ -624,6 +668,7 @@ Aturan:
 - `transactions` berisi satu objek untuk setiap transaksi. Satu nota berarti satu transaksi dengan rincian barang di `items`.
 - `type` hanya boleh `income`, `expense`, atau `transfer`.
 - `amount`, `unit_price`, dan `items.amount` harus berupa angka integer rupiah tanpa titik, koma, atau simbol Rp.
+- `amount` adalah TOTAL TRANSAKSI/HARGA AKHIR BELANJA (bukan uang tunai yang diserahkan/dibayar pembeli). Jika ada baris Tunai/Bayar/Cash dan Kembalian/Change, `amount` adalah nilai total belanja yang sesungguhnya (bukan uang tunai/bayar). Isi `paid_amount` dengan uang tunai pembeli dan `change_amount` dengan uang kembalian bila ada.
 - Satu transaksi boleh memiliki banyak item pada `items`.
 - Untuk `transfer`, isi `from_account_id` dan `to_account_id` hanya jika ID rekening diberikan; jika tidak, gunakan null agar dipilih di FFM.
 - Untuk pengeluaran, isi `budget_name` dengan nama pos anggaran yang paling cocok berdasarkan keterangan. Jika tidak yakin, gunakan null; jangan menebak.

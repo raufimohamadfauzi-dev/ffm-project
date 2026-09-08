@@ -8,7 +8,9 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_interpreter.dart';
+import '../../../assistant/domain/entities/autonomous_activity_models.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
+import '../../../assistant/presentation/widgets/autonomous_activity_dialogs.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../settings/data/category_repository.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
@@ -34,6 +36,7 @@ class ActivityPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.activity,
+      isTab: true,
       child: BlocProvider.value(
         value: getIt<ActivityBloc>()..load(),
         child: _ActivityView(
@@ -246,6 +249,79 @@ class _ActivityViewState extends State<_ActivityView>
       occurredAt: result.occurredAt,
       sessionId: sessionId,
     );
+  }
+
+  Future<void> _revertAutonomous(AutonomousActivityRecord activity) async {
+    final confirmed = await showRevertActivityDialog(
+      context: context,
+      activity: activity,
+    );
+    if (confirmed == true && mounted) {
+      final ok = await context
+          .read<ActivityBloc>()
+          .revertAutonomousActivity(activity.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? 'Aksi otonom berhasil dibatalkan dan dikembalikan.'
+                  : 'Gagal membatalkan aksi otonom.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _correctAutonomous(AutonomousActivityRecord activity) async {
+    final result = await showEditActivityDialog(
+      context: context,
+      activity: activity,
+    );
+    if (result != null && mounted) {
+      final ok = await context
+          .read<ActivityBloc>()
+          .correctAutonomousActivity(
+            activity.id,
+            updatedPayload: result,
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              ok
+                  ? 'Koreksi aksi otonom berhasil disimpan.'
+                  : 'Gagal mengoreksi aksi otonom.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _generateDailyAiJournal() async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Menyusun Refleksi Jurnal AI hari ini...'),
+        duration: Duration(seconds: 1),
+      ),
+    );
+    final target = _dayFilter ?? DateTime.now();
+    final journal = await context.read<ActivityBloc>().generateDailyAiJournal(
+          targetDate: target,
+        );
+    if (mounted && journal != null) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Refleksi Jurnal "${journal.title}" berhasil disimpan ke linimasa!',
+          ),
+          backgroundColor: Colors.teal.shade800,
+        ),
+      );
+    }
   }
 
   Future<void> _startVoiceCapture() async {
@@ -999,6 +1075,19 @@ class _ActivityViewState extends State<_ActivityView>
                                         : session.isHistory)),
                           )
                           .toList();
+                      final visibleAutonomous = state.autonomousActivities
+                          .where(
+                            (a) =>
+                                _matchesDay(a.occurredAt) &&
+                                (_searchQuery.trim().isEmpty ||
+                                    a.title.toLowerCase().contains(
+                                      _searchQuery.trim().toLowerCase(),
+                                    ) ||
+                                    a.description.toLowerCase().contains(
+                                      _searchQuery.trim().toLowerCase(),
+                                    )),
+                          )
+                          .toList();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1016,6 +1105,8 @@ class _ActivityViewState extends State<_ActivityView>
                                     checkpoints:
                                         state.checkpoints[session.id] ??
                                         const [],
+                                    linkedCost:
+                                        state.linkedCosts[session.id] ?? 0,
                                     calculator: _calculator,
                                     onCheckpoint: () =>
                                         _addCheckpoint(sessionId: session.id),
@@ -1042,16 +1133,46 @@ class _ActivityViewState extends State<_ActivityView>
                               ),
                             const SizedBox(height: 8),
                           ],
-                          _SectionTitle(
-                            title: 'Riwayat Aktivitas',
-                            count: visibleSessions.length,
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _SectionTitle(
+                                    title: _riwayatTab == '🤖 Otonom'
+                                        ? 'Aksi Otonom Agen'
+                                        : 'Riwayat Aktivitas',
+                                    count: _riwayatTab == '🤖 Otonom'
+                                        ? visibleAutonomous.length
+                                        : visibleSessions.length,
+                                  ),
+                                ),
+                                FilledButton.tonalIcon(
+                                  onPressed: _generateDailyAiJournal,
+                                  icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                                  label: const Text(
+                                    'Refleksi AI',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          const SizedBox(height: 6),
                           SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                for (final tab in ['Semua', 'Timer', 'Catatan'])
+                                for (final tab in ['Semua', 'Timer', 'Catatan', '🤖 Otonom'])
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ChoiceChip(
@@ -1060,7 +1181,9 @@ class _ActivityViewState extends State<_ActivityView>
                                             ? '⏱️ Timer'
                                             : (tab == 'Catatan'
                                                 ? '📝 Catatan'
-                                                : 'Semua'),
+                                                : (tab == '🤖 Otonom'
+                                                    ? '🤖 Otonom'
+                                                    : 'Semua')),
                                       ),
                                       selected: _riwayatTab == tab,
                                       onSelected: (selected) {
@@ -1074,40 +1197,91 @@ class _ActivityViewState extends State<_ActivityView>
                             ),
                           ),
                           const SizedBox(height: 10),
-                          if (visibleSessions.isEmpty)
-                            _SmartRoutineEmptyState(
-                              onStartRoutine: (title, category, mode) => _startSession(
-                                initialTitle: title,
-                                initialCategory: category,
-                                initialMode: mode,
-                              ),
-                              onStartCustom: () => _startSession(),
-                            )
-                          else
-                            for (final session in visibleSessions)
-                              _SessionCard(
-                                session: session,
-                                checkpoints:
-                                    state.checkpoints[session.id] ?? const [],
-                                calculator: _calculator,
-                                onOpen: () => _showSessionDetails(
-                                  session,
-                                  state.checkpoints[session.id] ?? const [],
-                                  state.sessions
-                                      .where(
-                                        (child) =>
-                                            child.parentSessionId == session.id,
-                                      )
-                                      .toList(),
+                          if (_riwayatTab == '🤖 Otonom') ...[
+                            if (visibleAutonomous.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 36),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      Icon(
+                                        Icons.smart_toy_outlined,
+                                        size: 44,
+                                        color: Colors.grey,
+                                      ),
+                                      SizedBox(height: 8),
+                                      Text(
+                                        'Belum ada aksi otonom yang tercatat untuk filter ini.',
+                                        style: TextStyle(color: Colors.grey),
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                onArchive: () =>
-                                    _confirmArchiveSession(session),
-                                onDelete: () => _confirmDeleteSession(session),
-                                onEdit: () => _editSession(session),
-                                onTogglePriority: () => context
-                                    .read<ActivityBloc>()
-                                    .togglePriority(session.id),
+                              )
+                            else
+                              for (final activity in visibleAutonomous)
+                                _AutonomousActivityCard(
+                                  activity: activity,
+                                  onRevert: () => _revertAutonomous(activity),
+                                  onCorrect: () => _correctAutonomous(activity),
+                                ),
+                          ] else ...[
+                            if (_riwayatTab == 'Semua' && visibleAutonomous.isNotEmpty) ...[
+                              _SectionTitle(
+                                title: 'Aksi Otonom Terbaru',
+                                count: visibleAutonomous.take(3).length,
                               ),
+                              const SizedBox(height: 6),
+                              for (final activity in visibleAutonomous.take(3))
+                                _AutonomousActivityCard(
+                                  activity: activity,
+                                  onRevert: () => _revertAutonomous(activity),
+                                  onCorrect: () => _correctAutonomous(activity),
+                                ),
+                              const SizedBox(height: 10),
+                              _SectionTitle(
+                                title: 'Sesi Kegiatan',
+                                count: visibleSessions.length,
+                              ),
+                              const SizedBox(height: 6),
+                            ],
+                            if (visibleSessions.isEmpty)
+                              _SmartRoutineEmptyState(
+                                onStartRoutine: (title, category, mode) => _startSession(
+                                  initialTitle: title,
+                                  initialCategory: category,
+                                  initialMode: mode,
+                                ),
+                                onStartCustom: () => _startSession(),
+                              )
+                            else
+                              for (final session in visibleSessions)
+                                _SessionCard(
+                                  session: session,
+                                  checkpoints:
+                                      state.checkpoints[session.id] ?? const [],
+                                  linkedCost:
+                                      state.linkedCosts[session.id] ?? 0,
+                                  calculator: _calculator,
+                                  onOpen: () => _showSessionDetails(
+                                    session,
+                                    state.checkpoints[session.id] ?? const [],
+                                    state.sessions
+                                        .where(
+                                          (child) =>
+                                              child.parentSessionId == session.id,
+                                        )
+                                        .toList(),
+                                  ),
+                                  onArchive: () =>
+                                      _confirmArchiveSession(session),
+                                  onDelete: () => _confirmDeleteSession(session),
+                                  onEdit: () => _editSession(session),
+                                  onTogglePriority: () => context
+                                      .read<ActivityBloc>()
+                                      .togglePriority(session.id),
+                                ),
+                          ],
                         ],
                       );
                     },
@@ -1260,6 +1434,7 @@ class _ActiveSessionCard extends StatelessWidget {
     required this.onCheckpoint,
     required this.onFinish,
     required this.onStartChild,
+    this.linkedCost = 0,
     this.onTogglePriority,
     this.onEdit,
   });
@@ -1269,6 +1444,7 @@ class _ActiveSessionCard extends StatelessWidget {
   final VoidCallback onCheckpoint;
   final VoidCallback onFinish;
   final VoidCallback onStartChild;
+  final int linkedCost;
   final VoidCallback? onTogglePriority;
   final VoidCallback? onEdit;
 
@@ -1398,6 +1574,32 @@ class _ActiveSessionCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text('Dimulai ${_dateTime(session.startedAt)} • masih berjalan'),
+          if (linkedCost > 0) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.payments_outlined, size: 15, color: Colors.green.shade800),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Total Biaya Sesi: Rp ${formatRupiahInput(linkedCost.toString())}',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (checkpoints.isNotEmpty) ...[
             const SizedBox(height: 10),
             for (final checkpoint in checkpoints)
@@ -1506,6 +1708,7 @@ class _SessionCard extends StatelessWidget {
     required this.onOpen,
     required this.onArchive,
     required this.onDelete,
+    this.linkedCost = 0,
     this.onEdit,
     this.onTogglePriority,
   });
@@ -1515,6 +1718,7 @@ class _SessionCard extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onArchive;
   final VoidCallback onDelete;
+  final int linkedCost;
   final VoidCallback? onEdit;
   final VoidCallback? onTogglePriority;
 
@@ -1598,6 +1802,32 @@ class _SessionCard extends StatelessWidget {
                 fontSize: 12,
               ),
             ),
+            if (linkedCost > 0) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.payments_outlined, size: 13, color: Colors.green.shade800),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Biaya: Rp ${formatRupiahInput(linkedCost.toString())}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             // Isi Catatan (jika ada) - Melebar bebas ke kanan
             if (isNote && session.notes?.trim().isNotEmpty == true) ...[
@@ -1723,6 +1953,199 @@ class _SessionCard extends StatelessWidget {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AutonomousActivityCard extends StatelessWidget {
+  const _AutonomousActivityCard({
+    required this.activity,
+    required this.onRevert,
+    required this.onCorrect,
+  });
+
+  final AutonomousActivityRecord activity;
+  final VoidCallback onRevert;
+  final VoidCallback onCorrect;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final (icon, color, typeLabel) = switch (activity.activityType) {
+      AutonomousActivityType.fuelLog => (
+        Icons.local_gas_station_rounded,
+        Colors.blue,
+        'BBM Kendaraan',
+      ),
+      AutonomousActivityType.envelopeRebalance => (
+        Icons.swap_horiz_rounded,
+        Colors.orange,
+        'Pergeseran Anggaran',
+      ),
+      AutonomousActivityType.utilityMeter => (
+        Icons.electric_bolt_rounded,
+        Colors.amber,
+        'Meteran PLN',
+      ),
+      AutonomousActivityType.harvestShift => (
+        Icons.agriculture_rounded,
+        Colors.green,
+        'Siklus Panen',
+      ),
+      AutonomousActivityType.habitDeclaration => (
+        Icons.psychology_rounded,
+        Colors.purple,
+        'Kebiasaan Rutin',
+      ),
+      AutonomousActivityType.assetRevaluation => (
+        Icons.trending_up_rounded,
+        Colors.teal,
+        'Revaluasi Aset',
+      ),
+      AutonomousActivityType.debtPayoff => (
+        Icons.price_check_rounded,
+        Colors.indigo,
+        'Pelunasan Hutang',
+      ),
+      AutonomousActivityType.receivableReminder => (
+        Icons.notifications_active_rounded,
+        Colors.deepOrange,
+        'Pengingat Piutang',
+      ),
+    };
+
+    final isReverted = activity.status == AutonomousActivityStatus.reverted;
+    final isCorrected = activity.status == AutonomousActivityStatus.corrected;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppCard(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        color: isReverted
+            ? (isDark ? Colors.red.shade900.withValues(alpha: 0.3) : Colors.red.shade50)
+            : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              activity.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14.5,
+                                decoration:
+                                    isReverted ? TextDecoration.lineThrough : null,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isReverted
+                                  ? Colors.red.withValues(alpha: 0.15)
+                                  : (isCorrected
+                                      ? Colors.blue.withValues(alpha: 0.15)
+                                      : Colors.teal.withValues(alpha: 0.15)),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              isReverted
+                                  ? '↩️ Dibatalkan'
+                                  : (isCorrected ? '✏️ Dikoreksi' : '🤖 Agen Otonom'),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: isReverted
+                                    ? Colors.redAccent
+                                    : (isCorrected
+                                        ? Colors.blueAccent
+                                        : Colors.teal.shade700),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$typeLabel • ${_dateTime(activity.occurredAt)}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              activity.description,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: isDark ? Colors.grey[300] : Colors.grey[800],
+              ),
+            ),
+            if (!isReverted) ...[
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    onPressed: onCorrect,
+                    icon: const Icon(Icons.edit_note_rounded, size: 16),
+                    label: const Text('Koreksi', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: onRevert,
+                    icon: const Icon(
+                      Icons.undo_rounded,
+                      size: 15,
+                      color: Colors.redAccent,
+                    ),
+                    label: const Text(
+                      'Batalkan',
+                      style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

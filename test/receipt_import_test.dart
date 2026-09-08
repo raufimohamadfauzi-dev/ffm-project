@@ -312,4 +312,49 @@ void main() {
     expect(result.entries[0].location, 'Bendungan Hilir');
     expect(result.entries[0].tags, ['kuliner', 'makan']);
   });
+
+  test('rekonsiliasi otomatis jika total salah terbaca sebagai nominal tunai bayar', () {
+    // Pengguna belanja 75rb, bayar 100rb, kembalian 25rb.
+    // Jika LLM salah mengisi total = 100000 (uang bayar), total wajib otomatis direkonsiliasi jadi 75000.
+    const jsonOverstated = '''
+    {
+      "format": "ffm-receipt-draft-v1",
+      "receipt": {
+        "merchant": "Supermarket ABC",
+        "total": 100000,
+        "paid_amount": 100000,
+        "change_amount": 25000,
+        "items": [
+          {"name": "Beras 5kg", "quantity": 1, "amount": 75000}
+        ]
+      }
+    }
+    ''';
+    final result = ReceiptImportService.parseJson(jsonOverstated);
+    expect(result.total, 75000);
+    expect(result.paidAmount, 100000);
+    expect(result.changeAmount, 25000);
+
+    // Batch JSON juga harus merekonsiliasi nominal
+    const batchOverstated = '''
+    {
+      "format": "ffm-transaction-batch-v1",
+      "transactions": [
+        {
+          "type": "expense",
+          "amount": 100000,
+          "paid_amount": 100000,
+          "change_amount": 25000,
+          "merchant": "Toko Kelontong",
+          "items": [
+            {"name": "Minyak Goreng 2L", "quantity": 1, "amount": 75000}
+          ]
+        }
+      ]
+    }
+    ''';
+    final batchResult = ReceiptImportService.parseBatchJson(batchOverstated);
+    expect(batchResult.entries[0].amount, 75000);
+  });
 }
+

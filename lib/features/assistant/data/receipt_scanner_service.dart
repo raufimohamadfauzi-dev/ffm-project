@@ -245,6 +245,10 @@ Kamu menerima sebuah FOTO STRUK/NOTA/BUKTI PEMBAYARAN.
 
 Perhatikan baik-baik gambar sebelum menulis JSON:
 - Baca nomor, rincian barang, total, tanggal, nama toko dengan teliti sesuai teks di foto.
+- PENTING TENTANG JUMLAH/TOTAL TRANSAKSI (amount/total):
+  * Nilai "amount" atau "total" adalah TOTAL BELANJA / HARGA AKHIR YANG DIBAYAR (setelah diskon/pajak).
+  * JANGAN gunakan uang tunai yang diserahkan pembeli (cash / tunai / bayar / paid_amount) sebagai total/amount transaksi jika ada uang kembalian (change / kembali).
+  * Contoh: Total Belanja Rp75.000, Tunai/Bayar Rp100.000, Kembalian Rp25.000 -> maka amount adalah 75000, paid_amount adalah 100000, dan change_amount adalah 25000. JANGAN set amount menjadi 100000!
 - Tentukan jenis transaksi (type):
   * Jika nota merupakan struk belanja, pembelian barang/jasa, atau tagihan: gunakan type "expense".
   * Jika nota merupakan faktur penjualan barang/jasa, kuitansi penerimaan pembayaran, bukti transfer masuk, atau nota uang masuk: gunakan type "income".

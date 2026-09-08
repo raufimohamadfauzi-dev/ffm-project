@@ -5,6 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
+import '../../../../shared/widgets/app_components.dart';
+import '../../../assistant/data/autonomous_activity_repository.dart';
+import '../../../assistant/domain/entities/autonomous_activity_models.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../../domain/activity_voice.dart';
@@ -18,6 +21,7 @@ class ActivityState {
     this.notes = const [],
     this.linkedCosts = const {},
     this.habitSuggestions = const [],
+    this.autonomousActivities = const [],
     this.activeSession,
     this.loading = false,
     this.saving = false,
@@ -33,6 +37,7 @@ class ActivityState {
   final List<ActivityNoteEntity> notes;
   final Map<String, int> linkedCosts;
   final List<String> habitSuggestions;
+  final List<AutonomousActivityRecord> autonomousActivities;
   final ActivitySessionEntity? activeSession;
   final bool loading;
   final bool saving;
@@ -60,6 +65,7 @@ class ActivityState {
     List<ActivityNoteEntity>? notes,
     Map<String, int>? linkedCosts,
     List<String>? habitSuggestions,
+    List<AutonomousActivityRecord>? autonomousActivities,
     ActivitySessionEntity? activeSession,
     bool clearActiveSession = false,
     bool? loading,
@@ -76,6 +82,7 @@ class ActivityState {
     notes: notes ?? this.notes,
     linkedCosts: linkedCosts ?? this.linkedCosts,
     habitSuggestions: habitSuggestions ?? this.habitSuggestions,
+    autonomousActivities: autonomousActivities ?? this.autonomousActivities,
     activeSession: clearActiveSession
         ? null
         : activeSession ?? this.activeSession,
@@ -88,9 +95,13 @@ class ActivityState {
 }
 
 class ActivityBloc extends Cubit<ActivityState> {
-  ActivityBloc(this.repository) : super(const ActivityState());
+  ActivityBloc(
+    this.repository, {
+    this.autonomousRepository,
+  }) : super(const ActivityState());
 
   final ActivityRepository repository;
+  final AutonomousActivityRepository? autonomousRepository;
   static const _uuid = Uuid();
   bool _migrated = false;
   bool _healingDone = false;
@@ -172,6 +183,12 @@ class ActivityBloc extends Cubit<ActivityState> {
           session.id,
         );
       }
+      final autonomousList = autonomousRepository != null
+          ? await autonomousRepository!.getRecentActivities(
+              AppContext.householdId,
+            )
+          : <AutonomousActivityRecord>[];
+
       emit(
         state.copyWith(
           sessions: sessions,
@@ -181,6 +198,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           notes: notes,
           linkedCosts: costMap,
           habitSuggestions: suggestions,
+          autonomousActivities: autonomousList,
           activeSession: active,
           clearActiveSession: active == null,
           loading: false,
@@ -636,6 +654,138 @@ class ActivityBloc extends Cubit<ActivityState> {
     );
     await _save(() => repository.saveSession(updated));
     return true;
+  }
+
+  /// Membatalkan / me-revert tindakan otonom yang sebelumnya dijalankan oleh asisten.
+  Future<bool> revertAutonomousActivity(String activityId) async {
+    if (autonomousRepository == null) return false;
+    emit(state.copyWith(saving: true, clearError: true));
+    try {
+      final success = await autonomousRepository!.revertActivity(
+        householdId: AppContext.householdId,
+        activityId: activityId,
+      );
+      if (success) {
+        await load();
+      } else {
+        emit(state.copyWith(saving: false, error: 'Aksi otonom tidak dapat dibatalkan.'));
+      }
+      return success;
+    } catch (error) {
+      emit(state.copyWith(saving: false, error: 'Gagal membatalkan aksi otonom: $error'));
+      return false;
+    }
+  }
+
+  /// Mengoreksi data teks atau parameter dari tindakan otonom yang tercatat.
+  Future<bool> correctAutonomousActivity(
+    String activityId, {
+    String? newTitle,
+    String? newDescription,
+    Map<String, dynamic>? updatedPayload,
+  }) async {
+    if (autonomousRepository == null) return false;
+    emit(state.copyWith(saving: true, clearError: true));
+    try {
+      final success = await autonomousRepository!.correctActivity(
+        householdId: AppContext.householdId,
+        activityId: activityId,
+        newTitle: newTitle,
+        newDescription: newDescription,
+        updatedPayload: updatedPayload,
+      );
+      if (success) {
+        await load();
+      } else {
+        emit(state.copyWith(saving: false, error: 'Koreksi aksi otonom gagal.'));
+      }
+      return success;
+    } catch (error) {
+      emit(state.copyWith(saving: false, error: 'Gagal mengoreksi aksi otonom: $error'));
+      return false;
+    }
+  }
+
+  /// Menghasilkan Refleksi Jurnal Harian Cerdas gabungan produktivitas & finansial.
+  Future<ActivitySessionEntity?> generateDailyAiJournal({DateTime? targetDate}) async {
+    final date = targetDate ?? DateTime.now();
+
+    // Sesi aktivitas hari ini
+    final todaySessions = state.sessions.where((s) {
+      return s.startedAt.year == date.year &&
+          s.startedAt.month == date.month &&
+          s.startedAt.day == date.day &&
+          !s.isArchived;
+    }).toList();
+
+    var totalMinutes = 0;
+    var totalLinkedCost = 0;
+    final sessionSummaries = <String>[];
+
+    for (final s in todaySessions) {
+      final dur = s.endedAt != null
+          ? s.endedAt!.difference(s.startedAt).inMinutes
+          : (s.status == ActivitySessionStatus.active
+              ? DateTime.now().difference(s.startedAt).inMinutes
+              : 0);
+      totalMinutes += dur > 0 ? dur : 0;
+      final cost = state.linkedCosts[s.id] ?? 0;
+      totalLinkedCost += cost;
+      final costStr = cost > 0 ? ' (Biaya: Rp ${formatRupiahInput(cost.toString())})' : '';
+      sessionSummaries.add('• ${s.title}$costStr');
+    }
+
+    final hours = totalMinutes ~/ 60;
+    final mins = totalMinutes % 60;
+    final timeStr = hours > 0 ? '$hours jam $mins menit' : '$mins menit';
+
+    // Aksi otonom hari ini
+    final todayAutonomous = state.autonomousActivities.where((a) {
+      return a.occurredAt.year == date.year &&
+          a.occurredAt.month == date.month &&
+          a.occurredAt.day == date.day &&
+          a.status == AutonomousActivityStatus.active;
+    }).toList();
+
+    final autoSummaries = todayAutonomous
+        .map((a) => '• 🤖 ${a.title}: ${a.description}')
+        .toList();
+
+    final costSummary = totalLinkedCost > 0
+        ? 'Total pengeluaran tercatat pada kegiatan hari ini: Rp ${formatRupiahInput(totalLinkedCost.toString())}.'
+        : 'Tidak ada pengeluaran khusus yang tertaut pada sesi kegiatan hari ini.';
+
+    final narrative = StringBuffer();
+    narrative.writeln('📋 Rangkuman Jurnal Hari Ini:');
+    narrative.writeln('Total waktu produktif: $timeStr dari ${todaySessions.length} sesi kegiatan.');
+    narrative.writeln(costSummary);
+    if (sessionSummaries.isNotEmpty) {
+      narrative.writeln('\nRincian Kegiatan:');
+      narrative.writeln(sessionSummaries.join('\n'));
+    }
+    if (autoSummaries.isNotEmpty) {
+      narrative.writeln('\nTindakan Otonom Agen:');
+      narrative.writeln(autoSummaries.join('\n'));
+    }
+
+    final dateStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final journalSession = ActivitySessionEntity(
+      id: _uuid.v4(),
+      householdId: AppContext.householdId,
+      title: 'Refleksi Jurnal Harian ($dateStr)',
+      category: 'Jurnal AI',
+      kind: ActivityKind.task,
+      status: ActivitySessionStatus.completed,
+      notes: narrative.toString().trim(),
+      startedAt: date,
+      endedAt: date,
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+
+    await repository.saveSession(journalSession);
+    await load();
+    return journalSession;
   }
 
   Future<void> _save(Future<void> Function() operation) async {

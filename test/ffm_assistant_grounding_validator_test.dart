@@ -66,5 +66,40 @@ void main() {
       expect(error, isNotNull);
       expect(error, contains('Tanggal pada jawaban'));
     });
+
+    test('mengizinkan angka pada percakapan umum atau edukasi ketika isGeneralOrHelp true', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Inflasi di Indonesia pada tahun 2024 diproyeksikan sekitar 2,5% sampai 3,0%.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+        isGeneralOrHelp: true,
+      );
+      expect(error, isNull);
+    });
+
+    test('mengizinkan angka yang bersumber dari riwayat percakapan sebelumnya', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Tadi Anda menyebutkan ingin membeli sepeda seharga Rp 2.500.000.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+        conversationHistory: 'Pengguna: Rencana beli sepeda 2500000 bulan depan.',
+      );
+      expect(error, isNull);
+    });
+
+    test('tetap memblokir klaim penyimpanan data meskipun isGeneralOrHelp true', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Data sudah tersimpan ke aplikasi.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+        isGeneralOrHelp: true,
+      );
+      expect(error, isNotNull);
+      expect(error, contains('tidak dapat menampilkan klaim penyimpanan'));
+    });
   });
 }
+

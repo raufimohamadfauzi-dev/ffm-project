@@ -297,7 +297,7 @@ class FfmAssistantCloudContextEnvelope {
       if (draftFeedback.trim().isNotEmpty)
         'DRAFT REVISION FEEDBACK:\n${_clip(draftFeedback, 500)}',
       if (conversationHistory.trim().isNotEmpty)
-        'BOUNDED CONVERSATION HISTORY:\n${_clip(conversationHistory, 900)}',
+        'BOUNDED CONVERSATION HISTORY:\n${_clip(conversationHistory, 2500)}',
       if (cloudMemoryContext.trim().isNotEmpty)
         'BOUNDED CLOUD MEMORY:\n${_clip(cloudMemoryContext, 500)}',
     ];

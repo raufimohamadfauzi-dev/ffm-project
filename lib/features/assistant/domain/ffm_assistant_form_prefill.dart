@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'ffm_assistant_draft_validator.dart';
 import 'ffm_assistant_models.dart';
 
@@ -61,6 +63,28 @@ abstract final class FfmAssistantFormPrefillMapper {
         'location': draft.formValues['location']!.trim(),
       if (draft.goalName?.trim().isNotEmpty ?? false)
         'goalName': draft.goalName!.trim(),
+      if (draft.receiptNumber?.trim().isNotEmpty ?? false)
+        'receiptNumber': draft.receiptNumber!.trim(),
+      if (draft.receiptPaidAmount != null)
+        'receiptPaidAmount': draft.receiptPaidAmount.toString(),
+      if (draft.receiptChangeAmount != null)
+        'receiptChangeAmount': draft.receiptChangeAmount.toString(),
+      if (draft.tax != null) 'tax': draft.tax.toString(),
+      if (draft.discount != null) 'discount': draft.discount.toString(),
+      if (draft.items.isNotEmpty)
+        'itemsJson': jsonEncode(
+          draft.items
+              .map(
+                (item) => {
+                  'name': item.name,
+                  'price': item.price,
+                  'quantity': item.quantity,
+                  'qty': item.quantity,
+                  'unit': item.unit,
+                },
+              )
+              .toList(),
+        ),
       ...draft.formValues,
     };
     final issues = FfmAssistantDraftValidator.validate(draft);

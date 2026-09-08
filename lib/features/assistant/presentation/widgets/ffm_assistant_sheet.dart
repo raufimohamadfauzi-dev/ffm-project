@@ -1595,9 +1595,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _checkForMemoryNudge(text);
 
     final normalized = text.toLowerCase().trim();
-
-    // 0. Permintaan Executive Morning Briefing
-    if (normalized == 'briefing pagi' ||
+    final stopwatch = Stopwatch()..start();
+    try {
+      // 0. Permintaan Executive Morning Briefing
+      if (normalized == 'briefing pagi' ||
         normalized == 'morning briefing' ||
         normalized == 'ringkasan pagi' ||
         normalized == 'dengarkan briefing pagi 🔊' ||
@@ -1927,13 +1928,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
     }
 
-    final stopwatch = Stopwatch()..start();
     _setActiveProcess(
-      _routingMode == FfmAssistantRoutingMode.geminiCloud
-          ? 'Tahap 1/2: Gemini Cloud memahami permintaan...'
-          : 'Tahap 1/2: Menyiapkan konteks Agent...',
-    );
-    try {
+        _routingMode == FfmAssistantRoutingMode.geminiCloud
+            ? 'Tahap 1/2: Gemini Cloud memahami permintaan...'
+            : 'Tahap 1/2: Menyiapkan konteks Agent...',
+      );
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
         stopwatch.stop();
         setState(() {
@@ -1957,7 +1956,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _scrollToEnd();
         return;
       }
-      if (_tryReviseActiveDraft(text)) return;
+      if (_routingMode != FfmAssistantRoutingMode.geminiCloud &&
+          _tryReviseActiveDraft(text)) {
+        return;
+      }
       if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
       if (pending != null) {
@@ -4445,17 +4447,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   String? _buildRecentConversationHistory() {
     if (_entries.isEmpty) return null;
-    final recent = _entries.length > 8
-        ? _entries.sublist(_entries.length - 8)
+    // Ambil riwayat percakapan sebelumnya (hingga 20 pesan terakhir sebelum input yang sedang berjalan)
+    final priorEntries = _entries.isNotEmpty && _entries.last.isUser
+        ? _entries.sublist(0, _entries.length - 1)
         : _entries;
+    if (priorEntries.isEmpty) return null;
+
+    final recent = priorEntries.length > 20
+        ? priorEntries.sublist(priorEntries.length - 20)
+        : priorEntries;
     final lines = <String>[];
     for (final entry in recent) {
       final role = entry.isUser ? 'Pengguna' : 'Asisten';
       final text = entry.text.trim();
       if (text.isNotEmpty) {
-        final snippet = text.split('\n').take(3).join(' ').trim();
-        final truncated = snippet.length > 200
-            ? '${snippet.substring(0, 200)}...'
+        final snippet = text.split('\n').take(6).join(' ').trim();
+        final truncated = snippet.length > 600
+            ? '${snippet.substring(0, 600)}...'
             : snippet;
         lines.add('$role: $truncated');
       }
@@ -4463,7 +4471,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (draft != null) {
         final toAcc = draft.toAccountName != null ? ' ke ${draft.toAccountName}' : '';
         final fromAcc = draft.fromAccountName != null ? ' dari ${draft.fromAccountName}' : '';
-        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc]');
+        final cat = draft.categoryName != null ? ' [Kategori: ${draft.categoryName}]' : '';
+        final merch = draft.merchantName != null ? ' [Toko: ${draft.merchantName}]' : '';
+        final party = draft.partyName != null ? ' [Pihak: ${draft.partyName}]' : '';
+        final note = draft.note != null && draft.note!.isNotEmpty ? ' [Catatan: ${draft.note}]' : '';
+        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc$cat$merch$party$note]');
         if (draft.items.isNotEmpty) {
           lines.add('  [Item belanja: ${draft.items.map((i) => "${i.name} (Rp${i.calculatedTotal})").join(", ")}]');
         }

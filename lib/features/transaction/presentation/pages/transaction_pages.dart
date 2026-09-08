@@ -215,7 +215,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   String? assistantAccountIdForDraft(FfmAssistantDraft draft) {
-    return _assistantAccountIdByName(draft.toAccountName);
+    if (draft.kind == FfmAssistantDraftKind.expense) {
+      return _assistantAccountIdByName(
+        draft.fromAccountName ?? draft.toAccountName,
+      );
+    }
+    return _assistantAccountIdByName(
+      draft.toAccountName ?? draft.fromAccountName,
+    );
   }
 
   String? _assistantAccountIdByName(String? name) {
@@ -247,12 +254,25 @@ class _TransactionListPageState extends State<TransactionListPage> {
             ?.id
         : null;
 
-    final receiptNumber = draft.formValues['receiptNumber'];
-    final receiptPaidAmount = int.tryParse(draft.formValues['receiptPaidAmount'] ?? '');
-    final receiptChangeAmount = int.tryParse(draft.formValues['receiptChangeAmount'] ?? '');
-    final receiptRawText = draft.formValues['receiptRawText'];
+    final receiptNumber =
+        draft.receiptNumber ?? draft.formValues['receiptNumber'];
+    final receiptPaidAmount = draft.receiptPaidAmount ??
+        int.tryParse(draft.formValues['receiptPaidAmount'] ?? '');
+    final receiptChangeAmount = draft.receiptChangeAmount ??
+        int.tryParse(draft.formValues['receiptChangeAmount'] ?? '');
+    final receiptRawText = draft.note ?? draft.formValues['receiptRawText'];
     var items = const <ReceiptItemDraft>[];
-    if (draft.formValues['itemsJson']?.isNotEmpty == true) {
+    if (draft.items.isNotEmpty) {
+      items = draft.items
+          .map(
+            (item) => ReceiptItemDraft(
+              name: item.name,
+              price: item.price,
+              qty: item.quantity,
+            ),
+          )
+          .toList();
+    } else if (draft.formValues['itemsJson']?.isNotEmpty == true) {
       try {
         final decoded = jsonDecode(draft.formValues['itemsJson']!);
         if (decoded is List) {
@@ -2021,6 +2041,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         .fold<int>(0, (sum, entry) => sum + entry.transaction.amount.abs());
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.transactions,
+      isTab: true,
       dataSummary:
           'Tampil ${visibleTransactions.length} transaksi. Total Masuk: ${_money(incomeTotal)}, Total Keluar: ${_money(expenseTotal)}.',
       child: Scaffold(

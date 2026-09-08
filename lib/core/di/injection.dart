@@ -116,6 +116,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
       telegramBotService: getIt<TelegramBotService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
+      activityRepository: getIt<ActivityRepository>(),
     ),
   );
   getIt.registerLazySingleton<SaveTransactionBatch>(
@@ -195,7 +196,10 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   // ActivityBloc as LazySingleton so it can be shared with ActivityApplicationService
   getIt.registerLazySingleton<ActivityBloc>(
-    () => ActivityBloc(getIt<ActivityRepository>()),
+    () => ActivityBloc(
+      getIt<ActivityRepository>(),
+      autonomousRepository: getIt<AutonomousActivityRepository>(),
+    ),
   );
   getIt.registerLazySingleton<ActivityApplicationService>(
     () => ActivityApplicationService(

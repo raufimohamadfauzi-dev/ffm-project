@@ -895,6 +895,7 @@ class _EnvelopeBudgetPageState extends State<EnvelopeBudgetPage> {
 
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.budget,
+      isTab: true,
       dataSummary:
           'Ada ${attention.length} pos anggaran butuh perhatian: ${attention.map((e) => e.name).join(', ')}.',
       child: Scaffold(

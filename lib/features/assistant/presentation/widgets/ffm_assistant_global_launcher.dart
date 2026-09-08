@@ -37,6 +37,7 @@ class _FfmAssistantGlobalLauncherState
   static const _yKey = 'assistant_launcher_y';
 
   Offset? _position;
+  var _dragDistance = 0.0;
 
   @override
   void initState() {
@@ -63,15 +64,14 @@ class _FfmAssistantGlobalLauncherState
   Offset _clamp(Offset value, Size size) {
     const buttonSize = 56.0;
     const edge = 8.0;
+    final maxX = size.width - buttonSize - edge;
+    final maxY = size.height - buttonSize - edge;
+    if (maxX <= edge || maxY <= edge) {
+      return value;
+    }
     return Offset(
-      value.dx.clamp(
-        edge,
-        (size.width - buttonSize - edge).clamp(edge, size.width),
-      ),
-      value.dy.clamp(
-        edge,
-        (size.height - buttonSize - edge).clamp(edge, size.height),
-      ),
+      value.dx.clamp(edge, maxX),
+      value.dy.clamp(edge, maxY),
     );
   }
 
@@ -91,17 +91,28 @@ class _FfmAssistantGlobalLauncherState
               child: Transform.translate(
                 offset: position,
                 child: GestureDetector(
-                  onPanUpdate: (details) => setState(
-                    () => _position = _clamp(position + details.delta, size),
-                  ),
-                  onPanEnd: (_) => _savePosition(),
+                  behavior: HitTestBehavior.opaque,
+                  onPanStart: (_) => _dragDistance = 0.0,
+                  onPanUpdate: (details) {
+                    _dragDistance += details.delta.distance;
+                    setState(
+                      () => _position = _clamp(position + details.delta, size),
+                    );
+                  },
+                  onPanEnd: (_) {
+                    _savePosition();
+                    if (_dragDistance < 10.0) {
+                      widget.onOpen();
+                    }
+                  },
+                  onTap: widget.onOpen,
                   child: Semantics(
                     button: true,
                     label: 'Buka atau geser Asisten FFM',
                     child: Stack(
                       children: [
                         FloatingActionButton.small(
-                          heroTag: 'ffm-assistant-global-launcher',
+                          heroTag: null,
                           onPressed: widget.onOpen,
                           child: const Icon(Icons.auto_awesome_outlined),
                         ),

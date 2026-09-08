@@ -91,6 +91,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
   Widget build(BuildContext context) {
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.otherMenu,
+      isTab: true,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Lainnya'),

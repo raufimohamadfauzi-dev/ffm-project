@@ -144,16 +144,51 @@ abstract final class FfmAssistantScreenContextPolicy {
 }
 
 /// Menyimpan konteks route aktif untuk launcher Asisten global.
-/// Stack token menjaga konteks halaman induk kembali aktif setelah detail ditutup.
+/// Stack token menjaga konteks halaman induk kembali aktif setelah detail ditutup,
+/// sedangkan shell tab (beranda, transaksi, aktivitas, anggaran, lainnya) diisolasi
+/// agar pembaruan data di tab latar belakang tidak membajak halaman aktif saat ini.
 class FfmAssistantPageContextController
     extends ValueNotifier<FfmAssistantDestination?> {
-  FfmAssistantPageContextController() : super(null);
+  FfmAssistantPageContextController({
+    FfmAssistantDestination? defaultDestination,
+  })  : _currentShellTab = defaultDestination,
+        super(defaultDestination);
 
   final _entries = <Object, FfmAssistantPageContextSnapshot>{};
+  final _tabSnapshots =
+      <FfmAssistantDestination, FfmAssistantPageContextSnapshot>{};
+  FfmAssistantDestination? _currentShellTab;
   var _isDisposed = false;
 
-  FfmAssistantPageContextSnapshot? get currentSnapshot =>
-      _entries.values.isEmpty ? null : _entries.values.last;
+  FfmAssistantDestination? get currentDestination =>
+      _entries.values.isNotEmpty
+          ? _entries.values.last.destination
+          : _currentShellTab;
+
+  FfmAssistantPageContextSnapshot? get currentSnapshot {
+    if (_entries.values.isNotEmpty) {
+      return _entries.values.last;
+    }
+    final shellTab = _currentShellTab;
+    if (shellTab == null) return null;
+    return _tabSnapshots[shellTab] ??
+        FfmAssistantPageContextSnapshot(
+          destination: shellTab,
+          capabilityIds:
+              FfmAssistantCapabilityRegistry.forDestination(shellTab)
+                  .map((capability) => capability.id)
+                  .toList(growable: false),
+          updatedAt: DateTime.now(),
+        );
+  }
+
+  void setShellTab(FfmAssistantDestination? destination) {
+    if (_isDisposed) return;
+    _currentShellTab = destination;
+    if (_entries.isEmpty) {
+      value = destination;
+    }
+  }
 
   void activate(
     Object token,
@@ -161,6 +196,7 @@ class FfmAssistantPageContextController
     String? dataSummary,
     Map<String, String> activeFilters = const <String, String>{},
     List<String>? capabilityIds,
+    bool isTab = false,
   }) {
     if (_isDisposed) return;
     final snapshot = FfmAssistantPageContextSnapshot(
@@ -174,6 +210,15 @@ class FfmAssistantPageContextController
       dataSummary: dataSummary,
       activeFilters: Map.unmodifiable(activeFilters),
     );
+
+    if (isTab) {
+      _tabSnapshots[destination] = snapshot;
+      if (_entries.isEmpty && _currentShellTab == destination) {
+        value = destination;
+      }
+      return;
+    }
+
     _entries
       ..remove(token)
       ..[token] = snapshot;
@@ -183,13 +228,14 @@ class FfmAssistantPageContextController
   void deactivate(Object token) {
     if (_isDisposed) return;
     _entries.remove(token);
-    value = currentSnapshot?.destination;
+    value = currentDestination;
   }
 
   @override
   void dispose() {
     _isDisposed = true;
     _entries.clear();
+    _tabSnapshots.clear();
     super.dispose();
   }
 }
@@ -228,6 +274,7 @@ class FfmAssistantPageContext extends StatefulWidget {
     super.key,
     required this.destination,
     required this.child,
+    this.isTab = false,
     this.dataSummary,
     this.activeFilters = const <String, String>{},
     this.capabilityIds,
@@ -235,6 +282,7 @@ class FfmAssistantPageContext extends StatefulWidget {
 
   final FfmAssistantDestination destination;
   final Widget child;
+  final bool isTab;
   final String? dataSummary;
   final Map<String, String> activeFilters;
   final List<String>? capabilityIds;
@@ -260,6 +308,7 @@ class _FfmAssistantPageContextState extends State<FfmAssistantPageContext> {
         dataSummary: widget.dataSummary,
         activeFilters: widget.activeFilters,
         capabilityIds: widget.capabilityIds,
+        isTab: widget.isTab,
       );
     });
   }
@@ -275,6 +324,7 @@ class _FfmAssistantPageContextState extends State<FfmAssistantPageContext> {
   void didUpdateWidget(covariant FfmAssistantPageContext oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.destination != widget.destination ||
+        oldWidget.isTab != widget.isTab ||
         oldWidget.dataSummary != widget.dataSummary ||
         !mapEquals(oldWidget.activeFilters, widget.activeFilters) ||
         !listEquals(oldWidget.capabilityIds, widget.capabilityIds)) {

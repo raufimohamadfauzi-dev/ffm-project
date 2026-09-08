@@ -27,6 +27,8 @@ class FfmAssistantGroundingValidator {
     required String? verifiedFacts,
     required String? analysisFacts,
     required String? capabilityEvidence,
+    String? conversationHistory,
+    bool isGeneralOrHelp = false,
   }) {
     final normalized = geminiText.toLowerCase();
 
@@ -40,11 +42,15 @@ class FfmAssistantGroundingValidator {
 
     if (!hasFinancialNumber && !hasDate) return null;
 
-    // Gabungkan evidence yang diizinkan sebagai sumber kebenaran.
+    // Untuk percakapan umum/edukasi/bantuan, jangan blokir angka atau tanggal penjelasan umum
+    if (isGeneralOrHelp) return null;
+
+    // Gabungkan evidence yang diizinkan sebagai sumber kebenaran (termasuk riwayat percakapan yang relevan).
     final evidence = [
       if (verifiedFacts case final String v) v,
       if (analysisFacts case final String a) a,
       if (capabilityEvidence case final String c) c,
+      if (conversationHistory case final String h) h,
     ].join(' ');
 
     if (evidence.trim().isEmpty) {

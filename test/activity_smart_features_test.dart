@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/core/di/injection.dart';
 import 'package:ffm_manager/core/database/app_context.dart';
@@ -14,6 +15,7 @@ void main() {
 
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
     await configureDependencies(database: AppDatabase(NativeDatabase.memory()));
   });
 

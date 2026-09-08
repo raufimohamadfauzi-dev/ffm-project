@@ -226,6 +226,7 @@ class _SummaryPageState extends State<SummaryPage> {
 
         return FfmAssistantPageContext(
           destination: FfmAssistantDestination.summary,
+          isTab: true,
           dataSummary: summaryText,
           child: _buildScaffold(context, snapshot),
         );

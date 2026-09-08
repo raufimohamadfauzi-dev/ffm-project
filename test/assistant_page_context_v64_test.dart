@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -78,4 +79,57 @@ void main() {
       expect(source, contains('FfmAssistantDestination.${entry.key.name}'));
     }
   });
+
+  test('FfmAssistantPageContextController mengisolasi tab shell dari pembaruan latar belakang', () {
+    final controller = FfmAssistantPageContextController(
+      defaultDestination: FfmAssistantDestination.summary,
+    );
+    expect(controller.currentDestination, FfmAssistantDestination.summary);
+
+    // Pengguna berpindah ke tab Aktivitas
+    controller.setShellTab(FfmAssistantDestination.activity);
+    expect(controller.currentDestination, FfmAssistantDestination.activity);
+    expect(controller.value, FfmAssistantDestination.activity);
+
+    // SummaryPage di latar belakang melakukan pembaruan asinkron (isTab: true)
+    final summaryToken = Object();
+    controller.activate(
+      summaryToken,
+      FfmAssistantDestination.summary,
+      isTab: true,
+      dataSummary: 'Kekayaan Bersih: 50 Juta. Bulan ini: Masuk 10 Juta, Keluar 5 Juta.',
+    );
+
+    // Konteks aktif HARUS tetap Aktivitas, tidak boleh dibajak oleh SummaryPage!
+    expect(controller.currentDestination, FfmAssistantDestination.activity);
+    expect(controller.value, FfmAssistantDestination.activity);
+
+    // Pushed route (misal pengguna membuka Data Utama dari dialog / aksi)
+    final pushedToken = Object();
+    controller.activate(
+      pushedToken,
+      FfmAssistantDestination.masterData,
+      isTab: false,
+      dataSummary: 'Sedang mengelola Data Utama',
+    );
+    expect(controller.currentDestination, FfmAssistantDestination.masterData);
+    expect(controller.value, FfmAssistantDestination.masterData);
+    expect(controller.currentSnapshot?.destination, FfmAssistantDestination.masterData);
+
+    // Ketika pushed route ditutup, konteks kembali ke tab Aktivitas yang sedang aktif
+    controller.deactivate(pushedToken);
+    expect(controller.currentDestination, FfmAssistantDestination.activity);
+    expect(controller.value, FfmAssistantDestination.activity);
+
+    // Berpindah kembali ke tab Beranda / Summary
+    controller.setShellTab(FfmAssistantDestination.summary);
+    expect(controller.currentDestination, FfmAssistantDestination.summary);
+    expect(
+      controller.currentSnapshot?.dataSummary,
+      contains('Kekayaan Bersih: 50 Juta'),
+    );
+
+    controller.dispose();
+  });
 }
+

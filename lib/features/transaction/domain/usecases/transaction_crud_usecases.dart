@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../shared/widgets/app_components.dart';
+import '../../../activity/data/repositories/activity_repository.dart';
+import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../../assistant/data/telegram_bot_service.dart';
 import '../../../assistant/data/telegram_config_repository.dart';
@@ -60,6 +64,56 @@ class TransactionEntity {
   bool get isExpense => source != 'income';
   bool get isInternalTransfer => source == 'transfer';
   String get category => categoryId ?? '';
+
+  TransactionEntity copyWith({
+    String? id,
+    String? householdId,
+    DateTime? date,
+    int? amount,
+    String? owner,
+    String? categoryId,
+    String? note,
+    String? source,
+    String? sourceId,
+    String? recurringTransactionId,
+    String? accountId,
+    String? merchantId,
+    String? location,
+    String? linkedActivityId,
+    String? goalId,
+    String? partyName,
+    String? receiptRawText,
+    String? receiptNumber,
+    int? receiptPaidAmount,
+    int? receiptChangeAmount,
+    DateTime? recordedAt,
+    DateTime? updatedAt,
+  }) {
+    return TransactionEntity(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      date: date ?? this.date,
+      amount: amount ?? this.amount,
+      owner: owner ?? this.owner,
+      categoryId: categoryId ?? this.categoryId,
+      note: note ?? this.note,
+      source: source ?? this.source,
+      sourceId: sourceId ?? this.sourceId,
+      recurringTransactionId: recurringTransactionId ?? this.recurringTransactionId,
+      accountId: accountId ?? this.accountId,
+      merchantId: merchantId ?? this.merchantId,
+      location: location ?? this.location,
+      linkedActivityId: linkedActivityId ?? this.linkedActivityId,
+      goalId: goalId ?? this.goalId,
+      partyName: partyName ?? this.partyName,
+      receiptRawText: receiptRawText ?? this.receiptRawText,
+      receiptNumber: receiptNumber ?? this.receiptNumber,
+      receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
+      receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
+      recordedAt: recordedAt ?? this.recordedAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 class TransactionItemEntity {
@@ -137,51 +191,82 @@ class SaveTransaction {
     this.autonomyTrigger,
     this.telegramBotService,
     this.telegramConfigRepository,
+    this.activityRepository,
   });
 
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
   final TelegramBotService? telegramBotService;
   final TelegramConfigRepository? telegramConfigRepository;
+  final ActivityRepository? activityRepository;
 
   Future<void> call(
     TransactionEntity entity, {
     List<TransactionItemEntity> items = const [],
   }) async {
+    var effectiveEntity = entity;
+    if (effectiveEntity.linkedActivityId == null && activityRepository != null) {
+      try {
+        final activeSessions = await activityRepository!.getActiveSessions(effectiveEntity.householdId);
+        final activeSession = activeSessions.lastOrNull;
+        if (activeSession != null) {
+          effectiveEntity = effectiveEntity.copyWith(linkedActivityId: activeSession.id);
+          final absAmount = effectiveEntity.amount.abs();
+          final title = effectiveEntity.note?.trim().isNotEmpty == true
+              ? effectiveEntity.note!.trim()
+              : (effectiveEntity.isExpense ? 'Pengeluaran' : 'Pemasukan');
+          final existingCps = await activityRepository!.getCheckpoints(activeSession.id);
+          await activityRepository!.saveCheckpoint(
+            ActivityCheckpointEntity(
+              id: const Uuid().v4(),
+              sessionId: activeSession.id,
+              label: '[🤖 Otonom] $title (Rp ${formatRupiahInput(absAmount.toString())})',
+              place: effectiveEntity.location,
+              occurredAt: effectiveEntity.date,
+              sequence: existingCps.length + 1,
+              createdAt: DateTime.now(),
+            ),
+          );
+        }
+      } catch (_) {
+        // Abaikan error korelasi otonom agar penyimpanan transaksi utama tidak terhambat
+      }
+    }
+
     await database.transaction(() async {
       await database
           .into(database.transactions)
           .insertOnConflictUpdate(
             TransactionsCompanion.insert(
-              id: entity.id,
-              householdId: entity.householdId,
-              type: entity.amount >= 0 ? 'income' : 'expense',
-              categoryId: Value(entity.categoryId),
-              merchantId: Value(entity.merchantId),
-              accountId: Value(entity.accountId),
-              goalId: Value(entity.goalId),
-              amount: entity.amount,
-              date: entity.date,
-              recordedAt: entity.recordedAt,
-              note: Value(entity.note),
-              owner: Value(entity.owner),
-              partyName: Value(entity.partyName),
-              source: Value(entity.source),
-              sourceId: Value(entity.sourceId),
-              linkedActivityId: Value(entity.linkedActivityId),
-              recurringTransactionId: Value(entity.recurringTransactionId),
-              location: Value(entity.location),
-              receiptRawText: Value(entity.receiptRawText),
-              receiptNumber: Value(entity.receiptNumber),
-              receiptPaidAmount: Value(entity.receiptPaidAmount),
-              receiptChangeAmount: Value(entity.receiptChangeAmount),
-              createdAt: entity.recordedAt,
-              updatedAt: Value(entity.updatedAt ?? DateTime.now()),
+              id: effectiveEntity.id,
+              householdId: effectiveEntity.householdId,
+              type: effectiveEntity.amount >= 0 ? 'income' : 'expense',
+              categoryId: Value(effectiveEntity.categoryId),
+              merchantId: Value(effectiveEntity.merchantId),
+              accountId: Value(effectiveEntity.accountId),
+              goalId: Value(effectiveEntity.goalId),
+              amount: effectiveEntity.amount,
+              date: effectiveEntity.date,
+              recordedAt: effectiveEntity.recordedAt,
+              note: Value(effectiveEntity.note),
+              owner: Value(effectiveEntity.owner),
+              partyName: Value(effectiveEntity.partyName),
+              source: Value(effectiveEntity.source),
+              sourceId: Value(effectiveEntity.sourceId),
+              linkedActivityId: Value(effectiveEntity.linkedActivityId),
+              recurringTransactionId: Value(effectiveEntity.recurringTransactionId),
+              location: Value(effectiveEntity.location),
+              receiptRawText: Value(effectiveEntity.receiptRawText),
+              receiptNumber: Value(effectiveEntity.receiptNumber),
+              receiptPaidAmount: Value(effectiveEntity.receiptPaidAmount),
+              receiptChangeAmount: Value(effectiveEntity.receiptChangeAmount),
+              createdAt: effectiveEntity.recordedAt,
+              updatedAt: Value(effectiveEntity.updatedAt ?? DateTime.now()),
             ),
           );
       await (database.delete(
         database.transactionItems,
-      )..where((row) => row.transactionId.equals(entity.id))).go();
+      )..where((row) => row.transactionId.equals(effectiveEntity.id))).go();
       for (final item in items) {
         await database
             .into(database.transactionItems)
@@ -200,15 +285,15 @@ class SaveTransaction {
     });
     await autonomyTrigger?.emitSafely(
       triggerId:
-          'transaction:${entity.id}:${(entity.updatedAt ?? entity.recordedAt).microsecondsSinceEpoch}',
+          'transaction:${effectiveEntity.id}:${(effectiveEntity.updatedAt ?? effectiveEntity.recordedAt).microsecondsSinceEpoch}',
       type: 'database.changed',
-      householdId: entity.householdId,
-      occurredAt: entity.updatedAt ?? entity.recordedAt,
-      entityId: entity.id,
+      householdId: effectiveEntity.householdId,
+      occurredAt: effectiveEntity.updatedAt ?? effectiveEntity.recordedAt,
+      entityId: effectiveEntity.id,
       payload: const {'entityType': 'transaction', 'operation': 'save'},
     );
 
-    _notifyTelegramIfEnabled(entity);
+    _notifyTelegramIfEnabled(effectiveEntity);
   }
 
   void _notifyTelegramIfEnabled(TransactionEntity entity) {
