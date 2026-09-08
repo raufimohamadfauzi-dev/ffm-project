@@ -1075,10 +1075,13 @@ class _ActivityViewState extends State<_ActivityView>
                           ),
                           const SizedBox(height: 10),
                           if (visibleSessions.isEmpty)
-                            const AppEmptyState(
-                              icon: Icons.timeline_outlined,
-                              title: 'Belum ada aktivitas',
-                              message: 'Mulai satu aktivitas, lalu isi update setiap kali berpindah atau melakukan sesuatu.',
+                            _SmartRoutineEmptyState(
+                              onStartRoutine: (title, category, mode) => _startSession(
+                                initialTitle: title,
+                                initialCategory: category,
+                                initialMode: mode,
+                              ),
+                              onStartCustom: () => _startSession(),
                             )
                           else
                             for (final session in visibleSessions)
@@ -1272,11 +1275,85 @@ class _ActiveSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final elapsedHours = DateTime.now().difference(session.startedAt).inHours;
+    final isZombie = elapsedHours >= 8;
+
     return AppCard(
-      color: scheme.primaryContainer,
+      color: isZombie ? Colors.amber.shade50 : scheme.primaryContainer,
+      border: isZombie ? BorderSide(color: Colors.amber.shade800, width: 1.5) : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (isZombie) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.shade800),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900, size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Deteksi Timer Zombie (Aktif $elapsedHours Jam)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: Colors.amber.shade900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Aktivitas ini sudah berjalan lebih dari 8 jam. Lupa menghentikannya? Hentikan sekarang agar tidak merusak statistik produktivitas.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.brown.shade900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      FilledButton.tonalIcon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.amber.shade900,
+                          foregroundColor: Colors.white,
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        ),
+                        onPressed: onFinish,
+                        icon: const Icon(Icons.stop, size: 16),
+                        label: const Text('Hentikan Sekarang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      ),
+                      if (onEdit != null)
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.brown.shade900,
+                            side: BorderSide(color: Colors.amber.shade800),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          ),
+                          onPressed: onEdit,
+                          icon: const Icon(Icons.edit_calendar_outlined, size: 16),
+                          label: const Text('Koreksi Waktu', style: TextStyle(fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           Row(
             children: [
               CircleAvatar(
@@ -2574,3 +2651,215 @@ class _VoiceTextEditorState extends State<_VoiceTextEditor> {
     ],
   );
 }
+
+class _SmartRoutineEmptyState extends StatelessWidget {
+  const _SmartRoutineEmptyState({
+    required this.onStartRoutine,
+    required this.onStartCustom,
+  });
+
+  final void Function(String title, String category, ActivityMode? mode) onStartRoutine;
+  final VoidCallback onStartCustom;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hour = DateTime.now().hour;
+
+    final String greeting;
+    final String title;
+    final String description;
+    final IconData icon;
+    final Color headerColor;
+    final List<_RoutineQuickAction> actions;
+
+    if (hour >= 5 && hour < 11) {
+      // Pagi (05:00 - 10:59)
+      greeting = 'Selamat Pagi! 🌅';
+      title = 'Mulai Rutinitas Pagi';
+      description = 'Belum ada aktivitas hari ini. Pilih rutinitas pagi untuk langsung mulai mencatat:';
+      icon = Icons.wb_sunny_rounded;
+      headerColor = Colors.orange.shade800;
+      actions = const [
+        _RoutineQuickAction(
+          label: '🏃 Olahraga Pagi',
+          category: 'Kesehatan',
+          description: 'Lacak lari pagi, senam, atau peregangan',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🌾 Kerja Tani / Kebun',
+          category: 'Pertanian',
+          description: 'Siram bibit, rawat tanaman, cek lahan',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '📖 Membaca & Belajar',
+          category: 'Pengembangan Diri',
+          description: 'Baca buku atau pelajari materi baru',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🍳 Sarapan & Persiapan',
+          category: 'Keluarga',
+          description: 'Persiapan keluarga mengawali hari',
+          mode: ActivityMode.timeTracking,
+        ),
+      ];
+    } else if (hour >= 11 && hour < 18) {
+      // Siang & Sore (11:00 - 17:59)
+      greeting = 'Siang & Sore Produktif ☀️';
+      title = 'Lacak Fokus Aktivitasmu';
+      description = 'Belum ada aktivitas hari ini. Ketuk salah satu agenda untuk mulai melacak:';
+      icon = Icons.light_mode_rounded;
+      headerColor = Colors.blue.shade800;
+      actions = const [
+        _RoutineQuickAction(
+          label: '💼 Fokus Kerja / Bisnis',
+          category: 'Pekerjaan',
+          description: 'Sesi kerja intensif, tugas kantor, atau usaha',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🛒 Belanja & Keperluan',
+          category: 'Keluarga',
+          description: 'Belanja bahan pokok, pasar, atau toko',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🚜 Rawat Lahan & Pupuk',
+          category: 'Pertanian',
+          description: 'Pemupukan, pembersihan gulma, atau panen',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🛋️ Istirahat Siang',
+          category: 'Pribadi',
+          description: 'Makan siang dan jeda rehat sejenak',
+          mode: ActivityMode.timeTracking,
+        ),
+      ];
+    } else {
+      // Malam (18:00 - 23:59 & 00:00 - 04:59)
+      greeting = 'Selamat Malam 🌙';
+      title = 'Evaluasi & Refleksi Malam';
+      description = 'Belum ada catatan aktivitas hari ini. Rekomendasi sebelum beristirahat:';
+      icon = Icons.nights_stay_rounded;
+      headerColor = Colors.indigo.shade800;
+      actions = const [
+        _RoutineQuickAction(
+          label: '📝 Evaluasi Keuangan Harian',
+          category: 'Keuangan',
+          description: 'Catat pengeluaran atau tinjau sisa amplop',
+          mode: ActivityMode.history,
+        ),
+        _RoutineQuickAction(
+          label: '👨‍👩‍👧 Waktu Bersama Keluarga',
+          category: 'Keluarga',
+          description: 'Makan malam dan bincang hangat keluarga',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '🧘 Refleksi & Ibadah Malam',
+          category: 'Spiritual',
+          description: 'Ibadah, zikir, atau refleksi rasa syukur',
+          mode: ActivityMode.timeTracking,
+        ),
+        _RoutineQuickAction(
+          label: '📋 Rencana Esok Hari',
+          category: 'Perencanaan',
+          description: 'Tulis agenda penting untuk esok hari',
+          mode: ActivityMode.history,
+        ),
+      ];
+    }
+
+    return AppCard(
+      color: scheme.surfaceContainerLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: headerColor, size: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      greeting,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: headerColor,
+                      ),
+                    ),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            description,
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final action in actions)
+                ActionChip(
+                  avatar: const Icon(Icons.play_circle_outline, size: 18),
+                  label: Text(action.label),
+                  tooltip: action.description,
+                  onPressed: () => onStartRoutine(
+                    action.label.replaceAll(RegExp(r'^[^\w\s]+\s*'), ''),
+                    action.category,
+                    action.mode,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 4),
+          Center(
+            child: TextButton.icon(
+              onPressed: onStartCustom,
+              icon: const Icon(Icons.add),
+              label: const Text('Atau buat aktivitas baru bebas'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoutineQuickAction {
+  const _RoutineQuickAction({
+    required this.label,
+    required this.category,
+    required this.description,
+    this.mode,
+  });
+
+  final String label;
+  final String category;
+  final String description;
+  final ActivityMode? mode;
+}
+

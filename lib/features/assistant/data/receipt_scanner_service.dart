@@ -131,6 +131,16 @@ class ReceiptScannerService {
         tokenUsage: tokenUsage,
       );
     } on ReceiptImportException catch (error) {
+      if (userCaption != null && userCaption.trim().isNotEmpty) {
+        return askVisualQuestion(
+          bytes: bytes,
+          question: userCaption.trim(),
+          mimeType: mimeType,
+          imagePath: imagePath,
+          apiKey: apiKey,
+          model: model,
+        );
+      }
       return ReceiptScanOutcome(
         ok: false,
         message: 'Struk terbaca tetapi hasilnya belum cocok: ${error.message}',
@@ -140,6 +150,16 @@ class ReceiptScannerService {
         tokenUsage: tokenUsage,
       );
     } on Object catch (error) {
+      if (userCaption != null && userCaption.trim().isNotEmpty) {
+        return askVisualQuestion(
+          bytes: bytes,
+          question: userCaption.trim(),
+          mimeType: mimeType,
+          imagePath: imagePath,
+          apiKey: apiKey,
+          model: model,
+        );
+      }
       return ReceiptScanOutcome(
         ok: false,
         message: 'Format hasil baca struk tidak dapat diolah: $error',
@@ -149,6 +169,52 @@ class ReceiptScannerService {
         tokenUsage: tokenUsage,
       );
     }
+  }
+
+  /// Bertanya tentang gambar secara visual multimodal luas (non-struk atau pertanyaan analisis).
+  Future<ReceiptScanOutcome> askVisualQuestion({
+    required Uint8List bytes,
+    required String question,
+    String mimeType = 'image/jpeg',
+    String? imagePath,
+    String? apiKey,
+    String? model,
+  }) async {
+    final prepared = await _prepareImage(bytes, mimeType);
+    if (prepared == null) {
+      return ReceiptScanOutcome(
+        ok: false,
+        message: 'Gambar tidak dapat dibaca. Pilih foto yang lebih jelas.',
+      );
+    }
+    final imageInput = GeminiImageInput(
+      base64Data: base64Encode(prepared.$1),
+      mimeType: prepared.$2,
+    );
+    final result = await _gemini.chat(
+      prompt: question,
+      systemInstruction: '''
+Kamu adalah Asisten Finansial Cerdas FFM (Family Finance Manager) berkemampuan visual multimodal.
+Pengguna melampirkan foto/gambar/grafik dan mengajukan pertanyaan atau permintaan analisis.
+Tugasmu:
+1. Jawab pertanyaan pengguna dengan ramah, akurat, ringkas, dan jelas dalam Bahasa Indonesia.
+2. Jelaskan apa yang terlihat di gambar jika relevan dengan pertanyaan keuangan, pengeluaran, barang, atau nota.
+3. Berikan saran atau ringkasan yang bermanfaat bagi keuangan keluarga pengguna.
+''',
+      image: imageInput,
+      apiKey: apiKey,
+      model: model,
+      maxOutputTokens: 2048,
+    );
+    final tokenUsage = result.usageMetadata?.toJson();
+    return ReceiptScanOutcome(
+      ok: result.ok,
+      message: result.ok ? (result.text?.trim() ?? '') : result.message,
+      latency: result.latency,
+      model: result.model,
+      imagePath: imagePath,
+      tokenUsage: tokenUsage,
+    );
   }
 
   /// Validasi deterministik: total transaksi wajib sama dengan jumlah baris item.

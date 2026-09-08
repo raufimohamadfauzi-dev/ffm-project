@@ -16,13 +16,16 @@ void main() {
         'Intelligence Dashboard',
       ]),
     );
+    final canonicalDestinations = FfmAssistantDestination.values
+        .map((d) => d.canonical)
+        .toSet();
     expect(
       FfmAssistantCatalog.pages,
-      hasLength(FfmAssistantDestination.values.length),
+      hasLength(canonicalDestinations.length),
     );
     expect(
       FfmAssistantCatalog.pages.map((page) => page.destination).toSet(),
-      hasLength(FfmAssistantDestination.values.length),
+      canonicalDestinations,
     );
   });
 

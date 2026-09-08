@@ -121,5 +121,34 @@ void main() {
       expect(briefing.spokenScript, contains('Keluarga Bahagia'));
       expect(briefing.spokenScript, contains('Rp 1.125.000'));
     });
+
+    test('generateBriefing includes liabilities due within 3 days into spoken script and text', () async {
+      final today = DateTime(2026, 9, 5, 8, 0);
+
+      // Seed liability due in 2 days (7 September)
+      await db.into(db.liabilities).insert(
+        LiabilitiesCompanion.insert(
+          id: 'liab-kpr',
+          householdId: householdId,
+          name: 'KPR BTN',
+          originalAmount: 150000000,
+          remainingBalance: 120000000,
+          monthlyInstallment: const drift.Value(1500000),
+          interestRate: const drift.Value(8.5),
+          startDate: DateTime(2025, 1, 1),
+          dueDate: drift.Value(DateTime(2026, 9, 7)),
+          isActive: const drift.Value(true),
+          createdAt: DateTime(2025, 1, 1),
+        ),
+      );
+
+      final briefing = await service.generateBriefing(householdId, now: today);
+
+      expect(briefing.dueItems, contains(contains('KPR BTN')));
+      expect(briefing.textSummary, contains('Jatuh Tempo Hutang / Piutang (3 Hari)'));
+      expect(briefing.textSummary, contains('KPR BTN'));
+      expect(briefing.spokenScript, contains('kewajiban cicilan yang jatuh tempo'));
+      expect(briefing.spokenScript, contains('KPR BTN'));
+    });
   });
 }

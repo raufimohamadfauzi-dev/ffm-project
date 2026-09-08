@@ -43,13 +43,22 @@ class MarketNewsRadarService {
           usdRate = idr;
 
           if (rates.containsKey('SGD')) {
-            sgdRate = idr / (rates['SGD'] as num).toDouble();
+            final sgdVal = (rates['SGD'] as num?)?.toDouble() ?? 0.0;
+            if (sgdVal > 0) {
+              sgdRate = idr / sgdVal;
+            }
           }
           if (rates.containsKey('EUR')) {
-            eurRate = idr / (rates['EUR'] as num).toDouble();
+            final eurVal = (rates['EUR'] as num?)?.toDouble() ?? 0.0;
+            if (eurVal > 0) {
+              eurRate = idr / eurVal;
+            }
           }
           if (rates.containsKey('SAR')) {
-            sarRate = idr / (rates['SAR'] as num).toDouble();
+            final sarVal = (rates['SAR'] as num?)?.toDouble() ?? 0.0;
+            if (sarVal > 0) {
+              sarRate = idr / sarVal;
+            }
           }
           hasNetworkSuccess = true;
         }
@@ -111,10 +120,34 @@ class MarketNewsRadarService {
   }
 
   /// Mengambil warta berita dan peringatan terpilih (Pertanian, BMKG Cuaca, Finansial).
+  ///
+  /// Mencoba mengambil RSS feed publik terkini secara real-time.
+  /// Jika offline atau gagal, melakukan degradasi anggun (graceful fallback) ke berita kurasi lokal.
   Future<List<NewsAlertItem>> fetchCuratedNews({http.Client? client}) async {
+    final httpClient = client ?? http.Client();
     final now = DateTime.now();
 
-    // Default warta terpilih relevan keluarga & usaha
+    try {
+      final res = await httpClient
+          .get(Uri.parse('https://www.antaranews.com/rss/terkini.xml'))
+          .timeout(_requestTimeout);
+
+      if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
+        final parsed = parseRssFeed(res.body, defaultSource: 'Antara News');
+        if (parsed.isNotEmpty) {
+          if (client == null) httpClient.close();
+          return parsed;
+        }
+      }
+    } catch (_) {
+      // Graceful offline fallback
+    }
+
+    if (client == null) {
+      httpClient.close();
+    }
+
+    // Default warta terpilih relevan keluarga & usaha (offline fallback)
     final defaultNews = [
       NewsAlertItem(
         id: 'news_bmkg_1',
@@ -167,5 +200,133 @@ class MarketNewsRadarService {
     ];
 
     return defaultNews;
+  }
+
+  /// Helper untuk mem-parsing XML RSS 2.0 standar menjadi koleksi [NewsAlertItem].
+  static List<NewsAlertItem> parseRssFeed(
+    String xmlContent, {
+    String defaultSource = 'Warta Publik',
+  }) {
+    final items = <NewsAlertItem>[];
+    final itemPattern = RegExp(r'<item>([\s\S]*?)</item>', caseSensitive: false);
+    final titlePattern =
+        RegExp(r'<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</title>', caseSensitive: false);
+    final linkPattern =
+        RegExp(r'<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</link>', caseSensitive: false);
+    final descPattern =
+        RegExp(r'<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</description>', caseSensitive: false);
+    final pubDatePattern =
+        RegExp(r'<pubDate>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</pubDate>', caseSensitive: false);
+
+    final matches = itemPattern.allMatches(xmlContent);
+    var index = 0;
+    for (final match in matches) {
+      if (items.length >= 10) break;
+      final itemBlock = match.group(1) ?? '';
+      final rawTitle = titlePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+      final rawLink = linkPattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+      final rawDesc = descPattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+      final rawPubDate = pubDatePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+
+      if (rawTitle.isEmpty) continue;
+
+      final title = _cleanHtml(rawTitle);
+      final snippet = _cleanHtml(rawDesc);
+      final publishedAt =
+          _parseRssDate(rawPubDate) ?? DateTime.now().subtract(Duration(hours: index * 2 + 1));
+      final category = _categorizeNews(title, snippet);
+
+      items.add(
+        NewsAlertItem(
+          id: 'rss_${index}_${publishedAt.millisecondsSinceEpoch}',
+          title: title,
+          snippet: snippet.isNotEmpty ? snippet : title,
+          sourceName: defaultSource,
+          publishedAt: publishedAt,
+          category: category,
+          url: rawLink.isNotEmpty ? rawLink : null,
+        ),
+      );
+      index++;
+    }
+    return items;
+  }
+
+  static String _cleanHtml(String text) {
+    return text
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  static NewsCategory _categorizeNews(String title, String snippet) {
+    final lower = '$title $snippet'.toLowerCase();
+    if (lower.contains('hujan') ||
+        lower.contains('cuaca') ||
+        lower.contains('bmkg') ||
+        lower.contains('gempa') ||
+        lower.contains('banjir') ||
+        lower.contains('longsor') ||
+        lower.contains('bencana') ||
+        lower.contains('angin kencang') ||
+        lower.contains('waspada')) {
+      return NewsCategory.weatherDisaster;
+    }
+    if (lower.contains('tani') ||
+        lower.contains('panen') ||
+        lower.contains('pupuk') ||
+        lower.contains('gabah') ||
+        lower.contains('padi') ||
+        lower.contains('beras') ||
+        lower.contains('lahan') ||
+        lower.contains('kebun') ||
+        lower.contains('kementan')) {
+      return NewsCategory.agriculture;
+    }
+    if (lower.contains('rupiah') ||
+        lower.contains('inflasi') ||
+        lower.contains('bunga') ||
+        lower.contains('bank') ||
+        lower.contains('ihsg') ||
+        lower.contains('investasi') ||
+        lower.contains('pasar') ||
+        lower.contains('anggaran') ||
+        lower.contains('bi-rate') ||
+        lower.contains('uang')) {
+      return NewsCategory.finance;
+    }
+    return NewsCategory.all;
+  }
+
+  static DateTime? _parseRssDate(String dateStr) {
+    if (dateStr.isEmpty) return null;
+    try {
+      return DateTime.parse(dateStr);
+    } catch (_) {
+      // RFC-822 / RFC-1123 date parsing sederhana e.g. "Tue, 08 Sep 2026 12:00:00 GMT"
+      try {
+        final parts = dateStr.split(' ');
+        if (parts.length >= 4) {
+          final day = int.tryParse(parts[1]);
+          final year = int.tryParse(parts[3]);
+          final months = {
+            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+          };
+          final month = months[parts[2].toLowerCase().substring(0, 3)];
+          if (day != null && year != null && month != null) {
+            return DateTime(year, month, day);
+          }
+        }
+      } catch (_) {}
+      return null;
+    }
   }
 }

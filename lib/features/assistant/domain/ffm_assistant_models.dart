@@ -3,6 +3,7 @@
 library;
 
 import '../../activity/domain/activity_voice.dart';
+import '../../transaction/data/services/receipt_import_models.dart';
 
 enum FfmAssistantResponseMode { localRules }
 
@@ -178,6 +179,7 @@ enum FfmAssistantDestination {
   recurringTransaction,
   privacyCenter,
   databaseStructure,
+  // Legacy serialized destination; the page is now part of familyProfile.
   assistantProfile,
   intelligenceDashboard,
   paymentDetector,
@@ -187,7 +189,10 @@ enum FfmAssistantDestination {
   hijriSettings,
   calendarSettings,
   marketNewsRadar,
-  utilityMeter,
+  utilityMeter;
+
+  FfmAssistantDestination get canonical =>
+      this == assistantProfile ? familyProfile : this;
 }
 
 enum FfmAssistantDraftKind {
@@ -445,6 +450,12 @@ class FfmAssistantDraft {
     this.dailyLivingBudget,
     this.dailyOperationalBudget,
     this.cycleProfileType,
+    this.items = const <ReceiptOcrItem>[],
+    this.tax,
+    this.discount,
+    this.receiptPaidAmount,
+    this.receiptChangeAmount,
+    this.receiptNumber,
   });
 
   final FfmAssistantDraftKind kind;
@@ -480,6 +491,14 @@ class FfmAssistantDraft {
   final int? dailyOperationalBudget;
   final String? cycleProfileType;
 
+  /// Rincian item nota/struk belanja
+  final List<ReceiptOcrItem> items;
+  final int? tax;
+  final int? discount;
+  final int? receiptPaidAmount;
+  final int? receiptChangeAmount;
+  final String? receiptNumber;
+
   bool get hasAmount => amount != null && amount! > 0;
 
   FfmAssistantDraft copyWith({
@@ -507,6 +526,12 @@ class FfmAssistantDraft {
     int? dailyLivingBudget,
     int? dailyOperationalBudget,
     String? cycleProfileType,
+    List<ReceiptOcrItem>? items,
+    int? tax,
+    int? discount,
+    int? receiptPaidAmount,
+    int? receiptChangeAmount,
+    String? receiptNumber,
   }) => FfmAssistantDraft(
     kind: kind ?? this.kind,
     createdAt: createdAt,
@@ -535,6 +560,12 @@ class FfmAssistantDraft {
     dailyOperationalBudget:
         dailyOperationalBudget ?? this.dailyOperationalBudget,
     cycleProfileType: cycleProfileType ?? this.cycleProfileType,
+    items: items ?? this.items,
+    tax: tax ?? this.tax,
+    discount: discount ?? this.discount,
+    receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
+    receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
+    receiptNumber: receiptNumber ?? this.receiptNumber,
   );
 }
 
@@ -932,12 +963,19 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.familyProfile,
       name: 'Profil Keluarga',
-      description: 'Mengisi profil keluarga dan data pribadi yang membantu Asisten memahami keluargamu.',
+      description: 'Mengisi profil keluarga dan data pribadi, serta mengelola cadangan terenkripsi dan pembelajaran Asisten.',
       aliases: [
         'profil keluarga',
         'data keluarga',
         'profil rumah tangga',
         'isi nama keluarga',
+        'profil',
+        'profil saya',
+        'identitas',
+        'kenalkan diri',
+        'personalisasi',
+        'profil personalisasi asisten',
+        'assistantprofile',
       ],
       dataSection: FfmAssistantDataSection.profile,
     ),
@@ -1058,19 +1096,6 @@ abstract final class FfmAssistantCatalog {
       aliases: ['struktur database', 'struktur basis data', 'tabel database'],
     ),
 
-    FfmAssistantPage(
-      destination: FfmAssistantDestination.assistantProfile,
-      name: 'Profil Personalisasi Asisten',
-      description: 'Mengenalkan diri, serta mengelola ekspor dan impor profil personalisasi terenkripsi.',
-      aliases: [
-        'profil',
-        'profil saya',
-        'identitas',
-        'kenalkan diri',
-        'personalisasi',
-      ],
-      dataSection: FfmAssistantDataSection.profile,
-    ),
     FfmAssistantPage(
       destination: FfmAssistantDestination.intelligenceDashboard,
       name: 'Intelligence Dashboard',
@@ -1310,7 +1335,7 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantDestination destination,
   ) {
     for (final page in pages) {
-      if (page.destination == destination) return page;
+      if (page.destination == destination.canonical) return page;
     }
     return null;
   }
@@ -1377,7 +1402,7 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.budget => 'Anggaran berisi batas total mingguan atau bulanan, target kategori yang opsional, dan mode Tidak Rutin untuk kebutuhan yang tidak dibeli rutin. Anggaran memantau pengeluaran yang tersimpan; tidak bergantung pada pemasukan.',
         FfmAssistantDestination.analysis => 'Analisa membaca transaksi nyata yang sudah tersimpan untuk melihat pola pemasukan, pengeluaran, dan anggaran. Kalau datanya masih kosong, Asisten akan bilang belum ada cukup data—tidak membuat angka sendiri.',
         FfmAssistantDestination.masterData => 'Data Utama berisi lima bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, dan Sumber pemasukan. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan. Profil keluarga dikelola terpisah di halaman Profil Keluarga.',
-        FfmAssistantDestination.familyProfile => 'Profil Keluarga menyimpan nama rumah tangga, nama suami/istri, dan data pribadi (Kenalkan Diri) yang membantu Asisten memberi jawaban lebih kontekstual. Data keluarga seperti aset, target keuangan, dan hutang & piutang dikelola pada menu masing-masing di Lainnya.',
+        FfmAssistantDestination.familyProfile || FfmAssistantDestination.assistantProfile => 'Profil Keluarga menyimpan nama rumah tangga, nama suami/istri, dan data pribadi (Kenalkan Diri) yang membantu Asisten memberi jawaban lebih kontekstual. Bagian Cadangan & pembelajaran asisten menyediakan ekspor/impor profil terenkripsi dan reset pola belajar. Data keluarga seperti aset, target keuangan, dan hutang & piutang dikelola pada menu masing-masing di Lainnya.',
         FfmAssistantDestination.assets => 'Aset keluarga dipakai untuk mencatat barang atau kepemilikan bernilai yang ingin dipantau, misalnya kebun, kendaraan, alat kerja, atau tabungan khusus. Aset bukan transaksi harian dan tidak otomatis mengubah saldo rekening.',
         FfmAssistantDestination.goals => 'Target keuangan dipakai untuk uang yang sedang dikumpulkan dengan tujuan tertentu. Kamu bisa setor ke target atau memakai uang target; keduanya dicatat terpisah agar progres target tetap jelas.',
         FfmAssistantDestination.liabilities => 'Hutang & piutang mencatat uang yang kamu pinjam atau uang yang harus diterima dari orang lain. Kamu bisa melihat sisa, membuat strategi pelunasan, dan mengarsipkan catatan yang selesai tanpa menghapus riwayat finansial.',
@@ -1392,7 +1417,6 @@ abstract final class FfmAssistantCatalog {
         FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
         FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
         FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
-        FfmAssistantDestination.assistantProfile => 'Profil Personalisasi Asisten mengelola data belajar asisten: ekspor, impor, dan reset learning terenkripsi. Nama rumah tangga dan data pribadi seperti nama/panggilan dikelola di halaman Profil Keluarga.',
         FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
         FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
         FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',

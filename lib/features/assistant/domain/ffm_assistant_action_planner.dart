@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'ffm_assistant_action_plan.dart';
 import 'ffm_assistant_models.dart';
 import 'ffm_assistant_execution_limits.dart';
@@ -486,6 +488,28 @@ class FfmAssistantActionPlanner {
       'assistantMerchantName': draft.merchantName,
     if (draft.slmFieldValues.isNotEmpty)
       'assistantSlmFieldValues': draft.slmFieldValues,
+    if (draft.items.isNotEmpty)
+      'itemsJson': jsonEncode(
+        draft.items
+            .map(
+              (i) => {
+                'name': i.name,
+                'itemName': i.name,
+                'price': i.price,
+                'qty': i.quantity,
+                'unit': i.unit,
+                'lineTotal': i.lineTotal,
+              },
+            )
+            .toList(),
+      ),
+    if (draft.receiptNumber != null) 'receiptNumber': draft.receiptNumber,
+    if (draft.receiptPaidAmount != null)
+      'receiptPaidAmount': draft.receiptPaidAmount,
+    if (draft.receiptChangeAmount != null)
+      'receiptChangeAmount': draft.receiptChangeAmount,
+    if (draft.tax != null) 'tax': draft.tax,
+    if (draft.discount != null) 'discount': draft.discount,
     ...draft.formValues,
   };
 }

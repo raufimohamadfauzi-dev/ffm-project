@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import 'app_database.dart';
 import 'app_context.dart';
@@ -24,7 +25,7 @@ class AuditLogger {
       await database.customStatement(
         'INSERT INTO audit_logs (id, household_id, action, entity, old_value, new_value, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
-          '${now.microsecondsSinceEpoch}-$action',
+          '${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}-$action',
           householdId ?? AppContext.householdId,
 
           action,

@@ -8,20 +8,25 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
-import '../../../settings/presentation/pages/family_profile_page.dart';
 import '../../data/ffm_assistant_personalization_repository.dart';
 import '../../data/ffm_assistant_profile_export_service.dart';
-import '../../domain/ffm_assistant_models.dart';
-import '../widgets/ffm_assistant_page_context.dart';
 
-class AssistantProfilePage extends StatefulWidget {
-  const AssistantProfilePage({super.key});
+/// Kontrol cadangan dan pembelajaran di dalam halaman Profil Keluarga.
+class FfmAssistantProfileTools extends StatefulWidget {
+  const FfmAssistantProfileTools({
+    super.key,
+    this.enabled = true,
+    this.onImported,
+  });
+
+  final bool enabled;
+  final Future<void> Function()? onImported;
 
   @override
-  State<AssistantProfilePage> createState() => _AssistantProfilePageState();
+  State<FfmAssistantProfileTools> createState() => _FfmAssistantProfileToolsState();
 }
 
-class _AssistantProfilePageState extends State<AssistantProfilePage> {
+class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
   final _passphraseController = TextEditingController();
   final _confirmPassphraseController = TextEditingController();
   late final FfmAssistantProfileExportService _profileService;
@@ -152,6 +157,7 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
         passphrase: passphrase,
       );
       await _loadSummary();
+      await widget.onImported?.call();
       _showMessage(
         'Profil berhasil digabungkan. Data lama tetap dipertahankan; nilai yang sama diperbarui.',
       );
@@ -182,36 +188,21 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openFamilyProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const FamilyProfilePage()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FfmAssistantPageContext(
-      destination: FfmAssistantDestination.assistantProfile,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('Profil Personalisasi Asisten')),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+    return ExpansionTile(
+      title: const Text('Cadangan & pembelajaran asisten'),
+      subtitle: const Text('Ekspor, impor, dan reset pola belajar'),
+      leading: const Icon(Icons.ios_share_outlined),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const AppHelpBanner(
-              title: 'Belajar terkontrol dan tetap offline',
+              title: 'Cadangan profil terenkripsi',
               message: 'Profil ini hanya berisi preferensi dan pola terstruktur. Transaksi mentah, catatan, dan riwayat chat tidak ikut diekspor.',
               icon: Icons.shield_outlined,
-            ),
-            const SizedBox(height: 16),
-            Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.asset(
-                  'assets/branding/Logo_FFM.png',
-                  width: 72,
-                  height: 72,
-                ),
-              ),
             ),
             const SizedBox(height: 16),
             AppCard(
@@ -229,22 +220,8 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            AppCard(
-              color: Theme.of(context).colorScheme.primaryContainer
-                  .withValues(alpha: .45),
-              child: ListTile(
-                leading: const Icon(Icons.family_restroom_outlined),
-                title: const Text(
-                  'Nama rumah tangga & data pribadi',
-                  style: TextStyle(fontWeight: FontWeight.w800),
-                ),
-                subtitle: const Text(
-                  'Nama rumah tangga, pasangan, nama/panggilan, pekerjaan, dan tujuan kini dikelola di satu halaman Profil Keluarga, bukan di sini.',
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _openFamilyProfile,
-              ),
-            ),
+            if (!widget.enabled)
+              const Text('Simpan perubahan profil keluarga terlebih dahulu.'),
             const SizedBox(height: 22),
             const Text(
               'Kunci ekspor-impor profil',
@@ -253,6 +230,7 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
             const SizedBox(height: 8),
             TextField(
               controller: _passphraseController,
+              enabled: widget.enabled && !_working,
               obscureText: _obscurePassphrase,
               decoration: InputDecoration(
                 labelText: 'Passphrase profil',
@@ -273,6 +251,7 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
             const SizedBox(height: 12),
             TextField(
               controller: _confirmPassphraseController,
+              enabled: widget.enabled && !_working,
               obscureText: _obscurePassphrase,
               decoration: const InputDecoration(
                 labelText: 'Ulangi passphrase',
@@ -281,13 +260,13 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: _working ? null : _exportProfile,
+              onPressed: _working || !widget.enabled ? null : _exportProfile,
               icon: const Icon(Icons.ios_share_outlined),
               label: const Text('Ekspor & bagikan profil'),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
-              onPressed: _working ? null : _importProfile,
+              onPressed: _working || !widget.enabled ? null : _importProfile,
               icon: const Icon(Icons.file_open_outlined),
               label: const Text('Impor dan gabungkan profil'),
             ),
@@ -299,7 +278,7 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
             ],
             const SizedBox(height: 18),
             OutlinedButton.icon(
-              onPressed: _working ? null : _resetLearning,
+              onPressed: _working || !widget.enabled ? null : _resetLearning,
               icon: const Icon(Icons.restart_alt_outlined),
               label: const Text('Reset learning'),
               style: OutlinedButton.styleFrom(
@@ -313,7 +292,7 @@ class _AssistantProfilePageState extends State<AssistantProfilePage> {
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }

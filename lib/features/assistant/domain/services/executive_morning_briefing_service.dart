@@ -208,6 +208,35 @@ class ExecutiveMorningBriefingService {
       }
     } catch (_) {}
 
+    // Cek hutang & piutang yang jatuh tempo dalam 3 hari ke depan
+    final dueLiabilities = <String>[];
+    final threeDaysLater = current.add(const Duration(days: 3));
+    try {
+      final liabilities = await (database.select(database.liabilities)
+            ..where((l) =>
+                l.householdId.equals(householdId) &
+                l.isActive.equals(true) &
+                l.dueDate.isNotNull()))
+          .get();
+
+      for (final l in liabilities) {
+        if (l.dueDate != null &&
+            !l.dueDate!.isBefore(DateTime(current.year, current.month, current.day)) &&
+            !l.dueDate!.isAfter(threeDaysLater)) {
+          final diffDays =
+              l.dueDate!.difference(DateTime(current.year, current.month, current.day)).inDays;
+          final timeStr = diffDays == 0
+              ? 'hari ini'
+              : (diffDays == 1 ? 'besok' : 'dalam $diffDays hari');
+          final amount =
+              l.monthlyInstallment > 0 ? l.monthlyInstallment : l.remainingBalance;
+          final text = 'Cicilan ${l.name} (${_formatRupiah(amount)}) jatuh tempo $timeStr';
+          dueLiabilities.add(text);
+          dueItems.add(text);
+        }
+      }
+    } catch (_) {}
+
     // Sapaan dan Teks Ringkasan Eksekutif
     final greeting = 'Selamat Pagi, $familyName! 🌅';
     final balanceText = _formatRupiah(grandTotal);
@@ -223,6 +252,12 @@ class ExecutiveMorningBriefingService {
     textSummaryBuffer.writeln('• 💳 **Saldo Kas Tersedia**: $balanceText');
     textSummaryBuffer.writeln('• 📉 **Pengeluaran Kemarin**: $yesterdayText');
     textSummaryBuffer.writeln('• 📊 **Total Belanja Bulan Ini**: $monthText');
+    if (dueLiabilities.isNotEmpty) {
+      textSummaryBuffer.writeln('• ⚠️ **Jatuh Tempo Hutang / Piutang (3 Hari)**:');
+      for (final debt in dueLiabilities) {
+        textSummaryBuffer.writeln('  - $debt');
+      }
+    }
     if (dueItems.isNotEmpty) {
       textSummaryBuffer.writeln('• 🔔 **Agenda & Pola Hari Ini**:');
       for (final item in dueItems) {
@@ -244,9 +279,15 @@ class ExecutiveMorningBriefingService {
     } else {
       scriptBuffer.write('Kemarin tidak ada catatan pengeluaran. ');
     }
+    if (dueLiabilities.isNotEmpty) {
+      scriptBuffer.write(
+          'Perhatian, ada ${dueLiabilities.length} kewajiban cicilan yang jatuh tempo dalam tiga hari ke depan: ');
+      scriptBuffer.write(dueLiabilities.join(', '));
+      scriptBuffer.write('. ');
+    }
     if (dueItems.isNotEmpty) {
       scriptBuffer.write(
-          'Untuk hari ini, ada ${dueItems.length} agenda atau pola rutin yang perlu diperhatikan, yaitu: ');
+          'Untuk hari ini, ada agenda atau pola rutin yang perlu diperhatikan, yaitu: ');
       scriptBuffer.write(dueItems.join(', '));
       scriptBuffer.write('. ');
     } else {

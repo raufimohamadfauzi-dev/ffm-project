@@ -7,6 +7,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.da
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/shared/widgets/app_components.dart';
 
 void main() {
   late dynamic database;
@@ -208,7 +209,7 @@ void main() {
 
     expect(intent.type, FfmAssistantIntentType.queryData);
     expect(intent.response, contains('Profil Pribadi'));
-    expect(intent.response, contains('Profil Personalisasi Asisten'));
+    expect(intent.response, contains('Profil Keluarga'));
     expect(intent.draft, isNull);
   });
 
@@ -1089,4 +1090,25 @@ void main() {
       expect(intent.draft!.toAccountName, 'SeaBank');
     },
   );
+
+  group('Normalisasi Input Angka Desimal & Parser Nilai Finansial', () {
+    test('FfmAssistantAmountParser mengurai desimal titik dan koma dengan unit', () {
+      expect(FfmAssistantAmountParser.parse('2.5 juta'), equals(2500000));
+      expect(FfmAssistantAmountParser.parse('2,5 juta'), equals(2500000));
+      expect(FfmAssistantAmountParser.parse('1.5 jt'), equals(1500000));
+      expect(FfmAssistantAmountParser.parse('1,5 jt'), equals(1500000));
+      expect(FfmAssistantAmountParser.parse('75.5 rb'), equals(75500));
+      expect(FfmAssistantAmountParser.parse('75,5 rb'), equals(75500));
+      expect(FfmAssistantAmountParser.parse('1.500.000'), equals(1500000));
+    });
+
+    test('parseDecimal mengurai koma dan titik desimal secara cerdas', () {
+      expect(parseDecimal('10.5'), equals(10.5));
+      expect(parseDecimal('10,5'), equals(10.5));
+      expect(parseDecimal('1.250,50'), equals(1250.5));
+      expect(parseDecimal('1,250.50'), equals(1250.5));
+      expect(parseDecimal(''), isNull);
+      expect(parseDecimal(null), isNull);
+    });
+  });
 }

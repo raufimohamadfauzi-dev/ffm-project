@@ -9,6 +9,7 @@ import '../../data/nfc_card_repository.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
 import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
+import '../../../settings/presentation/pages/master_data_page.dart';
 
 /// Modal BottomSheet untuk memindai kartu e-Money via NFC
 /// dan menampilkan hasil adaptasi saldo secara otomatis.
@@ -257,21 +258,111 @@ class _NfcScanDialogState extends State<NfcScanDialog>
       await _nfcRepo.updateCardAlias(account.cardId, newName);
       setState(() {
         final updatedAccount = account.copyWith(issuer: newName);
-        _adaptationResult = NfcAdaptationResult(
-          cardAccount: updatedAccount,
-          previousBalance: _adaptationResult!.previousBalance,
-          newBalance: _adaptationResult!.newBalance,
-          difference: _adaptationResult!.difference,
-          isBaseline: _adaptationResult!.isBaseline,
-          balanceAvailable: _adaptationResult!.balanceAvailable,
-          draft: _adaptationResult!.draft,
-          historyDrafts: _adaptationResult!.historyDrafts,
-        );
+        _adaptationResult = _adaptationResult?.copyWith(cardAccount: updatedAccount);
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Nama kartu diubah menjadi "$newName"'),
+            backgroundColor: Colors.green.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openMasterData(NfcCardAccount account, double balance) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MasterDataPage(
+          assistantTab: 3,
+          assistantName: account.displayName,
+          assistantFormValues: {
+            'openingBalance': balance.round().toString(),
+            'accountType': account.cardType.contains('bank') ? 'bank' : 'ewallet',
+          },
+        ),
+      ),
+    );
+    if (!mounted) return;
+    final cards = await _nfcRepo.getCardAccounts();
+    final updated = cards.cast<NfcCardAccount?>().firstWhere(
+          (c) => c!.cardId == account.cardId,
+          orElse: () => null,
+        );
+    if (updated != null && mounted) {
+      setState(() {
+        _adaptationResult = _adaptationResult?.copyWith(cardAccount: updated);
+      });
+    }
+  }
+
+  Future<void> _showLinkAccountDialog(NfcCardAccount account) async {
+    final db = getIt<AppDatabase>();
+    final accounts = await (db.select(db.accounts)
+          ..where((a) =>
+              a.householdId.equals(AppContext.householdId) &
+              a.isArchived.equals(false)))
+        .get();
+
+    final filtered = accounts.where((a) => a.id != account.accountId).toList();
+    if (filtered.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Belum ada rekening lain di Data Utama untuk ditautkan.'),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    final selected = await showDialog<Account>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Tautkan ke Rekening yang Ada'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: filtered.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final acc = filtered[i];
+                return ListTile(
+                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  title: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(acc.type.toUpperCase()),
+                  onTap: () => Navigator.pop(ctx, acc),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      await _nfcRepo.linkCardToAccount(account.cardId, selected.id, selected.name);
+      setState(() {
+        final updated = account.copyWith(
+          accountId: selected.id,
+          issuer: selected.name,
+        );
+        _adaptationResult = _adaptationResult?.copyWith(cardAccount: updated);
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Kartu berhasil ditautkan ke rekening "${selected.name}"'),
             backgroundColor: Colors.green.shade700,
             behavior: SnackBarBehavior.floating,
           ),
@@ -519,7 +610,7 @@ class _NfcScanDialogState extends State<NfcScanDialog>
             'Kartu terdeteksi',
             'Saldo kartu ini tidak tersedia melalui NFC. Tidak ada nominal transaksi yang dibuat.',
           )
-        else if (result.isBaseline)
+        else if (result.isBaseline) ...[
           _buildInfoBanner(
             theme,
             colors,
@@ -527,7 +618,10 @@ class _NfcScanDialogState extends State<NfcScanDialog>
             Colors.blue,
             'Kartu Baru Terdeteksi',
             'Saldo awal sebesar Rp ${_formatNumber(result.newBalance)} berhasil dicatat sebagai titik acuan.',
-          )
+          ),
+          const SizedBox(height: 12),
+          _buildBaselineActionCard(theme, colors, result),
+        ]
         else if (draft == null)
           _buildInfoBanner(
             theme,
@@ -739,5 +833,75 @@ class _NfcScanDialogState extends State<NfcScanDialog>
       count++;
     }
     return buf.toString().split('').reversed.join();
+  }
+
+  Widget _buildBaselineActionCard(
+    ThemeData theme,
+    ColorScheme colors,
+    NfcAdaptationResult result,
+  ) {
+    final account = result.cardAccount;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: colors.outlineVariant.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Pengaturan Rekening di Data Utama',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Kartu ini telah dibuatkan akun otomatis. Anda dapat mendaftarkan rinciannya di Data Utama atau menautkannya ke rekening yang sudah ada.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+              label: const Text('Buka / Daftarkan di Data Utama'),
+              onPressed: () => _openMasterData(account, result.newBalance),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.link, size: 16),
+                  label: const Text('Tautkan Rekening'),
+                  onPressed: () => _showLinkAccountDialog(account),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Ubah Nama'),
+                  onPressed: () => _editCardAlias(account),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

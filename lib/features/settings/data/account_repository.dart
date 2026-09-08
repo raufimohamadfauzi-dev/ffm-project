@@ -102,6 +102,11 @@ class AccountRepository {
             openingBalance: Value(openingBalance),
           ),
         );
+    // Sinkronkan nama alias kartu NFC terkait jika akun ini ditautkan ke NFC
+    await (_database.update(_database.nfcCardAccounts)..where(
+          (row) => row.householdId.equals(householdId) & row.accountId.equals(id),
+        ))
+        .write(NfcCardAccountsCompanion(issuer: Value(normalizedName)));
     final updated = (await get(householdId, id))!;
     await _auditLogger.record(
       action: 'update',
@@ -128,6 +133,11 @@ class AccountRepository {
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(AccountsCompanion(name: Value(normalizedName)));
+    // Sinkronkan nama alias kartu NFC terkait jika akun ini ditautkan ke NFC
+    await (_database.update(_database.nfcCardAccounts)..where(
+          (row) => row.householdId.equals(householdId) & row.accountId.equals(id),
+        ))
+        .write(NfcCardAccountsCompanion(issuer: Value(normalizedName)));
     final updated = (await get(householdId, id))!;
     await _auditLogger.record(
       action: 'update',

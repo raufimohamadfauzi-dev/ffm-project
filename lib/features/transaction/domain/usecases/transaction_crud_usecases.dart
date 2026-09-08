@@ -470,10 +470,16 @@ class ArchiveTransaction {
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
+    final now = DateTime.now();
     await (database.update(database.transactions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
-        .write(const TransactionsCompanion(isArchived: Value(true)));
+        .write(
+          TransactionsCompanion(
+            isArchived: const Value(true),
+            updatedAt: Value(now),
+          ),
+        );
   }
 }
 
@@ -484,13 +490,15 @@ class DeleteTransaction {
   /// Menghapus dari daftar aktif secara terkontrol, tanpa physical delete yang
   /// akan memutus jejak audit dan relasi data lokal.
   Future<void> call(String householdId, String id) async {
+    final now = DateTime.now();
     await (database.update(database.transactions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
         .write(
-          const TransactionsCompanion(
-            isArchived: Value(true),
-            isDeleted: Value(true),
+          TransactionsCompanion(
+            isArchived: const Value(true),
+            isDeleted: const Value(true),
+            updatedAt: Value(now),
           ),
         );
   }

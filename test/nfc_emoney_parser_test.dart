@@ -2,6 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:drift/drift.dart' hide isNull, isNotNull;
+import 'package:ffm_manager/core/database/audit_logger.dart';
+import 'package:ffm_manager/features/settings/data/account_repository.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/nfc_bridge.dart';
 import 'package:ffm_manager/features/assistant/data/nfc_card_repository.dart';
@@ -295,6 +298,71 @@ void main() {
 
       final dbAccounts = await database.select(database.accounts).get();
       expect(dbAccounts.single.name, 'e-Money Pajero Ayah');
+
+      await database.close();
+    });
+
+    test('linkCardToAccount menautkan kartu ke rekening yang ada dan membersihkan dummy account', () async {
+      final database = AppDatabase(NativeDatabase.memory());
+      final repository = NfcCardRepository(
+        draftRepo,
+        database: database,
+        householdId: 'link-household',
+      );
+
+      // Buat rekening existing di database Data Utama
+      await database.into(database.accounts).insert(
+        AccountsCompanion.insert(
+          id: 'acc-custom-1',
+          householdId: 'link-household',
+          name: 'BCA Flazz Utama',
+          type: 'ewallet',
+          openingBalance: const Value(50000),
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      // Scan kartu baru pertama kali (baseline)
+      const scan = NfcCardScanResult(
+        cardId: 'FLAZZ-LINK-99',
+        balance: 75000,
+        cardType: 'flazz_bca',
+        success: true,
+      );
+      final res = await repository.processCardScan(scan);
+      expect(res.isBaseline, isTrue);
+
+      // Hubungkan kartu ke rekening existing
+      final linked = await repository.linkCardToAccount(
+        'FLAZZ-LINK-99',
+        'acc-custom-1',
+        'BCA Flazz Utama',
+      );
+      expect(linked, isTrue);
+
+      // Cek di nfcCardAccounts
+      final dbCards = await database.select(database.nfcCardAccounts).get();
+      expect(dbCards.single.accountId, 'acc-custom-1');
+      expect(dbCards.single.issuer, 'BCA Flazz Utama');
+
+      // Cek di accounts: dummy nfc-account-... dihapus, hanya tersisa acc-custom-1
+      final dbAccounts = await database.select(database.accounts).get();
+      expect(dbAccounts, hasLength(1));
+      expect(dbAccounts.single.id, 'acc-custom-1');
+
+      // Sinkronisasi dua arah: Ubah nama rekening lewat AccountRepository
+      final accountRepo = AccountRepository(database, AuditLogger(database));
+      await accountRepo.updateFromUser(
+        householdId: 'link-household',
+        id: 'acc-custom-1',
+        name: 'BCA Flazz Mobil Honda',
+        type: 'ewallet',
+        openingBalance: 50000,
+      );
+
+      // Pastikan nfcCardAccounts.issuer ikut tersinkronisasi
+      final syncedCards = await database.select(database.nfcCardAccounts).get();
+      expect(syncedCards.single.issuer, 'BCA Flazz Mobil Honda');
 
       await database.close();
     });

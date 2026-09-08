@@ -65,6 +65,11 @@ class _ProactiveSettingsDialogState extends State<ProactiveSettingsDialog> {
       'Risiko Target Finansial',
       'Evaluasi ketercapaian target tabungan keluarga',
     ),
+    (
+      FfmAssistantInsightType.debtPayoffAcceleration,
+      'Percepatan Pelunasan Hutang',
+      'Rekomendasi alokasi surplus belanja untuk pelunasan hutang cerdas',
+    ),
   ];
 
   @override

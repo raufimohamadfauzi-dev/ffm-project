@@ -70,6 +70,7 @@ class FfmGeminiCloudOrchestrator {
     required String userText,
     required String boundedContext,
     required String householdId,
+    GeminiImageInput? image,
   }) async {
     String? key;
     String? model;
@@ -105,6 +106,7 @@ class FfmGeminiCloudOrchestrator {
         userText: userText,
         instruction: instruction,
         tools: _buildTools(),
+        image: image,
       );
     } on Object {
       return FfmGeminiCloudTurnResult.failure(
@@ -205,6 +207,7 @@ class FfmGeminiCloudOrchestrator {
           model: model.trim(),
           userText: userText,
           instruction: secondInstruction,
+          image: image,
         );
         finalText = result.text?.trim() ?? '';
         if (result.usageMetadata != null) {
@@ -245,6 +248,7 @@ class FfmGeminiCloudOrchestrator {
     required String userText,
     required String instruction,
     List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
   }) async {
     final result = await _gemini.chat(
       apiKey: key,
@@ -252,6 +256,7 @@ class FfmGeminiCloudOrchestrator {
       prompt: userText,
       systemInstruction: instruction,
       tools: tools,
+      image: image,
     );
     await _record(
       code:

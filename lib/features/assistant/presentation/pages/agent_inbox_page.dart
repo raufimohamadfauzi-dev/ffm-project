@@ -496,6 +496,21 @@ class _AgentInboxPageState extends State<AgentInboxPage>
         Colors.teal,
         Colors.teal.withValues(alpha: 0.15),
       ),
+      AutonomousActivityType.assetRevaluation => (
+        Icons.trending_up_rounded,
+        Colors.indigo,
+        Colors.indigo.withValues(alpha: 0.15),
+      ),
+      AutonomousActivityType.debtPayoff => (
+        Icons.payments_rounded,
+        Colors.redAccent.shade700,
+        Colors.redAccent.withValues(alpha: 0.15),
+      ),
+      AutonomousActivityType.receivableReminder => (
+        Icons.mark_email_unread_rounded,
+        Colors.deepPurple,
+        Colors.deepPurple.withValues(alpha: 0.15),
+      ),
     };
 
     final (statusLabel, statusColor, statusBg) = switch (activity.status) {
@@ -724,6 +739,7 @@ class _InsightCardState extends State<_InsightCard> {
       FfmAssistantInsightType.debtServiceRatio => Icons.account_balance_rounded,
       FfmAssistantInsightType.goalProgressRisk => Icons.flag_rounded,
       FfmAssistantInsightType.budgetAlert => Icons.pie_chart_rounded,
+      FfmAssistantInsightType.debtPayoffAcceleration => Icons.speed_rounded,
     };
   }
 

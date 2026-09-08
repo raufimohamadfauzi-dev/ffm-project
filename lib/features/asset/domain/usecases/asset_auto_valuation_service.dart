@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../assistant/data/autonomous_activity_repository.dart';
+import '../../../assistant/domain/entities/autonomous_activity_models.dart';
 import '../entities/market_news_models.dart';
 
 /// Hasil revaluasi aset otomatis berdasarkan data pasar terkini.
@@ -10,12 +12,14 @@ class AssetAutoValuationResult {
     required this.totalValueBefore,
     required this.totalValueAfter,
     required this.revaluedAssetNames,
+    this.previousValues = const {},
   });
 
   final int revaluedCount;
   final int totalValueBefore;
   final int totalValueAfter;
   final List<String> revaluedAssetNames;
+  final Map<String, int> previousValues;
 
   int get difference => totalValueAfter - totalValueBefore;
 }
@@ -41,6 +45,50 @@ class AssetAutoValuationService {
     return res.revaluedCount;
   }
 
+  /// Melakukan revaluasi otomatis dan jika ada perubahan nilai aset,
+  /// mencatat rekaman tindakan otonom ke [AutonomousActivityRepository]
+  /// agar tampil di Agent Inbox pengguna.
+  Future<AssetAutoValuationResult> revalueAndRecordAutonomously({
+    required AppDatabase db,
+    required MarketPriceSnapshot snapshot,
+    required String householdId,
+    AutonomousActivityRepository? activityRepository,
+  }) async {
+    final result = await revalueAssets(
+      db: db,
+      snapshot: snapshot,
+      householdId: householdId,
+    );
+
+    if (result.revaluedCount > 0 && activityRepository != null) {
+      final diff = result.difference;
+      final diffPrefix = diff >= 0 ? '+' : '-';
+      final formattedDiff =
+          'Rp ${diff.abs().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
+      await activityRepository.recordActivity(
+        AutonomousActivityRecord(
+          id: 'reval_${DateTime.now().millisecondsSinceEpoch}',
+          householdId: householdId,
+          title: 'Revaluasi Pasar: ${result.revaluedCount} Aset Diperbarui',
+          description:
+              'Penyesuaian nilai pasar terkini ($diffPrefix$formattedDiff) untuk ${result.revaluedAssetNames.join(', ')}.',
+          activityType: AutonomousActivityType.assetRevaluation,
+          occurredAt: DateTime.now(),
+          payload: {
+            'revaluedCount': result.revaluedCount,
+            'difference': diff,
+            'totalBefore': result.totalValueBefore,
+            'totalAfter': result.totalValueAfter,
+            'assetNames': result.revaluedAssetNames,
+            'previousValues': result.previousValues,
+          },
+        ),
+      );
+    }
+
+    return result;
+  }
+
   /// Memindai aset keluarga di database dan mengkalkulasi ulang nilainya
   /// berdasarkan snapshot harga pasar terkini secara deterministik.
   Future<AssetAutoValuationResult> revalueAssets({
@@ -57,6 +105,7 @@ class AssetAutoValuationService {
     var totalBefore = 0;
     var totalAfter = 0;
     final names = <String>[];
+    final previousValues = <String, int>{};
 
     for (final asset in assets) {
       totalBefore += asset.value;
@@ -112,6 +161,7 @@ class AssetAutoValuationService {
         if (computedNewValue != asset.value) {
           count++;
           names.add(asset.name);
+          previousValues[asset.id] = asset.value;
 
           // Update nilai aset di database secara langsung
           await (db.update(db.assets)..where((a) => a.id.equals(asset.id))).write(
@@ -131,6 +181,7 @@ class AssetAutoValuationService {
       totalValueBefore: totalBefore,
       totalValueAfter: totalAfter,
       revaluedAssetNames: names,
+      previousValues: previousValues,
     );
   }
 

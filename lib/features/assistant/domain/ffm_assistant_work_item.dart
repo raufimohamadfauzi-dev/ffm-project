@@ -156,7 +156,6 @@ class FfmAssistantWorkItem {
         return 'Struktur Database';
 
       case FfmAssistantDestination.assistantProfile:
-        return 'Profil Asisten';
       case FfmAssistantDestination.familyProfile:
         return 'Profil Keluarga';
       case FfmAssistantDestination.intelligenceDashboard:

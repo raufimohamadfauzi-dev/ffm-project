@@ -180,6 +180,9 @@ Future<Map<String, dynamic>?> showEditActivityDialog({
             AutonomousActivityType.utilityMeter => 'Meteran Listrik PLN',
             AutonomousActivityType.harvestShift => 'Pergeseran Panen Tani',
             AutonomousActivityType.habitDeclaration => 'Deklarasi Kebiasaan',
+            AutonomousActivityType.assetRevaluation => 'Revaluasi Nilai Aset',
+            AutonomousActivityType.debtPayoff => 'Percepatan Pelunasan Hutang',
+            AutonomousActivityType.receivableReminder => 'Pengingat Piutang',
           };
 
           return AlertDialog(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../../data/ffm_assistant_draft_feedback_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
+import '../../../transaction/data/services/receipt_import_models.dart';
 
 /// Dialog mandiri untuk memperbaiki draft yang masih berada di sesi chat.
 /// Tidak menyimpan data; caller wajib memvalidasi lalu meneruskan ke form.
@@ -39,6 +40,12 @@ class _FfmAssistantDraftEditDialogState
   late final TextEditingController _adminFeeController;
   late final TextEditingController _tagsController;
   late final TextEditingController _monthlyInstallmentController;
+  late final TextEditingController _receiptNumberController;
+  late final TextEditingController _receiptPaidAmountController;
+  late final TextEditingController _receiptChangeAmountController;
+  late final TextEditingController _taxController;
+  late final TextEditingController _discountController;
+  late List<ReceiptOcrItem> _items;
   late String _budgetPeriod;
   late final List<String> _tags;
   late String? _fromAccount;
@@ -109,6 +116,38 @@ class _FfmAssistantDraftEditDialogState
               widget.draft.formValues['kind'],
         ) ??
         ActivityMode.timeTracking;
+
+    _items = List<ReceiptOcrItem>.from(widget.draft.items);
+    _receiptNumberController = TextEditingController(
+      text: widget.draft.receiptNumber ??
+          widget.draft.formValues['receiptNumber'] ??
+          widget.draft.formValues['receipt_number'] ??
+          '',
+    );
+    _receiptPaidAmountController = TextEditingController(
+      text: widget.draft.receiptPaidAmount?.toString() ??
+          widget.draft.formValues['receiptPaidAmount'] ??
+          widget.draft.formValues['paid_amount'] ??
+          '',
+    );
+    _receiptChangeAmountController = TextEditingController(
+      text: widget.draft.receiptChangeAmount?.toString() ??
+          widget.draft.formValues['receiptChangeAmount'] ??
+          widget.draft.formValues['change_amount'] ??
+          '',
+    );
+    _taxController = TextEditingController(
+      text: widget.draft.tax?.toString() ??
+          widget.draft.formValues['tax'] ??
+          widget.draft.formValues['pajak'] ??
+          '',
+    );
+    _discountController = TextEditingController(
+      text: widget.draft.discount?.toString() ??
+          widget.draft.formValues['discount'] ??
+          widget.draft.formValues['diskon'] ??
+          '',
+    );
   }
 
   @override
@@ -124,7 +163,45 @@ class _FfmAssistantDraftEditDialogState
     _adminFeeController.dispose();
     _monthlyInstallmentController.dispose();
     _tagsController.dispose();
+    _receiptNumberController.dispose();
+    _receiptPaidAmountController.dispose();
+    _receiptChangeAmountController.dispose();
+    _taxController.dispose();
+    _discountController.dispose();
     super.dispose();
+  }
+
+  void _recalculateAmountFromItems() {
+    if (_items.isEmpty) return;
+    final subtotal = _items.fold<int>(0, (sum, i) => sum + i.calculatedTotal);
+    final taxText = _taxController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final tax = taxText.isEmpty ? 0 : (int.tryParse(taxText) ?? 0);
+    final discountText = _discountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final discount = discountText.isEmpty ? 0 : (int.tryParse(discountText) ?? 0);
+    final total = subtotal + tax - discount;
+    if (total > 0) {
+      _amountController.text = total.toString();
+    }
+  }
+
+  void _addItem() {
+    setState(() {
+      _items.add(const ReceiptOcrItem(name: '', price: 0, quantity: 1));
+    });
+  }
+
+  void _removeItem(int index) {
+    setState(() {
+      _items.removeAt(index);
+      _recalculateAmountFromItems();
+    });
+  }
+
+  void _updateItem(int index, ReceiptOcrItem updated) {
+    setState(() {
+      _items[index] = updated;
+      _recalculateAmountFromItems();
+    });
   }
 
   String? _textOrNull(TextEditingController controller) {
@@ -207,6 +284,18 @@ class _FfmAssistantDraftEditDialogState
             ? _toAccount!.trim()
             : _fromAccount?.trim());
 
+    final receiptNumber = _textOrNull(_receiptNumberController);
+    final receiptPaidAmountText = _receiptPaidAmountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final receiptPaidAmount = receiptPaidAmountText.isEmpty ? null : int.tryParse(receiptPaidAmountText);
+    final receiptChangeAmountText = _receiptChangeAmountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final receiptChangeAmount = receiptChangeAmountText.isEmpty ? null : int.tryParse(receiptChangeAmountText);
+    final taxText = _taxController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final tax = taxText.isEmpty ? null : int.tryParse(taxText);
+    final discountText = _discountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final discount = discountText.isEmpty ? null : int.tryParse(discountText);
+
+    final validItems = _items.where((i) => i.name.trim().isNotEmpty).toList(growable: false);
+
     final editedDraft = FfmAssistantDraft(
       kind: _selectedKind,
       createdAt: widget.draft.createdAt,
@@ -223,6 +312,12 @@ class _FfmAssistantDraftEditDialogState
       note: _textOrNull(_noteController),
       date: _date ?? widget.draft.date,
       linkedActivityId: widget.draft.linkedActivityId,
+      items: validItems,
+      receiptNumber: receiptNumber,
+      receiptPaidAmount: receiptPaidAmount,
+      receiptChangeAmount: receiptChangeAmount,
+      tax: tax,
+      discount: discount,
       formValues: {
         ...widget.draft.formValues,
         if (_selectedKind == FfmAssistantDraftKind.budget)
@@ -249,6 +344,14 @@ class _FfmAssistantDraftEditDialogState
         if (_isTransaction && merchantName != null) 'merchant': merchantName,
         if (_isTransaction && location != null) 'location': location,
         if (_isTransaction && partyName != null) 'party': partyName,
+        if (receiptNumber != null && receiptNumber.isNotEmpty)
+          'receiptNumber': receiptNumber,
+        if (receiptPaidAmount != null)
+          'receiptPaidAmount': receiptPaidAmount.toString(),
+        if (receiptChangeAmount != null)
+          'receiptChangeAmount': receiptChangeAmount.toString(),
+        if (tax != null) 'tax': tax.toString(),
+        if (discount != null) 'discount': discount.toString(),
       },
       merchantName: merchantName ?? widget.draft.merchantName,
       location: location ?? widget.draft.location,
@@ -700,6 +803,143 @@ class _FfmAssistantDraftEditDialogState
               onRemove: _removeTag,
               controller: _tagsController,
             ),
+          if (_isTransaction) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Rincian Item Belanja (${_items.length})',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _addItem,
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('Tambah Item'),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Text(
+                        'Belum ada item belanja terinci. Tambahkan jika ingin mencatat struk secara mendetail.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    )
+                  else ...[
+                    const SizedBox(height: 4),
+                    ..._items.asMap().entries.map((entry) {
+                      final idx = entry.key;
+                      final item = entry.value;
+                      return _DraftReceiptItemRow(
+                        key: ValueKey('receipt_item_$idx'),
+                        item: item,
+                        index: idx,
+                        onChanged: (updated) => _updateItem(idx, updated),
+                        onDeleted: () => _removeItem(idx),
+                      );
+                    }),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: const Text(
+                  'Detail Nota / Struk (Opsional)',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                children: [
+                  TextField(
+                    controller: _receiptNumberController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nomor Struk / Faktur',
+                      hintText: 'Contoh: INV-20240901',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _taxController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Pajak / PPN (Rp)',
+                            hintText: '0',
+                          ),
+                          onChanged: (_) => _recalculateAmountFromItems(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _discountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Diskon (Rp)',
+                            hintText: '0',
+                          ),
+                          onChanged: (_) => _recalculateAmountFromItems(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _receiptPaidAmountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Uang Dibayar (Rp)',
+                            hintText: 'Contoh: 100000',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _receiptChangeAmountController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Kembalian (Rp)',
+                            hintText: 'Contoh: 15000',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            ),
+          ],
           TextField(
             controller: _noteController,
             maxLines: 2,
@@ -719,6 +959,100 @@ class _FfmAssistantDraftEditDialogState
       FilledButton(onPressed: _save, child: const Text('Pakai perubahan')),
     ],
   );
+}
+
+class _DraftReceiptItemRow extends StatelessWidget {
+  const _DraftReceiptItemRow({
+    super.key,
+    required this.item,
+    required this.index,
+    required this.onChanged,
+    required this.onDeleted,
+  });
+
+  final ReceiptOcrItem item;
+  final int index;
+  final ValueChanged<ReceiptOcrItem> onChanged;
+  final VoidCallback onDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: item.name,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Nama Barang',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) => onChanged(item.copyWith(name: val)),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                tooltip: 'Hapus Item',
+                onPressed: onDeleted,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  initialValue: item.quantity == 1 ? '1' : item.quantity.toString(),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Qty',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) {
+                    final qty = double.tryParse(val.replaceAll(',', '.')) ?? 1.0;
+                    onChanged(item.copyWith(quantity: qty));
+                  },
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  initialValue: item.price.toString(),
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    labelText: 'Harga (Rp)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (val) {
+                    final p = int.tryParse(val.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                    onChanged(item.copyWith(price: p));
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Rp${item.calculatedTotal}',
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MultiValueEditor extends StatelessWidget {

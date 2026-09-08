@@ -21,6 +21,28 @@ int parseRupiah(String value) {
   return int.tryParse(digits) ?? 0;
 }
 
+/// Mengurai string angka desimal (misal gram emas "10.5" atau valas "25,5").
+/// Mendukung format Indonesia ("10,5") maupun standar internasional ("10.5").
+double? parseDecimal(String? value) {
+  if (value == null) return null;
+  var text = value.trim();
+  if (text.isEmpty) return null;
+
+  if (text.contains('.') && text.contains(',')) {
+    final lastDot = text.lastIndexOf('.');
+    final lastComma = text.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      text = text.replaceAll('.', '').replaceAll(',', '.');
+    } else {
+      text = text.replaceAll(',', '');
+    }
+  } else if (text.contains(',')) {
+    text = text.replaceAll(',', '.');
+  }
+  final sanitized = text.replaceAll(RegExp(r'[^0-9.]'), '');
+  return double.tryParse(sanitized);
+}
+
 Future<void> showAppInfoDialog(
   BuildContext context, {
   required String title,

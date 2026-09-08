@@ -726,4 +726,88 @@ void main() {
     expect(outcome.tokenUsage!['candidatesTokenCount'], equals(135));
     expect(outcome.tokenUsage!['totalTokenCount'], equals(555));
   });
+
+  test('askVisualQuestion menjawab pertanyaan analisis/umum gambar secara multimodal', () async {
+    final service = ReceiptScannerService(
+      gemini: GeminiService(
+        client: _FakeHttpClient((_, _, _) async {
+          return http.Response(
+            jsonEncode({
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [{'text': 'Gambar ini memperlihatkan grafik pengeluaran bulanan keluarga.'}],
+                  },
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+    );
+
+    final outcome = await service.askVisualQuestion(
+      bytes: _tinyImage(),
+      question: 'Ini gambar apa?',
+      apiKey: 'test-key',
+      model: 'gemini-test',
+    );
+
+    expect(outcome.ok, isTrue);
+    expect(outcome.message, contains('grafik pengeluaran'));
+  });
+
+  test('scanImage melakukan fallback ke askVisualQuestion jika respon non-JSON dan ada userCaption', () async {
+    var callCount = 0;
+    final service = ReceiptScannerService(
+      gemini: GeminiService(
+        client: _FakeHttpClient((_, _, _) async {
+          callCount++;
+          if (callCount == 1) {
+            // First call (scanImage with receipt prompt) returns natural text instead of JSON
+            return http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [{'text': 'Ini adalah foto tanaman hias, bukan nota belanja.'}],
+                    },
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          } else {
+            // Second call (fallback askVisualQuestion)
+            return http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [{'text': 'Ini adalah tanaman Monstera yang sehat.'}],
+                    },
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }
+        }),
+      ),
+    );
+
+    final outcome = await service.scanImage(
+      bytes: _tinyImage(),
+      apiKey: 'test-key',
+      model: 'gemini-test',
+      userCaption: 'Ini tanaman apa ya?',
+    );
+
+    expect(outcome.ok, isTrue);
+    expect(outcome.message, contains('tanaman Monstera'));
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
@@ -648,7 +649,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
     Navigator.pop(
       context,
       ReminderEntity(
-        id: initial?.id ?? 'reminder-${DateTime.now().microsecondsSinceEpoch}',
+        id: initial?.id ?? const Uuid().v4(),
         householdId: initial?.householdId ?? 'local-household',
         title: title,
         note: _noteController.text.trim().isEmpty

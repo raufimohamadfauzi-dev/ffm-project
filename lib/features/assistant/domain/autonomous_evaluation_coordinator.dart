@@ -6,6 +6,7 @@ import '../../advisor/data/cash_flow_profile_repository.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
 import '../data/ffm_assistant_insight_repository.dart';
 import 'detectors/anomaly_spike_detector.dart';
+import 'detectors/debt_payoff_acceleration_detector.dart';
 import 'detectors/debt_service_ratio_detector.dart';
 import 'detectors/goal_progress_risk_detector.dart';
 import 'detectors/intelligent_envelope_rebalance_detector.dart';
@@ -41,7 +42,8 @@ class AutonomousEvaluationCoordinator {
         _spikeDetector = AnomalySpikeDetector(database),
         _latteDetector = MicroExpenseLeakDetector(database),
         _dsrDetector = DebtServiceRatioDetector(database),
-        _goalDetector = GoalProgressRiskDetector(database);
+        _goalDetector = GoalProgressRiskDetector(database),
+        _debtPayoffDetector = DebtPayoffAccelerationDetector(database);
 
   static final Map<String, DateTime> _lastEvaluationTimes = {};
   static const Duration minimumEvaluationInterval = Duration(seconds: 15);
@@ -64,6 +66,7 @@ class AutonomousEvaluationCoordinator {
   final MicroExpenseLeakDetector _latteDetector;
   final DebtServiceRatioDetector _dsrDetector;
   final GoalProgressRiskDetector _goalDetector;
+  final DebtPayoffAccelerationDetector _debtPayoffDetector;
 
   /// Menjalankan seluruh detektor deterministik, melakukan deduplikasi,
   /// pemeringkatan prioritas, dan menyimpan insight baru ke SQLite repository.
@@ -116,6 +119,11 @@ class AutonomousEvaluationCoordinator {
     try {
       final goal = await _goalDetector.detect(householdId: householdId, now: now);
       if (goal != null) candidates.add(goal);
+    } catch (_) {}
+
+    try {
+      final payoff = await _debtPayoffDetector.detect(householdId: householdId, now: now);
+      if (payoff != null) candidates.add(payoff);
     } catch (_) {}
 
     if (candidates.isEmpty) return const [];

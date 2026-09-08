@@ -166,11 +166,36 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
     return null;
   }
 
-  void _saveAll() {
+  Future<void> _saveAll() async {
     final error = _validateRows();
     if (error != null) {
       setState(() => _errorText = error);
       return;
+    }
+    final unusuallyHigh = _rows.where((r) => parseRupiah(r.amountController.text) >= 100000000).toList();
+    if (unusuallyHigh.isNotEmpty) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('⚠️ Konfirmasi Batas Nilai Wajar'),
+          content: Text(
+            'Terdeteksi ${unusuallyHigh.length} transaksi dengan nominal sangat besar (≥ Rp 100.000.000).\n\n'
+            'Input suara kadang salah menangkap kata (seperti jutaan terdengar miliaran/triliunan).\n'
+            'Apakah Anda yakin nominal ini sudah benar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Periksa Ulang'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Ya, Sudah Benar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
     }
     final drafts = _rows
         .map(
@@ -191,6 +216,7 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
           ),
         )
         .toList(growable: false);
+    if (!mounted) return;
     Navigator.of(context).pop(drafts);
   }
 
@@ -246,6 +272,29 @@ class _VoiceBatchReviewDialogState extends State<VoiceBatchReviewDialog> {
               },
             ),
             const SizedBox(height: 10),
+            if (row.isUnusuallyHighAmount || parseRupiah(row.amountController.text) >= 100000000) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade700),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.amber.shade900),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Nominal sangat besar (≥ Rp 100 Jt). Pastikan ucapan tidak salah tangkap.',
+                        style: TextStyle(fontSize: 11, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             TextField(
               controller: row.amountController,
               keyboardType: TextInputType.number,
@@ -938,6 +987,7 @@ class VoiceBatchRowDraft {
       merchantId = result.merchantId,
       accountId = result.accountId,
       partyName = result.partyName ?? '',
+      isUnusuallyHighAmount = result.isUnusuallyHighAmount,
       amountController = TextEditingController(
         text: result.hasAmount
             ? formatRupiahInput(result.amount.toString())
@@ -956,6 +1006,7 @@ class VoiceBatchRowDraft {
           hasExplicitType: false,
           hasAmount: false,
           note: '',
+          isUnusuallyHighAmount: false,
         ),
       );
 
@@ -964,6 +1015,7 @@ class VoiceBatchRowDraft {
   String? merchantId;
   String? accountId;
   String partyName;
+  final bool isUnusuallyHighAmount;
   final TextEditingController amountController;
   final TextEditingController partyController;
   final TextEditingController noteController;

@@ -171,6 +171,7 @@ class FfmAssistantInterpreter {
     FfmAssistantDestination.diagnostics,
     FfmAssistantDestination.databaseStructure,
     FfmAssistantDestination.assistantProfile,
+    FfmAssistantDestination.familyProfile,
     FfmAssistantDestination.masterData,
     FfmAssistantDestination.activityLog,
     FfmAssistantDestination.reconciliation,
@@ -9087,11 +9088,15 @@ abstract final class FfmAssistantAmountParser {
       final match = numeric.first;
       final rawNumber = match.group(1)!;
       final unit = match.group(2);
-      final decimal =
-          unit != null &&
+      final hasCommaDecimal = unit != null &&
           rawNumber.contains(',') &&
           !rawNumber.contains('.') &&
           rawNumber.split(',').last.length <= 2;
+      final hasDotDecimal = unit != null &&
+          rawNumber.contains('.') &&
+          !rawNumber.contains(',') &&
+          rawNumber.split('.').last.length <= 2;
+      final decimal = hasCommaDecimal || hasDotDecimal;
       final base = decimal
           ? double.tryParse(rawNumber.replaceAll(',', '.'))
           : double.tryParse(rawNumber.replaceAll(RegExp(r'[^0-9]'), ''));
@@ -9256,7 +9261,7 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'tabel database' => FfmAssistantDestination.databaseStructure,
     'assistantprofile' ||
     'profil personalisasi' ||
-    'profil' => FfmAssistantDestination.assistantProfile,
+    'profil' ||
     'familyprofile' ||
     'profil keluarga' ||
     'data keluarga' || 'profil rumah tangga' => FfmAssistantDestination

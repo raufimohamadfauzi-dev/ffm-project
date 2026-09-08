@@ -9,6 +9,7 @@ enum FfmAssistantInsightType {
   debtServiceRatio,
   goalProgressRisk,
   budgetAlert,
+  debtPayoffAcceleration,
 }
 
 enum FfmAssistantInsightSeverity {

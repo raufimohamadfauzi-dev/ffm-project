@@ -30,7 +30,6 @@ import 'features/assistant/presentation/widgets/ffm_assistant_sheet.dart';
 import 'features/assistant/presentation/widgets/nfc_scan_dialog.dart';
 import 'features/assistant/data/nfc_bridge.dart';
 
-import 'features/assistant/presentation/pages/assistant_profile_page.dart';
 import 'features/assistant/presentation/pages/agent_inbox_page.dart';
 import 'features/asset/presentation/pages/asset_pages.dart';
 import 'features/audit/presentation/pages/activity_log_page.dart';
@@ -907,6 +906,7 @@ class _AppShellState extends State<AppShell> {
             draft?.kind == FfmAssistantDraftKind.masterData) {
           await _syncAssistantDraftAfterForm(createdId != null);
         }
+      case FfmAssistantDestination.assistantProfile:
       case FfmAssistantDestination.familyProfile:
         await Navigator.of(context).push(
           MaterialPageRoute(
@@ -1049,10 +1049,6 @@ class _AppShellState extends State<AppShell> {
           MaterialPageRoute(builder: (_) => const DatabaseStructurePage()),
         );
 
-      case FfmAssistantDestination.assistantProfile:
-        await Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const AssistantProfilePage()));
       case FfmAssistantDestination.intelligenceDashboard:
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));

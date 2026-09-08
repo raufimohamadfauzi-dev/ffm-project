@@ -1,11 +1,17 @@
+import 'dart:convert';
 import 'package:drift/drift.dart' as drift;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/asset/data/repositories/market_news_cache_repository.dart';
+import 'package:ffm_manager/features/asset/data/services/market_news_radar_service.dart';
 import 'package:ffm_manager/features/asset/domain/entities/market_news_models.dart';
 import 'package:ffm_manager/features/asset/domain/usecases/asset_auto_valuation_service.dart';
+import 'package:ffm_manager/features/assistant/data/autonomous_activity_repository.dart';
+import 'package:ffm_manager/features/assistant/domain/entities/autonomous_activity_models.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -289,6 +295,109 @@ void main() {
 
       final sar = await (db.select(db.assets)..where((a) => a.id.equals('asset-forex-2'))).getSingle();
       expect(sar.value, equals(2200000)); // 500 * 4400
+    });
+
+    test('Autonomous revaluation records activity into AutonomousActivityRepository', () async {
+      final householdId = 'household-autonomous';
+      final activityRepo = AutonomousActivityRepository(database: db);
+
+      await db.assets.insertOne(
+        AssetsCompanion.insert(
+          id: 'asset-gold-auto',
+          householdId: householdId,
+          name: 'Emas Batangan 10 gram 24k',
+          assetType: 'gold',
+          value: const drift.Value(14000000),
+          placement: const drift.Value('Brankas'),
+          createdAt: DateTime.now(),
+        ),
+      );
+
+      final snapshot = MarketPriceSnapshot(
+        goldPrice24K: 1500000,
+        goldBuybackPrice: 1350000,
+        usdRate: 16500.0,
+        sgdRate: 12000.0,
+        eurRate: 17000.0,
+        sarRate: 4400.0,
+        btcPrice: 1000000000,
+        ethPrice: 40000000,
+        usdtPrice: 16000,
+        lastUpdated: DateTime.now(),
+      );
+
+      final result = await service.revalueAndRecordAutonomously(
+        db: db,
+        snapshot: snapshot,
+        householdId: householdId,
+        activityRepository: activityRepo,
+      );
+
+      expect(result.revaluedCount, equals(1));
+      expect(result.difference, equals(1000000)); // 15jt - 14jt
+
+      final activities = await activityRepo.getRecentActivities(householdId);
+      expect(activities, isNotEmpty);
+      expect(activities.first.activityType, equals(AutonomousActivityType.assetRevaluation));
+      expect(activities.first.title, contains('1 Aset Diperbarui'));
+    });
+  });
+
+  group('MarketNewsRadarService RSS and Division Guard Tests', () {
+    test('parseRssFeed parses XML items correctly and categorizes them', () {
+      const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Antara News</title>
+    <item>
+      <title><![CDATA[BMKG Rilis Peringatan Hujan Lebat dan Angin Kencang]]></title>
+      <description><![CDATA[Masyarakat diminta waspada cuaca ekstrem sepekan ke depan.]]></description>
+      <link>https://antaranews.com/berita/123</link>
+      <pubDate>Tue, 08 Sep 2026 10:00:00 GMT</pubDate>
+    </item>
+    <item>
+      <title>Petani Sukabumi Panen Raya Padi dan Gabah Kering</title>
+      <description>Harga gabah stabil dan pupuk bersubsidi mencukupi.</description>
+      <link>https://antaranews.com/berita/124</link>
+      <pubDate>Tue, 08 Sep 2026 08:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>''';
+
+      final items = MarketNewsRadarService.parseRssFeed(xml, defaultSource: 'Antara');
+      expect(items.length, equals(2));
+      expect(items[0].title, equals('BMKG Rilis Peringatan Hujan Lebat dan Angin Kencang'));
+      expect(items[0].category, equals(NewsCategory.weatherDisaster));
+      expect(items[1].title, equals('Petani Sukabumi Panen Raya Padi dan Gabah Kering'));
+      expect(items[1].category, equals(NewsCategory.agriculture));
+    });
+
+    test('Forex rate division guards against zero or missing exchange rates', () async {
+      final mockClient = MockClient((request) async {
+        if (request.url.toString().contains('open.er-api.com')) {
+          return http.Response(
+            jsonEncode({
+              'rates': {
+                'IDR': 16000.0,
+                'SGD': 0, // Zero rate
+                'EUR': -1.0, // Negative rate
+              }
+            }),
+            200,
+          );
+        }
+        return http.Response('{}', 404);
+      });
+
+      const radarService = MarketNewsRadarService();
+      final prices = await radarService.fetchMarketPrices(client: mockClient);
+
+      // SgdRate and EurRate should remain default fallback and not throw Infinity or error
+      expect(prices.usdRate, equals(16000.0));
+      expect(prices.sgdRate.isFinite, isTrue);
+      expect(prices.eurRate.isFinite, isTrue);
+      expect(prices.sgdRate, equals(11950.0)); // Fallback maintained
+      expect(prices.eurRate, equals(16920.0)); // Fallback maintained
     });
   });
 }

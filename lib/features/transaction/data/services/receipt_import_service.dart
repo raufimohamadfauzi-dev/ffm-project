@@ -31,6 +31,10 @@ class ReceiptBatchEntry {
     this.fromAccountId,
     this.toAccountId,
     this.adminFee,
+    this.paidAmount,
+    this.changeAmount,
+    this.tax,
+    this.discount,
   });
 
   final String type;
@@ -50,6 +54,10 @@ class ReceiptBatchEntry {
   final String? fromAccountId;
   final String? toAccountId;
   final int? adminFee;
+  final int? paidAmount;
+  final int? changeAmount;
+  final int? tax;
+  final int? discount;
   final List<ReceiptOcrItem> items;
 }
 
@@ -220,6 +228,8 @@ class ReceiptImportService {
             receiptNumber: receipt.receiptNumber,
             note: receipt.rawText.trim().isEmpty ? null : receipt.rawText,
             items: receipt.items,
+            paidAmount: receipt.paidAmount,
+            changeAmount: receipt.changeAmount,
           ),
         ],
         warnings: receipt.validationWarnings,
@@ -354,6 +364,20 @@ class ReceiptImportService {
                 data['fee'] ??
                 data['biaya'],
           ),
+          paidAmount: _money(
+            data['paid_amount'] ??
+                data['paidAmount'] ??
+                data['bayar'] ??
+                data['nominal_bayar'],
+          ),
+          changeAmount: _money(
+            data['change_amount'] ??
+                data['changeAmount'] ??
+                data['kembalian'] ??
+                data['kembali'],
+          ),
+          tax: _money(data['tax'] ?? data['pajak'] ?? data['ppn']),
+          discount: _money(data['discount'] ?? data['diskon'] ?? data['potongan']),
           items: items,
         ),
       );

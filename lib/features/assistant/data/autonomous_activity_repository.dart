@@ -130,6 +130,31 @@ class AutonomousActivityRepository {
         case AutonomousActivityType.habitDeclaration:
           // Kebiasaan di memori dapat dinonaktifkan
           break;
+
+        case AutonomousActivityType.assetRevaluation:
+          final prevValues = target.payload['previousValues'] as Map<String, dynamic>?;
+          if (prevValues != null && database != null) {
+            for (final entry in prevValues.entries) {
+              final assetId = entry.key;
+              final oldVal = (entry.value as num?)?.toInt();
+              if (oldVal != null) {
+                await (database!.update(database!.assets)..where((row) => row.id.equals(assetId)))
+                    .write(AssetsCompanion(value: Value(oldVal), updatedAt: Value(DateTime.now())));
+              }
+            }
+          }
+          break;
+
+        case AutonomousActivityType.debtPayoff:
+          final transferId = target.payload['transferId']?.toString();
+          if (transferId != null && database != null) {
+            await (database!.delete(database!.transactions)..where((row) => row.id.equals(transferId))).go();
+          }
+          break;
+
+        case AutonomousActivityType.receivableReminder:
+          // Pengingat hanya berupa notifikasi teks
+          break;
       }
     } catch (_) {
       return false;
@@ -238,6 +263,9 @@ class AutonomousActivityRepository {
           break;
 
         case AutonomousActivityType.habitDeclaration:
+        case AutonomousActivityType.assetRevaluation:
+        case AutonomousActivityType.debtPayoff:
+        case AutonomousActivityType.receivableReminder:
           break;
       }
     } catch (_) {}

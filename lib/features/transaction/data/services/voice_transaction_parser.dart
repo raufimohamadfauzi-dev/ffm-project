@@ -1,4 +1,5 @@
 import '../../../../core/database/app_database.dart';
+import '../../../assistant/data/ffm_assistant_interpreter.dart';
 
 enum VoiceTransactionType { income, expense }
 
@@ -15,6 +16,7 @@ class VoiceTransactionParseResult {
     this.tagNames = const [],
     this.hasExplicitType = false,
     this.hasAmount = false,
+    this.isUnusuallyHighAmount = false,
   });
 
   final VoiceTransactionType type;
@@ -28,6 +30,7 @@ class VoiceTransactionParseResult {
   final List<String> tagNames;
   final bool hasExplicitType;
   final bool hasAmount;
+  final bool isUnusuallyHighAmount;
 }
 
 abstract final class VoiceTransactionParser {
@@ -80,7 +83,11 @@ abstract final class VoiceTransactionParser {
     final type = income && !expense
         ? VoiceTransactionType.income
         : VoiceTransactionType.expense;
-    final amount = _parseAmount(lower);
+    final parsedByInterpreter = FfmAssistantAmountParser.parse(lower);
+    final amount = (parsedByInterpreter != null && parsedByInterpreter > 0)
+        ? parsedByInterpreter
+        : _parseAmount(lower);
+    final isUnusuallyHigh = amount >= 100000000 || lower.contains('triliun');
     final category = categories.where((item) {
       final name = item.name.toLowerCase();
       return name.isNotEmpty && lower.contains(name);
@@ -110,10 +117,13 @@ abstract final class VoiceTransactionParser {
       tagNames: selectedTags,
       hasExplicitType: income || expense,
       hasAmount: amount > 0,
+      isUnusuallyHighAmount: isUnusuallyHigh,
     );
   }
 
   static int _parseAmount(String text) {
+    final parsed = FfmAssistantAmountParser.parse(text);
+    if (parsed != null && parsed > 0) return parsed;
     final numeric = RegExp(r'(\d[\d.,]*)')
         .allMatches(text)
         .map((m) => m.group(1)!)

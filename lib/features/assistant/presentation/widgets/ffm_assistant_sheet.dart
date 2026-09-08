@@ -202,6 +202,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   String? _pendingAttachmentName;
 
   final _receiptScanner = ReceiptScannerService();
+  String? _activeVisualContext;
   var _activeProcessLabel = 'Menyiapkan permintaan...';
   var _navigatingFromChat = false;
   var _cloudReady = false;
@@ -2284,11 +2285,36 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _scrollToEnd(force: true);
       return;
     }
+    await _handleImageUpload(path, bytes, userCaption: userCaption);
+  }
+
+  bool _isBroadVisualQuestion(String? caption) {
+    if (caption == null || caption.trim().isEmpty) return false;
+    final lower = caption.trim().toLowerCase();
+    final isExplicitTransactionCmd = RegExp(
+      r'\b(catat|rekam|simpan|masukkan|input)\s+(struk|nota|transaksi|belanja|pembelian)\b',
+    ).hasMatch(lower);
+    if (isExplicitTransactionCmd) return false;
+
+    final hasQuestionMark = lower.contains('?');
+    final hasQuestionWords = RegExp(
+      r'\b(apa|apakah|kenapa|mengapa|bagaimana|gimana|berapa|siapa|kapan|baca|bacakan|jelaskan|analisa|analisis|cek|periksa|lihat)\b',
+    ).hasMatch(lower);
+
+    return hasQuestionMark || hasQuestionWords;
+  }
+
+  Future<void> _handleImageUpload(String path, Uint8List bytes, {String? userCaption}) async {
     if (!mounted) return;
 
+    final isBroadQuestion = _isBroadVisualQuestion(userCaption);
     final caption = (userCaption != null && userCaption.trim().isNotEmpty)
         ? userCaption.trim()
         : 'Aku lampirkan foto struk untuk dipindai.';
+
+    final placeholderText = isBroadQuestion
+        ? 'Menganalisis gambar dengan Gemini Vision…'
+        : 'Membaca struk dari foto…';
 
     final userEntry = FfmAssistantChatEntry(
       isUser: true,
@@ -2299,7 +2325,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     );
     FfmAssistantChatEntry placeholder = FfmAssistantChatEntry(
       isUser: false,
-      text: 'Membaca struk dari foto…',
+      text: placeholderText,
       filePath: path,
       fileFormat: 'image',
       createdAt: DateTime.now(),
@@ -2312,18 +2338,26 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     });
     _scrollToEnd(force: true);
 
-    final outcome = await _receiptScanner.scanImage(
-      bytes: bytes,
-      mimeType: _mimeTypeFor(path),
-      imagePath: path,
-      userCaption: userCaption,
-    );
+    final outcome = isBroadQuestion
+        ? await _receiptScanner.askVisualQuestion(
+            bytes: bytes,
+            question: caption,
+            mimeType: _mimeTypeFor(path),
+            imagePath: path,
+          )
+        : await _receiptScanner.scanImage(
+            bytes: bytes,
+            mimeType: _mimeTypeFor(path),
+            imagePath: path,
+            userCaption: userCaption,
+          );
 
     if (!mounted) return;
     final placeholderIndex = _entries.indexOf(
       _entries.firstWhere(
         (entry) =>
-            entry.text == 'Membaca struk dari foto…' &&
+            (entry.text == 'Membaca struk dari foto…' ||
+                entry.text == 'Menganalisis gambar dengan Gemini Vision…') &&
             entry.filePath == path,
         orElse: () => placeholder,
       ),
@@ -2342,7 +2376,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 tokenUsage: outcome.tokenUsage,
                 events: [
                   FfmAssistantProcessEvent(
-                    label: 'Gemini Cloud memproses struk',
+                    label: 'Gemini Cloud memproses gambar',
                     detail: outcome.message,
                     elapsed: outcome.latency ?? Duration.zero,
                   ),
@@ -2362,22 +2396,56 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
     });
     if (outcome.ok) {
-      try {
-        await _appendScanOutcome(outcome);
-      } on Object {
+      if (isBroadQuestion || outcome.batch == null) {
+        final trace = outcome.tokenUsage != null
+            ? FfmAssistantProcessTrace(
+                origin: FfmAssistantResponseOrigin.geminiCloud,
+                elapsed: outcome.latency ?? Duration.zero,
+                tokenUsage: outcome.tokenUsage,
+                events: [
+                  FfmAssistantProcessEvent(
+                    label: 'Gemini Vision Cloud',
+                    detail: 'Analisis visual berhasil',
+                    elapsed: outcome.latency ?? Duration.zero,
+                  ),
+                ],
+              )
+            : null;
         if (!mounted) return;
         setState(() {
+          _activeVisualContext =
+              'Foto ($path): ${outcome.message.split('\n').first}';
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
-              text:
-                  'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
+              text: outcome.message,
               filePath: path,
               fileFormat: 'image',
+              processTrace: trace,
               createdAt: DateTime.now(),
             ),
           );
         });
+      } else {
+        try {
+          await _appendScanOutcome(outcome);
+          _activeVisualContext =
+              'Struk ($path): ${outcome.message.split('\n').first}';
+        } on Object {
+          if (!mounted) return;
+          setState(() {
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text:
+                    'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
+                filePath: path,
+                fileFormat: 'image',
+                createdAt: DateTime.now(),
+              ),
+            );
+          });
+        }
       }
     }
     unawaited(_saveCurrentConversation());
@@ -2747,6 +2815,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       date: entry.date,
       location: entry.location,
       merchantName: entry.merchant,
+      items: entry.items,
+      receiptNumber: entry.receiptNumber,
+      receiptPaidAmount: entry.paidAmount,
+      receiptChangeAmount: entry.changeAmount,
+      tax: entry.tax,
+      discount: entry.discount,
       metadata: entry.receiptNumber != null
           ? {'receipt_number': entry.receiptNumber}
           : null,
@@ -4390,7 +4464,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         final toAcc = draft.toAccountName != null ? ' ke ${draft.toAccountName}' : '';
         final fromAcc = draft.fromAccountName != null ? ' dari ${draft.fromAccountName}' : '';
         lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc]');
+        if (draft.items.isNotEmpty) {
+          lines.add('  [Item belanja: ${draft.items.map((i) => "${i.name} (Rp${i.calculatedTotal})").join(", ")}]');
+        }
       }
+    }
+    if (_activeVisualContext != null) {
+      lines.add('  [Konteks Gambar: $_activeVisualContext]');
     }
     return lines.isEmpty ? null : lines.join('\n');
   }

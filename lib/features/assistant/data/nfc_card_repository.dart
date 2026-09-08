@@ -98,6 +98,28 @@ class NfcAdaptationResult {
 
   /// Rincian draft riwayat transaksi individu yang diekstrak langsung dari chip kartu.
   final List<PaymentDraft> historyDrafts;
+
+  NfcAdaptationResult copyWith({
+    NfcCardAccount? cardAccount,
+    double? previousBalance,
+    double? newBalance,
+    double? difference,
+    bool? isBaseline,
+    bool? balanceAvailable,
+    PaymentDraft? draft,
+    List<PaymentDraft>? historyDrafts,
+  }) {
+    return NfcAdaptationResult(
+      cardAccount: cardAccount ?? this.cardAccount,
+      previousBalance: previousBalance ?? this.previousBalance,
+      newBalance: newBalance ?? this.newBalance,
+      difference: difference ?? this.difference,
+      isBaseline: isBaseline ?? this.isBaseline,
+      balanceAvailable: balanceAvailable ?? this.balanceAvailable,
+      draft: draft ?? this.draft,
+      historyDrafts: historyDrafts ?? this.historyDrafts,
+    );
+  }
 }
 
 /// Repositori untuk mengelola catatan saldo kartu e-Money
@@ -117,6 +139,7 @@ class NfcCardRepository {
   final String _householdId;
   final DateTime Function() _clock;
 
+  static int _draftCounter = 0;
   final List<NfcCardAccount> _testCards = <NfcCardAccount>[];
 
   /// Memproses hasil scan NFC dan menghitung selisih saldo otomatis.
@@ -229,10 +252,17 @@ class NfcCardRepository {
   /// Mengubah nama alias kustom kartu e-Money (contoh: "Flazz Avanza Ayah")
   /// dan otomatis memperbarui nama rekening terkait di Data Utama.
   Future<bool> updateCardAlias(String cardIdOrHash, String newAlias) async {
-    final database = _database;
-    if (database == null) return false;
     final cleanAlias = newAlias.trim();
     if (cleanAlias.isEmpty) return false;
+    final database = _database;
+    if (database == null) {
+      final idx = _testCards.indexWhere((c) => c.cardId == cardIdOrHash);
+      if (idx >= 0) {
+        _testCards[idx] = _testCards[idx].copyWith(issuer: cleanAlias);
+        return true;
+      }
+      return false;
+    }
 
     final cardHash = cardIdOrHash.length >= 64
         ? cardIdOrHash
@@ -255,6 +285,64 @@ class NfcCardRepository {
       await (database.update(database.accounts)
             ..where((a) => a.id.equals(row.accountId)))
           .write(AccountsCompanion(name: Value(cleanAlias)));
+    });
+    return true;
+  }
+
+  /// Menghubungkan kartu NFC ke rekening yang sudah ada di Data Utama.
+  Future<bool> linkCardToAccount(
+    String cardIdOrHash,
+    String targetAccountId,
+    String targetAccountName,
+  ) async {
+    final cleanName = targetAccountName.trim();
+    final database = _database;
+    if (database == null) {
+      final idx = _testCards.indexWhere((c) => c.cardId == cardIdOrHash);
+      if (idx >= 0) {
+        _testCards[idx] = _testCards[idx].copyWith(
+          accountId: targetAccountId,
+          issuer: cleanName.isNotEmpty ? cleanName : null,
+        );
+        return true;
+      }
+      return false;
+    }
+
+    final cardHash = cardIdOrHash.length >= 64
+        ? cardIdOrHash
+        : sha256.convert(utf8.encode(cardIdOrHash)).toString();
+
+    final row = await (database.select(database.nfcCardAccounts)
+          ..where((r) =>
+              r.householdId.equals(_householdId) &
+              (r.cardUidHash.equals(cardHash) |
+                  r.cardUidHash.equals(cardIdOrHash) |
+                  r.id.equals(cardIdOrHash))))
+        .getSingleOrNull();
+    if (row == null) return false;
+
+    final oldAccountId = row.accountId;
+
+    await database.transaction(() async {
+      await (database.update(database.nfcCardAccounts)
+            ..where((r) => r.id.equals(row.id)))
+          .write(NfcCardAccountsCompanion(
+            accountId: Value(targetAccountId),
+            issuer: Value(cleanName.isNotEmpty ? cleanName : null),
+          ));
+
+      // Jika oldAccountId adalah dummy auto-generated akun tanpa transaksi, bersihkan
+      if (oldAccountId != targetAccountId && oldAccountId.startsWith('nfc-account-')) {
+        final txCount = await (database.select(database.transactions)
+              ..where((t) => t.accountId.equals(oldAccountId)))
+            .get();
+        if (txCount.isEmpty) {
+          await (database.delete(database.accounts)
+                ..where((a) => a.id.equals(oldAccountId)))
+              .go();
+        }
+      }
     });
     return true;
   }
@@ -379,7 +467,7 @@ class NfcCardRepository {
     final displayName = cardDisplayName ?? scan.cardTypeLabel;
     return _draftRepository.addIfNotDuplicate(
       PaymentDraft(
-        id: 'nfc_${now.microsecondsSinceEpoch}',
+        id: 'nfc_${now.microsecondsSinceEpoch}_${_draftCounter++}',
         sourceApp: 'nfc_${scan.cardType}',
         rawTitle: 'NFC $displayName',
         rawBody: '${isDebit ? 'Pengeluaran' : 'Isi ulang'} e-Money sebesar ${scan.formattedBalance}',

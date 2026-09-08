@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../audit/presentation/pages/activity_log_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
-import '../../../assistant/presentation/pages/assistant_profile_page.dart';
 import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
 import '../../../assistant/presentation/pages/telegram_setup_page.dart';
@@ -65,7 +64,6 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Ekspor & cadangan', 'JSON CSV HTML PDF berkas'],
       ['Ringkasan bulanan', 'arus kas laporan'],
       ['Log aktivitas', 'transaksi transfer impor'],
-      ['Profil Personalisasi Asisten', 'ekspor impor pola'],
       ['Analisa', 'pola keuangan'],
       ['Pengingat', 'lokal lupa'],
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
@@ -198,14 +196,14 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               icon: Icons.family_restroom_rounded,
               title: 'Profil Keluarga',
               subtitle:
-                  'Isi nama rumah tangga, pasangan, dan data pribadi untuk Asisten.',
+                  'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
               iconColor: const Color(0xFFDB2777),
               iconBackgroundColor: const Color(0xFFFCE7F3),
               badgeText: 'PROFIL',
               onTap: () => _open(context, const FamilyProfilePage()),
               visible: _matches(
-                'Profil Keluarga',
-                'Isi nama rumah tangga, pasangan, dan data pribadi untuk Asisten.',
+                'Profil Keluarga personalisasi asisten',
+                'Isi profil keluarga dan data pribadi; kelola cadangan ekspor impor serta pembelajaran pola Asisten.',
               ),
             ),
             _MenuCard(
@@ -294,19 +292,6 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             const SizedBox(height: 16),
             const AppSectionHeader(title: 'Pengingat dan alat'),
             const SizedBox(height: 8),
-            _MenuCard(
-              icon: Icons.badge_rounded,
-              title: 'Profil Personalisasi Asisten',
-              subtitle: 'Ekspor atau impor preferensi dan pola belajar terkontrol secara terenkripsi.',
-              iconColor: const Color(0xFFC026D3),
-              iconBackgroundColor: const Color(0xFFFAE8FF),
-              badgeText: 'MEMORI AI',
-              onTap: () => _open(context, const AssistantProfilePage()),
-              visible: _matches(
-                'Profil Personalisasi Asisten',
-                'Ekspor atau impor preferensi dan pola belajar terkontrol secara terenkripsi.',
-              ),
-            ),
             _MenuCard(
               icon: Icons.mark_email_unread_rounded,
               title: 'Laporan & Kotak Masuk Asisten',

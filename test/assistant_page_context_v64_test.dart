@@ -46,7 +46,6 @@ void main() {
           'lib/features/settings/presentation/pages/privacy_center_page.dart',
       FfmAssistantDestination.databaseStructure: 'lib/features/settings/presentation/pages/database_structure_page.dart',
 
-      FfmAssistantDestination.assistantProfile: 'lib/features/assistant/presentation/pages/assistant_profile_page.dart',
       FfmAssistantDestination.familyProfile:
           'lib/features/settings/presentation/pages/family_profile_page.dart',
       FfmAssistantDestination.intelligenceDashboard:
@@ -69,7 +68,10 @@ void main() {
           'lib/features/settings/presentation/pages/utility_meter_page.dart',
     };
 
-    expect(roots.keys.toSet(), FfmAssistantDestination.values.toSet());
+    expect(
+      roots.keys.toSet(),
+      FfmAssistantDestination.values.map((value) => value.canonical).toSet(),
+    );
     for (final entry in roots.entries) {
       final source = File(entry.value).readAsStringSync();
       expect(source, contains('FfmAssistantPageContext('));

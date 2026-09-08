@@ -14,6 +14,15 @@ enum AutonomousActivityType {
 
   /// Pendaftaran kebiasaan rutin pengguna langsung dari percakapan.
   habitDeclaration,
+
+  /// Revaluasi berkala nilai aset fisik & investasi berdasarkan pergerakan pasar.
+  assetRevaluation,
+
+  /// Alokasi surplus anggaran untuk percepatan pelunasan hutang (Snowball/Avalanche).
+  debtPayoff,
+
+  /// Pengingat proaktif jatuh tempo piutang keluarga.
+  receivableReminder,
 }
 
 /// Status dari aktivitas otonom yang telah tercatat.

@@ -1586,7 +1586,7 @@ class _PersonalProfileQueryTool implements FfmAssistantQueryTool {
     if (prefs.isEmpty) {
       return const FfmAssistantQueryAnswer(
         title: 'Profil Pribadi',
-        message: 'Aku belum punya catatan tentang profil, rutinitas, atau kebiasaanmu. Kamu bisa mengisinya di menu Lainnya > Profil Personalisasi Asisten > Kenalkan Diri.',
+        message: 'Aku belum punya catatan tentang profil, rutinitas, atau kebiasaanmu. Kamu bisa mengisinya di menu Lainnya > Profil Keluarga > Data pribadi untuk Asisten.',
       );
     }
 

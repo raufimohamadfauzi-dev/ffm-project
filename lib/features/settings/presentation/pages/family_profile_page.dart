@@ -9,8 +9,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
-import '../../../assistant/presentation/pages/assistant_profile_page.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../assistant/presentation/widgets/ffm_assistant_profile_tools.dart';
 
 /// Satu halaman untuk profil keluarga dan data pribadi yang membantu Asisten.
 ///
@@ -205,12 +205,6 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openAssistantProfile() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AssistantProfilePage()),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -219,13 +213,6 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Profil Keluarga'),
-          actions: [
-            IconButton(
-              tooltip: 'Ekspor & impor profil asisten',
-              onPressed: _openAssistantProfile,
-              icon: const Icon(Icons.ios_share_outlined),
-            ),
-          ],
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -332,12 +319,9 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
                     label: const Text('Simpan profil keluarga'),
                   ),
                   const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: _openAssistantProfile,
-                    icon: const Icon(Icons.ios_share_outlined),
-                    label: const Text(
-                      'Ekspor/impor & reset belajar asisten',
-                    ),
+                  FfmAssistantProfileTools(
+                    enabled: !_dirty && !_working,
+                    onImported: _load,
                   ),
                   if (_working) ...[
                     const SizedBox(height: 16),
