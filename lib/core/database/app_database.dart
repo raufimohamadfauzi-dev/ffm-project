@@ -672,13 +672,14 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> _seedInitialData() async {
     final now = DateTime.now();
-    await into(households).insertOnConflictUpdate(
+    await into(households).insert(
       HouseholdsCompanion.insert(
         id: 'local-household',
         name: 'Keluarga',
         createdAt: now,
         updatedAt: Value(now),
       ),
+      mode: InsertMode.insertOrIgnore,
     );
     const categories = <(String, String, String)>[
       ('Makan & minum', 'expense', 'weekly'),

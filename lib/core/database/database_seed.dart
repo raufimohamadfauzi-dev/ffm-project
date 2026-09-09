@@ -14,13 +14,14 @@ class DatabaseSeed {
     await database.transaction(() async {
       await database
           .into(database.households)
-          .insertOnConflictUpdate(
+          .insert(
             HouseholdsCompanion.insert(
               id: householdId,
               name: 'Keluarga',
               createdAt: now,
               updatedAt: Value(now),
             ),
+            mode: InsertMode.insertOrIgnore,
           );
       await _seedCategories(database, householdId, now);
       await _seedMerchants(database, householdId, now);

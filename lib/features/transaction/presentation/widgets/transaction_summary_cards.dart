@@ -57,9 +57,9 @@ class TransferHistoryCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                     const Padding(
@@ -72,9 +72,9 @@ class TransferHistoryCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -88,7 +88,8 @@ class TransferHistoryCard extends StatelessWidget {
                           transfer.note!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: AppColors.inkMuted,
                                 fontSize: 11,
                               ),
@@ -96,7 +97,10 @@ class TransferHistoryCard extends StatelessWidget {
                       ),
                       const Text(
                         ' · ',
-                        style: TextStyle(color: AppColors.inkMuted, fontSize: 11),
+                        style: TextStyle(
+                          color: AppColors.inkMuted,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                     HijriDateText(
@@ -114,18 +118,12 @@ class TransferHistoryCard extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              AppMoneyText(
-                transfer.amount,
-                compact: true,
-                color: color,
-              ),
+              AppMoneyText(transfer.amount, compact: true, color: color),
               if (transfer.adminFee > 0)
                 Text(
                   'Admin ${formatRupiahInput(transfer.adminFee.toString())}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: AppColors.inkMuted,
-                        fontSize: 10,
-                      ),
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: AppColors.inkMuted, fontSize: 10),
                 ),
             ],
           ),
@@ -198,17 +196,14 @@ class AccountBalancesCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Saldo rekening',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               Text(
                 '${accounts.length} rekening aktif',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.inkMuted,
-                      fontSize: 11,
-                    ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: AppColors.inkMuted, fontSize: 11),
               ),
             ],
           ),
@@ -228,11 +223,14 @@ class AccountBalancesCard extends StatelessWidget {
                 itemBuilder: (context, i) {
                   final account = accounts[i];
                   final balance = _balance(account);
-                  final color =
-                      balance >= 0 ? AppColors.positive : AppColors.negative;
+                  final color = balance >= 0
+                      ? AppColors.positive
+                      : AppColors.negative;
                   return Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Theme.of(context)
                           .colorScheme
@@ -240,9 +238,7 @@ class AccountBalancesCard extends StatelessWidget {
                           .withValues(alpha: .45),
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .outlineVariant
+                        color: Theme.of(context).colorScheme.outlineVariant
                             .withValues(alpha: .4),
                       ),
                     ),
@@ -257,16 +253,10 @@ class AccountBalancesCard extends StatelessWidget {
                           children: [
                             Text(
                               account.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
+                              style: Theme.of(context).textTheme.labelSmall
                                   ?.copyWith(fontWeight: FontWeight.w700),
                             ),
-                            AppMoneyText(
-                              balance,
-                              compact: true,
-                              color: color,
-                            ),
+                            AppMoneyText(balance, compact: true, color: color),
                           ],
                         ),
                       ],
@@ -312,17 +302,14 @@ class TransactionFlowSummary extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Ringkasan transaksi',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               Text(
                 '${transactionCount + transferCount} catatan',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.inkMuted,
-                      fontSize: 11,
-                    ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: AppColors.inkMuted, fontSize: 11),
               ),
             ],
           ),
@@ -354,10 +341,10 @@ class TransactionFlowSummary extends StatelessWidget {
             Text(
               '$transferCount transfer tidak mengubah total pemasukan atau pengeluaran.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.inkMuted,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
+                color: AppColors.inkMuted,
+                fontWeight: FontWeight.w600,
+                fontSize: 11,
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -365,18 +352,15 @@ class TransactionFlowSummary extends StatelessWidget {
             children: [
               Text(
                 'Selisih arus kas',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.inkMuted,
-                      fontSize: 11.5,
-                    ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: AppColors.inkMuted, fontSize: 11.5),
               ),
-              const Spacer(),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: AppMoneyText(
-                  net,
-                  compact: true,
-                  color: netColor,
+              const SizedBox(width: 8),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: AppMoneyText(net, compact: true, color: netColor),
                 ),
               ),
             ],
@@ -416,15 +400,17 @@ class TransactionFlowTile extends StatelessWidget {
             children: [
               Icon(icon, color: color, size: 14),
               const SizedBox(width: 4),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: .3,
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .3,
+                  ),
                 ),
               ),
             ],
@@ -433,11 +419,7 @@ class TransactionFlowTile extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: AppMoneyText(
-              amount,
-              compact: true,
-              color: color,
-            ),
+            child: AppMoneyText(amount, compact: true, color: color),
           ),
         ],
       ),

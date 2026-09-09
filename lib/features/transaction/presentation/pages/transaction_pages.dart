@@ -2296,153 +2296,149 @@ class _TransactionListPageState extends State<TransactionListPage> {
                               ? AppColors.positiveSoft.withValues(alpha: .72)
                               : AppColors.negativeSoft.withValues(alpha: .78),
                           onTap: () => _openDetail(entry),
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
-                                radius: 18,
-                                backgroundColor: color.withValues(alpha: .14),
-                                foregroundColor: color,
-                                child: Icon(
-                                  isIncome
-                                      ? Icons.south_west_rounded
-                                      : Icons.north_east_rounded,
-                                  size: 18,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: color.withValues(
+                                      alpha: .14,
+                                    ),
+                                    foregroundColor: color,
+                                    child: Icon(
+                                      isIncome
+                                          ? Icons.south_west_rounded
+                                          : Icons.north_east_rounded,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        Expanded(
-                                          child: Text(
-                                            merchantName.isNotEmpty
-                                                ? merchantName
-                                                : isGoalContribution
-                                                ? 'Uang terkumpul untuk target'
-                                                : isGoalUsage
-                                                ? 'Penggunaan dana target'
-                                                : _categoryLabel(
-                                                    item.categoryId,
-                                                  ),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                merchantName.isNotEmpty
+                                                    ? merchantName
+                                                    : isGoalContribution
+                                                    ? 'Uang terkumpul untuk target'
+                                                    : isGoalUsage
+                                                    ? 'Penggunaan dana target'
+                                                    : _categoryLabel(
+                                                        item.categoryId,
+                                                      ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      fontSize: 13,
+                                                    ),
+                                              ),
+                                            ),
+                                            if (isDataSusulan(
+                                              item.date,
+                                              now: item.recordedAt,
+                                            ))
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                  left: 4,
+                                                ),
+                                                child: AppStatusChip(
+                                                  label: 'Susulan',
+                                                  color: AppColors.warning,
+                                                  backgroundColor:
+                                                      AppColors.warningSoft,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 2),
+                                        if (merchantName.isNotEmpty &&
+                                            !isGoalContribution &&
+                                            !isGoalUsage)
+                                          Text(
+                                            _categoryLabel(item.categoryId),
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: Theme.of(context)
                                                 .textTheme
-                                                .titleSmall
+                                                .bodySmall
                                                 ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 13,
+                                                  color: AppColors.inkMuted,
+                                                  fontSize: 11,
                                                 ),
                                           ),
-                                        ),
-                                        if (isDataSusulan(
-                                          item.date,
-                                          now: item.recordedAt,
-                                        ))
-                                          const Padding(
-                                            padding: EdgeInsets.only(left: 4),
-                                            child: AppStatusChip(
-                                              label: 'Susulan',
-                                              color: AppColors.warning,
-                                              backgroundColor:
-                                                  AppColors.warningSoft,
-                                            ),
-                                          ),
                                       ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    Row(
-                                      children: [
-                                        if (merchantName.isNotEmpty &&
-                                            !isGoalContribution &&
-                                            !isGoalUsage) ...[
-                                          Flexible(
-                                            child: Text(
-                                              _categoryLabel(item.categoryId),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: AppColors.inkMuted,
-                                                    fontSize: 11,
-                                                  ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            isIncome ? '+' : '−',
+                                            style: TextStyle(
+                                              color: color,
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 13,
                                             ),
                                           ),
-                                          const Text(
-                                            ' · ',
-                                            style: TextStyle(
-                                              color: AppColors.inkMuted,
-                                              fontSize: 11,
-                                            ),
+                                          AppMoneyText(
+                                            item.amount.abs(),
+                                            compact: true,
+                                            color: color,
                                           ),
                                         ],
-                                        Flexible(
-                                          child: HijriDateText(
-                                            date: item.date,
-                                            includeSeconds: false,
-                                            compact: true,
-                                            color: AppColors.inkMuted,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        isIncome ? '+' : '−',
-                                        style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                        ),
                                       ),
-                                      AppMoneyText(
-                                        item.amount.abs(),
-                                        compact: true,
-                                        color: color,
+                                    ],
+                                  ),
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Aksi transaksi',
+                                    icon: const Icon(Icons.more_vert, size: 18),
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(
+                                      minWidth: 32,
+                                      minHeight: 32,
+                                    ),
+                                    onSelected: (value) {
+                                      if (value == 'edit') {
+                                        _openEdit(entry);
+                                      } else if (value == 'delete') {
+                                        _deleteTransaction(entry);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'edit',
+                                        child: Text('Edit transaksi'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Hapus transaksi'),
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
-                              PopupMenuButton<String>(
-                                tooltip: 'Aksi transaksi',
-                                icon: const Icon(Icons.more_vert, size: 18),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 32,
-                                  minHeight: 32,
-                                ),
-                                onSelected: (value) {
-                                  if (value == 'edit') {
-                                    _openEdit(entry);
-                                  } else if (value == 'delete') {
-                                    _deleteTransaction(entry);
-                                  }
-                                },
-                                itemBuilder: (_) => const [
-                                  PopupMenuItem(
-                                    value: 'edit',
-                                    child: Text('Edit transaksi'),
-                                  ),
-                                  PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Hapus transaksi'),
-                                  ),
-                                ],
+                              const SizedBox(height: 6),
+                              HijriDateText(
+                                date: item.date,
+                                includeSeconds: false,
+                                compact: true,
+                                color: AppColors.inkMuted,
                               ),
                             ],
                           ),
