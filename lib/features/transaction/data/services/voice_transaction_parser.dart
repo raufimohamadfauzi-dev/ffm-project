@@ -88,10 +88,7 @@ abstract final class VoiceTransactionParser {
         ? parsedByInterpreter
         : _parseAmount(lower);
     final isUnusuallyHigh = amount >= 100000000 || lower.contains('triliun');
-    final category = categories.where((item) {
-      final name = item.name.toLowerCase();
-      return name.isNotEmpty && lower.contains(name);
-    }).firstOrNull;
+    final category = _matchCategory(lower, categories);
     final merchant = merchants
         .where((item) => lower.contains(item.name.toLowerCase()))
         .firstOrNull;
@@ -177,4 +174,43 @@ abstract final class VoiceTransactionParser {
     }
     return found ? total + current : 0;
   }
+
+  static Category? _matchCategory(String text, List<Category> categories) {
+    final transcriptWords = _words(text);
+    final matches = categories.where((category) {
+      final categoryWords = _words(category.name);
+      if (categoryWords.isEmpty ||
+          categoryWords.length > transcriptWords.length) {
+        return false;
+      }
+      for (
+        var start = 0;
+        start <= transcriptWords.length - categoryWords.length;
+        start++
+      ) {
+        var matches = true;
+        for (var index = 0; index < categoryWords.length; index++) {
+          if (transcriptWords[start + index] != categoryWords[index]) {
+            matches = false;
+            break;
+          }
+        }
+        if (matches) return true;
+      }
+      return false;
+    }).toList();
+
+    // Prefer the most specific phrase instead of whichever row the database
+    // happens to return first.
+    matches.sort(
+      (a, b) => _words(b.name).length.compareTo(_words(a.name).length),
+    );
+    return matches.firstOrNull;
+  }
+
+  static List<String> _words(String value) => value
+      .toLowerCase()
+      .split(RegExp(r'[^a-z0-9]+'))
+      .where((word) => word.isNotEmpty)
+      .toList(growable: false);
 }

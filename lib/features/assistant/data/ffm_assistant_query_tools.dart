@@ -4,6 +4,7 @@ import '../../advisor/domain/services/smart_budget_engine.dart';
 import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
+import '../../settings/data/utility_meter_repository.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 import '../domain/ffm_assistant_analysis_engine.dart';
@@ -48,32 +49,35 @@ class FfmAssistantQueryRegistry {
     AppDatabase database, {
     DateTime Function()? clock,
     MarketNewsCacheRepository? marketCache,
-  })  : _clock = clock ?? DateTime.now,
-        _analysisEngine = FfmAssistantAnalysisEngine(database),
-        _tools = <FfmAssistantQueryTool>[
-          _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
-          _AccountBalanceQueryTool(database),
-          _TobaccoPurchaseQueryTool(database),
-          _TransactionSummaryQueryTool(database),
-          _ActiveActivityQueryTool(database),
-          _GoalStatusQueryTool(database),
-          _DebtStatusQueryTool(database),
-          _AssetSummaryQueryTool(database),
-          _LoanAffordabilityQueryTool(database),
-          _DataCompletenessQueryTool(database),
-          _PersonalProfileQueryTool(database),
-          _SmartBudgetQueryTool(database),
-          if (marketCache != null) _MarketPriceQueryTool(marketCache),
-          if (marketCache != null) _AssetCalculationQueryTool(marketCache),
-        ] {
-        // Initialize analysis tools after _analysisEngine is set
-        _tools.addAll([
-          _FrequencyAnalysisQueryTool(_analysisEngine),
-          _TrendAnalysisQueryTool(_analysisEngine),
-          _PatternAnalysisQueryTool(_analysisEngine),
-          _PeriodAnalysisQueryTool(_analysisEngine),
-        ]);
-      }
+  }) : _clock = clock ?? DateTime.now,
+       _analysisEngine = FfmAssistantAnalysisEngine(database),
+       _tools = <FfmAssistantQueryTool>[
+         _DatabaseStructureQueryTool(FfmDatabaseStructureService(database)),
+         _AccountBalanceQueryTool(database),
+         _TobaccoPurchaseQueryTool(database),
+         UtilityMeterRepositoryQueryTool(database, UtilityMeterRepository()),
+         _LatestTransactionQueryTool(database),
+         _TransactionSummaryQueryTool(database),
+         _LatestDailyNoteQueryTool(database),
+         _ActiveActivityQueryTool(database),
+         _GoalStatusQueryTool(database),
+         _DebtStatusQueryTool(database),
+         _AssetSummaryQueryTool(database),
+         _LoanAffordabilityQueryTool(database),
+         _DataCompletenessQueryTool(database),
+         _PersonalProfileQueryTool(database),
+         _SmartBudgetQueryTool(database),
+         if (marketCache != null) _MarketPriceQueryTool(marketCache),
+         if (marketCache != null) _AssetCalculationQueryTool(marketCache),
+       ] {
+    // Initialize analysis tools after _analysisEngine is set
+    _tools.addAll([
+      _FrequencyAnalysisQueryTool(_analysisEngine),
+      _TrendAnalysisQueryTool(_analysisEngine),
+      _PatternAnalysisQueryTool(_analysisEngine),
+      _PeriodAnalysisQueryTool(_analysisEngine),
+    ]);
+  }
   final DateTime Function() _clock;
   final FfmAssistantAnalysisEngine _analysisEngine;
   final List<FfmAssistantQueryTool> _tools;
@@ -106,6 +110,64 @@ class FfmAssistantQueryRegistry {
   }
 }
 
+class UtilityMeterRepositoryQueryTool implements FfmAssistantQueryTool {
+  const UtilityMeterRepositoryQueryTool(this._database, this._repository);
+
+  final AppDatabase _database;
+  final UtilityMeterRepository _repository;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final asksUtility = RegExp(
+      r'\b(?:token\s+listrik|nomor\s+token|meteran|meter\s+listrik|idpel|kwh)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+    final asksRead = RegExp(
+      r'\b(?:apa|ada|daftar|list|nomor|nama|siapa|terakhir|terbaru|lihat|tampilkan|punya|milik)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+    return asksUtility && asksRead;
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final meters = await _repository.getAllMeters(request.householdId);
+    final history =
+        await (_database.select(_database.utilityTokenPurchases)
+              ..where((row) => row.householdId.equals(request.householdId))
+              ..orderBy([(row) => OrderingTerm.desc(row.purchasedAt)]))
+            .get();
+    if (meters.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Meteran dan token listrik',
+        message: 'Belum ada data meteran listrik yang tersimpan.',
+      );
+    }
+    final lines = meters
+        .map((meter) {
+          final customer = meter.customerName.trim();
+          final token = meter.formattedTokenNumber ?? 'belum ada token';
+          return '- ${meter.name}: nomor ${meter.formattedMeterNumber}'
+              '${customer.isEmpty ? '' : ' (pelanggan: $customer)'}; '
+              'token terakhir: $token'
+              '${meter.lastAmount == null ? '' : ' sebesar Rp${meter.lastAmount!.round()}'}.';
+        })
+        .join('\n');
+    final historyText = history.isEmpty
+        ? 'Belum ada histori pembelian token.'
+        : 'Histori pembelian:\n${history.map((row) {
+            final token = row.tokenCode == null || row.tokenCode!.isEmpty ? 'token belum dicatat' : row.tokenCode!;
+            return '- ${row.meterNumber}: Rp${row.amount}; $token; ${DateFormat('dd/MM/yyyy').format(row.purchasedAt)}';
+          }).join('\n')}';
+    return FfmAssistantQueryAnswer(
+      title: 'Meteran dan token listrik',
+      message: '$lines\n\n$historyText',
+    );
+  }
+}
+
 class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
   const _TobaccoPurchaseQueryTool(this._database);
 
@@ -133,16 +195,17 @@ class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     final (start, end, label) = _period(request.now, request.normalizedText);
-    final transactions = await (_database.select(_database.transactions)..where(
-          (row) =>
-              row.householdId.equals(request.householdId) &
-              row.type.equals('expense') &
-              row.isArchived.equals(false) &
-              row.isDeleted.equals(false) &
-              row.date.isBiggerOrEqualValue(start) &
-              row.date.isSmallerThanValue(end),
-        ))
-        .get();
+    final transactions =
+        await (_database.select(_database.transactions)..where(
+              (row) =>
+                  row.householdId.equals(request.householdId) &
+                  row.type.equals('expense') &
+                  row.isArchived.equals(false) &
+                  row.isDeleted.equals(false) &
+                  row.date.isBiggerOrEqualValue(start) &
+                  row.date.isSmallerThanValue(end),
+            ))
+            .get();
     if (transactions.isEmpty) {
       return FfmAssistantQueryAnswer(
         title: 'Belanja rokok',
@@ -150,33 +213,37 @@ class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
       );
     }
 
-    final categories = await (_database.select(_database.categories)
-          ..where((row) => row.householdId.equals(request.householdId)))
-        .get();
-    final merchants = await (_database.select(_database.merchants)
-          ..where((row) => row.householdId.equals(request.householdId)))
-        .get();
+    final categories = await (_database.select(
+      _database.categories,
+    )..where((row) => row.householdId.equals(request.householdId))).get();
+    final merchants = await (_database.select(
+      _database.merchants,
+    )..where((row) => row.householdId.equals(request.householdId))).get();
     final categoryNames = {for (final row in categories) row.id: row.name};
     final merchantNames = {for (final row in merchants) row.id: row.name};
     final ids = transactions.map((row) => row.id).toSet();
-    final items = await (_database.select(_database.transactionItems)
-          ..where((row) => row.transactionId.isIn(ids)))
-        .get();
+    final items = await (_database.select(
+      _database.transactionItems,
+    )..where((row) => row.transactionId.isIn(ids))).get();
     final itemsByTransaction = <String, List<String>>{};
     var itemCount = 0.0;
     for (final item in items) {
-      (itemsByTransaction[item.transactionId] ??= <String>[]).add(item.itemName);
+      (itemsByTransaction[item.transactionId] ??= <String>[]).add(
+        item.itemName,
+      );
     }
 
-    final matches = transactions.where((transaction) {
-      final searchable = [
-        categoryNames[transaction.categoryId] ?? '',
-        merchantNames[transaction.merchantId] ?? '',
-        transaction.note ?? '',
-        ...?itemsByTransaction[transaction.id],
-      ].join(' ').toLowerCase();
-      return _keywords.any(searchable.contains);
-    }).toList(growable: false);
+    final matches = transactions
+        .where((transaction) {
+          final searchable = [
+            categoryNames[transaction.categoryId] ?? '',
+            merchantNames[transaction.merchantId] ?? '',
+            transaction.note ?? '',
+            ...?itemsByTransaction[transaction.id],
+          ].join(' ').toLowerCase();
+          return _keywords.any(searchable.contains);
+        })
+        .toList(growable: false);
     if (matches.isEmpty) {
       return FfmAssistantQueryAnswer(
         title: 'Belanja rokok',
@@ -185,7 +252,9 @@ class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
       );
     }
     for (final transaction in matches) {
-      for (final item in items.where((item) => item.transactionId == transaction.id)) {
+      for (final item in items.where(
+        (item) => item.transactionId == transaction.id,
+      )) {
         if (_keywords.any(item.itemName.toLowerCase().contains)) {
           itemCount += item.qty;
         }
@@ -208,13 +277,21 @@ class _TobaccoPurchaseQueryTool implements FfmAssistantQueryTool {
   (DateTime, DateTime, String) _period(DateTime now, String text) {
     final today = DateTime(now.year, now.month, now.day);
     if (text.contains('tahun') || text.contains('12 bulan')) {
-      return (DateTime(now.year, 1, 1), DateTime(now.year + 1, 1, 1), 'tahun ini');
+      return (
+        DateTime(now.year, 1, 1),
+        DateTime(now.year + 1, 1, 1),
+        'tahun ini',
+      );
     }
     if (text.contains('minggu')) {
       final start = today.subtract(Duration(days: today.weekday - 1));
       return (start, start.add(const Duration(days: 7)), 'minggu ini');
     }
-    return (DateTime(now.year, now.month, 1), DateTime(now.year, now.month + 1), 'bulan ini');
+    return (
+      DateTime(now.year, now.month, 1),
+      DateTime(now.year, now.month + 1),
+      'bulan ini',
+    );
   }
 }
 
@@ -404,6 +481,154 @@ class _TransactionSummaryQueryTool implements FfmAssistantQueryTool {
   }
 }
 
+class _LatestTransactionQueryTool implements FfmAssistantQueryTool {
+  const _LatestTransactionQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final asksLatest = RegExp(
+      r'\b(?:terakhir|terbaru|paling\s+baru|baru\s+saja)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+    return asksLatest && normalizedText.contains('transaksi');
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final period = _periodBounds(request.normalizedText, request.now);
+    final rows =
+        await (_database.select(_database.transactions)
+              ..where((row) {
+                final base =
+                    row.householdId.equals(request.householdId) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false);
+                if (period == null) return base;
+                return base &
+                    row.date.isBiggerOrEqualValue(period.$1) &
+                    row.date.isSmallerThanValue(period.$2);
+              })
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.date),
+                (row) => OrderingTerm.desc(row.createdAt),
+              ])
+              ..limit(1))
+            .get();
+    if (rows.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Transaksi terakhir',
+        message: 'Belum ada transaksi yang tersimpan di FFM.',
+      );
+    }
+
+    final transaction = rows.single;
+    final categories = transaction.categoryId == null
+        ? const <Category>[]
+        : await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.id.equals(transaction.categoryId!) &
+                    row.householdId.equals(request.householdId),
+              ))
+              .get();
+    final accounts = transaction.accountId == null
+        ? const <Account>[]
+        : await (_database.select(_database.accounts)..where(
+                (row) =>
+                    row.id.equals(transaction.accountId!) &
+                    row.householdId.equals(request.householdId),
+              ))
+              .get();
+    final type = transaction.type == 'income' ? 'Pemasukan' : 'Pengeluaran';
+    final date = DateFormat('dd/MM/yyyy HH:mm').format(transaction.date);
+    final category = categories.firstOrNull?.name;
+    final account = accounts.firstOrNull?.name;
+    final details = <String>[
+      '$type ${_rupiah(transaction.amount.abs())} pada $date.',
+      if (category != null && category.isNotEmpty) 'Kategori: $category.',
+      if (account != null && account.isNotEmpty) 'Rekening: $account.',
+      if (transaction.note case final note? when note.trim().isNotEmpty)
+        'Catatan: ${note.trim()}.',
+    ];
+    return FfmAssistantQueryAnswer(
+      title: 'Transaksi terakhir',
+      message: details.join(' '),
+    );
+  }
+
+  (DateTime, DateTime)? _periodBounds(String text, DateTime now) {
+    final today = DateTime(now.year, now.month, now.day);
+    if (text.contains('hari ini')) {
+      return (today, today.add(const Duration(days: 1)));
+    }
+    if (text.contains('kemarin')) {
+      return (today.subtract(const Duration(days: 1)), today);
+    }
+    if (text.contains('minggu ini')) {
+      final monday = today.subtract(Duration(days: today.weekday - 1));
+      return (monday, monday.add(const Duration(days: 7)));
+    }
+    if (text.contains('bulan ini')) {
+      final start = DateTime(today.year, today.month);
+      return (start, DateTime(today.year, today.month + 1));
+    }
+    if (text.contains('bulan lalu')) {
+      final start = DateTime(today.year, today.month - 1);
+      return (start, DateTime(today.year, today.month));
+    }
+    return null;
+  }
+}
+
+class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
+  const _LatestDailyNoteQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) => RegExp(
+    r'\b(?:catatan\s+(?:terbaru|terakhir|hari\s+ini|kemarin)|jurnal\s+(?:terbaru|terakhir)|apa\s+yang\s+aku\s+catat)\b',
+    caseSensitive: false,
+  ).hasMatch(normalizedText);
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final notes =
+        await (_database.select(_database.dailyNotes)
+              ..where(
+                (row) =>
+                    row.householdId.equals(request.householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+              ..limit(5))
+            .get();
+    if (notes.isEmpty) {
+      return const FfmAssistantQueryAnswer(
+        title: 'Catatan terbaru',
+        message: 'Belum ada catatan harian yang tersimpan di FFM.',
+      );
+    }
+    final lines = notes.map((note) {
+      final date = DateFormat('dd/MM/yyyy').format(note.noteDate);
+      final title = note.title == null || note.title!.trim().isEmpty
+          ? ''
+          : '${note.title!.trim()}: ';
+      return '- $date: $title${note.body.trim()}';
+    });
+    return FfmAssistantQueryAnswer(
+      title: 'Catatan terbaru',
+      message:
+          'Ini catatan harian terbaru yang tersimpan:\n${lines.join('\n')}',
+    );
+  }
+}
+
 class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
   const _ActiveActivityQueryTool(this._database);
 
@@ -416,6 +641,10 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
       normalizedText.contains('sedang apa') ||
       normalizedText.contains('aktivitas berjalan') ||
       normalizedText.contains('riwayat aktivitas') ||
+      normalizedText.contains('aktivitas terakhir') ||
+      normalizedText.contains('aktivitas terbaru') ||
+      normalizedText.contains('kegiatan terakhir') ||
+      normalizedText.contains('kegiatan terbaru') ||
       normalizedText.contains('kebiasaan kegiatan') ||
       normalizedText.contains('kegiatan saya');
 
@@ -425,6 +654,10 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
   ) async {
     final isAskingHistory =
         request.normalizedText.contains('riwayat') ||
+        request.normalizedText.contains('aktivitas terakhir') ||
+        request.normalizedText.contains('aktivitas terbaru') ||
+        request.normalizedText.contains('kegiatan terakhir') ||
+        request.normalizedText.contains('kegiatan terbaru') ||
         request.normalizedText.contains('kebiasaan') ||
         request.normalizedText.contains('kegiatan saya');
 
@@ -674,8 +907,11 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
       decimalDigits: 0,
     );
 
-    final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
-    final dataSource = snapshot.isOfflineCache ? 'cache offline' : 'data real-time';
+    final timeStr = DateFormat('HH:mm, dd MMM yyyy')
+        .format(snapshot.lastUpdated);
+    final dataSource = snapshot.isOfflineCache
+        ? 'cache offline'
+        : 'data real-time';
 
     // Build response based on what user is asking about
     final text = request.normalizedText.toLowerCase();
@@ -690,7 +926,9 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
       );
     }
 
-    if (text.contains('dolar') || text.contains('dollar') || text.contains('usd')) {
+    if (text.contains('dolar') ||
+        text.contains('dollar') ||
+        text.contains('usd')) {
       priceDetails.add('Kurs USD: ${currencyFormat.format(snapshot.usdRate)}');
     }
 
@@ -707,15 +945,21 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
     }
 
     if (text.contains('btc') || text.contains('bitcoin')) {
-      priceDetails.add('Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}');
+      priceDetails.add(
+        'Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}',
+      );
     }
 
     if (text.contains('eth') || text.contains('ethereum')) {
-      priceDetails.add('Harga Ethereum: ${currencyFormat.format(snapshot.ethPrice)}');
+      priceDetails.add(
+        'Harga Ethereum: ${currencyFormat.format(snapshot.ethPrice)}',
+      );
     }
 
     if (text.contains('usdt') || text.contains('tether')) {
-      priceDetails.add('Harga USDT: ${currencyFormat.format(snapshot.usdtPrice)}');
+      priceDetails.add(
+        'Harga USDT: ${currencyFormat.format(snapshot.usdtPrice)}',
+      );
     }
 
     // If no specific asset mentioned, show all major prices
@@ -732,7 +976,8 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
 
     return FfmAssistantQueryAnswer(
       title: 'Harga Pasar Terkini',
-      message: 'Berdasarkan $dataSource pada $timeStr:\n\n${priceDetails.join('\n')}',
+      message:
+          'Berdasarkan $dataSource pada $timeStr:\n\n${priceDetails.join('\n')}',
     );
   }
 }
@@ -794,7 +1039,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     final calculations = <String>[];
 
     // Extract gold weight in grams
-    final goldMatch = RegExp(r'(\d+([.,]\d+)?)\s*(gram|gr|g)\s*(emas|gold)?').firstMatch(text);
+    final goldMatch = RegExp(r'(\d+([.,]\d+)?)\s*(gram|gr|g)\s*(emas|gold)?')
+        .firstMatch(text);
     if (goldMatch != null) {
       final weightStr = goldMatch.group(1)!.replaceAll(',', '.');
       final weight = double.tryParse(weightStr);
@@ -807,7 +1053,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     }
 
     // Extract USD amount
-    final usdMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usd|dolar|\$)').firstMatch(text);
+    final usdMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usd|dolar|\$)')
+        .firstMatch(text);
     if (usdMatch != null) {
       final amountStr = usdMatch.group(1)!.replaceAll(',', '.');
       final amount = double.tryParse(amountStr);
@@ -846,7 +1093,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     }
 
     // Extract BTC amount
-    final btcMatch = RegExp(r'(\d+([.,]\d+)?)\s*(btc|bitcoin)').firstMatch(text);
+    final btcMatch = RegExp(r'(\d+([.,]\d+)?)\s*(btc|bitcoin)')
+        .firstMatch(text);
     if (btcMatch != null) {
       final amountStr = btcMatch.group(1)!.replaceAll(',', '.');
       final amount = double.tryParse(amountStr);
@@ -859,7 +1107,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     }
 
     // Extract ETH amount
-    final ethMatch = RegExp(r'(\d+([.,]\d+)?)\s*(eth|ethereum)').firstMatch(text);
+    final ethMatch = RegExp(r'(\d+([.,]\d+)?)\s*(eth|ethereum)')
+        .firstMatch(text);
     if (ethMatch != null) {
       final amountStr = ethMatch.group(1)!.replaceAll(',', '.');
       final amount = double.tryParse(amountStr);
@@ -872,7 +1121,8 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     }
 
     // Extract USDT amount
-    final usdtMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usdt|tether)').firstMatch(text);
+    final usdtMatch = RegExp(r'(\d+([.,]\d+)?)\s*(usdt|tether)')
+        .firstMatch(text);
     if (usdtMatch != null) {
       final amountStr = usdtMatch.group(1)!.replaceAll(',', '.');
       final amount = double.tryParse(amountStr);
@@ -901,12 +1151,16 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
       return null; // No valid calculation found
     }
 
-    final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
-    final dataSource = snapshot.isOfflineCache ? 'cache offline' : 'data real-time';
+    final timeStr = DateFormat('HH:mm, dd MMM yyyy')
+        .format(snapshot.lastUpdated);
+    final dataSource = snapshot.isOfflineCache
+        ? 'cache offline'
+        : 'data real-time';
 
     return FfmAssistantQueryAnswer(
       title: 'Perhitungan Nilai Aset',
-      message: 'Berdasarkan $dataSource pada $timeStr:\n\n${calculations.join('\n')}',
+      message:
+          'Berdasarkan $dataSource pada $timeStr:\n\n${calculations.join('\n')}',
     );
   }
 }
@@ -1057,10 +1311,11 @@ class _FrequencyAnalysisQueryTool implements FfmAssistantQueryTool {
   @override
   bool canHandle(String normalizedText) {
     return normalizedText.contains('frekuensi') ||
-           normalizedText.contains('sering') ||
-           normalizedText.contains('paling sering') ||
-           (normalizedText.contains('berapa kali') && 
-            (normalizedText.contains('bulan') || normalizedText.contains('minggu')));
+        normalizedText.contains('sering') ||
+        normalizedText.contains('paling sering') ||
+        (normalizedText.contains('berapa kali') &&
+            (normalizedText.contains('bulan') ||
+                normalizedText.contains('minggu')));
   }
 
   @override
@@ -1110,7 +1365,15 @@ class _FrequencyAnalysisQueryTool implements FfmAssistantQueryTool {
     }
 
     if (analysis.dayOfWeekFrequency.isNotEmpty) {
-      final days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+      final days = [
+        'Senin',
+        'Selasa',
+        'Rabu',
+        'Kamis',
+        'Jumat',
+        'Sabtu',
+        'Minggu',
+      ];
       final mostFrequentDay = analysis.mostFrequentDay;
       if (mostFrequentDay >= 1 && mostFrequentDay <= 7) {
         buffer.writeln('Hari paling aktif: ${days[mostFrequentDay - 1]}');
@@ -1132,11 +1395,12 @@ class _TrendAnalysisQueryTool implements FfmAssistantQueryTool {
   @override
   bool canHandle(String normalizedText) {
     return normalizedText.contains('trend') ||
-           normalizedText.contains('tren') ||
-           normalizedText.contains('naik') ||
-           normalizedText.contains('turun') ||
-           (normalizedText.contains('perubahan') && 
-            (normalizedText.contains('bulan') || normalizedText.contains('bulan ke')));
+        normalizedText.contains('tren') ||
+        normalizedText.contains('naik') ||
+        normalizedText.contains('turun') ||
+        (normalizedText.contains('perubahan') &&
+            (normalizedText.contains('bulan') ||
+                normalizedText.contains('bulan ke')));
   }
 
   @override
@@ -1149,11 +1413,11 @@ class _TrendAnalysisQueryTool implements FfmAssistantQueryTool {
 
     // Determine trend type from request
     FfmTrendType trendType = FfmTrendType.both;
-    if (request.normalizedText.contains('pemasukan') || 
+    if (request.normalizedText.contains('pemasukan') ||
         request.normalizedText.contains('income')) {
       trendType = FfmTrendType.income;
-    } else if (request.normalizedText.contains('pengeluaran') || 
-               request.normalizedText.contains('expense')) {
+    } else if (request.normalizedText.contains('pengeluaran') ||
+        request.normalizedText.contains('expense')) {
       trendType = FfmTrendType.expense;
     }
 
@@ -1203,11 +1467,12 @@ class _PatternAnalysisQueryTool implements FfmAssistantQueryTool {
   @override
   bool canHandle(String normalizedText) {
     return normalizedText.contains('pola') ||
-           normalizedText.contains('pattern') ||
-           normalizedText.contains('rata-rata') ||
-           normalizedText.contains('biasanya') ||
-           (normalizedText.contains('kategori') && 
-            (normalizedText.contains('terbanyak') || normalizedText.contains('terbesar')));
+        normalizedText.contains('pattern') ||
+        normalizedText.contains('rata-rata') ||
+        normalizedText.contains('biasanya') ||
+        (normalizedText.contains('kategori') &&
+            (normalizedText.contains('terbanyak') ||
+                normalizedText.contains('terbesar')));
   }
 
   @override
@@ -1245,7 +1510,9 @@ class _PatternAnalysisQueryTool implements FfmAssistantQueryTool {
       buffer.writeln('- Total: ${_rupiah(pattern.total)}');
       buffer.writeln('- Rata-rata: ${_rupiah(pattern.average)}');
       buffer.writeln('- Median: ${_rupiah(pattern.median)}');
-      buffer.writeln('- Rentang: ${_rupiah(pattern.min)} - ${_rupiah(pattern.max)}');
+      buffer.writeln(
+        '- Rentang: ${_rupiah(pattern.min)} - ${_rupiah(pattern.max)}',
+      );
       buffer.writeln();
     }
 
@@ -1263,12 +1530,12 @@ class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
 
   @override
   bool canHandle(String normalizedText) {
-    return (normalizedText.contains('30 hari') || 
+    return (normalizedText.contains('30 hari') ||
             normalizedText.contains('90 hari') ||
             normalizedText.contains('3 bulan') ||
             normalizedText.contains('bulan ini') ||
             normalizedText.contains('bulan lalu')) &&
-           (normalizedText.contains('berapa') ||
+        (normalizedText.contains('berapa') ||
             normalizedText.contains('total') ||
             normalizedText.contains('ringkasan'));
   }
@@ -1278,8 +1545,8 @@ class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     FfmAnalysisPeriod period = FfmAnalysisPeriod.last30Days;
-    
-    if (request.normalizedText.contains('90 hari') || 
+
+    if (request.normalizedText.contains('90 hari') ||
         request.normalizedText.contains('3 bulan')) {
       period = FfmAnalysisPeriod.last90Days;
     } else if (request.normalizedText.contains('bulan ini')) {
@@ -1310,7 +1577,9 @@ class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
       ..writeln();
 
     if (analysis.expenseRatio != null) {
-      buffer.writeln('Rasio pengeluaran: ${(analysis.expenseRatio! * 100).toStringAsFixed(1)}%');
+      buffer.writeln(
+        'Rasio pengeluaran: ${(analysis.expenseRatio! * 100).toStringAsFixed(1)}%',
+      );
     }
 
     if (analysis.categoryBreakdown.isNotEmpty) {
@@ -1635,22 +1904,24 @@ class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
     FfmAssistantQueryRequest request,
   ) async {
     final now = request.now;
-    final transactions = await (_database.select(_database.transactions)
-          ..where((row) => row.householdId.equals(request.householdId)))
-        .get();
+    final transactions = await (_database.select(
+      _database.transactions,
+    )..where((row) => row.householdId.equals(request.householdId))).get();
 
     final txEntities = transactions
-        .map((t) => TransactionEntity(
-              id: t.id,
-              householdId: t.householdId,
-              date: t.date,
-              amount: t.amount,
-              owner: t.owner ?? '',
-              categoryId: t.categoryId,
-              note: t.note,
-              source: t.source ?? 'manual',
-              recordedAt: t.recordedAt,
-            ))
+        .map(
+          (t) => TransactionEntity(
+            id: t.id,
+            householdId: t.householdId,
+            date: t.date,
+            amount: t.amount,
+            owner: t.owner ?? '',
+            categoryId: t.categoryId,
+            note: t.note,
+            source: t.source ?? 'manual',
+            recordedAt: t.recordedAt,
+          ),
+        )
         .toList();
 
     const engine = SmartBudgetEngine();
@@ -1663,7 +1934,10 @@ class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
         .where((t) => t.date.year == now.year && t.date.month == now.month)
         .toList();
 
-    final totalBaseline = baselines.fold(0.0, (sum, b) => sum + b.averageMonthlyAmount);
+    final totalBaseline = baselines.fold(
+      0.0,
+      (sum, b) => sum + b.averageMonthlyAmount,
+    );
 
     final burnRate = engine.calculateBurnRate(
       currentMonthExpenses: currentMonthTxs,
@@ -1674,13 +1948,19 @@ class _SmartBudgetQueryTool implements FfmAssistantQueryTool {
     final buf = StringBuffer();
     buf.writeln('📊 **Status Anggaran Pintar & Laju Belanja**:');
     buf.writeln('- Status: ${burnRate.statusLabel}');
-    buf.writeln('- Total Terpakai Bulan Ini: Rp ${_formatNum(burnRate.totalExpenseSoFar)}');
-    buf.writeln('- Batas Belanja Harian Aman: **Rp ${_formatNum(burnRate.safeDailySpendingLimit)}/hari** (${burnRate.remainingDays} hari tersisa)');
+    buf.writeln(
+      '- Total Terpakai Bulan Ini: Rp ${_formatNum(burnRate.totalExpenseSoFar)}',
+    );
+    buf.writeln(
+      '- Batas Belanja Harian Aman: **Rp ${_formatNum(burnRate.safeDailySpendingLimit)}/hari** (${burnRate.remainingDays} hari tersisa)',
+    );
 
     if (baselines.isNotEmpty) {
       buf.writeln('\n📈 **Baseline Dynamic Moving Average (3 Bulan)**:');
       for (final b in baselines.take(4)) {
-        buf.writeln('• ${b.categoryName}: ~Rp ${_formatNum(b.averageMonthlyAmount)}/bulan');
+        buf.writeln(
+          '• ${b.categoryName}: ~Rp ${_formatNum(b.averageMonthlyAmount)}/bulan',
+        );
       }
     }
 

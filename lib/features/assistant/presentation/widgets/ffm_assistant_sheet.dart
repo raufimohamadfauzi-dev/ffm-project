@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+
 import 'package:uuid/uuid.dart';
 
 import 'package:flutter/material.dart';
@@ -309,7 +310,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final capabilityDetail = usedReadCapability != null
         ? _readCapabilityDetail(usedReadCapability, intent)
         : null;
-    final effectiveTokenUsage = tokenUsage ??
+    final effectiveTokenUsage =
+        tokenUsage ??
         (intent.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?);
 
     return FfmAssistantProcessTrace(
@@ -592,11 +594,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final now = DateTime.now();
     final suggestedQuestions = !entry.isUser
         ? (entry.suggestedQuestions.isNotEmpty
-            ? entry.suggestedQuestions
-            : _followUpEngine.generateSuggestions(
-                userText: _lastUserQuery() ?? '',
-                assistantResponse: entry.text,
-              ))
+              ? entry.suggestedQuestions
+              : _followUpEngine.generateSuggestions(
+                  userText: _lastUserQuery() ?? '',
+                  assistantResponse: entry.text,
+                ))
         : const <String>[];
 
     final enriched = FfmAssistantChatEntry(
@@ -615,9 +617,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       feedbackType: entry.feedbackType,
       feedbackCategory: entry.feedbackCategory,
       sentAt: entry.sentAt ?? now,
-      receivedAt: entry.isUser
-          ? null
-          : (entry.receivedAt ?? now),
+      receivedAt: entry.isUser ? null : (entry.receivedAt ?? now),
       modelUsed: entry.modelUsed ?? _modelLabelFor(entry),
       absorbedMemory: entry.absorbedMemory,
       suggestedQuestions: suggestedQuestions,
@@ -959,15 +959,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
-       if (!mounted) return;
-       await _checkAndInitiateGreetings();
-       unawaited(_checkDueHabitPatterns());
-       await WidgetsBinding.instance.endOfFrame;
-       if (!mounted || !_scrollController.hasClients) return;
-       // Greeting/onboarding dapat menambah entry setelah posisi awal dihitung.
-       // Hitung ulang setelah entry tersebut selesai dirender.
-       _scrollToEnd(force: true, animated: false);
-     });
+      if (!mounted) return;
+      await _checkAndInitiateGreetings();
+      unawaited(_checkDueHabitPatterns());
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_scrollController.hasClients) return;
+      // Greeting/onboarding dapat menambah entry setelah posisi awal dihitung.
+      // Hitung ulang setelah entry tersebut selesai dirender.
+      _scrollToEnd(force: true, animated: false);
+    });
   }
 
   Future<void> _checkAndInitiateGreetings() async {
@@ -1055,8 +1055,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (_historyWasRestored || _entries.length > 1) return;
     if (getIt.isRegistered<ProactiveCashFlowCheckInService>()) {
       final checkInService = getIt<ProactiveCashFlowCheckInService>();
-      final prompt =
-          await checkInService.evaluateCheckIn(AppContext.householdId);
+      final prompt = await checkInService.evaluateCheckIn(
+        AppContext.householdId,
+      );
       if (prompt != null && mounted) {
         setState(() {
           _entries.clear();
@@ -1480,7 +1481,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _queuedIntents.remove(intent);
       widget.session
         ..activeDraftReview = null
-        ..activeDraftIntent = null;
+        ..activeDraftIntent = null
+        ..activeDraftQueueId = null;
     });
     _scrollToEnd();
   }
@@ -1603,272 +1605,195 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     try {
       // 0. Permintaan Executive Morning Briefing
       if (normalized == 'briefing pagi' ||
-        normalized == 'morning briefing' ||
-        normalized == 'ringkasan pagi' ||
-        normalized == 'dengarkan briefing pagi 🔊' ||
-        normalized == 'dengarkan briefing pagi' ||
-        normalized.contains('briefing pagi')) {
-      if (getIt.isRegistered<ExecutiveMorningBriefingService>()) {
-        final briefingService = getIt<ExecutiveMorningBriefingService>();
-        final briefing = await briefingService.generateBriefing(
-          AppContext.householdId,
+          normalized == 'morning briefing' ||
+          normalized == 'ringkasan pagi' ||
+          normalized == 'dengarkan briefing pagi 🔊' ||
+          normalized == 'dengarkan briefing pagi' ||
+          normalized.contains('briefing pagi')) {
+        if (getIt.isRegistered<ExecutiveMorningBriefingService>()) {
+          final briefingService = getIt<ExecutiveMorningBriefingService>();
+          final briefing = await briefingService.generateBriefing(
+            AppContext.householdId,
+          );
+          if (!mounted) return;
+          setState(() {
+            _submitting = false;
+            _activeMorningBriefing = briefing;
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text: briefing.textSummary,
+                createdAt: DateTime.now(),
+                suggestedQuestions: const [
+                  'Dengarkan briefing pagi 🔊',
+                  'Cek saldo kas',
+                  'Catat pengeluaran hari ini',
+                ],
+              ),
+            );
+            widget.session.lastAssistantText = briefing.textSummary;
+          });
+          _scrollToEnd(force: true);
+
+          if (normalized.contains('dengarkan') || normalized.contains('🔊')) {
+            await _playBriefingAudio(briefing);
+          }
+          return;
+        }
+      }
+
+      // 0.5. Permintaan Buka Simulator atau Konsultasi Strategi Bebas Hutang
+      if (normalized == 'buka simulator bebas hutang' ||
+          normalized == 'buka simulator hutang' ||
+          normalized == 'simulator bebas hutang' ||
+          normalized == 'simulator hutang') {
+        setState(() => _submitting = false);
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DebtPayoffStrategyPage()),
+        );
+        return;
+      }
+
+      if (normalized.contains('strategi pelunasan hutang') ||
+          normalized.contains('simulasi bebas hutang') ||
+          normalized.contains('simulasi hutang') ||
+          normalized.contains('cara cepat lunas hutang') ||
+          normalized.contains('snowball avalanche') ||
+          normalized.contains('debt snowball') ||
+          normalized.contains('debt avalanche') ||
+          normalized.contains('strategi hutang') ||
+          normalized.contains('rekomendasi cicilan')) {
+        final db = getIt<AppDatabase>();
+        final plugin = FfmDebtSnowballLogicPlugin(db);
+        final result = await plugin.execute(
+          FfmHarnessContext(
+            rawText: text,
+            normalizedText: normalized,
+            householdId: AppContext.householdId,
+            now: DateTime.now(),
+          ),
         );
         if (!mounted) return;
-        setState(() {
-          _submitting = false;
-          _activeMorningBriefing = briefing;
-          _appendEntry(
-            FfmAssistantChatEntry(
-              isUser: false,
-              text: briefing.textSummary,
-              createdAt: DateTime.now(),
-              suggestedQuestions: const [
-                'Dengarkan briefing pagi 🔊',
-                'Cek saldo kas',
-                'Catat pengeluaran hari ini',
-              ],
-            ),
-          );
-          widget.session.lastAssistantText = briefing.textSummary;
-        });
-        _scrollToEnd(force: true);
-
-        if (normalized.contains('dengarkan') || normalized.contains('🔊')) {
-          await _playBriefingAudio(briefing);
+        if (result != null) {
+          setState(() {
+            _submitting = false;
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text: result.text,
+                createdAt: DateTime.now(),
+                suggestedQuestions: const [
+                  'Buka simulator bebas hutang',
+                  'Berapa sisa pokok hutang dan total cicilan bulanan saya?',
+                  'Apakah rasio cicilan hutang saya saat ini masih aman?',
+                ],
+              ),
+            );
+            widget.session.lastAssistantText = result.text;
+          });
+          _scrollToEnd(force: true);
+          return;
         }
-        return;
       }
-    }
 
-    // 0.5. Permintaan Buka Simulator atau Konsultasi Strategi Bebas Hutang
-    if (normalized == 'buka simulator bebas hutang' ||
-        normalized == 'buka simulator hutang' ||
-        normalized == 'simulator bebas hutang' ||
-        normalized == 'simulator hutang') {
-      setState(() => _submitting = false);
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const DebtPayoffStrategyPage(),
-        ),
-      );
-      return;
-    }
-
-    if (normalized.contains('strategi pelunasan hutang') ||
-        normalized.contains('simulasi bebas hutang') ||
-        normalized.contains('simulasi hutang') ||
-        normalized.contains('cara cepat lunas hutang') ||
-        normalized.contains('snowball avalanche') ||
-        normalized.contains('debt snowball') ||
-        normalized.contains('debt avalanche') ||
-        normalized.contains('strategi hutang') ||
-        normalized.contains('rekomendasi cicilan')) {
-      final db = getIt<AppDatabase>();
-      final plugin = FfmDebtSnowballLogicPlugin(db);
-      final result = await plugin.execute(
-        FfmHarnessContext(
-          rawText: text,
-          normalizedText: normalized,
+      // 1. Perintah Penyeimbangan Anggaran ("seimbangkan anggaran")
+      if (normalized.contains('seimbangkan anggaran') ||
+          normalized.contains('rebalance anggaran') ||
+          normalized.contains('seimbangkan pos anggaran') ||
+          normalized.contains('penyeimbang anggaran')) {
+        final db = getIt<AppDatabase>();
+        final detector = IntelligentEnvelopeRebalanceDetector(db);
+        final insight = await detector.detect(
           householdId: AppContext.householdId,
           now: DateTime.now(),
-        ),
-      );
-      if (!mounted) return;
-      if (result != null) {
-        setState(() {
-          _submitting = false;
-          _appendEntry(
-            FfmAssistantChatEntry(
-              isUser: false,
-              text: result.text,
-              createdAt: DateTime.now(),
-              suggestedQuestions: const [
-                'Buka simulator bebas hutang',
-                'Berapa sisa pokok hutang dan total cicilan bulanan saya?',
-                'Apakah rasio cicilan hutang saya saat ini masih aman?',
-              ],
-            ),
-          );
-          widget.session.lastAssistantText = result.text;
-        });
-        _scrollToEnd(force: true);
-        return;
-      }
-    }
-
-    // 1. Perintah Penyeimbangan Anggaran ("seimbangkan anggaran")
-    if (normalized.contains('seimbangkan anggaran') ||
-        normalized.contains('rebalance anggaran') ||
-        normalized.contains('seimbangkan pos anggaran') ||
-        normalized.contains('penyeimbang anggaran')) {
-      final db = getIt<AppDatabase>();
-      final detector = IntelligentEnvelopeRebalanceDetector(db);
-      final insight = await detector.detect(
-        householdId: AppContext.householdId,
-        now: DateTime.now(),
-      );
-      if (!mounted) return;
-      if (insight == null) {
-        setState(() {
-          _submitting = false;
-          _appendEntry(
-            FfmAssistantChatEntry(
-              isUser: false,
-              text: '⚖️ **Status Anggaran Sehat & Seimbang**\n\n'
-                  'Seluruh pos anggaran aktif Anda saat ini dalam batas aman. Belum ada pos yang over-budget atau membutuhkan pergeseran dana.',
-              createdAt: DateTime.now(),
-            ),
-          );
-        });
-        _scrollToEnd(force: true);
-        return;
-      }
-
-      final payload = insight.actionPayload;
-      final fromName = payload?['fromBudgetName']?.toString() ?? 'Surplus';
-      final toName = payload?['toBudgetName']?.toString() ?? 'Defisit';
-      final amount = (payload?['amount'] as num?)?.toInt() ?? 0;
-
-      setState(() {
-        _submitting = false;
-        _appendEntry(
-          FfmAssistantChatEntry(
-            isUser: false,
-            text: '⚖️ **Rekomendasi Penyeimbangan Anggaran**\n\n'
-                '${insight.summary}\n\n'
-                '💡 Anda dapat langsung menekan tombol **Terapkan Pergeseran Sekarang** di Kotak Masuk Agen untuk menggeser Rp $amount dari **$fromName** ke **$toName**.',
-            createdAt: DateTime.now(),
-            verifiedFacts: 'Pergeseran Plafon: $fromName -> $toName (Rp $amount)',
-          ),
         );
-      });
-      _scrollToEnd(force: true);
-      return;
-    }
-
-    // 2. Pendaftaran Kebiasaan Langsung di Chat
-    final isHabitQuery = normalized.endsWith('?') ||
-        normalized.contains(' apa ') ||
-        normalized.contains(' apa?') ||
-        normalized.contains(' berapa ') ||
-        normalized.contains(' berapa?') ||
-        normalized.contains(' mana ') ||
-        normalized.contains('adakah') ||
-        normalized.contains('sebutkan') ||
-        normalized.contains('tampilkan') ||
-        normalized.contains('cek kebiasaan') ||
-        normalized.contains('lihat kebiasaan') ||
-        normalized.contains('riwayat kebiasaan');
-    final isHabitDeclaration = !isHabitQuery &&
-        normalized.contains('kebiasaan') &&
-        (normalized.contains('tiap') ||
-            normalized.contains('setiap') ||
-            normalized.contains('rutin') ||
-            normalized.contains('jadwal') ||
-            normalized.contains('catat kebiasaan'));
-
-    if (isHabitDeclaration) {
-      await _personalMemoryService.saveApproved(
-        FfmPersonalMemoryInsight(
-          kind: FfmPersonalMemoryKind.habitData,
-          key:
-              'habit_${Uuid().v4()}_${_entries.length}',
-          value: text,
-          humanLabel: 'Kebiasaan Rutin: $text',
-          sourceMessage: text,
-        ),
-      );
-
-      if (getIt.isRegistered<AutonomousActivityRepository>()) {
-        await getIt<AutonomousActivityRepository>().recordActivity(
-          AutonomousActivityRecord(
-            id: 'act_${Uuid().v4()}_${_entries.length}',
-            householdId: AppContext.householdId,
-            title: 'Pendaftaran Kebiasaan Rutin',
-            description: text,
-            activityType: AutonomousActivityType.habitDeclaration,
-            occurredAt: DateTime.now(),
-          ),
-        );
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _submitting = false;
-        _appendEntry(
-          FfmAssistantChatEntry(
-            isUser: false,
-            text: '💡 **Kebiasaan Rutin Berhasil Didaftarkan!**\n\n'
-                'Saya telah mencatat kebiasaan ini ke dalam memori asisten Anda:\n'
-                '> "$text"\n\n'
-                '✨ Sistem otonom akan memantau pola ini dan siap menyarankan catatan rutin saat harinya tiba.',
-            createdAt: DateTime.now(),
-            absorbedMemory: 'Kebiasaan Rutin',
-          ),
-        );
-      });
-      _scrollToEnd(force: true);
-      return;
-    }
-
-    // 3. Penyesuaian Tanggal Panen / Siklus Tani ("panen mundur / maju / tunda")
-    final isHarvestShift = normalized.contains('panen') &&
-        (normalized.contains('mundur') ||
-            normalized.contains('maju') ||
-            normalized.contains('tunda') ||
-            normalized.contains('geser'));
-    if (isHarvestShift && getIt.isRegistered<CashFlowProfileRepository>()) {
-      final repo = getIt<CashFlowProfileRepository>();
-      final profile = await repo.getActiveProfile(AppContext.householdId);
-      if (profile != null &&
-          profile.profileType == CashFlowProfileType.agriculture) {
-        int daysShift = 0;
-        final weekMatch =
-            RegExp(r'(\d+)\s*(minggu|pekan)').firstMatch(normalized);
-        final dayMatch = RegExp(r'(\d+)\s*(hari)').firstMatch(normalized);
-        final monthMatch = RegExp(r'(\d+)\s*(bulan)').firstMatch(normalized);
-
-        if (weekMatch != null) {
-          final count = int.tryParse(weekMatch.group(1) ?? '1') ?? 1;
-          daysShift = count * 7;
-        } else if (monthMatch != null) {
-          final count = int.tryParse(monthMatch.group(1) ?? '1') ?? 1;
-          daysShift = count * 30;
-        } else if (dayMatch != null) {
-          daysShift = int.tryParse(dayMatch.group(1) ?? '0') ?? 0;
-        } else {
-          daysShift = 14;
+        if (!mounted) return;
+        if (insight == null) {
+          setState(() {
+            _submitting = false;
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text:
+                    '⚖️ **Status Anggaran Sehat & Seimbang**\n\n'
+                    'Seluruh pos anggaran aktif Anda saat ini dalam batas aman. Belum ada pos yang over-budget atau membutuhkan pergeseran dana.',
+                createdAt: DateTime.now(),
+              ),
+            );
+          });
+          _scrollToEnd(force: true);
+          return;
         }
 
-        final isAdvancing = normalized.contains('maju');
-        final actualDelta = isAdvancing ? -daysShift : daysShift;
-        final newTargetDate =
-            profile.targetHarvestDate.add(Duration(days: actualDelta));
-        final updatedProfile =
-            profile.copyWith(targetHarvestDate: newTargetDate);
-        await repo.saveProfile(updatedProfile);
+        final payload = insight.actionPayload;
+        final fromName = payload?['fromBudgetName']?.toString() ?? 'Surplus';
+        final toName = payload?['toBudgetName']?.toString() ?? 'Defisit';
+        final amount = (payload?['amount'] as num?)?.toInt() ?? 0;
 
-        final directionText = isAdvancing ? 'maju' : 'mundur';
-        final formattedDate =
-            '${newTargetDate.day}/${newTargetDate.month}/${newTargetDate.year}';
+        setState(() {
+          _submitting = false;
+          _appendEntry(
+            FfmAssistantChatEntry(
+              isUser: false,
+              text:
+                  '⚖️ **Rekomendasi Penyeimbangan Anggaran**\n\n'
+                  '${insight.summary}\n\n'
+                  '💡 Anda dapat langsung menekan tombol **Terapkan Pergeseran Sekarang** di Kotak Masuk Agen untuk menggeser Rp $amount dari **$fromName** ke **$toName**.',
+              createdAt: DateTime.now(),
+              verifiedFacts:
+                  'Pergeseran Plafon: $fromName -> $toName (Rp $amount)',
+            ),
+          );
+        });
+        _scrollToEnd(force: true);
+        return;
+      }
+
+      // 2. Pendaftaran Kebiasaan Langsung di Chat
+      final isHabitQuery =
+          normalized.endsWith('?') ||
+          normalized.contains(' apa ') ||
+          normalized.contains(' apa?') ||
+          normalized.contains(' berapa ') ||
+          normalized.contains(' berapa?') ||
+          normalized.contains(' mana ') ||
+          normalized.contains('adakah') ||
+          normalized.contains('sebutkan') ||
+          normalized.contains('tampilkan') ||
+          normalized.contains('cek kebiasaan') ||
+          normalized.contains('lihat kebiasaan') ||
+          normalized.contains('riwayat kebiasaan');
+      final isHabitDeclaration =
+          !isHabitQuery &&
+          normalized.contains('kebiasaan') &&
+          (normalized.contains('tiap') ||
+              normalized.contains('setiap') ||
+              normalized.contains('rutin') ||
+              normalized.contains('jadwal') ||
+              normalized.contains('catat kebiasaan'));
+
+      if (isHabitDeclaration) {
+        await _personalMemoryService.saveApproved(
+          FfmPersonalMemoryInsight(
+            kind: FfmPersonalMemoryKind.habitData,
+            key: 'habit_${Uuid().v4()}_${_entries.length}',
+            value: text,
+            humanLabel: 'Kebiasaan Rutin: $text',
+            sourceMessage: text,
+          ),
+        );
 
         if (getIt.isRegistered<AutonomousActivityRepository>()) {
           await getIt<AutonomousActivityRepository>().recordActivity(
             AutonomousActivityRecord(
               id: 'act_${Uuid().v4()}_${_entries.length}',
               householdId: AppContext.householdId,
-              title: 'Pembaruan Jadwal Panen (${profile.name})',
-              description:
-                  'Menyesuaikan tanggal panen menjadi $formattedDate ($directionText $daysShift hari).',
-              activityType: AutonomousActivityType.harvestShift,
+              title: 'Pendaftaran Kebiasaan Rutin',
+              description: text,
+              activityType: AutonomousActivityType.habitDeclaration,
               occurredAt: DateTime.now(),
-              payload: {
-                'profileId': profile.id,
-                'previousHarvestDate': profile.targetHarvestDate.toIso8601String(),
-                'newHarvestDate': newTargetDate.toIso8601String(),
-              },
             ),
           );
         }
@@ -1879,60 +1804,144 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
-              text: '🌾 **Jadwal Panen Berhasil Disesuaikan!**\n\n'
-                  'Estimasi panen untuk siklus **${profile.name}** (${profile.commodityOrBusinessType}) telah diperbarui:\n'
-                  '• Tanggal Panen Baru: **$formattedDate** ($directionText $daysShift hari)\n'
-                  '• Sisa Waktu Siklus: **${updatedProfile.daysRemaining} hari lagi**\n\n'
-                  '💡 Proyeksi arus kas harian dan pengingat biaya operasional telah dihitung ulang secara otomatis.',
+              text:
+                  '💡 **Kebiasaan Rutin Berhasil Didaftarkan!**\n\n'
+                  'Saya telah mencatat kebiasaan ini ke dalam memori asisten Anda:\n'
+                  '> "$text"\n\n'
+                  '✨ Sistem otonom akan memantau pola ini dan siap menyarankan catatan rutin saat harinya tiba.',
               createdAt: DateTime.now(),
-              verifiedFacts:
-                  'Update Panen: ${profile.name} -> $formattedDate',
+              absorbedMemory: 'Kebiasaan Rutin',
             ),
           );
         });
         _scrollToEnd(force: true);
         return;
       }
-    }
 
-    if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
-      final onboarding = getIt<AssistantOnboardingOrchestrator>();
-      if (onboarding.isOnboardingActive) {
-        final response = await onboarding.processInput(text);
-        if (!mounted) return;
-        setState(() {
-          _submitting = false;
-          _appendEntry(
-            FfmAssistantChatEntry(
-              isUser: false,
-              text: response.message,
-              createdAt: DateTime.now(),
-              suggestedQuestions: response.suggestions,
-            ),
+      // 3. Penyesuaian Tanggal Panen / Siklus Tani ("panen mundur / maju / tunda")
+      final isHarvestShift =
+          normalized.contains('panen') &&
+          (normalized.contains('mundur') ||
+              normalized.contains('maju') ||
+              normalized.contains('tunda') ||
+              normalized.contains('geser'));
+      if (isHarvestShift && getIt.isRegistered<CashFlowProfileRepository>()) {
+        final repo = getIt<CashFlowProfileRepository>();
+        final profile = await repo.getActiveProfile(AppContext.householdId);
+        if (profile != null &&
+            profile.profileType == CashFlowProfileType.agriculture) {
+          int daysShift = 0;
+          final weekMatch = RegExp(r'(\d+)\s*(minggu|pekan)')
+              .firstMatch(normalized);
+          final dayMatch = RegExp(r'(\d+)\s*(hari)').firstMatch(normalized);
+          final monthMatch = RegExp(r'(\d+)\s*(bulan)').firstMatch(normalized);
+
+          if (weekMatch != null) {
+            final count = int.tryParse(weekMatch.group(1) ?? '1') ?? 1;
+            daysShift = count * 7;
+          } else if (monthMatch != null) {
+            final count = int.tryParse(monthMatch.group(1) ?? '1') ?? 1;
+            daysShift = count * 30;
+          } else if (dayMatch != null) {
+            daysShift = int.tryParse(dayMatch.group(1) ?? '0') ?? 0;
+          } else {
+            daysShift = 14;
+          }
+
+          final isAdvancing = normalized.contains('maju');
+          final actualDelta = isAdvancing ? -daysShift : daysShift;
+          final newTargetDate = profile.targetHarvestDate.add(
+            Duration(days: actualDelta),
           );
-          widget.session.lastAssistantText = response.message;
-        });
-        _scrollToEnd(force: true);
-        return;
-      }
-    }
+          final updatedProfile = profile.copyWith(
+            targetHarvestDate: newTargetDate,
+          );
+          await repo.saveProfile(updatedProfile);
 
-    // Cek intent spesifik sebelum interpreter (tag vs draft confusion)
-    final specificIntent = _intentClassificationService.classifySpecificIntent(
-      text,
-    );
-    if (specificIntent != null) {
-      final explanation = _intentClassificationService.getIntentExplanation(
-        specificIntent,
-        text,
-      );
-      if (explanation != null) {
-        // Log atau gunakan penjelasan untuk debugging
-        debugPrint('Intent Classification: $explanation');
-      }
-    }
+          final directionText = isAdvancing ? 'maju' : 'mundur';
+          final formattedDate =
+              '${newTargetDate.day}/${newTargetDate.month}/${newTargetDate.year}';
 
-    _setActiveProcess(
+          if (getIt.isRegistered<AutonomousActivityRepository>()) {
+            await getIt<AutonomousActivityRepository>().recordActivity(
+              AutonomousActivityRecord(
+                id: 'act_${Uuid().v4()}_${_entries.length}',
+                householdId: AppContext.householdId,
+                title: 'Pembaruan Jadwal Panen (${profile.name})',
+                description:
+                    'Menyesuaikan tanggal panen menjadi $formattedDate ($directionText $daysShift hari).',
+                activityType: AutonomousActivityType.harvestShift,
+                occurredAt: DateTime.now(),
+                payload: {
+                  'profileId': profile.id,
+                  'previousHarvestDate': profile.targetHarvestDate
+                      .toIso8601String(),
+                  'newHarvestDate': newTargetDate.toIso8601String(),
+                },
+              ),
+            );
+          }
+
+          if (!mounted) return;
+          setState(() {
+            _submitting = false;
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text:
+                    '🌾 **Jadwal Panen Berhasil Disesuaikan!**\n\n'
+                    'Estimasi panen untuk siklus **${profile.name}** (${profile.commodityOrBusinessType}) telah diperbarui:\n'
+                    '• Tanggal Panen Baru: **$formattedDate** ($directionText $daysShift hari)\n'
+                    '• Sisa Waktu Siklus: **${updatedProfile.daysRemaining} hari lagi**\n\n'
+                    '💡 Proyeksi arus kas harian dan pengingat biaya operasional telah dihitung ulang secara otomatis.',
+                createdAt: DateTime.now(),
+                verifiedFacts:
+                    'Update Panen: ${profile.name} -> $formattedDate',
+              ),
+            );
+          });
+          _scrollToEnd(force: true);
+          return;
+        }
+      }
+
+      if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
+        final onboarding = getIt<AssistantOnboardingOrchestrator>();
+        if (onboarding.isOnboardingActive) {
+          final response = await onboarding.processInput(text);
+          if (!mounted) return;
+          setState(() {
+            _submitting = false;
+            _appendEntry(
+              FfmAssistantChatEntry(
+                isUser: false,
+                text: response.message,
+                createdAt: DateTime.now(),
+                suggestedQuestions: response.suggestions,
+              ),
+            );
+            widget.session.lastAssistantText = response.message;
+          });
+          _scrollToEnd(force: true);
+          return;
+        }
+      }
+
+      // Cek intent spesifik sebelum interpreter (tag vs draft confusion)
+      final specificIntent = _intentClassificationService
+          .classifySpecificIntent(text);
+      if (specificIntent != null) {
+        final explanation = _intentClassificationService.getIntentExplanation(
+          specificIntent,
+          text,
+        );
+        if (explanation != null) {
+          // Log atau gunakan penjelasan untuk debugging
+          debugPrint('Intent Classification: $explanation');
+        }
+      }
+
+      _setActiveProcess(
         _routingMode == FfmAssistantRoutingMode.geminiCloud
             ? 'Tahap 1/2: Gemini Cloud memahami permintaan...'
             : 'Tahap 1/2: Menyiapkan konteks Agent...',
@@ -1975,6 +1984,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           ? getIt<ActivityBloc>().state.toSnapshot()
           : null;
       FfmAssistantUnderstandingResult? understanding;
+      final activeDraftForTurn = _activeDraftForTurn(text);
       final intents = pending == null
           ? ((understanding = await _interpreter.interpretMany(
               text,
@@ -1989,7 +1999,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   widget.currentPageContext?.capabilityIds ?? const [],
               activitySnapshot: activitySnapshot,
               routingMode: _routingMode,
-              activeDraft: widget.session.activeDraftIntent?.draft,
+              activeDraft: activeDraftForTurn,
             )).intents)
           : await _interpreter.resolvePendingDialog(
               text,
@@ -2043,7 +2053,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               ..activeDraftIntent = null
               ..activeDraftQueueId = null;
           } else if (intent.draft != null) {
-            final nextVersion = (currentActiveReview != null &&
+            final nextVersion =
+                (currentActiveReview != null &&
                     currentActiveReview.draft.kind == intent.draft!.kind)
                 ? currentActiveReview.version + 1
                 : 1;
@@ -2064,6 +2075,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 .firstOrNull;
             _enqueueDraft(intent, review, workItem: workItem);
           } else if (currentActiveReview != null &&
+              _shouldAttachActiveDraftToResponse(intent) &&
               intent.destination == null &&
               intent.type != FfmAssistantIntentType.openPage) {
             review = currentActiveReview;
@@ -2182,10 +2194,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       color: theme.colorScheme.primaryContainer,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.camera_alt, color: theme.colorScheme.primary),
+                    child: Icon(
+                      Icons.camera_alt,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   title: const Text('Ambil Foto Struk (Kamera)'),
-                  subtitle: const Text('Gunakan kamera untuk memotret struk fisik'),
+                  subtitle: const Text(
+                    'Gunakan kamera untuk memotret struk fisik',
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _pickImage(ImageSource.camera);
@@ -2198,10 +2215,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                       color: theme.colorScheme.secondaryContainer,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.photo_library, color: theme.colorScheme.secondary),
+                    child: Icon(
+                      Icons.photo_library,
+                      color: theme.colorScheme.secondary,
+                    ),
                   ),
                   title: const Text('Pilih dari Galeri / Berkas'),
-                  subtitle: const Text('Import file foto struk yang sudah ada di perangkat'),
+                  subtitle: const Text(
+                    'Import file foto struk yang sudah ada di perangkat',
+                  ),
                   onTap: () {
                     Navigator.pop(ctx);
                     _pickImage(ImageSource.gallery);
@@ -2233,9 +2255,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _inputFocusNode.requestFocus();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memilih gambar: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal memilih gambar: $e')));
     }
   }
 
@@ -2279,8 +2300,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         _appendEntry(
           FfmAssistantChatEntry(
             isUser: false,
-            text:
-                'Foto struk tidak dapat dibaca dari berkas yang dipilih. Coba pilih foto lain.',
+            text: 'Foto struk tidak dapat dibaca dari berkas yang dipilih. Coba pilih foto lain.',
             filePath: path,
             fileFormat: 'image',
             createdAt: DateTime.now(),
@@ -2310,7 +2330,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return hasQuestionMark || hasQuestionWords;
   }
 
-  Future<void> _handleImageUpload(String path, Uint8List bytes, {String? userCaption}) async {
+  Future<void> _handleImageUpload(
+    String path,
+    Uint8List bytes, {
+    String? userCaption,
+  }) async {
     if (!mounted) return;
 
     final isBroadQuestion = _isBroadVisualQuestion(userCaption);
@@ -2438,8 +2462,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             _appendEntry(
               FfmAssistantChatEntry(
                 isUser: false,
-                text:
-                    'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
+                text: 'Struk terbaca, tetapi ada kendala saat memproses hasilnya. Coba pindai lagi.',
                 filePath: path,
                 fileFormat: 'image',
                 createdAt: DateTime.now(),
@@ -2459,6 +2482,35 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return 'image/jpeg';
   }
 
+  String? _receiptKindForText(String text) {
+    if (ReceiptScannerService.isPlnTokenText(text)) return 'pln_token';
+    if (RegExp(
+      r'\b(spbu|pertamina|shell|bp|pertalite|pertamax|dexlite|biosolar)\b',
+    ).hasMatch(text)) {
+      return 'fuel';
+    }
+    if (RegExp(
+      r'\b(semen|pasir|batu|bata|besi|paku|cat tembok|material|bangunan|keramik|pipa)\b',
+    ).hasMatch(text)) {
+      return 'building_material';
+    }
+    if (RegExp(
+      r'\b(pulsa|paket data|kuota|telkomsel|indosat|xl|axis|smartfren)\b',
+    ).hasMatch(text)) {
+      return 'telecom';
+    }
+    if (RegExp(
+      r'\b(tokopedia|shopee|lazada|alfamart|indomaret|supermarket|belanja|shopping)\b',
+    ).hasMatch(text)) {
+      return 'shopping';
+    }
+    if (RegExp(r'\b(tagihan|invoice|rekening|pdam|pln|internet|indihome)\b')
+        .hasMatch(text)) {
+      return 'bill';
+    }
+    return text.trim().isEmpty ? null : 'general_receipt';
+  }
+
   Future<void> _appendScanOutcome(ReceiptScanOutcome outcome) async {
     final batch = outcome.batch;
     if (batch == null) return;
@@ -2471,11 +2523,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
     for (var index = 0; index < batch.entries.length; index++) {
       var entry = batch.entries[index];
-      var draft = _draftForBatchEntry(entry, now);
+      var draft = _draftForBatchEntry(entry, now, imagePath: outcome.imagePath);
       var response = _scanEntryResponse(entry, index + 1);
 
-      final allText = '${entry.note ?? ''} ${entry.merchant ?? ''} ${entry.items.map((i) => "${i.name} ${i.unit ?? ''}").join(" ")}';
+      final allText = [
+        entry.note,
+        entry.merchant,
+        entry.budgetName,
+        entry.receiptNumber,
+        ...entry.items.expand((item) => [item.name, item.unit]),
+      ].whereType<String>().where((value) => value.trim().isNotEmpty).join(' ');
       final lowerText = allText.toLowerCase();
+      final receiptKind = _receiptKindForText(lowerText);
+      if (receiptKind != null) {
+        draft = draft.copyWith(
+          metadata: {...?draft.metadata, 'receiptKind': receiptKind},
+        );
+      }
 
       // Deteksi meteran PLN hanya dijalankan bila teks benar-benar
       // mengindikasikan struk token listrik. Nomor panjang pada struk lain
@@ -2490,20 +2554,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         // Kesalahan penyimpanan meteran tidak boleh menghilangkan draft
         // transaksi: hasil OCR Gemini tetap dipakai bila langkah ini gagal.
         try {
-          final tokenRegex = RegExp(r'\b(\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4})\b');
-          final tokenMatch = tokenRegex.firstMatch(allText);
-          if (tokenMatch != null) {
-            final raw = tokenMatch.group(1)!.replaceAll(RegExp(r'\D'), '');
-            if (raw.length == 20) {
-              cleanToken = raw;
-            }
-          }
-
-          final meterRegex = RegExp(r'(?:idpel|meter|no\.?\s*meter|nomor\s*meteran?)[:\s]*(\d{11,12})', caseSensitive: false);
-          final meterMatch = meterRegex.firstMatch(allText);
-          if (meterMatch != null) {
-            cleanMeterNumber = meterMatch.group(1);
-          } else {
+          cleanToken = ReceiptScannerService.extractPlnToken(allText);
+          cleanMeterNumber = ReceiptScannerService.extractPlnMeterNumber(
+            allText,
+          );
+          if (cleanMeterNumber == null) {
             final fallbackMeterRegex = RegExp(r'\b(\d{11,12})\b');
             for (final m in fallbackMeterRegex.allMatches(allText)) {
               final candidate = m.group(1)!;
@@ -2515,11 +2570,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           }
 
           if (cleanToken != null) {
-            final formattedToken = '${cleanToken.substring(0, 4)}-${cleanToken.substring(4, 8)}-${cleanToken.substring(8, 12)}-${cleanToken.substring(12, 16)}-${cleanToken.substring(16, 20)}';
-            
+            final formattedToken =
+                '${cleanToken.substring(0, 4)}-${cleanToken.substring(4, 8)}-${cleanToken.substring(8, 12)}-${cleanToken.substring(12, 16)}-${cleanToken.substring(16, 20)}';
+
             UtilityMeter? matchedMeter;
             if (cleanMeterNumber != null) {
-              matchedMeter = await utilityRepo.findMeterByNumber(AppContext.householdId, cleanMeterNumber);
+              matchedMeter = await utilityRepo.findMeterByNumber(
+                AppContext.householdId,
+                cleanMeterNumber,
+              );
             }
 
             // Simpan sebagai metadata proposal, bukan mutasi langsung
@@ -2529,23 +2588,26 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               'amount': entry.amount?.toDouble(),
               'timestamp': now.toIso8601String(),
             };
-            
+
             if (cleanMeterNumber != null) {
               utilityMetadata['meterNumber'] = cleanMeterNumber;
             }
-            
+
             if (matchedMeter != null) {
               utilityMetadata['meterId'] = matchedMeter.id;
               utilityMetadata['meterName'] = matchedMeter.name;
               utilityMetadata['isNewMeter'] = false;
             } else if (cleanMeterNumber != null) {
               utilityMetadata['isNewMeter'] = true;
-              utilityMetadata['proposedMeterName'] = 'Meteran PLN $cleanMeterNumber';
+              utilityMetadata['proposedMeterName'] =
+                  'Meteran PLN $cleanMeterNumber';
             }
 
             if (matchedMeter != null) {
-              meterLabel = 'Token Listrik ${matchedMeter.name} ($formattedToken)';
-              response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
+              meterLabel =
+                  'Token Listrik ${matchedMeter.name} ($formattedToken)';
+              response =
+                  '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
                   '• Properti: **${matchedMeter.name}**\n'
                   '• No. Meter: `${matchedMeter.formattedMeterNumber}`\n'
                   '• Kode Token: `${matchedMeter.formattedTokenNumber}`\n\n'
@@ -2553,7 +2615,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   '$response';
             } else if (cleanMeterNumber != null) {
               meterLabel = 'Token Listrik PLN ($formattedToken)';
-              response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
+              response =
+                  '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
                   '• No. Meter: `$cleanMeterNumber`\n'
                   '• Kode Token: `$formattedToken`\n\n'
                   'Meteran baru ini akan didaftarkan setelah Anda mengonfirmasi transaksi.\n\n'
@@ -2577,7 +2640,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         draft = draft.copyWith(categoryName: 'Listrik', note: meterLabel);
       }
 
-      final isFuelReceipt = lowerText.contains('spbu') ||
+      final isFuelReceipt =
+          lowerText.contains('spbu') ||
           lowerText.contains('pertamina') ||
           lowerText.contains('pertalite') ||
           lowerText.contains('pertamax') ||
@@ -2592,7 +2656,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           final vehicleRepo = getIt.isRegistered<VehicleRepository>()
               ? getIt<VehicleRepository>()
               : VehicleRepository();
-          final vehicles = await vehicleRepo.getAllVehicles(AppContext.householdId);
+          final vehicles = await vehicleRepo.getAllVehicles(
+            AppContext.householdId,
+          );
 
           Vehicle? matchedVehicle;
           for (final v in vehicles) {
@@ -2606,7 +2672,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               matchedVehicle = v;
               break;
             }
-            if (v.brandModel.isNotEmpty && lowerText.contains(v.brandModel.toLowerCase())) {
+            if (v.brandModel.isNotEmpty &&
+                lowerText.contains(v.brandModel.toLowerCase())) {
               matchedVehicle = v;
               break;
             }
@@ -2614,16 +2681,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
           double? detectedLiters;
           for (final it in entry.items) {
-            if (it.quantity > 0 && (it.unit?.toLowerCase() == 'l' || it.unit?.toLowerCase() == 'liter')) {
+            if (it.quantity > 0 &&
+                (it.unit?.toLowerCase() == 'l' ||
+                    it.unit?.toLowerCase() == 'liter')) {
               detectedLiters = it.quantity;
               break;
             }
           }
           if (detectedLiters == null) {
-            final literRegex = RegExp(r'(\d+(?:[.,]\d+)?)\s*(?:liter|ltr|l\b)', caseSensitive: false);
+            final literRegex = RegExp(
+              r'(\d+(?:[.,]\d+)?)\s*(?:liter|ltr|l\b)',
+              caseSensitive: false,
+            );
             final match = literRegex.firstMatch(allText);
             if (match != null) {
-              detectedLiters = double.tryParse(match.group(1)!.replaceAll(',', '.'));
+              detectedLiters = double.tryParse(
+                match.group(1)!.replaceAll(',', '.'),
+              );
             }
           }
 
@@ -2634,14 +2708,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             detectedFuel = 'Pertamax';
           } else if (lowerText.contains('dexlite')) {
             detectedFuel = 'Dexlite';
-          } else if (lowerText.contains('solar') || lowerText.contains('biosolar')) {
+          } else if (lowerText.contains('solar') ||
+              lowerText.contains('biosolar')) {
             detectedFuel = 'Solar';
           }
 
-          if (matchedVehicle != null && (detectedLiters != null || (entry.amount != null && entry.amount! > 0))) {
+          if (matchedVehicle != null &&
+              (detectedLiters != null ||
+                  (entry.amount != null && entry.amount! > 0))) {
             final litersVal = detectedLiters ?? 0.0;
             final amountVal = entry.amount?.toDouble() ?? 0.0;
-            
+
             // Simpan sebagai metadata proposal, bukan mutasi langsung
             final fuelMetadata = <String, dynamic>{
               'vehicleId': matchedVehicle.id,
@@ -2655,27 +2732,28 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             };
 
             if (litersVal > 0 && amountVal > 0) {
-              final fuelNote = 'BBM $detectedFuel ${matchedVehicle.name} (${matchedVehicle.formattedPlateNumber})${litersVal > 0 ? ' - ${litersVal}L' : ''}';
+              final fuelNote =
+                  'BBM $detectedFuel ${matchedVehicle.name} (${matchedVehicle.formattedPlateNumber})${litersVal > 0 ? ' - ${litersVal}L' : ''}';
               draft = draft.copyWith(
                 categoryName: 'Transportasi',
                 note: fuelNote,
-                metadata: {
-                  ...?draft.metadata,
-                  'fuelProposal': fuelMetadata,
-                },
+                metadata: {...?draft.metadata, 'fuelProposal': fuelMetadata},
               );
             }
 
-            response = '⛽ **Struk BBM Terdeteksi & Dicocokkan!**\n'
+            response =
+                '⛽ **Struk BBM Terdeteksi & Dicocokkan!**\n'
                 '• Kendaraan: **${matchedVehicle.name}** (`${matchedVehicle.formattedPlateNumber}`)\n'
                 '• Bahan Bakar: **$detectedFuel**${litersVal > 0 ? ' ($litersVal Liter)' : ''}\n\n'
                 'Riwayat pengisian ini akan otomatis dicatat ke Buku Saku Kendaraan setelah Anda mengonfirmasi transaksi.\n\n'
                 '$response';
           } else if (vehicles.isNotEmpty) {
-            response = '$response\n\n'
+            response =
+                '$response\n\n'
                 '💡 *Tip: Anda memiliki ${vehicles.length} kendaraan di Buku Saku Kendaraan. Transaksi ini dapat dikaitkan langsung ke kendaraan Anda.*';
           } else {
-            response = '$response\n\n'
+            response =
+                '$response\n\n'
                 '💡 *Tip: Daftarkan kendaraan (motor/mobil/traktor) di menu "Kendaraan & Catatan BBM" agar konsumsi liter dan efisiensi KM/L tercatat otomatis.*';
           }
         } on Object {
@@ -2754,11 +2832,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   FfmAssistantDraft _draftForBatchEntry(
     ReceiptBatchEntry entry,
-    DateTime now,
-  ) {
+    DateTime now, {
+    String? imagePath,
+  }) {
     final itemsText = entry.items.isEmpty
         ? null
-        : entry.items.map((item) => item.name).where((name) => name.isNotEmpty).join(', ');
+        : entry.items
+              .map((item) => item.name)
+              .where((name) => name.isNotEmpty)
+              .join(', ');
     final kind = switch (entry.type) {
       'income' => FfmAssistantDraftKind.income,
       'transfer' => FfmAssistantDraftKind.transfer,
@@ -2771,8 +2853,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       title: entry.merchant ?? itemsText,
       partyName: entry.partyName,
       categoryName: entry.budgetName,
-      fromAccountName: entry.fromAccountId != null && !entry.fromAccountId!.startsWith('acc-') && !entry.fromAccountId!.contains('-') ? entry.fromAccountId : null,
-      toAccountName: entry.toAccountId != null && !entry.toAccountId!.startsWith('acc-') && !entry.toAccountId!.contains('-') ? entry.toAccountId : null,
+      fromAccountName:
+          entry.fromAccountId != null &&
+              !entry.fromAccountId!.startsWith('acc-') &&
+              !entry.fromAccountId!.contains('-')
+          ? entry.fromAccountId
+          : null,
+      toAccountName:
+          entry.toAccountId != null &&
+              !entry.toAccountId!.startsWith('acc-') &&
+              !entry.toAccountId!.contains('-')
+          ? entry.toAccountId
+          : null,
       adminFee: entry.adminFee,
       note: entry.note,
       date: entry.date,
@@ -2784,6 +2876,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       receiptChangeAmount: entry.changeAmount,
       tax: entry.tax,
       discount: entry.discount,
+      attachmentPaths: imagePath == null || imagePath.trim().isEmpty
+          ? const <String>[]
+          : [imagePath],
       metadata: entry.receiptNumber != null
           ? {'receipt_number': entry.receiptNumber}
           : null,
@@ -2819,11 +2914,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return '$prefix: $detail. Periksa draft di atas.\n\n💡 *Tip: Jika ini struk penerimaan dana (uang masuk), cukup ketik "itu uang masuk" atau ubah jenisnya lewat tombol Ubah.*';
   }
 
-  static String _formatRupiah(int value) =>
-      value.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (_) => '.',
-      );
+  static String _formatRupiah(int value) => value.toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => '.',
+  );
 
   Future<bool> _tryHandleActivityRequest(String text) async {
     final normalized = text.toLowerCase().trim();
@@ -2905,10 +2999,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
 
       final orchestrator = getIt<FfmGeminiCloudOrchestrator>();
-      
+
       // Buat bounded context keuangan
       final boundedContext = await _buildBoundedFinancialContext();
-      
+
       // Siapkan input gambar
       final imageInput = GeminiImageInput(
         base64Data: base64Encode(bytes),
@@ -2933,7 +3027,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       } else {
         return ReceiptScanOutcome(
           ok: false,
-          message: result.errorMessage ?? 'Gagal memproses gambar dengan orkestrator.',
+          message:
+              result.errorMessage ??
+              'Gagal memproses gambar dengan orkestrator.',
         );
       }
     } on Object {
@@ -2950,32 +3046,37 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   /// Membangun bounded context keuangan untuk orkestrator
   Future<String> _buildBoundedFinancialContext() async {
     final parts = <String>[];
-    
+
     try {
       // Tambahkan ringkasan saldo jika ada
       if (getIt.isRegistered<AppDatabase>()) {
         final database = getIt<AppDatabase>();
-        final recent = await (database.select(database.transactions)
-              ..where((row) => row.householdId.equals(AppContext.householdId))
-              ..limit(5))
-            .get();
+        final recent =
+            await (database.select(database.transactions)
+                  ..where(
+                    (row) => row.householdId.equals(AppContext.householdId),
+                  )
+                  ..limit(5))
+                .get();
         // Sort manually to avoid OrderingTerm complexity
         recent.sort((a, b) => b.date.compareTo(a.date));
         if (recent.isNotEmpty) {
           parts.add('Riwayat transaksi terakhir:');
           for (final tx in recent) {
-            parts.add('- ${tx.note ?? tx.categoryId}: ${_formatRupiah(tx.amount.abs())}');
+            parts.add(
+              '- ${tx.note ?? tx.categoryId}: ${_formatRupiah(tx.amount.abs())}',
+            );
           }
         }
       }
-      
+
       // Skip anggaran untuk menghindari kompleksitas
     } on Object {
       // Error pembuatan context tidak menghalangi percakapan
     }
-    
-    return parts.isEmpty 
-        ? 'Konteks keuangan tidak tersedia saat ini.' 
+
+    return parts.isEmpty
+        ? 'Konteks keuangan tidak tersedia saat ini.'
         : parts.join('\n');
   }
 
@@ -3334,7 +3435,24 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             ),
           );
         }
-        if (mounted) setState(() => _queuedIntents.remove(intent));
+        if (mounted) {
+          setState(() {
+            _queuedIntents.remove(intent);
+            final id = widget.session.activeDraftQueueId;
+            if (id != null) {
+              final index = _draftQueue.indexWhere((item) => item.id == id);
+              if (index >= 0) {
+                _draftQueue[index] = _draftQueue[index].copyWith(
+                  status: FfmAssistantDraftQueueStatus.cancelled,
+                );
+              }
+            }
+            widget.session
+              ..activeDraftReview = null
+              ..activeDraftIntent = null
+              ..activeDraftQueueId = null;
+          });
+        }
         return;
       }
     }
@@ -3780,6 +3898,64 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return best;
   }
 
+  FfmAssistantDraft? _activeDraftForTurn(String text) {
+    final draft = widget.session.activeDraftIntent?.draft;
+    if (draft == null) return null;
+    return _looksLikeActiveDraftFollowUp(text) ? draft : null;
+  }
+
+  bool _shouldAttachActiveDraftToResponse(FfmAssistantIntent intent) {
+    return intent.pluginMetadata?['requestClass'] == 'draftReview';
+  }
+
+  bool _looksLikeActiveDraftFollowUp(String text) {
+    final normalized = text.toLowerCase().trim();
+    if (normalized.isEmpty) return false;
+
+    final isCancel = RegExp(
+      r'^\s*(?:batal(?:kan)?|hapus\s+draft|batal\s+draft|jangan\s+disimpan|cancel)\s*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isCancel) return true;
+
+    final isAmountOnly = RegExp(
+      r'^\s*(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k)?\s*$',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    if (isAmountOnly) return true;
+
+    final hasRevisionCue = RegExp(
+      r'\b(?:ubah|ganti|revisi|koreksi|bukan|jadikan|nominal|harga|jumlah|kategori|catatan|toko|merchant|rekening|akun|dompet|bank|sumber|tujuan|pakai|pake|gunakan|lewat|dari|ke)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    final hasDraftReference = RegExp(
+      r'\b(?:draft|draf|ini|itu|nominalnya|rekeningnya|kategorinya|catatannya|tokonya)\b',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+    final isReadOnlyFinancialQuestion =
+        RegExp(
+          r'\b(?:transaksi|aktivitas|kegiatan|riwayat|saldo|rekening|laporan|ringkasan|rekap|total|pengeluaran|pemasukan)\b',
+          caseSensitive: false,
+        ).hasMatch(normalized) &&
+        RegExp(
+          r'\b(?:terakhir|terbaru|apa|berapa|cek|lihat|tampilkan|ada|hari\s+ini|kemarin|minggu\s+ini|bulan\s+ini)\b',
+          caseSensitive: false,
+        ).hasMatch(normalized);
+    if (isReadOnlyFinancialQuestion && !hasDraftReference && !hasRevisionCue) {
+      return false;
+    }
+
+    if (hasRevisionCue) return true;
+    if (hasDraftReference &&
+        RegExp(
+          r'\b(?:apa|berapa|mana|sudah|lanjut|simpan|konfirmasi|oke|ok|iya|ya|betul|benar)\b',
+        ).hasMatch(normalized)) {
+      return true;
+    }
+
+    return false;
+  }
+
   bool _tryReviseActiveDraft(String text) {
     // Saat ada banyak draft sekaligus, deteksi draft mana yang dimaksud dari
     // kalimat koreksi (mis. "yang beras ubah jadi 80rb" / "yang Dana Darurat").
@@ -3839,7 +4015,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (!looksLikeProposalJson &&
         !isKindSwitch &&
         !mentionsAccount &&
-        !RegExp(r'\b(ubah|ganti|revisi|koreksi|bukan|jadikan|nominal|harga|jumlah|kategori|catatan|toko)\b').hasMatch(normalized)) {
+        !RegExp(
+          r'\b(ubah|ganti|revisi|koreksi|bukan|jadikan|nominal|harga|jumlah|kategori|catatan|toko)\b',
+        ).hasMatch(normalized)) {
       return false;
     }
     if (_activeDraftIsOpeningForm) {
@@ -3973,12 +4151,18 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         r'(?:nominal|jumlah|nilai|harga|jadi|menjadi|ke|sebesar)\s*(?:rp\.?\s*)?([\d.,]+)\s*(ribu|rb|k|juta|jt)?',
       ).firstMatch(normalized);
       if (amountMatch != null) {
-        final amount = _parseRupiah(amountMatch.group(1)!, amountMatch.group(2));
+        final amount = _parseRupiah(
+          amountMatch.group(1)!,
+          amountMatch.group(2),
+        );
         if (amount != null && amount > 0) {
           current = current.copyWith(amount: amount);
           changed = true;
         }
-      } else if (RegExp(r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$', caseSensitive: false).hasMatch(normalized.trim())) {
+      } else if (RegExp(
+        r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$',
+        caseSensitive: false,
+      ).hasMatch(normalized.trim())) {
         final amount = FfmAssistantAmountParser.parse(normalized.trim());
         if (amount != null && amount > 0) {
           current = current.copyWith(amount: amount);
@@ -4039,7 +4223,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 ...current.formValues,
                 'party': value,
                 'partyName': value,
-                if (current.kind == FfmAssistantDraftKind.income) 'incomeSource': value,
+                if (current.kind == FfmAssistantDraftKind.income)
+                  'incomeSource': value,
               },
             );
             changed = true;
@@ -4097,8 +4282,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final label = after.kind == FfmAssistantDraftKind.income
           ? 'Pemasukan (Uang Masuk)'
           : after.kind == FfmAssistantDraftKind.expense
-              ? 'Pengeluaran (Uang Keluar)'
-              : after.kind.name;
+          ? 'Pengeluaran (Uang Keluar)'
+          : after.kind.name;
       return 'jenis transaksi diubah menjadi $label.';
     }
     if (before.amount != after.amount) {
@@ -4532,15 +4717,31 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       final draft = entry.intent?.draft ?? entry.review?.draft;
       if (draft != null) {
-        final toAcc = draft.toAccountName != null ? ' ke ${draft.toAccountName}' : '';
-        final fromAcc = draft.fromAccountName != null ? ' dari ${draft.fromAccountName}' : '';
-        final cat = draft.categoryName != null ? ' [Kategori: ${draft.categoryName}]' : '';
-        final merch = draft.merchantName != null ? ' [Toko: ${draft.merchantName}]' : '';
-        final party = draft.partyName != null ? ' [Pihak: ${draft.partyName}]' : '';
-        final note = draft.note != null && draft.note!.isNotEmpty ? ' [Catatan: ${draft.note}]' : '';
-        lines.add('  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc$cat$merch$party$note]');
+        final toAcc = draft.toAccountName != null
+            ? ' ke ${draft.toAccountName}'
+            : '';
+        final fromAcc = draft.fromAccountName != null
+            ? ' dari ${draft.fromAccountName}'
+            : '';
+        final cat = draft.categoryName != null
+            ? ' [Kategori: ${draft.categoryName}]'
+            : '';
+        final merch = draft.merchantName != null
+            ? ' [Toko: ${draft.merchantName}]'
+            : '';
+        final party = draft.partyName != null
+            ? ' [Pihak: ${draft.partyName}]'
+            : '';
+        final note = draft.note != null && draft.note!.isNotEmpty
+            ? ' [Catatan: ${draft.note}]'
+            : '';
+        lines.add(
+          '  [Draft: ${draft.kind.name} Rp ${draft.amount}$fromAcc$toAcc$cat$merch$party$note]',
+        );
         if (draft.items.isNotEmpty) {
-          lines.add('  [Item belanja: ${draft.items.map((i) => "${i.name} (Rp${i.calculatedTotal})").join(", ")}]');
+          lines.add(
+            '  [Item belanja: ${draft.items.map((i) => "${i.name} (Rp${i.calculatedTotal})").join(", ")}]',
+          );
         }
       }
     }
@@ -4865,15 +5066,19 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               insight: _pendingMemoryInsight!,
                               onSave: () async {
                                 final toSave = _pendingMemoryInsight!;
-                                final messenger = ScaffoldMessenger.of(this.context);
-                                setState(() => _pendingMemoryInsight = null);
-                                final saved =
-                                    await _personalMemoryService.saveApproved(
-                                  toSave,
+                                final messenger = ScaffoldMessenger.of(
+                                  this.context,
                                 );
+                                setState(() => _pendingMemoryInsight = null);
+                                final saved = await _personalMemoryService
+                                    .saveApproved(toSave);
                                 _refreshMemoryCount();
                                 if (_entries.isNotEmpty) {
-                                  for (var i = _entries.length - 1; i >= 0; i--) {
+                                  for (
+                                    var i = _entries.length - 1;
+                                    i >= 0;
+                                    i--
+                                  ) {
                                     if (_entries[i].isUser) {
                                       final old = _entries[i];
                                       _entries[i] = FfmAssistantChatEntry(
@@ -4941,7 +5146,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     : const Color(0xFFEBF1F3),
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(
-                                  color: theme.colorScheme.primary.withValues(alpha: 0.4),
+                                  color: theme.colorScheme.primary.withValues(
+                                    alpha: 0.4,
+                                  ),
                                 ),
                               ),
                               child: Row(
@@ -4953,18 +5160,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                       width: 38,
                                       height: 38,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) =>
-                                          const Icon(Icons.receipt_long, size: 28),
+                                      errorBuilder: (_, _, _) => const Icon(
+                                        Icons.receipt_long,
+                                        size: 28,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                          _pendingAttachmentName ?? 'Foto struk siap dikirim',
+                                          _pendingAttachmentName ??
+                                              'Foto struk siap dikirim',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
@@ -4974,10 +5185,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                         ),
                                         Text(
                                           'Ketik catatan/instruksi lalu kirim',
-                                          style: theme.textTheme.labelSmall?.copyWith(
-                                            color: theme.colorScheme.primary,
-                                            fontWeight: FontWeight.w600,
-                                          ),
+                                          style: theme.textTheme.labelSmall
+                                              ?.copyWith(
+                                                color:
+                                                    theme.colorScheme.primary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
                                         ),
                                       ],
                                     ),
@@ -5061,9 +5274,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                           ? 'Tambah instruksi untuk struk ini (opsional)…'
                                           : 'Tulis perintah atau pertanyaan…',
                                       border: InputBorder.none,
-                                      contentPadding: const EdgeInsets.symmetric(
-                                        vertical: 13,
-                                      ),
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                            vertical: 13,
+                                          ),
                                     ),
                                   ),
                                 ),

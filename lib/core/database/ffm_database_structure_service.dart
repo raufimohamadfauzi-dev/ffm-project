@@ -351,7 +351,12 @@ class FfmDatabaseStructureService {
       'Antrean pengiriman Telegram',
       'Kartu & Integrasi',
       'Antrean durabel pesan Telegram (transaksi, laporan mingguan, dan alarm) '
-      'dengan status, retry berbatas, dan fingerprint kredensial.',
+          'dengan status, retry berbatas, dan fingerprint kredensial.',
+    ),
+    'utility_token_purchases': _TableDefinition(
+      'Riwayat pembelian token listrik',
+      'Utilitas',
+      'Riwayat token listrik prabayar yang dikaitkan dengan meteran dan transaksi.',
     ),
   };
 }

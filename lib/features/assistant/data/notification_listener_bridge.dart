@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
 
 import '../data/payment_draft_repository.dart';
 import '../data/payment_notification_parser.dart';
@@ -17,6 +18,7 @@ class NotificationListenerBridge {
 
   static const _accessChannel = MethodChannel('ffm/notification_access');
   static const _notifChannel = MethodChannel('ffm/notification_listener');
+  static const _uuid = Uuid();
 
   /// Callback saat draft baru berhasil ditambahkan.
   void Function(PaymentDraft draft)? onNewDraft;
@@ -24,6 +26,7 @@ class NotificationListenerBridge {
   /// Mulai mendengarkan notifikasi dari Android.
   void startListening() {
     _notifChannel.setMethodCallHandler(_handleIncomingNotification);
+    _consumePendingNotifications();
   }
 
   /// Hentikan listener.
@@ -60,6 +63,23 @@ class NotificationListenerBridge {
     final args = call.arguments as Map<dynamic, dynamic>?;
     if (args == null) return;
 
+    await _processNotification(args);
+  }
+
+  Future<void> _consumePendingNotifications() async {
+    try {
+      final pending = await _notifChannel.invokeMethod<List<dynamic>>(
+        'consumePendingNotifications',
+      );
+      for (final item in pending ?? const <dynamic>[]) {
+        if (item is Map) await _processNotification(item);
+      }
+    } on PlatformException {
+      // Older Android builds may not expose the queue method.
+    }
+  }
+
+  Future<void> _processNotification(Map<dynamic, dynamic> args) async {
     final packageName = args['packageName'] as String? ?? '';
     final title = args['title'] as String? ?? '';
     final body = args['body'] as String? ?? '';
@@ -76,7 +96,7 @@ class NotificationListenerBridge {
     if (parsed == null) return; // Bukan notifikasi pembayaran yang valid
 
     final draft = PaymentDraft(
-      id: 'draft_${DateTime.now().millisecondsSinceEpoch}',
+      id: 'draft_${_uuid.v4()}',
       sourceApp: packageName,
       rawTitle: title,
       rawBody: body,

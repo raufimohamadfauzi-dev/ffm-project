@@ -119,6 +119,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
+      telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
       activityRepository: getIt<ActivityRepository>(),
     ),
   );
@@ -128,6 +129,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
+      telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
     ),
   );
   getIt.registerLazySingleton<SaveMixedTransactionBatch>(
@@ -136,6 +138,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
+      telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
     ),
   );
   getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
@@ -312,6 +315,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantAutonomyTriggerService>(
     () => FfmAssistantAutonomyTriggerService(
       getIt<FfmAssistantAutonomyRepository>(),
+      evaluateNow: (householdId) => getIt<AutonomousEvaluationCoordinator>()
+          .runEvaluation(householdId: householdId),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAgentTaskPlanResolver>(
@@ -323,6 +328,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => FfmAssistantProactiveEvaluationTask(
       db,
       getIt<FfmAssistantChatHistoryRepository>(),
+      null,
+      () => getIt<AutonomousEvaluationCoordinator>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyWorker>(

@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
@@ -34,6 +35,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
   List<FfmAssistantInsight> _activeInsights = const [];
   List<FfmAssistantInsight> _historyInsights = const [];
   List<AutonomousActivityRecord> _activities = const [];
+  int _transactionCount = 0;
 
   @override
   void initState() {
@@ -41,7 +43,8 @@ class _AgentInboxPageState extends State<AgentInboxPage>
     WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
     _repository = FfmAssistantInsightRepository(getIt<AppDatabase>());
-    _activityRepository = widget.activityRepository ??
+    _activityRepository =
+        widget.activityRepository ??
         (getIt.isRegistered<AutonomousActivityRepository>()
             ? getIt<AutonomousActivityRepository>()
             : null);
@@ -84,22 +87,28 @@ class _AgentInboxPageState extends State<AgentInboxPage>
         householdId: AppContext.householdId,
       );
       final history = all
-          .where((i) =>
-              i.status == FfmAssistantInsightStatus.acted ||
-              i.status == FfmAssistantInsightStatus.dismissed ||
-              i.status == FfmAssistantInsightStatus.expired)
+          .where(
+            (i) =>
+                i.status == FfmAssistantInsightStatus.acted ||
+                i.status == FfmAssistantInsightStatus.dismissed ||
+                i.status == FfmAssistantInsightStatus.expired,
+          )
           .toList();
       final activities = _activityRepository != null
           ? await _activityRepository!.getRecentActivities(
               AppContext.householdId,
             )
           : <AutonomousActivityRecord>[];
+      final transactionCount = await (getIt<AppDatabase>().select(
+        getIt<AppDatabase>().transactions,
+      )).get().then((rows) => rows.length);
 
       if (!mounted) return;
       setState(() {
         _activeInsights = active;
         _historyInsights = history;
         _activities = activities;
+        _transactionCount = transactionCount;
         _loading = false;
         _errorMessage = null;
       });
@@ -136,27 +145,43 @@ class _AgentInboxPageState extends State<AgentInboxPage>
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(dialogCtx).colorScheme.primaryContainer.withValues(alpha: 0.2),
+                    color: Theme.of(dialogCtx).colorScheme.primaryContainer
+                        .withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.3)),
+                    border: Border.all(
+                      color: Theme.of(dialogCtx).colorScheme.primary
+                          .withValues(alpha: 0.3),
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.swap_horiz_rounded, color: Theme.of(dialogCtx).colorScheme.primary, size: 20),
+                          Icon(
+                            Icons.swap_horiz_rounded,
+                            color: Theme.of(dialogCtx).colorScheme.primary,
+                            size: 20,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Detail Pergeseran Saldo',
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(dialogCtx).colorScheme.primary),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(dialogCtx).colorScheme.primary,
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text('• Dari: ${payload['fromBudgetName'] ?? 'Pos Sumber'}'),
+                      Text(
+                        '• Dari: ${payload['fromBudgetName'] ?? 'Pos Sumber'}',
+                      ),
                       Text('• Ke: ${payload['toBudgetName'] ?? 'Pos Target'}'),
-                      Text('• Nominal: Rp ${payload['amount']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(
+                        '• Nominal: Rp ${payload['amount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
@@ -165,9 +190,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Theme.of(dialogCtx)
-                      .colorScheme
-                      .surfaceContainerHighest
+                  color: Theme.of(dialogCtx).colorScheme.surfaceContainerHighest
                       .withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -197,18 +220,20 @@ class _AgentInboxPageState extends State<AgentInboxPage>
         final now = DateTime.now();
         final monthKey = '${now.year}-${now.month.toString().padLeft(2, '0')}';
         final transferId = const Uuid().v4();
-        await db.into(db.envelopeTransfers).insert(
-          EnvelopeTransfersCompanion.insert(
-            id: transferId,
-            householdId: AppContext.householdId,
-            month: Value(monthKey),
-            fromEnvelopeId: payload['fromEnvelopeId'].toString(),
-            toEnvelopeId: payload['toEnvelopeId'].toString(),
-            amount: (payload['amount'] as num).toInt(),
-            note: const Value('Penyeimbangan anggaran otonom (Zero-Sum)'),
-            createdAt: now,
-          ),
-        );
+        await db
+            .into(db.envelopeTransfers)
+            .insert(
+              EnvelopeTransfersCompanion.insert(
+                id: transferId,
+                householdId: AppContext.householdId,
+                month: Value(monthKey),
+                fromEnvelopeId: payload['fromEnvelopeId'].toString(),
+                toEnvelopeId: payload['toEnvelopeId'].toString(),
+                amount: (payload['amount'] as num).toInt(),
+                note: const Value('Penyeimbangan anggaran otonom (Zero-Sum)'),
+                createdAt: now,
+              ),
+            );
         if (_activityRepository != null) {
           await _activityRepository!.recordActivity(
             AutonomousActivityRecord(
@@ -272,8 +297,9 @@ class _AgentInboxPageState extends State<AgentInboxPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final newCount =
-        _activeInsights.where((i) => i.status == FfmAssistantInsightStatus.newInsight).length;
+    final newCount = _activeInsights
+        .where((i) => i.status == FfmAssistantInsightStatus.newInsight)
+        .length;
 
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.agentInbox,
@@ -313,12 +339,8 @@ class _AgentInboxPageState extends State<AgentInboxPage>
                   ],
                 ),
               ),
-              Tab(
-                text: 'Aktivitas Otonom (${_activities.length})',
-              ),
-              Tab(
-                text: 'Riwayat (${_historyInsights.length})',
-              ),
+              Tab(text: 'Aktivitas Otonom (${_activities.length})'),
+              Tab(text: 'Riwayat (${_historyInsights.length})'),
             ],
           ),
         ),
@@ -344,17 +366,25 @@ class _AgentInboxPageState extends State<AgentInboxPage>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline_rounded, size: 48, color: Colors.orange),
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 48,
+                color: Colors.orange,
+              ),
               const SizedBox(height: 12),
               Text(
                 'Belum Berhasil Memuat Data',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
@@ -369,17 +399,21 @@ class _AgentInboxPageState extends State<AgentInboxPage>
     }
 
     if (_activeInsights.isEmpty) {
+      final hasEnoughData = _transactionCount >= 5;
       return RefreshIndicator(
         onRefresh: () => _loadInsights(evaluate: true),
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 60),
+          children: [
+            const SizedBox(height: 60),
             AppEmptyState(
-              icon: Icons.check_circle_outline_rounded,
+              icon: hasEnoughData
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.auto_awesome_outlined,
               title: 'Kotak Masuk Bersih',
-              message:
-                  'Semua pos dan indikator keuangan keluarga Anda terpantau aman dan terkendali.',
+              message: hasEnoughData
+                  ? 'Tidak ada peringatan aktif. Evaluasi tetap berjalan saat data berubah.'
+                  : 'Data belum cukup untuk mendeteksi pola dengan aman. Tambahkan minimal ${5 - _transactionCount} transaksi lagi; otonom tetap memantau perubahan data.',
             ),
           ],
         ),
@@ -408,9 +442,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
 
   Widget _buildHistoryList(ThemeData theme) {
     if (_historyInsights.isEmpty) {
-      return const Center(
-        child: Text('Belum ada riwayat insight terdahulu.'),
-      );
+      return const Center(child: Text('Belum ada riwayat insight terdahulu.'));
     }
 
     return ListView.separated(
@@ -442,8 +474,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
             AppEmptyState(
               icon: Icons.smart_toy_outlined,
               title: 'Belum Ada Aktivitas Otonom',
-              message:
-                  'Aktivitas otomatis seperti pembacaan struk PLN/BBM, penyesuaian jadwal panen, dan pergeseran anggaran akan tercatat di sini.',
+              message: 'Aktivitas otomatis seperti pembacaan struk PLN/BBM, penyesuaian jadwal panen, dan pergeseran anggaran akan tercatat di sini.',
             ),
           ],
         ),
@@ -582,7 +613,10 @@ class _AgentInboxPageState extends State<AgentInboxPage>
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: statusBg,
                     borderRadius: BorderRadius.circular(8),
@@ -753,7 +787,9 @@ class _InsightCardState extends State<_InsightCard> {
       elevation: 0,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: widget.isHistory ? theme.dividerColor : color.withValues(alpha: 0.5),
+          color: widget.isHistory
+              ? theme.dividerColor
+              : color.withValues(alpha: 0.5),
           width: 1.2,
         ),
         borderRadius: BorderRadius.circular(16),
@@ -824,10 +860,7 @@ class _InsightCardState extends State<_InsightCard> {
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              insight.summary,
-              style: theme.textTheme.bodyMedium,
-            ),
+            Text(insight.summary, style: theme.textTheme.bodyMedium),
             if (insight.evidence.isNotEmpty) ...[
               const SizedBox(height: 8),
               InkWell(
@@ -839,7 +872,9 @@ class _InsightCardState extends State<_InsightCard> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        _expanded ? 'Sembunyikan data pendukung' : 'Lihat data pendukung',
+                        _expanded
+                            ? 'Sembunyikan data pendukung'
+                            : 'Lihat data pendukung',
                         style: TextStyle(
                           fontSize: 12,
                           color: theme.colorScheme.primary,
@@ -860,7 +895,9 @@ class _InsightCardState extends State<_InsightCard> {
                   margin: const EdgeInsets.only(top: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    color: theme.colorScheme.surfaceContainerHighest.withValues(
+                      alpha: 0.5,
+                    ),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(

@@ -124,11 +124,12 @@ void main() {
         'transaksi terbaru minggu ini',
         routingMode: FfmAssistantRoutingMode.geminiCloud,
       );
-      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
       expect(
-        gemini.lastSystemInstruction,
-        anyOf([contains('Transaction digest'), contains('VERIFIED FACTS')]),
+        intent.responseOrigin,
+        FfmAssistantResponseOrigin.agentOrchestrator,
       );
+      expect(intent.response, contains('Rp150.000'));
+      expect(gemini.lastSystemInstruction, isNull);
     });
 
     test('rekening', () async {

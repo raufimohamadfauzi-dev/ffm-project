@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
@@ -12,39 +13,42 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart'
 
 void main() {
   group('Module 1: Siklus Kas & AgroTrack Draft Feature', () {
-    test('ProposalJsonService mem-parsing proposal JSON siklus kas dengan benar', () {
-      final json = jsonEncode({
-        'formatVersion': 'ffm-assistant-proposal-v1',
-        'proposal': {
-          'type': 'cash_flow_profile',
-          'title': 'Siklus Padi Ciherang 2026',
-          'commodity': 'Padi Ciherang',
-          'initialCapital': 10000000,
-          'estimatedInflow': 35000000,
-          'dailyLivingBudget': 75000,
-          'dailyOperationalBudget': 50000,
-          'daysRemaining': 90,
-          'cycleProfileType': 'agriculture',
-          'note': 'Musim tanam rendeng',
-        },
-      });
+    test(
+      'ProposalJsonService mem-parsing proposal JSON siklus kas dengan benar',
+      () {
+        final json = jsonEncode({
+          'formatVersion': 'ffm-assistant-proposal-v1',
+          'proposal': {
+            'type': 'cash_flow_profile',
+            'title': 'Siklus Padi Ciherang 2026',
+            'commodity': 'Padi Ciherang',
+            'initialCapital': 10000000,
+            'estimatedInflow': 35000000,
+            'dailyLivingBudget': 75000,
+            'dailyOperationalBudget': 50000,
+            'daysRemaining': 90,
+            'cycleProfileType': 'agriculture',
+            'note': 'Musim tanam rendeng',
+          },
+        });
 
-      final result = FfmAssistantProposalJsonService.parse(
-        json,
-        createdAt: DateTime(2026, 9, 1),
-      );
+        final result = FfmAssistantProposalJsonService.parse(
+          json,
+          createdAt: DateTime(2026, 9, 1),
+        );
 
-      expect(result.draft, isNotNull);
-      final draft = result.draft!;
-      expect(draft.kind, FfmAssistantDraftKind.cashFlowProfile);
-      expect(draft.title, 'Siklus Padi Ciherang 2026');
-      expect(draft.commodityOrBusinessType, 'Padi Ciherang');
-      expect(draft.initialCapital, 10000000);
-      expect(draft.estimatedInflow, 35000000);
-      expect(draft.dailyLivingBudget, 75000);
-      expect(draft.dailyOperationalBudget, 50000);
-      expect(draft.cycleProfileType, 'agriculture');
-    });
+        expect(result.draft, isNotNull);
+        final draft = result.draft!;
+        expect(draft.kind, FfmAssistantDraftKind.cashFlowProfile);
+        expect(draft.title, 'Siklus Padi Ciherang 2026');
+        expect(draft.commodityOrBusinessType, 'Padi Ciherang');
+        expect(draft.initialCapital, 10000000);
+        expect(draft.estimatedInflow, 35000000);
+        expect(draft.dailyLivingBudget, 75000);
+        expect(draft.dailyOperationalBudget, 50000);
+        expect(draft.cycleProfileType, 'agriculture');
+      },
+    );
 
     test('FfmAssistantDraftValidator memvalidasi draft cashFlowProfile', () {
       // Valid draft
@@ -84,7 +88,9 @@ void main() {
       interpreter = FfmAssistantInterpreter(database);
 
       // Tambahkan rekening aktif di database
-      await database.into(database.accounts).insert(
+      await database
+          .into(database.accounts)
+          .insert(
             AccountsCompanion.insert(
               id: 'bca',
               householdId: AppContext.householdId,
@@ -93,7 +99,9 @@ void main() {
               createdAt: DateTime(2026, 8, 1),
             ),
           );
-      await database.into(database.accounts).insert(
+      await database
+          .into(database.accounts)
+          .insert(
             AccountsCompanion.insert(
               id: 'tunai',
               householdId: AppContext.householdId,
@@ -104,7 +112,9 @@ void main() {
           );
 
       // Tambahkan kategori aktif di database
-      await database.into(database.categories).insert(
+      await database
+          .into(database.categories)
+          .insert(
             CategoriesCompanion.insert(
               id: 'makanan',
               householdId: AppContext.householdId,
@@ -113,7 +123,9 @@ void main() {
               createdAt: DateTime(2026, 8, 1),
             ),
           );
-      await database.into(database.categories).insert(
+      await database
+          .into(database.categories)
+          .insert(
             CategoriesCompanion.insert(
               id: 'transportasi',
               householdId: AppContext.householdId,
@@ -126,25 +138,49 @@ void main() {
 
     tearDown(() async => database.close());
 
-    test('Mengoreksi nominal draft saat user berkata "bukan 50rb tapi 75rb"', () async {
+    test(
+      'Mengoreksi nominal draft saat user berkata "bukan 50rb tapi 75rb"',
+      () async {
+        final activeDraft = FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.expense,
+          createdAt: DateTime(2026, 9, 1),
+          title: 'Makan Siang',
+          amount: 50000,
+          fromAccountName: 'BCA',
+          categoryName: 'Makanan',
+        );
+
+        final result = await interpreter.interpret(
+          'bukan 50rb tapi 75rb',
+          activeDraft: activeDraft,
+        );
+
+        expect(result.draft, isNotNull);
+        expect(result.draft!.amount, 75000);
+        expect(result.response, contains('75.000'));
+        expect(result.response, contains('disesuaikan'));
+      },
+    );
+
+    test('Menghapus rekening lama saat jenis draft diubah', () async {
       final activeDraft = FfmAssistantDraft(
         kind: FfmAssistantDraftKind.expense,
         createdAt: DateTime(2026, 9, 1),
-        title: 'Makan Siang',
+        title: 'Bonus',
         amount: 50000,
         fromAccountName: 'BCA',
         categoryName: 'Makanan',
       );
 
       final result = await interpreter.interpret(
-        'bukan 50rb tapi 75rb',
+        'ini pemasukan bukan pengeluaran',
         activeDraft: activeDraft,
       );
 
       expect(result.draft, isNotNull);
-      expect(result.draft!.amount, 75000);
-      expect(result.response, contains('75.000'));
-      expect(result.response, contains('disesuaikan'));
+      expect(result.draft!.kind, FfmAssistantDraftKind.income);
+      expect(result.draft!.fromAccountName, isNull);
+      expect(result.draft!.toAccountName, 'BCA');
     });
 
     test('Mengoreksi rekening draft dengan grounding database', () async {
@@ -174,7 +210,10 @@ void main() {
       );
 
       expect(resultUngrounded.response, contains('Mandiri'));
-      expect(resultUngrounded.response, contains('belum terdaftar di Data Utama'));
+      expect(
+        resultUngrounded.response,
+        contains('belum terdaftar di Data Utama'),
+      );
     });
 
     test('Mengoreksi kategori draft dengan grounding database', () async {
@@ -203,26 +242,32 @@ void main() {
       );
 
       expect(resultUngrounded.response, contains('Hiburan'));
-      expect(resultUngrounded.response, contains('belum terdaftar di Data Utama'));
+      expect(
+        resultUngrounded.response,
+        contains('belum terdaftar di Data Utama'),
+      );
     });
 
-    test('Membatalkan draft aktif saat user berkata "batalkan draft"', () async {
-      final activeDraft = FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.expense,
-        createdAt: DateTime(2026, 9, 1),
-        title: 'Belanja',
-        amount: 100000,
-      );
+    test(
+      'Membatalkan draft aktif saat user berkata "batalkan draft"',
+      () async {
+        final activeDraft = FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.expense,
+          createdAt: DateTime(2026, 9, 1),
+          title: 'Belanja',
+          amount: 100000,
+        );
 
-      final result = await interpreter.interpret(
-        'batalkan draft',
-        activeDraft: activeDraft,
-      );
+        final result = await interpreter.interpret(
+          'batalkan draft',
+          activeDraft: activeDraft,
+        );
 
-      expect(result.type, FfmAssistantIntentType.cancel);
-      expect(result.response, contains('dibatalkan'));
-      expect(result.response, contains('Belum ada data yang disimpan'));
-    });
+        expect(result.type, FfmAssistantIntentType.cancel);
+        expect(result.response, contains('dibatalkan'));
+        expect(result.response, contains('Belum ada data yang disimpan'));
+      },
+    );
 
     test('Mengoreksi field siklus kas AgroTrack secara multi-turn', () async {
       final activeDraft = FfmAssistantDraft(
@@ -246,40 +291,55 @@ void main() {
       expect(result.draft!.commodityOrBusinessType, 'Jagung');
     });
 
-    test('Membuat draft siklus kas offline dari kalimat bahasa alami', () async {
-      final result = await interpreter.interpret(
-        'buat siklus tani komoditas Padi Ciherang modal 10jt estimasi panen 35jt',
-      );
+    test(
+      'Membuat draft siklus kas offline dari kalimat bahasa alami',
+      () async {
+        final result = await interpreter.interpret(
+          'buat siklus tani komoditas Padi Ciherang modal 10jt estimasi panen 35jt',
+        );
 
-      expect(result.draft, isNotNull);
-      expect(result.draft!.kind, FfmAssistantDraftKind.cashFlowProfile);
-      expect(result.draft!.commodityOrBusinessType, contains('Padi'));
-      expect(result.draft!.initialCapital, 10000000);
-      expect(result.draft!.estimatedInflow, 35000000);
-    });
+        expect(result.draft, isNotNull);
+        expect(result.draft!.kind, FfmAssistantDraftKind.cashFlowProfile);
+        expect(result.draft!.commodityOrBusinessType, contains('Padi'));
+        expect(result.draft!.initialCapital, 10000000);
+        expect(result.draft!.estimatedInflow, 35000000);
+      },
+    );
   });
 
   group('Module 3: Deterministic Financial Health & AgroTrack Runway', () {
-    test('Kalkulator 4 pilar kesehatan keuangan menghitung skor deterministik', () {
-      const calculator = FinancialHealthCalculator();
-      final score = calculator.calculate(
-        const FinancialHealthInput(
-          totalIncome: 10000000,
-          totalExpenses: 6000000,
-          totalMonthlyInstallments: 1500000,
-          emergencyFundAmount: 20000000,
-          averageMonthlyExpenses: 6000000,
-          totalAssets: 50000000,
-          totalLiabilities: 10000000,
-        ),
-      );
+    test(
+      'Kalkulator 4 pilar kesehatan keuangan menghitung skor deterministik',
+      () {
+        const calculator = FinancialHealthCalculator();
+        final score = calculator.calculate(
+          const FinancialHealthInput(
+            totalIncome: 10000000,
+            totalExpenses: 6000000,
+            totalMonthlyInstallments: 1500000,
+            emergencyFundAmount: 20000000,
+            averageMonthlyExpenses: 6000000,
+            totalAssets: 50000000,
+            totalLiabilities: 10000000,
+          ),
+        );
 
-      expect(score.totalScore, greaterThan(60));
-      expect(score.savingsRate, closeTo(0.4, 0.01)); // (10jt - 6jt) / 10jt = 40%
-      expect(score.debtToIncomeRatio, closeTo(0.15, 0.01)); // 1.5jt / 10jt = 15%
-      expect(score.emergencyMonths, closeTo(3.33, 0.05)); // 20jt / 6jt = 3.33 bulan
-      expect(score.netWorth, 40000000); // 50jt - 10jt = 40jt
-    });
+        expect(score.totalScore, greaterThan(60));
+        expect(
+          score.savingsRate,
+          closeTo(0.4, 0.01),
+        ); // (10jt - 6jt) / 10jt = 40%
+        expect(
+          score.debtToIncomeRatio,
+          closeTo(0.15, 0.01),
+        ); // 1.5jt / 10jt = 15%
+        expect(
+          score.emergencyMonths,
+          closeTo(3.33, 0.05),
+        ); // 20jt / 6jt = 3.33 bulan
+        expect(score.netWorth, 40000000); // 50jt - 10jt = 40jt
+      },
+    );
 
     test('Kalkulator AgroTrack Runway menghitung ketahanan kas dan safe daily spend', () {
       const calculator = FlexibleCashFlowCalculator();

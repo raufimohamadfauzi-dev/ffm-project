@@ -121,6 +121,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               initialNote: prefill.values['note'],
               initialDate: draft.date,
               initialPartyName: prefill.values['partyName'] ?? draft.partyName,
+              initialAttachmentPaths: draft.attachmentPaths,
               assistantMerchantName: draft.merchantName,
               assistantSlmFieldValues: draft.slmFieldValues,
               assistantPrefill: prefill,
@@ -247,18 +248,22 @@ class _TransactionListPageState extends State<TransactionListPage> {
     }
     final merchantId = draft.merchantName != null
         ? _merchants
-            .where((m) =>
-                m.name.trim().toLowerCase() ==
-                draft.merchantName!.trim().toLowerCase())
-            .firstOrNull
-            ?.id
+              .where(
+                (m) =>
+                    m.name.trim().toLowerCase() ==
+                    draft.merchantName!.trim().toLowerCase(),
+              )
+              .firstOrNull
+              ?.id
         : null;
 
     final receiptNumber =
         draft.receiptNumber ?? draft.formValues['receiptNumber'];
-    final receiptPaidAmount = draft.receiptPaidAmount ??
+    final receiptPaidAmount =
+        draft.receiptPaidAmount ??
         int.tryParse(draft.formValues['receiptPaidAmount'] ?? '');
-    final receiptChangeAmount = draft.receiptChangeAmount ??
+    final receiptChangeAmount =
+        draft.receiptChangeAmount ??
         int.tryParse(draft.formValues['receiptChangeAmount'] ?? '');
     final receiptRawText = draft.note ?? draft.formValues['receiptRawText'];
     var items = const <ReceiptItemDraft>[];
@@ -279,15 +284,18 @@ class _TransactionListPageState extends State<TransactionListPage> {
           items = decoded
               .map((item) {
                 if (item is Map) {
-                  final name = item['name']?.toString() ??
+                  final name =
+                      item['name']?.toString() ??
                       item['itemName']?.toString() ??
                       '';
                   final price =
                       int.tryParse(item['price']?.toString() ?? '0') ?? 0;
                   final qty =
-                      double.tryParse(item['qty']?.toString() ??
-                          item['quantity']?.toString() ??
-                          '1') ??
+                      double.tryParse(
+                        item['qty']?.toString() ??
+                            item['quantity']?.toString() ??
+                            '1',
+                      ) ??
                       1.0;
                   return ReceiptItemDraft(name: name, price: price, qty: qty);
                 }
@@ -323,6 +331,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       receiptPaidAmount: receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount,
       items: items,
+      attachmentPaths: draft.attachmentPaths,
       tags: _assistantTagNames(draft),
       assistantMerchantName: draft.merchantName,
       assistantSlmFieldValues: draft.slmFieldValues,
@@ -333,8 +342,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   /// Tag draft asisten disamakan dengan kolom tag form + database.
   /// Filter final terhadap Data Utama dilakukan di [_saveMetadata].
   List<String> _assistantTagNames(FfmAssistantDraft draft) {
-    final raw =
-        draft.formValues['tags'] ?? draft.formValues['newTags'] ?? '';
+    final raw = draft.formValues['tags'] ?? draft.formValues['newTags'] ?? '';
     if (raw.trim().isEmpty) return const [];
     return raw
         .split(',')
@@ -476,7 +484,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
         _loading = true;
         _errorMessage = null;
       });
-      final transactions = await getIt<GetTransactions>()(AppContext.householdId);
+      final transactions = await getIt<GetTransactions>()(
+        AppContext.householdId,
+      );
       final database = getIt<AppDatabase>();
       final categories =
           await (database.select(database.categories)
@@ -599,23 +609,25 @@ class _TransactionListPageState extends State<TransactionListPage> {
     await database.transaction(() async {
       if (draft.adminFee > 0) {
         if (isEditing && existingTransfer.feeTransactionId != null) {
-          await (database.update(database.transactions)
-                ..where((t) => t.id.equals(existingTransfer.feeTransactionId!)))
-              .write(
-                TransactionsCompanion(
-                  date: Value(transferDate),
-                  amount: Value(-draft.adminFee),
-                  accountId: Value(draft.fromAccountId),
-                  categoryId: Value(feeCategory!.id),
-                  note: Value(
-                    'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
-                  ),
-                  updatedAt: Value(now),
-                  isDeleted: const Value(false),
-                ),
-              );
+          await (database.update(
+            database.transactions,
+          )..where((t) => t.id.equals(existingTransfer.feeTransactionId!))).write(
+            TransactionsCompanion(
+              date: Value(transferDate),
+              amount: Value(-draft.adminFee),
+              accountId: Value(draft.fromAccountId),
+              categoryId: Value(feeCategory!.id),
+              note: Value(
+                'Biaya admin transfer ${_accountLabel(draft.fromAccountId)} ke ${_accountLabel(draft.toAccountId)}',
+              ),
+              updatedAt: Value(now),
+              isDeleted: const Value(false),
+            ),
+          );
         } else {
-          await database.into(database.transactions).insert(
+          await database
+              .into(database.transactions)
+              .insert(
                 TransactionsCompanion.insert(
                   id: feeTransactionId!,
                   householdId: AppContext.householdId,
@@ -639,34 +651,36 @@ class _TransactionListPageState extends State<TransactionListPage> {
               );
         }
       } else if (isEditing && existingTransfer.feeTransactionId != null) {
-        await (database.update(database.transactions)
-              ..where((t) => t.id.equals(existingTransfer.feeTransactionId!)))
-            .write(
-              TransactionsCompanion(
-                isDeleted: const Value(true),
-                updatedAt: Value(now),
-              ),
-            );
+        await (database.update(
+          database.transactions,
+        )..where((t) => t.id.equals(existingTransfer.feeTransactionId!))).write(
+          TransactionsCompanion(
+            isDeleted: const Value(true),
+            updatedAt: Value(now),
+          ),
+        );
         feeTransactionId = null;
       }
 
       if (isEditing) {
-        await (database.update(database.transfers)
-              ..where((t) => t.id.equals(existingTransfer.id)))
-            .write(
-              TransfersCompanion(
-                date: Value(transferDate),
-                amount: Value(draft.amount),
-                adminFee: Value(draft.adminFee),
-                feeTransactionId: Value(feeTransactionId),
-                fromAccountId: Value(draft.fromAccountId),
-                toAccountId: Value(draft.toAccountId),
-                note: Value(draft.note.isEmpty ? null : draft.note),
-                updatedAt: Value(now),
-              ),
-            );
+        await (database.update(
+          database.transfers,
+        )..where((t) => t.id.equals(existingTransfer.id))).write(
+          TransfersCompanion(
+            date: Value(transferDate),
+            amount: Value(draft.amount),
+            adminFee: Value(draft.adminFee),
+            feeTransactionId: Value(feeTransactionId),
+            fromAccountId: Value(draft.fromAccountId),
+            toAccountId: Value(draft.toAccountId),
+            note: Value(draft.note.isEmpty ? null : draft.note),
+            updatedAt: Value(now),
+          ),
+        );
       } else {
-        await database.into(database.transfers).insert(
+        await database
+            .into(database.transfers)
+            .insert(
               TransfersCompanion.insert(
                 id: id,
                 householdId: AppContext.householdId,
@@ -794,21 +808,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
         action: SnackBarAction(
           label: 'Urungkan',
           onPressed: () async {
-            await (database.update(
-              database.transfers,
-            )..where((row) => row.id.equals(transfer.id))).write(
-              const TransfersCompanion(
-                isDeleted: Value(false),
-              ),
-            );
+            await (database.update(database.transfers)
+                  ..where((row) => row.id.equals(transfer.id)))
+                .write(const TransfersCompanion(isDeleted: Value(false)));
             if (feeTransactionId != null && feeTransactionId.isNotEmpty) {
-              await (database.update(
-                database.transactions,
-              )..where((row) => row.id.equals(feeTransactionId))).write(
-                const TransactionsCompanion(
-                  isDeleted: Value(false),
-                ),
-              );
+              await (database.update(database.transactions)
+                    ..where((row) => row.id.equals(feeTransactionId)))
+                  .write(const TransactionsCompanion(isDeleted: Value(false)));
             }
             await AuditLogger(database).record(
               action: 'pulihkan',
@@ -1064,15 +1070,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
         if (existingId != null) {
           merchantId = existingId;
         } else {
-          final created =
-              await database.into(database.merchants).insertReturning(
-                    MerchantsCompanion.insert(
-                      id: const Uuid().v4(),
-                      householdId: AppContext.householdId,
-                      name: assistantMerchant,
-                      createdAt: now,
-                    ),
-                  );
+          final created = await database
+              .into(database.merchants)
+              .insertReturning(
+                MerchantsCompanion.insert(
+                  id: const Uuid().v4(),
+                  householdId: AppContext.householdId,
+                  name: assistantMerchant,
+                  createdAt: now,
+                ),
+              );
           merchantId = created.id;
           merchantMap[assistantMerchant.toLowerCase()] = merchantId;
         }
@@ -1140,16 +1147,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     row.isActive.equals(true),
               ))
               .getSingleOrNull();
-      feeCategory ??=
-          await database.into(database.categories).insertReturning(
-                CategoriesCompanion.insert(
-                  id: const Uuid().v4(),
-                  householdId: AppContext.householdId,
-                  name: 'Biaya admin',
-                  type: 'expense',
-                  createdAt: now,
-                ),
-              );
+      feeCategory ??= await database
+          .into(database.categories)
+          .insertReturning(
+            CategoriesCompanion.insert(
+              id: const Uuid().v4(),
+              householdId: AppContext.householdId,
+              name: 'Biaya admin',
+              type: 'expense',
+              createdAt: now,
+            ),
+          );
     }
 
     for (final draft in result.transfers) {
@@ -1234,7 +1242,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
                       t.isArchived.equals(false),
                 ))
                 .getSingleOrNull();
-        tag ??= await database.into(database.tags).insertReturning(
+        tag ??= await database
+            .into(database.tags)
+            .insertReturning(
               TagsCompanion.insert(
                 id: const Uuid().v4(),
                 householdId: AppContext.householdId,
@@ -1361,16 +1371,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
           label: 'Urungkan',
           onPressed: () async {
             final database = getIt<AppDatabase>();
-            await (database.update(database.transactions)
-                  ..where((row) =>
+            await (database.update(database.transactions)..where(
+                  (row) =>
                       row.householdId.equals(AppContext.householdId) &
-                      row.id.equals(entry.transaction.id)))
+                      row.id.equals(entry.transaction.id),
+                ))
                 .write(
-              const TransactionsCompanion(
-                isArchived: Value(false),
-                isDeleted: Value(false),
-              ),
-            );
+                  const TransactionsCompanion(
+                    isArchived: Value(false),
+                    isDeleted: Value(false),
+                  ),
+                );
             await _syncGoalContribution(
               previous: null,
               nextGoalId: entry.transaction.goalId,
@@ -1380,7 +1391,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
             await AuditLogger(database).record(
               action: 'pulihkan',
               entity: 'transaksi',
-              newValue: _auditTransactionValue(_entityFromRow(entry.transaction)),
+              newValue: _auditTransactionValue(
+                _entityFromRow(entry.transaction),
+              ),
             );
             await _loadTransactions();
           },
@@ -1545,13 +1558,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _showFilterSheet() async {
-    final owners = _transactions
-        .map((t) => t.transaction.owner)
-        .whereType<String>()
-        .where((o) => o.trim().isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final owners =
+        _transactions
+            .map((t) => t.transaction.owner)
+            .whereType<String>()
+            .where((o) => o.trim().isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     final result = await showModalBottomSheet<TransactionFilter>(
       context: context,
@@ -1789,8 +1803,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
       note: draft.note.isEmpty ? null : draft.note,
       source: draft.source,
       sourceId: draft.sourceId ?? previous?.transaction.sourceId,
-      recurringTransactionId: draft.recurringTransactionId ?? previous?.transaction.recurringTransactionId,
-      linkedActivityId: draft.linkedActivityId ?? previous?.transaction.linkedActivityId,
+      recurringTransactionId:
+          draft.recurringTransactionId ??
+          previous?.transaction.recurringTransactionId,
+      linkedActivityId:
+          draft.linkedActivityId ?? previous?.transaction.linkedActivityId,
       accountId: draft.accountId,
       merchantId: draft.merchantId,
       location: draft.location,
@@ -1913,7 +1930,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
         border: Border(
           bottom: BorderSide(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
@@ -2172,259 +2190,265 @@ class _TransactionListPageState extends State<TransactionListPage> {
                     )
                   : _transactions.isEmpty && _transfers.isEmpty
                   ? ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: [
-                  AppEmptyState(
-                    icon: _accounts.isEmpty
-                        ? Icons.account_balance_wallet_outlined
-                        : Icons.receipt_long_outlined,
-                    title: _accounts.isEmpty
-                        ? 'Rekening belum ada'
-                        : 'Belum ada transaksi',
-                    message: _accounts.isEmpty
-                        ? 'Transaksi membutuhkan tempat uang seperti Tunai, bank, atau dompet digital.'
-                        : 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
-                    action: FilledButton.icon(
-                      onPressed: _accounts.isEmpty
-                          ? () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const MasterDataPage(),
-                                ),
-                              );
-                              if (mounted) await _loadTransactions();
-                            }
-                          : _openForm,
-                      icon: Icon(
-                        _accounts.isEmpty ? Icons.tune_outlined : Icons.add,
-                      ),
-                      label: Text(
-                        _accounts.isEmpty
-                            ? 'Buka Data Utama'
-                            : AppCopy.tambahTransaksi,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : visibleTransactions.isEmpty && visibleTransfers.isEmpty
-            ? ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-                children: [
-                  const AppHelpBanner(
-                    title: 'Tidak ada yang cocok',
-                    message: 'Coba ubah kata pencarian atau matikan saringan untuk melihat transaksi lain.',
-                    icon: Icons.search_off_outlined,
-                  ),
-                ],
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 56),
-                itemCount: timeline.length + 2,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return TransactionFlowSummary(
-                      incomeTotal: incomeTotal,
-                      expenseTotal: expenseTotal,
-                      transactionCount: visibleTransactions.length,
-                      transferCount: visibleTransfers.length,
-                    );
-                  }
-                  if (index == 1) {
-                    return AccountBalancesCard(
-                      accounts: _accounts,
-                      transactions: _transactions,
-                      transfers: _transfers,
-                      accountTypeLabel: _accountTypeLabel,
-                    );
-                  }
-                  final timelineItem = timeline[index - 2];
-                  final transfer = timelineItem.transfer;
-                  if (transfer != null) {
-                    return TransferHistoryCard(
-                      transfer: transfer,
-                      fromLabel: _accountLabel(transfer.fromAccountId),
-                      toLabel: _accountLabel(transfer.toAccountId),
-                      dateLabel: _dateLabel,
-                      onEdit: () => _openTransfer(existingTransfer: transfer),
-                      onDelete: () => _deleteTransfer(transfer),
-                    );
-                  }
-                  final entry = timelineItem.transaction!;
-                  final item = entry.transaction;
-                  final isIncome = item.amount >= 0;
-                  final isGoalUsage =
-                      item.goalId != null && item.source == 'goal_usage';
-                  final isGoalContribution =
-                      item.goalId != null && !isGoalUsage;
-                  final merchantName = _merchantLabel(item.merchantId);
-                  final color = isGoalContribution
-                      ? AppColors.primary
-                      : isGoalUsage
-                      ? AppColors.negative
-                      : isIncome
-                      ? AppColors.positive
-                      : AppColors.negative;
-                  return AppCard(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
-                    ),
-                    color: isIncome
-                        ? AppColors.positiveSoft.withValues(alpha: .72)
-                        : AppColors.negativeSoft.withValues(alpha: .78),
-                    onTap: () => _openDetail(entry),
-                    child: Row(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                       children: [
-                        CircleAvatar(
-                          radius: 18,
-                          backgroundColor: color.withValues(alpha: .14),
-                          foregroundColor: color,
-                          child: Icon(
-                            isIncome
-                                ? Icons.south_west_rounded
-                                : Icons.north_east_rounded,
-                            size: 18,
+                        AppEmptyState(
+                          icon: _accounts.isEmpty
+                              ? Icons.account_balance_wallet_outlined
+                              : Icons.receipt_long_outlined,
+                          title: _accounts.isEmpty
+                              ? 'Rekening belum ada'
+                              : 'Belum ada transaksi',
+                          message: _accounts.isEmpty
+                              ? 'Transaksi membutuhkan tempat uang seperti Tunai, bank, atau dompet digital.'
+                              : 'Sebaiknya catat pemasukan awal dulu. Setelah saldo ada, pengeluaran akan terlihat jelas mengurangi saldo keluarga.',
+                          action: FilledButton.icon(
+                            onPressed: _accounts.isEmpty
+                                ? () async {
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => const MasterDataPage(),
+                                      ),
+                                    );
+                                    if (mounted) await _loadTransactions();
+                                  }
+                                : _openForm,
+                            icon: Icon(
+                              _accounts.isEmpty
+                                  ? Icons.tune_outlined
+                                  : Icons.add,
+                            ),
+                            label: Text(
+                              _accounts.isEmpty
+                                  ? 'Buka Data Utama'
+                                  : AppCopy.tambahTransaksi,
+                            ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      ],
+                    )
+                  : visibleTransactions.isEmpty && visibleTransfers.isEmpty
+                  ? ListView(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                      children: [
+                        const AppHelpBanner(
+                          title: 'Tidak ada yang cocok',
+                          message: 'Coba ubah kata pencarian atau matikan saringan untuk melihat transaksi lain.',
+                          icon: Icons.search_off_outlined,
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 56),
+                      itemCount: timeline.length + 2,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return TransactionFlowSummary(
+                            incomeTotal: incomeTotal,
+                            expenseTotal: expenseTotal,
+                            transactionCount: visibleTransactions.length,
+                            transferCount: visibleTransfers.length,
+                          );
+                        }
+                        if (index == 1) {
+                          return AccountBalancesCard(
+                            accounts: _accounts,
+                            transactions: _transactions,
+                            transfers: _transfers,
+                            accountTypeLabel: _accountTypeLabel,
+                          );
+                        }
+                        final timelineItem = timeline[index - 2];
+                        final transfer = timelineItem.transfer;
+                        if (transfer != null) {
+                          return TransferHistoryCard(
+                            transfer: transfer,
+                            fromLabel: _accountLabel(transfer.fromAccountId),
+                            toLabel: _accountLabel(transfer.toAccountId),
+                            dateLabel: _dateLabel,
+                            onEdit: () =>
+                                _openTransfer(existingTransfer: transfer),
+                            onDelete: () => _deleteTransfer(transfer),
+                          );
+                        }
+                        final entry = timelineItem.transaction!;
+                        final item = entry.transaction;
+                        final isIncome = item.amount >= 0;
+                        final isGoalUsage =
+                            item.goalId != null && item.source == 'goal_usage';
+                        final isGoalContribution =
+                            item.goalId != null && !isGoalUsage;
+                        final merchantName = _merchantLabel(item.merchantId);
+                        final color = isGoalContribution
+                            ? AppColors.primary
+                            : isGoalUsage
+                            ? AppColors.negative
+                            : isIncome
+                            ? AppColors.positive
+                            : AppColors.negative;
+                        return AppCard(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          color: isIncome
+                              ? AppColors.positiveSoft.withValues(alpha: .72)
+                              : AppColors.negativeSoft.withValues(alpha: .78),
+                          onTap: () => _openDetail(entry),
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      merchantName.isNotEmpty
-                                          ? merchantName
-                                          : isGoalContribution
-                                          ? 'Uang terkumpul untuk target'
-                                          : isGoalUsage
-                                          ? 'Penggunaan dana target'
-                                          : _categoryLabel(item.categoryId),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 13,
-                                          ),
-                                    ),
-                                  ),
-                                  if (isDataSusulan(
-                                    item.date,
-                                    now: item.recordedAt,
-                                  ))
-                                    const Padding(
-                                      padding: EdgeInsets.only(left: 4),
-                                      child: AppStatusChip(
-                                        label: 'Susulan',
-                                        color: AppColors.warning,
-                                        backgroundColor: AppColors.warningSoft,
-                                      ),
-                                    ),
-                                ],
+                              CircleAvatar(
+                                radius: 18,
+                                backgroundColor: color.withValues(alpha: .14),
+                                foregroundColor: color,
+                                child: Icon(
+                                  isIncome
+                                      ? Icons.south_west_rounded
+                                      : Icons.north_east_rounded,
+                                  size: 18,
+                                ),
                               ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  if (merchantName.isNotEmpty &&
-                                      !isGoalContribution &&
-                                      !isGoalUsage) ...[
-                                    Flexible(
-                                      child: Text(
-                                        _categoryLabel(item.categoryId),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            merchantName.isNotEmpty
+                                                ? merchantName
+                                                : isGoalContribution
+                                                ? 'Uang terkumpul untuk target'
+                                                : isGoalUsage
+                                                ? 'Penggunaan dana target'
+                                                : _categoryLabel(
+                                                    item.categoryId,
+                                                  ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .titleSmall
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 13,
+                                                ),
+                                          ),
+                                        ),
+                                        if (isDataSusulan(
+                                          item.date,
+                                          now: item.recordedAt,
+                                        ))
+                                          const Padding(
+                                            padding: EdgeInsets.only(left: 4),
+                                            child: AppStatusChip(
+                                              label: 'Susulan',
+                                              color: AppColors.warning,
+                                              backgroundColor:
+                                                  AppColors.warningSoft,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        if (merchantName.isNotEmpty &&
+                                            !isGoalContribution &&
+                                            !isGoalUsage) ...[
+                                          Flexible(
+                                            child: Text(
+                                              _categoryLabel(item.categoryId),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: AppColors.inkMuted,
+                                                    fontSize: 11,
+                                                  ),
+                                            ),
+                                          ),
+                                          const Text(
+                                            ' · ',
+                                            style: TextStyle(
                                               color: AppColors.inkMuted,
                                               fontSize: 11,
                                             ),
-                                      ),
-                                    ),
-                                    const Text(
-                                      ' · ',
-                                      style: TextStyle(
-                                        color: AppColors.inkMuted,
-                                        fontSize: 11,
-                                      ),
+                                          ),
+                                        ],
+                                        Flexible(
+                                          child: HijriDateText(
+                                            date: item.date,
+                                            includeSeconds: false,
+                                            compact: true,
+                                            color: AppColors.inkMuted,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ],
-                                  Flexible(
-                                    child: HijriDateText(
-                                      date: item.date,
-                                      includeSeconds: false,
-                                      compact: true,
-                                      color: AppColors.inkMuted,
-                                    ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        isIncome ? '+' : '−',
+                                        style: TextStyle(
+                                          color: color,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      AppMoneyText(
+                                        item.amount.abs(),
+                                        compact: true,
+                                        color: color,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              PopupMenuButton<String>(
+                                tooltip: 'Aksi transaksi',
+                                icon: const Icon(Icons.more_vert, size: 18),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    _openEdit(entry);
+                                  } else if (value == 'delete') {
+                                    _deleteTransaction(entry);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Text('Edit transaksi'),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Hapus transaksi'),
                                   ),
                                 ],
                               ),
                             ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  isIncome ? '+' : '−',
-                                  style: TextStyle(
-                                    color: color,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                AppMoneyText(
-                                  item.amount.abs(),
-                                  compact: true,
-                                  color: color,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'Aksi transaksi',
-                          icon: const Icon(Icons.more_vert, size: 18),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _openEdit(entry);
-                            } else if (value == 'delete') {
-                              _deleteTransaction(entry);
-                            }
-                          },
-                          itemBuilder: (_) => const [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Text('Edit transaksi'),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('Hapus transaksi'),
-                            ),
-                          ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
             ),
           ],
         ),

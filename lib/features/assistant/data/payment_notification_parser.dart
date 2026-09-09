@@ -1,4 +1,3 @@
-
 /// Hasil parsing notifikasi pembayaran dari bank/e-wallet Indonesia.
 class ParsedPaymentNotification {
   const ParsedPaymentNotification({
@@ -10,6 +9,7 @@ class ParsedPaymentNotification {
     this.rawTitle = '',
     this.rawBody = '',
     this.postTime,
+    required this.confidenceScore,
   });
 
   /// Nominal pembayaran dalam Rupiah (selalu positif).
@@ -35,6 +35,9 @@ class ParsedPaymentNotification {
 
   /// Waktu notifikasi diterima (epoch milliseconds).
   final int? postTime;
+
+  /// Skor keyakinan parser (0-100). Draft hanya dibuat untuk skor aman.
+  final int confidenceScore;
 
   /// Nama bank/e-wallet yang dapat dibaca manusia berdasarkan [sourceApp].
   String get accountLabel => PaymentNotificationParser.labelFor(sourceApp);
@@ -70,6 +73,43 @@ class PaymentNotificationParser {
   /// Grup 1: angka dengan titik/koma sebagai pemisah ribuan.
   static final _amountRegex = RegExp(
     r'(?:Rp\.?\s*|IDR\s*)([\d.,]+)',
+    caseSensitive: false,
+  );
+
+  static const _trustedPackages = <String>{
+    'com.bca',
+    'com.bca.mybca',
+    'com.bankmandiri.livin',
+    'id.co.bri.brimo',
+    'id.bni.mobile',
+    'id.co.bni.wondr',
+    'com.seabank.id',
+    'com.gojek.app',
+    'com.gopay.wallet',
+    'ovo.id',
+    'id.dana',
+    'com.shopee.id',
+    'id.flip',
+    'id.dana.kasir',
+    'com.isaku.app',
+    'com.honestbank.android',
+    'com.spin.app.latest',
+    'hk.easyvan.app.client',
+    'com.qmove.logistics.consignor',
+  };
+
+  static final _informationalKeywords = RegExp(
+    r'\b(saldo|balance|limit|tersedia|cashback|voucher|promo|promosi|diskon|kupon|penawaran|tagihan akan|jatuh tempo|rekening koran|mutasi rekening|poin|reward|cashbac|kode verifikasi|otp|login|keamanan)\b',
+    caseSensitive: false,
+  );
+
+  static final _failedOrPendingKeywords = RegExp(
+    r'\b(gagal|ditolak|rejected|pending|diproses|processing|menunggu|dibatalkan|cancelled|kadaluarsa|expired)\b',
+    caseSensitive: false,
+  );
+
+  static final _successKeywords = RegExp(
+    r'\b(berhasil|sukses|terbayar|dibayar|terkirim|diterima|masuk|keluar|potong|dipotong|transaksi)\b',
     caseSensitive: false,
   );
 
@@ -115,10 +155,7 @@ class PaymentNotificationParser {
       caseSensitive: false,
     ),
     // GoPay: "Ke MERCHANT" (seluruh string)
-    RegExp(
-      r'^Ke\s+([A-Z][A-Z0-9 &\-\.]{2,49})$',
-      caseSensitive: false,
-    ),
+    RegExp(r'^Ke\s+([A-Z][A-Z0-9 &\-\.]{2,49})$', caseSensitive: false),
     // OVO: "MERCHANT - berhasil dibayar" (tanda hubung ASCII)
     RegExp(
       r'^([A-Z][A-Z0-9 &\-\.]{2,49})\s*-\s*(?:berhasil|sukses)',
@@ -146,34 +183,123 @@ class PaymentNotificationParser {
 
   static const _categoryKeywords = <String, List<String>>{
     'Makanan & Minuman': [
-      'kopi', 'coffee', 'cafe', 'resto', 'restoran', 'makan', 'warung',
-      'nasi', 'bakso', 'mie', 'sushi', 'pizza', 'burger', 'ayam', 'seafood',
-      'es krim', 'ice cream', 'boba', 'milk tea', 'starbucks', 'kfc', 'mcd',
-      'mcdonalds', 'chatime', 'hokben', 'hokahoka', 'dunkin',
-      'jco', 'j.co', 'kenangan', 'kopi kenangan', 'fore', 'excelso',
+      'kopi',
+      'coffee',
+      'cafe',
+      'resto',
+      'restoran',
+      'makan',
+      'warung',
+      'nasi',
+      'bakso',
+      'mie',
+      'sushi',
+      'pizza',
+      'burger',
+      'ayam',
+      'seafood',
+      'es krim',
+      'ice cream',
+      'boba',
+      'milk tea',
+      'starbucks',
+      'kfc',
+      'mcd',
+      'mcdonalds',
+      'chatime',
+      'hokben',
+      'hokahoka',
+      'dunkin',
+      'jco',
+      'j.co',
+      'kenangan',
+      'kopi kenangan',
+      'fore',
+      'excelso',
     ],
     'Belanja & Ritel': [
-      'alfamart', 'indomaret', 'minimart', 'supermarket', 'hypermart',
-      'carrefour', 'hero', 'giant', 'lottemart', 'ranch market',
-      'tokopedia', 'shopee', 'lazada', 'blibli', 'bukalapak', 'zalora',
+      'alfamart',
+      'indomaret',
+      'minimart',
+      'supermarket',
+      'hypermart',
+      'carrefour',
+      'hero',
+      'giant',
+      'lottemart',
+      'ranch market',
+      'tokopedia',
+      'shopee',
+      'lazada',
+      'blibli',
+      'bukalapak',
+      'zalora',
     ],
     'Transportasi': [
-      'gojek', 'grab', 'ojek', 'taxi', 'taksi', 'bensin', 'bbm', 'spbu',
-      'pertamina', 'shell', 'vivo', 'parkir', 'tol', 'transjakarta',
-      'commuter', 'mrt', 'lrt', 'damri',
+      'gojek',
+      'grab',
+      'ojek',
+      'taxi',
+      'taksi',
+      'bensin',
+      'bbm',
+      'spbu',
+      'pertamina',
+      'shell',
+      'vivo',
+      'parkir',
+      'tol',
+      'transjakarta',
+      'commuter',
+      'mrt',
+      'lrt',
+      'damri',
     ],
     'Kesehatan': [
-      'apotek', 'apotik', 'farmasi', 'kimia farma', 'guardian', 'century',
-      'rumah sakit', 'klinik', 'dokter', 'rs ', 'puskesmas', 'laboratorium',
+      'apotek',
+      'apotik',
+      'farmasi',
+      'kimia farma',
+      'guardian',
+      'century',
+      'rumah sakit',
+      'klinik',
+      'dokter',
+      'rs ',
+      'puskesmas',
+      'laboratorium',
     ],
     'Tagihan & Utilitas': [
-      'pln', 'listrik', 'pdam', 'air', 'gas', 'telkom', 'indihome',
-      'wifi', 'internet', 'pulsa', 'paket data', 'xl', 'indosat',
-      'tri ', 'smartfren', 'telkomsel',
+      'pln',
+      'listrik',
+      'pdam',
+      'air',
+      'gas',
+      'telkom',
+      'indihome',
+      'wifi',
+      'internet',
+      'pulsa',
+      'paket data',
+      'xl',
+      'indosat',
+      'tri ',
+      'smartfren',
+      'telkomsel',
     ],
     'Hiburan': [
-      'cgv', 'cinepolis', 'xxi', 'netflix', 'spotify', 'youtube',
-      'disney', 'vidio', 'main', 'game', 'steam', 'ps store',
+      'cgv',
+      'cinepolis',
+      'xxi',
+      'netflix',
+      'spotify',
+      'youtube',
+      'disney',
+      'vidio',
+      'main',
+      'game',
+      'steam',
+      'ps store',
     ],
   };
 
@@ -194,6 +320,13 @@ class PaymentNotificationParser {
     'ovo.id': 'OVO',
     'id.dana': 'DANA',
     'com.shopee.id': 'ShopeePay',
+    'id.flip': 'Flip',
+    'id.dana.kasir': 'DANA Bisnis',
+    'com.isaku.app': 'i.saku',
+    'com.honestbank.android': 'Honest',
+    'com.spin.app.latest': 'MotionPay',
+    'hk.easyvan.app.client': 'Lalamove',
+    'com.qmove.logistics.consignor': 'Qmove',
   };
 
   // ---------------------------------------------------------------------------
@@ -208,11 +341,20 @@ class PaymentNotificationParser {
     required String body,
     int? postTime,
   }) {
+    if (!_trustedPackages.contains(packageName)) return null;
     final combined = '$title $body';
 
     // 1. Ekstrak nominal — wajib ada, jika tidak ada berarti bukan notif pembayaran
     final amount = _extractAmount(combined);
     if (amount == null || amount <= 0) return null;
+
+    final lower = combined.toLowerCase();
+    if (_informationalKeywords.hasMatch(lower) &&
+        !_hasTransactionContext(lower)) {
+      return null;
+    }
+    if (_failedOrPendingKeywords.hasMatch(lower)) return null;
+    if (!_hasTransactionContext(lower)) return null;
 
     // 2. Deteksi jenis mutasi
     final mutationType = _detectMutationType(combined);
@@ -234,6 +376,11 @@ class PaymentNotificationParser {
       rawTitle: title,
       rawBody: body,
       postTime: postTime,
+      confidenceScore: _confidenceScore(
+        lower,
+        merchantName: merchantName,
+        mutationType: mutationType,
+      ),
     );
   }
 
@@ -293,6 +440,25 @@ class PaymentNotificationParser {
     if (hasDebit && !hasCredit) return PaymentMutationType.debit;
     // Default ke debit jika tidak dapat ditentukan (lebih aman untuk pencatatan)
     return PaymentMutationType.debit;
+  }
+
+  static bool _hasTransactionContext(String text) =>
+      _successKeywords.hasMatch(text) ||
+      RegExp(
+        r'\b(qris|pembayaran|pembelian|transfer\s+(?:ke|dari|masuk|keluar)|top.?up|isi ulang|tarik tunai|withdraw|bayar|membayar|order|perjalanan|ongkos)\b',
+        caseSensitive: false,
+      ).hasMatch(text);
+
+  static int _confidenceScore(
+    String text, {
+    required String merchantName,
+    required PaymentMutationType mutationType,
+  }) {
+    var score = 55;
+    if (_successKeywords.hasMatch(text)) score += 20;
+    if (merchantName.isNotEmpty) score += 15;
+    if (mutationType != PaymentMutationType.unknown) score += 10;
+    return score.clamp(0, 100);
   }
 
   static String _extractMerchant(String title, String body) {

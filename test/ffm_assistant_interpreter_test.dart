@@ -444,6 +444,127 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('menjawab transaksi terakhir dari database lokal', () async {
+    final now = DateTime(2026, 9, 9, 16, 30);
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'latest-transaction',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -20000,
+            date: now,
+            recordedAt: now,
+            createdAt: now,
+            note: const Value('Beli kebutuhan dapur'),
+          ),
+        );
+
+    final intent = await interpreter.interpret(
+      'transaksi terakhir apa ya?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Transaksi terakhir'));
+    expect(intent.response, contains('Rp20.000'));
+    expect(intent.response, contains('Beli kebutuhan dapur'));
+    expect(intent.draft, isNull);
+  });
+
+  test('memfilter transaksi terbaru sesuai periode yang ditanyakan', () async {
+    final now = DateTime(2026, 9, 9, 16, 30);
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'old-transaction',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -90000,
+            date: DateTime(2026, 8, 31, 10),
+            recordedAt: DateTime(2026, 8, 31, 10),
+            createdAt: DateTime(2026, 8, 31, 10),
+            note: const Value('Transaksi bulan lalu'),
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'current-transaction',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            amount: -25000,
+            date: DateTime(2026, 9, 8, 10),
+            recordedAt: DateTime(2026, 9, 8, 10),
+            createdAt: DateTime(2026, 9, 8, 10),
+            note: const Value('Transaksi minggu ini'),
+          ),
+        );
+
+    final periodInterpreter = FfmAssistantInterpreter(
+      database,
+      clock: () => now,
+    );
+    final intent = await periodInterpreter.interpret(
+      'transaksi terbaru minggu ini apa?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Rp25.000'));
+    expect(intent.response, contains('Transaksi minggu ini'));
+    expect(intent.response, isNot(contains('Rp90.000')));
+  });
+
+  test('menjawab aktivitas terakhir dari database lokal', () async {
+    await (database.into(database.activityEntries)).insert(
+      ActivityEntriesCompanion.insert(
+        id: 'latest-activity',
+        householdId: AppContext.householdId,
+        title: 'Cek kebun',
+        activityType: const Value('Kegiatan'),
+        startedAt: DateTime(2026, 9, 8, 8),
+        createdAt: DateTime(2026, 9, 8, 8),
+      ),
+    );
+
+    final intent = await interpreter.interpret(
+      'aktivitas terakhir apa?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Cek kebun'));
+    expect(intent.draft, isNull);
+  });
+
+  test('membaca ulang data saat pengguna mengoreksi jawaban kosong', () async {
+    await (database.into(database.activityEntries)).insert(
+      ActivityEntriesCompanion.insert(
+        id: 'corrected-activity',
+        householdId: AppContext.householdId,
+        title: 'Memeriksa sawah',
+        activityType: const Value('Kegiatan'),
+        startedAt: DateTime(2026, 9, 8, 9),
+        createdAt: DateTime(2026, 9, 8, 9),
+      ),
+    );
+
+    final intent = await interpreter.interpret(
+      'sudah ada kok, emang tidak terbaca ya?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+      lastAssistantMessage:
+          'Saat ini belum ada aktivitas atau catatan terbaru yang tersimpan.',
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Memeriksa sawah'));
+    expect(intent.draft, isNull);
+  });
+
   test(
     'menjawab query analisis kemampuan cicilan (Loan Affordability)',
     () async {
@@ -659,35 +780,38 @@ void main() {
     expect(await database.select(database.goals).get(), isEmpty);
   });
 
-  test('membuat draft Data Utama, Anggaran, pengingat, dan aktivitas', () async {
-    final category = await interpreter.interpret(
-      'Tambah kategori Belanja Kebun',
-    );
-    final budget = await interpreter.interpret('Atur anggaran 350 ribu');
-    final reminder = await interpreter.interpret(
-      'Buat pengingat bayar listrik',
-    );
-    final activity = await interpreter.interpret(
-      'Mulai aktivitas pergi ke pasar',
-    );
+  test(
+    'membuat draft Data Utama, Anggaran, pengingat, dan aktivitas',
+    () async {
+      final category = await interpreter.interpret(
+        'Tambah kategori Belanja Kebun',
+      );
+      final budget = await interpreter.interpret('Atur anggaran 350 ribu');
+      final reminder = await interpreter.interpret(
+        'Buat pengingat bayar listrik',
+      );
+      final activity = await interpreter.interpret(
+        'Mulai aktivitas pergi ke pasar',
+      );
 
-    expect(category.type, FfmAssistantIntentType.createMasterData);
-    expect(category.destination, FfmAssistantDestination.masterData);
-    expect(category.draft?.categoryName, 'kategori');
-    expect(budget.type, FfmAssistantIntentType.createBudget);
-    expect(budget.destination, FfmAssistantDestination.budget);
-    expect(budget.draft?.kind, FfmAssistantDraftKind.budget);
-    expect(budget.draft?.amount, 350000);
-    expect(budget.needsConfirmation, isTrue);
-    expect(reminder.type, FfmAssistantIntentType.createReminder);
-    expect(reminder.destination, FfmAssistantDestination.reminders);
-    expect(activity.type, FfmAssistantIntentType.createActivity);
-    expect(activity.destination, FfmAssistantDestination.activity);
-    expect(activity.needsConfirmation, isTrue);
+      expect(category.type, FfmAssistantIntentType.createMasterData);
+      expect(category.destination, FfmAssistantDestination.masterData);
+      expect(category.draft?.categoryName, 'kategori');
+      expect(budget.type, FfmAssistantIntentType.createBudget);
+      expect(budget.destination, FfmAssistantDestination.budget);
+      expect(budget.draft?.kind, FfmAssistantDraftKind.budget);
+      expect(budget.draft?.amount, 350000);
+      expect(budget.needsConfirmation, isTrue);
+      expect(reminder.type, FfmAssistantIntentType.createReminder);
+      expect(reminder.destination, FfmAssistantDestination.reminders);
+      expect(activity.type, FfmAssistantIntentType.createActivity);
+      expect(activity.destination, FfmAssistantDestination.activity);
+      expect(activity.needsConfirmation, isTrue);
 
-    expect(await database.select(database.envelopeBudgets).get(), isEmpty);
-    expect(await database.select(database.activitySessions).get(), isEmpty);
-  });
+      expect(await database.select(database.envelopeBudgets).get(), isEmpty);
+      expect(await database.select(database.activitySessions).get(), isEmpty);
+    },
+  );
 
   test('pindah ke halaman tanpa kata menu tetap membuka tujuan', () async {
     final intent = await interpreter.interpret('Pindah ke Data Utama');
@@ -969,23 +1093,18 @@ void main() {
     },
   );
 
-  test(
-    'jalur VN memakai interpreter yang menghasilkan draft aktivitas tanpa menulis database',
-    () async {
-      final intent = await interpreter.interpret(
-        'mulai memupuk timun',
-        currentDestination: FfmAssistantDestination.activity,
-        activitySnapshot: ActivityLiveSnapshot(
-          activeSessions: const [],
-        ),
-      );
+  test('jalur VN memakai interpreter yang menghasilkan draft aktivitas tanpa menulis database', () async {
+    final intent = await interpreter.interpret(
+      'mulai memupuk timun',
+      currentDestination: FfmAssistantDestination.activity,
+      activitySnapshot: ActivityLiveSnapshot(activeSessions: const []),
+    );
 
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.kind, FfmAssistantDraftKind.activity);
-      expect(intent.draft!.title, isNotEmpty);
-      expect(intent.type, isNot(FfmAssistantIntentType.unknown));
-    },
-  );
+    expect(intent.draft, isNotNull);
+    expect(intent.draft!.kind, FfmAssistantDraftKind.activity);
+    expect(intent.draft!.title, isNotEmpty);
+    expect(intent.type, isNot(FfmAssistantIntentType.unknown));
+  });
 
   test('menjawab pertanyaan identitas pembuat dan konsep data lokal', () async {
     final creatorIntent = await interpreter.interpret(
@@ -1004,103 +1123,94 @@ void main() {
     expect(dataLokalIntent.response, contains('100% Offline'));
   });
 
-  test(
-    'revisi draf aktif: mengubah pengeluaran menjadi pemasukan saat user bilang uang masuk',
-    () async {
-      final activeDraft = FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.expense,
-        createdAt: DateTime(2026, 9, 6),
-        amount: 367000,
-        title: 'Nota Pembelian',
-        fromAccountName: 'Tunai',
-      );
+  test('revisi draf aktif: mengubah pengeluaran menjadi pemasukan saat user bilang uang masuk', () async {
+    final activeDraft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.expense,
+      createdAt: DateTime(2026, 9, 6),
+      amount: 367000,
+      title: 'Nota Pembelian',
+      fromAccountName: 'Tunai',
+    );
 
-      final intent = await interpreter.interpret(
-        'itu uang masuk bukan uang keluar',
-        activeDraft: activeDraft,
-      );
+    final intent = await interpreter.interpret(
+      'itu uang masuk bukan uang keluar',
+      activeDraft: activeDraft,
+    );
 
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.kind, FfmAssistantDraftKind.income);
-      expect(intent.draft!.amount, 367000);
-      expect(intent.draft!.toAccountName, 'Tunai');
-    },
-  );
+    expect(intent.draft, isNotNull);
+    expect(intent.draft!.kind, FfmAssistantDraftKind.income);
+    expect(intent.draft!.amount, 367000);
+    expect(intent.draft!.toAccountName, 'Tunai');
+  });
 
-  test(
-    'revisi draf aktif: mengubah pemasukan menjadi pengeluaran saat user bilang uang keluar',
-    () async {
-      final activeDraft = FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.income,
-        createdAt: DateTime(2026, 9, 6),
-        amount: 50000,
-        title: 'Gaji',
-        toAccountName: 'SeaBank',
-      );
+  test('revisi draf aktif: mengubah pemasukan menjadi pengeluaran saat user bilang uang keluar', () async {
+    final activeDraft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.income,
+      createdAt: DateTime(2026, 9, 6),
+      amount: 50000,
+      title: 'Gaji',
+      toAccountName: 'SeaBank',
+    );
 
-      final intent = await interpreter.interpret(
-        'itu pengeluaran bukan pemasukan',
-        activeDraft: activeDraft,
-      );
+    final intent = await interpreter.interpret(
+      'itu pengeluaran bukan pemasukan',
+      activeDraft: activeDraft,
+    );
 
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.kind, FfmAssistantDraftKind.expense);
-      expect(intent.draft!.amount, 50000);
-      expect(intent.draft!.fromAccountName, 'SeaBank');
-    },
-  );
+    expect(intent.draft, isNotNull);
+    expect(intent.draft!.kind, FfmAssistantDraftKind.expense);
+    expect(intent.draft!.amount, 50000);
+    expect(intent.draft!.fromAccountName, 'SeaBank');
+  });
 
-  test(
-    'revisi draf aktif: komplain "itu salah" mempertahankan draf dan meminta klarifikasi perbaikan',
-    () async {
-      final activeDraft = FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.expense,
-        createdAt: DateTime(2026, 9, 6),
-        amount: 367000,
-        title: 'Nota Pembelian',
-      );
+  test('revisi draf aktif: komplain "itu salah" mempertahankan draf dan meminta klarifikasi perbaikan', () async {
+    final activeDraft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.expense,
+      createdAt: DateTime(2026, 9, 6),
+      amount: 367000,
+      title: 'Nota Pembelian',
+    );
 
-      final intent = await interpreter.interpret(
-        'itu salah',
-        activeDraft: activeDraft,
-      );
+    final intent = await interpreter.interpret(
+      'itu salah',
+      activeDraft: activeDraft,
+    );
 
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.amount, 367000);
-      expect(intent.response, contains('belum disimpan'));
-    },
-  );
+    expect(intent.draft, isNotNull);
+    expect(intent.draft!.amount, 367000);
+    expect(intent.response, contains('belum disimpan'));
+  });
 
-  test(
-    'revisi draf aktif: menyebut nama rekening melengkapi rekening pada draf aktif',
-    () async {
-      final activeDraft = FfmAssistantDraft(
-        kind: FfmAssistantDraftKind.income,
-        createdAt: DateTime(2026, 9, 6),
-        amount: 367000,
-        title: 'Nota Pembelian',
-      );
+  test('revisi draf aktif: menyebut nama rekening melengkapi rekening pada draf aktif', () async {
+    final activeDraft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.income,
+      createdAt: DateTime(2026, 9, 6),
+      amount: 367000,
+      title: 'Nota Pembelian',
+    );
 
-      final intent = await interpreter.interpret(
-        'pakai SeaBank',
-        activeDraft: activeDraft,
-      );
+    final intent = await interpreter.interpret(
+      'pakai SeaBank',
+      activeDraft: activeDraft,
+    );
 
-      expect(intent.draft, isNotNull);
-      expect(intent.draft!.toAccountName, 'SeaBank');
-    },
-  );
+    expect(intent.draft, isNotNull);
+    expect(intent.draft!.toAccountName, 'SeaBank');
+  });
 
   group('Normalisasi Input Angka Desimal & Parser Nilai Finansial', () {
-    test('FfmAssistantAmountParser mengurai desimal titik dan koma dengan unit', () {
-      expect(FfmAssistantAmountParser.parse('2.5 juta'), equals(2500000));
-      expect(FfmAssistantAmountParser.parse('2,5 juta'), equals(2500000));
-      expect(FfmAssistantAmountParser.parse('1.5 jt'), equals(1500000));
-      expect(FfmAssistantAmountParser.parse('1,5 jt'), equals(1500000));
-      expect(FfmAssistantAmountParser.parse('75.5 rb'), equals(75500));
-      expect(FfmAssistantAmountParser.parse('75,5 rb'), equals(75500));
-      expect(FfmAssistantAmountParser.parse('1.500.000'), equals(1500000));
-    });
+    test(
+      'FfmAssistantAmountParser mengurai desimal titik dan koma dengan unit',
+      () {
+        expect(FfmAssistantAmountParser.parse('2.5 juta'), equals(2500000));
+        expect(FfmAssistantAmountParser.parse('2,5 juta'), equals(2500000));
+        expect(FfmAssistantAmountParser.parse('1.5 jt'), equals(1500000));
+        expect(FfmAssistantAmountParser.parse('1,5 jt'), equals(1500000));
+        expect(FfmAssistantAmountParser.parse('75.5 rb'), equals(75500));
+        expect(FfmAssistantAmountParser.parse('75,5 rb'), equals(75500));
+        expect(FfmAssistantAmountParser.parse('1.500.000'), equals(1500000));
+      },
+    );
 
     test('parseDecimal mengurai koma dan titik desimal secara cerdas', () {
       expect(parseDecimal('10.5'), equals(10.5));

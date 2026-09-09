@@ -14,7 +14,7 @@ class _FakeHttpClient extends http.BaseClient {
   _FakeHttpClient(this.handler);
 
   final Future<http.Response> Function(String method, Uri uri, String? body)
-      handler;
+  handler;
   Map<String, String>? lastHeaders;
   Uri? lastUri;
 
@@ -79,7 +79,13 @@ Future<Uint8List> _noiseImage(int size) async {
 
 /// Gambar padat satu warna sehingga PNG-nya sangat kecil walau dimensi besar.
 /// Berguna untuk menguji kompresi berbasis dimensi tanpa mencapai ambang 10MB.
-Future<Uint8List> _solidImage(int width, int height, {int r = 200, int g = 200, int b = 200}) async {
+Future<Uint8List> _solidImage(
+  int width,
+  int height, {
+  int r = 200,
+  int g = 200,
+  int b = 200,
+}) async {
   final raw = Uint8List(width * height * 4);
   for (var i = 0; i < raw.length; i += 4) {
     raw[i] = r;
@@ -203,8 +209,7 @@ void main() {
         model: 'gemini-test',
       );
 
-      final parts =
-          (requestJson!['contents'] as List).last['parts'] as List;
+      final parts = (requestJson!['contents'] as List).last['parts'] as List;
       expect(parts, hasLength(2));
       final inline = parts[1]['inline_data'] as Map<String, dynamic>;
       expect(inline['mime_type'], 'image/jpeg');
@@ -216,65 +221,62 @@ void main() {
     },
   );
 
-  test(
-    'JSON satu struk (ffm-receipt-draft-v1) tetap diterima sebagai satu transaksi',
-    () async {
-      final service = ReceiptScannerService(
-        gemini: GeminiService(
-          client: _FakeHttpClient(
-            (method, uri, body) async => http.Response(
-              jsonEncode({
-                'candidates': [
-                  {
-                    'content': {
-                      'parts': [
-                        {
-                          'text': jsonEncode({
-                            'format': 'ffm-receipt-draft-v1',
-                            'receipt': {
-                              'merchant': 'Warteg Sederhana',
-                              'total': 42000,
-                              'items': const [
-                                {
-                                  'name': 'Nasi ayam',
-                                  'quantity': 1,
-                                  'amount': 25000,
-                                },
-                                {
-                                  'name': 'Es teh',
-                                  'quantity': 1,
-                                  'amount': 17000,
-                                },
-                              ],
-                            },
-                          }),
-                        },
-                      ],
-                    },
+  test('JSON satu struk (ffm-receipt-draft-v1) tetap diterima sebagai satu transaksi', () async {
+    final service = ReceiptScannerService(
+      gemini: GeminiService(
+        client: _FakeHttpClient(
+          (method, uri, body) async => http.Response(
+            jsonEncode({
+              'candidates': [
+                {
+                  'content': {
+                    'parts': [
+                      {
+                        'text': jsonEncode({
+                          'format': 'ffm-receipt-draft-v1',
+                          'receipt': {
+                            'merchant': 'Warteg Sederhana',
+                            'total': 42000,
+                            'items': const [
+                              {
+                                'name': 'Nasi ayam',
+                                'quantity': 1,
+                                'amount': 25000,
+                              },
+                              {
+                                'name': 'Es teh',
+                                'quantity': 1,
+                                'amount': 17000,
+                              },
+                            ],
+                          },
+                        }),
+                      },
+                    ],
                   },
-                ],
-              }),
-              200,
-              headers: {'content-type': 'application/json'},
-            ),
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
           ),
         ),
-      );
+      ),
+    );
 
-      final outcome = await service.scanImage(
-        bytes: _tinyImage(),
-        apiKey: 'test-key',
-        model: 'gemini-test',
-      );
+    final outcome = await service.scanImage(
+      bytes: _tinyImage(),
+      apiKey: 'test-key',
+      model: 'gemini-test',
+    );
 
-      expect(outcome.ok, isTrue);
-      expect(outcome.transactionCount, 1);
-      final entry = outcome.batch!.entries.single;
-      expect(entry.amount, 42000);
-      expect(entry.merchant, 'Warteg Sederhana');
-      expect(outcome.warnings, isEmpty);
-    },
-  );
+    expect(outcome.ok, isTrue);
+    expect(outcome.transactionCount, 1);
+    final entry = outcome.batch!.entries.single;
+    expect(entry.amount, 42000);
+    expect(entry.merchant, 'Warteg Sederhana');
+    expect(outcome.warnings, isEmpty);
+  });
 
   test(
     'ketidakcocokan total transaksi dengan jumlah baris menghasilkan warning',
@@ -396,47 +398,49 @@ void main() {
     expect(outcome.latency, isNotNull);
   });
 
-  test('token listrik: note token & IDPEL dipertahankan pada transaksi',
-      () async {
-    final service = ReceiptScannerService(
-      gemini: GeminiService(
-        client: _FakeHttpClient(
-          (method, uri, body) async => http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'content': {
-                    'parts': [
-                      {
-                        'text': _batchJson(
-                          note:
-                              'IDPEL 123456789012 TOKEN 52305443146247152564',
-                        ),
-                      },
-                    ],
+  test(
+    'token listrik: note token & IDPEL dipertahankan pada transaksi',
+    () async {
+      final service = ReceiptScannerService(
+        gemini: GeminiService(
+          client: _FakeHttpClient(
+            (method, uri, body) async => http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {
+                          'text': _batchJson(
+                            note:
+                                'IDPEL 123456789012 TOKEN 52305443146247152564',
+                          ),
+                        },
+                      ],
+                    },
                   },
-                },
-              ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    final outcome = await service.scanImage(
-      bytes: _tinyImage(),
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
+      final outcome = await service.scanImage(
+        bytes: _tinyImage(),
+        apiKey: 'test-key',
+        model: 'gemini-test',
+      );
 
-    expect(outcome.ok, isTrue);
-    final entry = outcome.batch!.entries.single;
-    expect(entry.budgetName, 'Listrik');
-    expect(entry.note, contains('TOKEN'));
-    expect(entry.note, contains('IDPEL'));
-  });
+      expect(outcome.ok, isTrue);
+      final entry = outcome.batch!.entries.single;
+      expect(entry.budgetName, 'Listrik');
+      expect(entry.note, contains('TOKEN'));
+      expect(entry.note, contains('IDPEL'));
+    },
+  );
 
   test('gambar lebih dari 10MB diturunkan resolusinya menjadi PNG', () async {
     final noisy = await _noiseImage(2048);
@@ -481,23 +485,25 @@ void main() {
     expect(sentBytes.lengthInBytes, lessThan(noisy.lengthInBytes));
   });
 
-  test('gambar raksasa yang tidak dapat didekode memakai fallback aman',
-      () async {
-    final garbage = Uint8List(11 * 1024 * 1024);
-    final rng = math.Random(3);
-    for (var i = 0; i < 1024; i++) {
-      garbage[i] = rng.nextInt(256);
-    }
+  test(
+    'gambar raksasa yang tidak dapat didekode memakai fallback aman',
+    () async {
+      final garbage = Uint8List(11 * 1024 * 1024);
+      final rng = math.Random(3);
+      for (var i = 0; i < 1024; i++) {
+        garbage[i] = rng.nextInt(256);
+      }
 
-    final outcome = await _serviceReturning(_batchJson()).scanImage(
-      bytes: garbage,
-      mimeType: 'image/jpeg',
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
+      final outcome = await _serviceReturning(_batchJson()).scanImage(
+        bytes: garbage,
+        mimeType: 'image/jpeg',
+        apiKey: 'test-key',
+        model: 'gemini-test',
+      );
 
-    expect(outcome.ok, isTrue);
-  });
+      expect(outcome.ok, isTrue);
+    },
+  );
 
   test('PNG kecil tetap dikirim sebagai image/png', () async {
     final smallPng = await _noiseImage(2);
@@ -539,11 +545,9 @@ void main() {
   });
 
   test('teks yang bukan JSON menghasilkan kegagalan jujur', () async {
-    final outcome = await _serviceReturning('Struk ini tidak jelas').scanImage(
-      bytes: _tinyImage(),
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
+    final outcome = await _serviceReturning(
+      'Struk ini tidak jelas',
+    ).scanImage(bytes: _tinyImage(), apiKey: 'test-key', model: 'gemini-test');
 
     expect(outcome.ok, isFalse);
     expect(outcome.message, contains('belum cocok'));
@@ -571,11 +575,9 @@ void main() {
       ],
     });
 
-    final outcome = await _serviceReturning(multiJson).scanImage(
-      bytes: _tinyImage(),
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
+    final outcome = await _serviceReturning(
+      multiJson,
+    ).scanImage(bytes: _tinyImage(), apiKey: 'test-key', model: 'gemini-test');
 
     expect(outcome.ok, isTrue);
     expect(outcome.transactionCount, 2);
@@ -606,126 +608,161 @@ void main() {
       ReceiptScannerService.isPlnTokenText('Indomaret belanja Rp 50.000'),
       isFalse,
     );
-  });
-
-  test('gambar dimensi besar tapi kecil ukuran ikut di-resize ke PNG', () async {
-    // 2400x2400 padat satu warna: ukuran file kecil (<10MB) tapi sisi panjang
-    // melebihi 1600px, sehingga tetap harus diturunkan resolusinya.
-    final bigDim = await _solidImage(2400, 2400);
-
-    Map<String, dynamic>? requestJson;
-    final service = ReceiptScannerService(
-      gemini: GeminiService(
-        client: _FakeHttpClient((method, uri, body) async {
-          requestJson = jsonDecode(body!) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'content': {
-                    'parts': [
-                      {'text': _batchJson()},
-                    ],
-                  },
-                },
-              ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
+    expect(
+      ReceiptScannerService.isPlnTokenText(
+        'Tagihan listrik PLN IDPEL 14123456789 Rp 205.000',
       ),
+      isFalse,
     );
-
-    final outcome = await service.scanImage(
-      bytes: bigDim,
-      mimeType: 'image/png',
-      apiKey: 'test-key',
-      model: 'gemini-test',
-    );
-
-    expect(outcome.ok, isTrue);
-    final parts = (requestJson!['contents'] as List).last['parts'] as List;
-    final inline = parts[1]['inline_data'] as Map<String, dynamic>;
-    expect(inline['mime_type'], 'image/png');
-    final sentBytes = base64Decode(inline['data'] as String);
-    expect(sentBytes.lengthInBytes, lessThan(bigDim.lengthInBytes));
-  });
-
-  test('scanImage menyertakan userCaption dalam prompt request ke Gemini', () async {
-    Map<String, dynamic>? requestJson;
-    final service = ReceiptScannerService(
-      gemini: GeminiService(
-        client: _FakeHttpClient((_, _, body) async {
-          requestJson = jsonDecode(body!) as Map<String, dynamic>;
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'content': {
-                    'parts': [{'text': _batchJson()}],
-                  },
-                },
-              ],
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
+    expect(
+      ReceiptScannerService.isPlnTokenText(
+        'PLN prabayar IDPEL 14123456789 pemakaian 132,4 kWh token 1234 5678 9012 3456 7890',
       ),
+      isTrue,
     );
-
-    final outcome = await service.scanImage(
-      bytes: _tinyImage(),
-      apiKey: 'test-key',
-      model: 'gemini-test',
-      userCaption: 'Pakai rekening BCA dan pos Belanja Dapur',
-    );
-
-    expect(outcome.ok, isTrue);
-    final parts = (requestJson!['contents'] as List).last['parts'] as List;
-    final promptText = parts[0]['text'] as String;
-    expect(promptText, contains('Pakai rekening BCA dan pos Belanja Dapur'));
-  });
-
-  test('scanImage merekam tokenUsage secara realtime dari respon Gemini', () async {
-    final service = ReceiptScannerService(
-      gemini: GeminiService(
-        client: _FakeHttpClient((_, _, _) async {
-          return http.Response(
-            jsonEncode({
-              'candidates': [
-                {
-                  'content': {
-                    'parts': [{'text': _batchJson()}],
-                  },
-                },
-              ],
-              'usageMetadata': {
-                'promptTokenCount': 420,
-                'candidatesTokenCount': 135,
-                'totalTokenCount': 555,
-              },
-            }),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }),
+    expect(
+      ReceiptScannerService.extractPlnToken(
+        'Token PLN 1234-5678-9012-3456-7890',
       ),
+      equals('12345678901234567890'),
     );
-
-    final outcome = await service.scanImage(
-      bytes: _tinyImage(),
-      apiKey: 'test-key',
-      model: 'gemini-test',
+    expect(
+      ReceiptScannerService.extractPlnMeterNumber('IDPEL: 14123456789'),
+      equals('14123456789'),
     );
-
-    expect(outcome.ok, isTrue);
-    expect(outcome.tokenUsage, isNotNull);
-    expect(outcome.tokenUsage!['promptTokenCount'], equals(420));
-    expect(outcome.tokenUsage!['candidatesTokenCount'], equals(135));
-    expect(outcome.tokenUsage!['totalTokenCount'], equals(555));
   });
+
+  test(
+    'gambar dimensi besar tapi kecil ukuran ikut di-resize ke PNG',
+    () async {
+      // 2400x2400 padat satu warna: ukuran file kecil (<10MB) tapi sisi panjang
+      // melebihi 1600px, sehingga tetap harus diturunkan resolusinya.
+      final bigDim = await _solidImage(2400, 2400);
+
+      Map<String, dynamic>? requestJson;
+      final service = ReceiptScannerService(
+        gemini: GeminiService(
+          client: _FakeHttpClient((method, uri, body) async {
+            requestJson = jsonDecode(body!) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {'text': _batchJson()},
+                      ],
+                    },
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final outcome = await service.scanImage(
+        bytes: bigDim,
+        mimeType: 'image/png',
+        apiKey: 'test-key',
+        model: 'gemini-test',
+      );
+
+      expect(outcome.ok, isTrue);
+      final parts = (requestJson!['contents'] as List).last['parts'] as List;
+      final inline = parts[1]['inline_data'] as Map<String, dynamic>;
+      expect(inline['mime_type'], 'image/png');
+      final sentBytes = base64Decode(inline['data'] as String);
+      expect(sentBytes.lengthInBytes, lessThan(bigDim.lengthInBytes));
+    },
+  );
+
+  test(
+    'scanImage menyertakan userCaption dalam prompt request ke Gemini',
+    () async {
+      Map<String, dynamic>? requestJson;
+      final service = ReceiptScannerService(
+        gemini: GeminiService(
+          client: _FakeHttpClient((_, _, body) async {
+            requestJson = jsonDecode(body!) as Map<String, dynamic>;
+            return http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {'text': _batchJson()},
+                      ],
+                    },
+                  },
+                ],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final outcome = await service.scanImage(
+        bytes: _tinyImage(),
+        apiKey: 'test-key',
+        model: 'gemini-test',
+        userCaption: 'Pakai rekening BCA dan pos Belanja Dapur',
+      );
+
+      expect(outcome.ok, isTrue);
+      final parts = (requestJson!['contents'] as List).last['parts'] as List;
+      final promptText = parts[0]['text'] as String;
+      expect(promptText, contains('Pakai rekening BCA dan pos Belanja Dapur'));
+    },
+  );
+
+  test(
+    'scanImage merekam tokenUsage secara realtime dari respon Gemini',
+    () async {
+      final service = ReceiptScannerService(
+        gemini: GeminiService(
+          client: _FakeHttpClient((_, _, _) async {
+            return http.Response(
+              jsonEncode({
+                'candidates': [
+                  {
+                    'content': {
+                      'parts': [
+                        {'text': _batchJson()},
+                      ],
+                    },
+                  },
+                ],
+                'usageMetadata': {
+                  'promptTokenCount': 420,
+                  'candidatesTokenCount': 135,
+                  'totalTokenCount': 555,
+                },
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final outcome = await service.scanImage(
+        bytes: _tinyImage(),
+        apiKey: 'test-key',
+        model: 'gemini-test',
+      );
+
+      expect(outcome.ok, isTrue);
+      expect(outcome.tokenUsage, isNotNull);
+      expect(outcome.tokenUsage!['promptTokenCount'], equals(420));
+      expect(outcome.tokenUsage!['candidatesTokenCount'], equals(135));
+      expect(outcome.tokenUsage!['totalTokenCount'], equals(555));
+    },
+  );
 
   test('askVisualQuestion menjawab pertanyaan analisis/umum gambar secara multimodal', () async {
     final service = ReceiptScannerService(
@@ -736,7 +773,11 @@ void main() {
               'candidates': [
                 {
                   'content': {
-                    'parts': [{'text': 'Gambar ini memperlihatkan grafik pengeluaran bulanan keluarga.'}],
+                    'parts': [
+                      {
+                        'text': 'Gambar ini memperlihatkan grafik pengeluaran bulanan keluarga.',
+                      },
+                    ],
                   },
                 },
               ],
@@ -772,7 +813,11 @@ void main() {
                 'candidates': [
                   {
                     'content': {
-                      'parts': [{'text': 'Ini adalah foto tanaman hias, bukan nota belanja.'}],
+                      'parts': [
+                        {
+                          'text': 'Ini adalah foto tanaman hias, bukan nota belanja.',
+                        },
+                      ],
                     },
                   },
                 ],
@@ -787,7 +832,9 @@ void main() {
                 'candidates': [
                   {
                     'content': {
-                      'parts': [{'text': 'Ini adalah tanaman Monstera yang sehat.'}],
+                      'parts': [
+                        {'text': 'Ini adalah tanaman Monstera yang sehat.'},
+                      ],
                     },
                   },
                 ],

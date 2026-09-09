@@ -456,6 +456,7 @@ class FfmAssistantDraft {
     this.receiptPaidAmount,
     this.receiptChangeAmount,
     this.receiptNumber,
+    this.attachmentPaths = const <String>[],
   });
 
   final FfmAssistantDraftKind kind;
@@ -498,6 +499,7 @@ class FfmAssistantDraft {
   final int? receiptPaidAmount;
   final int? receiptChangeAmount;
   final String? receiptNumber;
+  final List<String> attachmentPaths;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -532,14 +534,21 @@ class FfmAssistantDraft {
     int? receiptPaidAmount,
     int? receiptChangeAmount,
     String? receiptNumber,
+    List<String>? attachmentPaths,
+    bool clearFromAccountName = false,
+    bool clearToAccountName = false,
   }) => FfmAssistantDraft(
     kind: kind ?? this.kind,
     createdAt: createdAt,
     amount: amount ?? this.amount,
     title: title ?? this.title,
     partyName: partyName ?? this.partyName,
-    fromAccountName: fromAccountName ?? this.fromAccountName,
-    toAccountName: toAccountName ?? this.toAccountName,
+    fromAccountName: clearFromAccountName
+        ? null
+        : fromAccountName ?? this.fromAccountName,
+    toAccountName: clearToAccountName
+        ? null
+        : toAccountName ?? this.toAccountName,
     categoryName: categoryName ?? this.categoryName,
     adminFee: adminFee ?? this.adminFee,
     goalName: goalName ?? this.goalName,
@@ -566,6 +575,7 @@ class FfmAssistantDraft {
     receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
     receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
     receiptNumber: receiptNumber ?? this.receiptNumber,
+    attachmentPaths: attachmentPaths ?? this.attachmentPaths,
   );
 }
 
@@ -828,7 +838,11 @@ class FfmAssistantChatSession {
     entries.add(entry);
   }
 
-  void updateEntryWithFeedback(int index, String feedbackType, String? feedbackCategory) {
+  void updateEntryWithFeedback(
+    int index,
+    String feedbackType,
+    String? feedbackCategory,
+  ) {
     if (index >= 0 && index < entries.length) {
       final entry = entries[index];
       entries[index] = FfmAssistantChatEntry(
@@ -956,7 +970,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.masterData,
       name: 'Data Utama',
-      description: 'Mengelola kategori, toko, tag, rekening, dan sumber pemasukan.',
+      description:
+          'Mengelola kategori, toko, tag, rekening, dan sumber pemasukan.',
       aliases: ['data utama', 'rekening', 'kategori', 'master data'],
       dataSection: FfmAssistantDataSection.masterData,
     ),
@@ -1145,7 +1160,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.agentInbox,
       name: 'Laporan & Kotak Masuk Asisten',
-      description: 'Melihat rekomendasi proaktif, deteksi runway, dan anomali belanja.',
+      description:
+          'Melihat rekomendasi proaktif, deteksi runway, dan anomali belanja.',
       aliases: [
         'inbox',
         'inbox agent',
@@ -1160,7 +1176,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.autonomyMonitor,
       name: 'Monitoring Agent',
-      description: 'Memeriksa riwayat run dan eksekusi tool Agent secara read-only.',
+      description:
+          'Memeriksa riwayat run dan eksekusi tool Agent secara read-only.',
       aliases: [
         'monitoring agent',
         'monitor agent',
@@ -1188,7 +1205,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.calendarSettings,
       name: 'Kalender & Smartwatch',
-      description: 'Sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
+      description:
+          'Sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
       aliases: [
         'kalender smartwatch',
         'google calendar',
@@ -1213,7 +1231,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.utilityMeter,
       name: 'Buku Saku Meteran & Token',
-      description: 'Menyimpan daftar nomor meteran PLN dan token listrik 20-digit.',
+      description:
+          'Menyimpan daftar nomor meteran PLN dan token listrik 20-digit.',
       aliases: [
         'meteran listrik',
         'token listrik',
@@ -1304,7 +1323,6 @@ abstract final class FfmAssistantCatalog {
       description: 'Melihat tabel dan gambaran isi database lokal FFM.',
       destination: FfmAssistantDestination.databaseStructure,
     ),
-
   ];
 
   static String listOtherMenuForChat() => otherMenuItems
@@ -1395,37 +1413,40 @@ abstract final class FfmAssistantCatalog {
   static String listForChat() =>
       pages.map((page) => '• ${page.name} — ${page.description}').join('\n');
 
-  static String detailFor(FfmAssistantDestination destination) =>
-      switch (destination) {
-        FfmAssistantDestination.summary => 'Ringkasan adalah beranda kondisi keuangan. Di sini kamu bisa lihat saldo yang tercatat, arus pemasukan/pengeluaran, grafik, dan pintasan ke bagian penting. Angkanya hanya berasal dari data yang memang sudah kamu simpan.',
-        FfmAssistantDestination.transactions => 'Transaksi dipakai untuk catat pemasukan, pengeluaran, transfer antar rekening, setor atau pakai target, input banyak transaksi, serta impor JSON dari LLM eksternal. Transfer hanya memindahkan saldo; biaya adminnya dicatat sebagai pengeluaran terpisah.',
-        FfmAssistantDestination.budget => 'Anggaran berisi batas total mingguan atau bulanan, target kategori yang opsional, dan mode Tidak Rutin untuk kebutuhan yang tidak dibeli rutin. Anggaran memantau pengeluaran yang tersimpan; tidak bergantung pada pemasukan.',
-        FfmAssistantDestination.analysis => 'Analisa membaca transaksi nyata yang sudah tersimpan untuk melihat pola pemasukan, pengeluaran, dan anggaran. Kalau datanya masih kosong, Asisten akan bilang belum ada cukup data—tidak membuat angka sendiri.',
-        FfmAssistantDestination.masterData => 'Data Utama berisi lima bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, dan Sumber pemasukan. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan. Profil keluarga dikelola terpisah di halaman Profil Keluarga.',
-        FfmAssistantDestination.familyProfile || FfmAssistantDestination.assistantProfile => 'Profil Keluarga menyimpan nama rumah tangga, nama suami/istri, dan data pribadi (Kenalkan Diri) yang membantu Asisten memberi jawaban lebih kontekstual. Bagian Cadangan & pembelajaran asisten menyediakan ekspor/impor profil terenkripsi dan reset pola belajar. Data keluarga seperti aset, target keuangan, dan hutang & piutang dikelola pada menu masing-masing di Lainnya.',
-        FfmAssistantDestination.assets => 'Aset keluarga dipakai untuk mencatat barang atau kepemilikan bernilai yang ingin dipantau, misalnya kebun, kendaraan, alat kerja, atau tabungan khusus. Aset bukan transaksi harian dan tidak otomatis mengubah saldo rekening.',
-        FfmAssistantDestination.goals => 'Target keuangan dipakai untuk uang yang sedang dikumpulkan dengan tujuan tertentu. Kamu bisa setor ke target atau memakai uang target; keduanya dicatat terpisah agar progres target tetap jelas.',
-        FfmAssistantDestination.liabilities => 'Hutang & piutang mencatat uang yang kamu pinjam atau uang yang harus diterima dari orang lain. Kamu bisa melihat sisa, membuat strategi pelunasan, dan mengarsipkan catatan yang selesai tanpa menghapus riwayat finansial.',
-        FfmAssistantDestination.activity => 'Aktivitas & Jurnal memiliki lima bagian terpisah: aktivitas bertimer untuk melacak kegiatan dan lama waktunya, Catatan Harian untuk teks bebas, Tugas untuk tindakan satu kali, Rutinitas untuk kebiasaan berulang dengan tanda pelaksanaan per hari, serta Jadwal untuk agenda lokal bertanggal tanpa alarm. Beberapa aktivitas dapat aktif bersamaan; pembaruan atau selesai pada satu aktivitas tidak otomatis menutup aktivitas lain. Catatan Harian, Tugas, Rutinitas, dan Jadwal tidak mengubah sesi aktivitas dan hanya dapat diarsipkan lunak lewat Agent.',
-        FfmAssistantDestination.reminders => 'Pengingat membuat alarm lokal untuk hal yang perlu dilakukan. Kamu dapat menunda, menyelesaikan, atau melihat riwayat tanpa mengubah transaksi keuangan.',
-        FfmAssistantDestination.backup => 'Ekspor & cadangan dipakai untuk membuat atau memulihkan data FFM, termasuk data utama, transaksi, aset, target, hutang/piutang, aktivitas, pengingat, memori ajar, dan contoh belajar. Periksa preview sebelum impor.',
-        FfmAssistantDestination.monthlyReport => 'Ringkasan bulanan membandingkan pemasukan, pengeluaran, dan arus kas berdasarkan periode yang kamu pilih. Laporan hanya menampilkan catatan nyata yang ada di perangkat.',
-        FfmAssistantDestination.reconciliation => 'Rekonsiliasi saldo membantu mencocokkan saldo catatan FFM dengan saldo nyata di rekening atau tunai. Bila ada selisih, kamu dapat meninjau penyebabnya lalu buat penyesuaian secara sadar.',
-        FfmAssistantDestination.appSecurity => 'Kunci aplikasi dipakai untuk mengaktifkan, mengganti, atau mematikan PIN FFM. PIN hanya dimasukkan lewat keypad khusus, tidak lewat chat, dan setiap perubahan meminta konfirmasi kamu.',
-        FfmAssistantDestination.diagnostics => 'Bantuan perbaikan menampilkan error teknis yang benar-benar tertangkap secara lokal. Kamu bisa salin laporan yang sudah disaring; PIN, data keuangan, rekening, dan isi chat tidak ikut dimasukkan.',
-        FfmAssistantDestination.activityLog => 'Log aktivitas menampilkan jejak perubahan lokal, termasuk transaksi, transfer, impor, dan rekonsiliasi.',
-        FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
-        FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
-        FfmAssistantDestination.databaseStructure => 'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
-        FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
-        FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
-        FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
-        FfmAssistantDestination.telegramSetup => 'Telegram Bot Keluarga mengirimkan laporan mingguan dan notifikasi peringatan boncos ke grup chat keluarga.',
-        FfmAssistantDestination.agentInbox => 'Laporan & Kotak Masuk Asisten menampilkan rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
-        FfmAssistantDestination.autonomyMonitor => 'Monitoring Agent menampilkan riwayat eksekusi tool dan aktivitas otonom agent secara read-only.',
-        FfmAssistantDestination.hijriSettings => 'Kalender Hijriah & Hilal mengatur penetapan tanggal dan koreksi Hilal untuk penanggalan Islam.',
-        FfmAssistantDestination.calendarSettings => 'Kalender & Smartwatch mengatur sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
-        FfmAssistantDestination.marketNewsRadar => 'Radar Berita Pasar menampilkan berita dan perkembangan isu finansial terkini.',
-        FfmAssistantDestination.utilityMeter => 'Buku Saku Meteran & Token menyimpan daftar IDPEL atau nomor meteran PLN properti rumah, ladang/sawah, dan toko, lengkap dengan 20 digit token listrik terakhir untuk disalin instan.',
-      };
+  static String detailFor(
+    FfmAssistantDestination destination,
+  ) => switch (destination) {
+    FfmAssistantDestination.summary => 'Ringkasan adalah beranda kondisi keuangan. Di sini kamu bisa lihat saldo yang tercatat, arus pemasukan/pengeluaran, grafik, dan pintasan ke bagian penting. Angkanya hanya berasal dari data yang memang sudah kamu simpan.',
+    FfmAssistantDestination.transactions => 'Transaksi dipakai untuk catat pemasukan, pengeluaran, transfer antar rekening, setor atau pakai target, input banyak transaksi, serta impor JSON dari LLM eksternal. Transfer hanya memindahkan saldo; biaya adminnya dicatat sebagai pengeluaran terpisah.',
+    FfmAssistantDestination.budget => 'Anggaran berisi batas total mingguan atau bulanan, target kategori yang opsional, dan mode Tidak Rutin untuk kebutuhan yang tidak dibeli rutin. Anggaran memantau pengeluaran yang tersimpan; tidak bergantung pada pemasukan.',
+    FfmAssistantDestination.analysis => 'Analisa membaca transaksi nyata yang sudah tersimpan untuk melihat pola pemasukan, pengeluaran, dan anggaran. Kalau datanya masih kosong, Asisten akan bilang belum ada cukup data—tidak membuat angka sendiri.',
+    FfmAssistantDestination.masterData => 'Data Utama berisi lima bagian: Rekening atau Tunai untuk sumber saldo, Kategori pemasukan/pengeluaran, Toko atau pihak, Tag untuk penanda tambahan, dan Sumber pemasukan. Bagian ini adalah bahan pilihan saat kamu mengisi transaksi; semua bisa ditambah, diedit, atau diarsipkan. Profil keluarga dikelola terpisah di halaman Profil Keluarga.',
+    FfmAssistantDestination.familyProfile ||
+    FfmAssistantDestination.assistantProfile => 'Profil Keluarga menyimpan nama rumah tangga, nama suami/istri, dan data pribadi (Kenalkan Diri) yang membantu Asisten memberi jawaban lebih kontekstual. Bagian Cadangan & pembelajaran asisten menyediakan ekspor/impor profil terenkripsi dan reset pola belajar. Data keluarga seperti aset, target keuangan, dan hutang & piutang dikelola pada menu masing-masing di Lainnya.',
+    FfmAssistantDestination.assets => 'Aset keluarga dipakai untuk mencatat barang atau kepemilikan bernilai yang ingin dipantau, misalnya kebun, kendaraan, alat kerja, atau tabungan khusus. Aset bukan transaksi harian dan tidak otomatis mengubah saldo rekening.',
+    FfmAssistantDestination.goals => 'Target keuangan dipakai untuk uang yang sedang dikumpulkan dengan tujuan tertentu. Kamu bisa setor ke target atau memakai uang target; keduanya dicatat terpisah agar progres target tetap jelas.',
+    FfmAssistantDestination.liabilities => 'Hutang & piutang mencatat uang yang kamu pinjam atau uang yang harus diterima dari orang lain. Kamu bisa melihat sisa, membuat strategi pelunasan, dan mengarsipkan catatan yang selesai tanpa menghapus riwayat finansial.',
+    FfmAssistantDestination.activity => 'Aktivitas & Jurnal memiliki lima bagian terpisah: aktivitas bertimer untuk melacak kegiatan dan lama waktunya, Catatan Harian untuk teks bebas, Tugas untuk tindakan satu kali, Rutinitas untuk kebiasaan berulang dengan tanda pelaksanaan per hari, serta Jadwal untuk agenda lokal bertanggal tanpa alarm. Beberapa aktivitas dapat aktif bersamaan; pembaruan atau selesai pada satu aktivitas tidak otomatis menutup aktivitas lain. Catatan Harian, Tugas, Rutinitas, dan Jadwal tidak mengubah sesi aktivitas dan hanya dapat diarsipkan lunak lewat Agent.',
+    FfmAssistantDestination.reminders => 'Pengingat membuat alarm lokal untuk hal yang perlu dilakukan. Kamu dapat menunda, menyelesaikan, atau melihat riwayat tanpa mengubah transaksi keuangan.',
+    FfmAssistantDestination.backup => 'Ekspor & cadangan dipakai untuk membuat atau memulihkan data FFM, termasuk data utama, transaksi, aset, target, hutang/piutang, aktivitas, pengingat, memori ajar, dan contoh belajar. Periksa preview sebelum impor.',
+    FfmAssistantDestination.monthlyReport => 'Ringkasan bulanan membandingkan pemasukan, pengeluaran, dan arus kas berdasarkan periode yang kamu pilih. Laporan hanya menampilkan catatan nyata yang ada di perangkat.',
+    FfmAssistantDestination.reconciliation => 'Rekonsiliasi saldo membantu mencocokkan saldo catatan FFM dengan saldo nyata di rekening atau tunai. Bila ada selisih, kamu dapat meninjau penyebabnya lalu buat penyesuaian secara sadar.',
+    FfmAssistantDestination.appSecurity => 'Kunci aplikasi dipakai untuk mengaktifkan, mengganti, atau mematikan PIN FFM. PIN hanya dimasukkan lewat keypad khusus, tidak lewat chat, dan setiap perubahan meminta konfirmasi kamu.',
+    FfmAssistantDestination.diagnostics => 'Bantuan perbaikan menampilkan error teknis yang benar-benar tertangkap secara lokal. Kamu bisa salin laporan yang sudah disaring; PIN, data keuangan, rekening, dan isi chat tidak ikut dimasukkan.',
+    FfmAssistantDestination.activityLog => 'Log aktivitas menampilkan jejak perubahan lokal, termasuk transaksi, transfer, impor, dan rekonsiliasi.',
+    FfmAssistantDestination.recurringTransaction => 'Pemasukan berkala mengatur aturan pemasukan atau pengeluaran rutin harian, mingguan, atau bulanan.',
+    FfmAssistantDestination.privacyCenter => 'Pusat privasi menjelaskan lokasi data, enkripsi, izin perangkat, serta kendali ekspor dan penghapusan.',
+    FfmAssistantDestination.databaseStructure =>
+      'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
+    FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
+    FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
+    FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
+    FfmAssistantDestination.telegramSetup => 'Telegram Bot Keluarga mengirimkan laporan mingguan dan notifikasi peringatan boncos ke grup chat keluarga.',
+    FfmAssistantDestination.agentInbox => 'Laporan & Kotak Masuk Asisten menampilkan rekomendasi proaktif, deteksi runway, rebalance anggaran, dan anomali belanja.',
+    FfmAssistantDestination.autonomyMonitor => 'Monitoring Agent menampilkan riwayat eksekusi tool dan aktivitas otonom agent secara read-only.',
+    FfmAssistantDestination.hijriSettings => 'Kalender Hijriah & Hilal mengatur penetapan tanggal dan koreksi Hilal untuk penanggalan Islam.',
+    FfmAssistantDestination.calendarSettings => 'Kalender & Smartwatch mengatur sinkronisasi tagihan ke Google Calendar dan jam tangan pintar.',
+    FfmAssistantDestination.marketNewsRadar => 'Radar Berita Pasar menampilkan berita dan perkembangan isu finansial terkini.',
+    FfmAssistantDestination.utilityMeter => 'Buku Saku Meteran & Token menyimpan daftar IDPEL atau nomor meteran PLN properti rumah, ladang/sawah, dan toko, lengkap dengan 20 digit token listrik terakhir untuk disalin instan.',
+  };
 }

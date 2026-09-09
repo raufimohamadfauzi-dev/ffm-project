@@ -83,16 +83,16 @@ class FfmAssistantCapabilityAdapterRegistry {
                    database,
                    telegramDeliveryRepository:
                        getIt.isRegistered<TelegramDeliveryRepository>()
-                           ? getIt<TelegramDeliveryRepository>()
-                           : null,
+                       ? getIt<TelegramDeliveryRepository>()
+                       : null,
                    telegramConfigRepository:
                        getIt.isRegistered<TelegramConfigRepository>()
-                           ? getIt<TelegramConfigRepository>()
-                           : null,
+                       ? getIt<TelegramConfigRepository>()
+                       : null,
                    autonomyTrigger:
                        getIt.isRegistered<FfmAssistantAutonomyTriggerService>()
-                           ? getIt<FfmAssistantAutonomyTriggerService>()
-                           : null,
+                       ? getIt<FfmAssistantAutonomyTriggerService>()
+                       : null,
                  )),
        _saveMixedTransactionBatch =
            saveMixedTransactionBatch ??
@@ -102,16 +102,16 @@ class FfmAssistantCapabilityAdapterRegistry {
                    database,
                    telegramDeliveryRepository:
                        getIt.isRegistered<TelegramDeliveryRepository>()
-                           ? getIt<TelegramDeliveryRepository>()
-                           : null,
+                       ? getIt<TelegramDeliveryRepository>()
+                       : null,
                    telegramConfigRepository:
                        getIt.isRegistered<TelegramConfigRepository>()
-                           ? getIt<TelegramConfigRepository>()
-                           : null,
+                       ? getIt<TelegramConfigRepository>()
+                       : null,
                    autonomyTrigger:
                        getIt.isRegistered<FfmAssistantAutonomyTriggerService>()
-                           ? getIt<FfmAssistantAutonomyTriggerService>()
-                           : null,
+                       ? getIt<FfmAssistantAutonomyTriggerService>()
+                       : null,
                  ));
 
   final AppDatabase _database;
@@ -3275,7 +3275,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       }
 
       // Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
-      await _executeUtilityProposal(step.parameters);
+      await _executeUtilityProposal(step.parameters, transactionId: id);
 
       // Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
       await _executeFuelProposal(step.parameters);
@@ -3292,7 +3292,10 @@ class FfmAssistantCapabilityAdapterRegistry {
   }
 
   /// Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
-  Future<void> _executeUtilityProposal(Map<String, Object?> parameters) async {
+  Future<void> _executeUtilityProposal(
+    Map<String, Object?> parameters, {
+    String? transactionId,
+  }) async {
     try {
       final metadataRaw = parameters['metadata'];
       if (metadataRaw is! Map) return;
@@ -3301,7 +3304,6 @@ class FfmAssistantCapabilityAdapterRegistry {
       if (utilityProposal is! Map) return;
 
       final tokenCode = utilityProposal['tokenCode']?.toString();
-      if (tokenCode == null || tokenCode.isEmpty) return;
 
       // Import utility repository secara lazy
       if (!getIt.isRegistered<UtilityMeterRepository>()) return;
@@ -3312,10 +3314,28 @@ class FfmAssistantCapabilityAdapterRegistry {
           ? DateTime.tryParse(timestampStr)
           : _clock();
 
-      final meterNumber = utilityProposal['meterNumber']?.toString();
+      var meterNumber = utilityProposal['meterNumber']?.toString();
+      final meterReference = utilityProposal['meterReference']?.toString();
+      if ((meterNumber == null || meterNumber.isEmpty) &&
+          meterReference != null &&
+          meterReference.trim().isNotEmpty) {
+        final reference = meterReference.trim().toLowerCase();
+        final matches = (await utilityRepo.getAllMeters(_householdId))
+            .where(
+              (meter) =>
+                  meter.name.toLowerCase() == reference ||
+                  meter.customerName.toLowerCase() == reference ||
+                  meter.meterNumber.replaceAll(RegExp(r'\D'), '') ==
+                      reference.replaceAll(RegExp(r'\D'), ''),
+            )
+            .toList(growable: false);
+        if (matches.length == 1) meterNumber = matches.single.meterNumber;
+      }
+      if (meterNumber == null || meterNumber.isEmpty) return;
+      final resolvedMeterNumber = meterNumber;
       final isNewMeter = utilityProposal['isNewMeter'] == true;
 
-      if (isNewMeter && meterNumber != null) {
+      if (isNewMeter) {
         // Buat meter baru
         final newMeter = UtilityMeter(
           id: 'meter_${Uuid().v4()}',
@@ -3323,23 +3343,55 @@ class FfmAssistantCapabilityAdapterRegistry {
           name:
               utilityProposal['proposedMeterName']?.toString() ??
               'Meteran PLN $meterNumber',
-          meterNumber: meterNumber,
+          meterNumber: resolvedMeterNumber,
           createdAt: timestamp ?? _clock(),
           lastTokenNumber: tokenCode,
           lastAmount: (utilityProposal['amount'] as num?)?.toDouble(),
           lastPurchasedAt: timestamp ?? _clock(),
         );
         await utilityRepo.saveMeter(newMeter);
-      } else if (meterNumber != null) {
+      } else if (tokenCode != null && tokenCode.isNotEmpty) {
         // Update meter existing
         await utilityRepo.updateLastToken(
           householdId: _householdId,
-          meterNumber: meterNumber,
+          meterNumber: resolvedMeterNumber,
           tokenCode: tokenCode,
           amount: (utilityProposal['amount'] as num?)?.toDouble(),
           timestamp: timestamp ?? _clock(),
         );
+      } else {
+        await utilityRepo.recordPurchase(
+          householdId: _householdId,
+          meterNumber: meterNumber,
+          amount: (utilityProposal['amount'] as num?)?.toDouble(),
+          timestamp: timestamp ?? _clock(),
+        );
       }
+
+      final meters = await utilityRepo.getAllMeters(_householdId);
+      final matchedMeter = meters
+          .where(
+            (meter) =>
+                meter.meterNumber.replaceAll(RegExp(r'\D'), '') ==
+                resolvedMeterNumber.replaceAll(RegExp(r'\D'), ''),
+          )
+          .firstOrNull;
+      await _database
+          .into(_database.utilityTokenPurchases)
+          .insert(
+            UtilityTokenPurchasesCompanion.insert(
+              id: 'token_${Uuid().v4()}',
+              householdId: _householdId,
+              meterId: Value(matchedMeter?.id),
+              meterNumber: resolvedMeterNumber,
+              tokenCode: Value(
+                tokenCode == null || tokenCode.isEmpty ? null : tokenCode,
+              ),
+              amount: (utilityProposal['amount'] as num?)?.round() ?? 0,
+              purchasedAt: timestamp ?? _clock(),
+              transactionId: Value(transactionId),
+            ),
+          );
 
       // Catat aktivitas otonom jika tersedia
       if (getIt.isRegistered<AutonomousActivityRepository>()) {

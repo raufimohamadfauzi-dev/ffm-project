@@ -17,6 +17,8 @@ const _assistantMorningReminderEnabledKey =
     'ffm_assistant_morning_reminder_enabled';
 const _assistantMorningReminderNotificationId = 61006;
 const _assistantMorningReminderChannelId = 'ffm_assistant_morning';
+const _reminderAccentColor = Color(0xFF7C3AED);
+const _reminderSubText = 'PENGINGAT FFM';
 
 @pragma('vm:entry-point')
 Future<void> reminderNotificationBackgroundResponse(
@@ -198,6 +200,15 @@ Future<void> _scheduleBackgroundSnooze(
         priority: Priority.high,
         playSound: true,
         sound: androidSound,
+        color: _reminderAccentColor,
+        category: AndroidNotificationCategory.reminder,
+        visibility: NotificationVisibility.public,
+        subText: _reminderSubText,
+        styleInformation: BigTextStyleInformation(
+          '${payload['title'] ?? 'Pengingat FFM'}',
+          contentTitle: 'Pengingat ditunda',
+          summaryText: _reminderSubText,
+        ),
         actions: const [
           AndroidNotificationAction('complete', 'Selesai'),
           AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
@@ -577,6 +588,17 @@ class ReminderNotificationService
         priority: Priority.high,
         playSound: true,
         sound: androidSound,
+        color: _reminderAccentColor,
+        category: AndroidNotificationCategory.reminder,
+        visibility: NotificationVisibility.public,
+        subText: _reminderSubText,
+        styleInformation: BigTextStyleInformation(
+          reminder.note?.trim().isNotEmpty == true
+              ? reminder.note!
+              : 'Waktunya menjalankan pengingat.',
+          contentTitle: reminder.title,
+          summaryText: _reminderSubText,
+        ),
         actions: const [
           AndroidNotificationAction('complete', 'Selesai'),
           AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),
@@ -649,6 +671,15 @@ class ReminderNotificationService
           priority: Priority.high,
           playSound: true,
           sound: androidSound,
+          color: _reminderAccentColor,
+          category: AndroidNotificationCategory.reminder,
+          visibility: NotificationVisibility.public,
+          subText: _reminderSubText,
+          styleInformation: BigTextStyleInformation(
+            'Pengingat dijadwalkan ulang.',
+            contentTitle: 'Pengingat ditunda',
+            summaryText: _reminderSubText,
+          ),
           actions: const [
             AndroidNotificationAction('complete', 'Selesai'),
             AndroidNotificationAction('snooze_10', 'Tunda 10 menit'),

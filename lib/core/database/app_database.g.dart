@@ -6461,6 +6461,543 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
   }
 }
 
+class $UtilityTokenPurchasesTable extends UtilityTokenPurchases
+    with TableInfo<$UtilityTokenPurchasesTable, UtilityTokenPurchase> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $UtilityTokenPurchasesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _meterIdMeta = const VerificationMeta(
+    'meterId',
+  );
+  @override
+  late final GeneratedColumn<String> meterId = GeneratedColumn<String>(
+    'meter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _meterNumberMeta = const VerificationMeta(
+    'meterNumber',
+  );
+  @override
+  late final GeneratedColumn<String> meterNumber = GeneratedColumn<String>(
+    'meter_number',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tokenCodeMeta = const VerificationMeta(
+    'tokenCode',
+  );
+  @override
+  late final GeneratedColumn<String> tokenCode = GeneratedColumn<String>(
+    'token_code',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<int> amount = GeneratedColumn<int>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _purchasedAtMeta = const VerificationMeta(
+    'purchasedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> purchasedAt = GeneratedColumn<DateTime>(
+    'purchased_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _transactionIdMeta = const VerificationMeta(
+    'transactionId',
+  );
+  @override
+  late final GeneratedColumn<String> transactionId = GeneratedColumn<String>(
+    'transaction_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    householdId,
+    meterId,
+    meterNumber,
+    tokenCode,
+    amount,
+    purchasedAt,
+    transactionId,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'utility_token_purchases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<UtilityTokenPurchase> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('meter_id')) {
+      context.handle(
+        _meterIdMeta,
+        meterId.isAcceptableOrUnknown(data['meter_id']!, _meterIdMeta),
+      );
+    }
+    if (data.containsKey('meter_number')) {
+      context.handle(
+        _meterNumberMeta,
+        meterNumber.isAcceptableOrUnknown(
+          data['meter_number']!,
+          _meterNumberMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_meterNumberMeta);
+    }
+    if (data.containsKey('token_code')) {
+      context.handle(
+        _tokenCodeMeta,
+        tokenCode.isAcceptableOrUnknown(data['token_code']!, _tokenCodeMeta),
+      );
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('purchased_at')) {
+      context.handle(
+        _purchasedAtMeta,
+        purchasedAt.isAcceptableOrUnknown(
+          data['purchased_at']!,
+          _purchasedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_purchasedAtMeta);
+    }
+    if (data.containsKey('transaction_id')) {
+      context.handle(
+        _transactionIdMeta,
+        transactionId.isAcceptableOrUnknown(
+          data['transaction_id']!,
+          _transactionIdMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  UtilityTokenPurchase map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return UtilityTokenPurchase(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      meterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meter_id'],
+      ),
+      meterNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meter_number'],
+      )!,
+      tokenCode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}token_code'],
+      ),
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}amount'],
+      )!,
+      purchasedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}purchased_at'],
+      )!,
+      transactionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}transaction_id'],
+      ),
+    );
+  }
+
+  @override
+  $UtilityTokenPurchasesTable createAlias(String alias) {
+    return $UtilityTokenPurchasesTable(attachedDatabase, alias);
+  }
+}
+
+class UtilityTokenPurchase extends DataClass
+    implements Insertable<UtilityTokenPurchase> {
+  final String id;
+  final String householdId;
+  final String? meterId;
+  final String meterNumber;
+  final String? tokenCode;
+  final int amount;
+  final DateTime purchasedAt;
+  final String? transactionId;
+  const UtilityTokenPurchase({
+    required this.id,
+    required this.householdId,
+    this.meterId,
+    required this.meterNumber,
+    this.tokenCode,
+    required this.amount,
+    required this.purchasedAt,
+    this.transactionId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['household_id'] = Variable<String>(householdId);
+    if (!nullToAbsent || meterId != null) {
+      map['meter_id'] = Variable<String>(meterId);
+    }
+    map['meter_number'] = Variable<String>(meterNumber);
+    if (!nullToAbsent || tokenCode != null) {
+      map['token_code'] = Variable<String>(tokenCode);
+    }
+    map['amount'] = Variable<int>(amount);
+    map['purchased_at'] = Variable<DateTime>(purchasedAt);
+    if (!nullToAbsent || transactionId != null) {
+      map['transaction_id'] = Variable<String>(transactionId);
+    }
+    return map;
+  }
+
+  UtilityTokenPurchasesCompanion toCompanion(bool nullToAbsent) {
+    return UtilityTokenPurchasesCompanion(
+      id: Value(id),
+      householdId: Value(householdId),
+      meterId: meterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(meterId),
+      meterNumber: Value(meterNumber),
+      tokenCode: tokenCode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(tokenCode),
+      amount: Value(amount),
+      purchasedAt: Value(purchasedAt),
+      transactionId: transactionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(transactionId),
+    );
+  }
+
+  factory UtilityTokenPurchase.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return UtilityTokenPurchase(
+      id: serializer.fromJson<String>(json['id']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      meterId: serializer.fromJson<String?>(json['meterId']),
+      meterNumber: serializer.fromJson<String>(json['meterNumber']),
+      tokenCode: serializer.fromJson<String?>(json['tokenCode']),
+      amount: serializer.fromJson<int>(json['amount']),
+      purchasedAt: serializer.fromJson<DateTime>(json['purchasedAt']),
+      transactionId: serializer.fromJson<String?>(json['transactionId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'householdId': serializer.toJson<String>(householdId),
+      'meterId': serializer.toJson<String?>(meterId),
+      'meterNumber': serializer.toJson<String>(meterNumber),
+      'tokenCode': serializer.toJson<String?>(tokenCode),
+      'amount': serializer.toJson<int>(amount),
+      'purchasedAt': serializer.toJson<DateTime>(purchasedAt),
+      'transactionId': serializer.toJson<String?>(transactionId),
+    };
+  }
+
+  UtilityTokenPurchase copyWith({
+    String? id,
+    String? householdId,
+    Value<String?> meterId = const Value.absent(),
+    String? meterNumber,
+    Value<String?> tokenCode = const Value.absent(),
+    int? amount,
+    DateTime? purchasedAt,
+    Value<String?> transactionId = const Value.absent(),
+  }) => UtilityTokenPurchase(
+    id: id ?? this.id,
+    householdId: householdId ?? this.householdId,
+    meterId: meterId.present ? meterId.value : this.meterId,
+    meterNumber: meterNumber ?? this.meterNumber,
+    tokenCode: tokenCode.present ? tokenCode.value : this.tokenCode,
+    amount: amount ?? this.amount,
+    purchasedAt: purchasedAt ?? this.purchasedAt,
+    transactionId: transactionId.present
+        ? transactionId.value
+        : this.transactionId,
+  );
+  UtilityTokenPurchase copyWithCompanion(UtilityTokenPurchasesCompanion data) {
+    return UtilityTokenPurchase(
+      id: data.id.present ? data.id.value : this.id,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      meterId: data.meterId.present ? data.meterId.value : this.meterId,
+      meterNumber: data.meterNumber.present
+          ? data.meterNumber.value
+          : this.meterNumber,
+      tokenCode: data.tokenCode.present ? data.tokenCode.value : this.tokenCode,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      purchasedAt: data.purchasedAt.present
+          ? data.purchasedAt.value
+          : this.purchasedAt,
+      transactionId: data.transactionId.present
+          ? data.transactionId.value
+          : this.transactionId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UtilityTokenPurchase(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('meterId: $meterId, ')
+          ..write('meterNumber: $meterNumber, ')
+          ..write('tokenCode: $tokenCode, ')
+          ..write('amount: $amount, ')
+          ..write('purchasedAt: $purchasedAt, ')
+          ..write('transactionId: $transactionId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    householdId,
+    meterId,
+    meterNumber,
+    tokenCode,
+    amount,
+    purchasedAt,
+    transactionId,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is UtilityTokenPurchase &&
+          other.id == this.id &&
+          other.householdId == this.householdId &&
+          other.meterId == this.meterId &&
+          other.meterNumber == this.meterNumber &&
+          other.tokenCode == this.tokenCode &&
+          other.amount == this.amount &&
+          other.purchasedAt == this.purchasedAt &&
+          other.transactionId == this.transactionId);
+}
+
+class UtilityTokenPurchasesCompanion
+    extends UpdateCompanion<UtilityTokenPurchase> {
+  final Value<String> id;
+  final Value<String> householdId;
+  final Value<String?> meterId;
+  final Value<String> meterNumber;
+  final Value<String?> tokenCode;
+  final Value<int> amount;
+  final Value<DateTime> purchasedAt;
+  final Value<String?> transactionId;
+  final Value<int> rowid;
+  const UtilityTokenPurchasesCompanion({
+    this.id = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.meterId = const Value.absent(),
+    this.meterNumber = const Value.absent(),
+    this.tokenCode = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.purchasedAt = const Value.absent(),
+    this.transactionId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  UtilityTokenPurchasesCompanion.insert({
+    required String id,
+    required String householdId,
+    this.meterId = const Value.absent(),
+    required String meterNumber,
+    this.tokenCode = const Value.absent(),
+    required int amount,
+    required DateTime purchasedAt,
+    this.transactionId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       householdId = Value(householdId),
+       meterNumber = Value(meterNumber),
+       amount = Value(amount),
+       purchasedAt = Value(purchasedAt);
+  static Insertable<UtilityTokenPurchase> custom({
+    Expression<String>? id,
+    Expression<String>? householdId,
+    Expression<String>? meterId,
+    Expression<String>? meterNumber,
+    Expression<String>? tokenCode,
+    Expression<int>? amount,
+    Expression<DateTime>? purchasedAt,
+    Expression<String>? transactionId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (householdId != null) 'household_id': householdId,
+      if (meterId != null) 'meter_id': meterId,
+      if (meterNumber != null) 'meter_number': meterNumber,
+      if (tokenCode != null) 'token_code': tokenCode,
+      if (amount != null) 'amount': amount,
+      if (purchasedAt != null) 'purchased_at': purchasedAt,
+      if (transactionId != null) 'transaction_id': transactionId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  UtilityTokenPurchasesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? householdId,
+    Value<String?>? meterId,
+    Value<String>? meterNumber,
+    Value<String?>? tokenCode,
+    Value<int>? amount,
+    Value<DateTime>? purchasedAt,
+    Value<String?>? transactionId,
+    Value<int>? rowid,
+  }) {
+    return UtilityTokenPurchasesCompanion(
+      id: id ?? this.id,
+      householdId: householdId ?? this.householdId,
+      meterId: meterId ?? this.meterId,
+      meterNumber: meterNumber ?? this.meterNumber,
+      tokenCode: tokenCode ?? this.tokenCode,
+      amount: amount ?? this.amount,
+      purchasedAt: purchasedAt ?? this.purchasedAt,
+      transactionId: transactionId ?? this.transactionId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (meterId.present) {
+      map['meter_id'] = Variable<String>(meterId.value);
+    }
+    if (meterNumber.present) {
+      map['meter_number'] = Variable<String>(meterNumber.value);
+    }
+    if (tokenCode.present) {
+      map['token_code'] = Variable<String>(tokenCode.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<int>(amount.value);
+    }
+    if (purchasedAt.present) {
+      map['purchased_at'] = Variable<DateTime>(purchasedAt.value);
+    }
+    if (transactionId.present) {
+      map['transaction_id'] = Variable<String>(transactionId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('UtilityTokenPurchasesCompanion(')
+          ..write('id: $id, ')
+          ..write('householdId: $householdId, ')
+          ..write('meterId: $meterId, ')
+          ..write('meterNumber: $meterNumber, ')
+          ..write('tokenCode: $tokenCode, ')
+          ..write('amount: $amount, ')
+          ..write('purchasedAt: $purchasedAt, ')
+          ..write('transactionId: $transactionId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $TransfersTable extends Transfers
     with TableInfo<$TransfersTable, Transfer> {
   @override
@@ -33075,6 +33612,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this,
   );
   late final $AttachmentsTable attachments = $AttachmentsTable(this);
+  late final $UtilityTokenPurchasesTable utilityTokenPurchases =
+      $UtilityTokenPurchasesTable(this);
   late final $TransfersTable transfers = $TransfersTable(this);
   late final $EnvelopeBudgetsTable envelopeBudgets = $EnvelopeBudgetsTable(
     this,
@@ -33169,6 +33708,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transactionItems,
     transactionTags,
     attachments,
+    utilityTokenPurchases,
     transfers,
     envelopeBudgets,
     envelopeTransfers,
@@ -36446,6 +36986,290 @@ typedef $$AttachmentsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $AttachmentsTable, Attachment>,
       ),
       Attachment,
+      PrefetchHooks Function()
+    >;
+typedef $$UtilityTokenPurchasesTableCreateCompanionBuilder =
+    UtilityTokenPurchasesCompanion Function({
+      required String id,
+      required String householdId,
+      Value<String?> meterId,
+      required String meterNumber,
+      Value<String?> tokenCode,
+      required int amount,
+      required DateTime purchasedAt,
+      Value<String?> transactionId,
+      Value<int> rowid,
+    });
+typedef $$UtilityTokenPurchasesTableUpdateCompanionBuilder =
+    UtilityTokenPurchasesCompanion Function({
+      Value<String> id,
+      Value<String> householdId,
+      Value<String?> meterId,
+      Value<String> meterNumber,
+      Value<String?> tokenCode,
+      Value<int> amount,
+      Value<DateTime> purchasedAt,
+      Value<String?> transactionId,
+      Value<int> rowid,
+    });
+
+class $$UtilityTokenPurchasesTableFilterComposer
+    extends Composer<_$AppDatabase, $UtilityTokenPurchasesTable> {
+  $$UtilityTokenPurchasesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meterId => $composableBuilder(
+    column: $table.meterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tokenCode => $composableBuilder(
+    column: $table.tokenCode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get purchasedAt => $composableBuilder(
+    column: $table.purchasedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$UtilityTokenPurchasesTableOrderingComposer
+    extends Composer<_$AppDatabase, $UtilityTokenPurchasesTable> {
+  $$UtilityTokenPurchasesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meterId => $composableBuilder(
+    column: $table.meterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tokenCode => $composableBuilder(
+    column: $table.tokenCode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get purchasedAt => $composableBuilder(
+    column: $table.purchasedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$UtilityTokenPurchasesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UtilityTokenPurchasesTable> {
+  $$UtilityTokenPurchasesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get meterId =>
+      $composableBuilder(column: $table.meterId, builder: (column) => column);
+
+  GeneratedColumn<String> get meterNumber => $composableBuilder(
+    column: $table.meterNumber,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tokenCode =>
+      $composableBuilder(column: $table.tokenCode, builder: (column) => column);
+
+  GeneratedColumn<int> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get purchasedAt => $composableBuilder(
+    column: $table.purchasedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get transactionId => $composableBuilder(
+    column: $table.transactionId,
+    builder: (column) => column,
+  );
+}
+
+class $$UtilityTokenPurchasesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UtilityTokenPurchasesTable,
+          UtilityTokenPurchase,
+          $$UtilityTokenPurchasesTableFilterComposer,
+          $$UtilityTokenPurchasesTableOrderingComposer,
+          $$UtilityTokenPurchasesTableAnnotationComposer,
+          $$UtilityTokenPurchasesTableCreateCompanionBuilder,
+          $$UtilityTokenPurchasesTableUpdateCompanionBuilder,
+          (
+            UtilityTokenPurchase,
+            BaseReferences<
+              _$AppDatabase,
+              $UtilityTokenPurchasesTable,
+              UtilityTokenPurchase
+            >,
+          ),
+          UtilityTokenPurchase,
+          PrefetchHooks Function()
+        > {
+  $$UtilityTokenPurchasesTableTableManager(
+    _$AppDatabase db,
+    $UtilityTokenPurchasesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$UtilityTokenPurchasesTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$UtilityTokenPurchasesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$UtilityTokenPurchasesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String?> meterId = const Value.absent(),
+                Value<String> meterNumber = const Value.absent(),
+                Value<String?> tokenCode = const Value.absent(),
+                Value<int> amount = const Value.absent(),
+                Value<DateTime> purchasedAt = const Value.absent(),
+                Value<String?> transactionId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UtilityTokenPurchasesCompanion(
+                id: id,
+                householdId: householdId,
+                meterId: meterId,
+                meterNumber: meterNumber,
+                tokenCode: tokenCode,
+                amount: amount,
+                purchasedAt: purchasedAt,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String householdId,
+                Value<String?> meterId = const Value.absent(),
+                required String meterNumber,
+                Value<String?> tokenCode = const Value.absent(),
+                required int amount,
+                required DateTime purchasedAt,
+                Value<String?> transactionId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UtilityTokenPurchasesCompanion.insert(
+                id: id,
+                householdId: householdId,
+                meterId: meterId,
+                meterNumber: meterNumber,
+                tokenCode: tokenCode,
+                amount: amount,
+                purchasedAt: purchasedAt,
+                transactionId: transactionId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$UtilityTokenPurchasesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UtilityTokenPurchasesTable,
+      UtilityTokenPurchase,
+      $$UtilityTokenPurchasesTableFilterComposer,
+      $$UtilityTokenPurchasesTableOrderingComposer,
+      $$UtilityTokenPurchasesTableAnnotationComposer,
+      $$UtilityTokenPurchasesTableCreateCompanionBuilder,
+      $$UtilityTokenPurchasesTableUpdateCompanionBuilder,
+      (
+        UtilityTokenPurchase,
+        BaseReferences<
+          _$AppDatabase,
+          $UtilityTokenPurchasesTable,
+          UtilityTokenPurchase
+        >,
+      ),
+      UtilityTokenPurchase,
       PrefetchHooks Function()
     >;
 typedef $$TransfersTableCreateCompanionBuilder =
@@ -49507,6 +50331,8 @@ class $AppDatabaseManager {
       $$TransactionTagsTableTableManager(_db, _db.transactionTags);
   $$AttachmentsTableTableManager get attachments =>
       $$AttachmentsTableTableManager(_db, _db.attachments);
+  $$UtilityTokenPurchasesTableTableManager get utilityTokenPurchases =>
+      $$UtilityTokenPurchasesTableTableManager(_db, _db.utilityTokenPurchases);
   $$TransfersTableTableManager get transfers =>
       $$TransfersTableTableManager(_db, _db.transfers);
   $$EnvelopeBudgetsTableTableManager get envelopeBudgets =>

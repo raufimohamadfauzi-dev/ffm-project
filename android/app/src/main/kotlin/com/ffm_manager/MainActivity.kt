@@ -222,6 +222,17 @@ class MainActivity : FlutterFragmentActivity() {
             }
         }
 
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            NOTIFICATION_LISTENER_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "consumePendingNotifications") {
+                result.success(FfmNotificationListenerService.consumePendingNotifications(this))
+            } else {
+                result.notImplemented()
+            }
+        }
+
         // NFC e-Money Reader Bridge — Fitur #1
         val nfcService = FfmNfcReaderService(this)
         val channel = MethodChannel(
@@ -472,6 +483,7 @@ class MainActivity : FlutterFragmentActivity() {
         private const val PRIVACY_CHANNEL = "ffm/privacy"
         private const val SPEECH_CHANNEL = "ffm/activity_speech"
         private const val NOTIFICATION_ACCESS_CHANNEL = "ffm/notification_access"
+        private const val NOTIFICATION_LISTENER_CHANNEL = "ffm/notification_listener"
         private const val NFC_CHANNEL = "ffm/nfc_reader"
         private const val CALENDAR_CHANNEL = "ffm/calendar_service"
         private const val TTS_PREFERENCES = "ffm_tts_preferences"

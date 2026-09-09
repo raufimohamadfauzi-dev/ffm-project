@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
 
 import 'package:ffm_manager/core/database/app_context.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
@@ -59,6 +60,46 @@ void main() {
       expect(archived.isArchived, isTrue);
     },
   );
+
+  test('histori pembelian token terpisah per household dan meter', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final purchasedAt = DateTime(2026, 9, 9, 8);
+
+    await database
+        .into(database.utilityTokenPurchases)
+        .insert(
+          UtilityTokenPurchasesCompanion.insert(
+            id: 'token-home-1',
+            householdId: AppContext.householdId,
+            meterId: const Value('meter-home'),
+            meterNumber: '12345678901',
+            tokenCode: const Value('11112222333344445555'),
+            amount: 100000,
+            purchasedAt: purchasedAt,
+          ),
+        );
+    await database
+        .into(database.utilityTokenPurchases)
+        .insert(
+          UtilityTokenPurchasesCompanion.insert(
+            id: 'token-pump-1',
+            householdId: AppContext.householdId,
+            meterId: const Value('meter-pump'),
+            meterNumber: '98765432109',
+            amount: 200000,
+            purchasedAt: purchasedAt.add(const Duration(days: 1)),
+          ),
+        );
+
+    final rows = await (database.select(
+      database.utilityTokenPurchases,
+    )..where((row) => row.meterId.equals('meter-home'))).get();
+    expect(rows, hasLength(1));
+    expect(rows.single.householdId, AppContext.householdId);
+    expect(rows.single.tokenCode, '11112222333344445555');
+    expect(rows.single.amount, 100000);
+  });
 
   test(
     'batch transaksi dan rincian item disimpan lewat satu use case atomik',

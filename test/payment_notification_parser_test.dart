@@ -161,7 +161,10 @@ void main() {
 
     group('labelFor', () {
       test('com.bca => BCA Mobile', () {
-        expect(PaymentNotificationParser.labelFor('com.bca'), equals('BCA Mobile'));
+        expect(
+          PaymentNotificationParser.labelFor('com.bca'),
+          equals('BCA Mobile'),
+        );
       });
       test('ovo.id => OVO', () {
         expect(PaymentNotificationParser.labelFor('ovo.id'), equals('OVO'));
@@ -170,19 +173,49 @@ void main() {
         expect(PaymentNotificationParser.labelFor('id.dana'), equals('DANA'));
       });
       test('com.shopee.id => ShopeePay', () {
-        expect(PaymentNotificationParser.labelFor('com.shopee.id'), equals('ShopeePay'));
+        expect(
+          PaymentNotificationParser.labelFor('com.shopee.id'),
+          equals('ShopeePay'),
+        );
       });
       test('com.seabank.id => SeaBank', () {
-        expect(PaymentNotificationParser.labelFor('com.seabank.id'), equals('SeaBank'));
+        expect(
+          PaymentNotificationParser.labelFor('com.seabank.id'),
+          equals('SeaBank'),
+        );
       });
       test('com.gojek.app => GoPay', () {
-        expect(PaymentNotificationParser.labelFor('com.gojek.app'), equals('GoPay'));
+        expect(
+          PaymentNotificationParser.labelFor('com.gojek.app'),
+          equals('GoPay'),
+        );
       });
       test('com.gopay.wallet => GoPay', () {
-        expect(PaymentNotificationParser.labelFor('com.gopay.wallet'), equals('GoPay'));
+        expect(
+          PaymentNotificationParser.labelFor('com.gopay.wallet'),
+          equals('GoPay'),
+        );
       });
       test('package tidak dikenal => kembalikan package itu sendiri', () {
-        expect(PaymentNotificationParser.labelFor('com.unknown.app'), equals('com.unknown.app'));
+        expect(
+          PaymentNotificationParser.labelFor('com.unknown.app'),
+          equals('com.unknown.app'),
+        );
+      });
+      test('aplikasi tambahan memakai label yang benar', () {
+        expect(PaymentNotificationParser.labelFor('id.flip'), equals('Flip'));
+        expect(
+          PaymentNotificationParser.labelFor('id.dana.kasir'),
+          equals('DANA Bisnis'),
+        );
+        expect(
+          PaymentNotificationParser.labelFor('com.isaku.app'),
+          equals('i.saku'),
+        );
+        expect(
+          PaymentNotificationParser.labelFor('com.spin.app.latest'),
+          equals('MotionPay'),
+        );
       });
     });
 
@@ -290,6 +323,64 @@ void main() {
         );
         expect(result, isNull);
       });
+
+      test('info saldo dengan nominal bukan transaksi', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.seabank.id',
+          title: 'SeaBank',
+          body: 'Saldo rekening Anda Rp 1.250.000',
+        );
+        expect(result, isNull);
+      });
+
+      test('promo cashback dengan nominal bukan transaksi', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'id.flip',
+          title: 'Promo Flip',
+          body: 'Dapatkan cashback Rp 20.000 untuk transfer hari ini',
+        );
+        expect(result, isNull);
+      });
+
+      test('transaksi pending bukan transaksi berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.isaku.app',
+          title: 'i.saku',
+          body: 'Pembayaran sedang diproses sebesar Rp 35.000',
+        );
+        expect(result, isNull);
+      });
+
+      test('nominal tanpa konteks transaksi ditolak', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.honestbank.android',
+          title: 'Informasi',
+          body: 'Tagihan Anda Rp 500.000',
+        );
+        expect(result, isNull);
+      });
+    });
+
+    group('aplikasi tambahan', () {
+      test('Flip transfer berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'id.flip',
+          title: 'Transfer Berhasil',
+          body: 'Transfer ke BUDI berhasil sebesar Rp 75.000',
+        );
+        expect(result?.accountLabel, equals('Flip'));
+        expect(result?.amount, equals(75000));
+      });
+
+      test('MotionPay pembayaran QRIS', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.spin.app.latest',
+          title: 'MotionPay',
+          body: 'Pembayaran QRIS ke WARUNG berhasil Rp 18.000',
+        );
+        expect(result?.accountLabel, equals('MotionPay'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
     });
   });
 
@@ -299,15 +390,15 @@ void main() {
 
   group('PaymentDraft.formattedAmount', () {
     PaymentDraft makeDraft(double amount) => PaymentDraft(
-          id: 'test',
-          sourceApp: 'com.bca',
-          rawTitle: '',
-          rawBody: '',
-          amount: amount,
-          merchantName: '',
-          mutationType: PaymentMutationType.debit,
-          createdAt: DateTime.now(),
-        );
+      id: 'test',
+      sourceApp: 'com.bca',
+      rawTitle: '',
+      rawBody: '',
+      amount: amount,
+      merchantName: '',
+      mutationType: PaymentMutationType.debit,
+      createdAt: DateTime.now(),
+    );
 
     test('45000 => Rp 45.000', () {
       expect(makeDraft(45000).formattedAmount, equals('Rp 45.000'));

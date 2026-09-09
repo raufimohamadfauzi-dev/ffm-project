@@ -18,6 +18,7 @@ import '../../../liability/presentation/pages/liability_pages.dart';
 import '../../../reminder/presentation/pages/reminder_page.dart';
 import 'app_diagnostics_page.dart';
 import 'database_structure_page.dart';
+import 'ffm_storage_page.dart';
 import 'family_profile_page.dart';
 import '../../../advisor/presentation/pages/analysis_page.dart';
 import 'master_data_page.dart';
@@ -67,15 +68,25 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Analisa', 'pola keuangan'],
       ['Pengingat', 'lokal lupa'],
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
-      ['Kalender & Smartwatch', 'Google Calendar jam tangan pintar sinkronisasi tagihan'],
+      [
+        'Kalender & Smartwatch',
+        'Google Calendar jam tangan pintar sinkronisasi tagihan',
+      ],
       ['Pemindai NFC e-Money', 'kartu tol flazz brizzi tap saldo selisih'],
-      ['Program Tag Pintar NFC', 'stiker koin tombol bensin mobil dapur shortcut nfc ntag'],
+      [
+        'Program Tag Pintar NFC',
+        'stiker koin tombol bensin mobil dapur shortcut nfc ntag',
+      ],
       ['Kunci aplikasi', 'PIN keamanan'],
+      ['Penyimpanan FFM', 'hapus data reset aplikasi setelan Android'],
       ['Bantuan perbaikan', 'error laporan'],
       ['Monitoring Agent', 'riwayat run tool eksekusi autonomy'],
       ['Pusat privasi', 'data enkripsi izin'],
       ['Struktur database', 'tabel database'],
-      ['Buku Saku Meteran & Token', 'meteran listrik pln idpel token sawah ladang pompa rumah'],
+      [
+        'Buku Saku Meteran & Token',
+        'meteran listrik pln idpel token sawah ladang pompa rumah',
+      ],
     ];
     final query = _searchQuery.trim().toLowerCase();
     return menuItems.any((item) => '${item[0]} ${item[1]}'.contains(query));
@@ -139,7 +150,10 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             ))
               AppCard(
                 color: const Color(0xFFD1FAE5).withValues(alpha: .5),
-                border: BorderSide(color: const Color(0xFF059669).withValues(alpha: .4), width: 1.5),
+                border: BorderSide(
+                  color: const Color(0xFF059669).withValues(alpha: .4),
+                  width: 1.5,
+                ),
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Container(
@@ -149,14 +163,21 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                       color: const Color(0xFF059669),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Icon(Icons.tune_rounded, color: Colors.white, size: 24),
+                    child: const Icon(
+                      Icons.tune_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                   title: Row(
                     children: const [
                       Expanded(
                         child: Text(
                           'Data Utama',
-                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                       AppStatusChip(
@@ -196,8 +217,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
             _MenuCard(
               icon: Icons.family_restroom_rounded,
               title: 'Profil Keluarga',
-              subtitle:
-                  'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
+              subtitle: 'Isi profil keluarga dan data pribadi; kelola cadangan serta pembelajaran Asisten.',
               iconColor: const Color(0xFFDB2777),
               iconBackgroundColor: const Color(0xFFFCE7F3),
               badgeText: 'PROFIL',
@@ -527,7 +547,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Lihat tabel dan gambaran isi database lokal FFM.',
               ),
             ),
-
+            _MenuCard(
+              icon: Icons.delete_sweep_rounded,
+              title: 'Penyimpanan FFM',
+              subtitle: 'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
+              iconColor: const Color(0xFF7C3AED),
+              iconBackgroundColor: const Color(0xFFEDE9FE),
+              badgeText: 'RESET DATA',
+              onTap: () => _open(context, const FfmStoragePage()),
+              visible: _matches(
+                'Penyimpanan FFM',
+                'Kelola data lokal atau setel ulang FFM melalui Setelan Android.',
+              ),
+            ),
           ],
         ),
       ),

@@ -7,6 +7,7 @@ import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../../assistant/data/telegram_config_repository.dart';
+import '../../../assistant/data/telegram_delivery_processor.dart';
 import '../../../assistant/data/telegram_delivery_repository.dart';
 import '../../../assistant/data/telegram_message_formatter.dart';
 import '../../../liability/domain/usecases/process_debt_payment.dart';
@@ -192,6 +193,7 @@ class SaveTransaction {
     this.autonomyTrigger,
     this.telegramConfigRepository,
     this.telegramDeliveryRepository,
+    this.telegramDeliveryProcessor,
     this.activityRepository,
   });
 
@@ -199,6 +201,7 @@ class SaveTransaction {
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
   final TelegramConfigRepository? telegramConfigRepository;
   final TelegramDeliveryRepository? telegramDeliveryRepository;
+  final TelegramDeliveryProcessor? telegramDeliveryProcessor;
   final ActivityRepository? activityRepository;
 
   Future<void> call(
@@ -316,13 +319,18 @@ class SaveTransaction {
             );
       }
       if (deliveryPlan != null) {
-        // Antrean pengiriman best-effort: kegagalan menulis antrean tidak
-        // boleh menggagalkan commit transaksi utama.
-        try {
-          await deliveryPlan.enqueue(DateTime.now());
-        } catch (_) {}
+        // Queue and transaction share the same commit boundary. If the queue
+        // cannot be persisted, do not report a successful save that can never
+        // produce the requested notification.
+        await deliveryPlan.enqueue(DateTime.now());
       }
     });
+    await _processTelegramAfterCommit(
+      telegramDeliveryProcessor,
+      deliveryPlan != null,
+      telegramConfigRepository,
+      householdId: effectiveEntity.householdId,
+    );
     await autonomyTrigger?.emitSafely(
       triggerId:
           'transaction:${effectiveEntity.id}:${(effectiveEntity.updatedAt ?? effectiveEntity.recordedAt).microsecondsSinceEpoch}',
@@ -460,11 +468,13 @@ class SaveTransactionBatch {
     this.autonomyTrigger,
     this.telegramConfigRepository,
     this.telegramDeliveryRepository,
+    this.telegramDeliveryProcessor,
   });
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
   final TelegramConfigRepository? telegramConfigRepository;
   final TelegramDeliveryRepository? telegramDeliveryRepository;
+  final TelegramDeliveryProcessor? telegramDeliveryProcessor;
 
   Future<void> call(
     List<TransactionEntity> entities, {
@@ -473,6 +483,7 @@ class SaveTransactionBatch {
     final deliveryConfig = await _loadPermittedTelegramConfig(
       telegramConfigRepository,
     );
+    var hasTelegramDelivery = false;
     await database.transaction(() async {
       for (final entity in entities) {
         await database
@@ -531,13 +542,18 @@ class SaveTransactionBatch {
             database: database,
           );
           if (plan != null) {
-            try {
-              await plan.enqueue(DateTime.now());
-            } catch (_) {}
+            await plan.enqueue(DateTime.now());
+            hasTelegramDelivery = true;
           }
         }
       }
     });
+    await _processTelegramAfterCommit(
+      telegramDeliveryProcessor,
+      hasTelegramDelivery,
+      telegramConfigRepository,
+      householdId: entities.isEmpty ? null : entities.first.householdId,
+    );
     for (final entity in entities) {
       await autonomyTrigger?.emitSafely(
         triggerId:
@@ -588,11 +604,13 @@ class SaveMixedTransactionBatch {
     this.autonomyTrigger,
     this.telegramConfigRepository,
     this.telegramDeliveryRepository,
+    this.telegramDeliveryProcessor,
   });
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
   final TelegramConfigRepository? telegramConfigRepository;
   final TelegramDeliveryRepository? telegramDeliveryRepository;
+  final TelegramDeliveryProcessor? telegramDeliveryProcessor;
 
   Future<void> call(
     List<TransactionEntity> entities, {
@@ -602,6 +620,7 @@ class SaveMixedTransactionBatch {
     final deliveryConfig = await _loadPermittedTelegramConfig(
       telegramConfigRepository,
     );
+    var hasTelegramDelivery = false;
     await database.transaction(() async {
       for (final entity in entities) {
         await database
@@ -657,9 +676,8 @@ class SaveMixedTransactionBatch {
             database: database,
           );
           if (plan != null) {
-            try {
-              await plan.enqueue(DateTime.now());
-            } catch (_) {}
+            await plan.enqueue(DateTime.now());
+            hasTelegramDelivery = true;
           }
         }
       }
@@ -684,6 +702,12 @@ class SaveMixedTransactionBatch {
             );
       }
     });
+    await _processTelegramAfterCommit(
+      telegramDeliveryProcessor,
+      hasTelegramDelivery,
+      telegramConfigRepository,
+      householdId: entities.isEmpty ? null : entities.first.householdId,
+    );
     for (final entity in entities) {
       final occurredAt = entity.updatedAt ?? entity.recordedAt;
       await autonomyTrigger?.emitSafely(
@@ -707,6 +731,31 @@ class SaveMixedTransactionBatch {
         payload: const {'entityType': 'transfer', 'operation': 'save'},
       );
     }
+  }
+}
+
+Future<void> _processTelegramAfterCommit(
+  TelegramDeliveryProcessor? processor,
+  bool hasDelivery,
+  TelegramConfigRepository? configRepository, {
+  String? householdId,
+}) async {
+  if (processor == null || !hasDelivery) return;
+  try {
+    await configRepository?.recordDeliveryStatus(
+      status: TelegramDeliveryStatus.pending,
+      message: 'Notifikasi transaksi sedang dikirim ke Telegram.',
+    );
+    await processor.processPending(
+      householdId: householdId ?? 'local-household',
+    );
+  } catch (error) {
+    try {
+      await configRepository?.recordDeliveryStatus(
+        status: TelegramDeliveryStatus.failed,
+        message: 'Pengiriman Telegram tertunda: $error',
+      );
+    } catch (_) {}
   }
 }
 

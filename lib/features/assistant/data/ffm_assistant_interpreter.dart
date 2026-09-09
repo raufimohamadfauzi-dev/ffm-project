@@ -257,7 +257,7 @@ class FfmAssistantInterpreter {
     if (isExplicitMutation) {
       return FfmAssistantCloudRequestClass.mutationProposal;
     }
-    if (activeDraft != null) {
+    if (activeDraft != null && _isActiveDraftReviewCandidate(normalized)) {
       return FfmAssistantCloudRequestClass.draftReview;
     }
     if (RegExp(
@@ -265,8 +265,9 @@ class FfmAssistantInterpreter {
     ).hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.analysis;
     }
-    if (RegExp(r'\b(onboarding|bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b')
-        .hasMatch(normalized)) {
+    if (RegExp(
+      r'\b(onboarding|bantuan|help|fitur|apa yang bisa|cara pakai|panduan)\b',
+    ).hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.help;
     }
     // Mutation proposal eksplisit: buat/tambah/catat dengan target jelas.
@@ -309,6 +310,61 @@ class FfmAssistantInterpreter {
       return FfmAssistantCloudRequestClass.masterData;
     }
     return FfmAssistantCloudRequestClass.general;
+  }
+
+  static bool _isActiveDraftReviewCandidate(String normalized) {
+    final text = normalized.toLowerCase().trim();
+    if (text.isEmpty) return false;
+
+    final isCancel = RegExp(
+      r'^\s*(?:batal(?:kan)?|hapus\s+draft|batal\s+draft|jangan\s+disimpan|cancel)\s*$',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (isCancel) return true;
+
+    final isConfirmation = RegExp(
+      r'\b(?:konfirmasi|simpan|lanjut(?:kan)?|oke|ok|iya|ya|betul|benar)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (isConfirmation &&
+        RegExp(r'\b(?:draft|draf|ini|itu)\b').hasMatch(text)) {
+      return true;
+    }
+
+    final isAmountOnly = RegExp(
+      r'^\s*(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k)?\s*$',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (isAmountOnly) return true;
+
+    final hasRevisionCue = RegExp(
+      r'\b(?:ubah|ganti|revisi|koreksi|bukan|jadikan|nominal|harga|jumlah|kategori|catatan|toko|merchant|rekening|akun|dompet|bank|sumber|tujuan|pakai|pake|gunakan|lewat|dari|ke)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final hasDraftReference = RegExp(
+      r'\b(?:draft|draf|ini|itu|nominalnya|rekeningnya|kategorinya|catatannya|tokonya)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final isReadOnlyFinancialQuestion =
+        RegExp(
+          r'\b(?:transaksi|aktivitas|kegiatan|riwayat|saldo|rekening|laporan|ringkasan|rekap|total|pengeluaran|pemasukan)\b',
+          caseSensitive: false,
+        ).hasMatch(text) &&
+        RegExp(
+          r'\b(?:terakhir|terbaru|apa|berapa|cek|lihat|tampilkan|ada|hari\s+ini|kemarin|minggu\s+ini|bulan\s+ini)\b',
+          caseSensitive: false,
+        ).hasMatch(text);
+    if (isReadOnlyFinancialQuestion && !hasDraftReference && !hasRevisionCue) {
+      return false;
+    }
+
+    if (hasRevisionCue) return true;
+    if (hasDraftReference &&
+        RegExp(r'\b(?:apa|berapa|mana|sudah|lanjut)\b').hasMatch(text)) {
+      return true;
+    }
+
+    return false;
   }
 
   FfmAnalysisPeriod _analysisPeriodFor(String normalized) {
@@ -355,6 +411,10 @@ class FfmAssistantInterpreter {
       evidenceScope: evidenceScope,
       activeDraft: activeDraft,
     );
+    final activeDraftForContext =
+        requestClass == FfmAssistantCloudRequestClass.draftReview
+        ? activeDraft
+        : null;
     final financialContext = evidenceScope.includeFinancialSummary
         ? _financialSnapshot.buildBoundedPrompt(
             await _financialSnapshot.readCurrentMonth(
@@ -532,7 +592,7 @@ class FfmAssistantInterpreter {
     final personalMemoryContext = await _personalMemoryService.buildContext();
 
     final enhancedContext = _personalMemoryService.getEnhancedContextForLLM(
-      activeDraft,
+      activeDraftForContext,
     );
     final draftFeedbackText = enhancedContext['draftFeedback'] as String? ?? '';
 
@@ -545,9 +605,9 @@ class FfmAssistantInterpreter {
       reasoningContext: contextWithPersonal,
       verifiedFacts: verifiedFacts,
       analysisFacts: analysisFacts,
-      activeDraft: activeDraft == null
+      activeDraft: activeDraftForContext == null
           ? null
-          : FfmAssistantCloudDraftContext.fromDraft(activeDraft),
+          : FfmAssistantCloudDraftContext.fromDraft(activeDraftForContext),
       personalMemoryContext: personalMemoryContext,
       draftFeedback: draftFeedbackText,
       conversationHistory: _boundedConversationHistory(
@@ -987,37 +1047,47 @@ class FfmAssistantInterpreter {
     FfmAssistantDraft patch,
   ) {
     return base.copyWith(
-      amount: patch.amount != null && patch.amount! > 0 ? patch.amount : base.amount,
+      amount: patch.amount != null && patch.amount! > 0
+          ? patch.amount
+          : base.amount,
       title: patch.title?.isNotEmpty == true ? patch.title : base.title,
-      partyName: patch.partyName?.isNotEmpty == true ? patch.partyName : base.partyName,
-      fromAccountName: patch.fromAccountName?.isNotEmpty == true ? patch.fromAccountName : base.fromAccountName,
-      toAccountName: patch.toAccountName?.isNotEmpty == true ? patch.toAccountName : base.toAccountName,
-      categoryName: patch.categoryName?.isNotEmpty == true ? patch.categoryName : base.categoryName,
+      partyName: patch.partyName?.isNotEmpty == true
+          ? patch.partyName
+          : base.partyName,
+      fromAccountName: patch.fromAccountName?.isNotEmpty == true
+          ? patch.fromAccountName
+          : base.fromAccountName,
+      toAccountName: patch.toAccountName?.isNotEmpty == true
+          ? patch.toAccountName
+          : base.toAccountName,
+      categoryName: patch.categoryName?.isNotEmpty == true
+          ? patch.categoryName
+          : base.categoryName,
       adminFee: patch.adminFee ?? base.adminFee,
-      goalName: patch.goalName?.isNotEmpty == true ? patch.goalName : base.goalName,
+      goalName: patch.goalName?.isNotEmpty == true
+          ? patch.goalName
+          : base.goalName,
       note: patch.note?.isNotEmpty == true ? patch.note : base.note,
       date: patch.date ?? base.date,
       linkedActivityId: patch.linkedActivityId ?? base.linkedActivityId,
-      merchantName: patch.merchantName?.isNotEmpty == true ? patch.merchantName : base.merchantName,
-      location: patch.location?.isNotEmpty == true ? patch.location : base.location,
+      merchantName: patch.merchantName?.isNotEmpty == true
+          ? patch.merchantName
+          : base.merchantName,
+      location: patch.location?.isNotEmpty == true
+          ? patch.location
+          : base.location,
       items: patch.items.isNotEmpty ? patch.items : base.items,
       tax: patch.tax ?? base.tax,
       discount: patch.discount ?? base.discount,
       receiptPaidAmount: patch.receiptPaidAmount ?? base.receiptPaidAmount,
-      receiptChangeAmount: patch.receiptChangeAmount ?? base.receiptChangeAmount,
-      receiptNumber: patch.receiptNumber?.isNotEmpty == true ? patch.receiptNumber : base.receiptNumber,
-      metadata: {
-        ...?base.metadata,
-        ...?patch.metadata,
-      },
-      formValues: {
-        ...base.formValues,
-        ...patch.formValues,
-      },
-      slmFieldValues: {
-        ...base.slmFieldValues,
-        ...patch.slmFieldValues,
-      },
+      receiptChangeAmount:
+          patch.receiptChangeAmount ?? base.receiptChangeAmount,
+      receiptNumber: patch.receiptNumber?.isNotEmpty == true
+          ? patch.receiptNumber
+          : base.receiptNumber,
+      metadata: {...?base.metadata, ...?patch.metadata},
+      formValues: {...base.formValues, ...patch.formValues},
+      slmFieldValues: {...base.slmFieldValues, ...patch.slmFieldValues},
     );
   }
 
@@ -1336,14 +1406,14 @@ class FfmAssistantInterpreter {
       revised = revised.copyWith(
         kind: FfmAssistantDraftKind.income,
         toAccountName: revised.toAccountName ?? revised.fromAccountName,
-        fromAccountName: null,
+        clearFromAccountName: true,
       );
       changes.add('Jenis transaksi diubah menjadi Pemasukan (Uang Masuk)');
     } else if (isToExpense && revised.kind == FfmAssistantDraftKind.income) {
       revised = revised.copyWith(
         kind: FfmAssistantDraftKind.expense,
         fromAccountName: revised.fromAccountName ?? revised.toAccountName,
-        toAccountName: null,
+        clearToAccountName: true,
       );
       changes.add('Jenis transaksi diubah menjadi Pengeluaran (Uang Keluar)');
     }
@@ -1364,7 +1434,10 @@ class FfmAssistantInterpreter {
       ).firstMatch(rawText);
       if (changeAmountMatch != null) {
         newAmount = FfmAssistantAmountParser.parse(changeAmountMatch.group(1)!);
-      } else if (RegExp(r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$', caseSensitive: false).hasMatch(normalized.trim())) {
+      } else if (RegExp(
+        r'^(?:rp\s*)?\d+(?:[\.,]\d+)?\s*(?:rb|ribu|jt|juta|k|000)?$',
+        caseSensitive: false,
+      ).hasMatch(normalized.trim())) {
         newAmount = FfmAssistantAmountParser.parse(normalized.trim());
       } else {
         final nominalNyaMatch = RegExp(
@@ -1384,10 +1457,11 @@ class FfmAssistantInterpreter {
 
     // 4. Koreksi Rekening (Grounded terhadap DB accounts)
     // Contoh: "ganti rekening ke BCA", "pakai Mandiri", "dari dompet Tunai", "bukan BCA tapi Mandiri"
-    final mentionsAccount = RegExp(
-      r'\b(rekening|dompet|bank|sumber|tujuan|dari|ke|pakai|pake|gunakan|lewat)\b',
-      caseSensitive: false,
-    ).hasMatch(normalized) ||
+    final mentionsAccount =
+        RegExp(
+          r'\b(rekening|dompet|bank|sumber|tujuan|dari|ke|pakai|pake|gunakan|lewat)\b',
+          caseSensitive: false,
+        ).hasMatch(normalized) ||
         accounts.any((a) => a.name.toLowerCase() == normalized.trim());
     if (mentionsAccount) {
       Account? matchedAccount;
@@ -1403,13 +1477,18 @@ class FfmAssistantInterpreter {
           revised = revised.copyWith(toAccountName: matchedAccount.name);
           changes.add('Rekening tujuan diubah ke ${matchedAccount.name}');
         } else if (activeDraft.kind == FfmAssistantDraftKind.transfer) {
-          final isDest = normalized.contains('ke') || normalized.contains('tujuan');
+          final isDest =
+              normalized.contains('ke') || normalized.contains('tujuan');
           if (isDest) {
             revised = revised.copyWith(toAccountName: matchedAccount.name);
-            changes.add('Rekening tujuan transfer diubah ke ${matchedAccount.name}');
+            changes.add(
+              'Rekening tujuan transfer diubah ke ${matchedAccount.name}',
+            );
           } else {
             revised = revised.copyWith(fromAccountName: matchedAccount.name);
-            changes.add('Rekening asal transfer diubah ke ${matchedAccount.name}');
+            changes.add(
+              'Rekening asal transfer diubah ke ${matchedAccount.name}',
+            );
           }
         } else {
           revised = revised.copyWith(fromAccountName: matchedAccount.name);
@@ -1429,7 +1508,11 @@ class FfmAssistantInterpreter {
               rawText: rawText,
               normalizedText: normalized,
               type: _intentForDraft(rawText, normalized, activeDraft).type,
-              destination: _intentForDraft(rawText, normalized, activeDraft).destination,
+              destination: _intentForDraft(
+                rawText,
+                normalized,
+                activeDraft,
+              ).destination,
               draft: activeDraft,
               review: FfmAssistantDraftReview(
                 draft: activeDraft,
@@ -1475,7 +1558,11 @@ class FfmAssistantInterpreter {
               rawText: rawText,
               normalizedText: normalized,
               type: _intentForDraft(rawText, normalized, activeDraft).type,
-              destination: _intentForDraft(rawText, normalized, activeDraft).destination,
+              destination: _intentForDraft(
+                rawText,
+                normalized,
+                activeDraft,
+              ).destination,
               draft: activeDraft,
               review: FfmAssistantDraftReview(
                 draft: activeDraft,
@@ -1508,11 +1595,15 @@ class FfmAssistantInterpreter {
     if (normalized.contains('kemarin')) {
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
       revised = revised.copyWith(date: yesterday);
-      changes.add('Tanggal diubah ke kemarin (${yesterday.day}/${yesterday.month}/${yesterday.year})');
+      changes.add(
+        'Tanggal diubah ke kemarin (${yesterday.day}/${yesterday.month}/${yesterday.year})',
+      );
     } else if (normalized.contains('besok')) {
       final tomorrow = DateTime.now().add(const Duration(days: 1));
       revised = revised.copyWith(date: tomorrow);
-      changes.add('Tanggal diubah ke besok (${tomorrow.day}/${tomorrow.month}/${tomorrow.year})');
+      changes.add(
+        'Tanggal diubah ke besok (${tomorrow.day}/${tomorrow.month}/${tomorrow.year})',
+      );
     } else if (normalized.contains('hari ini')) {
       final today = DateTime.now();
       revised = revised.copyWith(date: today);
@@ -1612,8 +1703,11 @@ class FfmAssistantInterpreter {
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.reviseDraft,
-        destination:
-            _intentForDraft(rawText, normalized, activeDraft).destination,
+        destination: _intentForDraft(
+          rawText,
+          normalized,
+          activeDraft,
+        ).destination,
         draft: activeDraft,
         review: FfmAssistantDraftReview(
           draft: activeDraft,
@@ -1625,8 +1719,7 @@ class FfmAssistantInterpreter {
             'Baik, draf belum disimpan. Bagian mana yang keliru atau ingin diubah? '
             'Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori). '
             'Kamu juga bisa mengetuk tombol "Ubah" pada draf di atas untuk mengedit langsung.',
-        clarification:
-            'Bagian mana yang keliru? Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori).',
+        clarification: 'Bagian mana yang keliru? Kamu bisa menyebutkan koreksi (misal: "itu uang masuk", ganti nominal, atau sebut nama rekening/kategori).',
       );
     }
 
@@ -1646,7 +1739,9 @@ class FfmAssistantInterpreter {
           .join(', ');
       responseBuf.writeln('\nMasih ada kolom yang perlu dilengkapi: $blocked.');
     } else {
-      responseBuf.writeln('\nSilakan periksa pratinjau draft di bawah sebelum disimpan.');
+      responseBuf.writeln(
+        '\nSilakan periksa pratinjau draft di bawah sebelum disimpan.',
+      );
     }
 
     final baseIntent = _intentForDraft(rawText, normalized, revised);
@@ -1706,7 +1801,8 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.openPage,
         destination: FfmAssistantDestination.marketNewsRadar,
         confidence: 1.0,
-        response: 'Siap, aku segarkan berita dan valas terbaru dari sumber online.',
+        response:
+            'Siap, aku segarkan berita dan valas terbaru dari sumber online.',
         pluginMetadata: const {'refreshMarketNews': true},
       );
     }
@@ -1900,6 +1996,43 @@ class FfmAssistantInterpreter {
               '\n\n**Ingatan tambahan dari Cloud:**\n${cloudMemories.map((m) => '- ${m['content']}').join('\n')}';
         }
       } catch (_) {}
+    }
+
+    // Pertanyaan data terbaru harus dijawab langsung dari database agar tidak
+    // bergantung pada wording Gemini atau gagal di grounding validator.
+    if (!hasActionVerb && !_isNavigationRequest(normalized)) {
+      final queryTexts = _isLatestReadRequest(normalized)
+          ? [normalized]
+          : _latestReadCorrectionQueries(
+              normalized,
+              lastAssistantMessage: lastAssistantMessage,
+            );
+      if (queryTexts.isNotEmpty) {
+        final answers = <FfmAssistantQueryAnswer>[];
+        for (final queryText in queryTexts) {
+          final answer = await _queryRegistry.tryAnswer(
+            queryText,
+            householdId: AppContext.householdId,
+          );
+          if (answer != null) answers.add(answer);
+        }
+        if (answers.isNotEmpty) {
+          final title = answers.length == 1
+              ? answers.single.title
+              : 'Data terbaru';
+          return FfmAssistantIntent(
+            rawText: rawText,
+            normalizedText: normalized,
+            type: FfmAssistantIntentType.queryData,
+            confidence: 1,
+            response:
+                '$title\n${answers.map((answer) => answer.message).join('\n\n')}',
+            responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+            pluginName: 'local_latest_data',
+            pluginCategory: 'query',
+          );
+        }
+      }
     }
 
     // ── KONTROL TEMA APLIKASI (Deterministik) ─────────────────────────────────
@@ -3549,8 +3682,15 @@ class FfmAssistantInterpreter {
     final hasLight = lightPatterns.any(matchesThemePattern);
 
     // 4. Variasi Sistem: sistem, perangkat, hp, bawaan
-    final systemPatterns = ['sistem', 'bawaan hp', 'sesuai sistem', 'perangkat', 'device'];
-    final hasSystem = systemPatterns.any(matchesThemePattern) &&
+    final systemPatterns = [
+      'sistem',
+      'bawaan hp',
+      'sesuai sistem',
+      'perangkat',
+      'device',
+    ];
+    final hasSystem =
+        systemPatterns.any(matchesThemePattern) &&
         !clean.contains('jangan') &&
         !clean.contains('bukan');
 
@@ -3976,8 +4116,8 @@ class FfmAssistantInterpreter {
         : 'arus kas seimbang';
     final savingsPart = income > 0
         ? (net > 0
-            ? ' Rasio tabungan: ${((net / income) * 100).round()}%${(net / income) >= 0.2 ? ' (sehat ≥20%)' : ' (di bawah target ideal 20%)'}.'
-            : ' Rasio tabungan: 0% (arus kas defisit, evaluasi pos pengeluaran terbesar).')
+              ? ' Rasio tabungan: ${((net / income) * 100).round()}%${(net / income) >= 0.2 ? ' (sehat ≥20%)' : ' (di bawah target ideal 20%)'}.'
+              : ' Rasio tabungan: 0% (arus kas defisit, evaluasi pos pengeluaran terbesar).')
         : '';
     String cyclePart = '';
     try {
@@ -3989,11 +4129,13 @@ class FfmAssistantInterpreter {
         if (profile != null &&
             profile.isActive &&
             profile.profileType != CashFlowProfileType.salaried) {
-          final accounts = await (_database.select(_database.accounts)
-                ..where((row) =>
-                    row.householdId.equals(AppContext.householdId) &
-                    row.isArchived.equals(false)))
-              .get();
+          final accounts =
+              await (_database.select(_database.accounts)..where(
+                    (row) =>
+                        row.householdId.equals(AppContext.householdId) &
+                        row.isArchived.equals(false),
+                  ))
+                  .get();
           final totalLiquidCash = accounts.fold<int>(
             0,
             (sum, a) => sum + (a.openingBalance > 0 ? a.openingBalance : 0),
@@ -4004,7 +4146,8 @@ class FfmAssistantInterpreter {
             dailyOperationalBudget: profile.dailyOperationalBudget,
             daysRemainingToHarvest: profile.daysRemaining,
           );
-          cyclePart = ' Siklus ${profile.name} (${profile.commodityOrBusinessType}): sisa ${profile.daysRemaining} hari ke panen, ketahanan kas ${runway.runwayDays} hari, batas belanja dapur aman ${_formatRupiah(runway.safeToSpendDaily)}/hari.';
+          cyclePart =
+              ' Siklus ${profile.name} (${profile.commodityOrBusinessType}): sisa ${profile.daysRemaining} hari ke panen, ketahanan kas ${runway.runwayDays} hari, batas belanja dapur aman ${_formatRupiah(runway.safeToSpendDaily)}/hari.';
         }
       }
     } catch (_) {}
@@ -4195,6 +4338,49 @@ class FfmAssistantInterpreter {
 
   bool _isExplicitPageNavigationRequest(String text) =>
       text.startsWith('buka') || text.startsWith('tampilkan');
+
+  bool _isLatestReadRequest(String text) =>
+      RegExp(
+        r'\b(?:terakhir|terbaru|paling\s+baru|baru\s+saja)\b',
+        caseSensitive: false,
+      ).hasMatch(text) &&
+      RegExp(
+        r'\b(?:transaksi|aktivitas|kegiatan|catatan|jurnal)\b',
+        caseSensitive: false,
+      ).hasMatch(text);
+
+  List<String> _latestReadCorrectionQueries(
+    String text, {
+    required String? lastAssistantMessage,
+  }) {
+    if (lastAssistantMessage == null || lastAssistantMessage.trim().isEmpty) {
+      return const [];
+    }
+    final normalizedAssistant = lastAssistantMessage.toLowerCase();
+    final userConfirmsCorrection = RegExp(
+      r'\b(?:sudah\s+ada|ada\s+kok|terbaca|tidak\s+terbaca|nggak\s+terbaca|tidak\s+terlihat|salah)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final assistantReportedEmpty = RegExp(
+      r'\b(?:belum\s+ada|tidak\s+ada|nggak\s+ada|tidak\s+ditemukan|belum\s+tersedia)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedAssistant);
+    if (!userConfirmsCorrection || !assistantReportedEmpty) return const [];
+
+    final queries = <String>[];
+    if (normalizedAssistant.contains('transaksi')) {
+      queries.add('transaksi terakhir');
+    }
+    if (normalizedAssistant.contains('aktivitas') ||
+        normalizedAssistant.contains('kegiatan')) {
+      queries.add('aktivitas terakhir');
+    }
+    if (normalizedAssistant.contains('catatan') ||
+        normalizedAssistant.contains('jurnal')) {
+      queries.add('catatan terbaru');
+    }
+    return queries;
+  }
 
   bool _isCurrentPageRequest(String text) =>
       _isCurrentPageLabelRequest(text) ||
@@ -4745,9 +4931,8 @@ class FfmAssistantInterpreter {
           missingItems.add('rekening');
         }
         clarification =
-            '${missingItems.map((e) => e[0].toUpperCase() + e.substring(1)).join(' dan ')} belum ada di Data Utama. '
-            'Mau buat dulu lewat perintah seperti "buat kategori [nama]" atau "tambah rekening [nama]"? '
-            'Atau sebut nama yang sudah ada di Data Utama.';
+            '${missingItems.map((e) => e[0].toUpperCase() + e.substring(1)).join(' dan ')} draft belum lengkap. '
+            'Sebut nama yang tersedia di Data Utama supaya draft bisa divalidasi.';
       } else {
         clarification =
             'Aku sudah menyiapkan draft ${config.action}, tapi masih butuh ${missing.join(', ')}.';
@@ -7284,9 +7469,26 @@ class FfmAssistantInterpreter {
       commodity = comMatch.group(1)?.trim();
     } else {
       const known = [
-        'padi ciherang', 'padi', 'jagung', 'cabai merah', 'cabai', 'bawang merah',
-        'bawang', 'kedelai', 'kopi', 'sawit', 'semangka', 'melon', 'sayuran',
-        'sayur', 'ayam broiler', 'ayam', 'lele', 'nila', 'warung sembako', 'toko',
+        'padi ciherang',
+        'padi',
+        'jagung',
+        'cabai merah',
+        'cabai',
+        'bawang merah',
+        'bawang',
+        'kedelai',
+        'kopi',
+        'sawit',
+        'semangka',
+        'melon',
+        'sayuran',
+        'sayur',
+        'ayam broiler',
+        'ayam',
+        'lele',
+        'nila',
+        'warung sembako',
+        'toko',
       ];
       for (final k in known) {
         if (normalized.contains(k)) {
@@ -7347,9 +7549,22 @@ class FfmAssistantInterpreter {
       }
     }
 
-    final isBusiness = _containsAny(normalized, const ['usaha', 'dagang', 'toko', 'warung', 'bisnis', 'umkm']);
-    final isFreelance = _containsAny(normalized, const ['freelance', 'proyek', 'lepas']);
-    final profileType = isBusiness ? 'business' : (isFreelance ? 'freelance' : 'agriculture');
+    final isBusiness = _containsAny(normalized, const [
+      'usaha',
+      'dagang',
+      'toko',
+      'warung',
+      'bisnis',
+      'umkm',
+    ]);
+    final isFreelance = _containsAny(normalized, const [
+      'freelance',
+      'proyek',
+      'lepas',
+    ]);
+    final profileType = isBusiness
+        ? 'business'
+        : (isFreelance ? 'freelance' : 'agriculture');
     final effectiveTitle = (title == null || title.trim().isEmpty)
         ? (commodity != null ? 'Siklus $commodity' : 'Siklus Kas Baru')
         : title.trim();
@@ -7574,7 +7789,7 @@ class FfmAssistantInterpreter {
 
       // Parse waktu yang diminta dari teks
       final parsedTime = _parseTimeFromText(normalized, now);
-      
+
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
@@ -7855,6 +8070,11 @@ class FfmAssistantInterpreter {
     final category = _matchCategory(normalized, categories, transactionType);
     final selectedAccount = _matchAccount(normalized, accounts);
     final merchantName = _extractMerchant(normalized);
+    final utilityProposal = _utilityProposalFromText(
+      rawText,
+      normalized,
+      amount,
+    );
 
     var categoryName = category?.name;
     if (categoryName == null && merchantName != null) {
@@ -7900,7 +8120,48 @@ class FfmAssistantInterpreter {
       slmFieldValues: slmFieldValues,
       linkedActivityId: activitySnapshot?.activeSessions.lastOrNull?.id,
       date: now,
+      metadata: utilityProposal == null
+          ? null
+          : {'utilityProposal': utilityProposal},
     );
+  }
+
+  Map<String, Object?>? _utilityProposalFromText(
+    String rawText,
+    String normalized,
+    int? amount,
+  ) {
+    if (!_containsAny(normalized, const [
+      'token listrik',
+      'token pln',
+      'pulsa listrik',
+      'kwh',
+      'idpel',
+    ])) {
+      return null;
+    }
+    final tokenMatch = RegExp(r'\b(?:token\s*)?((?:\d[\s-]?){20})\b')
+        .firstMatch(rawText);
+    final meterMatch = RegExp(r'\b(\d{11,12})\b').firstMatch(rawText);
+    final referenceMatch = RegExp(
+      r'(?:meteran|meter|kwh|untuk)\s+([a-z][a-z0-9 _-]{2,40})',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    final tokenCode = tokenMatch?.group(1)?.replaceAll(RegExp(r'\D'), '');
+    final meterNumber = meterMatch?.group(1);
+    final meterReference = referenceMatch?.group(1)?.trim();
+    if (tokenCode == null && meterNumber == null && meterReference == null) {
+      return null;
+    }
+    return {
+      ...?tokenCode == null || tokenCode.length != 20
+          ? null
+          : {'tokenCode': tokenCode},
+      ...?meterNumber == null ? null : {'meterNumber': meterNumber},
+      ...?meterReference == null ? null : {'meterReference': meterReference},
+      ...?amount == null ? null : {'amount': amount},
+      'timestamp': DateTime.now().toIso8601String(),
+    };
   }
 
   FfmAssistantIntent? _parseCorrection(String rawText, String normalized) {
@@ -8743,12 +9004,12 @@ class FfmAssistantInterpreter {
       caseSensitive: false,
     );
     final timeMatch = timePattern.firstMatch(text);
-    
+
     if (timeMatch != null) {
       final hour = int.tryParse(timeMatch.group(1) ?? '') ?? 0;
       final minute = int.tryParse(timeMatch.group(2) ?? '') ?? 0;
       final period = timeMatch.group(3)?.toLowerCase();
-      
+
       // Tentukan jam berdasarkan periode
       int adjustedHour = hour;
       if (period != null) {
@@ -8769,7 +9030,7 @@ class FfmAssistantInterpreter {
           adjustedHour = 12; // 12 pagi
         }
       }
-      
+
       return DateTime(
         now.year,
         now.month,
@@ -8778,7 +9039,7 @@ class FfmAssistantInterpreter {
         minute.clamp(0, 59),
       );
     }
-    
+
     // Cek ekspresi relatif waktu (30 menit lagi, 1 jam lagi, besok, dll)
     if (text.contains('menit')) {
       final minutePattern = RegExp(r'(\d+)\s*menit');
@@ -8788,7 +9049,7 @@ class FfmAssistantInterpreter {
         return now.add(Duration(minutes: minutes));
       }
     }
-    
+
     if (text.contains('jam')) {
       final hourPattern = RegExp(r'(\d+)\s*jam');
       final hourMatch = hourPattern.firstMatch(text);
@@ -8797,15 +9058,15 @@ class FfmAssistantInterpreter {
         return now.add(Duration(hours: hours));
       }
     }
-    
+
     if (text.contains('besok')) {
       return now.add(const Duration(days: 1));
     }
-    
+
     if (text.contains('lusa')) {
       return now.add(const Duration(days: 2));
     }
-    
+
     // Default: 1 jam dari sekarang
     return now.add(const Duration(hours: 1));
   }
@@ -9236,11 +9497,13 @@ abstract final class FfmAssistantAmountParser {
       final match = numeric.first;
       final rawNumber = match.group(1)!;
       final unit = match.group(2);
-      final hasCommaDecimal = unit != null &&
+      final hasCommaDecimal =
+          unit != null &&
           rawNumber.contains(',') &&
           !rawNumber.contains('.') &&
           rawNumber.split(',').last.length <= 2;
-      final hasDotDecimal = unit != null &&
+      final hasDotDecimal =
+          unit != null &&
           rawNumber.contains('.') &&
           !rawNumber.contains(',') &&
           rawNumber.split('.').last.length <= 2;
@@ -9412,8 +9675,8 @@ FfmAssistantDestination? _destinationForName(String? raw) {
     'profil' ||
     'familyprofile' ||
     'profil keluarga' ||
-    'data keluarga' || 'profil rumah tangga' => FfmAssistantDestination
-        .familyProfile,
+    'data keluarga' ||
+    'profil rumah tangga' => FfmAssistantDestination.familyProfile,
     'intelligencedashboard' ||
     'gemini' ||
     'cloud brain' => FfmAssistantDestination.intelligenceDashboard,

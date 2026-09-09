@@ -69,6 +69,7 @@ class _FfmAssistantProcessDisclosureState
     'read.goals' => 'Memeriksa target keuangan',
     'read.model_status' => 'Memeriksa status Assistant',
     'navigate.budget' => 'Membuka halaman Anggaran',
+    'navigate.transactions' => 'Membuka halaman Transaksi',
     'navigate.categories' => 'Membuka halaman Kategori',
     'navigate.accounts' => 'Membuka halaman Rekening',
     'navigate.tags' => 'Membuka halaman Tag',
@@ -78,7 +79,9 @@ class _FfmAssistantProcessDisclosureState
     'expense' => 'Menyiapkan pengeluaran',
     'income' => 'Menyiapkan pemasukan',
     'save draft' || 'save_draft' || 'mutate.save_draft' => 'Menyimpan draf',
-    'saved draft' || 'saved_draft' || 'verify.saved_draft' => 'Verifikasi draf tersimpan',
+    'saved draft' ||
+    'saved_draft' ||
+    'verify.saved_draft' => 'Verifikasi draf tersimpan',
     'draft.expense' => 'Menyusun draf pengeluaran',
     'draft.income' => 'Menyusun draf pemasukan',
     'draft.transfer' => 'Menyusun draf transfer',
@@ -131,8 +134,11 @@ class _FfmAssistantProcessDisclosureState
     final isDark = theme.brightness == Brightness.dark;
     final origin = _origin;
     final plan = widget.actionPlan;
-    final isAllPending = plan != null &&
-        plan.steps.every((s) => s.status == FfmAssistantActionStepStatus.pending);
+    final isAllPending =
+        plan != null &&
+        plan.steps.every(
+          (s) => s.status == FfmAssistantActionStepStatus.pending,
+        );
 
     final tokenUsage = widget.trace.tokenUsage;
     final totalTokens = tokenUsage?['totalTokenCount'] as int?;
@@ -144,8 +150,10 @@ class _FfmAssistantProcessDisclosureState
 
     final baseSummary = plan == null
         ? '${origin.label} · $_duration'
-        : (plan.status == FfmAssistantActionPlanStatus.planned || isAllPending)
-        ? 'Menunggu ${plan.steps.length} langkah · perlu konfirmasi'
+        : plan.requiresConfirmation &&
+              (plan.status == FfmAssistantActionPlanStatus.planned ||
+                  isAllPending)
+        ? 'Menunggu konfirmasi draft · ${plan.steps.length} langkah siap'
         : 'Menjalankan ${plan.steps.length} langkah · $_duration';
     final planSummary = '$baseSummary$tokenBadge';
 
@@ -212,10 +220,15 @@ class _FfmAssistantProcessDisclosureState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (tokenUsage != null && totalTokens != null && totalTokens > 0) ...[
+                  if (tokenUsage != null &&
+                      totalTokens != null &&
+                      totalTokens > 0) ...[
                     Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: isDark ? const Color(0xFF14191D) : Colors.white,
                         borderRadius: BorderRadius.circular(8),

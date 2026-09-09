@@ -74,7 +74,8 @@ class NfcCardAccounts extends Table {
   TextColumn get issuer => text().nullable()();
   TextColumn get cardType => text()();
   IntColumn get lastKnownBalance => integer().nullable()();
-  BoolColumn get balanceAvailable => boolean().withDefault(const Constant(false))();
+  BoolColumn get balanceAvailable =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get lastScannedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime()();
 
@@ -87,7 +88,8 @@ class NfcScanSnapshots extends Table {
   TextColumn get householdId => text()();
   TextColumn get nfcCardAccountId => text()();
   IntColumn get balance => integer().nullable()();
-  BoolColumn get balanceAvailable => boolean().withDefault(const Constant(false))();
+  BoolColumn get balanceAvailable =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get periodKey => text()();
   DateTimeColumn get scannedAt => dateTime()();
 
@@ -170,6 +172,20 @@ class Attachments extends Table {
   TextColumn get path => text()();
   TextColumn get kind => text().withDefault(const Constant('file'))();
   DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
+}
+
+class UtilityTokenPurchases extends Table {
+  TextColumn get id => text()();
+  TextColumn get householdId => text()();
+  TextColumn get meterId => text().nullable()();
+  TextColumn get meterNumber => text()();
+  TextColumn get tokenCode => text().nullable()();
+  IntColumn get amount => integer()();
+  DateTimeColumn get purchasedAt => dateTime()();
+  TextColumn get transactionId => text().nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};
@@ -344,7 +360,8 @@ class Reminders extends Table {
   DateTimeColumn get updatedAt => dateTime().nullable()();
   // Calendar integration fields
   IntColumn get calendarEventId => integer().nullable()();
-  BoolColumn get isSyncedToCalendar => boolean().withDefault(const Constant(false))();
+  BoolColumn get isSyncedToCalendar =>
+      boolean().withDefault(const Constant(false))();
   DateTimeColumn get syncedAt => dateTime().nullable()();
 
   @override

@@ -106,7 +106,7 @@ void main() {
           )
           .getSingleOrNull();
 
-      expect(version.data['user_version'], 54);
+      expect(version.data['user_version'], 55);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);

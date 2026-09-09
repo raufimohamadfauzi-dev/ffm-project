@@ -3,6 +3,15 @@ import 'package:flutter/services.dart';
 
 const _privacyChannel = MethodChannel('ffm/privacy');
 
+Future<bool> openFfmAppSettings() async {
+  try {
+    await _privacyChannel.invokeMethod<void>('openAppSettings');
+    return true;
+  } on PlatformException {
+    return false;
+  }
+}
+
 /// Lupa PIN tidak pernah mereset PIN sambil mempertahankan data, karena itu
 /// akan menjadi pintu bypass. Pengguna hanya diarahkan ke reset data Android.
 Future<void> showForgotPinDialog(BuildContext context) async {
@@ -32,9 +41,7 @@ Future<void> showForgotPinDialog(BuildContext context) async {
     ),
   );
   if (openSettings != true) return;
-  try {
-    await _privacyChannel.invokeMethod<void>('openAppSettings');
-  } on PlatformException {
+  if (!await openFfmAppSettings()) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

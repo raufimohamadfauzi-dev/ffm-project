@@ -14,6 +14,7 @@ abstract final class FfmAssistantTypoNormalizer {
     'tranfer': 'transfer',
     'aktipitas': 'aktivitas',
     'akitivitas': 'aktivitas',
+    'terkahir': 'terakhir',
     'ringkasn': 'ringkasan',
     'hutng': 'hutang',
     'pituang': 'piutang',
@@ -91,8 +92,13 @@ abstract final class FfmAssistantTypoNormalizer {
   }
 
   static Set<String> _trigrams(String value) {
-    final normalized = value.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ').toLowerCase();
-    final tokens = normalized.split(RegExp(r'\s+')).where((t) => t.length >= 2).toList();
+    final normalized = value
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .toLowerCase();
+    final tokens = normalized
+        .split(RegExp(r'\s+'))
+        .where((t) => t.length >= 2)
+        .toList();
     if (tokens.isEmpty) return {};
     final result = <String>{};
     for (final token in tokens) {

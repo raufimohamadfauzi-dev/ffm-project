@@ -11,22 +11,24 @@ class DatabaseSeed {
     String householdId = AppContext.householdId,
   }) async {
     final now = DateTime.now();
-    await database
-        .into(database.households)
-        .insertOnConflictUpdate(
-          HouseholdsCompanion.insert(
-            id: householdId,
-            name: 'Keluarga',
-            createdAt: now,
-            updatedAt: Value(now),
-          ),
-        );
-    await _seedCategories(database, householdId, now);
-    await _seedMerchants(database, householdId, now);
-    await _seedTags(database, householdId, now);
-    await _seedAccounts(database, householdId, now);
-    await _seedIncomeSources(database, householdId, now);
-    await _seedGoals(database, householdId, now);
+    await database.transaction(() async {
+      await database
+          .into(database.households)
+          .insertOnConflictUpdate(
+            HouseholdsCompanion.insert(
+              id: householdId,
+              name: 'Keluarga',
+              createdAt: now,
+              updatedAt: Value(now),
+            ),
+          );
+      await _seedCategories(database, householdId, now);
+      await _seedMerchants(database, householdId, now);
+      await _seedTags(database, householdId, now);
+      await _seedAccounts(database, householdId, now);
+      await _seedIncomeSources(database, householdId, now);
+      await _seedGoals(database, householdId, now);
+    });
   }
 
   // ---------------------------------------------------------------------------

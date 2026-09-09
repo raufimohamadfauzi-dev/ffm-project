@@ -33,24 +33,52 @@ class ReceiptScanOutcome {
 
 class ReceiptScannerService {
   ReceiptScannerService({GeminiService? gemini})
-      : _gemini = gemini ?? GeminiService();
+    : _gemini = gemini ?? GeminiService();
 
   final GeminiService _gemini;
 
-  /// Menandai teks struk yang plausibel sebagai pembelian token listrik PLN.
-  /// Deteksi meteran/token otomatis hanya aman untuk teks seperti ini;
-  /// nomor panjang pada struk lain tidak boleh memicu meteran baru.
+  static final _tokenCodeRegex = RegExp(
+    r'(?<!\d)(\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4})(?!\d)',
+  );
+
+  static final _meterNumberRegex = RegExp(
+    r'(?:idpel|id\s*pelanggan|meter|no\.?\s*meter|nomor\s*meteran?)\s*[:#-]?\s*(\d{11,12})',
+    caseSensitive: false,
+  );
+
+  /// Bukti yang cukup kuat bahwa gambar adalah struk token PLN.
+  /// Nomor panjang saja tidak pernah cukup karena bisa berupa invoice/ref.
   static bool isPlnTokenText(String text) {
     final lower = text.toLowerCase();
-    return lower.contains('pln') ||
-        lower.contains('idpel') ||
-        lower.contains('meter pln') ||
-        lower.contains('token listrik') ||
-        lower.contains('pulsa listrik') ||
-        lower.contains('voucher listrik') ||
-        lower.contains('kwh') ||
-        lower.contains('prabayar') ||
-        lower.contains('listrik');
+    final hasPlnMarker = RegExp(
+      r'\b(pln|token\s+listrik|pulsa\s+listrik|voucher\s+listrik|listrik\s+prabayar)\b',
+    ).hasMatch(lower);
+    if (!hasPlnMarker) return false;
+
+    final hasTokenCode = _tokenCodeRegex.hasMatch(text);
+    final hasMeterNumber = _meterNumberRegex.hasMatch(text);
+    final hasKwh = RegExp(
+      r'\b\d+(?:[.,]\d+)?\s*kwh\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final hasPrepaidMarker = RegExp(
+      r'\b(prabayar|token|stroom|stroom\s*token)\b',
+      caseSensitive: false,
+    ).hasMatch(lower);
+
+    return hasTokenCode || (hasMeterNumber && hasKwh && hasPrepaidMarker);
+  }
+
+  /// Mengambil kode token PLN 20 digit yang sudah dinormalisasi.
+  static String? extractPlnToken(String text) {
+    final match = _tokenCodeRegex.firstMatch(text);
+    final digits = match?.group(1)?.replaceAll(RegExp(r'\D'), '');
+    return digits?.length == 20 ? digits : null;
+  }
+
+  /// Mengambil nomor meter/IDPEL hanya dari label PLN yang jelas.
+  static String? extractPlnMeterNumber(String text) {
+    return _meterNumberRegex.firstMatch(text)?.group(1);
   }
 
   /// Batas ukuran inline image yang dikirim tanpa diubah (10 MB).
@@ -73,7 +101,8 @@ class ReceiptScannerService {
     if (prepared == null) {
       return ReceiptScanOutcome(
         ok: false,
-        message: 'Gambar struk tidak dapat dibaca. Pilih foto yang lebih jelas.',
+        message:
+            'Gambar struk tidak dapat dibaca. Pilih foto yang lebih jelas.',
       );
     }
 
@@ -311,9 +340,8 @@ Perhatikan baik-baik gambar sebelum menulis JSON:
     return resized;
   }
 
-  static String _formatNumber(int value) =>
-      value.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (_) => '.',
-      );
+  static String _formatNumber(int value) => value.toString().replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => '.',
+  );
 }

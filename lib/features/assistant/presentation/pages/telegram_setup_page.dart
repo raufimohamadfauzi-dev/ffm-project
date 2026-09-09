@@ -495,8 +495,7 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
         statusColor = Colors.green.shade700;
         statusIcon = Icons.check_circle_rounded;
       } else if (_operational.lastVerifiedAt != null) {
-        statusText =
-            'Status: Kredensial berubah sejak verifikasi terakhir. Lakukan Uji Koneksi kembali.';
+        statusText = 'Status: Kredensial berubah sejak verifikasi terakhir. Lakukan Uji Koneksi kembali.';
         statusColor = Colors.orange.shade700;
         statusIcon = Icons.warning_amber_rounded;
       } else {
@@ -877,15 +876,38 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               title: const Text('Notifikasi Transaksi Baru ke Grup'),
-              subtitle: const Text(
-                'Kirim ringkasan otomatis ke Telegram setiap kali ada transaksi baru dicatat (min. Rp 50.000).',
-                style: TextStyle(fontSize: 12),
+              subtitle: Text(
+                'Kirim ringkasan otomatis ke Telegram setiap kali ada transaksi baru dicatat (min. Rp $_notifyMinAmount).',
+                style: const TextStyle(fontSize: 12),
               ),
               value: _notifyOnNewTransaction,
               onChanged: _isEnabled
                   ? (val) => setState(() => _notifyOnNewTransaction = val)
                   : null,
             ),
+            if (_isEnabled && _notifyOnNewTransaction) ...[
+              const SizedBox(height: 4),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  'Batas nominal transaksi: Rp $_notifyMinAmount',
+                  style: const TextStyle(fontSize: 13),
+                ),
+                subtitle: const Text(
+                  'Transaksi di bawah batas ini tidak dikirim ke Telegram.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+              Slider(
+                value: _notifyMinAmount.toDouble().clamp(0, 500000),
+                min: 0,
+                max: 500000,
+                divisions: 50,
+                label: 'Rp $_notifyMinAmount',
+                onChanged: (value) =>
+                    setState(() => _notifyMinAmount = value.round()),
+              ),
+            ],
           ],
         ),
       ),

@@ -164,16 +164,98 @@ void main() {
     );
   });
 
-  group(
-    'pending draft safety: explicit new intent tidak diserap draft lama',
-    () {
-      test('active goal draft + "catat pemasukan 500 rb" diklasifikasi mutationProposal, bukan draftReview', () async {
+  group('pending draft safety: explicit new intent tidak diserap draft lama', () {
+    test('active goal draft + "catat pemasukan 500 rb" diklasifikasi mutationProposal, bukan draftReview', () async {
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'ok',
+          text: 'Baik, saya buat draft pemasukan.',
+        ),
+      );
+      final cloudInterpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(),
+        geminiService: gemini,
+      );
+
+      await cloudInterpreter.interpret(
+        'catat pemasukan 500 rb',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+        activeDraft: FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.goal,
+          createdAt: DateTime(2026, 8, 31),
+          title: 'Beli Motor',
+          amount: 20000000,
+        ),
+      );
+
+      expect(gemini.calls, greaterThanOrEqualTo(1));
+      expect(
+        gemini.receivedSystemInstruction,
+        contains('"requestClass":"mutationProposal"'),
+      );
+      expect(
+        gemini.receivedSystemInstruction,
+        isNot(contains('"requestClass":"draftReview"')),
+      );
+    });
+
+    test('agent mode: pending goal kurang nominal + explicit transaction → transaksi baru', () async {
+      final pending = FfmAssistantPendingDialog(
+        originalRequest: 'buat target liburan',
+        prompt: 'Berapa nominal targetnya?',
+        missingFields: const ['nominal'],
+        draft: FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.goal,
+          createdAt: DateTime(2026, 8, 31),
+          title: 'liburan',
+        ),
+      );
+
+      final resolved = await interpreter.resolvePendingDialog(
+        'catat pemasukan 500 rb',
+        pending,
+      );
+
+      expect(resolved, hasLength(1));
+      expect(resolved.single.type, FfmAssistantIntentType.createIncome);
+      expect(resolved.single.draft?.kind, FfmAssistantDraftKind.income);
+      expect(resolved.single.draft?.amount, 500000);
+    });
+
+    test('agent mode: pending expense kurang nominal + nominal saja → melengkapi draft lama', () async {
+      final pending = FfmAssistantPendingDialog(
+        originalRequest: 'catat pengeluaran pupuk',
+        prompt: 'Berapa nominalnya?',
+        missingFields: const ['nominal'],
+        draft: FfmAssistantDraft(
+          kind: FfmAssistantDraftKind.expense,
+          createdAt: DateTime(2026, 8, 31),
+          note: 'catat pengeluaran pupuk',
+        ),
+      );
+
+      final resolved = await interpreter.resolvePendingDialog(
+        '500 ribu',
+        pending,
+      );
+
+      expect(resolved, hasLength(1));
+      expect(resolved.single.draft?.kind, FfmAssistantDraftKind.expense);
+      expect(resolved.single.draft?.amount, 500000);
+    });
+
+    test(
+      'active transaction draft + follow-up nominal saja tetap draftReview',
+      () async {
         final gemini = _FakeGemini(
           const GeminiResult(
             model: 'gemini-2.5-flash',
             statusCode: 200,
             message: 'ok',
-            text: 'Baik, saya buat draft pemasukan.',
+            text: 'Baik, nominalnya saya isi 500 ribu.',
           ),
         );
         final cloudInterpreter = FfmAssistantInterpreter(
@@ -183,108 +265,58 @@ void main() {
         );
 
         await cloudInterpreter.interpret(
-          'catat pemasukan 500 rb',
+          '500 ribu',
           routingMode: FfmAssistantRoutingMode.geminiCloud,
           activeDraft: FfmAssistantDraft(
-            kind: FfmAssistantDraftKind.goal,
+            kind: FfmAssistantDraftKind.expense,
             createdAt: DateTime(2026, 8, 31),
-            title: 'Beli Motor',
-            amount: 20000000,
+            title: 'Belanja',
           ),
         );
 
         expect(gemini.calls, greaterThanOrEqualTo(1));
         expect(
           gemini.receivedSystemInstruction,
-          contains('"requestClass":"mutationProposal"'),
+          contains('"requestClass":"draftReview"'),
         );
-        expect(
-          gemini.receivedSystemInstruction,
-          isNot(contains('"requestClass":"draftReview"')),
-        );
-      });
+      },
+    );
 
-      test('agent mode: pending goal kurang nominal + explicit transaction → transaksi baru', () async {
-        final pending = FfmAssistantPendingDialog(
-          originalRequest: 'buat target liburan',
-          prompt: 'Berapa nominal targetnya?',
-          missingFields: const ['nominal'],
-          draft: FfmAssistantDraft(
-            kind: FfmAssistantDraftKind.goal,
-            createdAt: DateTime(2026, 8, 31),
-            title: 'liburan',
+    test(
+      'active transaction draft + transaksi terakhir tetap recentTransactions',
+      () async {
+        final gemini = _FakeGemini(
+          const GeminiResult(
+            model: 'gemini-2.5-flash',
+            statusCode: 200,
+            message: 'ok',
+            text: 'Transaksi terakhir belum tersedia di konteks test.',
           ),
         );
-
-        final resolved = await interpreter.resolvePendingDialog(
-          'catat pemasukan 500 rb',
-          pending,
+        final cloudInterpreter = FfmAssistantInterpreter(
+          database,
+          config: _FakeConfig(),
+          geminiService: gemini,
         );
 
-        expect(resolved, hasLength(1));
-        expect(resolved.single.type, FfmAssistantIntentType.createIncome);
-        expect(resolved.single.draft?.kind, FfmAssistantDraftKind.income);
-        expect(resolved.single.draft?.amount, 500000);
-      });
-
-      test('agent mode: pending expense kurang nominal + nominal saja → melengkapi draft lama', () async {
-        final pending = FfmAssistantPendingDialog(
-          originalRequest: 'catat pengeluaran pupuk',
-          prompt: 'Berapa nominalnya?',
-          missingFields: const ['nominal'],
-          draft: FfmAssistantDraft(
+        final intent = await cloudInterpreter.interpret(
+          'transaksi terakhir apa ya?',
+          routingMode: FfmAssistantRoutingMode.geminiCloud,
+          activeDraft: FfmAssistantDraft(
             kind: FfmAssistantDraftKind.expense,
             createdAt: DateTime(2026, 8, 31),
-            note: 'catat pengeluaran pupuk',
+            title: 'Belanja',
+            amount: 20000,
           ),
         );
 
-        final resolved = await interpreter.resolvePendingDialog(
-          '500 ribu',
-          pending,
-        );
-
-        expect(resolved, hasLength(1));
-        expect(resolved.single.draft?.kind, FfmAssistantDraftKind.expense);
-        expect(resolved.single.draft?.amount, 500000);
-      });
-
-      test(
-        'active transaction draft + follow-up nominal saja tetap draftReview',
-        () async {
-          final gemini = _FakeGemini(
-            const GeminiResult(
-              model: 'gemini-2.5-flash',
-              statusCode: 200,
-              message: 'ok',
-              text: 'Baik, nominalnya saya isi 500 ribu.',
-            ),
-          );
-          final cloudInterpreter = FfmAssistantInterpreter(
-            database,
-            config: _FakeConfig(),
-            geminiService: gemini,
-          );
-
-          await cloudInterpreter.interpret(
-            '500 ribu',
-            routingMode: FfmAssistantRoutingMode.geminiCloud,
-            activeDraft: FfmAssistantDraft(
-              kind: FfmAssistantDraftKind.expense,
-              createdAt: DateTime(2026, 8, 31),
-              title: 'Belanja',
-            ),
-          );
-
-          expect(gemini.calls, greaterThanOrEqualTo(1));
-          expect(
-            gemini.receivedSystemInstruction,
-            contains('"requestClass":"draftReview"'),
-          );
-        },
-      );
-    },
-  );
+        expect(gemini.calls, 0);
+        expect(intent.type, FfmAssistantIntentType.queryData);
+        expect(intent.response, contains('Belum ada transaksi'));
+        expect(intent.draft, isNull);
+      },
+    );
+  });
 
   group('periode anggaran tepat sasaran', () {
     test('atur anggaran makan 350 ribu per bulan → draft monthly', () async {

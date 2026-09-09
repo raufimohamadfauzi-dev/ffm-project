@@ -7,11 +7,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 class FfmAssistantLauncherState {
   const FfmAssistantLauncherState({
     required this.isSheetOpen,
+    this.isWorking = false,
     this.hasNotification = false,
     this.notificationReason,
   });
 
   final bool isSheetOpen;
+  final bool isWorking;
   final bool hasNotification;
   final String? notificationReason;
 }
@@ -69,10 +71,7 @@ class _FfmAssistantGlobalLauncherState
     if (maxX <= edge || maxY <= edge) {
       return value;
     }
-    return Offset(
-      value.dx.clamp(edge, maxX),
-      value.dy.clamp(edge, maxY),
-    );
+    return Offset(value.dx.clamp(edge, maxX), value.dy.clamp(edge, maxY));
   }
 
   @override
@@ -116,18 +115,26 @@ class _FfmAssistantGlobalLauncherState
                           onPressed: widget.onOpen,
                           child: const Icon(Icons.auto_awesome_outlined),
                         ),
-                        if (value.hasNotification)
+                        if (value.hasNotification || value.isWorking)
                           Positioned(
                             right: 0,
                             top: 0,
-                            child: Container(
-                              width: 12,
-                              height: 12,
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                            child: value.isWorking && !value.hasNotification
+                                ? const SizedBox(
+                                    width: 12,
+                                    height: 12,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Container(
+                                    width: 12,
+                                    height: 12,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
                           ),
                       ],
                     ),

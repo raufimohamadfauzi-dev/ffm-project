@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
@@ -39,6 +40,7 @@ class TransactionFormPage extends StatefulWidget {
     this.initialCategoryName,
     this.initialDate,
     this.initialPartyName,
+    this.initialAttachmentPaths = const <String>[],
     this.assistantMerchantName,
     this.assistantSlmFieldValues = const <String, String>{},
     this.assistantPrefill,
@@ -55,6 +57,7 @@ class TransactionFormPage extends StatefulWidget {
   final String? initialCategoryName;
   final DateTime? initialDate;
   final String? initialPartyName;
+  final List<String> initialAttachmentPaths;
   final String? assistantMerchantName;
   final Map<String, String> assistantSlmFieldValues;
   final FfmAssistantFormPrefill? assistantPrefill;
@@ -98,6 +101,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   var _date = DateTime.now();
   var _items = <ReceiptItemDraft>[];
   var _tags = <String>[];
+  Future<void> _metadataReady = Future<void>.value();
   String? _sourceId;
   String? _recurringTransactionId;
   String? _linkedActivityId;
@@ -150,6 +154,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             ),
           )
           .toList();
+    } else if (widget.initialAttachmentPaths.isNotEmpty) {
+      _attachmentPaths = List<String>.from(widget.initialAttachmentPaths);
     }
     if (existing == null && widget.initialNote != null) {
       _noteController.text = widget.initialNote!;
@@ -162,22 +168,37 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     if (existing == null && widget.initialDate != null) {
       _date = widget.initialDate!;
     }
-    if (existing == null && (widget.initialPartyName != null || widget.assistantPrefill?.values['partyName'] != null || widget.assistantPrefill?.values['incomeSource'] != null || widget.assistantPrefill?.values['party'] != null)) {
-      _partyName = widget.initialPartyName ?? widget.assistantPrefill?.values['partyName'] ?? widget.assistantPrefill?.values['party'] ?? widget.assistantPrefill?.values['incomeSource'] ?? '';
+    if (existing == null &&
+        (widget.initialPartyName != null ||
+            widget.assistantPrefill?.values['partyName'] != null ||
+            widget.assistantPrefill?.values['incomeSource'] != null ||
+            widget.assistantPrefill?.values['party'] != null)) {
+      _partyName =
+          widget.initialPartyName ??
+          widget.assistantPrefill?.values['partyName'] ??
+          widget.assistantPrefill?.values['party'] ??
+          widget.assistantPrefill?.values['incomeSource'] ??
+          '';
     }
     if (existing == null && widget.assistantPrefill != null) {
       final prefillValues = widget.assistantPrefill!.values;
-      if (_locationController.text.trim().isEmpty && prefillValues['location']?.isNotEmpty == true) {
+      if (_locationController.text.trim().isEmpty &&
+          prefillValues['location']?.isNotEmpty == true) {
         _locationController.text = prefillValues['location']!;
       }
-      if (_receiptNumber == null && prefillValues['receiptNumber']?.isNotEmpty == true) {
+      if (_receiptNumber == null &&
+          prefillValues['receiptNumber']?.isNotEmpty == true) {
         _receiptNumber = prefillValues['receiptNumber'];
       }
-      if (_receiptPaidAmount == null && prefillValues['receiptPaidAmount'] != null) {
+      if (_receiptPaidAmount == null &&
+          prefillValues['receiptPaidAmount'] != null) {
         _receiptPaidAmount = int.tryParse(prefillValues['receiptPaidAmount']!);
       }
-      if (_receiptChangeAmount == null && prefillValues['receiptChangeAmount'] != null) {
-        _receiptChangeAmount = int.tryParse(prefillValues['receiptChangeAmount']!);
+      if (_receiptChangeAmount == null &&
+          prefillValues['receiptChangeAmount'] != null) {
+        _receiptChangeAmount = int.tryParse(
+          prefillValues['receiptChangeAmount']!,
+        );
       }
       if (_tax == null && prefillValues['tax'] != null) {
         _tax = int.tryParse(prefillValues['tax']!);
@@ -185,7 +206,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       if (_discount == null && prefillValues['discount'] != null) {
         _discount = int.tryParse(prefillValues['discount']!);
       }
-      if (_receiptRawText == null && prefillValues['receiptRawText']?.isNotEmpty == true) {
+      if (_receiptRawText == null &&
+          prefillValues['receiptRawText']?.isNotEmpty == true) {
         _receiptRawText = prefillValues['receiptRawText'];
       }
       if (_items.isEmpty && prefillValues['itemsJson']?.isNotEmpty == true) {
@@ -195,15 +217,18 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             _items = decoded
                 .map((item) {
                   if (item is Map) {
-                    final name = item['name']?.toString() ??
+                    final name =
+                        item['name']?.toString() ??
                         item['itemName']?.toString() ??
                         '';
                     final price =
                         int.tryParse(item['price']?.toString() ?? '0') ?? 0;
                     final qty =
-                        double.tryParse(item['qty']?.toString() ??
-                            item['quantity']?.toString() ??
-                            '1') ??
+                        double.tryParse(
+                          item['qty']?.toString() ??
+                              item['quantity']?.toString() ??
+                              '1',
+                        ) ??
                         1.0;
                     return ReceiptItemDraft(name: name, price: price, qty: qty);
                   }
@@ -222,7 +247,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     _loadAccounts();
     _loadParties();
     if (existing != null) {
-      _loadMetadata(existing.transaction.id);
+      _metadataReady = _loadMetadata(existing.transaction.id);
       // Preserve original relations when editing
       _sourceId = existing.transaction.sourceId;
       _recurringTransactionId = existing.transaction.recurringTransactionId;
@@ -460,12 +485,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           variables: [Variable.withString(transactionId)],
         )
         .get();
-    
+
     // Load existing transaction to get tax and discount
-    final tx = await (database.select(database.transactions)
-          ..where((row) => row.id.equals(transactionId)))
-        .getSingleOrNull();
-    
+    final tx = await (database.select(
+      database.transactions,
+    )..where((row) => row.id.equals(transactionId))).getSingleOrNull();
+
     if (!mounted) return;
     setState(() {
       _tags = tagRows
@@ -476,7 +501,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           .map((row) => row.data['file_path']?.toString() ?? '')
           .where((value) => value.isNotEmpty)
           .toList();
-      
+
       // Preserve tax (receiptPaidAmount) and discount (receiptChangeAmount) from existing transaction
       if (tx != null) {
         _tax = tx.receiptPaidAmount;
@@ -810,7 +835,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     }
   }
 
-  void _save() {
+  Future<void> _save() async {
+    await _metadataReady;
+    if (!mounted) return;
     if (!_formKey.currentState!.validate() ||
         _categoryId == null ||
         _accountId == null) {
@@ -1259,7 +1286,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                     ],
                   ),
                 ),
-                if (_prefillCheck != null && _prefillCheck!.missingFields.isNotEmpty)
+                if (_prefillCheck != null &&
+                    _prefillCheck!.missingFields.isNotEmpty)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
                     padding: const EdgeInsets.all(8),
@@ -1290,16 +1318,18 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        ..._prefillCheck!.missingFields.map((field) => Padding(
-                          padding: const EdgeInsets.only(left: 20, top: 2),
-                          child: Text(
-                            _fieldLabel(field),
-                            style: TextStyle(
-                              color: Colors.orange.shade800,
-                              fontSize: 11,
+                        ..._prefillCheck!.missingFields.map(
+                          (field) => Padding(
+                            padding: const EdgeInsets.only(left: 20, top: 2),
+                            child: Text(
+                              _fieldLabel(field),
+                              style: TextStyle(
+                                color: Colors.orange.shade800,
+                                fontSize: 11,
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                       ],
                     ),
                   ),
@@ -1334,16 +1364,18 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        ..._prefillCheck!.warnings.map((warning) => Padding(
-                          padding: const EdgeInsets.only(left: 20, top: 2),
-                          child: Text(
-                            warning,
-                            style: TextStyle(
-                              color: Colors.amber.shade800,
-                              fontSize: 11,
+                        ..._prefillCheck!.warnings.map(
+                          (warning) => Padding(
+                            padding: const EdgeInsets.only(left: 20, top: 2),
+                            child: Text(
+                              warning,
+                              style: TextStyle(
+                                color: Colors.amber.shade800,
+                                fontSize: 11,
+                              ),
                             ),
                           ),
-                        )),
+                        ),
                       ],
                     ),
                   ),
@@ -1649,7 +1681,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                       .firstOrNull,
                   itemLabel: _categoryDisplayName,
                   itemId: (category) => category.id,
-                  labelText: isIncome ? 'Kategori pemasukan' : 'Kategori pengeluaran',
+                  labelText: isIncome
+                      ? 'Kategori pemasukan'
+                      : 'Kategori pengeluaran',
                   helperText: isIncome
                       ? 'Pilih pos kategori uang masuk.'
                       : 'Pilih pos kategori uang keluar.',
@@ -1710,8 +1744,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 title: isIncome
                     ? '3. Rincian tambahan pemasukan'
                     : '3. Rincian tambahan',
-                helpText:
-                    'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
+                helpText: 'Buka bagian ini kalau ingin mengisi toko, lokasi, tanggal, sumber/pemakai, atau catatan.',
               ),
               const SizedBox(height: 4),
               ExpansionTile(
@@ -1735,47 +1768,48 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                   // Kolom disamakan untuk pemasukan + pengeluaran + draft
                   // asisten + database: toko, lokasi, tanggal, pihak, catatan.
                   if (_merchants.isNotEmpty)
-                      SearchableDropdown(
-                        items: _merchants,
-                        selectedItem: _merchants
-                            .where((merchant) => merchant.id == _merchantId)
-                            .firstOrNull,
-                        itemLabel: (merchant) =>
-                            merchant.details?.trim().isNotEmpty == true
-                            ? '${merchant.name} · ${merchant.details}'
-                            : merchant.name,
-                        itemId: (merchant) => merchant.id,
-                        labelText: 'Toko / tempat',
-                        helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
-                        searchHintText: 'Cari toko atau tempat',
-                        cacheKey: 'transaksi.toko',
-                        allowClear: true,
-                        onChanged: (merchant) =>
-                            setState(() => _merchantId = merchant?.id),
-                      )
-                    else
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: _openMasterData,
-                          icon: const Icon(Icons.tune_rounded),
-                          label: const Text('Atur toko di Data Utama'),
-                        ),
+                    SearchableDropdown(
+                      items: _merchants,
+                      selectedItem: _merchants
+                          .where((merchant) => merchant.id == _merchantId)
+                          .firstOrNull,
+                      itemLabel: (merchant) =>
+                          merchant.details?.trim().isNotEmpty == true
+                          ? '${merchant.name} · ${merchant.details}'
+                          : merchant.name,
+                      itemId: (merchant) => merchant.id,
+                      labelText: 'Toko / tempat',
+                      helperText: 'Pilih dari Data Utama agar nama dan rinciannya konsisten.',
+                      searchHintText: 'Cari toko atau tempat',
+                      cacheKey: 'transaksi.toko',
+                      allowClear: true,
+                      onChanged: (merchant) =>
+                          setState(() => _merchantId = merchant?.id),
+                    )
+                  else
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: _openMasterData,
+                        icon: const Icon(Icons.tune_rounded),
+                        label: const Text('Atur toko di Data Utama'),
                       ),
-                    const SizedBox(height: 12),
-                    if (!isIncome || _locationController.text.trim().isNotEmpty) ...[
-                      TextFormField(
-                        controller: _locationController,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Lokasi transaksi',
-                          hintText: 'Misalnya pasar, toko, atau resto',
-                          helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian belanja.',
-                          prefixIcon: Icon(Icons.location_on_outlined),
-                        ),
+                    ),
+                  const SizedBox(height: 12),
+                  if (!isIncome ||
+                      _locationController.text.trim().isNotEmpty) ...[
+                    TextFormField(
+                      controller: _locationController,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Lokasi transaksi',
+                        hintText: 'Misalnya pasar, toko, atau resto',
+                        helperText: 'Rekening = tempat uang berada. Lokasi = tempat kejadian belanja.',
+                        prefixIcon: Icon(Icons.location_on_outlined),
                       ),
-                      const SizedBox(height: 10),
-                    ],
+                    ),
+                    const SizedBox(height: 10),
+                  ],
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.calendar_today_outlined),
@@ -1945,67 +1979,67 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                 title: '5. Rincian nota dan banyak item',
                 helpText: 'Pakai bagian ini kalau satu transaksi punya beberapa barang atau detail nota.',
               ),
-                const SizedBox(height: 4),
-                AppCard(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Rincian nota',
-                              style: AppTextStyles.labelCaps,
-                            ),
-                          ),
-                          TextButton.icon(
-                            onPressed: _showAddItemSheet,
-                            icon: const Icon(Icons.add),
-                            label: const Text(AppCopy.tambah),
-                          ),
-                        ],
-                      ),
-                      if (_items.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
+              const SizedBox(height: 4),
+              AppCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
                           child: Text(
-                            'Belum ada item nota. Bagian ini boleh dilewati.',
-                          ),
-                        )
-                      else
-                        ..._items.map(
-                          (item) => ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(item.name),
-                            subtitle: item.qty == 1
-                                ? null
-                                : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                AppMoneyText(item.price, compact: true),
-                                IconButton(
-                                  tooltip: 'Ubah item',
-                                  onPressed: () =>
-                                      _editItem(_items.indexOf(item)),
-                                  icon: const Icon(Icons.edit_outlined),
-                                ),
-                                IconButton(
-                                  tooltip: 'Hapus item',
-                                  onPressed: () => setState(() {
-                                    _items.remove(item);
-                                    _syncAmountFromItems();
-                                  }),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
-                            ),
+                            'Rincian nota',
+                            style: AppTextStyles.labelCaps,
                           ),
                         ),
-                    ],
-                  ),
+                        TextButton.icon(
+                          onPressed: _showAddItemSheet,
+                          icon: const Icon(Icons.add),
+                          label: const Text(AppCopy.tambah),
+                        ),
+                      ],
+                    ),
+                    if (_items.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Belum ada item nota. Bagian ini boleh dilewati.',
+                        ),
+                      )
+                    else
+                      ..._items.map(
+                        (item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(item.name),
+                          subtitle: item.qty == 1
+                              ? null
+                              : Text('Jumlah ${item.qty.toStringAsFixed(2)}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AppMoneyText(item.price, compact: true),
+                              IconButton(
+                                tooltip: 'Ubah item',
+                                onPressed: () =>
+                                    _editItem(_items.indexOf(item)),
+                                icon: const Icon(Icons.edit_outlined),
+                              ),
+                              IconButton(
+                                tooltip: 'Hapus item',
+                                onPressed: () => setState(() {
+                                  _items.remove(item);
+                                  _syncAmountFromItems();
+                                }),
+                                icon: const Icon(Icons.delete_outline),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+              ),
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,

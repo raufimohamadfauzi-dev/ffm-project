@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'ffm_assistant_autonomy_repository.dart';
 
 class FfmAssistantAutonomyTriggerService {
-  FfmAssistantAutonomyTriggerService(this._repository);
+  FfmAssistantAutonomyTriggerService(this._repository, {this.evaluateNow});
 
   static const _maxPayloadEntries = 12;
   static const _maxStringLength = 200;
@@ -17,6 +19,7 @@ class FfmAssistantAutonomyTriggerService {
   };
 
   final FfmAssistantAutonomyRepository _repository;
+  final Future<void> Function(String householdId)? evaluateNow;
 
   /// Mengantrekan trigger aplikasi tanpa menjalankan capability atau LLM.
   /// Hanya metadata scalar yang aman dan terbatas yang boleh masuk payload.
@@ -69,6 +72,10 @@ class FfmAssistantAutonomyTriggerService {
         activityId: activityId,
         payload: payload,
       );
+      final evaluate = evaluateNow;
+      if (evaluate != null) {
+        unawaited(evaluate(householdId).catchError((_) {}));
+      }
     } on Object {
       // Trigger persistence must never roll back an authoritative data write.
     }

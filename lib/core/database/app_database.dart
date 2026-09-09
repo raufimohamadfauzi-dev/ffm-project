@@ -23,6 +23,7 @@ part 'app_database.g.dart';
     TransactionItems,
     TransactionTags,
     Attachments,
+    UtilityTokenPurchases,
     Transfers,
     EnvelopeBudgets,
     EnvelopeTransfers,
@@ -70,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 54;
+  int get schemaVersion => 55;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -106,6 +107,17 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 54) {
         await m.createTable(telegramDeliveries);
+      }
+      if (from < 55) {
+        await m.createTable(utilityTokenPurchases);
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_meter_date '
+          'ON utility_token_purchases (household_id, meter_id, purchased_at)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_transaction '
+          'ON utility_token_purchases (transaction_id)',
+        );
       }
       if (from < 22) {
         await m.addColumn(transactions, transactions.receiptRawText);
@@ -315,7 +327,9 @@ class AppDatabase extends _$AppDatabase {
           if (!await _hasColumns('reminders', const ['calendar_event_id'])) {
             await m.addColumn(reminders, reminders.calendarEventId);
           }
-          if (!await _hasColumns('reminders', const ['is_synced_to_calendar'])) {
+          if (!await _hasColumns('reminders', const [
+            'is_synced_to_calendar',
+          ])) {
             await m.addColumn(reminders, reminders.isSyncedToCalendar);
           }
           if (!await _hasColumns('reminders', const ['synced_at'])) {

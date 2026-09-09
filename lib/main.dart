@@ -63,7 +63,10 @@ import 'features/settings/presentation/widgets/app_pin_entry_panel.dart';
 import 'features/settings/presentation/widgets/forgot_pin_dialog.dart';
 import 'features/assistant/data/ffm_memory_maintenance_service.dart';
 import 'features/assistant/data/ffm_assistant_proactive_monitor.dart';
+import 'features/assistant/data/ffm_assistant_insight_repository.dart';
+
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+
 import 'features/assistant/data/ffm_assistant_autonomy_background_dispatcher.dart';
 import 'features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
 import 'features/assistant/data/ffm_assistant_foreground_service.dart';
@@ -258,8 +261,6 @@ class FfmApp extends StatefulWidget {
 }
 
 class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
-  static const _lockAfterBackground = Duration(seconds: 10);
-
   late var _isDark = widget.initialDarkMode;
   AppThemeController? _themeController;
   late final AppPinService _pinService =
@@ -270,7 +271,6 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   var _isLocked = false;
   var _securityUnavailable = false;
   var _pinLength = AppPinService.defaultPinLength;
-  DateTime? _backgroundedAt;
   final _appShellKey = GlobalKey<_AppShellState>();
   final _assistantLauncherState = ValueNotifier(
     const FfmAssistantLauncherState(isSheetOpen: false),
@@ -285,6 +285,7 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _assistantPageContext.addListener(_onAssistantPageChanged);
     if (getIt.isRegistered<AppThemeController>()) {
       _themeController = getIt<AppThemeController>();
       _themeController?.addListener(_onThemeStateChanged);
@@ -304,19 +305,84 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
 
   void _triggerCatchUpEvaluation() {
     unawaited(() async {
+      final current = _assistantLauncherState.value;
+      _assistantLauncherState.value = FfmAssistantLauncherState(
+        isSheetOpen: current.isSheetOpen,
+        isWorking: true,
+        hasNotification: current.hasNotification,
+        notificationReason: current.notificationReason,
+      );
       try {
         if (getIt.isRegistered<AutonomousEvaluationCoordinator>()) {
           await getIt<AutonomousEvaluationCoordinator>().runEvaluation(
             householdId: AppContext.householdId,
           );
         }
-      } catch (_) {}
+      } catch (error, stackTrace) {
+        await _diagnostics.recordException(
+          code: 'AUTONOMY_STARTUP_EVALUATION_FAILED',
+          feature: 'Autonomous Assistant',
+          error: error,
+          stackTrace: stackTrace,
+          impact:
+              'Evaluasi akan dicoba lagi oleh siklus background berikutnya.',
+        );
+      } finally {
+        if (mounted) {
+          final latest = _assistantLauncherState.value;
+          _assistantLauncherState.value = FfmAssistantLauncherState(
+            isSheetOpen: latest.isSheetOpen,
+            isWorking: false,
+            hasNotification: latest.hasNotification,
+            notificationReason: latest.notificationReason,
+          );
+        }
+      }
+    }());
+  }
+
+  void _onAssistantPageChanged() {
+    if (!mounted || !getIt.isRegistered<AutonomousEvaluationCoordinator>()) {
+      return;
+    }
+    unawaited(() async {
+      try {
+        final current = _assistantLauncherState.value;
+        _assistantLauncherState.value = FfmAssistantLauncherState(
+          isSheetOpen: current.isSheetOpen,
+          isWorking: true,
+          hasNotification: current.hasNotification,
+          notificationReason: current.notificationReason,
+        );
+        await getIt<AutonomousEvaluationCoordinator>().runEvaluation(
+          householdId: AppContext.householdId,
+        );
+      } catch (error, stackTrace) {
+        await _diagnostics.recordException(
+          code: 'AUTONOMY_PAGE_EVALUATION_FAILED',
+          feature: 'Autonomous Assistant',
+          error: error,
+          stackTrace: stackTrace,
+          impact: 'Evaluasi halaman akan dicoba kembali saat data berubah.',
+        );
+      } finally {
+        if (mounted) {
+          final latest = _assistantLauncherState.value;
+          _assistantLauncherState.value = FfmAssistantLauncherState(
+            isSheetOpen: latest.isSheetOpen,
+            isWorking: false,
+            hasNotification: latest.hasNotification,
+            notificationReason: latest.notificationReason,
+          );
+        }
+      }
     }());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _assistantPageContext.removeListener(_onAssistantPageChanged);
     _themeController?.removeListener(_onThemeStateChanged);
     _assistantLauncherState.dispose();
     _assistantPageContext.dispose();
@@ -383,37 +449,10 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
-      _backgroundedAt ??= DateTime.now();
       return;
     }
     if (state == AppLifecycleState.resumed) {
       _triggerCatchUpEvaluation();
-      final backgroundedAt = _backgroundedAt;
-      _backgroundedAt = null;
-      if (backgroundedAt != null &&
-          DateTime.now().difference(backgroundedAt) >= _lockAfterBackground) {
-        _lockAfterBackgroundDelay();
-      }
-    }
-  }
-
-  Future<void> _lockAfterBackgroundDelay() async {
-    try {
-      final configuredLength = await _pinService.configuredPinLength();
-      if (!mounted || configuredLength == null) return;
-      setState(() {
-        _pinLength = configuredLength;
-        _isLocked = true;
-      });
-    } catch (error, stackTrace) {
-      await _diagnostics.recordException(
-        code: 'PIN_GATE_RESUME_FAILED',
-        feature: 'Kunci aplikasi',
-        error: error,
-        stackTrace: stackTrace,
-        impact: 'Aplikasi ditahan sampai keamanan bisa dibaca lagi.',
-      );
-      if (mounted) setState(() => _securityUnavailable = true);
     }
   }
 
@@ -450,7 +489,8 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) => MaterialApp(
     title: 'FFM',
     debugShowCheckedModeBanner: false,
-    themeMode: _themeController?.themeMode ??
+    themeMode:
+        _themeController?.themeMode ??
         (_isDark ? ThemeMode.dark : ThemeMode.light),
     theme: AppTheme.light(),
     darkTheme: AppTheme.dark(),
@@ -614,8 +654,9 @@ class _AppShellState extends State<AppShell> {
     );
     _proactiveMonitor = FfmAssistantProactiveMonitor(
       activityRepository: getIt<ActivityRepository>(),
+      insightRepository: FfmAssistantInsightRepository(getIt<AppDatabase>()),
       launcherState: widget.launcherState,
-      householdId: 'local-household',
+      householdId: AppContext.householdId,
     )..start();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.pageContextController.setShellTab(_assistantCurrentDestination);
@@ -644,11 +685,8 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     final target = _reminderNotifications.takeInboxOpenTarget();
     if (target == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const AgentInboxPage(),
-      ),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AgentInboxPage()));
   }
 
   Future<void> _consumePendingWidgetAction() async {
@@ -792,6 +830,10 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _assistantSession.draftQueue[index] = _assistantSession.draftQueue[index]
           .copyWith(status: FfmAssistantDraftQueueStatus.ready);
+      _assistantSession
+        ..activeDraftReview = null
+        ..activeDraftIntent = null
+        ..activeDraftQueueId = null;
       _assistantTransactionDraft = null;
     });
   }
@@ -888,7 +930,8 @@ class _AppShellState extends State<AppShell> {
             builder: (_) => isProfileTarget
                 ? FamilyProfilePage(initialHouseholdName: draft?.title)
                 : MasterDataPage(
-                    assistantTab: draft?.kind == FfmAssistantDraftKind.masterData
+                    assistantTab:
+                        draft?.kind == FfmAssistantDraftKind.masterData
                         ? _masterDataTab(draft)
                         : null,
                     assistantName:
@@ -1018,14 +1061,12 @@ class _AppShellState extends State<AppShell> {
                   : null,
               // Item 29: preserve the assistant-proposed schedule when
               // navigating from a reminder draft to the form.
-              initialScheduledAt:
-                  draft?.kind == FfmAssistantDraftKind.reminder
-                      ? draft?.date
-                      : null,
-              initialRecurrence:
-                  draft?.kind == FfmAssistantDraftKind.reminder
-                      ? _parseRecurrenceFromDraft(draft!)
-                      : null,
+              initialScheduledAt: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.date
+                  : null,
+              initialRecurrence: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? _parseRecurrenceFromDraft(draft!)
+                  : null,
             ),
           ),
         );
@@ -1071,17 +1112,11 @@ class _AppShellState extends State<AppShell> {
           ),
         );
       case FfmAssistantDestination.telegramSetup:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const TelegramSetupPage(),
-          ),
-        );
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const TelegramSetupPage()));
       case FfmAssistantDestination.agentInbox:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const AgentInboxPage(),
-          ),
-        );
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const AgentInboxPage()));
       case FfmAssistantDestination.autonomyMonitor:
         await Navigator.of(context).push(
           MaterialPageRoute(
@@ -1089,34 +1124,25 @@ class _AppShellState extends State<AppShell> {
           ),
         );
       case FfmAssistantDestination.hijriSettings:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const HijriSettingsPage(),
-          ),
-        );
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const HijriSettingsPage()));
       case FfmAssistantDestination.calendarSettings:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const CalendarSettingsPage(),
-          ),
-        );
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const CalendarSettingsPage()));
       case FfmAssistantDestination.marketNewsRadar:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const MarketNewsRadarPage(),
-          ),
-        );
+        await Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const MarketNewsRadarPage()));
       case FfmAssistantDestination.utilityMeter:
-        await Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const UtilityMeterPage(),
-          ),
-        );
+        await Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const UtilityMeterPage()));
     }
   }
 
   ReminderRecurrenceType? _parseRecurrenceFromDraft(FfmAssistantDraft draft) {
-    final recurrence = draft.formValues['recurrence'] ?? draft.formValues['recurrenceType'];
+    final recurrence =
+        draft.formValues['recurrence'] ?? draft.formValues['recurrenceType'];
     if (recurrence == null) return null;
     return switch (recurrence.toString().toLowerCase()) {
       'daily' || 'harian' => ReminderRecurrenceType.daily,
@@ -1139,8 +1165,7 @@ class _AppShellState extends State<AppShell> {
       isSheetOpen: true,
     );
     try {
-      final activeDestination =
-          widget.pageContextController.currentDestination;
+      final activeDestination = widget.pageContextController.currentDestination;
       final activeSnapshot = widget.pageContextController.currentSnapshot;
       await showFfmAssistantSheet(
         context,

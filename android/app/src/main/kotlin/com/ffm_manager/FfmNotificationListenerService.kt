@@ -8,6 +8,8 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import org.json.JSONArray
+import org.json.JSONObject
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.plugin.common.MethodChannel
 
@@ -72,7 +74,11 @@ class FfmNotificationListenerService : NotificationListenerService() {
         postTime: Long,
     ) {
         try {
-            val engine = FlutterEngineCache.getInstance().get(FLUTTER_ENGINE_ID) ?: return
+            val engine = FlutterEngineCache.getInstance().get(FLUTTER_ENGINE_ID)
+            if (engine == null) {
+                enqueuePendingNotification(packageName, title, body, postTime)
+                return
+            }
             val messenger = engine.dartExecutor.binaryMessenger
             val channel = MethodChannel(messenger, NOTIFICATION_CHANNEL)
             channel.invokeMethod(
@@ -89,10 +95,52 @@ class FfmNotificationListenerService : NotificationListenerService() {
         }
     }
 
+    private fun enqueuePendingNotification(
+        packageName: String,
+        title: String,
+        body: String,
+        postTime: Long,
+    ) {
+        val prefs = getSharedPreferences(PENDING_PREFS, MODE_PRIVATE)
+        val queue = JSONArray(prefs.getString(PENDING_KEY, "[]"))
+        queue.put(JSONObject().apply {
+            put("packageName", packageName)
+            put("title", title)
+            put("body", body)
+            put("postTime", postTime)
+        })
+        // Bound the queue so notification bursts cannot consume unbounded storage.
+        while (queue.length() > MAX_PENDING) queue.remove(0)
+        prefs.edit().putString(PENDING_KEY, queue.toString()).apply()
+    }
+
     companion object {
         private const val TAG = "FfmNLS"
         private const val FLUTTER_ENGINE_ID = "ffm_flutter_engine"
         const val NOTIFICATION_CHANNEL = "ffm/notification_listener"
+        private const val PENDING_PREFS = "ffm_notification_listener"
+        private const val PENDING_KEY = "pending_notifications"
+        private const val MAX_PENDING = 100
+
+        fun consumePendingNotifications(context: Context): List<Map<String, Any>> {
+            val prefs = context.getSharedPreferences(PENDING_PREFS, Context.MODE_PRIVATE)
+            val queue = JSONArray(prefs.getString(PENDING_KEY, "[]"))
+            val result = buildList {
+                for (index in 0 until queue.length()) {
+                    val item = queue.optJSONObject(index) ?: continue
+                    add(
+                        mapOf(
+                            "packageName" to item.optString("packageName"),
+                            "title" to item.optString("title"),
+                            "body" to item.optString("body"),
+                            "postTime" to item.optLong("postTime"),
+                        ),
+                    )
+                }
+            }
+            prefs.edit().remove(PENDING_KEY).apply()
+            return result
+        }
 
         /** Paket bank dan e-wallet resmi Indonesia yang dipercaya. */
         val TRUSTED_PACKAGES = setOf(
@@ -108,6 +156,13 @@ class FfmNotificationListenerService : NotificationListenerService() {
             "ovo.id",                       // OVO
             "id.dana",                      // DANA
             "com.shopee.id",               // ShopeePay (via Shopee)
+            "id.flip",                     // Flip
+            "id.dana.kasir",               // DANA Bisnis
+            "com.isaku.app",               // i.saku
+            "com.honestbank.android",      // Honest
+            "com.spin.app.latest",         // MotionPay
+            "hk.easyvan.app.client",       // Lalamove
+            "com.qmove.logistics.consignor", // Qmove
         )
 
         /** Pola regex untuk mendeteksi notifikasi keamanan / OTP — wajib diabaikan. */

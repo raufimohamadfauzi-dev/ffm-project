@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../domain/entities/utility_meter_models.dart';
@@ -43,9 +44,7 @@ class UtilityMeterRepository {
     if (clean.isEmpty) return null;
     final all = await getAllMeters(householdId);
     return all
-        .where(
-          (m) => m.meterNumber.replaceAll(RegExp(r'\D'), '') == clean,
-        )
+        .where((m) => m.meterNumber.replaceAll(RegExp(r'\D'), '') == clean)
         .firstOrNull;
   }
 
@@ -107,6 +106,32 @@ class UtilityMeterRepository {
         jsonEncode(list.map((m) => m.toJson()).toList()),
       );
     }
+  }
+
+  Future<void> recordPurchase({
+    required String householdId,
+    required String meterNumber,
+    String? tokenCode,
+    double? amount,
+    DateTime? timestamp,
+  }) async {
+    final list = await getAllMeters(householdId);
+    final clean = meterNumber.replaceAll(RegExp(r'\D'), '');
+    final idx = list.indexWhere(
+      (m) => m.meterNumber.replaceAll(RegExp(r'\D'), '') == clean,
+    );
+    if (idx < 0) return;
+    final target = list[idx];
+    list[idx] = target.copyWith(
+      lastTokenNumber: tokenCode ?? target.lastTokenNumber,
+      lastAmount: amount ?? target.lastAmount,
+      lastPurchasedAt: timestamp ?? DateTime.now(),
+    );
+    final prefs = await _prefs();
+    await prefs.setString(
+      _getKey(householdId),
+      jsonEncode(list.map((m) => m.toJson()).toList()),
+    );
   }
 
   /// Ekspor seluruh meteran dalam bentuk data map mentah untuk Full Backup.

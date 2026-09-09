@@ -438,7 +438,7 @@ class SearchableDropdown<T> extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Text(
                   selectedLabel ?? hintText,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: selectedLabel == null
@@ -579,24 +579,47 @@ class _SearchableDropdownSheetState<T>
             final isSelected =
                 widget.selectedItem != null &&
                 widget.itemId(widget.selectedItem as T) == id;
-            return ListTile(
-              minVerticalPadding: 8,
-              leading: Icon(
-                recentIds.contains(id)
-                    ? Icons.history_rounded
-                    : Icons.list_alt_rounded,
-                color: isSelected ? scheme.primary : scheme.onSurfaceVariant,
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Material(
+                color: isSelected
+                    ? scheme.primaryContainer.withValues(alpha: .45)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(14),
+                child: ListTile(
+                  minVerticalPadding: 8,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  leading: Icon(
+                    recentIds.contains(id)
+                        ? Icons.history_rounded
+                        : Icons.list_alt_rounded,
+                    color: isSelected
+                        ? scheme.primary
+                        : scheme.onSurfaceVariant,
+                  ),
+                  title: Text(
+                    widget.itemLabel(item),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w700 : null,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check_circle_rounded, color: scheme.primary)
+                      : null,
+                  selected: isSelected,
+                  onTap: () async {
+                    final key = widget.cacheKey;
+                    if (key != null) {
+                      await recentSelectionCache.remember(key, id);
+                    }
+                    if (context.mounted) Navigator.of(context).pop(item);
+                  },
+                ),
               ),
-              title: Text(widget.itemLabel(item)),
-              trailing: isSelected
-                  ? Icon(Icons.check_circle_rounded, color: scheme.primary)
-                  : null,
-              selected: isSelected,
-              onTap: () async {
-                final key = widget.cacheKey;
-                if (key != null) await recentSelectionCache.remember(key, id);
-                if (context.mounted) Navigator.of(context).pop(item);
-              },
             );
           })
           .toList(growable: false);

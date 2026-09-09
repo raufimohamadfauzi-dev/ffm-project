@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'dart:convert';
 
 import 'payment_notification_parser.dart';
@@ -145,15 +146,24 @@ class PaymentDraftRepository {
   Future<PaymentDraft?> addIfNotDuplicate(PaymentDraft draft) async {
     final drafts = await _loadAll();
 
-    // Periksa duplikat: ID sama (sudah pernah dibuat/disimpan/diabaikan),
-    // ATAU nominal, source, dan status pending sama dalam rentang 5 menit
+    // Periksa duplikat: ID sama, atau notifikasi yang sama dikirim ulang.
+    // Nominal + aplikasi saja tidak cukup karena dua pembayaran identik
+    // tetap dapat terjadi dalam jendela lima menit.
     final isDuplicate = drafts.any((d) {
       if (d.id == draft.id) return true;
       final timeDiff = draft.createdAt.difference(d.createdAt).abs();
+      final sameNotification =
+          _normalize(d.rawTitle) == _normalize(draft.rawTitle) &&
+          _normalize(d.rawBody) == _normalize(draft.rawBody);
+      final sameTransactionShape =
+          d.merchantName.isNotEmpty &&
+          draft.merchantName.isNotEmpty &&
+          d.merchantName == draft.merchantName;
       return d.amount == draft.amount &&
           d.sourceApp == draft.sourceApp &&
           d.status == PaymentDraftStatus.pending &&
-          timeDiff <= _dedupWindow;
+          timeDiff <= _dedupWindow &&
+          (sameNotification || sameTransactionShape);
     });
 
     if (isDuplicate) return null;
@@ -178,10 +188,9 @@ class PaymentDraftRepository {
   // ---------------------------------------------------------------------------
 
   /// Semua draft yang masih `pending` (belum dikonfirmasi / diabaikan).
-  Future<List<PaymentDraft>> getPendingDrafts() async =>
-      (await _loadAll())
-          .where((d) => d.status == PaymentDraftStatus.pending)
-          .toList();
+  Future<List<PaymentDraft>> getPendingDrafts() async => (await _loadAll())
+      .where((d) => d.status == PaymentDraftStatus.pending)
+      .toList();
 
   /// Riwayat semua draft (untuk halaman pengaturan).
   Future<List<PaymentDraft>> getAllDrafts() => _loadAll();
@@ -226,6 +235,11 @@ class PaymentDraftRepository {
   Future<void> _saveAll(List<PaymentDraft> drafts) async {
     final prefs = await _prefs();
     await prefs.setString(
-        _key, jsonEncode(drafts.map((d) => d.toJson()).toList()));
+      _key,
+      jsonEncode(drafts.map((d) => d.toJson()).toList()),
+    );
   }
+
+  String _normalize(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
 }
