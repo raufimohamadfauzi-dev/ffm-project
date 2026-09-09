@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:uuid/uuid.dart';
 
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -76,7 +77,7 @@ class ActivitySpeechService {
 
   Future<String?> speak(String text) async {
     if (text.trim().isEmpty) return null;
-    final sessionId = 'ffm-tts-${DateTime.now().microsecondsSinceEpoch}';
+    final sessionId = 'ffm-tts-${const Uuid().v4()}';
     final accepted =
         await _ttsChannel.invokeMethod<bool>('speak', {
           'text': text,

@@ -134,3 +134,6 @@ int stableReminderNotificationId(String reminderId, String occurrenceKey) {
   }
   return hash == 0 ? 1 : hash;
 }
+
+int stableSnoozeNotificationId(String reminderId, String occurrenceKey) =>
+    stableReminderNotificationId(reminderId, 'snooze:$occurrenceKey');

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -71,7 +72,7 @@ class FfmErrorLoggingService {
     final entries = await _loadEntries();
 
     final entry = FfmErrorLogEntry(
-      id: 'err-${DateTime.now().microsecondsSinceEpoch}',
+      id: 'err-${const Uuid().v4()}',
       feature: feature,
       errorType: errorType,
       message: message,

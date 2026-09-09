@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/entities/market_news_models.dart';
@@ -14,6 +15,7 @@ class MarketNewsCacheRepository {
   static const _keyNewsList = 'ffm_cached_news_items';
   static const _keyFilterKeywords = 'ffm_news_filter_keywords';
   static const _keyFilterCategories = 'ffm_news_filter_categories';
+  static const _keyRefreshIntervalMinutes = 'ffm_market_refresh_interval_minutes';
 
   static const _newsRetention = Duration(hours: 48);
 
@@ -59,10 +61,17 @@ class MarketNewsCacheRepository {
       final list = jsonDecode(raw) as List<dynamic>;
       final now = DateTime.now();
 
-      // Prune berita yang lebih lama dari 48 jam
+      // Unknown publication dates use fetch time only for cache retention;
+      // they remain explicitly unknown in the UI and assistant context.
       return list
           .map((e) => NewsAlertItem.fromJson(e as Map<String, dynamic>))
-          .where((n) => now.difference(n.publishedAt) <= _newsRetention)
+          .where(
+            (n) =>
+                now.difference(
+                  n.isPublishedAtKnown ? n.publishedAt : n.fetchedAt,
+                ) <=
+                _newsRetention,
+          )
           .toList();
     } catch (_) {
       return [];
@@ -73,9 +82,17 @@ class MarketNewsCacheRepository {
     final prefs = await _prefs();
     final now = DateTime.now();
 
-    // Hanya simpan warta yang masih dalam jendela retensi 48 jam
-    final validNews =
-        news.where((n) => now.difference(n.publishedAt) <= _newsRetention).toList();
+    // Unknown publication dates may be cached briefly but never promoted to
+    // current news merely because they were fetched recently.
+    final validNews = news
+        .where(
+          (n) =>
+              now.difference(
+                n.isPublishedAtKnown ? n.publishedAt : n.fetchedAt,
+              ) <=
+              _newsRetention,
+        )
+        .toList();
 
     await prefs.setString(
       _keyNewsList,
@@ -104,10 +121,12 @@ class MarketNewsCacheRepository {
       return [NewsCategory.all];
     }
     return raw
-        .map((name) => NewsCategory.values.firstWhere(
-              (c) => c.name == name,
-              orElse: () => NewsCategory.all,
-            ))
+        .map(
+          (name) => NewsCategory.values.firstWhere(
+            (c) => c.name == name,
+            orElse: () => NewsCategory.all,
+          ),
+        )
         .toList();
   }
 
@@ -119,9 +138,20 @@ class MarketNewsCacheRepository {
     );
   }
 
+  Future<int> getRefreshIntervalMinutes() async {
+    final prefs = await _prefs();
+    return prefs.getInt(_keyRefreshIntervalMinutes) ?? 60;
+  }
+
+  Future<void> saveRefreshIntervalMinutes(int minutes) async {
+    final prefs = await _prefs();
+    await prefs.setInt(_keyRefreshIntervalMinutes, minutes);
+  }
+
   // Alias methods
   Future<void> saveNewsItems(List<NewsAlertItem> news) => saveCachedNews(news);
-  Future<void> saveUserAlertKeywords(List<String> keywords) => saveFilterKeywords(keywords);
+  Future<void> saveUserAlertKeywords(List<String> keywords) =>
+      saveFilterKeywords(keywords);
   Future<List<String>> getUserAlertKeywords() async {
     final list = await getFilterKeywords();
     if (list.isEmpty) {

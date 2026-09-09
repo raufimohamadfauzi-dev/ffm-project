@@ -961,6 +961,14 @@ class FfmAssistantCapabilityRegistry {
       parameterNames: ['theme'],
       readOnly: true,
     ),
+    const FfmAssistantCapability(
+      id: 'market.refresh',
+      label: 'Segarkan berita dan valas',
+      description: 'Mengambil ulang berita, kurs valas, dan data pasar publik.',
+      destination: FfmAssistantDestination.marketNewsRadar,
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+    ),
   ]);
 
   static String _destinationName(FfmAssistantDestination destination) =>

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' as math;
+import 'package:uuid/uuid.dart';
 
 import '../../../core/network/supabase_service.dart';
 import '../domain/ffm_memory_candidate.dart';
@@ -507,7 +507,7 @@ class FfmMemoryLearningService {
     bool requireApproval,
   ) async {
     final memoryCandidate = FfmMemoryCandidate(
-      id: 'memory-${DateTime.now().microsecondsSinceEpoch}-${math.Random().nextInt(10000)}',
+      id: 'memory-${const Uuid().v4()}',
       type: candidate.type,
       key: candidate.key,
       value: candidate.value,

@@ -41,6 +41,10 @@ enum GoldKarat {
   }
 }
 
+/// Instrumen yang mempunyai bukti harga sendiri dalam snapshot pasar.
+/// Nilai tampilan cadangan tidak pernah masuk ke set ini.
+enum MarketInstrument { gold24K, usd, sgd, eur, sar, btc, eth, usdt }
+
 /// Snapshot harga pasar terkini (Emas, Valas, dan Kripto).
 class MarketPriceSnapshot {
   const MarketPriceSnapshot({
@@ -55,6 +59,7 @@ class MarketPriceSnapshot {
     required this.usdtPrice,
     required this.lastUpdated,
     this.isOfflineCache = false,
+    this.verifiedInstruments,
   });
 
   /// Harga beli emas batangan 24K per gram (IDR).
@@ -87,34 +92,45 @@ class MarketPriceSnapshot {
   final DateTime lastUpdated;
   final bool isOfflineCache;
 
+  /// Instrumen dengan harga aktual yang berhasil diverifikasi pada refresh ini.
+  /// Null is retained for manually-created legacy snapshots; network snapshots
+  /// always set this explicitly.
+  final Set<MarketInstrument>? verifiedInstruments;
+
+  bool hasVerifiedPrice(MarketInstrument instrument) =>
+      !isOfflineCache && (verifiedInstruments?.contains(instrument) ?? true);
+
   /// Default harga pasar jika belum pernah tersambung ke web.
   factory MarketPriceSnapshot.initialFallback() => MarketPriceSnapshot(
-        goldPrice24K: 1425000,
-        goldBuybackPrice: 1285000,
-        usdRate: 15650.0,
-        sgdRate: 11950.0,
-        eurRate: 16920.0,
-        sarRate: 4170.0,
-        btcPrice: 1050000000.0,
-        ethPrice: 55000000.0,
-        usdtPrice: 15680.0,
-        lastUpdated: DateTime.now(),
-        isOfflineCache: true,
-      );
+    goldPrice24K: 1425000,
+    goldBuybackPrice: 1285000,
+    usdRate: 15650.0,
+    sgdRate: 11950.0,
+    eurRate: 16920.0,
+    sarRate: 4170.0,
+    btcPrice: 1050000000.0,
+    ethPrice: 55000000.0,
+    usdtPrice: 15680.0,
+    lastUpdated: DateTime.now(),
+    isOfflineCache: true,
+  );
 
   Map<String, dynamic> toJson() => {
-        'goldPrice24K': goldPrice24K,
-        'goldBuybackPrice': goldBuybackPrice,
-        'usdRate': usdRate,
-        'sgdRate': sgdRate,
-        'eurRate': eurRate,
-        'sarRate': sarRate,
-        'btcPrice': btcPrice,
-        'ethPrice': ethPrice,
-        'usdtPrice': usdtPrice,
-        'lastUpdated': lastUpdated.toIso8601String(),
-        'isOfflineCache': isOfflineCache,
-      };
+    'goldPrice24K': goldPrice24K,
+    'goldBuybackPrice': goldBuybackPrice,
+    'usdRate': usdRate,
+    'sgdRate': sgdRate,
+    'eurRate': eurRate,
+    'sarRate': sarRate,
+    'btcPrice': btcPrice,
+    'ethPrice': ethPrice,
+    'usdtPrice': usdtPrice,
+    'lastUpdated': lastUpdated.toIso8601String(),
+    'isOfflineCache': isOfflineCache,
+    'verifiedInstruments': verifiedInstruments
+        ?.map((item) => item.name)
+        .toList(),
+  };
 
   factory MarketPriceSnapshot.fromJson(Map<String, dynamic> json) =>
       MarketPriceSnapshot(
@@ -132,6 +148,18 @@ class MarketPriceSnapshot {
             ? DateTime.tryParse(json['lastUpdated'] as String) ?? DateTime.now()
             : DateTime.now(),
         isOfflineCache: json['isOfflineCache'] as bool? ?? false,
+        verifiedInstruments: json.containsKey('verifiedInstruments')
+            ? (json['verifiedInstruments'] as List?)
+                      ?.map((item) {
+                        for (final value in MarketInstrument.values) {
+                          if (value.name == item) return value;
+                        }
+                        return null;
+                      })
+                      .whereType<MarketInstrument>()
+                      .toSet() ??
+                  <MarketInstrument>{}
+            : <MarketInstrument>{},
       );
 
   // Convenience getters
@@ -173,7 +201,11 @@ class NewsAlertItem {
     required this.category,
     this.url,
     bool? isHighAlert,
-  }) : _explicitHighAlert = isHighAlert;
+    this.isFallback = false,
+    this.isPublishedAtKnown = true,
+    DateTime? fetchedAt,
+  }) : fetchedAt = fetchedAt ?? publishedAt,
+       _explicitHighAlert = isHighAlert;
 
   final String id;
   final String title;
@@ -182,6 +214,13 @@ class NewsAlertItem {
   final DateTime publishedAt;
   final NewsCategory category;
   final String? url;
+
+  /// Konten edukasi/cadangan, bukan bukti berita pasar terkini.
+  final bool isFallback;
+
+  /// RSS tanpa tanggal tetap dapat ditampilkan, tetapi tidak boleh dianggap baru.
+  final bool isPublishedAtKnown;
+  final DateTime fetchedAt;
   final bool? _explicitHighAlert;
 
   // Convenience getters
@@ -196,29 +235,37 @@ class NewsAlertItem {
           title.toLowerCase().contains('ekstrem'));
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'snippet': snippet,
-        'sourceName': sourceName,
-        'publishedAt': publishedAt.toIso8601String(),
-        'category': category.name,
-        'url': url,
-        'isHighAlert': isHighAlert,
-      };
+    'id': id,
+    'title': title,
+    'snippet': snippet,
+    'sourceName': sourceName,
+    'publishedAt': publishedAt.toIso8601String(),
+    'category': category.name,
+    'url': url,
+    'isHighAlert': isHighAlert,
+    'isFallback': isFallback,
+    'isPublishedAtKnown': isPublishedAtKnown,
+    'fetchedAt': fetchedAt.toIso8601String(),
+  };
 
   factory NewsAlertItem.fromJson(Map<String, dynamic> json) => NewsAlertItem(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        snippet: json['snippet'] as String? ?? '',
-        sourceName: json['sourceName'] as String? ?? 'Warta Resmi',
-        publishedAt: json['publishedAt'] != null
-            ? DateTime.tryParse(json['publishedAt'] as String) ?? DateTime.now()
-            : DateTime.now(),
-        category: NewsCategory.values.firstWhere(
-          (c) => c.name == json['category'],
-          orElse: () => NewsCategory.all,
-        ),
-        url: json['url'] as String?,
-        isHighAlert: json['isHighAlert'] as bool?,
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    snippet: json['snippet'] as String? ?? '',
+    sourceName: json['sourceName'] as String? ?? 'Warta Resmi',
+    publishedAt: json['publishedAt'] != null
+        ? DateTime.tryParse(json['publishedAt'] as String) ?? DateTime.now()
+        : DateTime.now(),
+    category: NewsCategory.values.firstWhere(
+      (c) => c.name == json['category'],
+      orElse: () => NewsCategory.all,
+    ),
+    url: json['url'] as String?,
+    isHighAlert: json['isHighAlert'] as bool?,
+    isFallback: json['isFallback'] as bool? ?? false,
+    isPublishedAtKnown: json['isPublishedAtKnown'] as bool? ?? true,
+    fetchedAt: json['fetchedAt'] != null
+        ? DateTime.tryParse(json['fetchedAt'] as String)
+        : null,
+  );
 }

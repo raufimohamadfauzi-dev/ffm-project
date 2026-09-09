@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
 
 import '../../domain/entities/market_news_models.dart';
@@ -27,7 +28,7 @@ class MarketNewsRadarService {
     var goldPrice24K = 1425000;
     var goldBuybackPrice = 1285000;
 
-    var hasNetworkSuccess = false;
+    final verifiedInstruments = <MarketInstrument>{};
 
     // 1. Ambil Kurs Valas (USD, SGD, EUR, SAR ke IDR) via open.er-api.com
     try {
@@ -41,58 +42,109 @@ class MarketNewsRadarService {
         if (rates != null && rates.containsKey('IDR')) {
           final idr = (rates['IDR'] as num).toDouble();
           usdRate = idr;
+          verifiedInstruments.add(MarketInstrument.usd);
 
           if (rates.containsKey('SGD')) {
             final sgdVal = (rates['SGD'] as num?)?.toDouble() ?? 0.0;
             if (sgdVal > 0) {
               sgdRate = idr / sgdVal;
+              verifiedInstruments.add(MarketInstrument.sgd);
             }
           }
           if (rates.containsKey('EUR')) {
             final eurVal = (rates['EUR'] as num?)?.toDouble() ?? 0.0;
             if (eurVal > 0) {
               eurRate = idr / eurVal;
+              verifiedInstruments.add(MarketInstrument.eur);
             }
           }
           if (rates.containsKey('SAR')) {
             final sarVal = (rates['SAR'] as num?)?.toDouble() ?? 0.0;
             if (sarVal > 0) {
               sarRate = idr / sarVal;
+              verifiedInstruments.add(MarketInstrument.sar);
             }
           }
-          hasNetworkSuccess = true;
         }
       }
     } catch (_) {
       // Graceful degradation
     }
 
-    // 2. Ambil Kripto (BTC, ETH, USDT ke IDR) via CoinGecko Public API
+    // Sumber kedua tetap dipanggil agar setiap refresh membandingkan dan
+    // melengkapi data dari semua provider yang tersedia.
     try {
       final res = await httpClient
           .get(Uri.parse(
-              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr'))
+              'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json'))
+          .timeout(_requestTimeout);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as Map<String, dynamic>;
+        final rates = data['usd'] as Map<String, dynamic>?;
+        final idr = (rates?['idr'] as num?)?.toDouble();
+        if (idr != null && idr > 0) {
+          if (!verifiedInstruments.contains(MarketInstrument.usd)) {
+            usdRate = idr;
+            verifiedInstruments.add(MarketInstrument.usd);
+          }
+          final sgd = (rates?['sgd'] as num?)?.toDouble();
+          final eur = (rates?['eur'] as num?)?.toDouble();
+          final sar = (rates?['sar'] as num?)?.toDouble();
+          if (!verifiedInstruments.contains(MarketInstrument.sgd) &&
+              sgd != null &&
+              sgd > 0) {
+            sgdRate = idr / sgd;
+            verifiedInstruments.add(MarketInstrument.sgd);
+          }
+          if (!verifiedInstruments.contains(MarketInstrument.eur) &&
+              eur != null &&
+              eur > 0) {
+            eurRate = idr / eur;
+            verifiedInstruments.add(MarketInstrument.eur);
+          }
+          if (!verifiedInstruments.contains(MarketInstrument.sar) &&
+              sar != null &&
+              sar > 0) {
+            sarRate = idr / sar;
+            verifiedInstruments.add(MarketInstrument.sar);
+          }
+        }
+      }
+    } catch (_) {
+      // Tetap gunakan fallback lokal bila kedua provider gagal.
+    }
+
+    // 2. Ambil Kripto (BTC, ETH, USDT ke IDR) via CoinGecko Public API
+    try {
+      final res = await httpClient
+          .get(
+            Uri.parse(
+              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr',
+            ),
+          )
           .timeout(_requestTimeout);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data.containsKey('bitcoin')) {
           btcPrice = (data['bitcoin']['idr'] as num).toDouble();
+          verifiedInstruments.add(MarketInstrument.btc);
         }
         if (data.containsKey('ethereum')) {
           ethPrice = (data['ethereum']['idr'] as num).toDouble();
+          verifiedInstruments.add(MarketInstrument.eth);
         }
         if (data.containsKey('tether')) {
           usdtPrice = (data['tether']['idr'] as num).toDouble();
+          verifiedInstruments.add(MarketInstrument.usdt);
         }
-        hasNetworkSuccess = true;
       }
     } catch (_) {
       // Graceful degradation
     }
 
-    // 3. Auto-estimasi harga emas 24K berbasis kurs USD & pasar emas acuan
-    // (1 troy ounce = 31.1035 gram emas murni)
+    // This is a display estimate only. It has no provider evidence and must
+    // never be used to revalue a persisted asset.
     if (usdRate > 0) {
       // Estimasi emas Antam: ~$2.500/troy oz * kurs USD / 31.1035 + premi cetak domestik
       final estimatedGram = ((2500.0 * usdRate) / 31.1035) * 1.13;
@@ -115,7 +167,15 @@ class MarketNewsRadarService {
       ethPrice: ethPrice,
       usdtPrice: usdtPrice,
       lastUpdated: now,
-      isOfflineCache: !hasNetworkSuccess,
+       isOfflineCache: !verifiedInstruments.any(
+         (instrument) => const {
+           MarketInstrument.usd,
+           MarketInstrument.sgd,
+           MarketInstrument.eur,
+           MarketInstrument.sar,
+         }.contains(instrument),
+       ),
+      verifiedInstruments: verifiedInstruments,
     );
   }
 
@@ -125,81 +185,172 @@ class MarketNewsRadarService {
   /// Jika offline atau gagal, melakukan degradasi anggun (graceful fallback) ke berita kurasi lokal.
   Future<List<NewsAlertItem>> fetchCuratedNews({http.Client? client}) async {
     final httpClient = client ?? http.Client();
-    final now = DateTime.now();
-
-    try {
-      final res = await httpClient
-          .get(Uri.parse('https://www.antaranews.com/rss/terkini.xml'))
-          .timeout(_requestTimeout);
-
-      if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-        final parsed = parseRssFeed(res.body, defaultSource: 'Antara News');
-        if (parsed.isNotEmpty) {
-          if (client == null) httpClient.close();
-          return parsed;
+    const feeds = <({String url, String source})>[
+      (url: 'https://www.antaranews.com/rss/terkini.xml', source: 'Antara News'),
+      (url: 'https://www.cnbcindonesia.com/rss', source: 'CNBC Indonesia'),
+    ];
+    final feedResults = await Future.wait<List<NewsAlertItem>>(
+      feeds.map((feed) async {
+        try {
+          final res = await httpClient
+              .get(Uri.parse(feed.url))
+              .timeout(_requestTimeout);
+          if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
+            return parseRssFeed(res.body, defaultSource: feed.source);
+          }
+        } catch (_) {
+          // Sumber gagal tidak boleh menggagalkan feed lainnya.
         }
+        return const <NewsAlertItem>[];
+      }).followedBy([_fetchLatestBmkgNews(httpClient)]),
+    );
+    final collected = feedResults.expand((items) => items).toList();
+
+    if (collected.isNotEmpty) {
+      final unique = <String, NewsAlertItem>{};
+      for (final item in collected) {
+        unique[item.url ?? item.title.toLowerCase()] = item;
       }
-    } catch (_) {
-      // Graceful offline fallback
+      final result = unique.values.toList()
+        ..sort((a, b) => b.publishedAt.compareTo(a.publishedAt));
+      if (client == null) httpClient.close();
+      return result.take(10).toList();
     }
 
     if (client == null) {
       httpClient.close();
     }
 
-    // Default warta terpilih relevan keluarga & usaha (offline fallback)
+    // Educational fallback. Dates are fixed and explicitly marked, so a
+    // refresh cannot turn static content into fabricated current news.
+    final fallbackPublishedAt = DateTime.utc(2026, 1, 1);
     final defaultNews = [
       NewsAlertItem(
         id: 'news_bmkg_1',
-        title: 'BMKG Rilis Potensi Cuaca Ekstrem & Hujan Lebat Sepekan ke Depan',
-        snippet:
-            'BMKG mengimbau masyarakat dan petani mewaspadai potensi genangan air di lahan pertanian dataran rendah serta pergeseran tanah.',
+        title:
+            'BMKG Rilis Potensi Cuaca Ekstrem & Hujan Lebat Sepekan ke Depan',
+        snippet: 'BMKG mengimbau masyarakat dan petani mewaspadai potensi genangan air di lahan pertanian dataran rendah serta pergeseran tanah.',
         sourceName: 'BMKG Indonesia',
-        publishedAt: now.subtract(const Duration(hours: 2)),
+        publishedAt: fallbackPublishedAt,
         category: NewsCategory.weatherDisaster,
         url: 'https://www.bmkg.go.id',
+        isFallback: true,
       ),
       NewsAlertItem(
         id: 'news_tani_1',
         title: 'Kementan Perluas Penyaluran Pupuk Bersubsidi untuk Musim Tanam',
-        snippet:
-            'Pemerintah menambah kuota pupuk urea dan NPK bersubsidi guna mendukung ketahanan pangan dan kestabilan biaya modal petani.',
+        snippet: 'Pemerintah menambah kuota pupuk urea dan NPK bersubsidi guna mendukung ketahanan pangan dan kestabilan biaya modal petani.',
         sourceName: 'Antara Pertanian',
-        publishedAt: now.subtract(const Duration(hours: 5)),
+        publishedAt: fallbackPublishedAt,
         category: NewsCategory.agriculture,
         url: 'https://www.antaranews.com',
+        isFallback: true,
       ),
       NewsAlertItem(
         id: 'news_fin_1',
         title: 'Bank Indonesia Pertahankan BI-Rate: Stabilitas Rupiah Terjaga',
-        snippet:
-            'Keputusan ini diarahkan untuk memperkuat stabilitas nilai tukar Rupiah dari dampak ketidakpastian geopolitik global.',
+        snippet: 'Keputusan ini diarahkan untuk memperkuat stabilitas nilai tukar Rupiah dari dampak ketidakpastian geopolitik global.',
         sourceName: 'Bank Indonesia',
-        publishedAt: now.subtract(const Duration(hours: 8)),
+        publishedAt: fallbackPublishedAt,
         category: NewsCategory.finance,
         url: 'https://www.bi.go.id',
+        isFallback: true,
       ),
       NewsAlertItem(
         id: 'news_tani_2',
         title: 'Tren Harga Gabah Kering Panen di Pasar Regional Menguat',
-        snippet:
-            'Permintaan beras yang stabil mendorong peningkatan harga beli gabah kering panen di tingkat penggilingan petani.',
+        snippet: 'Permintaan beras yang stabil mendorong peningkatan harga beli gabah kering panen di tingkat penggilingan petani.',
         sourceName: 'Warta Pangan',
-        publishedAt: now.subtract(const Duration(hours: 14)),
+        publishedAt: fallbackPublishedAt,
         category: NewsCategory.agriculture,
+        isFallback: true,
       ),
       NewsAlertItem(
         id: 'news_bmkg_2',
         title: 'Waspada Angin Kencang dan Potensi Titik Panas di Lahan Gambut',
-        snippet:
-            'Petani dan pemilik lahan perkebunan diimbau tidak melakukan pembakaran sisa jerami secara sembarangan untuk mencegah karhutla.',
+        snippet: 'Petani dan pemilik lahan perkebunan diimbau tidak melakukan pembakaran sisa jerami secara sembarangan untuk mencegah karhutla.',
         sourceName: 'Radar Bencana BMKG',
-        publishedAt: now.subtract(const Duration(hours: 20)),
+        publishedAt: fallbackPublishedAt,
         category: NewsCategory.weatherDisaster,
+        isFallback: true,
       ),
     ];
 
     return defaultNews;
+  }
+
+  /// Menyaring berita yang relevan dengan fokus aplikasi dan preferensi user.
+  /// Pencocokan dilakukan lokal terhadap judul dan ringkasan.
+  static bool isRelevantForUser(
+    NewsAlertItem item, {
+    required Iterable<String> keywords,
+  }) {
+    const coreCategories = {
+      NewsCategory.agriculture,
+      NewsCategory.weatherDisaster,
+      NewsCategory.finance,
+    };
+    if (coreCategories.contains(item.category)) return true;
+
+    final content = '${item.title} ${item.snippet}'.toLowerCase();
+    return keywords.any((keyword) {
+      final normalized = keyword.trim().toLowerCase();
+      return normalized.isNotEmpty && content.contains(normalized);
+    });
+  }
+
+  Future<List<NewsAlertItem>> _fetchLatestBmkgNews(http.Client client) async {
+    try {
+      final res = await client
+          .get(Uri.parse('https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json'))
+          .timeout(_requestTimeout);
+      if (res.statusCode != 200 || res.body.trim().isEmpty) {
+        return const [];
+      }
+      return parseBmkgEarthquake(res.body);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  static List<NewsAlertItem> parseBmkgEarthquake(String body) {
+    try {
+      final root = jsonDecode(body) as Map<String, dynamic>;
+      final info = root['Infogempa'] as Map<String, dynamic>?;
+      final earthquake = info?['gempa'] as Map<String, dynamic>?;
+      if (earthquake == null) return const [];
+
+      final title = 'Gempa M${earthquake['Magnitude'] ?? '-'}'
+          ' - ${earthquake['Wilayah'] ?? 'wilayah Indonesia'}';
+      final details = [
+        if (earthquake['Kedalaman'] != null)
+          'Kedalaman ${earthquake['Kedalaman']}',
+        if (earthquake['Potensi'] != null) earthquake['Potensi'],
+        if (earthquake['Dirasakan'] != null &&
+            earthquake['Dirasakan'].toString().trim().isNotEmpty)
+          'Dirasakan: ${earthquake['Dirasakan']}',
+      ].join('. ');
+      final publishedAt = DateTime.tryParse(
+        earthquake['DateTime']?.toString() ?? '',
+      );
+      final fetchedAt = DateTime.now();
+
+      return [
+        NewsAlertItem(
+          id: 'bmkg_${earthquake['DateTime'] ?? fetchedAt.millisecondsSinceEpoch}',
+          title: title,
+          snippet: details.isEmpty ? 'Informasi gempa terbaru dari BMKG.' : details,
+          sourceName: 'BMKG Indonesia',
+          publishedAt: publishedAt ?? fetchedAt,
+          category: NewsCategory.weatherDisaster,
+          url: 'https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json',
+          fetchedAt: fetchedAt,
+          isPublishedAtKnown: publishedAt != null,
+        ),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Helper untuk mem-parsing XML RSS 2.0 standar menjadi koleksi [NewsAlertItem].
@@ -208,32 +359,49 @@ class MarketNewsRadarService {
     String defaultSource = 'Warta Publik',
   }) {
     final items = <NewsAlertItem>[];
-    final itemPattern = RegExp(r'<item>([\s\S]*?)</item>', caseSensitive: false);
-    final titlePattern =
-        RegExp(r'<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</title>', caseSensitive: false);
-    final linkPattern =
-        RegExp(r'<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</link>', caseSensitive: false);
-    final descPattern =
-        RegExp(r'<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</description>', caseSensitive: false);
-    final pubDatePattern =
-        RegExp(r'<pubDate>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</pubDate>', caseSensitive: false);
+    final itemPattern = RegExp(
+      r'<item>([\s\S]*?)</item>',
+      caseSensitive: false,
+    );
+    final titlePattern = RegExp(
+      r'<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</title>',
+      caseSensitive: false,
+    );
+    final linkPattern = RegExp(
+      r'<link>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</link>',
+      caseSensitive: false,
+    );
+    final descPattern = RegExp(
+      r'<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</description>',
+      caseSensitive: false,
+    );
+    final pubDatePattern = RegExp(
+      r'<pubDate>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?</pubDate>',
+      caseSensitive: false,
+    );
 
     final matches = itemPattern.allMatches(xmlContent);
     var index = 0;
     for (final match in matches) {
       if (items.length >= 10) break;
       final itemBlock = match.group(1) ?? '';
-      final rawTitle = titlePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+      final rawTitle =
+          titlePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
       final rawLink = linkPattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
       final rawDesc = descPattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
-      final rawPubDate = pubDatePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
+      final rawPubDate =
+          pubDatePattern.firstMatch(itemBlock)?.group(1)?.trim() ?? '';
 
       if (rawTitle.isEmpty) continue;
 
       final title = _cleanHtml(rawTitle);
       final snippet = _cleanHtml(rawDesc);
+      final parsedPublishedAt = _parseRssDate(rawPubDate);
+      // Keep a stable sentinel only for the required model field; consumers
+      // must use isPublishedAtKnown before making any recency claim.
       final publishedAt =
-          _parseRssDate(rawPubDate) ?? DateTime.now().subtract(Duration(hours: index * 2 + 1));
+          parsedPublishedAt ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
       final category = _categorizeNews(title, snippet);
 
       items.add(
@@ -245,6 +413,8 @@ class MarketNewsRadarService {
           publishedAt: publishedAt,
           category: category,
           url: rawLink.isNotEmpty ? rawLink : null,
+          isPublishedAtKnown: parsedPublishedAt != null,
+          fetchedAt: DateTime.now(),
         ),
       );
       index++;
@@ -272,9 +442,16 @@ class MarketNewsRadarService {
         lower.contains('cuaca') ||
         lower.contains('bmkg') ||
         lower.contains('gempa') ||
+        lower.contains('tsunami') ||
         lower.contains('banjir') ||
         lower.contains('longsor') ||
+        lower.contains('kebakaran') ||
+        lower.contains('karhutla') ||
+        lower.contains('erupsi') ||
+        lower.contains('gunung meletus') ||
         lower.contains('bencana') ||
+        lower.contains('evakuasi') ||
+        lower.contains('darurat') ||
         lower.contains('angin kencang') ||
         lower.contains('waspada')) {
       return NewsCategory.weatherDisaster;
@@ -317,8 +494,18 @@ class MarketNewsRadarService {
           final day = int.tryParse(parts[1]);
           final year = int.tryParse(parts[3]);
           final months = {
-            'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
-            'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+            'jan': 1,
+            'feb': 2,
+            'mar': 3,
+            'apr': 4,
+            'may': 5,
+            'jun': 6,
+            'jul': 7,
+            'aug': 8,
+            'sep': 9,
+            'oct': 10,
+            'nov': 11,
+            'dec': 12,
           };
           final month = months[parts[2].toLowerCase().substring(0, 3)];
           if (day != null && year != null && month != null) {

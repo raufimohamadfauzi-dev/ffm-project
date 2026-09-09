@@ -51,6 +51,7 @@ class _FfmAssistantDraftEditDialogState
   late String? _fromAccount;
   late String? _toAccount;
   late DateTime? _date;
+  late TimeOfDay? _time; // only used for reminder drafts
   late ActivityMode _activityMode;
   late FfmAssistantDraftKind _selectedKind;
 
@@ -110,6 +111,11 @@ class _FfmAssistantDraftEditDialogState
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
     _date = widget.draft.date;
+    // For reminder drafts, preserve the time-of-day separately so changing
+    // date doesn't reset the time and vice-versa.
+    _time = widget.draft.kind == FfmAssistantDraftKind.reminder && widget.draft.date != null
+        ? TimeOfDay.fromDateTime(widget.draft.date!)
+        : null;
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -241,7 +247,14 @@ class _FfmAssistantDraftEditDialogState
   }
 
   void _save() {
-    final amountText = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final rawAmountText = _amountController.text.trim();
+    if (rawAmountText.contains('-')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal tidak boleh negatif.')),
+      );
+      return;
+    }
+    final amountText = rawAmountText.replaceAll(RegExp(r'[^0-9]'), '');
     final amount = amountText.isEmpty ? null : int.tryParse(amountText);
     final adminFeeText = _adminFeeController.text.replaceAll(
       RegExp(r'[^0-9]'),
@@ -296,6 +309,103 @@ class _FfmAssistantDraftEditDialogState
 
     final validItems = _items.where((i) => i.name.trim().isNotEmpty).toList(growable: false);
 
+    final newFormValues = Map<String, String>.from(widget.draft.formValues);
+    if (_selectedKind == FfmAssistantDraftKind.budget) {
+      newFormValues['periodType'] = _budgetPeriod;
+    }
+    if (_isDebtOrReceivable) {
+      if (partyName != null) {
+        newFormValues['partyName'] = partyName;
+      } else {
+        newFormValues.remove('partyName');
+      }
+      if (monthlyInstallment.isNotEmpty) {
+        newFormValues['monthlyInstallment'] = monthlyInstallment;
+      }
+      if (_date != null) {
+        newFormValues['dueDate'] = _date!.toIso8601String();
+      }
+    }
+    if (_selectedKind == FfmAssistantDraftKind.goal && _date != null) {
+      newFormValues['targetDate'] = _date!.toIso8601String();
+    }
+    if (_selectedKind == FfmAssistantDraftKind.activity) {
+      newFormValues['activityMode'] = _activityMode.value;
+      newFormValues['kind'] = _activityMode.activityKind.value;
+      newFormValues['modeNeedsConfirmation'] = 'false';
+    }
+    if (_selectedKind == FfmAssistantDraftKind.income) {
+      if (partyName != null) {
+        newFormValues['incomeSource'] = partyName;
+      } else {
+        newFormValues.remove('incomeSource');
+      }
+    }
+    if (_selectedKind == FfmAssistantDraftKind.income ||
+        _selectedKind == FfmAssistantDraftKind.expense) {
+      if (_tags.isNotEmpty) {
+        newFormValues['tags'] = _tags.join(', ');
+      } else {
+        newFormValues.remove('tags');
+      }
+    }
+    if (_isTransaction) {
+      if (merchantName != null) {
+        newFormValues['merchant'] = merchantName;
+      } else {
+        newFormValues.remove('merchant');
+      }
+      if (location != null) {
+        newFormValues['location'] = location;
+      } else {
+        newFormValues.remove('location');
+      }
+      if (partyName != null) {
+        newFormValues['party'] = partyName;
+      } else {
+        newFormValues.remove('party');
+      }
+    }
+    if (receiptNumber != null && receiptNumber.isNotEmpty) {
+      newFormValues['receiptNumber'] = receiptNumber;
+    } else {
+      newFormValues.remove('receiptNumber');
+    }
+    if (receiptPaidAmount != null) {
+      newFormValues['receiptPaidAmount'] = receiptPaidAmount.toString();
+    } else {
+      newFormValues.remove('receiptPaidAmount');
+    }
+    if (receiptChangeAmount != null) {
+      newFormValues['receiptChangeAmount'] = receiptChangeAmount.toString();
+    } else {
+      newFormValues.remove('receiptChangeAmount');
+    }
+    if (tax != null) {
+      newFormValues['tax'] = tax.toString();
+    } else {
+      newFormValues.remove('tax');
+    }
+    if (discount != null) {
+      newFormValues['discount'] = discount.toString();
+    } else {
+      newFormValues.remove('discount');
+    }
+
+    // For reminder drafts, combine the chosen date and time-of-day.
+    DateTime? effectiveDate = _date ?? widget.draft.date;
+    if (_selectedKind == FfmAssistantDraftKind.reminder &&
+        effectiveDate != null &&
+        _time != null) {
+      effectiveDate = DateTime(
+        effectiveDate.year,
+        effectiveDate.month,
+        effectiveDate.day,
+        _time!.hour,
+        _time!.minute,
+      );
+    }
+
     final editedDraft = FfmAssistantDraft(
       kind: _selectedKind,
       createdAt: widget.draft.createdAt,
@@ -310,7 +420,7 @@ class _FfmAssistantDraftEditDialogState
           : widget.draft.adminFee,
       goalName: goalName,
       note: _textOrNull(_noteController),
-      date: _date ?? widget.draft.date,
+      date: effectiveDate,
       linkedActivityId: widget.draft.linkedActivityId,
       items: validItems,
       receiptNumber: receiptNumber,
@@ -318,44 +428,19 @@ class _FfmAssistantDraftEditDialogState
       receiptChangeAmount: receiptChangeAmount,
       tax: tax,
       discount: discount,
-      formValues: {
-        ...widget.draft.formValues,
-        if (_selectedKind == FfmAssistantDraftKind.budget)
-          'periodType': _budgetPeriod,
-        if (_isDebtOrReceivable && partyName != null) 'partyName': partyName,
-        if (_isDebtOrReceivable && monthlyInstallment.isNotEmpty)
-          'monthlyInstallment': monthlyInstallment,
-        if (_isDebtOrReceivable && _date != null)
-          'dueDate': _date!.toIso8601String(),
-        if (_selectedKind == FfmAssistantDraftKind.goal && _date != null)
-          'targetDate': _date!.toIso8601String(),
-        if (_selectedKind == FfmAssistantDraftKind.activity)
-          'activityMode': _activityMode.value,
-        if (_selectedKind == FfmAssistantDraftKind.activity)
-          'kind': _activityMode.activityKind.value,
-        if (_selectedKind == FfmAssistantDraftKind.activity)
-          'modeNeedsConfirmation': 'false',
-        if (_selectedKind == FfmAssistantDraftKind.income &&
-            partyName != null)
-          'incomeSource': partyName,
-        if (_selectedKind == FfmAssistantDraftKind.income ||
-            _selectedKind == FfmAssistantDraftKind.expense)
-          'tags': _tags.join(', '),
-        if (_isTransaction && merchantName != null) 'merchant': merchantName,
-        if (_isTransaction && location != null) 'location': location,
-        if (_isTransaction && partyName != null) 'party': partyName,
-        if (receiptNumber != null && receiptNumber.isNotEmpty)
-          'receiptNumber': receiptNumber,
-        if (receiptPaidAmount != null)
-          'receiptPaidAmount': receiptPaidAmount.toString(),
-        if (receiptChangeAmount != null)
-          'receiptChangeAmount': receiptChangeAmount.toString(),
-        if (tax != null) 'tax': tax.toString(),
-        if (discount != null) 'discount': discount.toString(),
-      },
-      merchantName: merchantName ?? widget.draft.merchantName,
-      location: location ?? widget.draft.location,
+      formValues: newFormValues,
+      merchantName: merchantName,
+      location: location,
       slmFieldValues: widget.draft.slmFieldValues,
+      // Preserve cycle-specific metadata that is not edited in this dialog
+      metadata: widget.draft.metadata,
+      commodityOrBusinessType: widget.draft.commodityOrBusinessType,
+      targetHarvestDate: widget.draft.targetHarvestDate,
+      initialCapital: widget.draft.initialCapital,
+      estimatedInflow: widget.draft.estimatedInflow,
+      dailyLivingBudget: widget.draft.dailyLivingBudget,
+      dailyOperationalBudget: widget.draft.dailyOperationalBudget,
+      cycleProfileType: widget.draft.cycleProfileType,
     );
 
     // Record the draft edit for LLM feedback
@@ -694,7 +779,7 @@ class _FfmAssistantDraftEditDialogState
                     : widget.draft.kind == FfmAssistantDraftKind.goal
                     ? 'Target tanggal tercapai'
                     : widget.draft.kind == FfmAssistantDraftKind.reminder
-                    ? 'Waktu pengingat'
+                    ? 'Tanggal pengingat'
                     : 'Tanggal aktivitas',
               ),
               subtitle: Text(
@@ -719,6 +804,32 @@ class _FfmAssistantDraftEditDialogState
                   );
                   if (picked != null && mounted) {
                     setState(() => _date = picked);
+                  }
+                },
+                child: const Text('Ganti'),
+              ),
+            ),
+          // Reminder-only: dedicated time picker so changing the date doesn't
+          // reset the hour/minute and the full scheduledAt is visible.
+          if (widget.draft.kind == FfmAssistantDraftKind.reminder)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.access_time_outlined),
+              title: const Text('Jam pengingat'),
+              subtitle: Text(
+                _time == null
+                    ? 'Belum diisi (akan pakai 00:00)'
+                    : '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')} WIB',
+              ),
+              trailing: TextButton(
+                onPressed: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _time ?? TimeOfDay.now(),
+                    helpText: 'Pilih jam pengingat',
+                  );
+                  if (picked != null && mounted) {
+                    setState(() => _time = picked);
                   }
                 },
                 child: const Text('Ganti'),

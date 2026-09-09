@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
+import '../../../assistant/data/autonomous_activity_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../data/repositories/market_news_cache_repository.dart';
@@ -13,6 +15,7 @@ import '../../domain/entities/market_news_models.dart';
 import '../../domain/usecases/asset_auto_valuation_service.dart';
 import '../../domain/usecases/asset_crud_usecases.dart';
 import '../widgets/market_price_ticker_card.dart';
+
 import 'package:intl/intl.dart';
 
 class AssetListPage extends StatefulWidget {
@@ -103,17 +106,21 @@ class _AssetListPageState extends State<AssetListPage> {
   }
 
   Future<void> _syncMarketValuation() async {
-    final snapshot = await getIt<MarketNewsCacheRepository>().getLatestPriceSnapshot();
-    final updatedCount = await getIt<AssetAutoValuationService>().revalueAllAssets(
-      AppContext.householdId,
-      snapshot,
-    );
+    final snapshot = await getIt<MarketNewsCacheRepository>()
+        .getLatestPriceSnapshot();
+    final result = await getIt<AssetAutoValuationService>()
+        .revalueAndRecordAutonomously(
+          db: getIt<AppDatabase>(),
+          snapshot: snapshot,
+          householdId: AppContext.householdId,
+          activityRepository: getIt<AutonomousActivityRepository>(),
+        );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          updatedCount > 0
-              ? 'Berhasil memperbarui nilai $updatedCount aset emas/valas dengan kurs pasar.'
+          result.revaluedCount > 0
+              ? 'Berhasil memperbarui nilai ${result.revaluedCount} aset emas/valas dengan kurs pasar.'
               : 'Tidak ada aset berlabel emas/valas yang perlu disinkronkan.',
         ),
       ),
@@ -182,17 +189,27 @@ class _AssetListPageState extends State<AssetListPage> {
                               end: Alignment.bottomRight,
                               colors: isDark
                                   ? [
-                                      colorScheme.primaryContainer.withValues(alpha: 0.8),
-                                      colorScheme.primaryContainer.withValues(alpha: 0.4),
+                                      colorScheme.primaryContainer.withValues(
+                                        alpha: 0.8,
+                                      ),
+                                      colorScheme.primaryContainer.withValues(
+                                        alpha: 0.4,
+                                      ),
                                     ]
                                   : [
-                                      colorScheme.primaryContainer.withValues(alpha: 0.6),
-                                      colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                      colorScheme.primaryContainer.withValues(
+                                        alpha: 0.6,
+                                      ),
+                                      colorScheme.primaryContainer.withValues(
+                                        alpha: 0.3,
+                                      ),
                                     ],
                             ),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                           child: Row(
@@ -200,7 +217,9 @@ class _AssetListPageState extends State<AssetListPage> {
                               Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: colorScheme.primary.withValues(alpha: 0.2),
+                                  color: colorScheme.primary.withValues(
+                                    alpha: 0.2,
+                                  ),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(
@@ -216,18 +235,20 @@ class _AssetListPageState extends State<AssetListPage> {
                                   children: [
                                     Text(
                                       'Total Nilai Aset',
-                                      style: theme.textTheme.bodyMedium?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       _currencyFormat.format(_totalAssetValue),
-                                      style: theme.textTheme.headlineSmall?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: colorScheme.primary,
-                                      ),
+                                      style: theme.textTheme.headlineSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: colorScheme.primary,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -241,9 +262,7 @@ class _AssetListPageState extends State<AssetListPage> {
                         // Market Price Ticker
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: MarketPriceTickerCard(
-                            onPricesUpdated: _load,
-                          ),
+                          child: MarketPriceTickerCard(onPricesUpdated: _load),
                         ),
 
                         const SizedBox(height: 16),
@@ -278,16 +297,18 @@ class _AssetListPageState extends State<AssetListPage> {
                     SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
                       sliver: SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final item = _items[index];
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _buildAssetCard(item, theme, colorScheme, isDark),
-                            );
-                          },
-                          childCount: _items.length,
-                        ),
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final item = _items[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _buildAssetCard(
+                              item,
+                              theme,
+                              colorScheme,
+                              isDark,
+                            ),
+                          );
+                        }, childCount: _items.length),
                       ),
                     ),
                 ],
@@ -362,7 +383,9 @@ class _AssetListPageState extends State<AssetListPage> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                            color: colorScheme.secondaryContainer.withValues(
+                              alpha: 0.5,
+                            ),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -513,17 +536,27 @@ class AssetDetailPage extends StatelessWidget {
                         end: Alignment.bottomRight,
                         colors: isDark
                             ? [
-                                colorScheme.primaryContainer.withValues(alpha: 0.8),
-                                colorScheme.primaryContainer.withValues(alpha: 0.4),
+                                colorScheme.primaryContainer.withValues(
+                                  alpha: 0.8,
+                                ),
+                                colorScheme.primaryContainer.withValues(
+                                  alpha: 0.4,
+                                ),
                               ]
                             : [
-                                colorScheme.primaryContainer.withValues(alpha: 0.6),
-                                colorScheme.primaryContainer.withValues(alpha: 0.3),
+                                colorScheme.primaryContainer.withValues(
+                                  alpha: 0.6,
+                                ),
+                                colorScheme.primaryContainer.withValues(
+                                  alpha: 0.3,
+                                ),
                               ],
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.3,
+                        ),
                       ),
                     ),
                     child: Column(
@@ -584,10 +617,14 @@ class AssetDetailPage extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                        color: colorScheme.surfaceContainerHighest.withValues(
+                          alpha: 0.3,
+                        ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                          color: colorScheme.outlineVariant.withValues(
+                            alpha: 0.4,
+                          ),
                         ),
                       ),
                       child: Column(
@@ -601,7 +638,9 @@ class AssetDetailPage extends StatelessWidget {
                           ),
                           Divider(
                             height: 1,
-                            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                           _buildInfoTile(
                             Icons.place_outlined,
@@ -612,7 +651,9 @@ class AssetDetailPage extends StatelessWidget {
                           ),
                           Divider(
                             height: 1,
-                            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.3,
+                            ),
                           ),
                           _buildInfoTile(
                             Icons.event_note_outlined,
@@ -628,7 +669,9 @@ class AssetDetailPage extends StatelessWidget {
                           if (asset.updatedAt != null) ...[
                             Divider(
                               height: 1,
-                              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                              color: colorScheme.outlineVariant.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                             _buildInfoTile(
                               Icons.update_outlined,
@@ -664,10 +707,14 @@ class AssetDetailPage extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                          color: colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.3,
+                          ),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: colorScheme.outlineVariant.withValues(alpha: 0.4),
+                            color: colorScheme.outlineVariant.withValues(
+                              alpha: 0.4,
+                            ),
                           ),
                         ),
                         child: Text(asset.note!.trim()),
@@ -829,7 +876,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
   }
 
   Future<void> _showMarketValuationHelper() async {
-    final snapshot = await getIt<MarketNewsCacheRepository>().getLatestPriceSnapshot();
+    final snapshot = await getIt<MarketNewsCacheRepository>()
+        .getLatestPriceSnapshot();
     if (!mounted) return;
 
     var selectedMode = 0; // 0: Emas, 1: Valas
@@ -892,9 +940,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
                     children: [
                       Text(
                         'Kalkulator Valuasi Pasar',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
@@ -929,14 +976,18 @@ class _AssetFormPageState extends State<AssetFormPage> {
                           flex: 3,
                           child: TextField(
                             controller: gramCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Berat (Gram)',
                               border: OutlineInputBorder(),
                               isDense: true,
                             ),
                             onChanged: (v) {
-                              final parsed = double.tryParse(v.replaceAll(',', '.'));
+                              final parsed = double.tryParse(
+                                v.replaceAll(',', '.'),
+                              );
                               if (parsed != null && parsed > 0) {
                                 setSheetState(() => grams = parsed);
                               }
@@ -957,11 +1008,15 @@ class _AssetFormPageState extends State<AssetFormPage> {
                             items: GoldKarat.values.map((k) {
                               return DropdownMenuItem(
                                 value: k,
-                                child: Text('${k.label} (${(k.purityFactor * 100).toInt()}%)'),
+                                child: Text(
+                                  '${k.label} (${(k.purityFactor * 100).toInt()}%)',
+                                ),
                               );
                             }).toList(),
                             onChanged: (k) {
-                              if (k != null) setSheetState(() => selectedKarat = k);
+                              if (k != null) {
+                                setSheetState(() => selectedKarat = k);
+                              }
                             },
                           ),
                         ),
@@ -974,14 +1029,18 @@ class _AssetFormPageState extends State<AssetFormPage> {
                           flex: 3,
                           child: TextField(
                             controller: foreignCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             decoration: const InputDecoration(
                               labelText: 'Jumlah Valas',
                               border: OutlineInputBorder(),
                               isDense: true,
                             ),
                             onChanged: (v) {
-                              final parsed = double.tryParse(v.replaceAll(',', '.'));
+                              final parsed = double.tryParse(
+                                v.replaceAll(',', '.'),
+                              );
                               if (parsed != null && parsed > 0) {
                                 setSheetState(() => foreignAmount = parsed);
                               }
@@ -1000,13 +1059,27 @@ class _AssetFormPageState extends State<AssetFormPage> {
                               isDense: true,
                             ),
                             items: const [
-                              DropdownMenuItem(value: 'USD', child: Text('USD (Dolar AS)')),
-                              DropdownMenuItem(value: 'SGD', child: Text('SGD (Dolar SG)')),
-                              DropdownMenuItem(value: 'EUR', child: Text('EUR (Euro)')),
-                              DropdownMenuItem(value: 'SAR', child: Text('SAR (Riyal Haji)')),
+                              DropdownMenuItem(
+                                value: 'USD',
+                                child: Text('USD (Dolar AS)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'SGD',
+                                child: Text('SGD (Dolar SG)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'EUR',
+                                child: Text('EUR (Euro)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'SAR',
+                                child: Text('SAR (Riyal Haji)'),
+                              ),
                             ],
                             onChanged: (c) {
-                              if (c != null) setSheetState(() => selectedCurrency = c);
+                              if (c != null) {
+                                setSheetState(() => selectedCurrency = c);
+                              }
                             },
                           ),
                         ),
@@ -1015,9 +1088,15 @@ class _AssetFormPageState extends State<AssetFormPage> {
                   ],
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withValues(alpha: 0.5),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -1029,7 +1108,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context).brightness == Brightness.dark
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
                                 ? const Color(0xFF4ADE80)
                                 : Colors.green.shade800,
                           ),
@@ -1039,34 +1119,53 @@ class _AssetFormPageState extends State<AssetFormPage> {
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                     icon: const Icon(Icons.check),
                     label: const Text('Terapkan ke Formulir'),
                     onPressed: () {
                       setState(() {
-                        _value.text = formatRupiahInput(calculatedRupiah.toString());
+                        _value.text = formatRupiahInput(
+                          calculatedRupiah.toString(),
+                        );
                         if (selectedMode == 0) {
                           if (_name.text.trim().isEmpty) {
-                            _name.text = 'Emas ${selectedKarat.label} (${grams}g)';
+                            _name.text =
+                                'Emas ${selectedKarat.label} (${grams}g)';
                           }
                           if (_type.text.trim().isEmpty) {
                             _type.text = 'Logam Mulia';
                           }
-                          final tag = '[Emas ${selectedKarat.name.toUpperCase()}, ${grams}g]';
-                          if (!_note.text.contains('[Emas')) {
-                            _note.text = _note.text.trim().isEmpty ? tag : '${_note.text.trim()} $tag';
-                          }
+                          final tag =
+                              '[Emas ${selectedKarat.karatValue}K, ${grams}g]';
+                          final existingGoldTag = RegExp(
+                            r'\[Emas[^\]]*\]',
+                            caseSensitive: false,
+                          );
+                          _note.text = existingGoldTag.hasMatch(_note.text)
+                              ? _note.text.replaceAll(existingGoldTag, tag)
+                              : _note.text.trim().isEmpty
+                              ? tag
+                              : '${_note.text.trim()} $tag';
                         } else {
                           if (_name.text.trim().isEmpty) {
-                            _name.text = 'Simpanan $selectedCurrency ($foreignAmount)';
+                            _name.text =
+                                'Simpanan $selectedCurrency ($foreignAmount)';
                           }
                           if (_type.text.trim().isEmpty) {
                             _type.text = 'Valuta Asing';
                           }
                           final tag = '[$selectedCurrency $foreignAmount]';
-                          if (!_note.text.contains('[$selectedCurrency')) {
-                            _note.text = _note.text.trim().isEmpty ? tag : '${_note.text.trim()} $tag';
-                          }
+                          final existingForexTag = RegExp(
+                            '\\[$selectedCurrency[^\\]]*\\]',
+                            caseSensitive: false,
+                          );
+                          _note.text = existingForexTag.hasMatch(_note.text)
+                              ? _note.text.replaceAll(existingForexTag, tag)
+                              : _note.text.trim().isEmpty
+                              ? tag
+                              : '${_note.text.trim()} $tag';
                         }
                       });
                       Navigator.pop(ctx);
@@ -1107,12 +1206,20 @@ class _AssetFormPageState extends State<AssetFormPage> {
                     end: Alignment.bottomRight,
                     colors: isDark
                         ? [
-                            colorScheme.tertiaryContainer.withValues(alpha: 0.6),
-                            colorScheme.tertiaryContainer.withValues(alpha: 0.3),
+                            colorScheme.tertiaryContainer.withValues(
+                              alpha: 0.6,
+                            ),
+                            colorScheme.tertiaryContainer.withValues(
+                              alpha: 0.3,
+                            ),
                           ]
                         : [
-                            colorScheme.tertiaryContainer.withValues(alpha: 0.4),
-                            colorScheme.tertiaryContainer.withValues(alpha: 0.2),
+                            colorScheme.tertiaryContainer.withValues(
+                              alpha: 0.4,
+                            ),
+                            colorScheme.tertiaryContainer.withValues(
+                              alpha: 0.2,
+                            ),
                           ],
                   ),
                   borderRadius: BorderRadius.circular(12),
@@ -1158,7 +1265,9 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 margin: const EdgeInsets.only(bottom: 16),
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -1220,7 +1329,9 @@ class _AssetFormPageState extends State<AssetFormPage> {
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.3,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -1260,7 +1371,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
                                 border: InputBorder.none,
                                 contentPadding: EdgeInsets.zero,
                               ),
-                              validator: (value) => parseRupiah(value ?? '') <= 0
+                              validator: (value) =>
+                                  parseRupiah(value ?? '') <= 0
                                   ? 'Isi nilai aset lebih dari nol.'
                                   : null,
                             ),
@@ -1271,7 +1383,8 @@ class _AssetFormPageState extends State<AssetFormPage> {
                     Container(
                       margin: const EdgeInsets.all(8),
                       child: IconButton.filledTonal(
-                        tooltip: 'Hitung otomatis dari harga pasar (Emas / Valas)',
+                        tooltip:
+                            'Hitung otomatis dari harga pasar (Emas / Valas)',
                         icon: const Icon(Icons.calculate_outlined),
                         onPressed: _showMarketValuationHelper,
                       ),
@@ -1344,7 +1457,9 @@ class _AssetFormPageState extends State<AssetFormPage> {
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
-        textInputAction: maxLines == 1 ? TextInputAction.next : TextInputAction.newline,
+        textInputAction: maxLines == 1
+            ? TextInputAction.next
+            : TextInputAction.newline,
         decoration: InputDecoration(
           labelText: label,
           hintText: hint,

@@ -162,6 +162,183 @@ void main() {
     });
   });
 
+  group('TelegramConfigRepository Delivery & Status Tests', () {
+    late TelegramConfigRepository repository;
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      FlutterSecureStorage.setMockInitialValues({});
+      repository = TelegramConfigRepository(
+        preferences: prefs,
+      );
+    });
+
+    test('weekly report claim blocks concurrent duplicate sends', () async {
+      final now = DateTime(2026, 9, 9, 9, 0);
+      expect(
+        await repository.claimWeeklyReport(periodKey: 'hh-1', now: now),
+        isTrue,
+      );
+      // Pemicu kedua yang datang bersamaan harus ditolak.
+      expect(
+        await repository.claimWeeklyReport(
+            periodKey: 'hh-1', now: now.add(const Duration(seconds: 1))),
+        isFalse,
+      );
+    });
+
+    test('stale pending claim can be reclaimed after validity window', () async {
+      final now = DateTime(2026, 9, 9, 9, 0);
+      // Instance pertama mengklaim lalu "mati" sehingga klaim pending tertinggal di prefs.
+      final firstRepo = TelegramConfigRepository(preferences: prefs);
+      expect(
+        await firstRepo.claimWeeklyReport(periodKey: 'hh-2', now: now),
+        isTrue,
+      );
+
+      // Instance baru (proses baru) tetap terblokir selama klaim masih segar.
+      final secondRepo = TelegramConfigRepository(preferences: prefs);
+      expect(
+        await secondRepo.claimWeeklyReport(
+            periodKey: 'hh-2', now: now.add(const Duration(minutes: 5))),
+        isFalse,
+      );
+
+      // Klaim yang menggantung > 10 menit bisa diklaim ulang agar tidak macet selamanya.
+      final thirdRepo = TelegramConfigRepository(preferences: prefs);
+      expect(
+        await thirdRepo.claimWeeklyReport(
+            periodKey: 'hh-2', now: now.add(const Duration(minutes: 11))),
+        isTrue,
+      );
+    });
+
+    test('completed weekly report blocks resend for 6 days', () async {
+      final now = DateTime(2026, 9, 9, 9, 0);
+      expect(
+        await repository.claimWeeklyReport(periodKey: 'hh-3', now: now),
+        isTrue,
+      );
+      await repository.completeWeeklyReport(
+          periodKey: 'hh-3', now: now);
+
+      expect(await repository.loadLastWeeklyReportSent(), isNotNull);
+
+      expect(
+        await repository.claimWeeklyReport(
+            periodKey: 'hh-3', now: now.add(const Duration(days: 2))),
+        isFalse,
+      );
+      expect(
+        await repository.claimWeeklyReport(
+            periodKey: 'hh-3', now: now.add(const Duration(days: 7))),
+        isTrue,
+      );
+    });
+
+    test('failed weekly report can be retried immediately', () async {
+      final now = DateTime(2026, 9, 9, 9, 0);
+      expect(
+        await repository.claimWeeklyReport(periodKey: 'hh-4', now: now),
+        isTrue,
+      );
+      await repository.failWeeklyReport(periodKey: 'hh-4', now: now);
+      // Status 'failed' tidak memblokir klaim ulang.
+      expect(
+        await repository.claimWeeklyReport(
+            periodKey: 'hh-4', now: now.add(const Duration(minutes: 1))),
+        isTrue,
+      );
+    });
+
+    test('alert delivery state tracks delivered and failed insights', () async {
+      await repository.markAlertDelivered('insight-1');
+      expect(await repository.isAlertDelivered('insight-1'), isTrue);
+
+      await repository.markAlertFailed('insight-2');
+      expect(await repository.isAlertDelivered('insight-2'), isFalse);
+      expect(await repository.loadFailedAlertIds(), contains('insight-2'));
+
+      // Sukses di pengiriman ulang menghapus dari daftar gagal.
+      await repository.markAlertDelivered('insight-2');
+      expect(await repository.isAlertDelivered('insight-2'), isTrue);
+      expect(await repository.loadFailedAlertIds(), isEmpty);
+    });
+
+    test('mobile retry cooldown limits repeated alert retries', () async {
+      final now = DateTime(2026, 9, 9, 9, 0);
+      expect(await repository.tryBeginAlertRetry(now), isTrue);
+      // Dalam cooldown 10 menit -> ditolak.
+      expect(
+        await repository.tryBeginAlertRetry(
+            now.add(const Duration(minutes: 5))),
+        isFalse,
+      );
+      // Lewat cooldown -> diizinkan lagi.
+      expect(
+        await repository.tryBeginAlertRetry(
+            now.add(const Duration(minutes: 11))),
+        isTrue,
+      );
+    });
+
+    test('operational status records verification and delivery results', () async {
+      final at = DateTime(2026, 9, 9, 9, 30);
+      await repository.recordVerificationResult(ok: true, at: at);
+      await repository.recordDeliveryStatus(
+        status: TelegramDeliveryStatus.sent,
+        message: 'Laporan mingguan terkirim.',
+      );
+
+      final status = await repository.loadOperationalStatus();
+      expect(status.hasVerified, isTrue);
+      expect(status.lastVerifiedAt, isNotNull);
+      expect(status.lastDeliveryStatus, TelegramDeliveryStatus.sent);
+      expect(status.lastDeliveryMessage, contains('terkirim'));
+
+      await repository.clearConfig();
+      final cleared = await repository.loadOperationalStatus();
+      expect(cleared.hasVerified, isFalse);
+      expect(cleared.lastDeliveryStatus, TelegramDeliveryStatus.none);
+    });
+
+    test('verified failure is recorded distinctly from success', () async {
+      final at = DateTime(2026, 9, 9, 9, 30);
+      await repository.recordVerificationResult(
+        ok: false,
+        at: at,
+        message: 'Token Bot tidak valid',
+      );
+      final status = await repository.loadOperationalStatus();
+      expect(status.hasVerified, isFalse);
+      expect(status.lastVerifiedAt, isNotNull);
+      expect(status.lastDeliveryStatus, TelegramDeliveryStatus.none);
+    });
+
+    test('saveConfig persists and loads across instances', () async {
+      await repository.saveConfig(const TelegramConfig(
+        botToken: 'token-new',
+        chatId: 'chat-new',
+        isEnabled: true,
+        weeklyReportEnabled: false,
+        notifyOnNewTransaction: true,
+        notifyMinAmount: 100000,
+      ));
+
+      final reloaded = TelegramConfigRepository(preferences: prefs)
+          .loadConfig();
+      final config = await reloaded;
+      expect(config.botToken, 'token-new');
+      expect(config.chatId, 'chat-new');
+      expect(config.isEnabled, isTrue);
+      expect(config.weeklyReportEnabled, isFalse);
+      expect(config.notifyOnNewTransaction, isTrue);
+      expect(config.notifyMinAmount, 100000);
+    });
+  });
+
   group('TelegramBotService Tests with Mock HTTP Client', () {
     test('sendMessage returns success when Telegram returns HTTP 200', () async {
       final mockClient = MockClient((request) async {

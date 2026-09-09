@@ -119,15 +119,17 @@ class FfmGeminiCloudOrchestrator {
     var finalText = result.text ?? '';
 
     if (result.functionCalls != null && result.functionCalls!.isNotEmpty) {
+      // Enforce single function call per turn.
       if (result.functionCalls!.length > 1) {
         return FfmGeminiCloudTurnResult.failure(
           errorMessage:
-              'Gemini memanggil ${result.functionCalls!.length} fungsi sekaligus (${result.functionCalls!.map((c) => c.name).join(', ')}). Untuk menjaga kepatuhan dan kebenaran data, hanya satu tindakan per putaran yang diizinkan.',
+              'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
         );
       }
+      // Process the single function call.
       final call = result.functionCalls!.first;
       final args = call.args;
 
@@ -164,7 +166,6 @@ class FfmGeminiCloudOrchestrator {
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
-          usageMetadata: result.usageMetadata,
         );
       }
     }
@@ -570,7 +571,7 @@ ATURAN DATA & TRANSAKSI:
   * Jika pengguna mengoreksi bahwa transaksi tersebut adalah pemasukan/uang masuk (bukan pengeluaran), ubah parameter `type: "income"`, dan jadikan rekening yang disebut sebagai rekening tujuan (`toAccount`).
   * Sebaliknya jika dari pemasukan menjadi pengeluaran, ubah parameter `type: "expense"`, dan jadikan rekening yang disebut sebagai rekening sumber (`fromAccount`).
 - Fitur transaksi mendukung: pengeluaran/pemasukan dengan rincian belanja (`items`), toko/merchant (`merchant`), lokasi kejadian (`location`), sumber pemasukan (`incomeSource`/`party` untuk pemasukan, `party` untuk dipakai-oleh pengeluaran), nomor nota (`receiptNumber`), nominal dibayar (`paidAmount`), dan kembalian (`changeAmount`); serta transfer saldo antar-rekening (`fromAccount`, `toAccount`, `amount`, dan `adminFee` jika ada biaya admin). Top-up e-wallet ("isi saldo gopay", "top up ovo dari bca") adalah transfer: `toAccount` = e-wallet tujuan, `fromAccount` = sumber bila disebut, bila tidak disebut biarkan kosong agar pengguna memilih — jangan ditebak.
-- Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), bayar cicilan/pelunasan hutang (`type: "expense"`, `category: "Hutang"`, `note: "Bayar hutang ..."`), dan penerimaan piutang (`type: "income"`, `note: "Penerimaan piutang ..."`).
+- Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), bayar cicilan/pelunasan hutang (`type: "liability_payment"`, `targetId`, `amount`, `accountId`, `date`, `note`), dan penerimaan piutang (`type: "receivable_payment"`, `targetId`, `amount`, `accountId`, `date`, `note`). PENTING: Gunakan type yang sesuai (liability_payment/receivable_payment) agar sisa hutang/piutang berkurang otomatis. Jangan gunakan expense/income biasa untuk pembayaran hutang/piutang.
 - Fitur Siklus Kas / AgroTrack: catat siklus kas tani/usaha baru (`type: "cash_flow_profile"`, `title`, `commodity`, `initialCapital`, `estimatedInflow`, `dailyLivingBudget`, `dailyOperationalBudget`, `targetHarvestDate` atau `daysRemaining`, `cycleProfileType`).
 - WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.

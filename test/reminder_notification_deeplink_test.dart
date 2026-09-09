@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:ffm_manager/features/reminder/data/services/reminder_notification_service.dart';
 
 void main() {
@@ -9,6 +11,8 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
   });
 
   test(
@@ -57,4 +61,34 @@ void main() {
 
     expect(service.openTarget.value, isNull);
   });
+
+  test(
+    'aksi background baru bertahan sampai acknowledgement berhasil',
+    () async {
+      const eventId = 'event-1';
+      const eventKey = 'ffm_pending_reminder_action_$eventId';
+      final payload = {
+        'reminderId': 'reminder-market',
+        'historyId': 'history-market',
+        'occurrenceKey': '20260909-0800',
+        'householdId': 'local-household',
+      };
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.withData({
+            eventKey: jsonEncode({
+              'id': eventId,
+              'actionId': 'complete',
+              'payload': payload,
+            }),
+          });
+      final service = ReminderNotificationService();
+
+      expect(await service.consumePendingActions(), hasLength(1));
+      expect(await service.consumePendingActions(), hasLength(1));
+
+      await service.acknowledgeAction(eventId);
+
+      expect(await service.consumePendingActions(), isEmpty);
+    },
+  );
 }

@@ -61,6 +61,7 @@ part 'app_database.g.dart';
     AssistantAgentGoals,
     AssistantAgentTasks,
     AssistantAgentTaskExecutions,
+    TelegramDeliveries,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -69,7 +70,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 53;
+  int get schemaVersion => 54;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -102,6 +103,9 @@ class AppDatabase extends _$AppDatabase {
       if (from < 53) {
         await m.createTable(nfcCardAccounts);
         await m.createTable(nfcScanSnapshots);
+      }
+      if (from < 54) {
+        await m.createTable(telegramDeliveries);
       }
       if (from < 22) {
         await m.addColumn(transactions, transactions.receiptRawText);

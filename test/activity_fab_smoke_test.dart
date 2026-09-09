@@ -9,15 +9,18 @@ import 'package:ffm_manager/features/activity/presentation/pages/activity_page.d
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late AppDatabase database;
 
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
-    await configureDependencies(database: AppDatabase(NativeDatabase.memory()));
+    database = AppDatabase(NativeDatabase.memory());
+    await configureDependencies(database: database);
   });
 
   tearDown(() async {
     await getIt.reset();
+    await database.close();
   });
 
   testWidgets('tap Timer FAB opens session form without error', (tester) async {

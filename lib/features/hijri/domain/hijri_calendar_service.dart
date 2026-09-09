@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:hijri_plus/hijri_plus.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 
@@ -295,7 +296,7 @@ class HijriCalendarService {
         .into(_database.hijriCorrectionLogs)
         .insert(
           HijriCorrectionLogsCompanion.insert(
-            id: 'hijri-log-${DateTime.now().microsecondsSinceEpoch}',
+            id: 'hijri-log-${const Uuid().v4()}',
             householdId: householdId,
             action: action,
             settingKey: settingKey,

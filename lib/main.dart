@@ -43,6 +43,7 @@ import 'features/liability/presentation/pages/liability_pages.dart';
 import 'features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import 'features/receivable/presentation/pages/receivable_pages.dart';
 import 'features/reminder/data/services/reminder_notification_service.dart';
+import 'features/reminder/domain/entities/reminder_entity.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/reminder/presentation/pages/reminder_page.dart';
 import 'features/settings/presentation/pages/master_data_page.dart';
@@ -1015,6 +1016,16 @@ class _AppShellState extends State<AppShell> {
               initialNote: draft?.kind == FfmAssistantDraftKind.reminder
                   ? draft?.note
                   : null,
+              // Item 29: preserve the assistant-proposed schedule when
+              // navigating from a reminder draft to the form.
+              initialScheduledAt:
+                  draft?.kind == FfmAssistantDraftKind.reminder
+                      ? draft?.date
+                      : null,
+              initialRecurrence:
+                  draft?.kind == FfmAssistantDraftKind.reminder
+                      ? _parseRecurrenceFromDraft(draft!)
+                      : null,
             ),
           ),
         );
@@ -1102,6 +1113,16 @@ class _AppShellState extends State<AppShell> {
           ),
         );
     }
+  }
+
+  ReminderRecurrenceType? _parseRecurrenceFromDraft(FfmAssistantDraft draft) {
+    final recurrence = draft.formValues['recurrence'] ?? draft.formValues['recurrenceType'];
+    if (recurrence == null) return null;
+    return switch (recurrence.toString().toLowerCase()) {
+      'daily' || 'harian' => ReminderRecurrenceType.daily,
+      'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+      _ => null,
+    };
   }
 
   Future<void> _handleAssistantIntents(List<FfmAssistantIntent> intents) async {

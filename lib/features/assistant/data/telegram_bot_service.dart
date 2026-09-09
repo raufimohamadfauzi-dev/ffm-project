@@ -134,18 +134,25 @@ class TelegramBotService {
   }
 
   static String _translateError(int code, String description) {
-    if (code == 401) {
-      return 'Token Bot tidak valid atau salah salin. Periksa kembali token dari @BotFather.';
+    final desc = description.toLowerCase();
+    if (code == 401 || desc.contains('unauthorized')) {
+      return 'Token Bot tidak valid (Error 401). Periksa kembali token dari @BotFather (contoh: 123456789:ABCdef...). Jangan ada spasi atau karakter terpotong.';
     }
-    if (code == 400 && description.toLowerCase().contains('chat not found')) {
-      return 'Chat ID tidak ditemukan. Pastikan Anda sudah menekan tombol "Start" pada bot di Telegram sebelum menguji koneksi.';
+    if (code == 400 && desc.contains('chat not found')) {
+      return 'Chat ID tidak ditemukan (Error 400). Jika Chat Pribadi, buka bot di Telegram lalu tekan "Start". Jika Grup, pastikan bot sudah di-add ke grup dan Anda sudah mengirim /start@bot_anda di grup.';
     }
-    if (code == 403) {
-      return 'Bot diblokir oleh pengguna atau belum diizinkan mengirim pesan ke grup.';
+    if (code == 400 && (desc.contains('is deactivated') || desc.contains('chat_id is empty'))) {
+      return 'Format Chat ID salah atau akun tidak aktif. Chat ID pribadi berupa angka (contoh: 123456789), sedangkan ID Grup dimulai dengan tanda minus (contoh: -100123456789).';
     }
-    if (code == 429) {
-      return 'Terlalu banyak permintaan ke Telegram dalam waktu singkat (Rate Limit). Tunggu sebentar.';
+    if (code == 403 || desc.contains('bot was blocked') || desc.contains('forbidden')) {
+      return 'Bot tidak diizinkan mengirim pesan (Error 403). Buka blokir bot di Telegram, atau jika di Grup, pastikan bot memiliki hak akses untuk mengirim pesan.';
     }
-    return 'Gagal terhubung ke Telegram: $description';
+    if (code == 429 || desc.contains('too many requests')) {
+      return 'Terlalu banyak permintaan ke Telegram dalam waktu singkat (Error 429 / Rate Limit). Tunggu beberapa menit lalu coba lagi.';
+    }
+    if (code == 409 || desc.contains('conflict')) {
+      return 'Terjadi konflik Webhook (Error 409). Bot ini digunakan oleh aplikasi/layanan lain. Disarankan membuat Bot baru khusus FFM di @BotFather.';
+    }
+    return 'Gagal terhubung ke Telegram (HTTP $code): $description. Cek format Token, Chat ID, dan status koneksi.';
   }
 }

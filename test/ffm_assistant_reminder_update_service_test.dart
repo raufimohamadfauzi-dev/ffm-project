@@ -62,7 +62,11 @@ void main() {
     expect(next.defaultSnoozeMinutes, previous.defaultSnoozeMinutes);
     expect(next.notificationId, previous.notificationId);
     expect(gateway.cancelled, contains(previous.notificationId));
-    expect(gateway.scheduled.single.reminder.id, previous.id);
+    expect(gateway.scheduled.length, greaterThan(1));
+    expect(
+      gateway.scheduled.every((item) => item.reminder.id == previous.id),
+      isTrue,
+    );
 
     final stored = await repository.getReminder(householdId, previous.id);
     expect(stored?.title, next.title);

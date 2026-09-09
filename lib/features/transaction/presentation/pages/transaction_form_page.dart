@@ -93,9 +93,14 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   String? _receiptNumber;
   int? _receiptPaidAmount;
   int? _receiptChangeAmount;
+  int? _tax;
+  int? _discount;
   var _date = DateTime.now();
   var _items = <ReceiptItemDraft>[];
   var _tags = <String>[];
+  String? _sourceId;
+  String? _recurringTransactionId;
+  String? _linkedActivityId;
   var _attachmentPaths = <String>[];
   var _listening = false;
   String? _voiceText;
@@ -123,7 +128,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       _merchantId = existing.transaction.merchantId;
       _accountId = existing.transaction.accountId;
       _partyName = existing.transaction.partyName ?? '';
-      _source = existing.transaction.source ?? 'manual';
+      _sourceId = existing.transaction.sourceId;
+      _recurringTransactionId = existing.transaction.recurringTransactionId;
+      _linkedActivityId = existing.transaction.linkedActivityId;
       _receiptRawText = existing.transaction.receiptRawText;
       _receiptNumber = existing.transaction.receiptNumber;
       _receiptPaidAmount = existing.transaction.receiptPaidAmount;
@@ -172,6 +179,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       if (_receiptChangeAmount == null && prefillValues['receiptChangeAmount'] != null) {
         _receiptChangeAmount = int.tryParse(prefillValues['receiptChangeAmount']!);
       }
+      if (_tax == null && prefillValues['tax'] != null) {
+        _tax = int.tryParse(prefillValues['tax']!);
+      }
+      if (_discount == null && prefillValues['discount'] != null) {
+        _discount = int.tryParse(prefillValues['discount']!);
+      }
       if (_receiptRawText == null && prefillValues['receiptRawText']?.isNotEmpty == true) {
         _receiptRawText = prefillValues['receiptRawText'];
       }
@@ -208,7 +221,13 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     _loadMasterTags();
     _loadAccounts();
     _loadParties();
-    if (existing != null) _loadMetadata(existing.transaction.id);
+    if (existing != null) {
+      _loadMetadata(existing.transaction.id);
+      // Preserve original relations when editing
+      _sourceId = existing.transaction.sourceId;
+      _recurringTransactionId = existing.transaction.recurringTransactionId;
+      _linkedActivityId = existing.transaction.linkedActivityId;
+    }
     final scan = widget.initialScan;
     if (scan == null || existing != null) return;
 
@@ -227,6 +246,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     _source = 'ocr';
     _receiptRawText = scan.rawText.isEmpty ? null : scan.rawText;
     _receiptNumber = scan.receiptNumber;
+    // OCR scan doesn't provide tax/discount directly - these should come from OCR parsing
+    // receiptPaidAmount and receiptChangeAmount from scan are for payment tracking
     _receiptPaidAmount = scan.paidAmount;
     _receiptChangeAmount = scan.changeAmount;
 
@@ -439,6 +460,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           variables: [Variable.withString(transactionId)],
         )
         .get();
+    
+    // Load existing transaction to get tax and discount
+    final tx = await (database.select(database.transactions)
+          ..where((row) => row.id.equals(transactionId)))
+        .getSingleOrNull();
+    
     if (!mounted) return;
     setState(() {
       _tags = tagRows
@@ -449,6 +476,12 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           .map((row) => row.data['file_path']?.toString() ?? '')
           .where((value) => value.isNotEmpty)
           .toList();
+      
+      // Preserve tax (receiptPaidAmount) and discount (receiptChangeAmount) from existing transaction
+      if (tx != null) {
+        _tax = tx.receiptPaidAmount;
+        _discount = tx.receiptChangeAmount;
+      }
     });
   }
 
@@ -805,6 +838,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
             ? null
             : _locationController.text.trim(),
         source: _source,
+        sourceId: _sourceId,
+        recurringTransactionId: _recurringTransactionId,
+        linkedActivityId: _linkedActivityId,
         merchantId: _merchantId,
         accountId: _accountId,
         goalId: null,
@@ -1129,10 +1165,14 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
   }
 
   void _syncAmountFromItems() {
-    final total = _items.fold<int>(
+    final itemsTotal = _items.fold<int>(
       0,
       (sum, item) => sum + (item.price * item.qty).round(),
     );
+    // Masukkan pajak dan diskon ke kalkulasi total
+    final tax = _tax ?? 0;
+    final discount = _discount ?? 0;
+    final total = itemsTotal + tax - discount;
     if (total > 0) {
       _amountController.text = formatRupiahInput(total.toString());
     }

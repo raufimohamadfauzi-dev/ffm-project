@@ -177,6 +177,13 @@ class FfmAssistantProposalJsonService {
         'budget' => _parseBudget(proposal, createdAt),
         'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
         'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
+        'liability_payment' ||
+        'debt_payment' ||
+        'pay_debt' ||
+        'pay_liability' => _parseLiabilityPayment(proposal, createdAt),
+        'receivable_payment' ||
+        'receive_receivable' =>
+          _parseReceivablePayment(proposal, createdAt),
         'cash_flow_profile' ||
         'cashFlowProfile' ||
         'cycle' ||
@@ -232,6 +239,13 @@ class FfmAssistantProposalJsonService {
             'budget' => _parseBudget(proposal, createdAt),
             'liability' || 'debt' || 'hutang' => _parseLiability(proposal, createdAt),
             'receivable' || 'piutang' => _parseReceivable(proposal, createdAt),
+            'liability_payment' ||
+            'debt_payment' ||
+            'pay_debt' ||
+            'pay_liability' => _parseLiabilityPayment(proposal, createdAt),
+            'receivable_payment' ||
+            'receive_receivable' =>
+              _parseReceivablePayment(proposal, createdAt),
             'cash_flow_profile' ||
             'cashFlowProfile' ||
             'cycle' ||
@@ -483,6 +497,22 @@ class FfmAssistantProposalJsonService {
       proposal['scheduledAt'] ?? proposal['targetDate'] ?? proposal['date'],
       createdAt.add(const Duration(hours: 1)),
     );
+    final rawRecurrence = proposal['recurrence'] ?? proposal['recurrenceType'];
+    final recurrence = rawRecurrence?.toString().toLowerCase();
+    final weekdaysRaw = proposal['weekdays'];
+    final List<int> weekdays = weekdaysRaw is List
+        ? weekdaysRaw.map((e) => int.tryParse(e.toString())).whereType<int>().toList()
+        : const [];
+
+    final formValues = <String, dynamic>{};
+    if (recurrence != null) {
+      formValues['recurrence'] = recurrence;
+      formValues['recurrenceType'] = recurrence;
+    }
+    if (weekdays.isNotEmpty) {
+      formValues['weekdays'] = weekdays;
+    }
+
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
@@ -490,6 +520,7 @@ class FfmAssistantProposalJsonService {
         title: title,
         note: note,
         date: targetDate,
+        formValues: formValues,
       ),
     );
   }
@@ -838,6 +869,96 @@ class FfmAssistantProposalJsonService {
           if (monthlyInstallment != null)
             'monthlyInstallment': monthlyInstallment.toString(),
           if (interestRate != null) 'interestRate': interestRate.toString(),
+        },
+      ),
+    );
+  }
+
+  static FfmAssistantProposalParseResult _parseLiabilityPayment(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final targetId = proposal['targetId']?.toString().trim();
+    final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Nominal pembayaran hutang harus lebih dari nol.',
+      );
+    }
+    if (targetId == null || targetId.isEmpty) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Target hutang (targetId) harus diisi untuk pembayaran.',
+      );
+    }
+    final accountId = proposal['accountId']?.toString().trim();
+    final note = _boundedText(
+      proposal['note'] ?? proposal['catatan'] ?? 'Pembayaran hutang',
+      300,
+    );
+    final date = _dateOr(
+      proposal['date'] ?? proposal['paymentDate'],
+      createdAt,
+    );
+
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.liabilityPayment,
+        createdAt: createdAt,
+        title: 'Pembayaran Hutang',
+        amount: amount,
+        note: note,
+        date: date,
+        fromAccountName: proposal['fromAccount']?.toString().trim(),
+        formValues: {
+          'source': 'gemini_proposal',
+          'entity': 'liability',
+          'targetId': targetId,
+          if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
+        },
+      ),
+    );
+  }
+
+  static FfmAssistantProposalParseResult _parseReceivablePayment(
+    Map<String, dynamic> proposal,
+    DateTime createdAt,
+  ) {
+    final targetId = proposal['targetId']?.toString().trim();
+    final amount = _positiveInt(proposal['amount'] ?? proposal['nominal']);
+    if (amount == null || amount <= 0) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Nominal penerimaan piutang harus lebih dari nol.',
+      );
+    }
+    if (targetId == null || targetId.isEmpty) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Target piutang (targetId) harus diisi untuk penerimaan.',
+      );
+    }
+    final accountId = proposal['accountId']?.toString().trim();
+    final note = _boundedText(
+      proposal['note'] ?? proposal['catatan'] ?? 'Penerimaan piutang',
+      300,
+    );
+    final date = _dateOr(
+      proposal['date'] ?? proposal['paymentDate'],
+      createdAt,
+    );
+
+    return FfmAssistantProposalParseResult.draft(
+      FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.receivablePayment,
+        createdAt: createdAt,
+        title: 'Penerimaan Piutang',
+        amount: amount,
+        note: note,
+        date: date,
+        toAccountName: proposal['toAccount']?.toString().trim(),
+        formValues: {
+          'source': 'gemini_proposal',
+          'entity': 'receivable',
+          'targetId': targetId,
+          if (accountId != null && accountId.isNotEmpty) 'accountId': accountId,
         },
       ),
     );

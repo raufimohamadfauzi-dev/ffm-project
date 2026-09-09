@@ -6,6 +6,7 @@ import 'package:ffm_manager/features/liability/domain/usecases/liability_crud_us
 import 'package:ffm_manager/features/liability/domain/usecases/process_debt_payment.dart';
 import 'package:ffm_manager/features/receivable/domain/entities/receivable_entity.dart';
 import 'package:ffm_manager/features/receivable/domain/usecases/receivable_crud_usecases.dart';
+import 'package:ffm_manager/features/transaction/domain/usecases/transaction_crud_usecases.dart';
 
 void main() {
   late AppDatabase db;
@@ -238,6 +239,51 @@ void main() {
             ..where((t) => t.householdId.equals(householdId)))
           .get();
       expect(txs.isEmpty, true);
+    });
+
+    test('penghapusan transaksi pembayaran hutang merekonsiliasi sisa saldo kembali', () async {
+      final now = DateTime(2026, 9, 3);
+      await SaveLiability(db)(
+        LiabilityEntity(
+          id: 'liab-rollback',
+          householdId: householdId,
+          name: 'Hutang Rollback',
+          originalAmount: 1000000,
+          remainingBalance: 1000000,
+          monthlyInstallment: 250000,
+          startDate: now,
+          dueDate: now.add(const Duration(days: 30)),
+          updatedAt: now,
+        ),
+      );
+
+      // Bayar 300.000 (sisa 700.000)
+      await processPayment(
+        householdId: householdId,
+        targetId: 'liab-rollback',
+        targetName: 'Hutang Rollback',
+        isLiability: true,
+        amount: 300000,
+        date: now,
+        accountId: accountId,
+        recordCashTransaction: true,
+      );
+
+      final txsBefore = await (db.select(db.transactions)
+            ..where((t) => t.householdId.equals(householdId)))
+          .get();
+      expect(txsBefore.length, 1);
+      final paymentTxId = txsBefore.first.id;
+
+      final liabilitiesMid = await GetLiabilities(db)(householdId);
+      expect(liabilitiesMid.firstWhere((l) => l.id == 'liab-rollback').remainingBalance, 700000);
+
+      // Hapus transaksi pembayaran
+      await DeleteTransaction(db)(householdId, paymentTxId);
+
+      // Sisa hutang harus kembali menjadi 1.000.000
+      final liabilitiesAfter = await GetLiabilities(db)(householdId);
+      expect(liabilitiesAfter.firstWhere((l) => l.id == 'liab-rollback').remainingBalance, 1000000);
     });
   });
 }

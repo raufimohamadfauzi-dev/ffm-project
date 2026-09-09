@@ -24,14 +24,17 @@ class TransactionDraft {
     required this.note,
     this.location,
     this.source = 'manual',
+    this.sourceId,
+    this.recurringTransactionId,
+    this.linkedActivityId,
     this.merchantId,
     this.accountId,
     this.goalId,
     this.partyName,
     this.receiptRawText,
     this.receiptNumber,
-    this.receiptPaidAmount,
-    this.receiptChangeAmount,
+    this.receiptPaidAmount, // Used as tax for calculation
+    this.receiptChangeAmount, // Used as discount for calculation
     required this.items,
     this.tags = const [],
     this.attachmentPaths = const [],
@@ -47,6 +50,9 @@ class TransactionDraft {
   final String note;
   final String? location;
   final String source;
+  final String? sourceId;
+  final String? recurringTransactionId;
+  final String? linkedActivityId;
   final String? merchantId;
   final String? accountId;
   final String? goalId;

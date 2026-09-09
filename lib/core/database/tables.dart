@@ -901,3 +901,36 @@ class AssistantAgentTaskExecutions extends Table {
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
+
+/// Antrean pengiriman pesan Telegram yang durabel.
+///
+/// Pesan diantrekan *setelah* commit data berhasil (dalam transaksi basis data
+/// yang sama) sehingga kegagalan jaringan tidak menghapus pemberitahuan.
+/// Pengiriman memakai claim atomik dengan retry berbatas dan backoff; pesan
+/// yang dibuat untuk kredensial lama tidak pernah dikirim ke kredensial baru.
+/// Berisi hanya teks pesan yang sudah diformat (bukan prompt/tool mentah).
+@TableIndex(
+  name: 'idx_telegram_deliveries_due',
+  columns: {#householdId, #status, #retryable, #nextAttemptAt},
+)
+class TelegramDeliveries extends Table {
+  TextColumn get deliveryId => text()();
+  TextColumn get householdId => text()();
+  TextColumn get operation => text()();
+  TextColumn get messageText => text()();
+  TextColumn get entityId => text().nullable()();
+  TextColumn get dedupeKey => text().nullable().unique()();
+  TextColumn get credentialFingerprint => text().nullable()();
+  TextColumn get status => text().withDefault(const Constant('pending'))();
+  BoolColumn get retryable => boolean().withDefault(const Constant(true))();
+  IntColumn get attemptCount => integer().withDefault(const Constant(0))();
+  IntColumn get maxAttempts => integer().withDefault(const Constant(3))();
+  TextColumn get lastError => text().nullable()();
+  DateTimeColumn get createdAt => dateTime()();
+  DateTimeColumn get lastAttemptAt => dateTime().nullable()();
+  DateTimeColumn get nextAttemptAt => dateTime().nullable()();
+  DateTimeColumn get sentAt => dateTime().nullable()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {deliveryId};
+}

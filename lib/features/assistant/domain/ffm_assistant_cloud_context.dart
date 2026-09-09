@@ -110,6 +110,13 @@ class FfmAssistantCloudDraftContext {
         add('merchant', draft.merchantName);
         add('location', draft.location);
         add('note', draft.note);
+        add('receiptNumber', draft.receiptNumber);
+        add('tax', draft.tax);
+        add('discount', draft.discount);
+        addSafeFormValues();
+        if (draft.items.isNotEmpty) {
+          add('items', draft.items.map((i) => '${i.name}: ${i.price} x ${i.quantity}').join(', '));
+        }
         addDate();
       case FfmAssistantDraftKind.expense:
         add('amount', draft.amount);
@@ -120,6 +127,13 @@ class FfmAssistantCloudDraftContext {
         add('merchant', draft.merchantName);
         add('location', draft.location);
         add('note', draft.note);
+        add('receiptNumber', draft.receiptNumber);
+        add('tax', draft.tax);
+        add('discount', draft.discount);
+        addSafeFormValues();
+        if (draft.items.isNotEmpty) {
+          add('items', draft.items.map((i) => '${i.name}: ${i.price} x ${i.quantity}').join(', '));
+        }
         addDate();
       case FfmAssistantDraftKind.transfer:
         add('amount', draft.amount);
@@ -127,6 +141,7 @@ class FfmAssistantCloudDraftContext {
         add('toAccount', draft.toAccountName);
         add('adminFee', draft.adminFee);
         add('note', draft.note);
+        addSafeFormValues();
         addDate();
       case FfmAssistantDraftKind.goal:
         add('name', draft.title);

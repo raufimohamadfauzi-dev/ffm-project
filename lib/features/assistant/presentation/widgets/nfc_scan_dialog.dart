@@ -128,75 +128,77 @@ class _NfcScanDialogState extends State<NfcScanDialog>
   Future<void> _confirmDraft(PaymentDraft draft) async {
     final db = getIt<AppDatabase>();
     final isDebit = draft.mutationType == PaymentMutationType.debit;
-    final accounts = await (db.select(db.accounts)
-          ..where(
-            (account) =>
-                account.householdId.equals(AppContext.householdId) &
-                account.isArchived.equals(false),
-          ))
-        .get();
+    final accounts =
+        await (db.select(db.accounts)..where(
+              (account) =>
+                  account.householdId.equals(AppContext.householdId) &
+                  account.isArchived.equals(false),
+            ))
+            .get();
     final displayLabel = draft.sourceApp.startsWith('nfc_')
         ? draft.rawTitle.replaceFirst('NFC ', '')
         : draft.accountLabel;
     final label = displayLabel.toLowerCase();
     final source = draft.sourceApp.toLowerCase();
-    Account? account = accounts.cast<Account?>().firstWhere(
-      (item) {
-        final name = item!.name.toLowerCase();
-        return (label.contains('bca') || source.contains('bca')) &&
-                name.contains('bca') ||
-            (label.contains('mandiri') || source.contains('mandiri')) &&
-                name.contains('mandiri') ||
-            (label.contains('bni') || source.contains('bni')) &&
-                name.contains('bni') ||
-            (label.contains('bri') || source.contains('bri')) &&
-                name.contains('bri') ||
-            (label.contains('gopay') || source.contains('gopay')) &&
-                name.contains('gopay') ||
-            (label.contains('ovo') || source.contains('ovo')) &&
-                name.contains('ovo') ||
-            (label.contains('dana') || source.contains('dana')) &&
-                name.contains('dana') ||
-            name == label;
-      },
-      orElse: () => null,
-    );
+    Account? account = accounts.cast<Account?>().firstWhere((item) {
+      final name = item!.name.toLowerCase();
+      return (label.contains('bca') || source.contains('bca')) &&
+              name.contains('bca') ||
+          (label.contains('mandiri') || source.contains('mandiri')) &&
+              name.contains('mandiri') ||
+          (label.contains('bni') || source.contains('bni')) &&
+              name.contains('bni') ||
+          (label.contains('bri') || source.contains('bri')) &&
+              name.contains('bri') ||
+          (label.contains('gopay') || source.contains('gopay')) &&
+              name.contains('gopay') ||
+          (label.contains('ovo') || source.contains('ovo')) &&
+              name.contains('ovo') ||
+          (label.contains('dana') || source.contains('dana')) &&
+              name.contains('dana') ||
+          name == label;
+    }, orElse: () => null);
     if (account == null) {
       final accountId =
           'nfc-account-${label.replaceAll(RegExp(r'[^a-z0-9]+'), '-')}';
       final accountName = displayLabel == 'Kartu e-Money'
           ? 'Kartu NFC'
           : displayLabel;
-      await db.into(db.accounts).insertOnConflictUpdate(
-        AccountsCompanion.insert(
-          id: accountId,
-          householdId: AppContext.householdId,
-          name: accountName,
-          type: source.contains('bank') ? 'bank' : 'ewallet',
-          openingBalance: const Value(0),
-          isActive: const Value(true),
-          isArchived: const Value(false),
-          createdAt: draft.createdAt,
-        ),
-      );
-      account = await (db.select(db.accounts)
-            ..where(
-              (item) =>
-                  item.id.equals(accountId) &
-                  item.householdId.equals(AppContext.householdId),
-            ))
-          .getSingle();
+      await db
+          .into(db.accounts)
+          .insertOnConflictUpdate(
+            AccountsCompanion.insert(
+              id: accountId,
+              householdId: AppContext.householdId,
+              name: accountName,
+              type: source.contains('bank') ? 'bank' : 'ewallet',
+              openingBalance: const Value(0),
+              isActive: const Value(true),
+              isArchived: const Value(false),
+              createdAt: draft.createdAt,
+            ),
+          );
+      account =
+          await (db.select(db.accounts)..where(
+                (item) =>
+                    item.id.equals(accountId) &
+                    item.householdId.equals(AppContext.householdId),
+              ))
+              .getSingle();
     }
-    final categories = await (db.select(db.categories)
-          ..where((category) => category.isActive.equals(true)))
-        .get();
+    final categories = await (db.select(
+      db.categories,
+    )..where((category) => category.isActive.equals(true))).get();
     final category = categories.where((item) {
       final suggestion = draft.suggestedCategory?.toLowerCase();
       return suggestion != null &&
           (item.name.toLowerCase().contains(suggestion) ||
               suggestion.contains(item.name.toLowerCase()));
     }).firstOrNull;
-    await SaveTransaction(db)(
+    final saveTransaction = getIt.isRegistered<SaveTransaction>()
+        ? getIt<SaveTransaction>()
+        : SaveTransaction(db);
+    await saveTransaction(
       TransactionEntity(
         id: 'tx_nfc_${draft.id}',
         householdId: AppContext.householdId,
@@ -226,7 +228,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
 
   Future<void> _editCardAlias(NfcCardAccount account) async {
     final ctrl = TextEditingController(
-      text: account.issuer?.isNotEmpty == true ? account.issuer! : account.cardType,
+      text: account.issuer?.isNotEmpty == true
+          ? account.issuer!
+          : account.cardType,
     );
     final newName = await showDialog<String>(
       context: context,
@@ -258,7 +262,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
       await _nfcRepo.updateCardAlias(account.cardId, newName);
       setState(() {
         final updatedAccount = account.copyWith(issuer: newName);
-        _adaptationResult = _adaptationResult?.copyWith(cardAccount: updatedAccount);
+        _adaptationResult = _adaptationResult?.copyWith(
+          cardAccount: updatedAccount,
+        );
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -280,7 +286,10 @@ class _NfcScanDialogState extends State<NfcScanDialog>
           assistantName: account.displayName,
           assistantFormValues: {
             'openingBalance': balance.round().toString(),
-            'accountType': account.cardType.contains('bank') ? 'bank' : 'ewallet',
+            'accountType': account.cardType.contains('bank')
+                ? 'bank'
+                : 'ewallet',
+            'nfcCardId': account.cardId, // Include card ID for linking
           },
         ),
       ),
@@ -288,9 +297,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
     if (!mounted) return;
     final cards = await _nfcRepo.getCardAccounts();
     final updated = cards.cast<NfcCardAccount?>().firstWhere(
-          (c) => c!.cardId == account.cardId,
-          orElse: () => null,
-        );
+      (c) => c!.cardId == account.cardId,
+      orElse: () => null,
+    );
     if (updated != null && mounted) {
       setState(() {
         _adaptationResult = _adaptationResult?.copyWith(cardAccount: updated);
@@ -300,18 +309,22 @@ class _NfcScanDialogState extends State<NfcScanDialog>
 
   Future<void> _showLinkAccountDialog(NfcCardAccount account) async {
     final db = getIt<AppDatabase>();
-    final accounts = await (db.select(db.accounts)
-          ..where((a) =>
-              a.householdId.equals(AppContext.householdId) &
-              a.isArchived.equals(false)))
-        .get();
+    final accounts =
+        await (db.select(db.accounts)..where(
+              (a) =>
+                  a.householdId.equals(AppContext.householdId) &
+                  a.isArchived.equals(false),
+            ))
+            .get();
 
     final filtered = accounts.where((a) => a.id != account.accountId).toList();
     if (filtered.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Belum ada rekening lain di Data Utama untuk ditautkan.'),
+          content: Text(
+            'Belum ada rekening lain di Data Utama untuk ditautkan.',
+          ),
         ),
       );
       return;
@@ -333,7 +346,10 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                 final acc = filtered[i];
                 return ListTile(
                   leading: const Icon(Icons.account_balance_wallet_outlined),
-                  title: Text(acc.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  title: Text(
+                    acc.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   subtitle: Text(acc.type.toUpperCase()),
                   onTap: () => Navigator.pop(ctx, acc),
                 );
@@ -351,7 +367,11 @@ class _NfcScanDialogState extends State<NfcScanDialog>
     );
 
     if (selected != null && mounted) {
-      await _nfcRepo.linkCardToAccount(account.cardId, selected.id, selected.name);
+      await _nfcRepo.linkCardToAccount(
+        account.cardId,
+        selected.id,
+        selected.name,
+      );
       setState(() {
         final updated = account.copyWith(
           accountId: selected.id,
@@ -362,7 +382,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Kartu berhasil ditautkan ke rekening "${selected.name}"'),
+            content: Text(
+              'Kartu berhasil ditautkan ke rekening "${selected.name}"',
+            ),
             backgroundColor: Colors.green.shade700,
             behavior: SnackBarBehavior.floating,
           ),
@@ -462,11 +484,16 @@ class _NfcScanDialogState extends State<NfcScanDialog>
         children: [
           Icon(Icons.nfc_outlined, size: 64, color: colors.error),
           const SizedBox(height: 12),
-          Text(title,
-              style: theme.textTheme.titleSmall?.copyWith(color: colors.error)),
+          Text(
+            title,
+            style: theme.textTheme.titleSmall?.copyWith(color: colors.error),
+          ),
           const SizedBox(height: 6),
-          Text(message,
-              textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );
@@ -494,7 +521,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
           ),
           const SizedBox(height: 20),
           Text(
-            _isScanning ? 'Siap Memindai Kartu e-Money...' : 'Tempelkan Kartu e-Money',
+            _isScanning
+                ? 'Siap Memindai Kartu e-Money...'
+                : 'Tempelkan Kartu e-Money',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
             ),
@@ -576,7 +605,11 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                   ),
                   IconButton(
                     tooltip: 'Ubah Nama Kartu',
-                    icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white,
+                      size: 18,
+                    ),
                     onPressed: () => _editCardAlias(account),
                   ),
                 ],
@@ -621,8 +654,7 @@ class _NfcScanDialogState extends State<NfcScanDialog>
           ),
           const SizedBox(height: 12),
           _buildBaselineActionCard(theme, colors, result),
-        ]
-        else if (draft == null)
+        ] else if (draft == null)
           _buildInfoBanner(
             theme,
             colors,
@@ -644,10 +676,14 @@ class _NfcScanDialogState extends State<NfcScanDialog>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: (isDebit ? Colors.red : Colors.green).withValues(alpha: 0.08),
+              color: (isDebit ? Colors.red : Colors.green).withValues(
+                alpha: 0.08,
+              ),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: (isDebit ? Colors.red : Colors.green).withValues(alpha: 0.3),
+                color: (isDebit ? Colors.red : Colors.green).withValues(
+                  alpha: 0.3,
+                ),
               ),
             ),
             child: Column(
@@ -658,7 +694,9 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                     Text(
                       isDebit ? '▼ Pengeluaran' : '▲ Top-Up / Isi Ulang',
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: isDebit ? Colors.red.shade700 : Colors.green.shade700,
+                        color: isDebit
+                            ? Colors.red.shade700
+                            : Colors.green.shade700,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -667,16 +705,15 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                       draft.formattedAmount,
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: isDebit ? Colors.red.shade700 : Colors.green.shade700,
+                        color: isDebit
+                            ? Colors.red.shade700
+                            : Colors.green.shade700,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  draft.merchantName,
-                  style: theme.textTheme.bodySmall,
-                ),
+                Text(draft.merchantName, style: theme.textTheme.bodySmall),
               ],
             ),
           ),
@@ -712,7 +749,11 @@ class _NfcScanDialogState extends State<NfcScanDialog>
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(Icons.history_toggle_off_rounded, size: 18, color: colors.primary),
+              Icon(
+                Icons.history_toggle_off_rounded,
+                size: 18,
+                color: colors.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Log Transaksi Terbaca dari Chip (${result.historyDrafts.length})',
@@ -767,7 +808,10 @@ class _NfcScanDialogState extends State<NfcScanDialog>
                   const SizedBox(width: 8),
                   IconButton(
                     tooltip: 'Simpan',
-                    icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                    icon: const Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.green,
+                    ),
                     onPressed: () => _confirmDraft(hDraft),
                   ),
                 ],
@@ -811,9 +855,13 @@ class _NfcScanDialogState extends State<NfcScanDialog>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(color: color, fontWeight: FontWeight.bold)),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 Text(message, style: theme.textTheme.bodySmall),
               ],
             ),

@@ -99,8 +99,14 @@ void main() {
             "('nfc_card_accounts', 'nfc_scan_snapshots')",
           )
           .get();
+      final telegramDeliveries = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name = 'telegram_deliveries'",
+          )
+          .getSingleOrNull();
 
-      expect(version.data['user_version'], 53);
+      expect(version.data['user_version'], 54);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -112,6 +118,7 @@ void main() {
       expect(personalizationTables, hasLength(3));
       expect(approvalTable, isNotNull);
       expect(nfcTables, hasLength(2));
+      expect(telegramDeliveries, isNotNull);
     });
 
     test(

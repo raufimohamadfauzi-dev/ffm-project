@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/di/injection.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
@@ -23,10 +26,13 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   late final TabController _tabController;
   late final MarketNewsRadarService _radarService;
   late final MarketNewsCacheRepository _cacheRepository;
+  Timer? _autoRefreshTimer;
+  int _refreshIntervalMinutes = 60;
 
   // Market Prices State
   MarketPriceSnapshot? _priceSnapshot;
   bool _isLoadingPrices = false;
+  String? _priceRefreshStatus;
 
   // Karat Calculator State
   double _calcGrams = 5.0;
@@ -38,6 +44,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   NewsCategory? _selectedCategory; // null = Semua
   bool _isLoadingNews = false;
   List<String> _userKeywords = [];
+  String? _newsRefreshStatus;
 
   final _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
@@ -54,10 +61,29 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
 
     _loadPrices();
     _loadNews();
+    _loadRefreshInterval();
+    _startAutoRefreshTimer();
+  }
+
+  Future<void> _loadRefreshInterval() async {
+    final minutes = await _cacheRepository.getRefreshIntervalMinutes();
+    if (!mounted) return;
+    setState(() => _refreshIntervalMinutes = minutes);
+    _startAutoRefreshTimer();
+  }
+
+  void _startAutoRefreshTimer() {
+    _autoRefreshTimer?.cancel();
+    if (_refreshIntervalMinutes <= 0) return;
+    _autoRefreshTimer = Timer.periodic(Duration(minutes: _refreshIntervalMinutes), (_) {
+      _refreshPrices(silent: true);
+      _refreshNews(silent: true);
+    });
   }
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _tabController.dispose();
     _gramController.dispose();
     super.dispose();
@@ -75,6 +101,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   }
 
   Future<void> _refreshPrices({bool silent = false}) async {
+    if (_isLoadingPrices) return;
     if (!silent && mounted) setState(() => _isLoadingPrices = true);
     try {
       final fresh = await _radarService.fetchMarketPrices();
@@ -83,10 +110,18 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
         setState(() {
           _priceSnapshot = fresh;
           _isLoadingPrices = false;
+          _priceRefreshStatus = fresh.isOfflineCache
+              ? 'Sumber kurs belum merespons; angka fallback dipertahankan.'
+              : 'Kurs diperbarui dari sumber online.';
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingPrices = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingPrices = false;
+          _priceRefreshStatus = 'Refresh kurs gagal; data sebelumnya tetap dipakai.';
+        });
+      }
     }
   }
 
@@ -100,25 +135,54 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
       });
     }
 
-    if (cached.isEmpty) {
+    final newestNewsAt = cached
+        .where((item) => item.isPublishedAtKnown && !item.isFallback)
+        .map((item) => item.publishedAt)
+        .fold<DateTime?>(
+          null,
+          (latest, publishedAt) =>
+              latest == null || publishedAt.isAfter(latest) ? publishedAt : latest,
+        );
+    if (cached.isEmpty ||
+        newestNewsAt == null ||
+        DateTime.now().difference(newestNewsAt).inHours >= 1) {
       _refreshNews(silent: true);
     }
   }
 
   Future<void> _refreshNews({bool silent = false}) async {
+    if (_isLoadingNews) return;
     if (!silent && mounted) setState(() => _isLoadingNews = true);
     try {
       final fresh = await _radarService.fetchCuratedNews();
-      await _cacheRepository.saveNewsItems(fresh);
-      final pruned = await _cacheRepository.getCachedNews();
+      final isFallback = fresh.every((item) => item.isFallback);
+      if (!isFallback) {
+        await _cacheRepository.saveNewsItems(fresh);
+      }
+      final pruned = isFallback
+          ? (_allNews.isNotEmpty ? _allNews : fresh)
+          : await _cacheRepository.getCachedNews();
+      final sources = fresh
+          .where((item) => !item.isFallback)
+          .map((item) => item.sourceName)
+          .toSet();
       if (mounted) {
         setState(() {
           _allNews = pruned;
           _isLoadingNews = false;
+          _newsRefreshStatus = isFallback
+              ? 'Sumber berita belum merespons; berita cadangan ditampilkan.'
+              : 'Diperbarui ${DateFormat('HH:mm').format(DateTime.now())} • '
+                  '${fresh.length} berita dari ${sources.length} sumber.';
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoadingNews = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingNews = false;
+          _newsRefreshStatus = 'Refresh berita gagal; berita sebelumnya tetap dipakai.';
+        });
+      }
     }
   }
 
@@ -132,48 +196,50 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Radar Pasar & Berita'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.tune),
-            tooltip: 'Pengaturan Kata Kunci & Topik',
-            onPressed: _showPreferencesModal,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.tune),
+              tooltip: 'Pengaturan Kata Kunci & Topik',
+              onPressed: _showPreferencesModal,
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Segarkan Data',
+              onPressed: () {
+                if (_tabController.index == 0) {
+                  _refreshPrices();
+                } else {
+                  _refreshNews();
+                }
+              },
+            ),
+          ],
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: const [
+              Tab(icon: Icon(Icons.trending_up), text: 'Harga & Valas'),
+              Tab(icon: Icon(Icons.newspaper), text: 'Berita & Peringatan'),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Segarkan Data',
-            onPressed: () {
-              if (_tabController.index == 0) {
-                _refreshPrices();
-              } else {
-                _refreshNews();
-              }
-            },
-          ),
-        ],
-        bottom: TabBar(
+        ),
+        body: TabBarView(
           controller: _tabController,
-          tabs: const [
-            Tab(icon: Icon(Icons.trending_up), text: 'Harga & Valas'),
-            Tab(icon: Icon(Icons.newspaper), text: 'Berita & Peringatan'),
+          children: [
+            _buildMarketPricesTab(theme, colorScheme),
+            _buildNewsRadarTab(theme, colorScheme),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildMarketPricesTab(theme, colorScheme),
-          _buildNewsRadarTab(theme, colorScheme),
-        ],
-      ),
-    ),
-  );
-}
+    );
+  }
 
   // ==================== TAB 1: MARKET PRICES ====================
   Widget _buildMarketPricesTab(ThemeData theme, ColorScheme colorScheme) {
     final isDark = theme.brightness == Brightness.dark;
     final snapshot = _priceSnapshot ?? MarketPriceSnapshot.initialFallback();
-    final timeStr = DateFormat('HH:mm, dd MMM yyyy').format(snapshot.lastUpdated);
+    final exactTimeStr = DateFormat('HH:mm, dd MMM yyyy')
+      .format(snapshot.lastUpdated);
+    final ageStr = _relativeAge(snapshot.lastUpdated);
 
     return RefreshIndicator(
       onRefresh: () => _refreshPrices(),
@@ -193,16 +259,20 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
             child: Row(
               children: [
                 Icon(
-                  snapshot.isOfflineCache ? Icons.cloud_off : Icons.check_circle_outline,
+                  snapshot.isOfflineCache
+                      ? Icons.cloud_off
+                      : Icons.check_circle_outline,
                   size: 18,
                   color: snapshot.isOfflineCache ? Colors.orange : Colors.green,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    snapshot.isOfflineCache
-                        ? 'Memakai estimasi cache lokal ($timeStr)'
-                        : 'Pembaruan terakhir: $timeStr',
+                    _isLoadingPrices
+                        ? 'Mengambil kurs terbaru dari beberapa sumber...'
+                        : snapshot.isOfflineCache
+                        ? 'Memakai estimasi cache lokal ($ageStr, $exactTimeStr)'
+                        : 'Pembaruan terakhir: $ageStr ($exactTimeStr)',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -217,10 +287,22 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
               ],
             ),
           ),
+          if (_priceRefreshStatus != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _priceRefreshStatus!,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Section Emas
-          _buildSectionHeader('Logam Mulia (Emas Batangan & Perhiasan)', Icons.monetization_on),
+          _buildSectionHeader(
+            'Logam Mulia (Emas Batangan & Perhiasan)',
+            Icons.monetization_on,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -228,8 +310,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 child: _buildPriceCard(
                   title: 'Emas 24K (Antam)',
                   price: _currencyFormat.format(snapshot.goldPerGram24K),
-                  subtitle: 'per gram (Jual)',
-                  color: isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309),
+                  subtitle: 'estimasi per gram (Jual)',
+                  color: isDark
+                      ? const Color(0xFFFACC15)
+                      : const Color(0xFFB45309),
                   icon: Icons.workspace_premium,
                 ),
               ),
@@ -238,8 +322,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 child: _buildPriceCard(
                   title: 'Buyback Emas',
                   price: _currencyFormat.format(snapshot.goldPerGramBuyback),
-                  subtitle: 'per gram (Beli Balik)',
-                  color: isDark ? const Color(0xFFFCD34D) : const Color(0xFF92400E),
+                  subtitle: 'estimasi per gram (Beli Balik)',
+                  color: isDark
+                      ? const Color(0xFFFCD34D)
+                      : const Color(0xFF92400E),
                   icon: Icons.swap_horizontal_circle,
                 ),
               ),
@@ -252,7 +338,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
           const SizedBox(height: 20),
 
           // Section Valuta Asing (Forex)
-          _buildSectionHeader('Mata Uang Asing (Valas ke IDR)', Icons.currency_exchange),
+          _buildSectionHeader(
+            'Mata Uang Asing (Valas ke IDR)',
+            Icons.currency_exchange,
+          ),
           const SizedBox(height: 8),
           GridView.count(
             crossAxisCount: 2,
@@ -265,29 +354,47 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
               _buildPriceCard(
                 title: 'USD (Dolar AS)',
                 price: _currencyFormat.format(snapshot.usdToIdr),
-                subtitle: '1 USD = IDR',
+                subtitle: _marketSubtitle(
+                  snapshot,
+                  MarketInstrument.usd,
+                  '1 USD = IDR',
+                ),
                 color: isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
                 icon: Icons.attach_money,
               ),
               _buildPriceCard(
                 title: 'SGD (Dolar SG)',
                 price: _currencyFormat.format(snapshot.sgdToIdr),
-                subtitle: '1 SGD = IDR',
+                subtitle: _marketSubtitle(
+                  snapshot,
+                  MarketInstrument.sgd,
+                  '1 SGD = IDR',
+                ),
                 color: isDark ? const Color(0xFF2DD4BF) : Colors.teal.shade800,
                 icon: Icons.account_balance,
               ),
               _buildPriceCard(
                 title: 'SAR (Riyal Arab)',
                 price: _currencyFormat.format(snapshot.sarToIdr),
-                subtitle: '1 SAR = IDR (Haji/Umrah)',
+                subtitle: _marketSubtitle(
+                  snapshot,
+                  MarketInstrument.sar,
+                  '1 SAR = IDR (Haji/Umrah)',
+                ),
                 color: isDark ? const Color(0xFFFBBF24) : Colors.amber.shade900,
                 icon: Icons.mosque,
               ),
               _buildPriceCard(
                 title: 'EUR (Euro)',
                 price: _currencyFormat.format(snapshot.eurToIdr),
-                subtitle: '1 EUR = IDR',
-                color: isDark ? const Color(0xFF818CF8) : Colors.indigo.shade800,
+                subtitle: _marketSubtitle(
+                  snapshot,
+                  MarketInstrument.eur,
+                  '1 EUR = IDR',
+                ),
+                color: isDark
+                    ? const Color(0xFF818CF8)
+                    : Colors.indigo.shade800,
                 icon: Icons.euro,
               ),
             ],
@@ -295,7 +402,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
           const SizedBox(height: 20),
 
           // Section Aset Kripto
-          _buildSectionHeader('Aset Kripto Populer (IDR)', Icons.currency_bitcoin),
+          _buildSectionHeader(
+            'Aset Kripto Populer (IDR)',
+            Icons.currency_bitcoin,
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -304,7 +414,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Bitcoin (BTC)',
                   price: _currencyFormat.format(snapshot.btcToIdr),
                   subtitle: '1 BTC',
-                  color: isDark ? const Color(0xFFFB923C) : Colors.deepOrange.shade800,
+                  color: isDark
+                      ? const Color(0xFFFB923C)
+                      : Colors.deepOrange.shade800,
                   icon: Icons.currency_bitcoin,
                 ),
               ),
@@ -314,7 +426,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   title: 'Ethereum (ETH)',
                   price: _currencyFormat.format(snapshot.ethToIdr),
                   subtitle: '1 ETH',
-                  color: isDark ? const Color(0xFFC084FC) : Colors.purple.shade800,
+                  color: isDark
+                      ? const Color(0xFFC084FC)
+                      : Colors.purple.shade800,
                   icon: Icons.token,
                 ),
               ),
@@ -340,6 +454,16 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
         ),
       ],
     );
+  }
+
+  String _marketSubtitle(
+    MarketPriceSnapshot snapshot,
+    MarketInstrument instrument,
+    String label,
+  ) {
+    return snapshot.hasVerifiedPrice(instrument)
+        ? '$label • Live'
+        : '$label • Estimasi/cache';
   }
 
   Widget _buildPriceCard({
@@ -419,9 +543,7 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
       decoration: BoxDecoration(
         color: colorScheme.primaryContainer.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: colorScheme.primary.withValues(alpha: 0.3),
-        ),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -447,12 +569,17 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 flex: 3,
                 child: TextField(
                   controller: _gramController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     labelText: 'Berat (Gram)',
                     border: OutlineInputBorder(),
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
                   ),
                   onChanged: (val) {
                     final parsed = double.tryParse(val.replaceAll(',', '.'));
@@ -473,12 +600,17 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                     labelText: 'Kadar Karat',
                     border: OutlineInputBorder(),
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 10,
+                    ),
                   ),
                   items: GoldKarat.values.map((k) {
                     return DropdownMenuItem(
                       value: k,
-                      child: Text('${k.label} (${(k.purityFactor * 100).toInt()}%)'),
+                      child: Text(
+                        '${k.label} (${(k.purityFactor * 100).toInt()}%)',
+                      ),
                     );
                   }).toList(),
                   onChanged: (val) {
@@ -508,7 +640,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   _currencyFormat.format(estimatedVal),
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFFFACC15) : Colors.amber.shade900,
+                    color: isDark
+                        ? const Color(0xFFFACC15)
+                        : Colors.amber.shade900,
                   ),
                 ),
               ],
@@ -523,7 +657,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
   Widget _buildNewsRadarTab(ThemeData theme, ColorScheme colorScheme) {
     final filteredNews = _selectedCategory == null
         ? _allNews
-        : _allNews.where((n) => n.category == _selectedCategory).toList();
+        : _allNews
+            .where((n) => n.category == _selectedCategory)
+            .toList();
 
     return RefreshIndicator(
       onRefresh: () => _refreshNews(),
@@ -542,17 +678,27 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
+                  label: const Text('Umum'),
+                  selected: _selectedCategory == NewsCategory.all,
+                  onSelected: (_) => setState(
+                    () => _selectedCategory = NewsCategory.all,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
                   label: const Text('🌾 Pertanian'),
                   selected: _selectedCategory == NewsCategory.agriculture,
-                  onSelected: (_) =>
-                      setState(() => _selectedCategory = NewsCategory.agriculture),
+                  onSelected: (_) => setState(
+                    () => _selectedCategory = NewsCategory.agriculture,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
                   label: const Text('🌧️ Cuaca BMKG'),
                   selected: _selectedCategory == NewsCategory.weatherDisaster,
-                  onSelected: (_) =>
-                      setState(() => _selectedCategory = NewsCategory.weatherDisaster),
+                  onSelected: (_) => setState(
+                    () => _selectedCategory = NewsCategory.weatherDisaster,
+                  ),
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
@@ -560,6 +706,36 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                   selected: _selectedCategory == NewsCategory.finance,
                   onSelected: (_) =>
                       setState(() => _selectedCategory = NewsCategory.finance),
+                ),
+              ],
+            ),
+          ),
+
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _isLoadingNews ? Icons.sync : Icons.auto_awesome,
+                  size: 16,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _isLoadingNews
+                        ? 'Mencari berita terbaru dari semua sumber...'
+                        : _newsRefreshStatus ??
+                            'Menampilkan berita terbaru umum dan kategori pilihan.',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -575,7 +751,11 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 14, color: colorScheme.onSurfaceVariant),
+                Icon(
+                  Icons.info_outline,
+                  size: 14,
+                  color: colorScheme.onSurfaceVariant,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -599,11 +779,15 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.newspaper,
-                                  size: 48,
-                                  color: colorScheme.outlineVariant),
+                              Icon(
+                                Icons.newspaper,
+                                size: 48,
+                                color: colorScheme.outlineVariant,
+                              ),
                               const SizedBox(height: 8),
-                              const Text('Belum ada berita dalam kategori ini.'),
+                              const Text(
+                                'Belum ada berita dalam kategori ini.',
+                              ),
                             ],
                           ),
                   )
@@ -627,7 +811,11 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
     ColorScheme colorScheme,
   ) {
     final isDark = theme.brightness == Brightness.dark;
-    final timeStr = DateFormat('dd MMM, HH:mm').format(item.publishedAt);
+    final timeStr = item.isFallback
+        ? 'Konten edukasi cadangan'
+        : item.isPublishedAtKnown
+      ? '${_relativeAge(item.publishedAt)} • ${DateFormat('dd MMM, HH:mm').format(item.publishedAt)}'
+        : 'Tanggal publikasi tidak diketahui';
 
     Color tagColor;
     switch (item.category) {
@@ -664,7 +852,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: tagColor.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -680,7 +871,10 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 if (item.isHighAlert) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
@@ -688,7 +882,11 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.warning_amber, size: 12, color: Colors.red),
+                        const Icon(
+                          Icons.warning_amber,
+                          size: 12,
+                          color: Colors.red,
+                        ),
                         const SizedBox(width: 2),
                         Text(
                           'Peringatan',
@@ -735,12 +933,40 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                     color: colorScheme.outline,
                   ),
                 ),
+                if (item.url != null) ...[
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.open_in_new, size: 17),
+                    tooltip: 'Buka sumber berita',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _openArticle(item.url!),
+                  ),
+                ],
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _relativeAge(DateTime timestamp) {
+    final age = DateTime.now().difference(timestamp);
+    if (age.isNegative || age.inMinutes < 1) return 'baru saja';
+    if (age.inMinutes < 60) return '${age.inMinutes} menit lalu';
+    if (age.inHours < 24) return '${age.inHours} jam lalu';
+    return '${age.inDays} hari lalu';
+  }
+
+  Future<void> _openArticle(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sumber berita tidak dapat dibuka.')),
+      );
+    }
   }
 
   void _showPreferencesModal() {
@@ -769,14 +995,54 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text(
+                    'Interval refresh otomatis',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    initialValue: _refreshIntervalMinutes,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 15,
+                        child: Text('Setiap 15 menit'),
+                      ),
+                      DropdownMenuItem(
+                        value: 60,
+                        child: Text('Setiap 1 jam'),
+                      ),
+                      DropdownMenuItem(
+                        value: 240,
+                        child: Text('Setiap 4 jam'),
+                      ),
+                      DropdownMenuItem(value: 0, child: Text('Manual saja')),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      _cacheRepository.saveRefreshIntervalMinutes(value);
+                      setState(() => _refreshIntervalMinutes = value);
+                      setModalState(() {});
+                      if (value == 0) {
+                        _autoRefreshTimer?.cancel();
+                      } else {
+                        _startAutoRefreshTimer();
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Kata Kunci Peringatan Khusus',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       IconButton(
                         icon: const Icon(Icons.close),
@@ -797,7 +1063,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                         child: TextField(
                           controller: keywordCtrl,
                           decoration: const InputDecoration(
-                            hintText: 'Tambah kata kunci (misal: Pupuk, Kebakaran)',
+                            hintText:
+                                'Tambah kata kunci (misal: Pupuk, Kebakaran)',
                             border: OutlineInputBorder(),
                             isDense: true,
                           ),
@@ -808,7 +1075,8 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                         icon: const Icon(Icons.add),
                         onPressed: () {
                           final text = keywordCtrl.text.trim();
-                          if (text.isNotEmpty && !_userKeywords.contains(text)) {
+                          if (text.isNotEmpty &&
+                              !_userKeywords.contains(text)) {
                             final updated = [..._userKeywords, text];
                             _cacheRepository.saveUserAlertKeywords(updated);
                             setModalState(() => _userKeywords = updated);
@@ -827,7 +1095,9 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                       return Chip(
                         label: Text(kw),
                         onDeleted: () {
-                          final updated = _userKeywords.where((k) => k != kw).toList();
+                          final updated = _userKeywords
+                              .where((k) => k != kw)
+                              .toList();
                           _cacheRepository.saveUserAlertKeywords(updated);
                           setModalState(() => _userKeywords = updated);
                           setState(() => _userKeywords = updated);

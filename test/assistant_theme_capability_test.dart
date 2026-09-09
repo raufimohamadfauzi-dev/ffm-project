@@ -42,6 +42,26 @@ void main() {
           reason: 'Ganti tema adalah UI preference aman, tidak boleh menuntut dialog konfirmasi');
     });
 
+    test('Assistant mengenali perintah refresh berita dan valas', () async {
+      final capability = FfmAssistantCapabilityRegistry.find('market.refresh');
+      expect(capability, isNotNull);
+      expect(capability!.readOnly, isTrue);
+
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      final interpreter = FfmAssistantInterpreter(db);
+      final intent = await interpreter.interpret('refresh berita dan valas');
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+
+      expect(intent.destination, FfmAssistantDestination.marketNewsRadar);
+      expect(intent.pluginMetadata?['refreshMarketNews'], isTrue);
+      expect(
+        plan!.steps.any((step) => step.capabilityId == 'market.refresh'),
+        isTrue,
+      );
+      expect(plan.requiresConfirmation, isFalse);
+    });
+
     test('FfmAssistantInterpreter mengenali berbagai variasi ekspresi tema bahasa Indonesia', () async {
       final db = AppDatabase(NativeDatabase.memory());
       final interpreter = FfmAssistantInterpreter(db);

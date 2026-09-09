@@ -690,11 +690,14 @@ class FfmAssistantInterpreter {
       return _InterpretResult.multi(draftIntents);
     }
     if (proposal.drafts.isNotEmpty) {
-      final draft = _validateGeminiDraft(
+      var draft = _validateGeminiDraft(
         proposal.drafts.first,
         accounts,
         categories,
       );
+      if (activeDraft != null) {
+        draft = _mergeDraftPatch(activeDraft, draft);
+      }
 
       // Handle navigation proposals specially
       if (draft.formValues['navigation'] == 'true') {
@@ -975,6 +978,47 @@ class FfmAssistantInterpreter {
     final prompt =
         'Agar draft tidak salah, aku masih perlu ${requiredFields.join(', ')}.';
     return intent.copyWith(response: prompt, clarification: prompt);
+  }
+
+  /// Merges Gemini draft review proposal onto base activeDraft to preserve
+  /// OCR items, tax, discount, receiptNumber, location, metadata, formValues, etc.
+  FfmAssistantDraft _mergeDraftPatch(
+    FfmAssistantDraft base,
+    FfmAssistantDraft patch,
+  ) {
+    return base.copyWith(
+      amount: patch.amount != null && patch.amount! > 0 ? patch.amount : base.amount,
+      title: patch.title?.isNotEmpty == true ? patch.title : base.title,
+      partyName: patch.partyName?.isNotEmpty == true ? patch.partyName : base.partyName,
+      fromAccountName: patch.fromAccountName?.isNotEmpty == true ? patch.fromAccountName : base.fromAccountName,
+      toAccountName: patch.toAccountName?.isNotEmpty == true ? patch.toAccountName : base.toAccountName,
+      categoryName: patch.categoryName?.isNotEmpty == true ? patch.categoryName : base.categoryName,
+      adminFee: patch.adminFee ?? base.adminFee,
+      goalName: patch.goalName?.isNotEmpty == true ? patch.goalName : base.goalName,
+      note: patch.note?.isNotEmpty == true ? patch.note : base.note,
+      date: patch.date ?? base.date,
+      linkedActivityId: patch.linkedActivityId ?? base.linkedActivityId,
+      merchantName: patch.merchantName?.isNotEmpty == true ? patch.merchantName : base.merchantName,
+      location: patch.location?.isNotEmpty == true ? patch.location : base.location,
+      items: patch.items.isNotEmpty ? patch.items : base.items,
+      tax: patch.tax ?? base.tax,
+      discount: patch.discount ?? base.discount,
+      receiptPaidAmount: patch.receiptPaidAmount ?? base.receiptPaidAmount,
+      receiptChangeAmount: patch.receiptChangeAmount ?? base.receiptChangeAmount,
+      receiptNumber: patch.receiptNumber?.isNotEmpty == true ? patch.receiptNumber : base.receiptNumber,
+      metadata: {
+        ...?base.metadata,
+        ...?patch.metadata,
+      },
+      formValues: {
+        ...base.formValues,
+        ...patch.formValues,
+      },
+      slmFieldValues: {
+        ...base.slmFieldValues,
+        ...patch.slmFieldValues,
+      },
+    );
   }
 
   // ── PILAR 1: Multi-Action Chaining ─────────────────────────────────────────
@@ -1643,6 +1687,29 @@ class FfmAssistantInterpreter {
     FfmAssistantDraft? activeDraft,
   }) async {
     var normalized = _normalize(rawText);
+    final refreshMarketRequest = _containsAny(normalized, const [
+      'refresh berita',
+      'refresh valas',
+      'refresh kurs',
+      'segarkan berita',
+      'segarkan valas',
+      'segarkan kurs',
+      'perbarui berita',
+      'perbarui kurs',
+      'ambil berita terbaru',
+      'ambil kurs terbaru',
+    ]);
+    if (refreshMarketRequest) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.openPage,
+        destination: FfmAssistantDestination.marketNewsRadar,
+        confidence: 1.0,
+        response: 'Siap, aku segarkan berita dan valas terbaru dari sumber online.',
+        pluginMetadata: const {'refreshMarketNews': true},
+      );
+    }
     final isGeminiConversationMode =
         routingMode == FfmAssistantRoutingMode.geminiCloud;
     final hasActionVerb = _containsAny(normalized, const [
@@ -7505,12 +7572,15 @@ class FfmAssistantInterpreter {
           ? '${rawText.trim()}\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
           : rawText.trim();
 
+      // Parse waktu yang diminta dari teks
+      final parsedTime = _parseTimeFromText(normalized, now);
+      
       return FfmAssistantDraft(
         kind: FfmAssistantDraftKind.reminder,
         createdAt: now,
         title: title,
         note: note,
-        date: now.add(const Duration(hours: 1)),
+        date: parsedTime,
         metadata: billReminder
             ? {'calendar_sync': true, 'is_bill_reminder': true}
             : null,
@@ -8664,6 +8734,81 @@ class FfmAssistantInterpreter {
 
   String _capitalize(String word) =>
       word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}';
+
+  /// Parse waktu dari teks untuk pengingat
+  DateTime _parseTimeFromText(String text, DateTime now) {
+    // Cek jam spesifik (07.30, 7:30, jam 7 pagi, dll)
+    final timePattern = RegExp(
+      r'(?:jam|pukul|pk|pada)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:pagi|siang|sore|malam)?',
+      caseSensitive: false,
+    );
+    final timeMatch = timePattern.firstMatch(text);
+    
+    if (timeMatch != null) {
+      final hour = int.tryParse(timeMatch.group(1) ?? '') ?? 0;
+      final minute = int.tryParse(timeMatch.group(2) ?? '') ?? 0;
+      final period = timeMatch.group(3)?.toLowerCase();
+      
+      // Tentukan jam berdasarkan periode
+      int adjustedHour = hour;
+      if (period != null) {
+        if (period.contains('pagi')) {
+          adjustedHour = hour.clamp(1, 11);
+        } else if (period.contains('siang')) {
+          adjustedHour = hour.clamp(11, 14);
+        } else if (period.contains('sore')) {
+          adjustedHour = hour.clamp(15, 18);
+        } else if (period.contains('malam')) {
+          adjustedHour = hour.clamp(18, 23);
+        }
+      } else {
+        // Default: 1-12 dianggap pagi, 13-23 tetap
+        if (hour <= 12 && hour >= 1) {
+          adjustedHour = hour;
+        } else if (hour == 0) {
+          adjustedHour = 12; // 12 pagi
+        }
+      }
+      
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        adjustedHour.clamp(0, 23),
+        minute.clamp(0, 59),
+      );
+    }
+    
+    // Cek ekspresi relatif waktu (30 menit lagi, 1 jam lagi, besok, dll)
+    if (text.contains('menit')) {
+      final minutePattern = RegExp(r'(\d+)\s*menit');
+      final minuteMatch = minutePattern.firstMatch(text);
+      if (minuteMatch != null) {
+        final minutes = int.tryParse(minuteMatch.group(1) ?? '') ?? 0;
+        return now.add(Duration(minutes: minutes));
+      }
+    }
+    
+    if (text.contains('jam')) {
+      final hourPattern = RegExp(r'(\d+)\s*jam');
+      final hourMatch = hourPattern.firstMatch(text);
+      if (hourMatch != null) {
+        final hours = int.tryParse(hourMatch.group(1) ?? '') ?? 0;
+        return now.add(Duration(hours: hours));
+      }
+    }
+    
+    if (text.contains('besok')) {
+      return now.add(const Duration(days: 1));
+    }
+    
+    if (text.contains('lusa')) {
+      return now.add(const Duration(days: 2));
+    }
+    
+    // Default: 1 jam dari sekarang
+    return now.add(const Duration(hours: 1));
+  }
 
   String _formatRupiah(int value) {
     final digits = value.toString();

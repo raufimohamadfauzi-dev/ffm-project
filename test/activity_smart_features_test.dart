@@ -12,15 +12,18 @@ import 'package:ffm_manager/features/activity/data/repositories/activity_reposit
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late AppDatabase database;
 
   setUp(() async {
     FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
-    await configureDependencies(database: AppDatabase(NativeDatabase.memory()));
+    database = AppDatabase(NativeDatabase.memory());
+    await configureDependencies(database: database);
   });
 
   tearDown(() async {
     await getIt.reset();
+    await database.close();
   });
 
   testWidgets('Smart routine empty state renders with routine chips when sessions empty', (tester) async {

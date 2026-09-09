@@ -255,7 +255,8 @@ Perhatikan baik-baik gambar sebelum menulis JSON:
   * Jika bukti mutasi kirim uang / setor tunai antar-rekening: gunakan type "transfer".
 - Struk pembelian TOKEN LISTRIK PLN: tulis sebagai satu transaksi expense; isi budget_name dengan "Listrik" atau pos anggaran utilitas yang cocok; masukkan nomor token 20 digit (format 5 blok: xxxx-xxxx-xxxx-xxxx-xxxx atau 20 angka) dan IDPEL / nomor meteran ke note dan items. Total pembelian token adalah jumlah yang dibayar (Rupiah), bukan kWh.
 - Struk pembelian BBM di SPBU (Pertamina/Shell/BP/dll): tulis sebagai transaksi expense dengan merchant nama SPBU; isi budget_name "Transportasi" atau "BBM"; tulis jenis BBM (Pertalite/Pertamax/Solar/Dexlite) dan jumlah liter ke note atau rincian items, serta plat nomor kendaraan bila terbaca.
-- Struk isi ulang pulsa/kuota/data/saldo e-wallet: satu transaksi expense dengan merchant sesuai merek.
+- Struk isi ulang PULSA/KUOTA/DATA: satu transaksi expense dengan merchant sesuai merek provider.
+- Struk TOP-UP SALDO E-WALLET (GoPay, OVO, Dana, ShopeePay, LinkAja, dll): gunakan type "transfer" karena ini adalah pemindahan saldo antar-rekening milik keluarga; from_account adalah rekening bank sumber (bila terbaca), to_account adalah e-wallet tujuan. Jika ada biaya admin top-up, catat ke admin_fee.
 - Struk yang hanya berisi rincian (bukan pembelian, misal rekening tagihan) tetap satu transaksi expense.
 - Jangan menggabungkan beberapa transaksi yang jelas terpisah menjadi satu.
 - Aplikasi menampilkan semua hasil sebagai draft yang wajib diperiksa dan dikonfirmasi.''';

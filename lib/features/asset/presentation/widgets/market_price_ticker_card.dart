@@ -6,15 +6,13 @@ import '../../../../core/di/injection.dart';
 import '../../data/repositories/market_news_cache_repository.dart';
 import '../../data/services/market_news_radar_service.dart';
 import '../../domain/entities/market_news_models.dart';
+import '../../../assistant/data/autonomous_activity_repository.dart';
 import '../../domain/usecases/asset_auto_valuation_service.dart';
 import '../pages/market_news_radar_page.dart';
 
 /// Widget ticker harga pasar terkini (Emas Karat, USD, SGD, SAR, BTC) di halaman Aset.
 class MarketPriceTickerCard extends StatefulWidget {
-  const MarketPriceTickerCard({
-    super.key,
-    this.onPricesUpdated,
-  });
+  const MarketPriceTickerCard({super.key, this.onPricesUpdated});
 
   final VoidCallback? onPricesUpdated;
 
@@ -58,12 +56,14 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
       final fresh = await _service.fetchMarketPrices();
       await _cache.savePriceSnapshot(fresh);
 
-      // Jalankan auto-valuasi aset
+      // Jalankan auto-valuasi aset dan rekam aktivitas otonom
       final db = getIt<AppDatabase>();
-      final revalueResult = await _valuationService.revalueAssets(
+      final activityRepo = getIt<AutonomousActivityRepository>();
+      final revalueResult = await _valuationService.revalueAndRecordAutonomously(
         db: db,
         snapshot: fresh,
         householdId: AppContext.householdId,
+        activityRepository: activityRepo,
       );
 
       if (mounted) {
@@ -141,7 +141,10 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                     ),
                   ).then((_) => _loadPrices()),
                   icon: const Icon(Icons.newspaper_outlined, size: 14),
-                  label: const Text('Warta & Radar', style: TextStyle(fontSize: 12)),
+                  label: const Text(
+                    'Warta & Radar',
+                    style: TextStyle(fontSize: 12),
+                  ),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                   ),
@@ -155,7 +158,9 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                         )
                       : const Icon(Icons.refresh, size: 18),
                   tooltip: 'Segarkan Harga Pasar',
-                  onPressed: _isLoading ? null : () => _refreshPrices(silent: false),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _refreshPrices(silent: false),
                 ),
               ],
             ),
@@ -172,8 +177,12 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                 _buildPriceChip(
                   label: 'Emas 24K',
                   price: 'Rp ${_formatNumber(snapshot.goldPrice24K)}/gr',
-                  subtitle: 'Buyback: Rp ${_formatNumber(snapshot.goldBuybackPrice)}',
-                  color: isDark ? const Color(0xFFFACC15) : const Color(0xFFB45309),
+                  subtitle: snapshot.hasVerifiedPrice(MarketInstrument.gold24K)
+                      ? 'Buyback: Rp ${_formatNumber(snapshot.goldBuybackPrice)}'
+                      : 'Estimasi, tidak untuk valuasi',
+                  color: isDark
+                      ? const Color(0xFFFACC15)
+                      : const Color(0xFFB45309),
                   icon: Icons.savings_outlined,
                 ),
                 const SizedBox(width: 8),
@@ -181,7 +190,9 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                   label: 'USD / IDR',
                   price: 'Rp ${_formatNumber(snapshot.usdRate.round())}',
                   subtitle: 'Dolar AS',
-                  color: isDark ? const Color(0xFF4ADE80) : Colors.green.shade800,
+                  color: isDark
+                      ? const Color(0xFF4ADE80)
+                      : Colors.green.shade800,
                   icon: Icons.attach_money,
                 ),
                 const SizedBox(width: 8),
@@ -189,7 +200,9 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                   label: 'SGD / IDR',
                   price: 'Rp ${_formatNumber(snapshot.sgdRate.round())}',
                   subtitle: 'Dolar Singapura',
-                  color: isDark ? const Color(0xFF60A5FA) : Colors.blue.shade800,
+                  color: isDark
+                      ? const Color(0xFF60A5FA)
+                      : Colors.blue.shade800,
                   icon: Icons.monetization_on_outlined,
                 ),
                 const SizedBox(width: 8),
@@ -197,15 +210,20 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
                   label: 'SAR / IDR',
                   price: 'Rp ${_formatNumber(snapshot.sarRate.round())}',
                   subtitle: 'Riyal (Haji/Umrah)',
-                  color: isDark ? const Color(0xFF2DD4BF) : Colors.teal.shade800,
+                  color: isDark
+                      ? const Color(0xFF2DD4BF)
+                      : Colors.teal.shade800,
                   icon: Icons.mosque_outlined,
                 ),
                 const SizedBox(width: 8),
                 _buildPriceChip(
                   label: 'BTC / IDR',
-                  price: 'Rp ${_formatNumber((snapshot.btcPrice / 1000000).round())} Jt',
+                  price:
+                      'Rp ${_formatNumber((snapshot.btcPrice / 1000000).round())} Jt',
                   subtitle: 'Bitcoin',
-                  color: isDark ? const Color(0xFFFB923C) : Colors.deepOrange.shade800,
+                  color: isDark
+                      ? const Color(0xFFFB923C)
+                      : Colors.deepOrange.shade800,
                   icon: Icons.currency_bitcoin,
                 ),
               ],
@@ -278,8 +296,8 @@ class _MarketPriceTickerCardState extends State<MarketPriceTickerCard> {
 
   static String _formatNumber(int val) {
     return val.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]}.',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -258,7 +259,7 @@ class FfmAssistantChatHistoryRepository {
   }
 
   String _newConversationId() =>
-      'chat-${DateTime.now().microsecondsSinceEpoch}';
+      'chat-${const Uuid().v4()}';
 
   String _titleFor(List<FfmAssistantChatEntry> entries) {
     final firstUser = entries.firstWhere(

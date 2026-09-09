@@ -13,7 +13,7 @@ class FfmAssistantReminderMutationService {
     required ReminderOccurrenceCalculator occurrenceCalculator,
     CalendarBridge? calendarBridge,
     DateTime Function()? clock,
-  })  : _clock = clock ?? DateTime.now {
+  }) : _clock = clock ?? DateTime.now {
     _repository = repository;
     _notificationGateway = notificationGateway;
     _occurrenceCalculator = occurrenceCalculator;
@@ -36,8 +36,8 @@ class FfmAssistantReminderMutationService {
     final previous = await _repository.getReminder(next.householdId, next.id);
     if (previous != null) await _cancelScheduled(previous);
     await _repository.saveReminder(next);
-    if (next.isActive) await _scheduleNext(next);
-    
+    if (next.isActive) await _scheduleUpcoming(next);
+
     // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
     if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
       await _syncToCalendar(next);
@@ -84,19 +84,19 @@ class FfmAssistantReminderMutationService {
     await _cancelScheduled(previous);
     try {
       await _repository.saveReminder(next);
-      if (next.isActive) await _scheduleNext(next);
-      
+      if (next.isActive) await _scheduleUpcoming(next);
+
       // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
       if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
         await _syncToCalendar(next);
       }
-      
+
       return next;
     } on Object {
       // Mengembalikan data serta alarm lama sebagai pemulihan terbaik bila
       // penjadwalan ulang gagal setelah pembatalan alarm sebelumnya.
       await _repository.saveReminder(previous);
-      if (previous.isActive) await _scheduleNext(previous);
+      if (previous.isActive) await _scheduleUpcoming(previous);
       rethrow;
     }
   }
@@ -111,31 +111,39 @@ class FfmAssistantReminderMutationService {
   }
 
   Future<void> _cancelScheduled(ReminderEntity reminder) async {
-    final occurrence = _occurrenceCalculator.nextOccurrence(
+    final gateway = _notificationGateway;
+    if (gateway is ReminderNotificationLifecycleGateway) {
+      await (gateway as ReminderNotificationLifecycleGateway).cancelReminder(
+        reminder.id,
+      );
+      return;
+    }
+    final occurrences = _occurrenceCalculator.upcomingOccurrences(
       reminder,
       now: _clock().subtract(const Duration(seconds: 1)),
     );
-    if (occurrence != null) {
+    for (final occurrence in occurrences) {
       await _notificationGateway.cancel(occurrence.notificationId);
     }
     await _notificationGateway.cancel(reminder.notificationId);
   }
 
-  Future<void> _scheduleNext(ReminderEntity reminder) async {
-    final occurrence = _occurrenceCalculator.nextOccurrence(
+  Future<void> _scheduleUpcoming(ReminderEntity reminder) async {
+    final occurrences = _occurrenceCalculator.upcomingOccurrences(
       reminder,
       now: _clock().subtract(const Duration(seconds: 1)),
     );
-    if (occurrence == null) return;
-    final history = await _repository.ensureHistory(
-      reminder: reminder,
-      occurrence: occurrence,
-    );
-    await _notificationGateway.schedule(
-      reminder: reminder,
-      occurrence: occurrence,
-      historyId: history.id,
-    );
+    for (final occurrence in occurrences) {
+      final history = await _repository.ensureHistory(
+        reminder: reminder,
+        occurrence: occurrence,
+      );
+      await _notificationGateway.schedule(
+        reminder: reminder,
+        occurrence: occurrence,
+        historyId: history.id,
+      );
+    }
   }
 
   bool _sameEditableFields(ReminderEntity left, ReminderEntity right) =>
@@ -146,19 +154,19 @@ class FfmAssistantReminderMutationService {
   bool _shouldSyncToCalendar(ReminderEntity reminder) {
     // Check if reminder note contains calendar sync marker
     final note = reminder.note?.toLowerCase() ?? '';
-    return note.contains('sinkronisasi ke kalender') || 
-           note.contains('calendar') ||
-           note.contains('smartwatch') ||
-           reminder.title.toLowerCase().contains('tagihan') ||
-           reminder.title.toLowerCase().contains('cicilan') ||
-           reminder.title.toLowerCase().contains('kredit') ||
-           reminder.title.toLowerCase().contains('pinjaman');
+    return note.contains('sinkronisasi ke kalender') ||
+        note.contains('calendar') ||
+        note.contains('smartwatch') ||
+        reminder.title.toLowerCase().contains('tagihan') ||
+        reminder.title.toLowerCase().contains('cicilan') ||
+        reminder.title.toLowerCase().contains('kredit') ||
+        reminder.title.toLowerCase().contains('pinjaman');
   }
 
   Future<void> _syncToCalendar(ReminderEntity reminder) async {
     final bridge = _calendarBridge;
     if (bridge == null) return;
-    
+
     try {
       final data = BillReminderData(
         title: reminder.title,
@@ -169,7 +177,7 @@ class FfmAssistantReminderMutationService {
       );
 
       final result = await bridge.createBillReminder(data);
-      
+
       if (result.success && result.eventId != null) {
         // In a real implementation, we would update the reminder with the calendar event ID
         // This would require extending the ReminderEntity to include calendarEventId

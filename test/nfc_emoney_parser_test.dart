@@ -257,7 +257,10 @@ void main() {
 
       expect(result.draft?.amount, 20000);
       expect(await draftRepo.getPendingDrafts(), hasLength(1));
-      expect(await database.select(database.accounts).get(), hasLength(1));
+      // Setelah perbaikan NFC: kartu baru tidak membuat account otomatis
+      // Hanya nfcCardAccounts yang dibuat dengan pending accountId
+      expect(await database.select(database.accounts).get(), isEmpty);
+      expect(await database.select(database.nfcCardAccounts).get(), hasLength(1));
       expect(await database.select(database.nfcScanSnapshots).get(), hasLength(2));
       await database.close();
     });
@@ -270,6 +273,18 @@ void main() {
         householdId: 'alias-household',
       );
 
+      // Buat rekening existing di database Data Utama
+      await database.into(database.accounts).insert(
+        AccountsCompanion.insert(
+          id: 'acc-alias-1',
+          householdId: 'alias-household',
+          name: 'Mandiri e-Money',
+          type: 'ewallet',
+          openingBalance: const Value(150000),
+          createdAt: DateTime.now(),
+        ),
+      );
+
       const scan = NfcCardScanResult(
         cardId: 'MANDIRI-ALIAS-99',
         balance: 150000,
@@ -278,7 +293,10 @@ void main() {
       );
       await repository.processCardScan(scan);
 
-      // Pastikan akun terbentuk
+      // Hubungkan kartu ke rekening existing
+      await repository.linkCardToAccount('MANDIRI-ALIAS-99', 'acc-alias-1', 'Mandiri e-Money');
+
+      // Pastikan kartu terbentuk dan terhubung
       var cards = await repository.getCardAccounts();
       expect(cards, hasLength(1));
       expect(cards.first.displayName, 'Mandiri e-Money');

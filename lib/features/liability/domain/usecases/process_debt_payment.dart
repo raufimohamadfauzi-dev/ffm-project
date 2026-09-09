@@ -130,3 +130,116 @@ class ProcessDebtPayment {
     });
   }
 }
+
+/// Membatalkan pembayaran hutang/piutang dan merekonsiliasi sisa saldo kembali
+/// Use case ini digunakan saat transaksi pembayaran dihapus atau dibatalkan
+class RollbackDebtPayment {
+  const RollbackDebtPayment(this.database);
+  final AppDatabase database;
+
+  Future<void> call({
+    required String householdId,
+    required String transactionId,
+  }) async {
+    return database.transaction(() async {
+      // Cari transaksi yang akan dihapus
+      final tx = await (database.select(database.transactions)
+            ..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.id.equals(transactionId),
+            ))
+          .getSingleOrNull();
+
+      if (tx == null) {
+        throw StateError('Transaksi tidak ditemukan.');
+      }
+
+      // Cek apakah ini adalah transaksi pembayaran hutang/piutang
+      final isLiabilityPayment = tx.source == 'liability_payment';
+      final isReceivablePayment = tx.source == 'receivable_payment';
+
+      if (!isLiabilityPayment && !isReceivablePayment) {
+        // Bukan pembayaran hutang/piutang, tidak perlu rekonsiliasi
+        return;
+      }
+
+      final targetId = tx.sourceId;
+      if (targetId == null) {
+        throw StateError('Transaksi pembayaran tidak memiliki targetId.');
+      }
+
+      final amount = tx.amount.abs(); // Gunakan nilai absolut untuk rekonsiliasi
+
+      if (isLiabilityPayment) {
+        final existing = await (database.select(database.liabilities)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(targetId),
+              ))
+            .getSingleOrNull();
+
+        if (existing != null) {
+          // Kembalikan sisa hutang
+          final newRemaining = existing.remainingBalance + amount;
+          await (database.update(database.liabilities)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(targetId),
+                ))
+              .write(LiabilitiesCompanion(
+                remainingBalance: Value(newRemaining),
+              ));
+
+          await AuditLogger(database).record(
+            action: 'batal bayar hutang',
+            entity: 'liability',
+            householdId: householdId,
+            newValue: {
+              'id': targetId,
+              'amountRollback': amount,
+              'newRemaining': newRemaining,
+              'transactionId': transactionId,
+            },
+          );
+        }
+      } else if (isReceivablePayment) {
+        final existing = await (database.select(database.receivables)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(targetId),
+              ))
+            .getSingleOrNull();
+
+        if (existing != null) {
+          // Kembalikan sisa piutang
+          final newRemaining = existing.remainingBalance + amount;
+          await (database.update(database.receivables)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(targetId),
+                ))
+              .write(ReceivablesCompanion(
+                remainingBalance: Value(newRemaining),
+              ));
+
+          await AuditLogger(database).record(
+            action: 'batal terima piutang',
+            entity: 'receivable',
+            householdId: householdId,
+            newValue: {
+              'id': targetId,
+              'amountRollback': amount,
+              'newRemaining': newRemaining,
+              'transactionId': transactionId,
+            },
+          );
+        }
+      }
+    });
+  }
+}

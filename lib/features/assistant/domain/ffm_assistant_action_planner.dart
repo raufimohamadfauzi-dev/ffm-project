@@ -41,6 +41,14 @@ class FfmAssistantActionPlanner {
         ),
       );
     }
+    if (intent.pluginMetadata?['refreshMarketNews'] == true) {
+      steps.add(
+        const FfmAssistantActionStep(
+          id: 'refresh_market',
+          capabilityId: 'market.refresh',
+        ),
+      );
+    }
     final draft = intent.draft;
     if (draft != null) {
       final capabilityId = _draftCapabilityFor(draft.kind);
@@ -488,6 +496,9 @@ class FfmAssistantActionPlanner {
       'assistantMerchantName': draft.merchantName,
     if (draft.slmFieldValues.isNotEmpty)
       'assistantSlmFieldValues': draft.slmFieldValues,
+    
+    // Gunakan draft.items sebagai sumber kebenaran, bukan formValues.itemsJson
+    // untuk menghindari kontradiksi antara dua representasi data
     if (draft.items.isNotEmpty)
       'itemsJson': jsonEncode(
         draft.items
@@ -510,6 +521,10 @@ class FfmAssistantActionPlanner {
       'receiptChangeAmount': draft.receiptChangeAmount,
     if (draft.tax != null) 'tax': draft.tax,
     if (draft.discount != null) 'discount': draft.discount,
+    if (draft.metadata != null) 'metadata': draft.metadata,
+    
+    // Tambahkan formValues hanya untuk field yang tidak sudah di-set di atas
+    // untuk menghindari menimpa nilai yang sudah ada
     ...draft.formValues,
   };
 }

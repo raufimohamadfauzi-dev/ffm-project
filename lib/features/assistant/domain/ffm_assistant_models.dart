@@ -438,7 +438,7 @@ class FfmAssistantDraft {
     this.note,
     this.date,
     this.linkedActivityId,
-    this.formValues = const <String, String>{},
+    this.formValues = const <String, dynamic>{},
     this.merchantName,
     this.location,
     this.slmFieldValues = const <String, String>{},
@@ -471,7 +471,7 @@ class FfmAssistantDraft {
   final String? note;
   final DateTime? date;
   final String? linkedActivityId;
-  final Map<String, String> formValues;
+  final Map<String, dynamic> formValues;
 
   /// Merchant dan nilai field yang berasal dari tebakan awal SLM/rule parser.
   /// Hanya dipakai untuk pembelajaran setelah user mengonfirmasi form.
@@ -514,7 +514,7 @@ class FfmAssistantDraft {
     String? note,
     DateTime? date,
     String? linkedActivityId,
-    Map<String, String>? formValues,
+    Map<String, dynamic>? formValues,
     String? merchantName,
     String? location,
     Map<String, String>? slmFieldValues,

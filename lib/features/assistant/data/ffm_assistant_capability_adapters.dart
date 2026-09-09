@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:uuid/uuid.dart';
+
 import 'package:drift/drift.dart';
 
 // ... (imports remain)
@@ -15,11 +17,17 @@ import '../../activity/data/repositories/activity_repository.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../asset/domain/entities/asset_entity.dart';
 import '../../asset/domain/usecases/asset_crud_usecases.dart';
+import '../../asset/data/repositories/market_news_cache_repository.dart';
+import '../../asset/data/services/market_news_radar_service.dart';
 import '../../settings/data/category_repository.dart';
 import '../../settings/data/account_repository.dart';
 import '../../settings/data/income_source_repository.dart';
 import '../../settings/data/merchant_repository.dart';
 import '../../settings/data/tag_repository.dart';
+import '../../settings/data/utility_meter_repository.dart';
+import '../../settings/data/vehicle_repository.dart';
+import '../../settings/domain/entities/utility_meter_models.dart';
+import '../../settings/domain/entities/vehicle_models.dart';
 // ...
 import '../../goal/domain/entities/goal_entity.dart';
 import '../../goal/domain/usecases/goal_crud_usecases.dart';
@@ -32,11 +40,16 @@ import '../../recurring_transaction/domain/usecases/recurring_transaction_crud_u
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
+import 'telegram_delivery_repository.dart';
+import 'telegram_config_repository.dart';
+import 'ffm_assistant_autonomy_trigger_service.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_capability_executor.dart';
+import '../domain/entities/autonomous_activity_models.dart';
 import 'ffm_assistant_reminder_mutation_service.dart';
 import 'ffm_activity_habit_learner.dart';
 import 'ffm_assistant_personalization_repository.dart';
+import 'autonomous_activity_repository.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
@@ -47,13 +60,59 @@ class FfmAssistantCapabilityAdapterRegistry {
     FfmActivityHabitLearner? habitLearner,
     FfmAssistantPersonalizationRepository? personalization,
     AppThemeController? themeController,
-  })  : _database = database, // ignore: prefer_initializing_formals
-        _householdId = householdId, // ignore: prefer_initializing_formals
-        _clock = clock ?? DateTime.now,
-        _reminderMutations = reminderMutations, // ignore: prefer_initializing_formals
-        _habitLearner = habitLearner, // ignore: prefer_initializing_formals
-        _personalization = personalization, // ignore: prefer_initializing_formals
-        _themeController = themeController; // ignore: prefer_initializing_formals
+    SaveTransaction? saveTransaction,
+    SaveMixedTransactionBatch? saveMixedTransactionBatch,
+  }) : _database = database, // ignore: prefer_initializing_formals
+       _householdId = householdId, // ignore: prefer_initializing_formals
+       _clock = clock ?? DateTime.now,
+       // ignore: prefer_initializing_formals
+       _reminderMutations = reminderMutations,
+       // ignore: prefer_initializing_formals
+       _habitLearner = habitLearner,
+       // ignore: prefer_initializing_formals
+       _personalization = personalization,
+       // ignore: prefer_initializing_formals
+       _themeController = themeController,
+       _saveTransaction =
+           saveTransaction ??
+           (getIt.isRegistered<SaveTransaction>()
+               ? getIt<SaveTransaction>()
+               // Fallback: konstruksi manual dengan Telegram deps dari getIt jika tersedia,
+               // sehingga kebijakan notifikasi Telegram tetap berlaku di semua jalur.
+               : SaveTransaction(
+                   database,
+                   telegramDeliveryRepository:
+                       getIt.isRegistered<TelegramDeliveryRepository>()
+                           ? getIt<TelegramDeliveryRepository>()
+                           : null,
+                   telegramConfigRepository:
+                       getIt.isRegistered<TelegramConfigRepository>()
+                           ? getIt<TelegramConfigRepository>()
+                           : null,
+                   autonomyTrigger:
+                       getIt.isRegistered<FfmAssistantAutonomyTriggerService>()
+                           ? getIt<FfmAssistantAutonomyTriggerService>()
+                           : null,
+                 )),
+       _saveMixedTransactionBatch =
+           saveMixedTransactionBatch ??
+           (getIt.isRegistered<SaveMixedTransactionBatch>()
+               ? getIt<SaveMixedTransactionBatch>()
+               : SaveMixedTransactionBatch(
+                   database,
+                   telegramDeliveryRepository:
+                       getIt.isRegistered<TelegramDeliveryRepository>()
+                           ? getIt<TelegramDeliveryRepository>()
+                           : null,
+                   telegramConfigRepository:
+                       getIt.isRegistered<TelegramConfigRepository>()
+                           ? getIt<TelegramConfigRepository>()
+                           : null,
+                   autonomyTrigger:
+                       getIt.isRegistered<FfmAssistantAutonomyTriggerService>()
+                           ? getIt<FfmAssistantAutonomyTriggerService>()
+                           : null,
+                 ));
 
   final AppDatabase _database;
   final String _householdId;
@@ -62,6 +121,8 @@ class FfmAssistantCapabilityAdapterRegistry {
   final FfmActivityHabitLearner? _habitLearner;
   final FfmAssistantPersonalizationRepository? _personalization;
   final AppThemeController? _themeController;
+  final SaveTransaction _saveTransaction;
+  final SaveMixedTransactionBatch _saveMixedTransactionBatch;
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -79,6 +140,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.reminders': _readReminders,
     'read.model_status': _readModelStatus,
     'system.set_theme': _setTheme,
+    'market.refresh': _refreshMarket,
     'draft.transaction_update': _prepareTransactionMutation,
     'draft.transaction_archive': _prepareTransactionMutation,
     'draft.transaction_delete': _prepareTransactionMutation,
@@ -402,7 +464,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final now = _clock();
-    await SaveTransaction(_database)(
+    await _saveTransaction(
       TransactionEntity(
         id: target.transaction.id,
         householdId: target.transaction.householdId,
@@ -728,26 +790,31 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Target pembayaran hutang/piutang belum valid untuk verifikasi.',
       );
     }
-    final source = entity == 'liability' ? 'liability_payment' : 'receivable_payment';
-    final tx = await (_database.select(_database.transactions)
-          ..where(
-            (row) =>
-                row.householdId.equals(_householdId) &
-                row.source.equals(source) &
-                row.sourceId.equals(targetId),
-          )
-          ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]))
-        .getSingleOrNull();
+    final source = entity == 'liability'
+        ? 'liability_payment'
+        : 'receivable_payment';
+    final tx =
+        await (_database.select(_database.transactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.source.equals(source) &
+                    row.sourceId.equals(targetId),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.recordedAt)]))
+            .getSingleOrNull();
     if (tx == null) {
       final row = entity == 'liability'
-          ? await (_database.select(_database.liabilities)
-                ..where(
-                  (r) => r.householdId.equals(_householdId) & r.id.equals(targetId),
+          ? await (_database.select(_database.liabilities)..where(
+                  (r) =>
+                      r.householdId.equals(_householdId) &
+                      r.id.equals(targetId),
                 ))
                 .getSingleOrNull()
-          : await (_database.select(_database.receivables)
-                ..where(
-                  (r) => r.householdId.equals(_householdId) & r.id.equals(targetId),
+          : await (_database.select(_database.receivables)..where(
+                  (r) =>
+                      r.householdId.equals(_householdId) &
+                      r.id.equals(targetId),
                 ))
                 .getSingleOrNull();
       return row != null && row is Liability || row is Receivable
@@ -759,7 +826,8 @@ class FfmAssistantCapabilityAdapterRegistry {
             );
     }
     final expectedAmount = _positiveInt(step.parameters['amount']);
-    final payloadMatches = expectedAmount == null || tx.amount.abs() == expectedAmount;
+    final payloadMatches =
+        expectedAmount == null || tx.amount.abs() == expectedAmount;
     return payloadMatches
         ? FfmAssistantCapabilityExecutionResult.success(
             'verified: ${entity == 'liability' ? 'pembayaran hutang' : 'penerimaan piutang'} sudah dibaca kembali dari transaksi lokal.',
@@ -3120,8 +3188,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     final note = step.parameters['note']?.toString().trim();
     // Kolom disamakan dengan form transaksi + database: pihak tunggal
     // (party / incomeSource / partyName), lokasi, dan field nota.
-    final party =
-        step.parameters['party']?.toString().trim().isNotEmpty == true
+    final party = step.parameters['party']?.toString().trim().isNotEmpty == true
         ? step.parameters['party']?.toString().trim()
         : step.parameters['incomeSource']?.toString().trim().isNotEmpty == true
         ? step.parameters['incomeSource']?.toString().trim()
@@ -3195,7 +3262,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         recordedAt: _clock(),
         updatedAt: _clock(),
       );
-      await SaveTransaction(_database)(entity, items: items);
+      await _saveTransaction(entity, items: items);
       await (_database.delete(
         _database.transactionTags,
       )..where((row) => row.transactionId.equals(id))).go();
@@ -3206,6 +3273,12 @@ class FfmAssistantCapabilityAdapterRegistry {
               TransactionTagsCompanion.insert(transactionId: id, tagId: tagId),
             );
       }
+
+      // Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
+      await _executeUtilityProposal(step.parameters);
+
+      // Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
+      await _executeFuelProposal(step.parameters);
     });
     await _recordDraftCorrections(
       parameters: step.parameters,
@@ -3216,6 +3289,153 @@ class FfmAssistantCapabilityAdapterRegistry {
     return FfmAssistantCapabilityExecutionResult.success(
       'Tersimpan satu kali: ${kind == 'income' ? 'pemasukan' : 'pengeluaran'} ${_money(amount)} pada ${date.toIso8601String().substring(0, 10)}.',
     );
+  }
+
+  /// Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
+  Future<void> _executeUtilityProposal(Map<String, Object?> parameters) async {
+    try {
+      final metadataRaw = parameters['metadata'];
+      if (metadataRaw is! Map) return;
+
+      final utilityProposal = metadataRaw['utilityProposal'];
+      if (utilityProposal is! Map) return;
+
+      final tokenCode = utilityProposal['tokenCode']?.toString();
+      if (tokenCode == null || tokenCode.isEmpty) return;
+
+      // Import utility repository secara lazy
+      if (!getIt.isRegistered<UtilityMeterRepository>()) return;
+      final utilityRepo = getIt<UtilityMeterRepository>();
+
+      final timestampStr = utilityProposal['timestamp']?.toString();
+      final timestamp = timestampStr != null
+          ? DateTime.tryParse(timestampStr)
+          : _clock();
+
+      final meterNumber = utilityProposal['meterNumber']?.toString();
+      final isNewMeter = utilityProposal['isNewMeter'] == true;
+
+      if (isNewMeter && meterNumber != null) {
+        // Buat meter baru
+        final newMeter = UtilityMeter(
+          id: 'meter_${Uuid().v4()}',
+          householdId: _householdId,
+          name:
+              utilityProposal['proposedMeterName']?.toString() ??
+              'Meteran PLN $meterNumber',
+          meterNumber: meterNumber,
+          createdAt: timestamp ?? _clock(),
+          lastTokenNumber: tokenCode,
+          lastAmount: (utilityProposal['amount'] as num?)?.toDouble(),
+          lastPurchasedAt: timestamp ?? _clock(),
+        );
+        await utilityRepo.saveMeter(newMeter);
+      } else if (meterNumber != null) {
+        // Update meter existing
+        await utilityRepo.updateLastToken(
+          householdId: _householdId,
+          meterNumber: meterNumber,
+          tokenCode: tokenCode,
+          amount: (utilityProposal['amount'] as num?)?.toDouble(),
+          timestamp: timestamp ?? _clock(),
+        );
+      }
+
+      // Catat aktivitas otonom jika tersedia
+      if (getIt.isRegistered<AutonomousActivityRepository>()) {
+        final activityRepo = getIt<AutonomousActivityRepository>();
+        final meterName =
+            utilityProposal['meterName']?.toString() ??
+            (isNewMeter
+                ? utilityProposal['proposedMeterName']?.toString()
+                : meterNumber);
+        await activityRepo.recordActivity(
+          AutonomousActivityRecord(
+            id: 'act_${Uuid().v4()}_utility',
+            householdId: _householdId,
+            title: 'Pencatatan Token Listrik ($meterName)',
+            description:
+                'Memperbarui token ${utilityProposal['formattedToken']} untuk meteran $meterNumber.',
+            activityType: AutonomousActivityType.utilityMeter,
+            occurredAt: timestamp ?? _clock(),
+            payload: {
+              'meterId': utilityProposal['meterId']?.toString(),
+              'isNewMeter': isNewMeter,
+              'token': tokenCode,
+            },
+          ),
+        );
+      }
+    } on Object {
+      // Best-effort: gagal tidak membatalkan transaksi utama
+    }
+  }
+
+  /// Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
+  Future<void> _executeFuelProposal(Map<String, Object?> parameters) async {
+    try {
+      final metadataRaw = parameters['metadata'];
+      if (metadataRaw is! Map) return;
+
+      final fuelProposal = metadataRaw['fuelProposal'];
+      if (fuelProposal is! Map) return;
+
+      final vehicleId = fuelProposal['vehicleId']?.toString();
+      if (vehicleId == null || vehicleId.isEmpty) return;
+
+      // Import vehicle repository secara lazy
+      if (!getIt.isRegistered<VehicleRepository>()) return;
+      final vehicleRepo = getIt<VehicleRepository>();
+
+      final timestampStr = fuelProposal['timestamp']?.toString();
+      final timestamp = timestampStr != null
+          ? DateTime.tryParse(timestampStr)
+          : _clock();
+
+      final liters = (fuelProposal['liters'] as num?)?.toDouble() ?? 0.0;
+      final totalAmount =
+          (fuelProposal['totalAmount'] as num?)?.toDouble() ?? 0.0;
+
+      if (liters > 0 && totalAmount > 0) {
+        final fuelLogId = 'fuel_${Uuid().v4()}';
+        await vehicleRepo.addFuelLog(
+          householdId: _householdId,
+          vehicleId: vehicleId,
+          fuelLog: FuelLogEntry(
+            id: fuelLogId,
+            date: timestamp ?? _clock(),
+            liters: liters,
+            totalAmount: totalAmount,
+            fuelType: fuelProposal['fuelType']?.toString() ?? 'Pertalite',
+            spbuLocation: fuelProposal['spbuLocation']?.toString() ?? 'SPBU',
+          ),
+        );
+
+        // Catat aktivitas otonom jika tersedia
+        if (getIt.isRegistered<AutonomousActivityRepository>()) {
+          final activityRepo = getIt<AutonomousActivityRepository>();
+          await activityRepo.recordActivity(
+            AutonomousActivityRecord(
+              id: 'act_${Uuid().v4()}_fuel',
+              householdId: _householdId,
+              title: 'Pencatatan BBM (${fuelProposal['vehicleName']})',
+              description:
+                  'Mencatat pengisian ${liters}L ${fuelProposal['fuelType']} seharga Rp ${totalAmount.toInt()} untuk ${fuelProposal['plateNumber']}.',
+              activityType: AutonomousActivityType.fuelLog,
+              occurredAt: timestamp ?? _clock(),
+              payload: {
+                'vehicleId': vehicleId,
+                'logId': fuelLogId,
+                'liters': liters,
+                'totalAmount': totalAmount,
+              },
+            ),
+          );
+        }
+      }
+    } on Object {
+      // Best-effort: gagal tidak membatalkan transaksi utama
+    }
   }
 
   /// Merekam koreksi user terhadap tebakan awal (SLM/rule) pada draft
@@ -3360,7 +3580,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         ),
       );
     }
-    await SaveMixedTransactionBatch(_database)(
+    await _saveMixedTransactionBatch(
       entities,
       itemsByTransactionId: const {},
       transfers: [transfer],
@@ -3751,17 +3971,12 @@ class FfmAssistantCapabilityAdapterRegistry {
       for (final entry in decoded) {
         if (entry is! Map) continue;
         final name =
-            entry['name']?.toString() ??
-            entry['itemName']?.toString() ??
-            '';
+            entry['name']?.toString() ?? entry['itemName']?.toString() ?? '';
         if (name.trim().isEmpty) continue;
-        final price =
-            int.tryParse(entry['price']?.toString() ?? '0') ?? 0;
+        final price = int.tryParse(entry['price']?.toString() ?? '0') ?? 0;
         final qty =
             double.tryParse(
-              entry['qty']?.toString() ??
-                  entry['quantity']?.toString() ??
-                  '1',
+              entry['qty']?.toString() ?? entry['quantity']?.toString() ?? '1',
             ) ??
             1.0;
         items.add(
@@ -4087,6 +4302,22 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
+  Future<FfmAssistantCapabilityExecutionResult> _refreshMarket(
+    FfmAssistantActionStep step,
+  ) async {
+    final service = getIt<MarketNewsRadarService>();
+    final cache = getIt<MarketNewsCacheRepository>();
+    final prices = await service.fetchMarketPrices();
+    await cache.savePriceSnapshot(prices);
+    final news = await service.fetchCuratedNews();
+    if (!news.every((item) => item.isFallback)) {
+      await cache.saveNewsItems(news);
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Berita dan valas sudah disegarkan. Sumber online: ${news.length} berita, kurs ${prices.isOfflineCache ? 'fallback' : 'terverifikasi'}.',
+    );
+  }
+
   bool Function(dynamic) _matchesTransaction(Map<String, Object?> parameters) {
     final from = _dateParameter(parameters['dateFrom']);
     final to = _dateParameter(parameters['dateTo']);
@@ -4331,40 +4562,43 @@ class FfmAssistantCapabilityAdapterRegistry {
             );
     }
     try {
-      // Check if this is a bill reminder by looking at the note and title
+      final rawRecurrence =
+          (step.parameters['recurrence'] ?? step.parameters['recurrenceType'])
+              ?.toString()
+              .toLowerCase();
+      final recurrenceType = switch (rawRecurrence) {
+        'daily' || 'harian' => ReminderRecurrenceType.daily,
+        'weekly' || 'mingguan' => ReminderRecurrenceType.weekly,
+        _ => ReminderRecurrenceType.once,
+      };
+
+      final weekdaysRaw = step.parameters['weekdays'];
+      final List<int> weekdays = weekdaysRaw is List
+          ? weekdaysRaw
+                .map((e) => int.tryParse(e.toString()))
+                .whereType<int>()
+                .toList()
+          : const [];
+
       final note = step.parameters['note']?.toString() ?? '';
-      final isBillReminder = note.toLowerCase().contains('tagihan') ||
-                           note.toLowerCase().contains('cicilan') ||
-                           note.toLowerCase().contains('kredit') ||
-                           note.toLowerCase().contains('sinkronisasi ke kalender') ||
-                           title.toLowerCase().contains('tagihan') ||
-                           title.toLowerCase().contains('cicilan') ||
-                           title.toLowerCase().contains('kredit');
-      
-      final reminderNote = isBillReminder 
-          ? '$note\n\n[Sinkronisasi ke kalender dan smartwatch aktif]'
-          : note;
-      
       await reminderMutations.save(
         ReminderEntity(
           id: id,
           householdId: _householdId,
           title: title.trim(),
-          note: reminderNote.isEmpty ? null : reminderNote,
+          note: note.isEmpty ? null : note,
           scheduledAt: date,
-          recurrenceType: ReminderRecurrenceType.once,
-          weekdays: const [],
+          recurrenceType: recurrenceType,
+          weekdays: weekdays,
           notificationId: id.hashCode.abs(),
           createdAt: now,
         ),
       );
-      
+
       final formattedDate = _formatDateIndonesian(date);
-      
-      final successMessage = isBillReminder
-          ? 'Pengingat tagihan berhasil disimpan untuk $formattedDate. Notifikasi akan tembus ke kalender dan smartwatch.'
-          : 'Pengingat berhasil disimpan untuk $formattedDate.';
-          
+      final successMessage =
+          'Pengingat berhasil disimpan untuk $formattedDate.';
+
       return FfmAssistantCapabilityExecutionResult.success(successMessage);
     } on Object {
       return const FfmAssistantCapabilityExecutionResult.failure(
@@ -4645,7 +4879,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final title = rawTitle?.isNotEmpty == true ? rawTitle! : 'Hutang';
     final party = rawParty?.isNotEmpty == true ? rawParty! : title;
-    final name = (rawTitle != null && rawParty != null && rawTitle != rawParty && rawTitle != 'Hutang')
+    final name =
+        (rawTitle != null &&
+            rawParty != null &&
+            rawTitle != rawParty &&
+            rawTitle != 'Hutang')
         ? '$title - $party'
         : (rawParty != null && rawParty.isNotEmpty ? rawParty : title);
 
@@ -4665,7 +4903,8 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Idempotency key sudah dipakai oleh hutang dengan isi berbeda.',
             );
     }
-    final dueDateRaw = step.parameters['dueDate']?.toString() ??
+    final dueDateRaw =
+        step.parameters['dueDate']?.toString() ??
         step.parameters['targetDate']?.toString();
     final dueDate = dueDateRaw != null ? DateTime.tryParse(dueDateRaw) : null;
     final note = step.parameters['note']?.toString().trim();
@@ -4710,7 +4949,11 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final title = rawTitle?.isNotEmpty == true ? rawTitle! : 'Piutang';
     final party = rawParty?.isNotEmpty == true ? rawParty! : title;
-    final name = (rawTitle != null && rawParty != null && rawTitle != rawParty && rawTitle != 'Piutang')
+    final name =
+        (rawTitle != null &&
+            rawParty != null &&
+            rawTitle != rawParty &&
+            rawTitle != 'Piutang')
         ? '$title - $party'
         : (rawParty != null && rawParty.isNotEmpty ? rawParty : title);
 
@@ -4730,7 +4973,8 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Idempotency key sudah dipakai oleh piutang dengan isi berbeda.',
             );
     }
-    final dueDateRaw = step.parameters['dueDate']?.toString() ??
+    final dueDateRaw =
+        step.parameters['dueDate']?.toString() ??
         step.parameters['targetDate']?.toString();
     final dueDate = dueDateRaw != null ? DateTime.tryParse(dueDateRaw) : null;
     final note = step.parameters['note']?.toString().trim();
@@ -4894,8 +5138,18 @@ class FfmAssistantCapabilityAdapterRegistry {
 
   String _formatDateIndonesian(DateTime value) {
     final months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${value.day} ${months[value.month - 1]} ${value.year}';
   }
@@ -4905,28 +5159,36 @@ class FfmAssistantCapabilityAdapterRegistry {
     String idempotencyKey,
   ) async {
     final id = _stableId(idempotencyKey);
-    final title = step.parameters['title']?.toString().trim() ??
+    final title =
+        step.parameters['title']?.toString().trim() ??
         step.parameters['name']?.toString().trim() ??
         'Siklus Kas Baru';
-    final commodity = step.parameters['commodityOrBusinessType']?.toString().trim() ??
+    final commodity =
+        step.parameters['commodityOrBusinessType']?.toString().trim() ??
         step.parameters['commodity']?.toString().trim() ??
         'Pertanian/Usaha';
-    final initialCapital = _positiveInt(step.parameters['initialCapital']) ??
+    final initialCapital =
+        _positiveInt(step.parameters['initialCapital']) ??
         _positiveInt(step.parameters['amount']) ??
         0;
-    final estimatedInflow = _positiveInt(step.parameters['estimatedInflow']) ?? 0;
+    final estimatedInflow =
+        _positiveInt(step.parameters['estimatedInflow']) ?? 0;
     final dailyLiving = _positiveInt(step.parameters['dailyLivingBudget']) ?? 0;
-    final dailyOps = _positiveInt(step.parameters['dailyOperationalBudget']) ?? 0;
+    final dailyOps =
+        _positiveInt(step.parameters['dailyOperationalBudget']) ?? 0;
 
     DateTime targetHarvest;
     if (step.parameters['targetHarvestDate'] != null) {
-      targetHarvest = DateTime.tryParse(step.parameters['targetHarvestDate'].toString()) ??
+      targetHarvest =
+          DateTime.tryParse(step.parameters['targetHarvestDate'].toString()) ??
           _clock().add(const Duration(days: 90));
     } else {
       targetHarvest = _clock().add(const Duration(days: 90));
     }
 
-    final rawType = step.parameters['cycleProfileType']?.toString().toLowerCase() ?? 'agriculture';
+    final rawType =
+        step.parameters['cycleProfileType']?.toString().toLowerCase() ??
+        'agriculture';
     final profileType = switch (rawType) {
       'business' || 'bisnis' => CashFlowProfileType.business,
       'freelance' => CashFlowProfileType.freelance,

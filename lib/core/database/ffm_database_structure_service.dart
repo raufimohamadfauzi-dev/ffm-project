@@ -347,6 +347,12 @@ class FfmDatabaseStructureService {
       'Kartu & Integrasi',
       'Cepat pindai kartu NFC bertanggal dengan nilai saldo yang tersedia.',
     ),
+    'telegram_deliveries': _TableDefinition(
+      'Antrean pengiriman Telegram',
+      'Kartu & Integrasi',
+      'Antrean durabel pesan Telegram (transaksi, laporan mingguan, dan alarm) '
+      'dengan status, retry berbatas, dan fingerprint kredensial.',
+    ),
   };
 }
 

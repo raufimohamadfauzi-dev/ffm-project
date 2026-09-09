@@ -1,11 +1,13 @@
 import 'dart:async';
+
 import 'package:drift/drift.dart';
+
 import '../../../core/database/app_database.dart';
 import '../domain/ffm_assistant_insight.dart';
 
 class FfmAssistantInsightRepository {
   FfmAssistantInsightRepository(this._db, {DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now;
+    : _clock = clock ?? DateTime.now;
 
   final AppDatabase _db;
   final DateTime Function() _clock;
@@ -104,8 +106,9 @@ class FfmAssistantInsightRepository {
   }) async {
     await _ensureTable();
     final now = _clock().millisecondsSinceEpoch;
-    final rows = await _db.customSelect(
-      '''
+    final rows = await _db
+        .customSelect(
+          '''
       SELECT * FROM assistant_insights
       WHERE household_id = ?
         AND dedupe_key = ?
@@ -113,12 +116,13 @@ class FfmAssistantInsightRepository {
         AND (expires_at = 0 OR expires_at > ?)
       LIMIT 1
       ''',
-      variables: [
-        Variable.withString(householdId),
-        Variable.withString(dedupeKey),
-        Variable.withInt(now),
-      ],
-    ).get();
+          variables: [
+            Variable.withString(householdId),
+            Variable.withString(dedupeKey),
+            Variable.withInt(now),
+          ],
+        )
+        .get();
 
     if (rows.isEmpty) return null;
     return _fromRow(rows.first.data);
@@ -146,8 +150,9 @@ class FfmAssistantInsightRepository {
       ],
     );
 
-    final rows = await _db.customSelect(
-      '''
+    final rows = await _db
+        .customSelect(
+          '''
       SELECT * FROM assistant_insights
       WHERE household_id = ?
         AND status IN ('newInsight', 'seen', 'snoozed')
@@ -155,12 +160,13 @@ class FfmAssistantInsightRepository {
         AND (snoozed_until = 0 OR snoozed_until <= ?)
       ORDER BY priority DESC, created_at DESC
       ''',
-      variables: [
-        Variable.withString(householdId),
-        Variable.withInt(now),
-        Variable.withInt(now),
-      ],
-    ).get();
+          variables: [
+            Variable.withString(householdId),
+            Variable.withInt(now),
+            Variable.withInt(now),
+          ],
+        )
+        .get();
 
     return rows.map((r) => _fromRow(r.data)).toList();
   }
@@ -170,20 +176,39 @@ class FfmAssistantInsightRepository {
     int limit = 50,
   }) async {
     await _ensureTable();
-    final rows = await _db.customSelect(
-      '''
+    final rows = await _db
+        .customSelect(
+          '''
       SELECT * FROM assistant_insights
       WHERE household_id = ?
       ORDER BY created_at DESC
       LIMIT ?
       ''',
-      variables: [
-        Variable.withString(householdId),
-        Variable.withInt(limit),
-      ],
-    ).get();
+          variables: [
+            Variable.withString(householdId),
+            Variable.withInt(limit),
+          ],
+        )
+        .get();
 
     return rows.map((r) => _fromRow(r.data)).toList();
+  }
+
+  Future<FfmAssistantInsight?> findActiveById(String id) async {
+    await _ensureTable();
+    final rows = await _db
+        .customSelect(
+          '''
+      SELECT * FROM assistant_insights
+      WHERE id = ?
+      LIMIT 1
+      ''',
+          variables: [Variable.withString(id)],
+        )
+        .get();
+
+    if (rows.isEmpty) return null;
+    return _fromRow(rows.first.data);
   }
 
   Future<void> markSeen(String id) async {

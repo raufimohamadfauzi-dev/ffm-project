@@ -7,6 +7,7 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../data/services/reminder_notification_service.dart';
 import '../../data/services/reminder_sound_picker.dart';
 import '../../domain/entities/reminder_entity.dart';
 import '../bloc/reminder_bloc.dart';
@@ -16,12 +17,18 @@ class ReminderPage extends StatelessWidget {
     super.key,
     this.initialTitle,
     this.initialNote,
+    this.initialScheduledAt,
+    this.initialRecurrence,
     this.focusReminderId,
     this.focusHistoryId,
   });
 
   final String? initialTitle;
   final String? initialNote;
+
+  /// Pre-fill the scheduled date/time from an assistant draft (item 29).
+  final DateTime? initialScheduledAt;
+  final ReminderRecurrenceType? initialRecurrence;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -42,6 +49,8 @@ class ReminderPage extends StatelessWidget {
             child: _ReminderView(
               initialTitle: initialTitle,
               initialNote: initialNote,
+              initialScheduledAt: initialScheduledAt,
+              initialRecurrence: initialRecurrence,
               focusReminderId: focusReminderId,
               focusHistoryId: focusHistoryId,
             ),
@@ -56,12 +65,16 @@ class _ReminderView extends StatefulWidget {
   const _ReminderView({
     this.initialTitle,
     this.initialNote,
+    this.initialScheduledAt,
+    this.initialRecurrence,
     this.focusReminderId,
     this.focusHistoryId,
   });
 
   final String? initialTitle;
   final String? initialNote;
+  final DateTime? initialScheduledAt;
+  final ReminderRecurrenceType? initialRecurrence;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -85,6 +98,8 @@ class _ReminderViewState extends State<_ReminderView> {
             context,
             initialTitle: widget.initialTitle,
             initialNote: widget.initialNote,
+            initialScheduledAt: widget.initialScheduledAt,
+            initialRecurrence: widget.initialRecurrence,
           );
         }
       });
@@ -96,6 +111,8 @@ class _ReminderViewState extends State<_ReminderView> {
     ReminderEntity? initial,
     String? initialTitle,
     String? initialNote,
+    DateTime? initialScheduledAt,
+    ReminderRecurrenceType? initialRecurrence,
   }) async {
     final reminder = await showDialog<ReminderEntity>(
       context: context,
@@ -103,6 +120,8 @@ class _ReminderViewState extends State<_ReminderView> {
         initial: initial,
         initialTitle: initialTitle,
         initialNote: initialNote,
+        initialScheduledAt: initialScheduledAt,
+        initialRecurrence: initialRecurrence,
       ),
     );
     if (reminder != null && context.mounted) {
@@ -164,7 +183,7 @@ class _ReminderViewState extends State<_ReminderView> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Pengingat')),
     floatingActionButton: FloatingActionButton.extended(
-          heroTag: 'reminder_add_fab',
+      heroTag: 'reminder_add_fab',
       onPressed: () => _openDialog(context),
       icon: const Icon(Icons.add_alert_outlined),
       label: const Text('Tambah'),
@@ -203,6 +222,13 @@ class _ReminderViewState extends State<_ReminderView> {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
+            if (state.permissionState != null &&
+                !state.permissionState!.canSchedule)
+              _PermissionBanner(
+                notificationsEnabled:
+                    state.permissionState!.notificationsEnabled,
+                exactAlarmEnabled: state.permissionState!.exactAlarmEnabled,
+              ),
             if (state.reminders.isNotEmpty) ...[
               Text(
                 'Jadwal pengingat',
@@ -254,14 +280,17 @@ class _ReminderViewState extends State<_ReminderView> {
                                   Icon(
                                     Icons.music_note_outlined,
                                     size: 14,
-                                    color: Theme.of(context).colorScheme.outline,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outline,
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
                                       reminder.soundName!,
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -292,7 +321,10 @@ class _ReminderViewState extends State<_ReminderView> {
                             },
                             itemBuilder: (_) => const [
                               PopupMenuItem(value: 'edit', child: Text('Edit')),
-                              PopupMenuItem(value: 'hapus', child: Text('Hapus')),
+                              PopupMenuItem(
+                                value: 'hapus',
+                                child: Text('Hapus'),
+                              ),
                             ],
                           ),
                         ],
@@ -532,11 +564,21 @@ class _ReminderViewState extends State<_ReminderView> {
 }
 
 class _ReminderDialog extends StatefulWidget {
-  const _ReminderDialog({this.initial, this.initialTitle, this.initialNote});
+  const _ReminderDialog({
+    this.initial,
+    this.initialTitle,
+    this.initialNote,
+    this.initialScheduledAt,
+    this.initialRecurrence,
+  });
 
   final ReminderEntity? initial;
   final String? initialTitle;
   final String? initialNote;
+
+  /// Pre-filled schedule coming from an assistant draft (item 29).
+  final DateTime? initialScheduledAt;
+  final ReminderRecurrenceType? initialRecurrence;
 
   @override
   State<_ReminderDialog> createState() => _ReminderDialogState();
@@ -561,9 +603,15 @@ class _ReminderDialogState extends State<_ReminderDialog> {
     _noteController = TextEditingController(
       text: initial?.note ?? widget.initialNote ?? '',
     );
+    // Priority: existing entity scheduledAt > pre-fill from draft > now+1h
     _scheduledAt =
-        initial?.scheduledAt ?? DateTime.now().add(const Duration(hours: 1));
-    _recurrence = initial?.recurrenceType ?? ReminderRecurrenceType.once;
+        initial?.scheduledAt ??
+        widget.initialScheduledAt ??
+        DateTime.now().add(const Duration(hours: 1));
+    _recurrence =
+        initial?.recurrenceType ??
+        widget.initialRecurrence ??
+        ReminderRecurrenceType.once;
     _weekday = [...?initial?.weekdays];
     _soundUri = initial?.soundUri;
     _soundName = initial?.soundName;
@@ -646,10 +694,22 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       return;
     }
     final initial = widget.initial;
+    final id = initial?.id ?? const Uuid().v4();
+    // Derive a stable notification id from the reminder UUID so two reminders
+    // created in rapid succession never collide (unlike millisecondsSinceEpoch).
+    int stableIdFor(String reminderId) {
+      var hash = 2166136261;
+      for (final codeUnit in reminderId.codeUnits) {
+        hash = (hash ^ codeUnit) * 16777619;
+        hash &= 0x7fffffff;
+      }
+      return hash == 0 ? 1 : hash;
+    }
+
     Navigator.pop(
       context,
       ReminderEntity(
-        id: initial?.id ?? const Uuid().v4(),
+        id: id,
         householdId: initial?.householdId ?? 'local-household',
         title: title,
         note: _noteController.text.trim().isEmpty
@@ -662,9 +722,7 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         soundUri: _soundUri,
         soundName: _soundName,
         defaultSnoozeMinutes: initial?.defaultSnoozeMinutes ?? 10,
-        notificationId:
-            initial?.notificationId ??
-            DateTime.now().millisecondsSinceEpoch.remainder(2147483647),
+        notificationId: initial?.notificationId ?? stableIdFor(id),
         createdAt: initial?.createdAt,
         updatedAt: DateTime.now(),
       ),
@@ -743,9 +801,8 @@ class _ReminderDialogState extends State<_ReminderDialog> {
                     const SizedBox(width: 8),
                     Text(
                       'Nada notifikasi',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -809,4 +866,121 @@ class _ReminderDialogState extends State<_ReminderDialog> {
       FilledButton(onPressed: _save, child: const Text('Simpan')),
     ],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Permission banner — shown at the top of the list when the device has not
+// granted the exact alarm or notification permission that reminders need.
+// ---------------------------------------------------------------------------
+
+class _PermissionBanner extends StatefulWidget {
+  const _PermissionBanner({
+    required this.notificationsEnabled,
+    required this.exactAlarmEnabled,
+  });
+
+  final bool notificationsEnabled;
+  final bool exactAlarmEnabled;
+
+  @override
+  State<_PermissionBanner> createState() => _PermissionBannerState();
+}
+
+class _PermissionBannerState extends State<_PermissionBanner> {
+  bool _requesting = false;
+
+  Future<void> _requestOrOpen() async {
+    if (_requesting) return;
+    setState(() => _requesting = true);
+    try {
+      final service = getIt<ReminderNotificationService>();
+      if (!widget.notificationsEnabled) {
+        // Ask for POST_NOTIFICATIONS at runtime (Android 13+).
+        await service.requestPermissions();
+      } else {
+        // Exact alarm requires the user to navigate to system settings.
+        await service.openNotificationSettings();
+      }
+      // Refresh the bloc so the banner can disappear if permissions are now OK.
+      if (mounted) {
+        context.read<ReminderBloc>().add(const ReminderLoadRequested());
+      }
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final message = !widget.notificationsEnabled
+        ? 'Izin notifikasi belum diberikan. Pengingat tidak akan berbunyi.'
+        : !widget.exactAlarmEnabled
+        ? 'Izin “Alarm & Pengingat” perlu diaktifkan di Pengaturan '
+              'agar alarm tepat waktu.'
+        : '';
+    final buttonLabel = !widget.notificationsEnabled
+        ? 'Izinkan notifikasi'
+        : 'Buka pengaturan';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_rounded,
+                color: colorScheme.onErrorContainer,
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message,
+                      style: TextStyle(
+                        color: colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 32,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: colorScheme.error,
+                          foregroundColor: colorScheme.onError,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          textStyle: const TextStyle(fontSize: 13),
+                        ),
+                        onPressed: _requesting ? null : _requestOrOpen,
+                        child: _requesting
+                            ? SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onError,
+                                ),
+                              )
+                            : Text(buttonLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

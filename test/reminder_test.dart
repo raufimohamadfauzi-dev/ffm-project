@@ -5,6 +5,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_repos
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import 'package:ffm_manager/features/reminder/data/repositories/reminder_repository.dart';
 import 'package:ffm_manager/features/reminder/data/services/reminder_notification_service.dart';
+import 'package:ffm_manager/features/reminder/data/services/reminder_schedule_replenisher.dart';
 import 'package:ffm_manager/features/reminder/domain/entities/reminder_entity.dart';
 import 'package:ffm_manager/features/reminder/domain/usecases/reminder_usecases.dart';
 import 'package:ffm_manager/features/reminder/presentation/bloc/reminder_bloc.dart';
@@ -76,6 +77,82 @@ void main() {
 
       expect(occurrence?.scheduledAt, DateTime(2026, 8, 21, 8));
     });
+
+    test('upcomingOccurrences mengisi horizon harian dengan ID unik', () {
+      final item = reminder(
+        recurrence: ReminderRecurrenceType.daily,
+        scheduledAt: DateTime(2026, 9, 10, 8),
+      );
+
+      final occurrences = calculator.upcomingOccurrences(
+        item,
+        now: DateTime(2026, 9, 10, 7),
+      );
+
+      expect(occurrences, hasLength(14));
+      expect(occurrences.first.scheduledAt, DateTime(2026, 9, 10, 8));
+      expect(occurrences.last.scheduledAt, DateTime(2026, 9, 23, 8));
+      expect(
+        occurrences.map((item) => item.notificationId).toSet(),
+        hasLength(occurrences.length),
+      );
+    });
+
+    test('upcomingOccurrences tidak melewati tanggal mulai masa depan', () {
+      final item = reminder(
+        recurrence: ReminderRecurrenceType.weekly,
+        scheduledAt: DateTime(2026, 10, 2, 8),
+        weekdays: const [1, 5],
+      );
+
+      final occurrences = calculator.upcomingOccurrences(
+        item,
+        now: DateTime(2026, 9, 10, 7),
+      );
+
+      expect(occurrences, hasLength(1));
+      expect(occurrences.single.scheduledAt, DateTime(2026, 10, 2, 8));
+    });
+  });
+
+  group('Reminder replication shared helpers', () {
+    test('nextDailyOccurrenceAt memilih hari ini bila belum lewat', () {
+      final next = nextDailyOccurrenceAt(
+        DateTime(2026, 9, 9, 8, 30),
+        DateTime(2026, 9, 9, 7, 0),
+      );
+      expect(next, DateTime(2026, 9, 9, 8, 30));
+    });
+
+    test('nextDailyOccurrenceAt maju ke besok bila waktu sudah lewat', () {
+      final next = nextDailyOccurrenceAt(
+        DateTime(2026, 9, 9, 8, 30),
+        DateTime(2026, 9, 9, 9, 0),
+      );
+      expect(next, DateTime(2026, 9, 10, 8, 30));
+    });
+
+    test('nextWeeklyOccurrenceAt memilih hari konfigurasi berikutnya', () {
+      final next = nextWeeklyOccurrenceAt(
+        DateTime(2026, 9, 9, 8, 30),
+        DateTime(2026, 9, 16, 10, 0),
+        const [2, 5], // Selasa & Jumat
+      );
+      // 16 Sep 2026 adalah Rabu -> Jumat terdekat adalah 18 Sep.
+      expect(next, DateTime(2026, 9, 18, 8, 30));
+    });
+
+    test('stableSnoozeNotificationId konsisten lintas jalur', () {
+      final canonical = stableSnoozeNotificationId('rem-1', '20260909-0830');
+      final expected = stableReminderNotificationId(
+        'rem-1',
+        'snooze:20260909-0830',
+      );
+      expect(canonical, expected);
+      // ID unik per occurrence, bukan hanya per reminder.
+      final other = stableSnoozeNotificationId('rem-1', '20260910-0830');
+      expect(other, isNot(canonical));
+    });
   });
 
   group('ReminderRepository', () {
@@ -122,6 +199,58 @@ void main() {
     });
   });
 
+  group('ReminderScheduleReplenisher', () {
+    late AppDatabase database;
+    late ReminderRepository repository;
+    late FakeReminderNotificationGateway gateway;
+
+    setUp(() {
+      database = createInMemoryDatabaseForTests();
+      repository = ReminderRepository(database);
+      gateway = FakeReminderNotificationGateway();
+    });
+
+    tearDown(() => database.close());
+
+    test(
+      'replenishment berulang tetap memakai occurrence dan history yang sama',
+      () async {
+        final item = reminder(
+          recurrence: ReminderRecurrenceType.daily,
+          scheduledAt: DateTime(2026, 9, 10, 8),
+        );
+        await repository.saveReminder(item);
+        final replenisher = ReminderScheduleReplenisher(
+          repository,
+          gateway,
+          calculator,
+        );
+
+        final firstCount = await replenisher.replenish(
+          householdId: householdId,
+          now: DateTime(2026, 9, 10, 7),
+        );
+        final first = List<ScheduledReminder>.of(gateway.scheduled);
+        final secondCount = await replenisher.replenish(
+          householdId: householdId,
+          now: DateTime(2026, 9, 10, 7),
+        );
+        final second = gateway.scheduled.skip(first.length).toList();
+
+        expect(firstCount, 14);
+        expect(secondCount, firstCount);
+        expect(
+          second.map((item) => item.occurrence.notificationId),
+          first.map((item) => item.occurrence.notificationId),
+        );
+        expect(
+          second.map((item) => item.historyId),
+          first.map((item) => item.historyId),
+        );
+      },
+    );
+  });
+
   group('ReminderBloc scheduling', () {
     late AppDatabase database;
     late ReminderRepository repository;
@@ -159,13 +288,13 @@ void main() {
 
       await bloc.recover();
 
-      expect(gateway.scheduled, hasLength(1));
-      expect(gateway.scheduled.single.reminder.id, item.id);
+      expect(gateway.scheduled.length, greaterThan(1));
+      expect(gateway.scheduled.first.reminder.id, item.id);
       expect(
         await repository.getHistoryByOccurrence(
           householdId: householdId,
           reminderId: item.id,
-          occurrenceKey: gateway.scheduled.single.occurrence.key,
+          occurrenceKey: gateway.scheduled.first.occurrence.key,
         ),
         isNotNull,
       );
@@ -268,6 +397,67 @@ void main() {
         expect(gateway.scheduled, hasLength(1));
         expect(gateway.scheduled.single.occurrence.scheduledAt, until);
         expect(gateway.cancelled, contains(history.notificationId));
+      },
+    );
+
+    test(
+      'snooze dari aksi notifikasi memakai ID canonical dan meneruskan series',
+      () async {
+        final item = reminder(
+          recurrence: ReminderRecurrenceType.daily,
+          scheduledAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        );
+        await repository.saveReminder(item);
+        final occurrence = ReminderOccurrence(
+          key: '20260820-1200',
+          scheduledAt: item.scheduledAt,
+          notificationId: 2002,
+        );
+        final history = await repository.ensureHistory(
+          reminder: item,
+          occurrence: occurrence,
+        );
+
+        bloc.add(
+          ReminderNotificationActionReceived(
+            actionId: 'snooze_10',
+            payload: {
+              'householdId': householdId,
+              'reminderId': item.id,
+              'historyId': history.id,
+              'occurrenceKey': occurrence.key,
+            },
+          ),
+        );
+        await bloc.stream.firstWhere(
+          (state) => state.history.any(
+            (view) =>
+                view.history.id == history.id &&
+                view.history.status == ReminderHistoryStatus.snoozed,
+          ),
+        );
+
+        // Alarm snooze memakai ID canonical (bukan id acak).
+        final snooze = gateway.scheduled.firstWhere(
+          (s) =>
+              s.occurrence.notificationId ==
+              stableSnoozeNotificationId(item.id, occurrence.key),
+        );
+        expect(
+          snooze.occurrence.notificationId,
+          stableSnoozeNotificationId(item.id, occurrence.key),
+        );
+        // Series harian tetap meneruskan occurrence berikutnya.
+        final next = gateway.scheduled.firstWhere(
+          (s) => s.occurrence.key != snooze.occurrence.key,
+          orElse: () => throw StateError(
+            'occurrence harian berikutnya belum dijadwalkan',
+          ),
+        );
+        expect(
+          next.occurrence.scheduledAt.difference(DateTime.now()),
+          lessThan(const Duration(hours: 26)),
+        );
       },
     );
   });

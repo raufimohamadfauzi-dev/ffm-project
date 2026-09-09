@@ -492,36 +492,56 @@ class NfcCardRepository {
 
     final cardHash = sha256.convert(utf8.encode(scan.cardId)).toString();
     final cardId = 'nfc-card-${cardHash.substring(0, 24)}';
-    final accountId = 'nfc-account-${cardHash.substring(0, 24)}';
 
-    // Periksa apakah nama akun sudah pernah diubah kustom oleh user
-    final existingAccount = await (database.select(database.accounts)
-          ..where((a) => a.id.equals(accountId)))
+    // Periksa apakah kartu sudah terdaftar
+    final existingCard = await (database.select(database.nfcCardAccounts)
+          ..where((n) => n.cardUidHash.equals(cardHash)))
         .getSingleOrNull();
 
-    final accountName = existingCustomIssuer ??
-        existingAccount?.name ??
-        (scan.cardType == 'emoney_generic' ? 'Kartu NFC' : scan.cardTypeLabel);
-    final accountType = scan.cardType.contains('bank') ? 'bank' : 'ewallet';
-
-    await database.transaction(() async {
-      await database.into(database.accounts).insertOnConflictUpdate(
-        AccountsCompanion.insert(
-          id: accountId,
-          householdId: _householdId,
-          name: accountName,
-          type: accountType,
-          openingBalance: const Value(0),
-          isActive: const Value(true),
-          isArchived: const Value(false),
-          createdAt: scannedAt,
+    if (existingCard != null) {
+      // Kartu sudah terdaftar, hanya update scan terakhir
+      await database.update(database.nfcCardAccounts).replace(
+        NfcCardAccountsCompanion.insert(
+          id: existingCard.id,
+          householdId: existingCard.householdId,
+          accountId: existingCard.accountId,
+          cardUidHash: cardHash,
+          issuer: existingCard.issuer != null ? Value(existingCard.issuer) : const Value.absent(),
+          cardType: existingCard.cardType,
+          lastKnownBalance: existingCard.lastKnownBalance != null ? Value(existingCard.lastKnownBalance) : const Value.absent(),
+          balanceAvailable: Value(existingCard.balanceAvailable),
+          lastScannedAt: existingCard.lastScannedAt != null ? Value(existingCard.lastScannedAt) : const Value.absent(),
+          createdAt: existingCard.createdAt,
         ),
       );
+      
+      // Catat snapshot
+      await database.into(database.nfcScanSnapshots).insertOnConflictUpdate(
+        NfcScanSnapshotsCompanion.insert(
+          id: '$cardId-${scannedAt.microsecondsSinceEpoch}',
+          householdId: _householdId,
+          nfcCardAccountId: cardId,
+          balance: Value(scan.balanceAvailable ? scan.balance.round() : null),
+          balanceAvailable: Value(scan.balanceAvailable),
+          periodKey: '${scannedAt.year}-${scannedAt.month.toString().padLeft(2, '0')}',
+          scannedAt: scannedAt,
+        ),
+      );
+      return;
+    }
+
+    // Kartu baru - hanya simpan info kartu, jangan buat rekening otomatis
+    // Rekening akan dibuat saat user menekan tombol "Buka/Daftarkan di Data Utama"
+    final accountName = existingCustomIssuer ??
+        (scan.cardType == 'emoney_generic' ? 'Kartu NFC' : scan.cardTypeLabel);
+
+    await database.transaction(() async {
+      // Simpan kartu tanpa account terkait (accountId akan diisi nanti)
       await database.into(database.nfcCardAccounts).insertOnConflictUpdate(
         NfcCardAccountsCompanion.insert(
           id: cardId,
           householdId: _householdId,
-          accountId: accountId,
+          accountId: 'pending-$cardId', // Temporary placeholder, akan diisi saat registrasi
           cardUidHash: cardHash,
           issuer: Value(accountName),
           cardType: scan.cardType,
@@ -533,6 +553,8 @@ class NfcCardRepository {
           createdAt: scannedAt,
         ),
       );
+      
+      // Catat snapshot
       await database.into(database.nfcScanSnapshots).insertOnConflictUpdate(
         NfcScanSnapshotsCompanion.insert(
           id: '$cardId-${scannedAt.microsecondsSinceEpoch}',

@@ -52,6 +52,8 @@ import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
 import '../../features/assistant/data/telegram_bot_service.dart';
 import '../../features/assistant/data/telegram_config_repository.dart';
+import '../../features/assistant/data/telegram_delivery_processor.dart';
+import '../../features/assistant/data/telegram_delivery_repository.dart';
 import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
@@ -85,6 +87,7 @@ import '../../features/receivable/domain/usecases/receivable_crud_usecases.dart'
 import '../../features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import '../../features/reminder/data/repositories/reminder_repository.dart';
 import '../../features/reminder/data/services/reminder_notification_service.dart';
+import '../../features/reminder/data/services/reminder_schedule_replenisher.dart';
 import '../../features/reminder/data/services/reminder_sound_picker.dart';
 import '../../features/reminder/domain/usecases/reminder_usecases.dart';
 import '../../features/reminder/presentation/bloc/reminder_bloc.dart';
@@ -114,8 +117,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => SaveTransaction(
       db,
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
-      telegramBotService: getIt<TelegramBotService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
+      telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
       activityRepository: getIt<ActivityRepository>(),
     ),
   );
@@ -123,12 +126,16 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     () => SaveTransactionBatch(
       db,
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+      telegramConfigRepository: getIt<TelegramConfigRepository>(),
+      telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
     ),
   );
   getIt.registerLazySingleton<SaveMixedTransactionBatch>(
     () => SaveMixedTransactionBatch(
       db,
       autonomyTrigger: getIt<FfmAssistantAutonomyTriggerService>(),
+      telegramConfigRepository: getIt<TelegramConfigRepository>(),
+      telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
     ),
   );
   getIt.registerLazySingleton<DeleteTransaction>(() => DeleteTransaction(db));
@@ -222,6 +229,13 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<ReminderNotificationService>(
     ReminderNotificationService.new,
+  );
+  getIt.registerLazySingleton<ReminderScheduleReplenisher>(
+    () => ReminderScheduleReplenisher(
+      getIt<ReminderRepository>(),
+      getIt<ReminderNotificationService>(),
+      getIt<ReminderOccurrenceCalculator>(),
+    ),
   );
   getIt.registerLazySingleton<ReminderSoundPicker>(
     AndroidReminderSoundPicker.new,
@@ -343,6 +357,16 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<TelegramConfigRepository>(
     TelegramConfigRepository.new,
   );
+  getIt.registerLazySingleton<TelegramDeliveryRepository>(
+    () => TelegramDeliveryRepository(db),
+  );
+  getIt.registerLazySingleton<TelegramDeliveryProcessor>(
+    () => TelegramDeliveryProcessor(
+      repository: getIt<TelegramDeliveryRepository>(),
+      botService: getIt<TelegramBotService>(),
+      configRepository: getIt<TelegramConfigRepository>(),
+    ),
+  );
   // Fitur 02: Pendeteksi Notifikasi QRIS & Bank
   getIt.registerLazySingleton<PaymentDraftRepository>(
     PaymentDraftRepository.new,
@@ -360,7 +384,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   // Smart Budget Engine & Envelope Rebalance
   getIt.registerLazySingleton<SmartBudgetEngine>(SmartBudgetEngine.new);
-  getIt.registerLazySingleton<SmartEnvelopeRebalance>(SmartEnvelopeRebalance.new);
+  getIt.registerLazySingleton<SmartEnvelopeRebalance>(
+    SmartEnvelopeRebalance.new,
+  );
   // Fitur 03: Model Arus Kas Fleksibel & Siklus Pertanian / Musiman / Bisnis
   getIt.registerLazySingleton<CashFlowProfileRepository>(
     CashFlowProfileRepository.new,
@@ -373,9 +399,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
     UtilityMeterRepository.new,
   );
   // Buku Saku Kendaraan & Log BBM
-  getIt.registerLazySingleton<VehicleRepository>(
-    VehicleRepository.new,
-  );
+  getIt.registerLazySingleton<VehicleRepository>(VehicleRepository.new);
   // Saran Pertanyaan Lanjutan Adaptif (💡) & Wawancara Proaktif Usaha/Tani
   getIt.registerLazySingleton<ProactiveCashFlowCheckInService>(
     () => ProactiveCashFlowCheckInService(getIt<CashFlowProfileRepository>()),
@@ -391,6 +415,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       deliveryPolicy: getIt<FfmProactiveDeliveryPolicy>(),
       telegramBotService: getIt<TelegramBotService>(),
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
+      telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
+      telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundEventHandler>(
@@ -440,6 +466,8 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       habitLearner: getIt<FfmActivityHabitLearner>(),
       personalization: getIt<FfmAssistantPersonalizationRepository>(),
       themeController: getIt<AppThemeController>(),
+      saveTransaction: getIt<SaveTransaction>(),
+      saveMixedTransactionBatch: getIt<SaveMixedTransactionBatch>(),
     ),
   );
   getIt.registerLazySingleton<FfmActivityHabitLearner>(

@@ -334,36 +334,18 @@ class ActivityApplicationService {
     // If forceCloseChildren, close all child sessions too
     if (activeChildren.isNotEmpty && forceCloseChildren) {
       for (final child in activeChildren) {
-        final closedChild = ActivitySessionEntity(
-          id: child.id,
-          householdId: child.householdId,
-          title: child.title,
-          category: child.category,
-          parentSessionId: child.parentSessionId,
-          startedAt: child.startedAt,
+        final closedChild = child.copyWith(
           endedAt: end,
           status: ActivitySessionStatus.completed,
-          notes: child.notes,
-          isArchived: child.isArchived,
-          createdAt: child.createdAt,
           updatedAt: DateTime.now(),
         );
         await repository.saveSession(closedChild);
       }
     }
 
-    final closedParent = ActivitySessionEntity(
-      id: target.id,
-      householdId: target.householdId,
-      title: target.title,
-      category: target.category,
-      parentSessionId: target.parentSessionId,
-      startedAt: target.startedAt,
+    final closedParent = target.copyWith(
       endedAt: end,
       status: ActivitySessionStatus.completed,
-      notes: target.notes,
-      isArchived: target.isArchived,
-      createdAt: target.createdAt,
       updatedAt: DateTime.now(),
     );
 
@@ -587,18 +569,9 @@ class ActivityApplicationService {
           op.entityId,
         );
         if (session != null) {
-          final reopened = ActivitySessionEntity(
-            id: session.id,
-            householdId: session.householdId,
-            title: session.title,
-            category: session.category,
-            parentSessionId: session.parentSessionId,
-            startedAt: session.startedAt,
+          final reopened = session.copyWith(
             endedAt: null,
             status: ActivitySessionStatus.active,
-            notes: session.notes,
-            isArchived: session.isArchived,
-            createdAt: session.createdAt,
             updatedAt: DateTime.now(),
           );
           await repository.saveSession(reopened);
@@ -613,7 +586,8 @@ class ActivityApplicationService {
         );
 
       case ActivityOperationType.addCheckpoint:
-        // Checkpoint archived / removed from display
+        await repository.deleteCheckpoint(op.entityId);
+        await activityBloc.load();
         _operationHistory.remove(operationId);
         return ActivityCommandResult(
           success: true,

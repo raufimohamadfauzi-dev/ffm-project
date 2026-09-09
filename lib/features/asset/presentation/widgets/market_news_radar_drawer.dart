@@ -97,7 +97,9 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
               decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
                 border: Border(
                   bottom: BorderSide(
                     color: colorScheme.outlineVariant.withValues(alpha: 0.4),
@@ -109,7 +111,11 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                   CircleAvatar(
                     radius: 18,
                     backgroundColor: colorScheme.primaryContainer,
-                    child: Icon(Icons.radar, color: colorScheme.primary, size: 20),
+                    child: Icon(
+                      Icons.radar,
+                      color: colorScheme.primary,
+                      size: 20,
+                    ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -202,7 +208,9 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                   _buildMiniChip(
                     'BTC',
                     _currencyFormat.format(snapshot.btcPrice),
-                    isDark ? const Color(0xFFFB923C) : Colors.deepOrange.shade800,
+                    isDark
+                        ? const Color(0xFFFB923C)
+                        : Colors.deepOrange.shade800,
                   ),
                 ],
               ),
@@ -221,24 +229,36 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: const Text('🌾 Tani', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '🌾 Tani',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: _selectedCategory == NewsCategory.agriculture,
-                    onSelected: (_) =>
-                        setState(() => _selectedCategory = NewsCategory.agriculture),
+                    onSelected: (_) => setState(
+                      () => _selectedCategory = NewsCategory.agriculture,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: const Text('🌧️ Cuaca', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '🌧️ Cuaca',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: _selectedCategory == NewsCategory.weatherDisaster,
-                    onSelected: (_) =>
-                        setState(() => _selectedCategory = NewsCategory.weatherDisaster),
+                    onSelected: (_) => setState(
+                      () => _selectedCategory = NewsCategory.weatherDisaster,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   ChoiceChip(
-                    label: const Text('📈 Finansial', style: TextStyle(fontSize: 11)),
+                    label: const Text(
+                      '📈 Finansial',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     selected: _selectedCategory == NewsCategory.finance,
-                    onSelected: (_) =>
-                        setState(() => _selectedCategory = NewsCategory.finance),
+                    onSelected: (_) => setState(
+                      () => _selectedCategory = NewsCategory.finance,
+                    ),
                   ),
                 ],
               ),
@@ -258,7 +278,10 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       itemCount: filteredNews.length,
                       itemBuilder: (ctx, idx) {
                         final item = filteredNews[idx];
@@ -273,7 +296,11 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
               color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
               child: Row(
                 children: [
-                  Icon(Icons.history_toggle_off, size: 14, color: colorScheme.onSurfaceVariant),
+                  Icon(
+                    Icons.history_toggle_off,
+                    size: 14,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -314,10 +341,7 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
           ),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -330,7 +354,11 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
     ColorScheme colorScheme,
   ) {
     final isDark = theme.brightness == Brightness.dark;
-    final timeStr = DateFormat('dd MMM, HH:mm').format(item.publishedAt);
+    final timeStr = item.isFallback
+        ? 'Konten edukasi cadangan'
+        : item.isPublishedAtKnown
+        ? DateFormat('dd MMM, HH:mm').format(item.publishedAt)
+        : 'Tanggal publikasi tidak diketahui';
 
     Color tagColor;
     switch (item.category) {
@@ -371,7 +399,11 @@ class _MarketNewsRadarDrawerState extends State<MarketNewsRadarDrawer> {
               ),
               if (item.isHighAlert) ...[
                 const SizedBox(width: 4),
-                Icon(Icons.warning, size: 12, color: isDark ? const Color(0xFFEF4444) : Colors.red),
+                Icon(
+                  Icons.warning,
+                  size: 12,
+                  color: isDark ? const Color(0xFFEF4444) : Colors.red,
+                ),
               ],
               const Spacer(),
               Text(

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'package:uuid/uuid.dart';
 
 import 'package:flutter/material.dart';
 
@@ -14,6 +16,7 @@ import '../../../../core/di/injection.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
 import '../../../../core/database/app_context.dart';
+import '../../../../core/network/gemini_service.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/data/services/activity_speech_service.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
@@ -46,6 +49,7 @@ import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
 import '../../data/ffm_memory_learning_service.dart';
 import '../../data/receipt_scanner_service.dart';
+import '../../data/ffm_gemini_cloud_orchestrator.dart';
 import '../../../transaction/data/services/receipt_import_service.dart';
 import '../../domain/ffm_memory_candidate.dart';
 import '../../domain/ffm_memory_type.dart';
@@ -1770,7 +1774,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         FfmPersonalMemoryInsight(
           kind: FfmPersonalMemoryKind.habitData,
           key:
-              'habit_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+              'habit_${Uuid().v4()}_${_entries.length}',
           value: text,
           humanLabel: 'Kebiasaan Rutin: $text',
           sourceMessage: text,
@@ -1780,7 +1784,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (getIt.isRegistered<AutonomousActivityRepository>()) {
         await getIt<AutonomousActivityRepository>().recordActivity(
           AutonomousActivityRecord(
-            id: 'act_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+            id: 'act_${Uuid().v4()}_${_entries.length}',
             householdId: AppContext.householdId,
             title: 'Pendaftaran Kebiasaan Rutin',
             description: text,
@@ -1853,7 +1857,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         if (getIt.isRegistered<AutonomousActivityRepository>()) {
           await getIt<AutonomousActivityRepository>().recordActivity(
             AutonomousActivityRecord(
-              id: 'act_${DateTime.now().microsecondsSinceEpoch}_${_entries.length}',
+              id: 'act_${Uuid().v4()}_${_entries.length}',
               householdId: AppContext.householdId,
               title: 'Pembaruan Jadwal Panen (${profile.name})',
               description:
@@ -2341,12 +2345,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     _scrollToEnd(force: true);
 
     final outcome = isBroadQuestion
-        ? await _receiptScanner.askVisualQuestion(
-            bytes: bytes,
-            question: caption,
-            mimeType: _mimeTypeFor(path),
-            imagePath: path,
-          )
+        ? await _handleVisualQuestionWithOrchestrator(bytes, caption, path)
         : await _receiptScanner.scanImage(
             bytes: bytes,
             mimeType: _mimeTypeFor(path),
@@ -2517,81 +2516,57 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
           if (cleanToken != null) {
             final formattedToken = '${cleanToken.substring(0, 4)}-${cleanToken.substring(4, 8)}-${cleanToken.substring(8, 12)}-${cleanToken.substring(12, 16)}-${cleanToken.substring(16, 20)}';
+            
             UtilityMeter? matchedMeter;
             if (cleanMeterNumber != null) {
               matchedMeter = await utilityRepo.findMeterByNumber(AppContext.householdId, cleanMeterNumber);
             }
 
+            // Simpan sebagai metadata proposal, bukan mutasi langsung
+            final utilityMetadata = <String, dynamic>{
+              'tokenCode': cleanToken,
+              'formattedToken': formattedToken,
+              'amount': entry.amount?.toDouble(),
+              'timestamp': now.toIso8601String(),
+            };
+            
+            if (cleanMeterNumber != null) {
+              utilityMetadata['meterNumber'] = cleanMeterNumber;
+            }
+            
             if (matchedMeter != null) {
-              await utilityRepo.updateLastToken(
-                householdId: AppContext.householdId,
-                meterNumber: matchedMeter.meterNumber,
-                tokenCode: cleanToken,
-                amount: entry.amount?.toDouble(),
-                timestamp: now,
-              );
-              if (getIt.isRegistered<AutonomousActivityRepository>()) {
-                await getIt<AutonomousActivityRepository>().recordActivity(
-                  AutonomousActivityRecord(
-                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_meter_$index',
-                    householdId: AppContext.householdId,
-                    title: 'Pencatatan Token Listrik (${matchedMeter.name})',
-                    description:
-                        'Memperbarui token $formattedToken untuk meteran ${matchedMeter.formattedMeterNumber}.',
-                    activityType: AutonomousActivityType.utilityMeter,
-                    occurredAt: now,
-                    payload: {
-                      'meterId': matchedMeter.id,
-                      'isNewMeter': false,
-                      'token': cleanToken,
-                    },
-                  ),
-                );
-              }
+              utilityMetadata['meterId'] = matchedMeter.id;
+              utilityMetadata['meterName'] = matchedMeter.name;
+              utilityMetadata['isNewMeter'] = false;
+            } else if (cleanMeterNumber != null) {
+              utilityMetadata['isNewMeter'] = true;
+              utilityMetadata['proposedMeterName'] = 'Meteran PLN $cleanMeterNumber';
+            }
+
+            if (matchedMeter != null) {
               meterLabel = 'Token Listrik ${matchedMeter.name} ($formattedToken)';
               response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
                   '• Properti: **${matchedMeter.name}**\n'
                   '• No. Meter: `${matchedMeter.formattedMeterNumber}`\n'
                   '• Kode Token: `${matchedMeter.formattedTokenNumber}`\n\n'
-                  'Kode token telah otomatis diperbarui di Buku Saku & riwayat token.\n\n'
+                  'Token listrik ini akan dicatat setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
             } else if (cleanMeterNumber != null) {
-              final newMeter = UtilityMeter(
-                id: 'meter_${DateTime.now().microsecondsSinceEpoch}_$index',
-                householdId: AppContext.householdId,
-                name: 'Meteran PLN $cleanMeterNumber',
-                meterNumber: cleanMeterNumber,
-                createdAt: now,
-                lastTokenNumber: cleanToken,
-                lastAmount: entry.amount?.toDouble(),
-                lastPurchasedAt: now,
-              );
-              await utilityRepo.saveMeter(newMeter);
-              if (getIt.isRegistered<AutonomousActivityRepository>()) {
-                await getIt<AutonomousActivityRepository>().recordActivity(
-                  AutonomousActivityRecord(
-                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_meter_$index',
-                    householdId: AppContext.householdId,
-                    title: 'Pendaftaran Meteran Baru (${newMeter.name})',
-                    description:
-                        'Mendaftarkan meteran baru ${newMeter.formattedMeterNumber} dengan token $formattedToken.',
-                    activityType: AutonomousActivityType.utilityMeter,
-                    occurredAt: now,
-                    payload: {
-                      'meterId': newMeter.id,
-                      'isNewMeter': true,
-                      'token': cleanToken,
-                    },
-                  ),
-                );
-              }
               meterLabel = 'Token Listrik PLN ($formattedToken)';
               response = '⚡ **Struk Token Listrik PLN Terdeteksi!**\n'
-                  '• No. Meter: `${newMeter.formattedMeterNumber}`\n'
+                  '• No. Meter: `$cleanMeterNumber`\n'
                   '• Kode Token: `$formattedToken`\n\n'
-                  '✨ Meteran baru ini otomatis didaftarkan ke Buku Saku Meteran & Token Anda!\n\n'
+                  'Meteran baru ini akan didaftarkan setelah Anda mengonfirmasi transaksi.\n\n'
                   '$response';
             }
+
+            // Simpan metadata ke draft untuk dieksekusi setelah konfirmasi
+            draft = draft.copyWith(
+              metadata: {
+                ...?draft.metadata,
+                'utilityProposal': utilityMetadata,
+              },
+            );
           }
         } on Object {
           // Draft transaksi tetap menggunakan hasil OCR Gemini.
@@ -2666,51 +2641,35 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           if (matchedVehicle != null && (detectedLiters != null || (entry.amount != null && entry.amount! > 0))) {
             final litersVal = detectedLiters ?? 0.0;
             final amountVal = entry.amount?.toDouble() ?? 0.0;
-            if (litersVal > 0 && amountVal > 0) {
-              final fuelLogId = 'fuel_${DateTime.now().microsecondsSinceEpoch}_$index';
-              await vehicleRepo.addFuelLog(
-                householdId: AppContext.householdId,
-                vehicleId: matchedVehicle.id,
-                fuelLog: FuelLogEntry(
-                  id: fuelLogId,
-                  date: now,
-                  liters: litersVal,
-                  totalAmount: amountVal,
-                  fuelType: detectedFuel,
-                  spbuLocation: entry.merchant ?? 'SPBU',
-                ),
-              );
-              if (getIt.isRegistered<AutonomousActivityRepository>()) {
-                await getIt<AutonomousActivityRepository>().recordActivity(
-                  AutonomousActivityRecord(
-                    id: 'act_${DateTime.now().microsecondsSinceEpoch}_fuel_$index',
-                    householdId: AppContext.householdId,
-                    title: 'Pencatatan BBM (${matchedVehicle.name})',
-                    description:
-                        'Mencatat pengisian ${litersVal}L $detectedFuel seharga Rp ${amountVal.toInt()} untuk ${matchedVehicle.formattedPlateNumber}.',
-                    activityType: AutonomousActivityType.fuelLog,
-                    occurredAt: now,
-                    payload: {
-                      'vehicleId': matchedVehicle.id,
-                      'logId': fuelLogId,
-                      'liters': litersVal,
-                      'totalAmount': amountVal,
-                    },
-                  ),
-                );
-              }
-            }
+            
+            // Simpan sebagai metadata proposal, bukan mutasi langsung
+            final fuelMetadata = <String, dynamic>{
+              'vehicleId': matchedVehicle.id,
+              'vehicleName': matchedVehicle.name,
+              'plateNumber': matchedVehicle.plateNumber,
+              'fuelType': detectedFuel,
+              'liters': litersVal,
+              'totalAmount': amountVal,
+              'spbuLocation': entry.merchant ?? 'SPBU',
+              'timestamp': now.toIso8601String(),
+            };
 
-            final fuelNote = 'BBM $detectedFuel ${matchedVehicle.name} (${matchedVehicle.formattedPlateNumber})${litersVal > 0 ? ' - ${litersVal}L' : ''}';
-            draft = draft.copyWith(
-              categoryName: 'Transportasi',
-              note: fuelNote,
-            );
+            if (litersVal > 0 && amountVal > 0) {
+              final fuelNote = 'BBM $detectedFuel ${matchedVehicle.name} (${matchedVehicle.formattedPlateNumber})${litersVal > 0 ? ' - ${litersVal}L' : ''}';
+              draft = draft.copyWith(
+                categoryName: 'Transportasi',
+                note: fuelNote,
+                metadata: {
+                  ...?draft.metadata,
+                  'fuelProposal': fuelMetadata,
+                },
+              );
+            }
 
             response = '⛽ **Struk BBM Terdeteksi & Dicocokkan!**\n'
                 '• Kendaraan: **${matchedVehicle.name}** (`${matchedVehicle.formattedPlateNumber}`)\n'
                 '• Bahan Bakar: **$detectedFuel**${litersVal > 0 ? ' ($litersVal Liter)' : ''}\n\n'
-                'Riwayat pengisian telah otomatis dicatat ke Buku Saku Kendaraan.\n\n'
+                'Riwayat pengisian ini akan otomatis dicatat ke Buku Saku Kendaraan setelah Anda mengonfirmasi transaksi.\n\n'
                 '$response';
           } else if (vehicles.isNotEmpty) {
             response = '$response\n\n'
@@ -2812,6 +2771,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       title: entry.merchant ?? itemsText,
       partyName: entry.partyName,
       categoryName: entry.budgetName,
+      fromAccountName: entry.fromAccountId != null && !entry.fromAccountId!.startsWith('acc-') && !entry.fromAccountId!.contains('-') ? entry.fromAccountId : null,
+      toAccountName: entry.toAccountId != null && !entry.toAccountId!.startsWith('acc-') && !entry.toAccountId!.contains('-') ? entry.toAccountId : null,
       adminFee: entry.adminFee,
       note: entry.note,
       date: entry.date,
@@ -2826,6 +2787,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       metadata: entry.receiptNumber != null
           ? {'receipt_number': entry.receiptNumber}
           : null,
+      formValues: {
+        if (entry.categoryId != null) 'categoryId': entry.categoryId!,
+        if (entry.accountId != null) 'accountId': entry.accountId!,
+        if (entry.budgetId != null) 'budgetId': entry.budgetId!,
+        if (entry.fromAccountId != null) 'fromAccountId': entry.fromAccountId!,
+        if (entry.toAccountId != null) 'toAccountId': entry.toAccountId!,
+        if (entry.tags.isNotEmpty) 'tags': entry.tags.join(', '),
+      },
     );
   }
 
@@ -2844,6 +2813,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final detail = <String>[
       if (amountText != null) '$typeLabel $amountText',
       if (entry.budgetName != null) 'kategori ${entry.budgetName}',
+      if (entry.accountId != null) 'rekening tersimpan',
+      if (entry.tags.isNotEmpty) 'tag: ${entry.tags.join(', ')}',
     ].join(', ');
     return '$prefix: $detail. Periksa draft di atas.\n\n💡 *Tip: Jika ini struk penerimaan dana (uang masuk), cukup ketik "itu uang masuk" atau ubah jenisnya lewat tombol Ubah.*';
   }
@@ -2915,6 +2886,98 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
   String _activityKey(ActivityVoiceIntent intent) =>
       '${intent.type.name}:${intent.targetSessionId ?? intent.parentSessionId ?? intent.targetTitle}:${intent.checkpointLabel ?? ''}:${intent.normalizedText}';
+
+  /// Handle pertanyaan visual dengan orkestrator yang memiliki bounded context
+  Future<ReceiptScanOutcome> _handleVisualQuestionWithOrchestrator(
+    Uint8List bytes,
+    String question,
+    String imagePath,
+  ) async {
+    try {
+      if (!getIt.isRegistered<FfmGeminiCloudOrchestrator>()) {
+        // Fallback ke scanner biasa jika orkestrator tidak tersedia
+        return await _receiptScanner.askVisualQuestion(
+          bytes: bytes,
+          question: question,
+          mimeType: _mimeTypeFor(imagePath),
+          imagePath: imagePath,
+        );
+      }
+
+      final orchestrator = getIt<FfmGeminiCloudOrchestrator>();
+      
+      // Buat bounded context keuangan
+      final boundedContext = await _buildBoundedFinancialContext();
+      
+      // Siapkan input gambar
+      final imageInput = GeminiImageInput(
+        base64Data: base64Encode(bytes),
+        mimeType: _mimeTypeFor(imagePath),
+      );
+
+      // Gunakan orkestrator dengan bounded context dan gambar
+      final result = await orchestrator.run(
+        userText: question,
+        boundedContext: boundedContext,
+        householdId: AppContext.householdId,
+        image: imageInput,
+      );
+
+      if (result.ok) {
+        return ReceiptScanOutcome(
+          ok: true,
+          message: result.text!,
+          tokenUsage: result.usageMetadata?.toJson(),
+          latency: result.latency,
+        );
+      } else {
+        return ReceiptScanOutcome(
+          ok: false,
+          message: result.errorMessage ?? 'Gagal memproses gambar dengan orkestrator.',
+        );
+      }
+    } on Object {
+      // Fallback ke scanner biasa jika terjadi error
+      return await _receiptScanner.askVisualQuestion(
+        bytes: bytes,
+        question: question,
+        mimeType: _mimeTypeFor(imagePath),
+        imagePath: imagePath,
+      );
+    }
+  }
+
+  /// Membangun bounded context keuangan untuk orkestrator
+  Future<String> _buildBoundedFinancialContext() async {
+    final parts = <String>[];
+    
+    try {
+      // Tambahkan ringkasan saldo jika ada
+      if (getIt.isRegistered<AppDatabase>()) {
+        final database = getIt<AppDatabase>();
+        final recent = await (database.select(database.transactions)
+              ..where((row) => row.householdId.equals(AppContext.householdId))
+              ..limit(5))
+            .get();
+        // Sort manually to avoid OrderingTerm complexity
+        recent.sort((a, b) => b.date.compareTo(a.date));
+        if (recent.isNotEmpty) {
+          parts.add('Riwayat transaksi terakhir:');
+          for (final tx in recent) {
+            parts.add('- ${tx.note ?? tx.categoryId}: ${_formatRupiah(tx.amount.abs())}');
+          }
+        }
+      }
+      
+      // Skip anggaran untuk menghindari kompleksitas
+    } on Object {
+      // Error pembuatan context tidak menghalangi percakapan
+    }
+    
+    return parts.isEmpty 
+        ? 'Konteks keuangan tidak tersedia saat ini.' 
+        : parts.join('\n');
+  }
 
   Future<void> _confirmActivityIntent(ActivityVoiceIntent intent) async {
     final key = _activityKey(intent);

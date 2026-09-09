@@ -7,9 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/di/injection.dart';
+import '../../reminder/data/services/reminder_schedule_replenisher.dart';
 import 'ffm_assistant_autonomy_background_handler.dart';
 import 'ffm_assistant_autonomy_worker.dart';
 import 'ffm_assistant_proactive_evaluation_task.dart';
+import 'telegram_delivery_processor.dart';
 
 /// Top-level callback entry-point untuk Foreground Task Android.
 /// Wajib memiliki anotasi `@pragma('vm:entry-point')`.
@@ -56,11 +58,24 @@ class FfmAssistantForegroundTaskHandler extends TaskHandler {
     try {
       await configureDependencies();
 
+      if (getIt.isRegistered<ReminderScheduleReplenisher>()) {
+        await getIt<ReminderScheduleReplenisher>().replenish(
+          householdId: 'local-household',
+        );
+      }
+
       // 1. Jalankan worker antrean tugas otonom
       if (getIt.isRegistered<FfmAssistantAutonomyWorker>() &&
           getIt.isRegistered<FfmAssistantAutonomyBackgroundEventHandler>()) {
         await getIt<FfmAssistantAutonomyWorker>().runOnce(
           getIt<FfmAssistantAutonomyBackgroundEventHandler>().handle,
+        );
+      }
+
+      // 1b. Proses antrean pengiriman Telegram yang durabel
+      if (getIt.isRegistered<TelegramDeliveryProcessor>()) {
+        await getIt<TelegramDeliveryProcessor>().processPending(
+          householdId: 'local-household',
         );
       }
 
@@ -74,7 +89,8 @@ class FfmAssistantForegroundTaskHandler extends TaskHandler {
       final minute = timestamp.minute.toString().padLeft(2, '0');
       await FlutterForegroundTask.updateService(
         notificationTitle: 'Asisten Finansial FFM Aktif',
-        notificationText: 'Radar finansial aman • Terakhir diperiksa $hour:$minute',
+        notificationText:
+            'Radar finansial aman • Terakhir diperiksa $hour:$minute',
       );
 
       // 4. Kirim data pembaruan ke UI jika aplikasi sedang terbuka
@@ -146,8 +162,7 @@ class FfmAssistantForegroundServiceManager {
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: channelId,
         channelName: channelName,
-        channelDescription:
-            'Menjaga agen otonom dan radar finansial tetap aktif tanpa dimatikan Android.',
+        channelDescription: 'Menjaga agen otonom dan radar finansial tetap aktif tanpa dimatikan Android.',
         channelImportance: NotificationChannelImportance.LOW,
         priority: NotificationPriority.LOW,
         onlyAlertOnce: true,

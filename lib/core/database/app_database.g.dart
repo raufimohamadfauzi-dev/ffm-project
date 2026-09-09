@@ -32097,6 +32097,960 @@ class AssistantAgentTaskExecutionsCompanion
   }
 }
 
+class $TelegramDeliveriesTable extends TelegramDeliveries
+    with TableInfo<$TelegramDeliveriesTable, TelegramDelivery> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TelegramDeliveriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _deliveryIdMeta = const VerificationMeta(
+    'deliveryId',
+  );
+  @override
+  late final GeneratedColumn<String> deliveryId = GeneratedColumn<String>(
+    'delivery_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _householdIdMeta = const VerificationMeta(
+    'householdId',
+  );
+  @override
+  late final GeneratedColumn<String> householdId = GeneratedColumn<String>(
+    'household_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _operationMeta = const VerificationMeta(
+    'operation',
+  );
+  @override
+  late final GeneratedColumn<String> operation = GeneratedColumn<String>(
+    'operation',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageTextMeta = const VerificationMeta(
+    'messageText',
+  );
+  @override
+  late final GeneratedColumn<String> messageText = GeneratedColumn<String>(
+    'message_text',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _entityIdMeta = const VerificationMeta(
+    'entityId',
+  );
+  @override
+  late final GeneratedColumn<String> entityId = GeneratedColumn<String>(
+    'entity_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dedupeKeyMeta = const VerificationMeta(
+    'dedupeKey',
+  );
+  @override
+  late final GeneratedColumn<String> dedupeKey = GeneratedColumn<String>(
+    'dedupe_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _credentialFingerprintMeta =
+      const VerificationMeta('credentialFingerprint');
+  @override
+  late final GeneratedColumn<String> credentialFingerprint =
+      GeneratedColumn<String>(
+        'credential_fingerprint',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
+  static const VerificationMeta _retryableMeta = const VerificationMeta(
+    'retryable',
+  );
+  @override
+  late final GeneratedColumn<bool> retryable = GeneratedColumn<bool>(
+    'retryable',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("retryable" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _attemptCountMeta = const VerificationMeta(
+    'attemptCount',
+  );
+  @override
+  late final GeneratedColumn<int> attemptCount = GeneratedColumn<int>(
+    'attempt_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _maxAttemptsMeta = const VerificationMeta(
+    'maxAttempts',
+  );
+  @override
+  late final GeneratedColumn<int> maxAttempts = GeneratedColumn<int>(
+    'max_attempts',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(3),
+  );
+  static const VerificationMeta _lastErrorMeta = const VerificationMeta(
+    'lastError',
+  );
+  @override
+  late final GeneratedColumn<String> lastError = GeneratedColumn<String>(
+    'last_error',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastAttemptAtMeta = const VerificationMeta(
+    'lastAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastAttemptAt =
+      GeneratedColumn<DateTime>(
+        'last_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _nextAttemptAtMeta = const VerificationMeta(
+    'nextAttemptAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> nextAttemptAt =
+      GeneratedColumn<DateTime>(
+        'next_attempt_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _sentAtMeta = const VerificationMeta('sentAt');
+  @override
+  late final GeneratedColumn<DateTime> sentAt = GeneratedColumn<DateTime>(
+    'sent_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    deliveryId,
+    householdId,
+    operation,
+    messageText,
+    entityId,
+    dedupeKey,
+    credentialFingerprint,
+    status,
+    retryable,
+    attemptCount,
+    maxAttempts,
+    lastError,
+    createdAt,
+    lastAttemptAt,
+    nextAttemptAt,
+    sentAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'telegram_deliveries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TelegramDelivery> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('delivery_id')) {
+      context.handle(
+        _deliveryIdMeta,
+        deliveryId.isAcceptableOrUnknown(data['delivery_id']!, _deliveryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_deliveryIdMeta);
+    }
+    if (data.containsKey('household_id')) {
+      context.handle(
+        _householdIdMeta,
+        householdId.isAcceptableOrUnknown(
+          data['household_id']!,
+          _householdIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_householdIdMeta);
+    }
+    if (data.containsKey('operation')) {
+      context.handle(
+        _operationMeta,
+        operation.isAcceptableOrUnknown(data['operation']!, _operationMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_operationMeta);
+    }
+    if (data.containsKey('message_text')) {
+      context.handle(
+        _messageTextMeta,
+        messageText.isAcceptableOrUnknown(
+          data['message_text']!,
+          _messageTextMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_messageTextMeta);
+    }
+    if (data.containsKey('entity_id')) {
+      context.handle(
+        _entityIdMeta,
+        entityId.isAcceptableOrUnknown(data['entity_id']!, _entityIdMeta),
+      );
+    }
+    if (data.containsKey('dedupe_key')) {
+      context.handle(
+        _dedupeKeyMeta,
+        dedupeKey.isAcceptableOrUnknown(data['dedupe_key']!, _dedupeKeyMeta),
+      );
+    }
+    if (data.containsKey('credential_fingerprint')) {
+      context.handle(
+        _credentialFingerprintMeta,
+        credentialFingerprint.isAcceptableOrUnknown(
+          data['credential_fingerprint']!,
+          _credentialFingerprintMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('retryable')) {
+      context.handle(
+        _retryableMeta,
+        retryable.isAcceptableOrUnknown(data['retryable']!, _retryableMeta),
+      );
+    }
+    if (data.containsKey('attempt_count')) {
+      context.handle(
+        _attemptCountMeta,
+        attemptCount.isAcceptableOrUnknown(
+          data['attempt_count']!,
+          _attemptCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('max_attempts')) {
+      context.handle(
+        _maxAttemptsMeta,
+        maxAttempts.isAcceptableOrUnknown(
+          data['max_attempts']!,
+          _maxAttemptsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_error')) {
+      context.handle(
+        _lastErrorMeta,
+        lastError.isAcceptableOrUnknown(data['last_error']!, _lastErrorMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('last_attempt_at')) {
+      context.handle(
+        _lastAttemptAtMeta,
+        lastAttemptAt.isAcceptableOrUnknown(
+          data['last_attempt_at']!,
+          _lastAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('next_attempt_at')) {
+      context.handle(
+        _nextAttemptAtMeta,
+        nextAttemptAt.isAcceptableOrUnknown(
+          data['next_attempt_at']!,
+          _nextAttemptAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sent_at')) {
+      context.handle(
+        _sentAtMeta,
+        sentAt.isAcceptableOrUnknown(data['sent_at']!, _sentAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {deliveryId};
+  @override
+  TelegramDelivery map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TelegramDelivery(
+      deliveryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}delivery_id'],
+      )!,
+      householdId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}household_id'],
+      )!,
+      operation: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operation'],
+      )!,
+      messageText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_text'],
+      )!,
+      entityId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity_id'],
+      ),
+      dedupeKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}dedupe_key'],
+      ),
+      credentialFingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}credential_fingerprint'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      retryable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}retryable'],
+      )!,
+      attemptCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attempt_count'],
+      )!,
+      maxAttempts: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_attempts'],
+      )!,
+      lastError: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_error'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      lastAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_attempt_at'],
+      ),
+      nextAttemptAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}next_attempt_at'],
+      ),
+      sentAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}sent_at'],
+      ),
+    );
+  }
+
+  @override
+  $TelegramDeliveriesTable createAlias(String alias) {
+    return $TelegramDeliveriesTable(attachedDatabase, alias);
+  }
+}
+
+class TelegramDelivery extends DataClass
+    implements Insertable<TelegramDelivery> {
+  final String deliveryId;
+  final String householdId;
+  final String operation;
+  final String messageText;
+  final String? entityId;
+  final String? dedupeKey;
+  final String? credentialFingerprint;
+  final String status;
+  final bool retryable;
+  final int attemptCount;
+  final int maxAttempts;
+  final String? lastError;
+  final DateTime createdAt;
+  final DateTime? lastAttemptAt;
+  final DateTime? nextAttemptAt;
+  final DateTime? sentAt;
+  const TelegramDelivery({
+    required this.deliveryId,
+    required this.householdId,
+    required this.operation,
+    required this.messageText,
+    this.entityId,
+    this.dedupeKey,
+    this.credentialFingerprint,
+    required this.status,
+    required this.retryable,
+    required this.attemptCount,
+    required this.maxAttempts,
+    this.lastError,
+    required this.createdAt,
+    this.lastAttemptAt,
+    this.nextAttemptAt,
+    this.sentAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['delivery_id'] = Variable<String>(deliveryId);
+    map['household_id'] = Variable<String>(householdId);
+    map['operation'] = Variable<String>(operation);
+    map['message_text'] = Variable<String>(messageText);
+    if (!nullToAbsent || entityId != null) {
+      map['entity_id'] = Variable<String>(entityId);
+    }
+    if (!nullToAbsent || dedupeKey != null) {
+      map['dedupe_key'] = Variable<String>(dedupeKey);
+    }
+    if (!nullToAbsent || credentialFingerprint != null) {
+      map['credential_fingerprint'] = Variable<String>(credentialFingerprint);
+    }
+    map['status'] = Variable<String>(status);
+    map['retryable'] = Variable<bool>(retryable);
+    map['attempt_count'] = Variable<int>(attemptCount);
+    map['max_attempts'] = Variable<int>(maxAttempts);
+    if (!nullToAbsent || lastError != null) {
+      map['last_error'] = Variable<String>(lastError);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || lastAttemptAt != null) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt);
+    }
+    if (!nullToAbsent || nextAttemptAt != null) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt);
+    }
+    if (!nullToAbsent || sentAt != null) {
+      map['sent_at'] = Variable<DateTime>(sentAt);
+    }
+    return map;
+  }
+
+  TelegramDeliveriesCompanion toCompanion(bool nullToAbsent) {
+    return TelegramDeliveriesCompanion(
+      deliveryId: Value(deliveryId),
+      householdId: Value(householdId),
+      operation: Value(operation),
+      messageText: Value(messageText),
+      entityId: entityId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(entityId),
+      dedupeKey: dedupeKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(dedupeKey),
+      credentialFingerprint: credentialFingerprint == null && nullToAbsent
+          ? const Value.absent()
+          : Value(credentialFingerprint),
+      status: Value(status),
+      retryable: Value(retryable),
+      attemptCount: Value(attemptCount),
+      maxAttempts: Value(maxAttempts),
+      lastError: lastError == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastError),
+      createdAt: Value(createdAt),
+      lastAttemptAt: lastAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastAttemptAt),
+      nextAttemptAt: nextAttemptAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(nextAttemptAt),
+      sentAt: sentAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sentAt),
+    );
+  }
+
+  factory TelegramDelivery.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TelegramDelivery(
+      deliveryId: serializer.fromJson<String>(json['deliveryId']),
+      householdId: serializer.fromJson<String>(json['householdId']),
+      operation: serializer.fromJson<String>(json['operation']),
+      messageText: serializer.fromJson<String>(json['messageText']),
+      entityId: serializer.fromJson<String?>(json['entityId']),
+      dedupeKey: serializer.fromJson<String?>(json['dedupeKey']),
+      credentialFingerprint: serializer.fromJson<String?>(
+        json['credentialFingerprint'],
+      ),
+      status: serializer.fromJson<String>(json['status']),
+      retryable: serializer.fromJson<bool>(json['retryable']),
+      attemptCount: serializer.fromJson<int>(json['attemptCount']),
+      maxAttempts: serializer.fromJson<int>(json['maxAttempts']),
+      lastError: serializer.fromJson<String?>(json['lastError']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      lastAttemptAt: serializer.fromJson<DateTime?>(json['lastAttemptAt']),
+      nextAttemptAt: serializer.fromJson<DateTime?>(json['nextAttemptAt']),
+      sentAt: serializer.fromJson<DateTime?>(json['sentAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'deliveryId': serializer.toJson<String>(deliveryId),
+      'householdId': serializer.toJson<String>(householdId),
+      'operation': serializer.toJson<String>(operation),
+      'messageText': serializer.toJson<String>(messageText),
+      'entityId': serializer.toJson<String?>(entityId),
+      'dedupeKey': serializer.toJson<String?>(dedupeKey),
+      'credentialFingerprint': serializer.toJson<String?>(
+        credentialFingerprint,
+      ),
+      'status': serializer.toJson<String>(status),
+      'retryable': serializer.toJson<bool>(retryable),
+      'attemptCount': serializer.toJson<int>(attemptCount),
+      'maxAttempts': serializer.toJson<int>(maxAttempts),
+      'lastError': serializer.toJson<String?>(lastError),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'lastAttemptAt': serializer.toJson<DateTime?>(lastAttemptAt),
+      'nextAttemptAt': serializer.toJson<DateTime?>(nextAttemptAt),
+      'sentAt': serializer.toJson<DateTime?>(sentAt),
+    };
+  }
+
+  TelegramDelivery copyWith({
+    String? deliveryId,
+    String? householdId,
+    String? operation,
+    String? messageText,
+    Value<String?> entityId = const Value.absent(),
+    Value<String?> dedupeKey = const Value.absent(),
+    Value<String?> credentialFingerprint = const Value.absent(),
+    String? status,
+    bool? retryable,
+    int? attemptCount,
+    int? maxAttempts,
+    Value<String?> lastError = const Value.absent(),
+    DateTime? createdAt,
+    Value<DateTime?> lastAttemptAt = const Value.absent(),
+    Value<DateTime?> nextAttemptAt = const Value.absent(),
+    Value<DateTime?> sentAt = const Value.absent(),
+  }) => TelegramDelivery(
+    deliveryId: deliveryId ?? this.deliveryId,
+    householdId: householdId ?? this.householdId,
+    operation: operation ?? this.operation,
+    messageText: messageText ?? this.messageText,
+    entityId: entityId.present ? entityId.value : this.entityId,
+    dedupeKey: dedupeKey.present ? dedupeKey.value : this.dedupeKey,
+    credentialFingerprint: credentialFingerprint.present
+        ? credentialFingerprint.value
+        : this.credentialFingerprint,
+    status: status ?? this.status,
+    retryable: retryable ?? this.retryable,
+    attemptCount: attemptCount ?? this.attemptCount,
+    maxAttempts: maxAttempts ?? this.maxAttempts,
+    lastError: lastError.present ? lastError.value : this.lastError,
+    createdAt: createdAt ?? this.createdAt,
+    lastAttemptAt: lastAttemptAt.present
+        ? lastAttemptAt.value
+        : this.lastAttemptAt,
+    nextAttemptAt: nextAttemptAt.present
+        ? nextAttemptAt.value
+        : this.nextAttemptAt,
+    sentAt: sentAt.present ? sentAt.value : this.sentAt,
+  );
+  TelegramDelivery copyWithCompanion(TelegramDeliveriesCompanion data) {
+    return TelegramDelivery(
+      deliveryId: data.deliveryId.present
+          ? data.deliveryId.value
+          : this.deliveryId,
+      householdId: data.householdId.present
+          ? data.householdId.value
+          : this.householdId,
+      operation: data.operation.present ? data.operation.value : this.operation,
+      messageText: data.messageText.present
+          ? data.messageText.value
+          : this.messageText,
+      entityId: data.entityId.present ? data.entityId.value : this.entityId,
+      dedupeKey: data.dedupeKey.present ? data.dedupeKey.value : this.dedupeKey,
+      credentialFingerprint: data.credentialFingerprint.present
+          ? data.credentialFingerprint.value
+          : this.credentialFingerprint,
+      status: data.status.present ? data.status.value : this.status,
+      retryable: data.retryable.present ? data.retryable.value : this.retryable,
+      attemptCount: data.attemptCount.present
+          ? data.attemptCount.value
+          : this.attemptCount,
+      maxAttempts: data.maxAttempts.present
+          ? data.maxAttempts.value
+          : this.maxAttempts,
+      lastError: data.lastError.present ? data.lastError.value : this.lastError,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      lastAttemptAt: data.lastAttemptAt.present
+          ? data.lastAttemptAt.value
+          : this.lastAttemptAt,
+      nextAttemptAt: data.nextAttemptAt.present
+          ? data.nextAttemptAt.value
+          : this.nextAttemptAt,
+      sentAt: data.sentAt.present ? data.sentAt.value : this.sentAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TelegramDelivery(')
+          ..write('deliveryId: $deliveryId, ')
+          ..write('householdId: $householdId, ')
+          ..write('operation: $operation, ')
+          ..write('messageText: $messageText, ')
+          ..write('entityId: $entityId, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('credentialFingerprint: $credentialFingerprint, ')
+          ..write('status: $status, ')
+          ..write('retryable: $retryable, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('maxAttempts: $maxAttempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('sentAt: $sentAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    deliveryId,
+    householdId,
+    operation,
+    messageText,
+    entityId,
+    dedupeKey,
+    credentialFingerprint,
+    status,
+    retryable,
+    attemptCount,
+    maxAttempts,
+    lastError,
+    createdAt,
+    lastAttemptAt,
+    nextAttemptAt,
+    sentAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TelegramDelivery &&
+          other.deliveryId == this.deliveryId &&
+          other.householdId == this.householdId &&
+          other.operation == this.operation &&
+          other.messageText == this.messageText &&
+          other.entityId == this.entityId &&
+          other.dedupeKey == this.dedupeKey &&
+          other.credentialFingerprint == this.credentialFingerprint &&
+          other.status == this.status &&
+          other.retryable == this.retryable &&
+          other.attemptCount == this.attemptCount &&
+          other.maxAttempts == this.maxAttempts &&
+          other.lastError == this.lastError &&
+          other.createdAt == this.createdAt &&
+          other.lastAttemptAt == this.lastAttemptAt &&
+          other.nextAttemptAt == this.nextAttemptAt &&
+          other.sentAt == this.sentAt);
+}
+
+class TelegramDeliveriesCompanion extends UpdateCompanion<TelegramDelivery> {
+  final Value<String> deliveryId;
+  final Value<String> householdId;
+  final Value<String> operation;
+  final Value<String> messageText;
+  final Value<String?> entityId;
+  final Value<String?> dedupeKey;
+  final Value<String?> credentialFingerprint;
+  final Value<String> status;
+  final Value<bool> retryable;
+  final Value<int> attemptCount;
+  final Value<int> maxAttempts;
+  final Value<String?> lastError;
+  final Value<DateTime> createdAt;
+  final Value<DateTime?> lastAttemptAt;
+  final Value<DateTime?> nextAttemptAt;
+  final Value<DateTime?> sentAt;
+  final Value<int> rowid;
+  const TelegramDeliveriesCompanion({
+    this.deliveryId = const Value.absent(),
+    this.householdId = const Value.absent(),
+    this.operation = const Value.absent(),
+    this.messageText = const Value.absent(),
+    this.entityId = const Value.absent(),
+    this.dedupeKey = const Value.absent(),
+    this.credentialFingerprint = const Value.absent(),
+    this.status = const Value.absent(),
+    this.retryable = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.maxAttempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.lastAttemptAt = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.sentAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  TelegramDeliveriesCompanion.insert({
+    required String deliveryId,
+    required String householdId,
+    required String operation,
+    required String messageText,
+    this.entityId = const Value.absent(),
+    this.dedupeKey = const Value.absent(),
+    this.credentialFingerprint = const Value.absent(),
+    this.status = const Value.absent(),
+    this.retryable = const Value.absent(),
+    this.attemptCount = const Value.absent(),
+    this.maxAttempts = const Value.absent(),
+    this.lastError = const Value.absent(),
+    required DateTime createdAt,
+    this.lastAttemptAt = const Value.absent(),
+    this.nextAttemptAt = const Value.absent(),
+    this.sentAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : deliveryId = Value(deliveryId),
+       householdId = Value(householdId),
+       operation = Value(operation),
+       messageText = Value(messageText),
+       createdAt = Value(createdAt);
+  static Insertable<TelegramDelivery> custom({
+    Expression<String>? deliveryId,
+    Expression<String>? householdId,
+    Expression<String>? operation,
+    Expression<String>? messageText,
+    Expression<String>? entityId,
+    Expression<String>? dedupeKey,
+    Expression<String>? credentialFingerprint,
+    Expression<String>? status,
+    Expression<bool>? retryable,
+    Expression<int>? attemptCount,
+    Expression<int>? maxAttempts,
+    Expression<String>? lastError,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? lastAttemptAt,
+    Expression<DateTime>? nextAttemptAt,
+    Expression<DateTime>? sentAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (deliveryId != null) 'delivery_id': deliveryId,
+      if (householdId != null) 'household_id': householdId,
+      if (operation != null) 'operation': operation,
+      if (messageText != null) 'message_text': messageText,
+      if (entityId != null) 'entity_id': entityId,
+      if (dedupeKey != null) 'dedupe_key': dedupeKey,
+      if (credentialFingerprint != null)
+        'credential_fingerprint': credentialFingerprint,
+      if (status != null) 'status': status,
+      if (retryable != null) 'retryable': retryable,
+      if (attemptCount != null) 'attempt_count': attemptCount,
+      if (maxAttempts != null) 'max_attempts': maxAttempts,
+      if (lastError != null) 'last_error': lastError,
+      if (createdAt != null) 'created_at': createdAt,
+      if (lastAttemptAt != null) 'last_attempt_at': lastAttemptAt,
+      if (nextAttemptAt != null) 'next_attempt_at': nextAttemptAt,
+      if (sentAt != null) 'sent_at': sentAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  TelegramDeliveriesCompanion copyWith({
+    Value<String>? deliveryId,
+    Value<String>? householdId,
+    Value<String>? operation,
+    Value<String>? messageText,
+    Value<String?>? entityId,
+    Value<String?>? dedupeKey,
+    Value<String?>? credentialFingerprint,
+    Value<String>? status,
+    Value<bool>? retryable,
+    Value<int>? attemptCount,
+    Value<int>? maxAttempts,
+    Value<String?>? lastError,
+    Value<DateTime>? createdAt,
+    Value<DateTime?>? lastAttemptAt,
+    Value<DateTime?>? nextAttemptAt,
+    Value<DateTime?>? sentAt,
+    Value<int>? rowid,
+  }) {
+    return TelegramDeliveriesCompanion(
+      deliveryId: deliveryId ?? this.deliveryId,
+      householdId: householdId ?? this.householdId,
+      operation: operation ?? this.operation,
+      messageText: messageText ?? this.messageText,
+      entityId: entityId ?? this.entityId,
+      dedupeKey: dedupeKey ?? this.dedupeKey,
+      credentialFingerprint:
+          credentialFingerprint ?? this.credentialFingerprint,
+      status: status ?? this.status,
+      retryable: retryable ?? this.retryable,
+      attemptCount: attemptCount ?? this.attemptCount,
+      maxAttempts: maxAttempts ?? this.maxAttempts,
+      lastError: lastError ?? this.lastError,
+      createdAt: createdAt ?? this.createdAt,
+      lastAttemptAt: lastAttemptAt ?? this.lastAttemptAt,
+      nextAttemptAt: nextAttemptAt ?? this.nextAttemptAt,
+      sentAt: sentAt ?? this.sentAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (deliveryId.present) {
+      map['delivery_id'] = Variable<String>(deliveryId.value);
+    }
+    if (householdId.present) {
+      map['household_id'] = Variable<String>(householdId.value);
+    }
+    if (operation.present) {
+      map['operation'] = Variable<String>(operation.value);
+    }
+    if (messageText.present) {
+      map['message_text'] = Variable<String>(messageText.value);
+    }
+    if (entityId.present) {
+      map['entity_id'] = Variable<String>(entityId.value);
+    }
+    if (dedupeKey.present) {
+      map['dedupe_key'] = Variable<String>(dedupeKey.value);
+    }
+    if (credentialFingerprint.present) {
+      map['credential_fingerprint'] = Variable<String>(
+        credentialFingerprint.value,
+      );
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (retryable.present) {
+      map['retryable'] = Variable<bool>(retryable.value);
+    }
+    if (attemptCount.present) {
+      map['attempt_count'] = Variable<int>(attemptCount.value);
+    }
+    if (maxAttempts.present) {
+      map['max_attempts'] = Variable<int>(maxAttempts.value);
+    }
+    if (lastError.present) {
+      map['last_error'] = Variable<String>(lastError.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (lastAttemptAt.present) {
+      map['last_attempt_at'] = Variable<DateTime>(lastAttemptAt.value);
+    }
+    if (nextAttemptAt.present) {
+      map['next_attempt_at'] = Variable<DateTime>(nextAttemptAt.value);
+    }
+    if (sentAt.present) {
+      map['sent_at'] = Variable<DateTime>(sentAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TelegramDeliveriesCompanion(')
+          ..write('deliveryId: $deliveryId, ')
+          ..write('householdId: $householdId, ')
+          ..write('operation: $operation, ')
+          ..write('messageText: $messageText, ')
+          ..write('entityId: $entityId, ')
+          ..write('dedupeKey: $dedupeKey, ')
+          ..write('credentialFingerprint: $credentialFingerprint, ')
+          ..write('status: $status, ')
+          ..write('retryable: $retryable, ')
+          ..write('attemptCount: $attemptCount, ')
+          ..write('maxAttempts: $maxAttempts, ')
+          ..write('lastError: $lastError, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('lastAttemptAt: $lastAttemptAt, ')
+          ..write('nextAttemptAt: $nextAttemptAt, ')
+          ..write('sentAt: $sentAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -32192,6 +33146,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantAgentTasksTable(this);
   late final $AssistantAgentTaskExecutionsTable assistantAgentTaskExecutions =
       $AssistantAgentTaskExecutionsTable(this);
+  late final $TelegramDeliveriesTable telegramDeliveries =
+      $TelegramDeliveriesTable(this);
+  late final Index idxTelegramDeliveriesDue = Index(
+    'idx_telegram_deliveries_due',
+    'CREATE INDEX idx_telegram_deliveries_due ON telegram_deliveries (household_id, status, retryable, next_attempt_at)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -32247,6 +33207,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     assistantAgentGoals,
     assistantAgentTasks,
     assistantAgentTaskExecutions,
+    telegramDeliveries,
+    idxTelegramDeliveriesDue,
   ];
 }
 
@@ -48080,6 +49042,444 @@ typedef $$AssistantAgentTaskExecutionsTableProcessedTableManager =
       AssistantAgentTaskExecution,
       PrefetchHooks Function()
     >;
+typedef $$TelegramDeliveriesTableCreateCompanionBuilder =
+    TelegramDeliveriesCompanion Function({
+      required String deliveryId,
+      required String householdId,
+      required String operation,
+      required String messageText,
+      Value<String?> entityId,
+      Value<String?> dedupeKey,
+      Value<String?> credentialFingerprint,
+      Value<String> status,
+      Value<bool> retryable,
+      Value<int> attemptCount,
+      Value<int> maxAttempts,
+      Value<String?> lastError,
+      required DateTime createdAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<DateTime?> nextAttemptAt,
+      Value<DateTime?> sentAt,
+      Value<int> rowid,
+    });
+typedef $$TelegramDeliveriesTableUpdateCompanionBuilder =
+    TelegramDeliveriesCompanion Function({
+      Value<String> deliveryId,
+      Value<String> householdId,
+      Value<String> operation,
+      Value<String> messageText,
+      Value<String?> entityId,
+      Value<String?> dedupeKey,
+      Value<String?> credentialFingerprint,
+      Value<String> status,
+      Value<bool> retryable,
+      Value<int> attemptCount,
+      Value<int> maxAttempts,
+      Value<String?> lastError,
+      Value<DateTime> createdAt,
+      Value<DateTime?> lastAttemptAt,
+      Value<DateTime?> nextAttemptAt,
+      Value<DateTime?> sentAt,
+      Value<int> rowid,
+    });
+
+class $$TelegramDeliveriesTableFilterComposer
+    extends Composer<_$AppDatabase, $TelegramDeliveriesTable> {
+  $$TelegramDeliveriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get deliveryId => $composableBuilder(
+    column: $table.deliveryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get credentialFingerprint => $composableBuilder(
+    column: $table.credentialFingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get retryable => $composableBuilder(
+    column: $table.retryable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxAttempts => $composableBuilder(
+    column: $table.maxAttempts,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get sentAt => $composableBuilder(
+    column: $table.sentAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$TelegramDeliveriesTableOrderingComposer
+    extends Composer<_$AppDatabase, $TelegramDeliveriesTable> {
+  $$TelegramDeliveriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get deliveryId => $composableBuilder(
+    column: $table.deliveryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get operation => $composableBuilder(
+    column: $table.operation,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get entityId => $composableBuilder(
+    column: $table.entityId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dedupeKey => $composableBuilder(
+    column: $table.dedupeKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get credentialFingerprint => $composableBuilder(
+    column: $table.credentialFingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get retryable => $composableBuilder(
+    column: $table.retryable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxAttempts => $composableBuilder(
+    column: $table.maxAttempts,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastError => $composableBuilder(
+    column: $table.lastError,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get sentAt => $composableBuilder(
+    column: $table.sentAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$TelegramDeliveriesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $TelegramDeliveriesTable> {
+  $$TelegramDeliveriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get deliveryId => $composableBuilder(
+    column: $table.deliveryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get householdId => $composableBuilder(
+    column: $table.householdId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get operation =>
+      $composableBuilder(column: $table.operation, builder: (column) => column);
+
+  GeneratedColumn<String> get messageText => $composableBuilder(
+    column: $table.messageText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get entityId =>
+      $composableBuilder(column: $table.entityId, builder: (column) => column);
+
+  GeneratedColumn<String> get dedupeKey =>
+      $composableBuilder(column: $table.dedupeKey, builder: (column) => column);
+
+  GeneratedColumn<String> get credentialFingerprint => $composableBuilder(
+    column: $table.credentialFingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<bool> get retryable =>
+      $composableBuilder(column: $table.retryable, builder: (column) => column);
+
+  GeneratedColumn<int> get attemptCount => $composableBuilder(
+    column: $table.attemptCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxAttempts => $composableBuilder(
+    column: $table.maxAttempts,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastError =>
+      $composableBuilder(column: $table.lastError, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastAttemptAt => $composableBuilder(
+    column: $table.lastAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get nextAttemptAt => $composableBuilder(
+    column: $table.nextAttemptAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get sentAt =>
+      $composableBuilder(column: $table.sentAt, builder: (column) => column);
+}
+
+class $$TelegramDeliveriesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TelegramDeliveriesTable,
+          TelegramDelivery,
+          $$TelegramDeliveriesTableFilterComposer,
+          $$TelegramDeliveriesTableOrderingComposer,
+          $$TelegramDeliveriesTableAnnotationComposer,
+          $$TelegramDeliveriesTableCreateCompanionBuilder,
+          $$TelegramDeliveriesTableUpdateCompanionBuilder,
+          (
+            TelegramDelivery,
+            BaseReferences<
+              _$AppDatabase,
+              $TelegramDeliveriesTable,
+              TelegramDelivery
+            >,
+          ),
+          TelegramDelivery,
+          PrefetchHooks Function()
+        > {
+  $$TelegramDeliveriesTableTableManager(
+    _$AppDatabase db,
+    $TelegramDeliveriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TelegramDeliveriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TelegramDeliveriesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$TelegramDeliveriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> deliveryId = const Value.absent(),
+                Value<String> householdId = const Value.absent(),
+                Value<String> operation = const Value.absent(),
+                Value<String> messageText = const Value.absent(),
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> dedupeKey = const Value.absent(),
+                Value<String?> credentialFingerprint = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<bool> retryable = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<int> maxAttempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<DateTime?> sentAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TelegramDeliveriesCompanion(
+                deliveryId: deliveryId,
+                householdId: householdId,
+                operation: operation,
+                messageText: messageText,
+                entityId: entityId,
+                dedupeKey: dedupeKey,
+                credentialFingerprint: credentialFingerprint,
+                status: status,
+                retryable: retryable,
+                attemptCount: attemptCount,
+                maxAttempts: maxAttempts,
+                lastError: lastError,
+                createdAt: createdAt,
+                lastAttemptAt: lastAttemptAt,
+                nextAttemptAt: nextAttemptAt,
+                sentAt: sentAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String deliveryId,
+                required String householdId,
+                required String operation,
+                required String messageText,
+                Value<String?> entityId = const Value.absent(),
+                Value<String?> dedupeKey = const Value.absent(),
+                Value<String?> credentialFingerprint = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<bool> retryable = const Value.absent(),
+                Value<int> attemptCount = const Value.absent(),
+                Value<int> maxAttempts = const Value.absent(),
+                Value<String?> lastError = const Value.absent(),
+                required DateTime createdAt,
+                Value<DateTime?> lastAttemptAt = const Value.absent(),
+                Value<DateTime?> nextAttemptAt = const Value.absent(),
+                Value<DateTime?> sentAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => TelegramDeliveriesCompanion.insert(
+                deliveryId: deliveryId,
+                householdId: householdId,
+                operation: operation,
+                messageText: messageText,
+                entityId: entityId,
+                dedupeKey: dedupeKey,
+                credentialFingerprint: credentialFingerprint,
+                status: status,
+                retryable: retryable,
+                attemptCount: attemptCount,
+                maxAttempts: maxAttempts,
+                lastError: lastError,
+                createdAt: createdAt,
+                lastAttemptAt: lastAttemptAt,
+                nextAttemptAt: nextAttemptAt,
+                sentAt: sentAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TelegramDeliveriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TelegramDeliveriesTable,
+      TelegramDelivery,
+      $$TelegramDeliveriesTableFilterComposer,
+      $$TelegramDeliveriesTableOrderingComposer,
+      $$TelegramDeliveriesTableAnnotationComposer,
+      $$TelegramDeliveriesTableCreateCompanionBuilder,
+      $$TelegramDeliveriesTableUpdateCompanionBuilder,
+      (
+        TelegramDelivery,
+        BaseReferences<
+          _$AppDatabase,
+          $TelegramDeliveriesTable,
+          TelegramDelivery
+        >,
+      ),
+      TelegramDelivery,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -48214,4 +49614,6 @@ class $AppDatabaseManager {
         _db,
         _db.assistantAgentTaskExecutions,
       );
+  $$TelegramDeliveriesTableTableManager get telegramDeliveries =>
+      $$TelegramDeliveriesTableTableManager(_db, _db.telegramDeliveries);
 }

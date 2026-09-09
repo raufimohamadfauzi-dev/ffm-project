@@ -1,3 +1,4 @@
+import 'package:uuid/uuid.dart';
 import 'entities/activity_entity.dart';
 
 enum ActivityVoiceIntentType {
@@ -123,7 +124,7 @@ class VoiceActivityDraft {
     this.categoryName = '',
     this.notes,
     DateTime? startedAt,
-  }) : draftId = 'voice-${DateTime.now().microsecondsSinceEpoch}',
+  }) : draftId = 'voice-${const Uuid().v4()}',
        startedAt = startedAt ?? DateTime.now();
 
   final String draftId;

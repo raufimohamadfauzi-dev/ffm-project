@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:drift/drift.dart';
+
 import '../../../core/database/app_database.dart';
 import '../../../core/di/injection.dart';
 import '../../advisor/data/cash_flow_profile_repository.dart';
@@ -16,6 +18,8 @@ import 'ffm_assistant_insight.dart';
 import 'ffm_proactive_delivery_policy.dart';
 import '../data/telegram_bot_service.dart';
 import '../data/telegram_config_repository.dart';
+import '../data/telegram_delivery_processor.dart';
+import '../data/telegram_delivery_repository.dart';
 import '../data/telegram_message_formatter.dart';
 
 class AutonomousEvaluationCoordinator {
@@ -27,23 +31,26 @@ class AutonomousEvaluationCoordinator {
     this.deliveryPolicy,
     this.telegramBotService,
     this.telegramConfigRepository,
+    this.telegramDeliveryRepository,
+    this.telegramDeliveryProcessor,
     CashFlowProfileRepository? cashFlowProfileRepository,
-  })  : _db = database,
-        _repo = insightRepository,
-        _clock = clock ?? DateTime.now,
-        _runwayDetector = PredictiveRunwayDetector(
-          database,
-          cashFlowRepo: cashFlowProfileRepository ??
-              (getIt.isRegistered<CashFlowProfileRepository>()
-                  ? getIt<CashFlowProfileRepository>()
-                  : null),
-        ),
-        _rebalanceDetector = IntelligentEnvelopeRebalanceDetector(database),
-        _spikeDetector = AnomalySpikeDetector(database),
-        _latteDetector = MicroExpenseLeakDetector(database),
-        _dsrDetector = DebtServiceRatioDetector(database),
-        _goalDetector = GoalProgressRiskDetector(database),
-        _debtPayoffDetector = DebtPayoffAccelerationDetector(database);
+  }) : _db = database,
+       _repo = insightRepository,
+       _clock = clock ?? DateTime.now,
+       _runwayDetector = PredictiveRunwayDetector(
+         database,
+         cashFlowRepo:
+             cashFlowProfileRepository ??
+             (getIt.isRegistered<CashFlowProfileRepository>()
+                 ? getIt<CashFlowProfileRepository>()
+                 : null),
+       ),
+       _rebalanceDetector = IntelligentEnvelopeRebalanceDetector(database),
+       _spikeDetector = AnomalySpikeDetector(database),
+       _latteDetector = MicroExpenseLeakDetector(database),
+       _dsrDetector = DebtServiceRatioDetector(database),
+       _goalDetector = GoalProgressRiskDetector(database),
+       _debtPayoffDetector = DebtPayoffAccelerationDetector(database);
 
   static final Map<String, DateTime> _lastEvaluationTimes = {};
   static const Duration minimumEvaluationInterval = Duration(seconds: 15);
@@ -59,6 +66,8 @@ class AutonomousEvaluationCoordinator {
   final FfmProactiveDeliveryPolicy? deliveryPolicy;
   final TelegramBotService? telegramBotService;
   final TelegramConfigRepository? telegramConfigRepository;
+  final TelegramDeliveryRepository? telegramDeliveryRepository;
+  final TelegramDeliveryProcessor? telegramDeliveryProcessor;
 
   final PredictiveRunwayDetector _runwayDetector;
   final IntelligentEnvelopeRebalanceDetector _rebalanceDetector;
@@ -92,22 +101,34 @@ class AutonomousEvaluationCoordinator {
     // Jalankan setiap detektor secara independen dengan try/catch agar
     // kegagalan satu detektor tidak menghentikan detektor lainnya.
     try {
-      final runway = await _runwayDetector.detect(householdId: householdId, now: now);
+      final runway = await _runwayDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (runway != null) candidates.add(runway);
     } catch (_) {}
 
     try {
-      final rebalance = await _rebalanceDetector.detect(householdId: householdId, now: now);
+      final rebalance = await _rebalanceDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (rebalance != null) candidates.add(rebalance);
     } catch (_) {}
 
     try {
-      final spike = await _spikeDetector.detect(householdId: householdId, now: now);
+      final spike = await _spikeDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (spike != null) candidates.add(spike);
     } catch (_) {}
 
     try {
-      final latte = await _latteDetector.detect(householdId: householdId, now: now);
+      final latte = await _latteDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (latte != null) candidates.add(latte);
     } catch (_) {}
 
@@ -117,12 +138,18 @@ class AutonomousEvaluationCoordinator {
     } catch (_) {}
 
     try {
-      final goal = await _goalDetector.detect(householdId: householdId, now: now);
+      final goal = await _goalDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (goal != null) candidates.add(goal);
     } catch (_) {}
 
     try {
-      final payoff = await _debtPayoffDetector.detect(householdId: householdId, now: now);
+      final payoff = await _debtPayoffDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
       if (payoff != null) candidates.add(payoff);
     } catch (_) {}
 
@@ -169,26 +196,85 @@ class AutonomousEvaluationCoordinator {
       }
     }
 
-    // Jika ada insight baru dan integrasi Telegram Bot aktif, kirim salinan peringatan radar
+    // Jika ada insight baru dan integrasi Telegram Bot aktif, kirim salinan
+    // peringatan radar. Saat outbox tersedia, peringatan diantrekan durabel
+    // (deduplikasi per insight + retry otomatis + status aktual). Tanpa
+    // outbox, dipakai jalur langsung lama untuk kompatibilitas.
     if (savedInsights.isNotEmpty &&
         telegramBotService != null &&
         telegramConfigRepository != null) {
+      // ignore: avoid_catches_without_on_clauses
       try {
         final teleConfig = await telegramConfigRepository!.loadConfig();
         if (teleConfig.isReady && teleConfig.alertsEnabled) {
-          for (final saved in savedInsights) {
-            // Teruskan wawasan prioritas tinggi (>= 70) ke Telegram
-            if (saved.priority >= 70) {
-              final alertMsg = TelegramMessageFormatter.formatAlertMessage(
-                title: saved.title,
-                summary: saved.summary,
+          final highPriority = savedInsights
+              .where((s) => s.priority >= 70)
+              .toList(growable: false);
+          if (highPriority.isNotEmpty) {
+            if (telegramDeliveryRepository != null &&
+                telegramDeliveryProcessor != null) {
+              final deliveryNow = _clock();
+              for (final insight in highPriority) {
+                await telegramDeliveryRepository!.enqueue(
+                  deliveryId: 'telegram:alert:${insight.id}',
+                  householdId: householdId,
+                  operation: 'alert',
+                  messageText: TelegramMessageFormatter.formatAlertMessage(
+                    title: insight.title,
+                    summary: insight.summary,
+                  ),
+                  entityId: insight.id,
+                  dedupeKey: 'telegram:alert:${insight.id}',
+                  credentialFingerprint:
+                      TelegramConfigRepository.credentialFingerprintFor(
+                        teleConfig.botToken,
+                        teleConfig.chatId,
+                      ),
+                  createdAt: deliveryNow,
+                );
+              }
+              // Proses segera agar alarm tidak menunggu siklus background;
+              // bila gagal di tengah jalan, antrean diproses ulang nanti.
+              await telegramDeliveryProcessor!.processPending(
+                householdId: householdId,
               );
-              await telegramBotService!.sendMessage(
-                botToken: teleConfig.botToken,
-                chatId: teleConfig.chatId,
-                text: alertMsg,
-              );
-              break;
+            } else {
+              for (final insight in highPriority) {
+                // ignore: avoid_catches_without_on_clauses
+                try {
+                  if (await telegramConfigRepository!.isAlertDelivered(
+                    insight.id,
+                  )) {
+                    continue;
+                  }
+                  final alertMsg = TelegramMessageFormatter.formatAlertMessage(
+                    title: insight.title,
+                    summary: insight.summary,
+                  );
+                  final alertResult = await telegramBotService!.sendMessage(
+                    botToken: teleConfig.botToken,
+                    chatId: teleConfig.chatId,
+                    text: alertMsg,
+                  );
+                  if (alertResult.success) {
+                    await telegramConfigRepository!.markAlertDelivered(
+                      insight.id,
+                    );
+                    await telegramConfigRepository!.recordDeliveryStatus(
+                      status: TelegramDeliveryStatus.sent,
+                      message: 'Peringatan radar terkirim.',
+                    );
+                  } else {
+                    await telegramConfigRepository!.markAlertFailed(insight.id);
+                    await telegramConfigRepository!.recordDeliveryStatus(
+                      status: TelegramDeliveryStatus.failed,
+                      message: alertResult.message,
+                    );
+                  }
+                } catch (_) {
+                  await telegramConfigRepository!.markAlertFailed(insight.id);
+                }
+              }
             }
           }
         }
@@ -219,23 +305,25 @@ class AutonomousEvaluationCoordinator {
 
       final now = _clock();
       if (!force) {
-        final lastSent =
-            await telegramConfigRepository!.loadLastWeeklyReportSent();
-        if (lastSent != null) {
-          final diffDays = now.difference(lastSent).inDays;
-          // Jangan kirim ulang otomatis jika belum ada 6 hari sejak pengiriman terakhir
-          if (diffDays < 6) return false;
-        }
+        // Klaim atomik: hanya satu pemicu (background/manual) yang boleh mengirim.
+        final claimed = await telegramConfigRepository!.claimWeeklyReport(
+          periodKey: householdId,
+          now: now,
+        );
+        if (!claimed) return false;
       }
+      final claimKey = householdId;
 
       // Kumpulkan data transaksi 7 hari terakhir secara deterministik
       final sevenDaysAgo = now.subtract(const Duration(days: 7));
-      final allTxs = await (_db.select(_db.transactions)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false) &
-                row.isDeleted.equals(false)))
-          .get();
+      final allTxs =
+          await (_db.select(_db.transactions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
+              ))
+              .get();
 
       var totalExpense = 0;
       var totalIncome = 0;
@@ -263,9 +351,9 @@ class AutonomousEvaluationCoordinator {
         topCatAmount = topEntry.value;
 
         if (topEntry.key != 'uncategorized') {
-          final cat = await (_db.select(_db.categories)
-                ..where((c) => c.id.equals(topEntry.key)))
-              .getSingleOrNull();
+          final cat = await (_db.select(
+            _db.categories,
+          )..where((c) => c.id.equals(topEntry.key))).getSingleOrNull();
           topCatName = cat?.name;
         } else {
           topCatName = 'Lain-lain';
@@ -273,12 +361,14 @@ class AutonomousEvaluationCoordinator {
       }
 
       // Hitung total saldo kas likuid dari rekening aktif
-      final accounts = await (_db.select(_db.accounts)
-            ..where((row) =>
-                row.householdId.equals(householdId) &
-                row.isActive.equals(true) &
-                row.isArchived.equals(false)))
-          .get();
+      final accounts =
+          await (_db.select(_db.accounts)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isActive.equals(true) &
+                    row.isArchived.equals(false),
+              ))
+              .get();
 
       int liquidCash = 0;
       for (final acc in accounts) {
@@ -292,9 +382,9 @@ class AutonomousEvaluationCoordinator {
       }
 
       // Ambil profil keluarga
-      final household = await (_db.select(_db.households)
-            ..where((h) => h.id.equals(householdId)))
-          .getSingleOrNull();
+      final household = await (_db.select(
+        _db.households,
+      )..where((h) => h.id.equals(householdId))).getSingleOrNull();
 
       final reportMsg = TelegramMessageFormatter.formatWeeklyReport(
         familyName: household?.name,
@@ -310,6 +400,50 @@ class AutonomousEvaluationCoordinator {
             : null,
       );
 
+      if (telegramDeliveryRepository != null &&
+          telegramDeliveryProcessor != null) {
+        final deliveryNow = _clock();
+        final periodKey = _weeklyPeriodKey(householdId, deliveryNow);
+        final deliveryId = force
+            ? 'telegram:weekly:$householdId:manual:${deliveryNow.microsecondsSinceEpoch}'
+            : periodKey;
+        final enqueued = await telegramDeliveryRepository!.enqueue(
+          deliveryId: deliveryId,
+          householdId: householdId,
+          operation: 'weekly.report',
+          messageText: reportMsg,
+          entityId: periodKey,
+          dedupeKey: force ? null : periodKey,
+          credentialFingerprint:
+              TelegramConfigRepository.credentialFingerprintFor(
+                config.botToken,
+                config.chatId,
+              ),
+          createdAt: deliveryNow,
+        );
+        // Proses segera agar "Kirim Sekarang" dan catch-up tetap responsif;
+        // bila gagal di tengah jalan, siklus background mencoba lagi.
+        if (force || enqueued) {
+          await telegramDeliveryProcessor!.processPending(
+            householdId: householdId,
+          );
+        }
+        final row = await telegramDeliveryRepository!.deliveryById(deliveryId);
+        if (row != null && row.status == 'sent') {
+          await telegramConfigRepository!.recordDeliveryStatus(
+            status: TelegramDeliveryStatus.sent,
+            message: 'Laporan mingguan terkirim.',
+          );
+          return true;
+        }
+        await telegramConfigRepository!.recordDeliveryStatus(
+          status: TelegramDeliveryStatus.failed,
+          message:
+              row?.lastError ?? 'Laporan mingguan masih menunggu pengiriman.',
+        );
+        return false;
+      }
+
       final result = await telegramBotService!.sendMessage(
         botToken: config.botToken,
         chatId: config.chatId,
@@ -318,11 +452,41 @@ class AutonomousEvaluationCoordinator {
 
       if (result.success) {
         await telegramConfigRepository!.saveLastWeeklyReportSent(now);
+        await telegramConfigRepository!.completeWeeklyReport(
+          periodKey: claimKey,
+          now: now,
+        );
+        await telegramConfigRepository!.recordDeliveryStatus(
+          status: TelegramDeliveryStatus.sent,
+          message: 'Laporan mingguan terkirim.',
+        );
         return true;
       }
+      await telegramConfigRepository!.failWeeklyReport(
+        periodKey: claimKey,
+        now: now,
+      );
+      await telegramConfigRepository!.recordDeliveryStatus(
+        status: TelegramDeliveryStatus.failed,
+        message: result.message,
+      );
       return false;
     } catch (_) {
+      await telegramConfigRepository?.failWeeklyReport(
+        periodKey: householdId,
+        now: _clock(),
+      );
       return false;
     }
+  }
+
+  /// Kunci periode mingguan (tahun + nomor minggu ISO) untuk deduplikasi
+  /// laporan di seluruh siklus evaluasi.
+  String _weeklyPeriodKey(String householdId, DateTime time) {
+    final day = DateTime(time.year, time.month, time.day);
+    final thursday = day.add(Duration(days: DateTime.thursday - day.weekday));
+    final jan1 = DateTime(thursday.year, 1, 1);
+    final week = (thursday.difference(jan1).inDays / 7).floor() + 1;
+    return '$householdId:${thursday.year}-W${week.toString().padLeft(2, '0')}';
   }
 }

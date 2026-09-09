@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../assistant/data/autonomous_activity_repository.dart';
@@ -67,7 +68,7 @@ class AssetAutoValuationService {
           'Rp ${diff.abs().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
       await activityRepository.recordActivity(
         AutonomousActivityRecord(
-          id: 'reval_${DateTime.now().millisecondsSinceEpoch}',
+          id: 'reval_${const Uuid().v4()}',
           householdId: householdId,
           title: 'Revaluasi Pasar: ${result.revaluedCount} Aset Diperbarui',
           description:
@@ -96,10 +97,36 @@ class AssetAutoValuationService {
     required MarketPriceSnapshot snapshot,
     required String householdId,
   }) async {
-    final assets = await (db.select(db.assets)
-          ..where((a) =>
-              a.householdId.equals(householdId) & a.isArchived.equals(false)))
-        .get();
+    // If the market data is from an offline fallback, avoid revaluation to prevent using stale/fallback prices.
+    if (snapshot.isOfflineCache) {
+      // Compute total current value without changes.
+      final assets =
+          await (db.select(db.assets)..where(
+                (a) =>
+                    a.householdId.equals(householdId) &
+                    a.isArchived.equals(false),
+              ))
+              .get();
+      var totalBefore = 0;
+      for (final asset in assets) {
+        totalBefore += asset.value;
+      }
+      return AssetAutoValuationResult(
+        revaluedCount: 0,
+        totalValueBefore: totalBefore,
+        totalValueAfter: totalBefore,
+        revaluedAssetNames: [],
+        previousValues: {},
+      );
+    }
+
+    final assets =
+        await (db.select(db.assets)..where(
+              (a) =>
+                  a.householdId.equals(householdId) &
+                  a.isArchived.equals(false),
+            ))
+            .get();
 
     var count = 0;
     var totalBefore = 0;
@@ -120,7 +147,9 @@ class AssetAutoValuationService {
         final weight = _extractWeightGrams(textCombined);
         final karat = _extractKarat(textCombined);
 
-        if (weight != null && weight > 0) {
+        if (weight != null &&
+            weight > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.gold24K)) {
           computedNewValue = GoldKarat.calculateValueStatic(
             weightGrams: weight,
             karat: karat,
@@ -132,9 +161,12 @@ class AssetAutoValuationService {
       else if (textCombined.contains('usd') ||
           textCombined.contains('dollar') ||
           textCombined.contains('dolar')) {
-        final nominal = _extractForeignNominal(textCombined, 'usd') ??
+        final nominal =
+            _extractForeignNominal(textCombined, 'usd') ??
             _extractForeignNominal(textCombined, r'\$');
-        if (nominal != null && nominal > 0) {
+        if (nominal != null &&
+            nominal > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.usd)) {
           computedNewValue = (nominal * snapshot.usdRate).round();
         }
       }
@@ -142,16 +174,20 @@ class AssetAutoValuationService {
       else if (textCombined.contains('sgd') ||
           textCombined.contains('dolar singapura')) {
         final nominal = _extractForeignNominal(textCombined, 'sgd');
-        if (nominal != null && nominal > 0) {
+        if (nominal != null &&
+            nominal > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.sgd)) {
           computedNewValue = (nominal * snapshot.sgdRate).round();
         }
       }
       // 4. Deteksi Valas SAR (Riyal Tabungan Haji/Umrah)
-      else if (textCombined.contains('sar') ||
-          textCombined.contains('riyal')) {
-        final nominal = _extractForeignNominal(textCombined, 'sar') ??
+      else if (textCombined.contains('sar') || textCombined.contains('riyal')) {
+        final nominal =
+            _extractForeignNominal(textCombined, 'sar') ??
             _extractForeignNominal(textCombined, 'riyal');
-        if (nominal != null && nominal > 0) {
+        if (nominal != null &&
+            nominal > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.sar)) {
           computedNewValue = (nominal * snapshot.sarRate).round();
         }
       }
@@ -164,12 +200,17 @@ class AssetAutoValuationService {
           previousValues[asset.id] = asset.value;
 
           // Update nilai aset di database secara langsung
-          await (db.update(db.assets)..where((a) => a.id.equals(asset.id))).write(
-            AssetsCompanion(
-              value: Value(computedNewValue),
-              updatedAt: Value(DateTime.now()),
-            ),
-          );
+          // Only update the asset if we have authoritative market data (i.e., not offline).
+          if (!snapshot.isOfflineCache) {
+            await (db.update(
+              db.assets,
+            )..where((a) => a.id.equals(asset.id))).write(
+              AssetsCompanion(
+                value: Value(computedNewValue),
+                updatedAt: Value(DateTime.now()),
+              ),
+            );
+          }
         }
       } else {
         totalAfter += asset.value;
@@ -196,16 +237,27 @@ class AssetAutoValuationService {
   }
 
   GoldKarat _extractKarat(String text) {
-    if (text.contains('22k') || text.contains('22 karat') || text.contains('emas tua')) {
+    if (text.contains('22k') ||
+        text.contains('k22') ||
+        text.contains('22 karat') ||
+        text.contains('emas tua')) {
       return GoldKarat.k22;
     }
-    if (text.contains('18k') || text.contains('18 karat') || text.contains('toko emas')) {
+    if (text.contains('18k') ||
+        text.contains('k18') ||
+        text.contains('18 karat') ||
+        text.contains('toko emas')) {
       return GoldKarat.k18;
     }
-    if (text.contains('16k') || text.contains('16 karat')) {
+    if (text.contains('16k') ||
+        text.contains('k16') ||
+        text.contains('16 karat')) {
       return GoldKarat.k16;
     }
-    if (text.contains('10k') || text.contains('10 karat') || text.contains('emas muda')) {
+    if (text.contains('10k') ||
+        text.contains('k10') ||
+        text.contains('10 karat') ||
+        text.contains('emas muda')) {
       return GoldKarat.k10;
     }
     return GoldKarat.k24; // Default batangan / murni
@@ -215,10 +267,16 @@ class AssetAutoValuationService {
     // Pola: "500 usd", "$ 100", "nominal: 200 riyal"
     final match =
         RegExp('$currencyRegex\\s*(\\d+([.,]\\d+)?)').firstMatch(text) ??
-            RegExp('(\\d+([.,]\\d+)?)\\s*$currencyRegex').firstMatch(text);
+        RegExp('(\\d+([.,]\\d+)?)\\s*$currencyRegex').firstMatch(text);
     if (match != null) {
-      final numStr = (match.group(1) ?? match.group(2))!.replaceAll(',', '.');
-      return double.tryParse(numStr);
+      final raw = match.group(1) ?? match.group(2)!;
+      // A lone separator is ambiguous (USD 1.000 can be one thousand or one).
+      // Do not silently mutate an asset from an ambiguous legacy tag.
+      if (RegExp(r'^\d{1,3}[.,]\d{3}$').hasMatch(raw)) return null;
+      final normalized = raw.contains(',') && raw.contains('.')
+          ? raw.replaceAll('.', '').replaceAll(',', '.')
+          : raw.replaceAll(',', '.');
+      return double.tryParse(normalized);
     }
     return null;
   }

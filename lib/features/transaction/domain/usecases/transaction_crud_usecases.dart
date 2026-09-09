@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,9 +6,10 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../activity/data/repositories/activity_repository.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
 import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
-import '../../../assistant/data/telegram_bot_service.dart';
 import '../../../assistant/data/telegram_config_repository.dart';
+import '../../../assistant/data/telegram_delivery_repository.dart';
 import '../../../assistant/data/telegram_message_formatter.dart';
+import '../../../liability/domain/usecases/process_debt_payment.dart';
 import '../entities/transaction_entity.dart';
 
 class TransactionEntity {
@@ -99,7 +99,8 @@ class TransactionEntity {
       note: note ?? this.note,
       source: source ?? this.source,
       sourceId: sourceId ?? this.sourceId,
-      recurringTransactionId: recurringTransactionId ?? this.recurringTransactionId,
+      recurringTransactionId:
+          recurringTransactionId ?? this.recurringTransactionId,
       accountId: accountId ?? this.accountId,
       merchantId: merchantId ?? this.merchantId,
       location: location ?? this.location,
@@ -186,18 +187,18 @@ class GetTransaction {
 }
 
 class SaveTransaction {
-  const SaveTransaction(
+  SaveTransaction(
     this.database, {
     this.autonomyTrigger,
-    this.telegramBotService,
     this.telegramConfigRepository,
+    this.telegramDeliveryRepository,
     this.activityRepository,
   });
 
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
-  final TelegramBotService? telegramBotService;
   final TelegramConfigRepository? telegramConfigRepository;
+  final TelegramDeliveryRepository? telegramDeliveryRepository;
   final ActivityRepository? activityRepository;
 
   Future<void> call(
@@ -205,22 +206,33 @@ class SaveTransaction {
     List<TransactionItemEntity> items = const [],
   }) async {
     var effectiveEntity = entity;
-    if (effectiveEntity.linkedActivityId == null && activityRepository != null) {
+    // Only auto-link to active session for new transactions (not edits)
+    if (effectiveEntity.linkedActivityId == null &&
+        effectiveEntity.sourceId == null &&
+        effectiveEntity.recurringTransactionId == null &&
+        activityRepository != null) {
       try {
-        final activeSessions = await activityRepository!.getActiveSessions(effectiveEntity.householdId);
+        final activeSessions = await activityRepository!.getActiveSessions(
+          effectiveEntity.householdId,
+        );
         final activeSession = activeSessions.lastOrNull;
         if (activeSession != null) {
-          effectiveEntity = effectiveEntity.copyWith(linkedActivityId: activeSession.id);
+          effectiveEntity = effectiveEntity.copyWith(
+            linkedActivityId: activeSession.id,
+          );
           final absAmount = effectiveEntity.amount.abs();
           final title = effectiveEntity.note?.trim().isNotEmpty == true
               ? effectiveEntity.note!.trim()
               : (effectiveEntity.isExpense ? 'Pengeluaran' : 'Pemasukan');
-          final existingCps = await activityRepository!.getCheckpoints(activeSession.id);
+          final existingCps = await activityRepository!.getCheckpoints(
+            activeSession.id,
+          );
           await activityRepository!.saveCheckpoint(
             ActivityCheckpointEntity(
               id: const Uuid().v4(),
               sessionId: activeSession.id,
-              label: '[🤖 Otonom] $title (Rp ${formatRupiahInput(absAmount.toString())})',
+              label:
+                  '[🤖 Otonom] $title (Rp ${formatRupiahInput(absAmount.toString())})',
               place: effectiveEntity.location,
               occurredAt: effectiveEntity.date,
               sequence: existingCps.length + 1,
@@ -232,6 +244,25 @@ class SaveTransaction {
         // Abaikan error korelasi otonom agar penyimpanan transaksi utama tidak terhambat
       }
     }
+
+    final existingTx = await (database.select(
+      database.transactions,
+    )..where((t) => t.id.equals(effectiveEntity.id))).getSingleOrNull();
+    final isNew = existingTx == null;
+
+    // Susun rencana pengiriman Telegram (jika kebijakan mengizinkan) SEBELUM
+    // commit. Baris antrean dimasukkan dalam transaksi yang sama sehingga
+    // "pesan terdaftar" dan "transaksi tersimpan" selalu konsisten.
+    final deliveryConfig = await _loadPermittedTelegramConfig(
+      telegramConfigRepository,
+    );
+    final deliveryPlan = await _buildTransactionDeliveryPlan(
+      deliveryRepository: telegramDeliveryRepository,
+      config: deliveryConfig,
+      entity: effectiveEntity,
+      isNew: isNew,
+      database: database,
+    );
 
     await database.transaction(() async {
       await database
@@ -254,7 +285,9 @@ class SaveTransaction {
               source: Value(effectiveEntity.source),
               sourceId: Value(effectiveEntity.sourceId),
               linkedActivityId: Value(effectiveEntity.linkedActivityId),
-              recurringTransactionId: Value(effectiveEntity.recurringTransactionId),
+              recurringTransactionId: Value(
+                effectiveEntity.recurringTransactionId,
+              ),
               location: Value(effectiveEntity.location),
               receiptRawText: Value(effectiveEntity.receiptRawText),
               receiptNumber: Value(effectiveEntity.receiptNumber),
@@ -282,6 +315,13 @@ class SaveTransaction {
               ),
             );
       }
+      if (deliveryPlan != null) {
+        // Antrean pengiriman best-effort: kegagalan menulis antrean tidak
+        // boleh menggagalkan commit transaksi utama.
+        try {
+          await deliveryPlan.enqueue(DateTime.now());
+        } catch (_) {}
+      }
     });
     await autonomyTrigger?.emitSafely(
       triggerId:
@@ -292,65 +332,147 @@ class SaveTransaction {
       entityId: effectiveEntity.id,
       payload: const {'entityType': 'transaction', 'operation': 'save'},
     );
+  }
+}
 
-    _notifyTelegramIfEnabled(effectiveEntity);
+/// Rencana pengiriman Telegram yang siap diantrekan setelah commit.
+class TelegramDeliveryPlan {
+  const TelegramDeliveryPlan({
+    required this.repository,
+    required this.deliveryId,
+    required this.householdId,
+    required this.operation,
+    required this.messageText,
+    this.entityId,
+    this.dedupeKey,
+    this.credentialFingerprint,
+  });
+
+  final TelegramDeliveryRepository repository;
+  final String deliveryId;
+  final String householdId;
+  final String operation;
+  final String messageText;
+  final String? entityId;
+  final String? dedupeKey;
+  final String? credentialFingerprint;
+
+  Future<bool> enqueue(DateTime now) => repository.enqueue(
+    deliveryId: deliveryId,
+    householdId: householdId,
+    operation: operation,
+    messageText: messageText,
+    entityId: entityId,
+    dedupeKey: dedupeKey,
+    credentialFingerprint: credentialFingerprint,
+    createdAt: now,
+  );
+}
+
+/// Memuat konfigurasi Telegram bila integrasi aktif dan notifikasi transaksi
+/// diizinkan. Gagal membaca storage tidak menghentikan penyimpanan transaksi.
+Future<TelegramConfig?> _loadPermittedTelegramConfig(
+  TelegramConfigRepository? repository,
+) async {
+  if (repository == null) return null;
+  try {
+    final config = await repository.loadConfig();
+    if (!config.isReady || !config.notifyOnNewTransaction) return null;
+    return config;
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Menyusun rencana pengiriman durabel untuk satu transaksi bila kebijakan
+/// dan ambang nominal mengizinkan. Pesan diformat dari data domain yang baru
+/// di-commit (bukan hasil imajinasi model) agar retry memakai salinan yang
+/// persis sama.
+Future<TelegramDeliveryPlan?> _buildTransactionDeliveryPlan({
+  required TelegramDeliveryRepository? deliveryRepository,
+  required TelegramConfig? config,
+  required TransactionEntity entity,
+  required bool isNew,
+  required AppDatabase database,
+}) async {
+  if (deliveryRepository == null || config == null) return null;
+  if (entity.amount.abs() < config.notifyMinAmount) return null;
+
+  String? categoryName;
+  if (entity.categoryId != null) {
+    final cat = await (database.select(
+      database.categories,
+    )..where((c) => c.id.equals(entity.categoryId!))).getSingleOrNull();
+    categoryName = cat?.name;
   }
 
-  void _notifyTelegramIfEnabled(TransactionEntity entity) {
-    if (telegramBotService == null || telegramConfigRepository == null) return;
-    unawaited(() async {
-      try {
-        final config = await telegramConfigRepository!.loadConfig();
-        if (!config.isReady || !config.notifyOnNewTransaction) return;
-        if (entity.amount.abs() < config.notifyMinAmount) return;
+  String? accountName;
+  if (entity.accountId != null) {
+    final acc = await (database.select(
+      database.accounts,
+    )..where((a) => a.id.equals(entity.accountId!))).getSingleOrNull();
+    accountName = acc?.name;
+  }
 
-        String? categoryName;
-        if (entity.categoryId != null) {
-          final cat = await (database.select(database.categories)
-                ..where((c) => c.id.equals(entity.categoryId!)))
-              .getSingleOrNull();
-          categoryName = cat?.name;
-        }
-
-        String? accountName;
-        if (entity.accountId != null) {
-          final acc = await (database.select(database.accounts)
-                ..where((a) => a.id.equals(entity.accountId!)))
-              .getSingleOrNull();
-          accountName = acc?.name;
-        }
-
-        final msg = TelegramMessageFormatter.formatNewTransactionMessage(
+  final categoryOrDescription = entity.note?.trim().isNotEmpty == true
+      ? entity.note!
+      : (categoryName ?? 'Tanpa Kategori');
+  final msg = isNew
+      ? TelegramMessageFormatter.formatNewTransactionMessage(
           type: entity.amount >= 0 ? 'income' : 'expense',
           amount: entity.amount.abs(),
-          categoryOrDescription: entity.note?.trim().isNotEmpty == true
-              ? entity.note!
-              : (categoryName ?? 'Tanpa Kategori'),
+          categoryOrDescription: categoryOrDescription,
+          categoryName: categoryName,
+          accountName: accountName,
+          recordedBy: entity.owner,
+          transactionDate: entity.date,
+        )
+      : TelegramMessageFormatter.formatEditTransactionMessage(
+          type: entity.amount >= 0 ? 'income' : 'expense',
+          amount: entity.amount.abs(),
+          categoryOrDescription: categoryOrDescription,
           categoryName: categoryName,
           accountName: accountName,
           recordedBy: entity.owner,
           transactionDate: entity.date,
         );
 
-        await telegramBotService!.sendMessage(
-          botToken: config.botToken,
-          chatId: config.chatId,
-          text: msg,
-        );
-      } catch (_) {}
-    }());
-  }
+  final stamp = (entity.updatedAt ?? entity.recordedAt).microsecondsSinceEpoch;
+  final id = 'telegram:transaction:${entity.id}:$stamp';
+  return TelegramDeliveryPlan(
+    repository: deliveryRepository,
+    deliveryId: id,
+    dedupeKey: id,
+    operation: isNew ? 'transaction.new' : 'transaction.edit',
+    entityId: entity.id,
+    householdId: entity.householdId,
+    messageText: msg,
+    credentialFingerprint: TelegramConfigRepository.credentialFingerprintFor(
+      config.botToken,
+      config.chatId,
+    ),
+  );
 }
 
 class SaveTransactionBatch {
-  const SaveTransactionBatch(this.database, {this.autonomyTrigger});
+  const SaveTransactionBatch(
+    this.database, {
+    this.autonomyTrigger,
+    this.telegramConfigRepository,
+    this.telegramDeliveryRepository,
+  });
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
+  final TelegramConfigRepository? telegramConfigRepository;
+  final TelegramDeliveryRepository? telegramDeliveryRepository;
 
   Future<void> call(
     List<TransactionEntity> entities, {
     required Map<String, List<TransactionItemEntity>> itemsByTransactionId,
   }) async {
+    final deliveryConfig = await _loadPermittedTelegramConfig(
+      telegramConfigRepository,
+    );
     await database.transaction(() async {
       for (final entity in entities) {
         await database
@@ -400,6 +522,20 @@ class SaveTransactionBatch {
                 ),
               );
         }
+        if (deliveryConfig != null) {
+          final plan = await _buildTransactionDeliveryPlan(
+            deliveryRepository: telegramDeliveryRepository,
+            config: deliveryConfig,
+            entity: entity,
+            isNew: true,
+            database: database,
+          );
+          if (plan != null) {
+            try {
+              await plan.enqueue(DateTime.now());
+            } catch (_) {}
+          }
+        }
       }
     });
     for (final entity in entities) {
@@ -447,15 +583,25 @@ class TransferEntity {
 }
 
 class SaveMixedTransactionBatch {
-  const SaveMixedTransactionBatch(this.database, {this.autonomyTrigger});
+  const SaveMixedTransactionBatch(
+    this.database, {
+    this.autonomyTrigger,
+    this.telegramConfigRepository,
+    this.telegramDeliveryRepository,
+  });
   final AppDatabase database;
   final FfmAssistantAutonomyTriggerService? autonomyTrigger;
+  final TelegramConfigRepository? telegramConfigRepository;
+  final TelegramDeliveryRepository? telegramDeliveryRepository;
 
   Future<void> call(
     List<TransactionEntity> entities, {
     required Map<String, List<TransactionItemEntity>> itemsByTransactionId,
     required List<TransferEntity> transfers,
   }) async {
+    final deliveryConfig = await _loadPermittedTelegramConfig(
+      telegramConfigRepository,
+    );
     await database.transaction(() async {
       for (final entity in entities) {
         await database
@@ -501,6 +647,20 @@ class SaveMixedTransactionBatch {
                   createdAt: DateTime.now(),
                 ),
               );
+        }
+        if (deliveryConfig != null) {
+          final plan = await _buildTransactionDeliveryPlan(
+            deliveryRepository: telegramDeliveryRepository,
+            config: deliveryConfig,
+            entity: entity,
+            isNew: true,
+            database: database,
+          );
+          if (plan != null) {
+            try {
+              await plan.enqueue(DateTime.now());
+            } catch (_) {}
+          }
         }
       }
       for (final transfer in transfers) {
@@ -551,11 +711,20 @@ class SaveMixedTransactionBatch {
 }
 
 class ArchiveTransaction {
-  const ArchiveTransaction(this.database);
+  ArchiveTransaction(this.database);
   final AppDatabase database;
 
   Future<void> call(String householdId, String id) async {
     final now = DateTime.now();
+
+    // Rollback debt payment if this is a payment transaction
+    try {
+      await RollbackDebtPayment(database)
+          .call(householdId: householdId, transactionId: id);
+    } catch (_) {
+      // Ignore rollback errors (not a payment transaction or other issues)
+    }
+
     await (database.update(database.transactions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))
@@ -569,13 +738,22 @@ class ArchiveTransaction {
 }
 
 class DeleteTransaction {
-  const DeleteTransaction(this.database);
+  DeleteTransaction(this.database);
   final AppDatabase database;
 
   /// Menghapus dari daftar aktif secara terkontrol, tanpa physical delete yang
   /// akan memutus jejak audit dan relasi data lokal.
   Future<void> call(String householdId, String id) async {
     final now = DateTime.now();
+
+    // Rollback debt payment if this is a payment transaction
+    try {
+      await RollbackDebtPayment(database)
+          .call(householdId: householdId, transactionId: id);
+    } catch (_) {
+      // Ignore rollback errors (not a payment transaction or other issues)
+    }
+
     await (database.update(database.transactions)..where(
           (row) => row.householdId.equals(householdId) & row.id.equals(id),
         ))

@@ -144,6 +144,61 @@ class TelegramMessageFormatter {
     return buffer.toString().trim();
   }
 
+  /// Membentuk notifikasi saat ada transaksi yang diedit/diperbarui di aplikasi
+  static String formatEditTransactionMessage({
+    required String type,
+    required num amount,
+    required String categoryOrDescription,
+    String? categoryName,
+    String? accountName,
+    String? recordedBy,
+    DateTime? transactionDate,
+  }) {
+    final buffer = StringBuffer();
+    final isExpense = type == 'expense';
+    final isIncome = type == 'income';
+
+    if (isExpense) {
+      buffer.writeln('✏️ <b>Perubahan Catatan Pengeluaran</b>\n');
+      buffer.writeln('📉 <b>Nominal:</b> ${formatRupiah(amount)}');
+    } else if (isIncome) {
+      buffer.writeln('✏️ <b>Perubahan Catatan Pemasukan</b>\n');
+      buffer.writeln('📈 <b>Nominal:</b> ${formatRupiah(amount)}');
+    } else {
+      buffer.writeln('✏️ <b>Perubahan Mutasi Transaksi</b>\n');
+      buffer.writeln('💵 <b>Nominal:</b> ${formatRupiah(amount)}');
+    }
+
+    if (categoryName != null && categoryName.trim().isNotEmpty) {
+      buffer.writeln('🏷️ <b>Kategori:</b> ${categoryName.trim()}');
+    }
+
+    if (categoryOrDescription.trim().isNotEmpty &&
+        categoryOrDescription.trim() != categoryName?.trim()) {
+      buffer.writeln('📝 <b>Keterangan:</b> ${categoryOrDescription.trim()}');
+    }
+
+    if (accountName != null && accountName.trim().isNotEmpty) {
+      buffer.writeln('💳 <b>Sumber Dana:</b> ${accountName.trim()}');
+    }
+
+    if (recordedBy != null && recordedBy.trim().isNotEmpty) {
+      buffer.writeln('👤 <b>Diubah oleh:</b> ${recordedBy.trim()}');
+    }
+
+    if (transactionDate != null) {
+      try {
+        final dateStr =
+            DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(transactionDate);
+        buffer.writeln('📅 <b>Waktu:</b> $dateStr WIB');
+      } catch (_) {
+        buffer.writeln('📅 <b>Waktu:</b> ${transactionDate.toIso8601String()}');
+      }
+    }
+
+    return buffer.toString().trim();
+  }
+
   static String _buildGreeting(String? husband, String? wife) {
     final h = husband?.trim();
     final w = wife?.trim();

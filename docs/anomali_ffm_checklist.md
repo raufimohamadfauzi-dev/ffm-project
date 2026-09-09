@@ -1,5 +1,16 @@
 # Daftar Anomali dan Rencana Perbaikan Sistem FFM
 
+> Catatan audit 9 September 2026: status centang di bawah adalah catatan implementasi sebelumnya, bukan bukti seluruh alur sudah benar. Pemeriksaan baseline `070797f` menemukan masalah tersisa. Gunakan [audit lanjutan bernomor](audit_anomali_lanjutan_2026-09-09.md) untuk pekerjaan berikutnya mulai nomor 1; ringkasan awal di dokumen lama ini menggambarkan kondisi sebelum perubahan.
+>
+> **UPDATE 10 September 2026**: Perbaikan kritis P0/P1 dari audit lanjutan telah selesai:
+> - P0: Mutasi PLN/BBM dihentikan sebelum konfirmasi (sekarang hanya proposal metadata)
+> - P1: Kontrak field draft, editor, prefill, dan executor disatukan (itemsJson dan receipt fields)
+> - P1: NFC kartu baru tidak lagi membuat account otomatis (menggunakan pending accountId)
+> - P1: UUID migration untuk semua ID yang sebelumnya collision-prone
+> - P1: Parser pengingat sekarang memahami jam yang diminta user
+> - Analisator valid: `flutter analyze lib test` → No issues found
+> - File yang diubah: 14 file (lihat AGENTS.md atau git diff untuk detail)
+
 Dokumen ini berisi hasil audit komprehensif anomali pada arsitektur, data, AI/Orkestrator, dan antarmuka aplikasi FFM (Family Finance Manager).
 Setiap nomor dilengkapi checklist box `[ ]` agar dapat dieksekusi secara berurutan mulai dari nomor 1.
 
