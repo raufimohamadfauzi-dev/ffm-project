@@ -53,22 +53,30 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
   }
 
   Future<void> _loadSummary() async {
-    final preferences = await _repository.getPreferences(
-      AppContext.householdId,
-    );
-    final patterns = await _repository.getAllPatterns(AppContext.householdId);
-    if (!mounted) return;
-    setState(() {
-      _preferenceCount = preferences.length;
-      _patternCount = patterns
-          .where(
-            (p) =>
-                p.sampleCount >= FfmPersonalizationPattern.minimumSampleCount &&
-                p.confidenceScore >=
-                    FfmPersonalizationPattern.minimumConfidenceScore,
-          )
-          .length;
-    });
+    try {
+      final preferences = await _repository.getPreferences(
+        AppContext.householdId,
+      );
+      final patterns = await _repository.getAllPatterns(AppContext.householdId);
+      if (!mounted) return;
+      setState(() {
+        _preferenceCount = preferences.length;
+        _patternCount = patterns
+            .where(
+              (p) =>
+                  p.sampleCount >= FfmPersonalizationPattern.minimumSampleCount &&
+                  p.confidenceScore >=
+                      FfmPersonalizationPattern.minimumConfidenceScore,
+            )
+            .length;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _preferenceCount = 0;
+        _patternCount = 0;
+      });
+    }
   }
 
   Future<void> _resetLearning() async {
@@ -111,6 +119,7 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
     final passphrase = _passphraseController.text;
     if (!_validatePassphrase(passphrase)) return;
     setState(() => _working = true);
+    File? tempFile;
     try {
       final encrypted = await _profileService.exportProfile(
         householdId: AppContext.householdId,
@@ -118,12 +127,12 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
       );
       final directory = await getApplicationDocumentsDirectory();
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${directory.path}/ffm-profile-$stamp.ffmprofile');
-      await file.writeAsString(encrypted, flush: true);
+      tempFile = File('${directory.path}/ffm-profile-$stamp.ffmprofile');
+      await tempFile.writeAsString(encrypted, flush: true);
       if (!mounted) return;
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile(file.path)],
+          files: [XFile(tempFile.path)],
           text: 'Profil personalisasi FFM terenkripsi. Simpan file ini untuk dipindahkan ke perangkat lain.',
         ),
       );
@@ -131,9 +140,16 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
     } catch (_) {
       _showMessage('Profil belum berhasil diekspor. Coba lagi.');
     } finally {
+      if (tempFile != null && await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
       if (mounted) setState(() => _working = false);
     }
   }
+
+  static const _maxFileSizeBytes = 2 * 1024 * 1024; // 2 MB
 
   Future<void> _importProfile() async {
     final passphrase = _passphraseController.text;
@@ -148,9 +164,16 @@ class _FfmAssistantProfileToolsState extends State<FfmAssistantProfileTools> {
     );
     if (result.isEmpty || result.single.path == null) return;
 
+    final file = File(result.single.path!);
+    final fileSize = await file.length();
+    if (fileSize > _maxFileSizeBytes) {
+      _showMessage('Ukuran file terlalu besar. Maksimal 2 MB.');
+      return;
+    }
+
     setState(() => _working = true);
     try {
-      final encrypted = await File(result.single.path!).readAsString();
+      final encrypted = await file.readAsString();
       await _profileService.importProfile(
         householdId: AppContext.householdId,
         encryptedPayload: encrypted,

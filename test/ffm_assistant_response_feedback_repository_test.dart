@@ -91,4 +91,89 @@ void main() {
       'Apa fungsi anggaran?',
     );
   });
+
+  test('issue dengan sourceMessageId tidak bisa diduplikasi dan bisa dibuka lagi setelah dihapus', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final repository = FfmAssistantResponseFeedbackRepository(database);
+
+    final first = await repository.record(
+      questionText: 'Berapa saldo kas likuid?',
+      responseText: 'Jawaban belum sesuai.',
+      kind: FfmAssistantResponseFeedbackKind.assistantIssue,
+      sourceMessageId: 'message-1',
+      issueMetadata: const {
+        'responseOrigin': 'geminiCloud',
+        'usedReadCapability': 'read.summary',
+      },
+    );
+    final duplicate = await repository.record(
+      questionText: 'Berapa saldo kas likuid?',
+      responseText: 'Jawaban lain.',
+      kind: FfmAssistantResponseFeedbackKind.assistantIssue,
+      sourceMessageId: 'message-1',
+      issueMetadata: const {'usedReadCapability': 'read.summary'},
+    );
+
+    expect(first, isNotNull);
+    expect(duplicate!.id, first!.id);
+    expect((await repository.readAllIssues()), hasLength(1));
+    expect(
+      (await repository.readAllIssues())
+          .single
+          .issueMetadata['usedReadCapability'],
+      'read.summary',
+    );
+
+    await repository.delete(first.id);
+    expect(await repository.readAllIssues(), isEmpty);
+    final afterDelete = await repository.record(
+      questionText: 'Berapa saldo kas likuid?',
+      responseText: 'Jawaban sudah diperbaiki.',
+      kind: FfmAssistantResponseFeedbackKind.assistantIssue,
+      sourceMessageId: 'message-1',
+      issueMetadata: const {'usedReadCapability': 'read.summary'},
+    );
+    expect(afterDelete, isNotNull);
+    expect(afterDelete!.id, isNot(first.id));
+
+    final copied = await repository.exportAllIssues();
+    expect(copied, contains('Developer atau agent coding'));
+    expect(copied, contains('Implementasikan perbaikan'));
+    expect(copied, contains('read.summary'));
+
+    final jsonReport = jsonDecode(
+      await repository.exportAllIssuesJson(),
+    ) as Map<String, dynamic>;
+    expect(jsonReport['formatVersion'], 'ffm-assistant-issue-log-v1');
+    expect(jsonReport['instructions'], isNotEmpty);
+    expect((jsonReport['issues'] as List), hasLength(1));
+  });
+
+  test(
+    'catatan issue dapat diperbarui tanpa mengubah metadata sumber',
+    () async {
+      final database = createInMemoryDatabaseForTests();
+      addTearDown(database.close);
+      final repository = FfmAssistantResponseFeedbackRepository(database);
+
+      final issue = await repository.record(
+        questionText: 'Cek saldo kas',
+        responseText: 'Jawaban perlu diperiksa.',
+        kind: FfmAssistantResponseFeedbackKind.assistantIssue,
+        sourceMessageId: 'message-note',
+        issueMetadata: const {'usedReadCapability': 'read.summary'},
+      );
+      expect(issue, isNotNull);
+
+      await repository.updateIssueNote(
+        issue!.id,
+        'Gunakan saldo transaksi aktif.',
+      );
+
+      final updated = await repository.findBySourceMessageId('message-note');
+      expect(updated!.note, 'Gunakan saldo transaksi aktif.');
+      expect(updated.issueMetadata['usedReadCapability'], 'read.summary');
+    },
+  );
 }

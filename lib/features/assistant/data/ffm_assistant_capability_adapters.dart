@@ -10,6 +10,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/audit_logger.dart';
 import '../../../core/di/injection.dart';
 import '../../../core/theme/app_theme_controller.dart';
+import '../../hijri/domain/hijri_calendar_service.dart';
 import '../../advisor/data/cash_flow_profile_repository.dart';
 import '../../advisor/domain/entities/cash_flow_profile_models.dart';
 import '../../budget/data/budget_repository.dart';
@@ -140,6 +141,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.reminders': _readReminders,
     'read.model_status': _readModelStatus,
     'system.set_theme': _setTheme,
+    'system.set_hijri_adjustment': _setHijriAdjustment,
     'market.refresh': _refreshMarket,
     'draft.transaction_update': _prepareTransactionMutation,
     'draft.transaction_archive': _prepareTransactionMutation,
@@ -4351,6 +4353,33 @@ class FfmAssistantCapabilityAdapterRegistry {
     };
     return FfmAssistantCapabilityExecutionResult.success(
       'Tampilan aplikasi berhasil diubah ke $modeLabel.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _setHijriAdjustment(
+    FfmAssistantActionStep step,
+  ) async {
+    final raw = step.parameters['adjustment']?.toString() ?? '0';
+    final adjustment = int.tryParse(raw) ?? 0;
+    if (adjustment < -2 || adjustment > 2) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Offset Hijriah hanya bisa -2 s/d +2 hari.',
+      );
+    }
+    final calendarService = getIt<HijriCalendarService>();
+    final settings = await calendarService.getSettings(_householdId);
+    await calendarService.saveSettings(
+      householdId: _householdId,
+      method: settings.method,
+      region: settings.region,
+      dayAdjustment: adjustment,
+      timezone: settings.timezone,
+    );
+    final label = adjustment == 0
+        ? 'standar (0 hari)'
+        : '${adjustment > 0 ? "+" : ""}$adjustment hari';
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Tanggal Hijriah berhasil dikoreksi ke $label. Seluruh tanggal Islam di aplikasi sudah menyesuaikan.',
     );
   }
 

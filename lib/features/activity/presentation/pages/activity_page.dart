@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../shared/ffm_date_period.dart';
+import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_interpreter.dart';
 import '../../../assistant/domain/entities/autonomous_activity_models.dart';
@@ -72,6 +74,8 @@ class _ActivityViewState extends State<_ActivityView>
   final _searchController = TextEditingController();
   String _searchQuery = '';
   DateTime? _dayFilter;
+  DateTime? _startDateFilter;
+  DateTime? _endDateFilter;
   final _calculator = const ActivityDurationCalculator();
   final _voiceParser = const ActivityVoiceParser();
   final _speechService = ActivitySpeechService();
@@ -140,10 +144,28 @@ class _ActivityViewState extends State<_ActivityView>
 
   bool _matchesDay(DateTime value) {
     final day = _dayFilter;
-    return day == null ||
-        (value.year == day.year &&
-            value.month == day.month &&
-            value.day == day.day);
+    if (day != null &&
+        (value.year != day.year ||
+            value.month != day.month ||
+            value.day != day.day)) {
+      return false;
+    }
+    if (_startDateFilter != null && value.isBefore(_startDateFilter!)) {
+      return false;
+    }
+    if (_endDateFilter != null) {
+      final endOfDay = DateTime(
+        _endDateFilter!.year,
+        _endDateFilter!.month,
+        _endDateFilter!.day,
+        23,
+        59,
+        59,
+        999,
+      );
+      if (value.isAfter(endOfDay)) return false;
+    }
+    return true;
   }
 
   bool _matchesSearch(ActivitySessionEntity session) {
@@ -165,6 +187,62 @@ class _ActivityViewState extends State<_ActivityView>
     'Catatan' => session.isHistory,
     _ => true,
   };
+
+  List<Widget> _buildGroupedSessionCards({
+    required List<ActivitySessionEntity> visibleSessions,
+    required ActivityState state,
+  }) {
+    final widgets = <Widget>[];
+    String? lastMonth;
+    for (final session in visibleSessions) {
+      final d = session.startedAt;
+      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+      if (key != lastMonth) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 4),
+            child: Text(
+              _activityMonthLabel(d),
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkMuted,
+              ),
+            ),
+          ),
+        );
+        lastMonth = key;
+      }
+      widgets.add(
+        _SessionCard(
+          session: session,
+          checkpoints: state.checkpoints[session.id] ?? const [],
+          linkedCost: state.linkedCosts[session.id] ?? 0,
+          calculator: _calculator,
+          onOpen: () => _showSessionDetails(
+            session,
+            state.checkpoints[session.id] ?? const [],
+            state.sessions
+                .where((child) => child.parentSessionId == session.id)
+                .toList(),
+          ),
+          onArchive: () => _confirmArchiveSession(session),
+          onDelete: () => _confirmDeleteSession(session),
+          onEdit: () => _editSession(session),
+          onTogglePriority: () =>
+              context.read<ActivityBloc>().togglePriority(session.id),
+        ),
+      );
+    }
+    return widgets;
+  }
+
+  String _activityMonthLabel(DateTime date) {
+    const months = [
+      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+    ];
+    return '${months[date.month]} ${date.year}';
+  }
 
   Future<void> _showSessionDetails(
     ActivitySessionEntity session,
@@ -189,6 +267,40 @@ class _ActivityViewState extends State<_ActivityView>
     );
     if (picked == null || !mounted) return;
     setState(() => _dayFilter = picked);
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final range = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: _startDateFilter != null && _endDateFilter != null
+          ? DateTimeRange(start: _startDateFilter!, end: _endDateFilter!)
+          : null,
+    );
+    if (range == null || !mounted) return;
+    setState(() {
+      _dayFilter = null;
+      _startDateFilter = range.start;
+      _endDateFilter = range.end;
+    });
+  }
+
+  void _applyPeriodPreset(FfmDatePeriodPreset preset) {
+    final period = FfmDatePeriod.fromPreset(preset);
+    setState(() {
+      _dayFilter = null;
+      _startDateFilter = period.start;
+      _endDateFilter = period.endInclusive;
+    });
+  }
+
+  String _periodLabel() {
+    if (_startDateFilter == null || _endDateFilter == null) {
+      return 'Semua periode';
+    }
+    return '${_dateOnly(_startDateFilter!)} - ${_dateOnly(_endDateFilter!)}';
   }
 
   Future<void> _startSession({
@@ -257,9 +369,9 @@ class _ActivityViewState extends State<_ActivityView>
       activity: activity,
     );
     if (confirmed == true && mounted) {
-      final ok = await context
-          .read<ActivityBloc>()
-          .revertAutonomousActivity(activity.id);
+      final ok = await context.read<ActivityBloc>().revertAutonomousActivity(
+        activity.id,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -280,12 +392,10 @@ class _ActivityViewState extends State<_ActivityView>
       activity: activity,
     );
     if (result != null && mounted) {
-      final ok = await context
-          .read<ActivityBloc>()
-          .correctAutonomousActivity(
-            activity.id,
-            updatedPayload: result,
-          );
+      final ok = await context.read<ActivityBloc>().correctAutonomousActivity(
+        activity.id,
+        updatedPayload: result,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -310,8 +420,8 @@ class _ActivityViewState extends State<_ActivityView>
     );
     final target = _dayFilter ?? DateTime.now();
     final journal = await context.read<ActivityBloc>().generateDailyAiJournal(
-          targetDate: target,
-        );
+      targetDate: target,
+    );
     if (mounted && journal != null) {
       messenger.showSnackBar(
         SnackBar(
@@ -500,9 +610,10 @@ class _ActivityViewState extends State<_ActivityView>
         initialTitle: parsed.targetTitle,
         initialCategory: parsed.category.isNotEmpty ? parsed.category : null,
         initialNotes:
-            (transcript.trim().toLowerCase() != parsed.targetTitle!.toLowerCase())
-                ? transcript.trim()
-                : null,
+            (transcript.trim().toLowerCase() !=
+                parsed.targetTitle!.toLowerCase())
+            ? transcript.trim()
+            : null,
         initialStartedAt: parsed.startedAt,
       );
       return;
@@ -566,7 +677,8 @@ class _ActivityViewState extends State<_ActivityView>
         _voiceError = null;
       });
 
-      final modeVal = proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
+      final modeVal =
+          proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
       await _startSession(
         initialTitle: proposal.title!.trim(),
         initialCategory: proposal.categoryName?.trim(),
@@ -879,10 +991,10 @@ class _ActivityViewState extends State<_ActivityView>
               heroTag: 'activity_vn_fab',
               onPressed: _startVoiceCapture,
               tooltip: 'Bicara / Voice Note aktivitas',
-              backgroundColor:
-                  Theme.of(context).colorScheme.secondaryContainer,
-              foregroundColor:
-                  Theme.of(context).colorScheme.onSecondaryContainer,
+              backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+              foregroundColor: Theme.of(context)
+                  .colorScheme
+                  .onSecondaryContainer,
               child: Icon(
                 _processingFinalVoice ? Icons.hourglass_empty : Icons.mic,
               ),
@@ -890,7 +1002,8 @@ class _ActivityViewState extends State<_ActivityView>
             const SizedBox(width: 8),
             FloatingActionButton.extended(
               heroTag: 'activity_timer_fab',
-              onPressed: () => _startSession(initialMode: ActivityMode.timeTracking),
+              onPressed: () =>
+                  _startSession(initialMode: ActivityMode.timeTracking),
               tooltip: 'Mulai aktivitas dengan timer berjalan',
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -996,6 +1109,78 @@ class _ActivityViewState extends State<_ActivityView>
                             onPressed: () => setState(() => _dayFilter = null),
                             icon: const Icon(Icons.clear),
                           ),
+                        PopupMenuButton<FfmDatePeriodPreset>(
+                          tooltip: 'Pilih periode riwayat',
+                          onSelected: _applyPeriodPreset,
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.allTime,
+                              child: Text('Semua periode'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.thisMonth,
+                              child: Text('Bulan ini'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.lastMonth,
+                              child: Text('Bulan lalu'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.last3Months,
+                              child: Text('3 bulan terakhir'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.last6Months,
+                              child: Text('6 bulan terakhir'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.lastYear,
+                              child: Text('1 tahun terakhir'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.thisYear,
+                              child: Text('Tahun ini'),
+                            ),
+                            PopupMenuItem(
+                              value: FfmDatePeriodPreset.previousYear,
+                              child: Text('Tahun lalu'),
+                            ),
+                          ],
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.outline,
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.date_range_outlined, size: 18),
+                                const SizedBox(width: 8),
+                                Text(_periodLabel()),
+                              ],
+                            ),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _pickDateRange,
+                          icon: const Icon(Icons.edit_calendar_outlined),
+                          label: const Text('Rentang custom'),
+                        ),
+                        if (_startDateFilter != null || _endDateFilter != null)
+                          IconButton(
+                            tooltip: 'Hapus filter periode',
+                            onPressed: () => setState(() {
+                              _startDateFilter = null;
+                              _endDateFilter = null;
+                            }),
+                            icon: const Icon(Icons.clear),
+                          ),
                         DropdownButton<String>(
                           value: _modeFilter,
                           underline: const SizedBox.shrink(),
@@ -1040,9 +1225,7 @@ class _ActivityViewState extends State<_ActivityView>
                   ),
                   if (state.habitSuggestions.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    _HabitSuggestionsCard(
-                      suggestions: state.habitSuggestions,
-                    ),
+                    _HabitSuggestionsCard(suggestions: state.habitSuggestions),
                   ],
                   const SizedBox(height: 16),
                   Builder(
@@ -1071,8 +1254,8 @@ class _ActivityViewState extends State<_ActivityView>
                                 (_riwayatTab == 'Semua'
                                     ? true
                                     : (_riwayatTab == 'Timer'
-                                        ? session.isTimeTracking
-                                        : session.isHistory)),
+                                          ? session.isTimeTracking
+                                          : session.isHistory)),
                           )
                           .toList();
                       final visibleAutonomous = state.autonomousActivities
@@ -1084,6 +1267,19 @@ class _ActivityViewState extends State<_ActivityView>
                                       _searchQuery.trim().toLowerCase(),
                                     ) ||
                                     a.description.toLowerCase().contains(
+                                      _searchQuery.trim().toLowerCase(),
+                                    )),
+                          )
+                          .toList();
+                      final visibleDailyNotes = state.dailyNotes
+                          .where(
+                            (note) =>
+                                _matchesDay(note.noteDate) &&
+                                (_searchQuery.trim().isEmpty ||
+                                    (note.title ?? '').toLowerCase().contains(
+                                      _searchQuery.trim().toLowerCase(),
+                                    ) ||
+                                    note.body.toLowerCase().contains(
                                       _searchQuery.trim().toLowerCase(),
                                     )),
                           )
@@ -1127,8 +1323,7 @@ class _ActivityViewState extends State<_ActivityView>
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
                                 child: _FilteredEmptyHint(
-                                  message:
-                                      'Ada aktivitas yang sedang berjalan, tapi tidak cocok dengan filter yang dipilih.',
+                                  message: 'Ada aktivitas yang sedang berjalan, tapi tidak cocok dengan filter yang dipilih.',
                                 ),
                               ),
                             const SizedBox(height: 8),
@@ -1141,15 +1336,22 @@ class _ActivityViewState extends State<_ActivityView>
                                   child: _SectionTitle(
                                     title: _riwayatTab == '🤖 Otonom'
                                         ? 'Aksi Otonom Agen'
+                                        : _riwayatTab == 'Jurnal Harian'
+                                        ? 'Catatan Harian'
                                         : 'Riwayat Aktivitas',
                                     count: _riwayatTab == '🤖 Otonom'
                                         ? visibleAutonomous.length
+                                        : _riwayatTab == 'Jurnal Harian'
+                                        ? visibleDailyNotes.length
                                         : visibleSessions.length,
                                   ),
                                 ),
                                 FilledButton.tonalIcon(
                                   onPressed: _generateDailyAiJournal,
-                                  icon: const Icon(Icons.auto_awesome_rounded, size: 15),
+                                  icon: const Icon(
+                                    Icons.auto_awesome_rounded,
+                                    size: 15,
+                                  ),
                                   label: const Text(
                                     'Refleksi AI',
                                     style: TextStyle(
@@ -1172,7 +1374,13 @@ class _ActivityViewState extends State<_ActivityView>
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                for (final tab in ['Semua', 'Timer', 'Catatan', '🤖 Otonom'])
+                                for (final tab in [
+                                  'Semua',
+                                  'Timer',
+                                  'Catatan',
+                                  'Jurnal Harian',
+                                  '🤖 Otonom',
+                                ])
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ChoiceChip(
@@ -1180,10 +1388,12 @@ class _ActivityViewState extends State<_ActivityView>
                                         tab == 'Timer'
                                             ? '⏱️ Timer'
                                             : (tab == 'Catatan'
-                                                ? '📝 Catatan'
-                                                : (tab == '🤖 Otonom'
-                                                    ? '🤖 Otonom'
-                                                    : 'Semua')),
+                                                  ? '📝 Catatan'
+                                                  : (tab == 'Jurnal Harian'
+                                                        ? '📓 Jurnal Harian'
+                                                        : (tab == '🤖 Otonom'
+                                                              ? '🤖 Otonom'
+                                                              : 'Semua'))),
                                       ),
                                       selected: _riwayatTab == tab,
                                       onSelected: (selected) {
@@ -1197,7 +1407,38 @@ class _ActivityViewState extends State<_ActivityView>
                             ),
                           ),
                           const SizedBox(height: 10),
-                          if (_riwayatTab == '🤖 Otonom') ...[
+                          if (_riwayatTab == 'Jurnal Harian') ...[
+                            if (visibleDailyNotes.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 36),
+                                child: Center(
+                                  child: Text(
+                                    'Belum ada Catatan Harian pada filter ini.',
+                                  ),
+                                ),
+                              )
+                            else
+                              for (final note in visibleDailyNotes)
+                                Card(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  child: ListTile(
+                                    leading: const CircleAvatar(
+                                      child: Icon(Icons.menu_book_outlined),
+                                    ),
+                                    title: Text(
+                                      (note.title ?? '').trim().isEmpty
+                                          ? 'Catatan Harian'
+                                          : note.title!.trim(),
+                                    ),
+                                    subtitle: Text(
+                                      '${_dateOnly(note.noteDate)}\n${note.body}',
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    isThreeLine: true,
+                                  ),
+                                ),
+                          ] else if (_riwayatTab == '🤖 Otonom') ...[
                             if (visibleAutonomous.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 36),
@@ -1226,7 +1467,8 @@ class _ActivityViewState extends State<_ActivityView>
                                   onCorrect: () => _correctAutonomous(activity),
                                 ),
                           ] else ...[
-                            if (_riwayatTab == 'Semua' && visibleAutonomous.isNotEmpty) ...[
+                            if (_riwayatTab == 'Semua' &&
+                                visibleAutonomous.isNotEmpty) ...[
                               _SectionTitle(
                                 title: 'Aksi Otonom Terbaru',
                                 count: visibleAutonomous.take(3).length,
@@ -1247,40 +1489,19 @@ class _ActivityViewState extends State<_ActivityView>
                             ],
                             if (visibleSessions.isEmpty)
                               _SmartRoutineEmptyState(
-                                onStartRoutine: (title, category, mode) => _startSession(
-                                  initialTitle: title,
-                                  initialCategory: category,
-                                  initialMode: mode,
-                                ),
+                                onStartRoutine: (title, category, mode) =>
+                                    _startSession(
+                                      initialTitle: title,
+                                      initialCategory: category,
+                                      initialMode: mode,
+                                    ),
                                 onStartCustom: () => _startSession(),
                               )
                             else
-                              for (final session in visibleSessions)
-                                _SessionCard(
-                                  session: session,
-                                  checkpoints:
-                                      state.checkpoints[session.id] ?? const [],
-                                  linkedCost:
-                                      state.linkedCosts[session.id] ?? 0,
-                                  calculator: _calculator,
-                                  onOpen: () => _showSessionDetails(
-                                    session,
-                                    state.checkpoints[session.id] ?? const [],
-                                    state.sessions
-                                        .where(
-                                          (child) =>
-                                              child.parentSessionId == session.id,
-                                        )
-                                        .toList(),
-                                  ),
-                                  onArchive: () =>
-                                      _confirmArchiveSession(session),
-                                  onDelete: () => _confirmDeleteSession(session),
-                                  onEdit: () => _editSession(session),
-                                  onTogglePriority: () => context
-                                      .read<ActivityBloc>()
-                                      .togglePriority(session.id),
-                                ),
+                              ..._buildGroupedSessionCards(
+                                visibleSessions: visibleSessions,
+                                state: state,
+                              ),
                           ],
                         ],
                       );
@@ -1348,10 +1569,7 @@ class _FilteredEmptyHint extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            message,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
+          child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
         ),
       ],
     ),
@@ -1372,7 +1590,10 @@ class _HabitSuggestionsCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.psychology_outlined, color: scheme.onTertiaryContainer),
+              Icon(
+                Icons.psychology_outlined,
+                color: scheme.onTertiaryContainer,
+              ),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
@@ -1456,7 +1677,9 @@ class _ActiveSessionCard extends StatelessWidget {
 
     return AppCard(
       color: isZombie ? Colors.amber.shade50 : scheme.primaryContainer,
-      border: isZombie ? BorderSide(color: Colors.amber.shade800, width: 1.5) : null,
+      border: isZombie
+          ? BorderSide(color: Colors.amber.shade800, width: 1.5)
+          : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1474,7 +1697,11 @@ class _ActiveSessionCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, color: Colors.amber.shade900, size: 22),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.amber.shade900,
+                        size: 22,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1506,11 +1733,20 @@ class _ActiveSessionCard extends StatelessWidget {
                           backgroundColor: Colors.amber.shade900,
                           foregroundColor: Colors.white,
                           visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                         ),
                         onPressed: onFinish,
                         icon: const Icon(Icons.stop, size: 16),
-                        label: const Text('Hentikan Sekarang', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        label: const Text(
+                          'Hentikan Sekarang',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
                       if (onEdit != null)
                         OutlinedButton.icon(
@@ -1518,11 +1754,20 @@ class _ActiveSessionCard extends StatelessWidget {
                             foregroundColor: Colors.brown.shade900,
                             side: BorderSide(color: Colors.amber.shade800),
                             visualDensity: VisualDensity.compact,
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
                           ),
                           onPressed: onEdit,
-                          icon: const Icon(Icons.edit_calendar_outlined, size: 16),
-                          label: const Text('Koreksi Waktu', style: TextStyle(fontSize: 12)),
+                          icon: const Icon(
+                            Icons.edit_calendar_outlined,
+                            size: 16,
+                          ),
+                          label: const Text(
+                            'Koreksi Waktu',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                     ],
                   ),
@@ -1562,7 +1807,9 @@ class _ActiveSessionCard extends StatelessWidget {
                     session.priority > 0
                         ? Icons.star_rounded
                         : Icons.star_outline_rounded,
-                    color: session.priority > 0 ? Colors.amber : scheme.onPrimaryContainer,
+                    color: session.priority > 0
+                        ? Colors.amber
+                        : scheme.onPrimaryContainer,
                   ),
                   tooltip: session.priority > 0
                       ? 'Prioritas aktif (klik untuk lepas)'
@@ -1586,7 +1833,11 @@ class _ActiveSessionCard extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.payments_outlined, size: 15, color: Colors.green.shade800),
+                  Icon(
+                    Icons.payments_outlined,
+                    size: 15,
+                    color: Colors.green.shade800,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     'Total Biaya Sesi: Rp ${formatRupiahInput(linkedCost.toString())}',
@@ -1729,7 +1980,9 @@ class _SessionCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final modeBadgeColor = isDark ? scheme.onSurface : Colors.teal.shade900;
-    final priorityBadgeColor = isDark ? const Color(0xFFFFD180) : Colors.amber.shade900;
+    final priorityBadgeColor = isDark
+        ? const Color(0xFFFFD180)
+        : Colors.amber.shade900;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: AppCard(
@@ -1753,7 +2006,10 @@ class _SessionCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: isNote
                         ? Colors.purple.withValues(alpha: 0.12)
@@ -1772,11 +2028,17 @@ class _SessionCard extends StatelessWidget {
                 if (isPriority) ...[
                   const SizedBox(width: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.amber.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.amber.shade700, width: 0.8),
+                      border: Border.all(
+                        color: Colors.amber.shade700,
+                        width: 0.8,
+                      ),
                     ),
                     child: Text(
                       '⭐ Prioritas',
@@ -1809,12 +2071,18 @@ class _SessionCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.green.withValues(alpha: 0.25)),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.25),
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.payments_outlined, size: 13, color: Colors.green.shade800),
+                    Icon(
+                      Icons.payments_outlined,
+                      size: 13,
+                      color: Colors.green.shade800,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'Biaya: Rp ${formatRupiahInput(linkedCost.toString())}',
@@ -1837,9 +2105,7 @@ class _SessionCard extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
+                  color: Theme.of(context).colorScheme.onSurface
                       .withValues(alpha: 0.85),
                   fontSize: 13,
                 ),
@@ -1860,22 +2126,22 @@ class _SessionCard extends StatelessWidget {
                     color: isPriority
                         ? Colors.amber.withValues(alpha: 0.2)
                         : (isNote
-                            ? Colors.purple.withValues(alpha: 0.15)
-                            : scheme.primary.withValues(alpha: 0.12)),
+                              ? Colors.purple.withValues(alpha: 0.15)
+                              : scheme.primary.withValues(alpha: 0.12)),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     isNote
                         ? Icons.edit_note_outlined
                         : (session.status == ActivitySessionStatus.completed
-                            ? Icons.check
-                            : (isPriority ? Icons.star_rounded : Icons.timer_outlined)),
+                              ? Icons.check
+                              : (isPriority
+                                    ? Icons.star_rounded
+                                    : Icons.timer_outlined)),
                     size: 18,
                     color: isPriority
                         ? Colors.amber.shade900
-                        : (isNote
-                            ? Colors.purple.shade800
-                            : scheme.primary),
+                        : (isNote ? Colors.purple.shade800 : scheme.primary),
                   ),
                 ),
 
@@ -1887,10 +2153,17 @@ class _SessionCard extends StatelessWidget {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
                         icon: Icon(
-                          isPriority ? Icons.star_rounded : Icons.star_outline_rounded,
-                          color: isPriority ? Colors.amber : scheme.onSurfaceVariant,
+                          isPriority
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          color: isPriority
+                              ? Colors.amber
+                              : scheme.onSurfaceVariant,
                           size: 22,
                         ),
                         tooltip: isPriority
@@ -1901,7 +2174,10 @@ class _SessionCard extends StatelessWidget {
                     PopupMenuButton<String>(
                       tooltip: 'Kelola aktivitas',
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
                       icon: Icon(
                         Icons.more_vert,
                         color: scheme.onSurfaceVariant,
@@ -1927,8 +2203,14 @@ class _SessionCard extends StatelessWidget {
                           value: 'priority',
                           child: ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: Icon(isPriority ? Icons.star_outline : Icons.star),
-                            title: Text(isPriority ? 'Lepas prioritas' : 'Jadikan prioritas'),
+                            leading: Icon(
+                              isPriority ? Icons.star_outline : Icons.star,
+                            ),
+                            title: Text(
+                              isPriority
+                                  ? 'Lepas prioritas'
+                                  : 'Jadikan prioritas',
+                            ),
                           ),
                         ),
                         const PopupMenuItem(
@@ -2025,7 +2307,9 @@ class _AutonomousActivityCard extends StatelessWidget {
       child: AppCard(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         color: isReverted
-            ? (isDark ? Colors.red.shade900.withValues(alpha: 0.3) : Colors.red.shade50)
+            ? (isDark
+                  ? Colors.red.shade900.withValues(alpha: 0.3)
+                  : Colors.red.shade50)
             : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2054,35 +2338,40 @@ class _AutonomousActivityCard extends StatelessWidget {
                               style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 14.5,
-                                decoration:
-                                    isReverted ? TextDecoration.lineThrough : null,
+                                decoration: isReverted
+                                    ? TextDecoration.lineThrough
+                                    : null,
                               ),
                             ),
                           ),
                           const SizedBox(width: 6),
                           Container(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: isReverted
                                   ? Colors.red.withValues(alpha: 0.15)
                                   : (isCorrected
-                                      ? Colors.blue.withValues(alpha: 0.15)
-                                      : Colors.teal.withValues(alpha: 0.15)),
+                                        ? Colors.blue.withValues(alpha: 0.15)
+                                        : Colors.teal.withValues(alpha: 0.15)),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               isReverted
                                   ? '↩️ Dibatalkan'
-                                  : (isCorrected ? '✏️ Dikoreksi' : '🤖 Agen Otonom'),
+                                  : (isCorrected
+                                        ? '✏️ Dikoreksi'
+                                        : '🤖 Agen Otonom'),
                               style: TextStyle(
                                 fontSize: 10.5,
                                 fontWeight: FontWeight.bold,
                                 color: isReverted
                                     ? Colors.redAccent
                                     : (isCorrected
-                                        ? Colors.blueAccent
-                                        : Colors.teal.shade700),
+                                          ? Colors.blueAccent
+                                          : Colors.teal.shade700),
                               ),
                             ),
                           ),
@@ -2117,11 +2406,16 @@ class _AutonomousActivityCard extends StatelessWidget {
                   TextButton.icon(
                     onPressed: onCorrect,
                     icon: const Icon(Icons.edit_note_rounded, size: 16),
-                    label: const Text('Koreksi', style: TextStyle(fontSize: 12)),
+                    label: const Text(
+                      'Koreksi',
+                      style: TextStyle(fontSize: 12),
+                    ),
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -2138,9 +2432,13 @@ class _AutonomousActivityCard extends StatelessWidget {
                     ),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      side: BorderSide(color: Colors.red.withValues(alpha: 0.5)),
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      side: BorderSide(
+                        color: Colors.red.withValues(alpha: 0.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                     ),
                   ),
                 ],
@@ -2234,9 +2532,9 @@ class _SessionFormState extends State<_SessionForm> {
       onError: (msg) {
         if (!mounted) return;
         setState(() => _isListeningFormVoice = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Suara belum terdeteksi: $msg')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Suara belum terdeteksi: $msg')));
       },
     );
     if (!initialized) {
@@ -2284,7 +2582,8 @@ class _SessionFormState extends State<_SessionForm> {
         // Saat dibuka dari draft asisten, initialCategory bisa jadi tidak lagi
         // valid di Data Utama. Jika tidak cocok, jangan biarkan pilihan basi,
         // kembalikan ke kategori aktif pertama (atau kosong bila memang tidak ada).
-        final selectedStillValid = _selectedCategory != null &&
+        final selectedStillValid =
+            _selectedCategory != null &&
             _activityCategories.contains(_selectedCategory);
         if (_selectedCategory == null || !selectedStillValid) {
           if (_activityCategories.isNotEmpty) {
@@ -2319,387 +2618,422 @@ class _SessionFormState extends State<_SessionForm> {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 8,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    color: Theme.of(context).colorScheme.surface,
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    child: Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.parentSessionTitle == null
+                  ? 'Mulai sesi aktivitas'
+                  : 'Tambah aktivitas di dalamnya',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+            if (widget.parentSessionTitle != null) ...[
+              const SizedBox(height: 6),
+              Text('Induk: ${widget.parentSessionTitle}'),
+            ],
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text(
-                  widget.parentSessionTitle == null
-                      ? 'Mulai sesi aktivitas'
-                      : 'Tambah aktivitas di dalamnya',
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                if (widget.parentSessionTitle != null) ...[
-                  const SizedBox(height: 6),
-                  Text('Induk: ${widget.parentSessionTitle}'),
-                ],
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: InkWell(
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () =>
+                        setState(() => _mode = ActivityMode.timeTracking),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _mode == ActivityMode.timeTracking
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(14),
-                        onTap: () => setState(() => _mode = ActivityMode.timeTracking),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _mode == ActivityMode.timeTracking
-                                ? Theme.of(context).colorScheme.primaryContainer
-                                : Theme.of(context).colorScheme.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _mode == ActivityMode.timeTracking
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.outlineVariant,
-                              width: _mode == ActivityMode.timeTracking ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
+                        border: Border.all(
+                          color: _mode == ActivityMode.timeTracking
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.outlineVariant,
+                          width: _mode == ActivityMode.timeTracking ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.timer_outlined,
-                                    color: _mode == ActivityMode.timeTracking
-                                        ? Theme.of(context).colorScheme.primary
-                                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '⏱️ Pakai Timer',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: _mode == ActivityMode.timeTracking
-                                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                                          : Theme.of(context).colorScheme.onSurface,
-                                    ),
-                                  ),
-                                ],
+                              Icon(
+                                Icons.timer_outlined,
+                                color: _mode == ActivityMode.timeTracking
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                size: 20,
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(width: 6),
                               Text(
-                                'Lacak durasi berjalan',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  fontSize: 11,
+                                '⏱️ Pakai Timer',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
                                   color: _mode == ActivityMode.timeTracking
-                                      ? Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8)
-                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimaryContainer
+                                      : Theme.of(context).colorScheme.onSurface,
                                 ),
-                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Lacak durasi berjalan',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  fontSize: 11,
+                                  color: _mode == ActivityMode.timeTracking
+                                      ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimaryContainer
+                                            .withValues(alpha: 0.8)
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: InkWell(
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => setState(() => _mode = ActivityMode.history),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _mode == ActivityMode.history
+                            ? Colors.purple.withValues(alpha: 0.15)
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(14),
-                        onTap: () => setState(() => _mode = ActivityMode.history),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _mode == ActivityMode.history
-                                ? Colors.purple.withValues(alpha: 0.15)
-                                : Theme.of(context).colorScheme.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _mode == ActivityMode.history
-                                  ? Colors.purple.shade700
-                                  : Theme.of(context).colorScheme.outlineVariant,
-                              width: _mode == ActivityMode.history ? 2 : 1,
-                            ),
-                          ),
-                          child: Column(
+                        border: Border.all(
+                          color: _mode == ActivityMode.history
+                              ? Colors.purple.shade700
+                              : Theme.of(context).colorScheme.outlineVariant,
+                          width: _mode == ActivityMode.history ? 2 : 1,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.edit_note_outlined,
-                                    color: _mode == ActivityMode.history
-                                        ? Theme.of(context).colorScheme.onSurface
-                                        : Theme.of(context).colorScheme.onSurfaceVariant,
-                                    size: 20,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '📝 Catat Saja',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: _mode == ActivityMode.history
-                                          ? Theme.of(context).colorScheme.onSurface
-                                          : Theme.of(context).colorScheme.onSurface,
-                                    ),
-                                  ),
-                                ],
+                              Icon(
+                                Icons.edit_note_outlined,
+                                color: _mode == ActivityMode.history
+                                    ? Theme.of(context).colorScheme.onSurface
+                                    : Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                size: 20,
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(width: 6),
                               Text(
-                                'Kejadian sekali catat',
-                                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                '📝 Catat Saja',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: _mode == ActivityMode.history
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Kejadian sekali catat',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
                                   fontSize: 11,
                                   color: _mode == ActivityMode.history
                                       ? Theme.of(context).colorScheme.onSurface
-                                      : Theme.of(context).colorScheme.onSurfaceVariant,
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
                                 ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
+                            textAlign: TextAlign.center,
                           ),
-                        ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: _title,
-                  autofocus: false,
-                  decoration: InputDecoration(
-                    labelText: 'Nama aktivitas',
-                    hintText: 'Misalnya ke pasar lalu ke kebun',
-                    prefixIcon: Icon(
-                      Icons.directions_run_outlined,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(_isListeningFormVoice ? Icons.mic : Icons.mic_none),
-                      color: _isListeningFormVoice
-                          ? Theme.of(context).colorScheme.error
-                          : Theme.of(context).colorScheme.primary,
-                      tooltip: _isListeningFormVoice
-                          ? 'Stop dengar'
-                          : 'Bicara nama aktivitas (Voice)',
-                      onPressed: _captureFormVoice,
                     ),
                   ),
-                ),
-                const SizedBox(height: 12),
-                if (_loadingCategories)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedCategory,
-                        decoration: InputDecoration(
-                          labelText: 'Kategori aktivitas',
-                          hintText: 'Pilih kategori aktivitas',
-                          prefixIcon: Icon(
-                            Icons.category_outlined,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        items: _activityCategories
-                            .map(
-                              (item) => DropdownMenuItem(
-                                value: item,
-                                child: Text(
-                                  item,
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedCategory = value;
-                            _category.text = value ?? '';
-                          });
-                        },
-                      ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () async {
-                  final result = await Navigator.of(context).push<String>(
-                    MaterialPageRoute(
-                      builder: (_) => const MasterDataPage(
-                        assistantTab: 0,
-                        returnOnCreate: true,
-                      ),
-                    ),
-                  );
-                  if (result != null && mounted) {
-                    await _loadActivityCategories();
-                    final categories = await _categoryRepository.readActive(
-                      AppContext.householdId,
-                      type: 'activity',
-                    );
-                    if (!mounted) return;
-                    final newCategory = categories.firstWhere(
-                      (c) => c.id == result,
-                      orElse: () => categories.first,
-                    );
-                    setState(() {
-                      _selectedCategory = newCategory.name;
-                      _category.text = newCategory.name;
-                    });
-                  }
-                },
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Tambah kategori baru di Data Utama'),
-              ),
-            ],
-          ),
-        const SizedBox(height: 12),
-        InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () async {
-            final picked = await showDatePicker(
-              context: context,
-              firstDate: DateTime(2020),
-              lastDate: DateTime(2100),
-              initialDate: _startedAt,
-            );
-            if (picked == null || !mounted) return;
-            setState(
-              () => _startedAt = DateTime(
-                picked.year,
-                picked.month,
-                picked.day,
-                _startedAt.hour,
-                _startedAt.minute,
-              ),
-            );
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.calendar_month_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _mode == ActivityMode.timeTracking
-                            ? 'Mulai pada'
-                            : 'Tanggal & waktu kejadian',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _dateTime(_startedAt),
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        TextField(
-          controller: _notes,
-          maxLines: 2,
-          decoration: InputDecoration(
-            labelText: 'Catatan (opsional)',
-            hintText: 'Keterangan tambahan jika ada',
-            prefixIcon: Icon(
-              Icons.notes_outlined,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          width: double.infinity,
-          height: 50,
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: _mode == ActivityMode.history
-                  ? Colors.purple.shade700
-                  : Theme.of(context).colorScheme.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _title,
+              autofocus: false,
+              decoration: InputDecoration(
+                labelText: 'Nama aktivitas',
+                hintText: 'Misalnya ke pasar lalu ke kebun',
+                prefixIcon: Icon(
+                  Icons.directions_run_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    _isListeningFormVoice ? Icons.mic : Icons.mic_none,
+                  ),
+                  color: _isListeningFormVoice
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.primary,
+                  tooltip: _isListeningFormVoice
+                      ? 'Stop dengar'
+                      : 'Bicara nama aktivitas (Voice)',
+                  onPressed: _captureFormVoice,
+                ),
               ),
             ),
-            onPressed: () {
-              if (_title.text.trim().isEmpty) return;
-              FocusManager.instance.primaryFocus?.unfocus();
-              Navigator.pop(
-                context,
-                _SessionDraft(
-                  _title.text.trim(),
-                  _category.text.trim(),
-                  _activityCategoryIds[_selectedCategory],
-                  _mode,
-                  _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-                  _startedAt,
+            const SizedBox(height: 12),
+            if (_loadingCategories)
+              const Center(child: CircularProgressIndicator())
+            else
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedCategory,
+                    decoration: InputDecoration(
+                      labelText: 'Kategori aktivitas',
+                      hintText: 'Pilih kategori aktivitas',
+                      prefixIcon: Icon(
+                        Icons.category_outlined,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    items: _activityCategories
+                        .map(
+                          (item) => DropdownMenuItem(
+                            value: item,
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedCategory = value;
+                        _category.text = value ?? '';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final result = await Navigator.of(context).push<String>(
+                        MaterialPageRoute(
+                          builder: (_) => const MasterDataPage(
+                            assistantTab: 0,
+                            returnOnCreate: true,
+                          ),
+                        ),
+                      );
+                      if (result != null && mounted) {
+                        await _loadActivityCategories();
+                        final categories = await _categoryRepository.readActive(
+                          AppContext.householdId,
+                          type: 'activity',
+                        );
+                        if (!mounted) return;
+                        final newCategory = categories.firstWhere(
+                          (c) => c.id == result,
+                          orElse: () => categories.first,
+                        );
+                        setState(() {
+                          _selectedCategory = newCategory.name;
+                          _category.text = newCategory.name;
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Tambah kategori baru di Data Utama'),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2100),
+                  initialDate: _startedAt,
+                );
+                if (picked == null || !mounted) return;
+                setState(
+                  () => _startedAt = DateTime(
+                    picked.year,
+                    picked.month,
+                    picked.day,
+                    _startedAt.hour,
+                    _startedAt.minute,
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
                 ),
-              );
-            },
-            icon: Icon(
-              _mode == ActivityMode.history
-                  ? Icons.check_circle_outline
-                  : Icons.play_arrow_rounded,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.calendar_month_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _mode == ActivityMode.timeTracking
+                                ? 'Mulai pada'
+                                : 'Tanggal & waktu kejadian',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _dateTime(_startedAt),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
+              ),
             ),
-            label: Text(
-              _mode == ActivityMode.history
-                  ? 'Simpan Catatan'
-                  : widget.parentSessionTitle == null
-                  ? 'Mulai Aktivitas Sekarang'
-                  : 'Mulai Aktivitas Anak',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notes,
+              maxLines: 2,
+              decoration: InputDecoration(
+                labelText: 'Catatan (opsional)',
+                hintText: 'Keterangan tambahan jika ada',
+                prefixIcon: Icon(
+                  Icons.notes_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _mode == ActivityMode.history
+                      ? Colors.purple.shade700
+                      : Theme.of(context).colorScheme.primary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  if (_title.text.trim().isEmpty) return;
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  Navigator.pop(
+                    context,
+                    _SessionDraft(
+                      _title.text.trim(),
+                      _category.text.trim(),
+                      _activityCategoryIds[_selectedCategory],
+                      _mode,
+                      _notes.text.trim().isEmpty ? null : _notes.text.trim(),
+                      _startedAt,
+                    ),
+                  );
+                },
+                icon: Icon(
+                  _mode == ActivityMode.history
+                      ? Icons.check_circle_outline
+                      : Icons.play_arrow_rounded,
+                ),
+                label: Text(
+                  _mode == ActivityMode.history
+                      ? 'Simpan Catatan'
+                      : widget.parentSessionTitle == null
+                      ? 'Mulai Aktivitas Sekarang'
+                      : 'Mulai Aktivitas Anak',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     ),
-  ),
-  ),
-);
+  );
 }
 
 class _CheckpointDraft {
@@ -2730,66 +3064,68 @@ class _CheckpointFormState extends State<_CheckpointForm> {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 8,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Update aktivitas',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _label,
-                  autofocus: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Sudah sampai/menjalankan apa?',
-                    hintText: 'Misalnya sampai pasar',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _place,
-                  decoration: const InputDecoration(labelText: 'Lokasi (opsional)'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _note,
-                  maxLines: 2,
-                  decoration: const InputDecoration(labelText: 'Catatan (opsional)'),
-                ),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () {
-                    if (_label.text.trim().isEmpty) return;
-                    FocusManager.instance.primaryFocus?.unfocus();
-                    Navigator.pop(
-                      context,
-                      _CheckpointDraft(
-                        _label.text.trim(),
-                        _place.text.trim().isEmpty ? null : _place.text.trim(),
-                        _note.text.trim().isEmpty ? null : _note.text.trim(),
-                        DateTime.now(),
-                      ),
-                    );
-                  },
-                  child: const Text('Simpan update'),
-                ),
-              ],
+    color: Theme.of(context).colorScheme.surface,
+    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+    child: Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Update aktivitas',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
             ),
-          ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _label,
+              autofocus: false,
+              decoration: const InputDecoration(
+                labelText: 'Sudah sampai/menjalankan apa?',
+                hintText: 'Misalnya sampai pasar',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _place,
+              decoration: const InputDecoration(labelText: 'Lokasi (opsional)'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _note,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Catatan (opsional)',
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () {
+                if (_label.text.trim().isEmpty) return;
+                FocusManager.instance.primaryFocus?.unfocus();
+                Navigator.pop(
+                  context,
+                  _CheckpointDraft(
+                    _label.text.trim(),
+                    _place.text.trim().isEmpty ? null : _place.text.trim(),
+                    _note.text.trim().isEmpty ? null : _note.text.trim(),
+                    DateTime.now(),
+                  ),
+                );
+              },
+              child: const Text('Simpan update'),
+            ),
+          ],
         ),
-      );
+      ),
+    ),
+  );
 }
 
 String _two(int value) => value.toString().padLeft(2, '0');
@@ -3081,7 +3417,8 @@ class _SmartRoutineEmptyState extends StatelessWidget {
     required this.onStartCustom,
   });
 
-  final void Function(String title, String category, ActivityMode? mode) onStartRoutine;
+  final void Function(String title, String category, ActivityMode? mode)
+  onStartRoutine;
   final VoidCallback onStartCustom;
 
   @override
@@ -3233,10 +3570,7 @@ class _SmartRoutineEmptyState extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             description,
-            style: TextStyle(
-              fontSize: 13,
-              color: scheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -3285,4 +3619,3 @@ class _RoutineQuickAction {
   final String description;
   final ActivityMode? mode;
 }
-

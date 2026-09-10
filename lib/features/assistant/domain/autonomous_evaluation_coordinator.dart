@@ -5,7 +5,9 @@ import 'package:drift/drift.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/di/injection.dart';
 import '../../advisor/data/cash_flow_profile_repository.dart';
+import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
+import '../data/ffm_assistant_autonomous_reminder_service.dart';
 import '../data/ffm_assistant_insight_repository.dart';
 import 'detectors/anomaly_spike_detector.dart';
 import 'detectors/debt_payoff_acceleration_detector.dart';
@@ -14,6 +16,7 @@ import 'detectors/goal_progress_risk_detector.dart';
 import 'detectors/intelligent_envelope_rebalance_detector.dart';
 import 'detectors/micro_expense_leak_detector.dart';
 import 'detectors/predictive_runway_detector.dart';
+import 'detectors/reminder_suggestion_detector.dart';
 import 'ffm_assistant_insight.dart';
 import 'ffm_proactive_delivery_policy.dart';
 import '../data/telegram_bot_service.dart';
@@ -34,6 +37,7 @@ class AutonomousEvaluationCoordinator {
     this.telegramDeliveryRepository,
     this.telegramDeliveryProcessor,
     CashFlowProfileRepository? cashFlowProfileRepository,
+    FfmAssistantAutonomousReminderService? autonomousReminderService,
   }) : _db = database,
        _repo = insightRepository,
        _clock = clock ?? DateTime.now,
@@ -50,7 +54,11 @@ class AutonomousEvaluationCoordinator {
        _latteDetector = MicroExpenseLeakDetector(database),
        _dsrDetector = DebtServiceRatioDetector(database),
        _goalDetector = GoalProgressRiskDetector(database),
-       _debtPayoffDetector = DebtPayoffAccelerationDetector(database);
+       _debtPayoffDetector = DebtPayoffAccelerationDetector(database),
+       _reminderSuggestionDetector = ReminderSuggestionDetector(database),
+       _autonomousReminderService =
+           autonomousReminderService ??
+           FfmAssistantAutonomousReminderService(ReminderRepository(database));
 
   static final Map<String, DateTime> _lastEvaluationTimes = {};
   static const Duration minimumEvaluationInterval = Duration(seconds: 15);
@@ -76,6 +84,8 @@ class AutonomousEvaluationCoordinator {
   final DebtServiceRatioDetector _dsrDetector;
   final GoalProgressRiskDetector _goalDetector;
   final DebtPayoffAccelerationDetector _debtPayoffDetector;
+  final ReminderSuggestionDetector _reminderSuggestionDetector;
+  final FfmAssistantAutonomousReminderService _autonomousReminderService;
 
   /// Menjalankan seluruh detektor deterministik, melakukan deduplikasi,
   /// pemeringkatan prioritas, dan menyimpan insight baru ke SQLite repository.
@@ -151,6 +161,16 @@ class AutonomousEvaluationCoordinator {
         now: now,
       );
       if (payoff != null) candidates.add(payoff);
+    } catch (_) {}
+
+    try {
+      final suggestion = await _reminderSuggestionDetector.detect(
+        householdId: householdId,
+        now: now,
+      );
+      if (suggestion != null) {
+        await _autonomousReminderService.createFrom(suggestion);
+      }
     } catch (_) {}
 
     if (candidates.isEmpty) return const [];

@@ -202,8 +202,37 @@ void main() {
     },
   );
 
-  testWidgets('ringkasan pemahaman menampilkan jumlah draft yang benar',
-      (tester) async {
+  testWidgets(
+    'FfmAssistantMessageToolbar menonaktifkan laporan yang sudah tercatat',
+    (tester) async {
+      var called = false;
+      await tester.pumpWidget(
+        _wrap(
+          FfmAssistantMessageToolbar(
+            isUser: false,
+            hasPrimaryAction: false,
+            primaryActionLabel: 'Buka',
+            activityConfirmed: false,
+            isSpeaking: false,
+            teachingSaved: false,
+            foregroundColor: Colors.black,
+            onMarkIssue: () => called = true,
+            issueLogged: true,
+          ),
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      expect(find.text('Sudah dicatat di Asisten Log'), findsOneWidget);
+      await tester.tap(find.text('Sudah dicatat di Asisten Log'));
+      expect(called, isFalse);
+    },
+  );
+
+  testWidgets('ringkasan pemahaman menampilkan jumlah draft yang benar', (
+    tester,
+  ) async {
     final workItems = [
       FfmAssistantWorkItem(
         id: 'work_1',
@@ -238,8 +267,9 @@ void main() {
     expect(result.needsClarification, isTrue);
   });
 
-  testWidgets('ringkasan pemahaman kosong saat tidak ada work item',
-      (tester) async {
+  testWidgets('ringkasan pemahaman kosong saat tidak ada work item', (
+    tester,
+  ) async {
     final result = const FfmAssistantUnderstandingResult(
       workItems: [],
       intents: [],
@@ -284,8 +314,9 @@ void main() {
     expect(find.text('Memproses...'), findsOneWidget);
   });
 
-  testWidgets('error provider menampilkan pesan dan tombol coba lagi',
-      (tester) async {
+  testWidgets('error provider menampilkan pesan dan tombol coba lagi', (
+    tester,
+  ) async {
     const intent = FfmAssistantIntent(
       rawText: 'cek ringkasan',
       normalizedText: 'cek ringkasan',

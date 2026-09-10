@@ -6,28 +6,30 @@ class FfmVerifiedFactsCard extends StatelessWidget {
     required this.facts,
     this.onToggle,
     this.isExpanded = false,
+    this.isVerified = true,
   });
 
   final String facts;
   final VoidCallback? onToggle;
   final bool isExpanded;
+  final bool isVerified;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final canToggle = onToggle != null;
+    final statusColor = isVerified
+        ? (isDark ? const Color(0xFF4CAF50) : const Color(0xFF2E7D32))
+        : (isDark ? const Color(0xFFFF6B6B) : const Color(0xFFC62828));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: isDark 
-            ? const Color(0xFF2A2A2A)
-            : const Color(0xFFF5F5F5),
+        color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isDark 
-              ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
-              : const Color(0xFF4CAF50).withValues(alpha: 0.5),
+          color: statusColor.withValues(alpha: isDark ? 0.3 : 0.5),
           width: 1,
         ),
       ),
@@ -41,34 +43,27 @@ class FfmVerifiedFactsCard extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.verified,
+                    isVerified ? Icons.verified : Icons.warning_amber_rounded,
                     size: 16,
-                    color: isDark 
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFF2E7D32),
+                    color: statusColor,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Fakta Terverifikasi',
+                      isVerified ? 'Fakta Terverifikasi' : 'Verifikasi Gagal',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: isDark 
-                            ? const Color(0xFF4CAF50)
-                            : const Color(0xFF2E7D32),
+                        color: statusColor,
                       ),
                     ),
                   ),
-                  Icon(
-                    isExpanded 
-                        ? Icons.expand_less 
-                        : Icons.expand_more,
-                    size: 16,
-                    color: isDark 
-                        ? Colors.white70
-                        : Colors.black54,
-                  ),
+                  if (canToggle)
+                    Icon(
+                      isExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 16,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
                 ],
               ),
             ),
@@ -80,9 +75,7 @@ class FfmVerifiedFactsCard extends StatelessWidget {
                 facts,
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDark 
-                      ? Colors.white70
-                      : Colors.black87,
+                  color: isDark ? Colors.white70 : Colors.black87,
                   height: 1.4,
                 ),
               ),

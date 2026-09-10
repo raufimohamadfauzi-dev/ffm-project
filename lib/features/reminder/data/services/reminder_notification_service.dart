@@ -17,6 +17,8 @@ const _assistantMorningReminderEnabledKey =
     'ffm_assistant_morning_reminder_enabled';
 const _assistantMorningReminderNotificationId = 61006;
 const _assistantMorningReminderChannelId = 'ffm_assistant_morning';
+const _autonomousReminderSoundResource = 'ffm_autonomous_reminder';
+const _autonomousReminderSoundName = 'Nada otonom FFM';
 const _reminderAccentColor = Color(0xFF7C3AED);
 const _reminderSubText = 'PENGINGAT FFM';
 
@@ -167,10 +169,7 @@ Future<void> _scheduleBackgroundSnooze(
       ? '${payload['channelId']}'.trim()
       : 'reminder_snooze';
   final channelName = '${payload['title'] ?? 'Pengingat FFM'}'.trim();
-  final soundUri = '${payload['soundUri'] ?? ''}'.trim();
-  final androidSound = soundUri.isNotEmpty
-      ? UriAndroidNotificationSound(soundUri)
-      : null;
+  final androidSound = _androidSoundForPayload(payload);
 
   await plugin
       .resolvePlatformSpecificImplementation<
@@ -296,7 +295,9 @@ abstract interface class ReminderNotificationLifecycleGateway {
 }
 
 String reminderNotificationChannelId(ReminderEntity reminder) {
-  final soundKey = reminder.soundUri?.trim().isNotEmpty == true
+  final soundKey = reminder.origin == ReminderOrigin.autonomous
+      ? 'raw:$_autonomousReminderSoundResource'
+      : reminder.soundUri?.trim().isNotEmpty == true
       ? reminder.soundUri!
       : 'default';
   var hash = 2166136261;
@@ -305,6 +306,35 @@ String reminderNotificationChannelId(ReminderEntity reminder) {
     hash &= 0x7fffffff;
   }
   return 'reminder_${reminder.id}_${hash == 0 ? 1 : hash}';
+}
+
+AndroidNotificationSound? _androidSoundForReminder(ReminderEntity reminder) {
+  if (reminder.origin == ReminderOrigin.autonomous) {
+    return const RawResourceAndroidNotificationSound(
+      _autonomousReminderSoundResource,
+    );
+  }
+  final soundUri = reminder.soundUri?.trim() ?? '';
+  return soundUri.isEmpty ? null : UriAndroidNotificationSound(soundUri);
+}
+
+AndroidNotificationSound? _androidSoundForPayload(
+  Map<String, dynamic> payload,
+) {
+  if (payload['origin'] == ReminderOrigin.autonomous.storageValue) {
+    return const RawResourceAndroidNotificationSound(
+      _autonomousReminderSoundResource,
+    );
+  }
+  final soundUri = '${payload['soundUri'] ?? ''}'.trim();
+  return soundUri.isEmpty ? null : UriAndroidNotificationSound(soundUri);
+}
+
+String _soundNameForReminder(ReminderEntity reminder) {
+  if (reminder.origin == ReminderOrigin.autonomous) {
+    return _autonomousReminderSoundName;
+  }
+  return reminder.soundName ?? 'Pengingat FFM';
 }
 
 class ReminderNotificationService
@@ -562,9 +592,8 @@ class ReminderNotificationService
       );
     }
     final channelId = reminderNotificationChannelId(reminder);
-    final androidSound = reminder.soundUri?.trim().isNotEmpty == true
-        ? UriAndroidNotificationSound(reminder.soundUri!)
-        : null;
+    final androidSound = _androidSoundForReminder(reminder);
+    final soundName = _soundNameForReminder(reminder);
     await _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
@@ -572,7 +601,7 @@ class ReminderNotificationService
         ?.createNotificationChannel(
           AndroidNotificationChannel(
             channelId,
-            reminder.soundName ?? 'Pengingat FFM',
+            soundName,
             description: 'Notifikasi pengingat FFM',
             importance: Importance.max,
             playSound: true,
@@ -582,7 +611,7 @@ class ReminderNotificationService
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
-        reminder.soundName ?? 'Pengingat FFM',
+        soundName,
         channelDescription: 'Notifikasi pengingat FFM',
         importance: Importance.max,
         priority: Priority.high,
@@ -626,6 +655,7 @@ class ReminderNotificationService
         'note': reminder.note ?? '',
         'channelId': channelId,
         'soundUri': reminder.soundUri ?? '',
+        'origin': reminder.origin.storageValue,
         'recurrence': reminder.recurrenceType.storageValue,
         'weekdays': reminder.weekdays,
         'seriesScheduledAt': reminder.scheduledAt.toIso8601String(),
@@ -652,10 +682,8 @@ class ReminderNotificationService
       );
     }
     final channelId = reminderNotificationChannelId(reminder);
-    final soundUri = reminder.soundUri?.trim() ?? '';
-    final androidSound = soundUri.isEmpty
-        ? null
-        : UriAndroidNotificationSound(soundUri);
+    final androidSound = _androidSoundForReminder(reminder);
+    final soundName = _soundNameForReminder(reminder);
     final id = stableSnoozeNotificationId(reminder.id, history.occurrenceKey);
     await _plugin.zonedSchedule(
       id: id,
@@ -665,7 +693,7 @@ class ReminderNotificationService
       notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
-          reminder.soundName ?? 'Pengingat FFM',
+          soundName,
           channelDescription: 'Notifikasi pengingat yang ditunda',
           importance: Importance.max,
           priority: Priority.high,
@@ -698,6 +726,7 @@ class ReminderNotificationService
         'note': reminder.note ?? '',
         'channelId': channelId,
         'soundUri': reminder.soundUri ?? '',
+        'origin': reminder.origin.storageValue,
         'recurrence': reminder.recurrenceType.storageValue,
         'weekdays': reminder.weekdays,
         'seriesScheduledAt': reminder.scheduledAt.toIso8601String(),

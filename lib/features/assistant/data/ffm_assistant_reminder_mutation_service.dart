@@ -72,6 +72,8 @@ class FfmAssistantReminderMutationService {
       notificationId: previous.notificationId,
       createdAt: previous.createdAt,
       updatedAt: _clock(),
+      sourceType: previous.sourceType,
+      sourceId: previous.sourceId,
     );
     if (_sameEditableFields(previous, next)) return previous;
 

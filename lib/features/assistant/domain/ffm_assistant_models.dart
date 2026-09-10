@@ -58,6 +58,7 @@ class FfmAssistantProcessTrace {
 
 enum FfmAssistantIntentType {
   changeTheme,
+  changeHijriAdjustment,
   openPage,
   listPages,
   setupGuide,

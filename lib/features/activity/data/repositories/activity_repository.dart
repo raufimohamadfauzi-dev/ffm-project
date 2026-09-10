@@ -135,6 +135,19 @@ class ActivityRepository {
     return rows.map(_entryFromRow).toList();
   }
 
+  Future<List<DailyNote>> getDailyNotes(String householdId) async {
+    final rows =
+        await (database.select(database.dailyNotes)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)]))
+            .get();
+    return rows;
+  }
+
   Future<void> saveSession(ActivitySessionEntity entity) async {
     final category = await _resolveActivityCategory(entity);
     await database
@@ -263,9 +276,9 @@ class ActivityRepository {
   }
 
   Future<void> deleteCheckpoint(String checkpointId) async {
-    await (database.delete(database.activityCheckpoints)
-          ..where((row) => row.id.equals(checkpointId)))
-        .go();
+    await (database.delete(
+      database.activityCheckpoints,
+    )..where((row) => row.id.equals(checkpointId))).go();
     await auditLogger.record(
       action: 'delete_checkpoint',
       entity: 'activity_checkpoint',

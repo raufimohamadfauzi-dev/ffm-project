@@ -5,6 +5,7 @@ import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../settings/data/utility_meter_repository.dart';
+import '../../../shared/ffm_date_period.dart';
 import '../domain/ffm_assistant_models.dart';
 import '../domain/ffm_assistant_financial_analysis.dart';
 import '../domain/ffm_assistant_analysis_engine.dart';
@@ -56,6 +57,7 @@ class FfmAssistantQueryRegistry {
          _AccountBalanceQueryTool(database),
          _TobaccoPurchaseQueryTool(database),
          UtilityMeterRepositoryQueryTool(database, UtilityMeterRepository()),
+         _ExpenseExtremeQueryTool(database),
          _LatestTransactionQueryTool(database),
          _TransactionSummaryQueryTool(database),
          _LatestDailyNoteQueryTool(database),
@@ -481,6 +483,144 @@ class _TransactionSummaryQueryTool implements FfmAssistantQueryTool {
   }
 }
 
+class _ExpenseExtremeQueryTool implements FfmAssistantQueryTool {
+  const _ExpenseExtremeQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final asksExpense = normalizedText.contains('pengeluaran');
+    final asksExtreme = RegExp(
+      r'\b(?:terbesar|paling\s+besar|tertinggi|terkecil|paling\s+kecil|terendah)\b',
+      caseSensitive: false,
+    ).hasMatch(normalizedText);
+    final hasPeriod = FfmDatePeriod.fromText(
+      normalizedText,
+      now: DateTime.now(),
+    ) !=
+        null;
+    return asksExpense && asksExtreme && hasPeriod;
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final period = FfmDatePeriod.fromText(
+      request.normalizedText,
+      now: request.now,
+    );
+    if (period == null) return null;
+
+    final rows =
+        await (_database.select(_database.transactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(request.householdId) &
+                    row.type.equals('expense') &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false) &
+                    (period.isAllTime
+                        ? row.date.isBiggerOrEqualValue(
+                            DateTime.fromMicrosecondsSinceEpoch(0),
+                          )
+                        : row.date.isBiggerOrEqualValue(period.startOrEpoch) &
+                              row.date.isSmallerThanValue(period.endOrMax)),
+              )
+              ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+            .get();
+
+    if (rows.isEmpty) {
+      return FfmAssistantQueryAnswer(
+        title: 'Analisis Pengeluaran',
+        message: 'Belum ada transaksi pengeluaran dalam ${period.label}.',
+      );
+    }
+
+    final categories = await (_database.select(
+      _database.categories,
+    )..where((row) => row.householdId.equals(request.householdId))).get();
+    final categoryNames = {
+      for (final category in categories) category.id: category.name,
+    };
+
+    final sortedByAmount = rows.toList()
+      ..sort((a, b) => b.amount.abs().compareTo(a.amount.abs()));
+    final largest = sortedByAmount.first;
+    final smallest = sortedByAmount.last;
+
+    final categoryTotals = <String, int>{};
+    for (final row in rows) {
+      final category = row.categoryId == null
+          ? 'Tanpa kategori'
+          : categoryNames[row.categoryId!] ?? 'Kategori tidak dikenal';
+      categoryTotals[category] =
+          (categoryTotals[category] ?? 0) + row.amount.abs();
+    }
+    final sortedCategories = categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final asksLargest = RegExp(
+      r'\b(?:terbesar|paling\s+besar|tertinggi)\b',
+      caseSensitive: false,
+    ).hasMatch(request.normalizedText);
+    final asksSmallest = RegExp(
+      r'\b(?:terkecil|paling\s+kecil|terendah)\b',
+      caseSensitive: false,
+    ).hasMatch(request.normalizedText);
+    final asksCategory = request.normalizedText.contains('kategori');
+
+    final buffer = StringBuffer()
+      ..writeln('Analisis pengeluaran ${period.label}:')
+      ..writeln(
+        'Total pengeluaran: ${_rupiah(rows.fold<int>(0, (sum, row) => sum + row.amount.abs()))}',
+      )
+      ..writeln('Jumlah transaksi pengeluaran: ${rows.length}')
+      ..writeln();
+
+    if (!asksSmallest || asksLargest) {
+      buffer.writeln(
+        asksCategory
+            ? 'Kategori pengeluaran terbesar: ${sortedCategories.first.key} (${_rupiah(sortedCategories.first.value)}).'
+            : 'Transaksi pengeluaran terbesar: ${_formatExpenseRow(largest, categoryNames)}.',
+      );
+    }
+    if (asksSmallest) {
+      final smallestCategory = sortedCategories.reversed.first;
+      buffer.writeln(
+        asksCategory
+            ? 'Kategori pengeluaran terkecil: ${smallestCategory.key} (${_rupiah(smallestCategory.value)}).'
+            : 'Transaksi pengeluaran terkecil: ${_formatExpenseRow(smallest, categoryNames)}.',
+      );
+    }
+    if (!asksCategory && sortedCategories.isNotEmpty) {
+      buffer.writeln(
+        'Kategori terbesar: ${sortedCategories.first.key} (${_rupiah(sortedCategories.first.value)}).',
+      );
+    }
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Pengeluaran',
+      message: buffer.toString().trim(),
+    );
+  }
+
+  String _formatExpenseRow(
+    Transaction row,
+    Map<String, String> categoryNames,
+  ) {
+    final date = DateFormat('dd/MM/yyyy').format(row.date);
+    final category = row.categoryId == null
+        ? 'tanpa kategori'
+        : categoryNames[row.categoryId!] ?? 'kategori tidak dikenal';
+    final note = row.note == null || row.note!.trim().isEmpty
+        ? ''
+        : ' Catatan: ${row.note!.trim()}.';
+    return '${_rupiah(row.amount.abs())} pada $date, kategori $category.$note';
+  }
+}
+
 class _LatestTransactionQueryTool implements FfmAssistantQueryTool {
   const _LatestTransactionQueryTool(this._database);
 
@@ -509,8 +649,8 @@ class _LatestTransactionQueryTool implements FfmAssistantQueryTool {
                     row.isDeleted.equals(false);
                 if (period == null) return base;
                 return base &
-                    row.date.isBiggerOrEqualValue(period.$1) &
-                    row.date.isSmallerThanValue(period.$2);
+                    row.date.isBiggerOrEqualValue(period.startOrEpoch) &
+                    row.date.isSmallerThanValue(period.endOrMax);
               })
               ..orderBy([
                 (row) => OrderingTerm.desc(row.date),
@@ -559,59 +699,58 @@ class _LatestTransactionQueryTool implements FfmAssistantQueryTool {
     );
   }
 
-  (DateTime, DateTime)? _periodBounds(String text, DateTime now) {
-    final today = DateTime(now.year, now.month, now.day);
-    if (text.contains('hari ini')) {
-      return (today, today.add(const Duration(days: 1)));
-    }
-    if (text.contains('kemarin')) {
-      return (today.subtract(const Duration(days: 1)), today);
-    }
-    if (text.contains('minggu ini')) {
-      final monday = today.subtract(Duration(days: today.weekday - 1));
-      return (monday, monday.add(const Duration(days: 7)));
-    }
-    if (text.contains('bulan ini')) {
-      final start = DateTime(today.year, today.month);
-      return (start, DateTime(today.year, today.month + 1));
-    }
-    if (text.contains('bulan lalu')) {
-      final start = DateTime(today.year, today.month - 1);
-      return (start, DateTime(today.year, today.month));
-    }
-    return null;
-  }
+  FfmDatePeriod? _periodBounds(String text, DateTime now) =>
+      FfmDatePeriod.fromText(text, now: now);
 }
+
 
 class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
   const _LatestDailyNoteQueryTool(this._database);
 
   final AppDatabase _database;
 
-  @override
-  bool canHandle(String normalizedText) => RegExp(
-    r'\b(?:catatan\s+(?:terbaru|terakhir|hari\s+ini|kemarin)|jurnal\s+(?:terbaru|terakhir)|apa\s+yang\s+aku\s+catat)\b',
+  static final _notePeriodKeyword = RegExp(
+    r'\b(?:3|tiga)\s+bulan|\b90\s+hari|\b(?:1|satu)\s+tahun|\bsetahun|\b12\s+bulan|\btahun\s+lalu|\btahun\s+terakhir|\bbulan\s+ini|\bbulan\s+lalu',
     caseSensitive: false,
-  ).hasMatch(normalizedText);
+  );
+
+  @override
+  bool canHandle(String normalizedText) =>
+      RegExp(
+        r'\b(?:catatan\s+(?:terbaru|terakhir|hari\s+ini|kemarin)|jurnal\s+(?:terbaru|terakhir)|apa\s+yang\s+aku\s+catat)\b',
+        caseSensitive: false,
+      ).hasMatch(normalizedText) ||
+      (RegExp(
+            r'\b(?:catatan|jurnal)\b',
+            caseSensitive: false,
+          ).hasMatch(normalizedText) &&
+          _notePeriodKeyword.hasMatch(normalizedText));
 
   @override
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
+    final period = _activityPeriodBounds(request.normalizedText, request.now);
+    final limit = period == null ? 5 : 20;
     final notes =
         await (_database.select(_database.dailyNotes)
-              ..where(
-                (row) =>
+              ..where((row) {
+                final filter =
                     row.householdId.equals(request.householdId) &
-                    row.isArchived.equals(false),
-              )
+                    row.isArchived.equals(false);
+                if (period == null || period.isAllTime) return filter;
+                return filter &
+                    row.noteDate.isBiggerOrEqualValue(period.startOrEpoch) &
+                    row.noteDate.isSmallerThanValue(period.endOrMax);
+              })
               ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
-              ..limit(5))
+              ..limit(limit))
             .get();
     if (notes.isEmpty) {
-      return const FfmAssistantQueryAnswer(
+      final periodSuffix = period == null ? '' : ' (${period.label})';
+      return FfmAssistantQueryAnswer(
         title: 'Catatan terbaru',
-        message: 'Belum ada catatan harian yang tersimpan di FFM.',
+        message: 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.',
       );
     }
     final lines = notes.map((note) {
@@ -624,15 +763,27 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
     return FfmAssistantQueryAnswer(
       title: 'Catatan terbaru',
       message:
-          'Ini catatan harian terbaru yang tersimpan:\n${lines.join('\n')}',
+          'Ini catatan harian ${period?.label ?? 'terbaru'} yang tersimpan:\n${lines.join('\n')}',
     );
   }
+
+  static FfmDatePeriod? _activityPeriodBounds(String text, DateTime now) =>
+      FfmDatePeriod.fromText(text, now: now);
 }
 
 class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
   const _ActiveActivityQueryTool(this._database);
 
   final AppDatabase _database;
+
+  static final _activityKeyword = RegExp(
+    r'\b(?:aktivitas|kegiatan)\b',
+    caseSensitive: false,
+  );
+  static final _activityPeriodKeyword = RegExp(
+    r'\b(?:3|tiga)\s+bulan|\b90\s+hari|\b(?:1|satu)\s+tahun|\bsetahun|\b12\s+bulan|\btahun\s+lalu|\btahun\s+terakhir|\bbulan\s+ini|\bbulan\s+lalu',
+    caseSensitive: false,
+  );
 
   @override
   bool canHandle(String normalizedText) =>
@@ -646,12 +797,15 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
       normalizedText.contains('kegiatan terakhir') ||
       normalizedText.contains('kegiatan terbaru') ||
       normalizedText.contains('kebiasaan kegiatan') ||
-      normalizedText.contains('kegiatan saya');
+      normalizedText.contains('kegiatan saya') ||
+      (_activityKeyword.hasMatch(normalizedText) &&
+          _activityPeriodKeyword.hasMatch(normalizedText));
 
   @override
   Future<FfmAssistantQueryAnswer?> answer(
     FfmAssistantQueryRequest request,
   ) async {
+    final period = _activityPeriodBounds(request.normalizedText, request.now);
     final isAskingHistory =
         request.normalizedText.contains('riwayat') ||
         request.normalizedText.contains('aktivitas terakhir') ||
@@ -659,31 +813,75 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
         request.normalizedText.contains('kegiatan terakhir') ||
         request.normalizedText.contains('kegiatan terbaru') ||
         request.normalizedText.contains('kebiasaan') ||
-        request.normalizedText.contains('kegiatan saya');
+        request.normalizedText.contains('kegiatan saya') ||
+        period != null;
 
     if (isAskingHistory) {
-      final history =
+      final limit = period == null ? 5 : 20;
+      final entries =
           await (_database.select(_database.activityEntries)
-                ..where(
-                  (row) =>
+                ..where((row) {
+                  final filter =
                       row.householdId.equals(request.householdId) &
-                      row.isArchived.equals(false),
-                )
+                      row.isArchived.equals(false);
+                  if (period == null || period.isAllTime) return filter;
+                  return filter &
+                      row.startedAt.isBiggerOrEqualValue(period.startOrEpoch) &
+                      row.startedAt.isSmallerThanValue(period.endOrMax);
+                })
                 ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
-                ..limit(5))
+                ..limit(limit))
               .get();
+      final sessions =
+          await (_database.select(_database.activitySessions)
+                ..where((row) {
+                  final filter =
+                      row.householdId.equals(request.householdId) &
+                      row.isArchived.equals(false) &
+                      row.status.equals('active').not();
+                  if (period == null || period.isAllTime) return filter;
+                  return filter &
+                      row.startedAt.isBiggerOrEqualValue(period.startOrEpoch) &
+                      row.startedAt.isSmallerThanValue(period.endOrMax);
+                })
+                ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+                ..limit(limit))
+              .get();
+      final history = <_ActivityHistoryItem>[
+        ...entries.map(
+          (entry) => _ActivityHistoryItem(
+            startedAt: entry.startedAt,
+            title: entry.title,
+            type: entry.activityType,
+          ),
+        ),
+        ...sessions.map(
+          (session) => _ActivityHistoryItem(
+            startedAt: session.startedAt,
+            title: session.title,
+            type: session.kind,
+          ),
+        ),
+      ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+      final visibleHistory = history.take(limit);
       if (history.isEmpty) {
-        return const FfmAssistantQueryAnswer(
+        final periodSuffix = period == null ? '' : ' (${period.label})';
+        return FfmAssistantQueryAnswer(
           title: 'Riwayat Aktivitas',
-          message: 'Belum ada riwayat aktivitas atau jurnal yang tersimpan.',
+          message:
+              'Belum ada riwayat aktivitas atau jurnal yang tersimpan$periodSuffix.',
         );
       }
       final buffer = StringBuffer();
-      buffer.writeln('Ini 5 riwayat aktivitas terakhirmu:');
-      for (final entry in history) {
+      buffer.writeln(
+        period == null
+            ? 'Ini 5 riwayat aktivitas terakhirmu:'
+            : 'Ini riwayat aktivitas ${period.label}:',
+      );
+      for (final entry in visibleHistory) {
         final date =
             '${entry.startedAt.day}/${entry.startedAt.month}/${entry.startedAt.year}';
-        buffer.writeln('- $date: ${entry.title} (${entry.activityType})');
+        buffer.writeln('- $date: ${entry.title} (${entry.type})');
       }
       return FfmAssistantQueryAnswer(
         title: 'Riwayat Aktivitas',
@@ -718,6 +916,21 @@ class _ActiveActivityQueryTool implements FfmAssistantQueryTool {
       message: 'Ada ${rows.length} aktivitas yang masih berjalan:\n$lines',
     );
   }
+
+  static FfmDatePeriod? _activityPeriodBounds(String text, DateTime now) =>
+      FfmDatePeriod.fromText(text, now: now);
+}
+
+class _ActivityHistoryItem {
+  const _ActivityHistoryItem({
+    required this.startedAt,
+    required this.title,
+    required this.type,
+  });
+
+  final DateTime startedAt;
+  final String title;
+  final String? type;
 }
 
 class _GoalStatusQueryTool implements FfmAssistantQueryTool {

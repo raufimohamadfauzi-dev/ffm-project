@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../shared/ffm_date_period.dart';
 
 class TransactionFilter {
   const TransactionFilter({
@@ -65,6 +66,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
   String? _categoryId;
   String? _merchantId;
   String? _owner;
+  String _periodPreset = 'Semua waktu';
 
   @override
   void initState() {
@@ -77,6 +79,11 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
     _owner = widget.owner;
     _startDate = widget.startDate;
     _endDate = widget.endDate;
+    _periodPreset = widget.currentMonthOnly
+        ? 'Bulan ini'
+        : widget.startDate == null || widget.endDate == null
+        ? 'Semua waktu'
+        : 'Custom';
   }
 
   DateTime? _startDate;
@@ -97,6 +104,41 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
       _startDate = range.start;
       _endDate = range.end;
       _currentMonthOnly = false;
+      _periodPreset = 'Custom';
+    });
+  }
+
+  void _applyPeriodPreset(String preset) {
+    final period = switch (preset) {
+      'Hari ini' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.today),
+      'Kemarin' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.yesterday),
+      'Minggu ini' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.thisWeek),
+      'Bulan ini' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.thisMonth),
+      'Bulan lalu' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.lastMonth),
+      '3 bulan terakhir' => FfmDatePeriod.fromPreset(
+        FfmDatePeriodPreset.last3Months,
+      ),
+      '6 bulan terakhir' => FfmDatePeriod.fromPreset(
+        FfmDatePeriodPreset.last6Months,
+      ),
+      '1 tahun terakhir' => FfmDatePeriod.fromPreset(
+        FfmDatePeriodPreset.lastYear,
+      ),
+      'Tahun ini' => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.thisYear),
+      'Tahun lalu' => FfmDatePeriod.fromPreset(
+        FfmDatePeriodPreset.previousYear,
+      ),
+      _ => FfmDatePeriod.fromPreset(FfmDatePeriodPreset.allTime),
+    };
+    setState(() {
+      _periodPreset = preset;
+      _currentMonthOnly = preset == 'Bulan ini';
+      _startDate = period.start;
+      _endDate = period.endInclusive;
+      if (_currentMonthOnly) {
+        _startDate = null;
+        _endDate = null;
+      }
     });
   }
 
@@ -146,6 +188,50 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
                   _endDate = null;
                 }
               }),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _periodPreset,
+              decoration: const InputDecoration(labelText: 'Periode cepat'),
+              items: const [
+                DropdownMenuItem(
+                  value: 'Semua waktu',
+                  child: Text('Semua waktu'),
+                ),
+                DropdownMenuItem(value: 'Custom', child: Text('Custom')),
+                DropdownMenuItem(value: 'Hari ini', child: Text('Hari ini')),
+                DropdownMenuItem(value: 'Kemarin', child: Text('Kemarin')),
+                DropdownMenuItem(
+                  value: 'Minggu ini',
+                  child: Text('Minggu ini'),
+                ),
+                DropdownMenuItem(value: 'Bulan ini', child: Text('Bulan ini')),
+                DropdownMenuItem(
+                  value: 'Bulan lalu',
+                  child: Text('Bulan lalu'),
+                ),
+                DropdownMenuItem(
+                  value: '3 bulan terakhir',
+                  child: Text('3 bulan terakhir'),
+                ),
+                DropdownMenuItem(
+                  value: '6 bulan terakhir',
+                  child: Text('6 bulan terakhir'),
+                ),
+                DropdownMenuItem(
+                  value: '1 tahun terakhir',
+                  child: Text('1 tahun terakhir'),
+                ),
+                DropdownMenuItem(value: 'Tahun ini', child: Text('Tahun ini')),
+                DropdownMenuItem(
+                  value: 'Tahun lalu',
+                  child: Text('Tahun lalu'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null && value != 'Custom') {
+                  _applyPeriodPreset(value);
+                }
+              },
             ),
             OutlinedButton.icon(
               onPressed: _pickDateRange,
@@ -216,7 +302,9 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String?>(
                 initialValue: _owner,
-                decoration: const InputDecoration(labelText: 'Pemilik / Anggota'),
+                decoration: const InputDecoration(
+                  labelText: 'Pemilik / Anggota',
+                ),
                 items: [
                   const DropdownMenuItem<String?>(
                     value: null,

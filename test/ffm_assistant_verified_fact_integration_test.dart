@@ -117,6 +117,28 @@ void main() {
       expect(summary.netWorth, equals(4000000));
     });
 
+    test('financial summary exposes liquid cash balance separately', () {
+      const summary = FfmFinancialSummaryFact(
+        totalAccounts: 2,
+        totalBalance: 5000000,
+        liquidCashBalance: 3500000,
+        totalActiveLiabilities: 1,
+        totalDebt: 1000000,
+        totalActiveGoals: 0,
+        totalGoalProgress: 0,
+        totalGoalTarget: 0,
+        netWorth: 4000000,
+      );
+      final facts = FfmVerifiedFacts(
+        capturedAt: DateTime(2026, 8, 31),
+        householdId: 'test-household',
+        financialSummary: summary,
+      );
+
+      expect(facts.toLLMContext(), contains('Liquid Cash Balance'));
+      expect(facts.toLLMContext(), contains('Rp3.500.000'));
+    });
+
     test('FfmTransactionFact should have all required fields', () {
       // Verify transaction fact structure
       final transaction = FfmTransactionFact(

@@ -104,6 +104,8 @@ class FfmGeminiReadCapabilityService {
       case 'read.activities':
         return await _financialSnapshot.buildActivitiesDigest(
           householdId: householdId,
+          periodStart: request.startDate,
+          periodEndExclusive: request.endDate?.add(const Duration(days: 1)),
         );
       case 'read.reminders':
       case 'read.reminder':

@@ -27,6 +27,11 @@ void main() {
   });
 
   testWidgets('Smart routine empty state renders with routine chips when sessions empty', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(
       const MaterialApp(
         home: ActivityPage(),
@@ -40,6 +45,11 @@ void main() {
   });
 
   testWidgets('Active session older than 8 hours displays Zombie Timer warning banner', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final activityRepo = getIt<ActivityRepository>();
     // Create a zombie session started 10 hours ago
     final zombieStarted = DateTime.now().subtract(const Duration(hours: 10));

@@ -20,7 +20,7 @@ void main() {
     expect(response, contains('Family Finance Manager (FFM)'));
     expect(
       response,
-      contains('aplikasi pengelolaan keuangan keluarga offline-first'),
+      contains('aplikasi pengelolaan keuangan keluarga hybrid'),
     );
     expect(response, contains('Catatan Harian'));
     expect(

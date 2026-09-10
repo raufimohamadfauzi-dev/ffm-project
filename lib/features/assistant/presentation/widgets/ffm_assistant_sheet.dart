@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
+import 'package:crypto/crypto.dart';
 
 import 'package:flutter/material.dart';
 
@@ -46,8 +47,8 @@ import '../../data/ffm_assistant_proposal_json_service.dart';
 import '../../data/ffm_assistant_proactive_cooldown.dart';
 import '../../data/ffm_assistant_report_service.dart';
 import '../../data/ffm_assistant_chat_export_service.dart';
-import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_assistant_memory_repository.dart';
+import '../../data/ffm_assistant_response_feedback_repository.dart';
 import '../../data/ffm_memory_learning_service.dart';
 import '../../data/receipt_scanner_service.dart';
 import '../../data/ffm_gemini_cloud_orchestrator.dart';
@@ -60,6 +61,7 @@ import '../../domain/assistant_onboarding_orchestrator.dart';
 import '../../domain/ffm_assistant_action_plan.dart';
 import '../../domain/ffm_assistant_action_planner.dart';
 import '../../../../core/theme/app_theme_controller.dart';
+import '../../../hijri/domain/hijri_calendar_service.dart';
 import '../../domain/ffm_assistant_draft_validator.dart';
 import '../../domain/ffm_assistant_work_item.dart';
 import '../../domain/ffm_assistant_feedback_context.dart';
@@ -96,6 +98,13 @@ import '../../data/plugins/ffm_logic_plugins.dart';
 import '../../domain/ffm_agent_harness.dart';
 import '../../../liability/presentation/pages/debt_payoff_strategy_page.dart';
 import '../../../settings/presentation/pages/supabase_setup_page.dart';
+
+class _AssistantIssueSelection {
+  const _AssistantIssueSelection(this.kind, this.note);
+
+  final FfmAssistantResponseFeedbackKind kind;
+  final String? note;
+}
 
 typedef FfmAssistantIntentHandler = Future<void> Function(
   FfmAssistantIntent intent,
@@ -198,6 +207,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   final _activityVoiceParser = const ActivityVoiceParser();
   final Set<String> _savedTeachingKeys = <String>{};
   final Set<String> _confirmedActivityKeys = <String>{};
+  final Set<String> _reportedAssistantIssueSourceIds = <String>{};
   final Stopwatch _processStopwatch = Stopwatch();
   final List<FfmAssistantProcessEvent> _activeProcessEvents =
       <FfmAssistantProcessEvent>[];
@@ -219,6 +229,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   var _listening = false;
   var _followLatestMessages = true;
   var _showScrollToBottom = false;
+  var _showProcessSteps = false;
   final _technicalDetailsExpanded = <int>{};
   FfmAssistantProactiveSuggestion? _proactiveSuggestion;
   var _proactiveSuggestionGeneration = 0;
@@ -953,6 +964,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     unawaited(_loadAutonomyPolicy());
     _refreshMemoryCount();
     _refreshInboxCount();
+    unawaited(_loadReportedAssistantIssues());
     unawaited(_refreshProactiveSuggestion());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _historyRestoreFuture;
@@ -968,6 +980,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       // Hitung ulang setelah entry tersebut selesai dirender.
       _scrollToEnd(force: true, animated: false);
     });
+  }
+
+  Future<void> _loadReportedAssistantIssues() async {
+    try {
+      final issues = await _responseFeedbackRepository.readAllIssues();
+      if (!mounted) return;
+      setState(() {
+        _reportedAssistantIssueSourceIds
+          ..clear()
+          ..addAll(
+            issues.map((issue) => issue.sourceMessageId).whereType<String>(),
+          );
+      });
+    } on Object {
+      // The repository remains the source of truth when the log is unavailable.
+    }
   }
 
   Future<void> _checkAndInitiateGreetings() async {
@@ -1584,6 +1612,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
+      _showProcessSteps = false;
       _processStopwatch
         ..reset()
         ..start();
@@ -1943,9 +1972,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
 
       _setActiveProcess(
         _routingMode == FfmAssistantRoutingMode.geminiCloud
-            ? 'Tahap 1/2: Gemini Cloud memahami permintaan...'
-            : 'Tahap 1/2: Menyiapkan konteks Agent...',
+            ? 'Memahami permintaan...'
+            : 'Menyiapkan konteks Agent...',
       );
+      await Future<void>.delayed(Duration.zero);
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
         stopwatch.stop();
         setState(() {
@@ -1976,7 +2006,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (await _tryHandleActivityRequest(text)) return;
       final pending = widget.session.pendingDialog;
       if (pending != null) {
-        _setActiveProcess('Tahap 1/2: Menyiapkan jawaban dialog tertunda...');
+        _setActiveProcess('Menyiapkan jawaban dialog tertunda...');
       }
       final conversationHistory = _buildRecentConversationHistory();
       final lastAssistant = widget.session.lastAssistantText;
@@ -1985,6 +2015,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : null;
       FfmAssistantUnderstandingResult? understanding;
       final activeDraftForTurn = _activeDraftForTurn(text);
+      _interpreter.onProgress = (message) {
+        _setActiveProcess(message);
+      };
       final intents = pending == null
           ? ((understanding = await _interpreter.interpretMany(
               text,
@@ -2012,8 +2045,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               capabilityIds:
                   widget.currentPageContext?.capabilityIds ?? const [],
             );
+      _interpreter.onProgress = null;
       stopwatch.stop();
-      _setActiveProcess('Tahap 2/2: Memvalidasi hasil & menyusun respons...');
+      _setActiveProcess('Menyusun respons...');
+      await Future<void>.delayed(Duration.zero);
 
       if (!mounted) return;
       final readPlanIds = <String>[];
@@ -2040,6 +2075,12 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             if (getIt.isRegistered<AppThemeController>()) {
               unawaited(getIt<AppThemeController>().setByName(theme));
             }
+          }
+          if (intent.type == FfmAssistantIntentType.changeHijriAdjustment) {
+            final adjustment =
+                intent.pluginMetadata?['adjustment']?.toString() ?? '0';
+            final calendarService = getIt<HijriCalendarService>();
+            unawaited(_applyHijriAdjustment(calendarService, adjustment));
           }
           final currentActiveReview = widget.session.activeDraftReview;
           final FfmAssistantDraftReview? review;
@@ -3378,6 +3419,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       }
       return;
     }
+    if (intent.type == FfmAssistantIntentType.changeHijriAdjustment) {
+      final adjustment =
+          intent.pluginMetadata?['adjustment']?.toString() ?? '0';
+      final calendarService = getIt<HijriCalendarService>();
+      await _applyHijriAdjustment(calendarService, adjustment);
+      return;
+    }
     if (intent.type == FfmAssistantIntentType.exportReport) {
       await _showReportPreview(intent);
       return;
@@ -3537,6 +3585,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     }
     await widget.onIntent(intent);
     if (mounted) setState(() => _queuedIntents.remove(intent));
+  }
+
+  Future<void> _applyHijriAdjustment(
+    HijriCalendarService calendarService,
+    String adjustmentRaw,
+  ) async {
+    final adjustment = int.tryParse(adjustmentRaw) ?? 0;
+    final settings = await calendarService.getSettings(AppContext.householdId);
+    await calendarService.saveSettings(
+      householdId: AppContext.householdId,
+      method: settings.method,
+      region: settings.region,
+      dayAdjustment: adjustment,
+      timezone: settings.timezone,
+    );
   }
 
   Future<void> _handleEntryIntent(FfmAssistantChatEntry entry) async {
@@ -4438,15 +4501,81 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     return null;
   }
 
-  Future<void> _showFeedbackActions(FfmAssistantChatEntry entry) async {
+  Future<void> _copyDeveloperReport(FfmAssistantChatEntry entry) async {
     final feedback = _feedbackContextFor(entry);
     if (feedback == null) return;
-    final kind = await showDialog<FfmAssistantResponseFeedbackKind>(
+    final intent = entry.intent;
+    final report = FfmAssistantFeedbackContext(
+      userQuestion: feedback.userQuestion,
+      assistantAnswer: feedback.assistantAnswer,
+      responseOrigin: intent?.responseOrigin.name,
+      pluginName: intent?.pluginName,
+      pluginCategory: intent?.pluginCategory,
+      pluginMetadata: intent?.pluginMetadata,
+      verifiedFacts: entry.verifiedFacts,
+    ).buildDeveloperReport();
+    await Clipboard.setData(ClipboardData(text: report));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Laporan developer disalin. Tempelkan manual ke issue, chat developer, atau agent coding.',
+        ),
+      ),
+    );
+  }
+
+  String _sourceMessageId(FfmAssistantChatEntry entry) {
+    final timestamp = entry.createdAt ?? entry.receivedAt ?? entry.sentAt;
+    final seed = '${timestamp?.toIso8601String() ?? '-'}|${entry.text}';
+    return sha256.convert(utf8.encode(seed)).toString();
+  }
+
+  Future<void> _markAssistantIssue(FfmAssistantChatEntry entry) async {
+    final feedback = _feedbackContextFor(entry);
+    if (feedback == null) return;
+    final sourceMessageId = _sourceMessageId(entry);
+    final existing = await _responseFeedbackRepository.findBySourceMessageId(
+      sourceMessageId,
+    );
+    if (!mounted) return;
+    if (existing != null) {
+      setState(() => _reportedAssistantIssueSourceIds.add(sourceMessageId));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Masalah ini sudah tercatat di Asisten Log.'),
+        ),
+      );
+      return;
+    }
+
+    final noteController = TextEditingController();
+    final selection = await showDialog<_AssistantIssueSelection>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Tinjau jawaban Asisten'),
-        content: const Text(
-          'Pilih masalahnya. Laporan akan disanitasi dan masuk Pusat Pengetahuan untuk review; tidak langsung menjadi knowledge.',
+        title: const Text('Tandai jawaban sebagai masalah'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih jenis masalahnya. Catatan ini disimpan di perangkat dan tidak dikirim otomatis.',
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: noteController,
+                maxLines: 3,
+                maxLength: 500,
+                decoration: const InputDecoration(
+                  labelText: 'Catatan opsional',
+                  hintText:
+                      'Contoh: saldo memakai transaksi yang sudah diarsipkan.',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -4454,41 +4583,124 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             child: const Text('Batal'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(dialogContext)
-                    .pop(FfmAssistantResponseFeedbackKind.unhelpful),
-            child: const Text('Tidak membantu'),
+            onPressed: () => Navigator.of(dialogContext).pop(
+              _AssistantIssueSelection(
+                FfmAssistantResponseFeedbackKind.incorrect,
+                noteController.text,
+              ),
+            ),
+            child: const Text('Jawaban keliru'),
           ),
           TextButton(
-            onPressed: () =>
-                Navigator.of(dialogContext)
-                    .pop(FfmAssistantResponseFeedbackKind.incomplete),
+            onPressed: () => Navigator.of(dialogContext).pop(
+              _AssistantIssueSelection(
+                FfmAssistantResponseFeedbackKind.incomplete,
+                noteController.text,
+              ),
+            ),
             child: const Text('Kurang lengkap'),
           ),
           FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext)
-                    .pop(FfmAssistantResponseFeedbackKind.incorrect),
-            child: const Text('Keliru'),
+            onPressed: () => Navigator.of(dialogContext).pop(
+              _AssistantIssueSelection(
+                FfmAssistantResponseFeedbackKind.unhelpful,
+                noteController.text,
+              ),
+            ),
+            child: const Text('Tidak sesuai'),
           ),
         ],
       ),
     );
-    if (kind == null) return;
-    final saved = await _responseFeedbackRepository.record(
+    noteController.dispose();
+    if (selection == null) return;
+
+    final intent = entry.intent;
+    final logged = await _responseFeedbackRepository.record(
       questionText: feedback.userQuestion,
       responseText: feedback.assistantAnswer,
-      kind: kind,
+      kind: FfmAssistantResponseFeedbackKind.assistantIssue,
+      note: selection.note,
       pageContext: widget.currentDestination?.name,
+      sourceMessageId: sourceMessageId,
+      issueMetadata: {
+        'problemKind': selection.kind.name,
+        'responseOrigin': intent?.responseOrigin.name ?? 'unknown',
+        if (intent?.pluginName != null) 'pluginName': intent!.pluginName,
+        if (intent?.pluginCategory != null)
+          'pluginCategory': intent!.pluginCategory,
+        if (intent?.pluginMetadata?['model'] != null)
+          'model': intent!.pluginMetadata!['model'],
+        if (intent?.pluginMetadata?['usedReadCapability'] != null)
+          'usedReadCapability': intent!.pluginMetadata!['usedReadCapability'],
+        if (intent?.pluginMetadata?['groundingBlocked'] != null)
+          'groundingBlocked': intent!.pluginMetadata!['groundingBlocked'],
+        if (entry.verifiedFacts != null) 'verifiedFacts': entry.verifiedFacts,
+        if (entry.analysisResults != null)
+          'analysisResults': entry.analysisResults,
+        if (entry.processTrace != null)
+          'processTrace': {
+            'origin': entry.processTrace!.origin.name,
+            'elapsedMs': entry.processTrace!.elapsed.inMilliseconds,
+            'events': entry.processTrace!.events
+                .map(
+                  (event) => {
+                    'label': event.label,
+                    'elapsedMs': event.elapsed.inMilliseconds,
+                    if (event.detail != null) 'detail': event.detail,
+                  },
+                )
+                .toList(growable: false),
+            if (entry.processTrace!.fallbackReason != null)
+              'fallbackReason': entry.processTrace!.fallbackReason,
+            if (entry.processTrace!.pluginName != null)
+              'pluginName': entry.processTrace!.pluginName,
+            if (entry.processTrace!.pluginCategory != null)
+              'pluginCategory': entry.processTrace!.pluginCategory,
+            if (entry.processTrace!.tokenUsage != null)
+              'tokenUsage': entry.processTrace!.tokenUsage,
+          },
+      },
     );
     if (!mounted) return;
+    if (logged != null) {
+      setState(() => _reportedAssistantIssueSourceIds.add(sourceMessageId));
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          saved == null
-              ? 'Feedback belum dapat disimpan. Coba periksa kembali pesannya.'
-              : 'Feedback tersimpan untuk ditinjau di Pusat Pengetahuan.',
+          logged == null ? 'Masalah belum dapat disimpan.' : 'Masalah dicatat di Asisten Log. Jawaban ini tidak dapat dilaporkan ulang sebelum log dihapus.',
         ),
+      ),
+    );
+  }
+
+  Future<void> _showVerifiedFacts(FfmAssistantChatEntry entry) async {
+    final facts = entry.verifiedFacts;
+    if (facts == null || facts.trim().isEmpty || !mounted) return;
+    final blocked = entry.intent?.pluginMetadata?['groundingBlocked'] == true;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              blocked ? Icons.warning_amber_rounded : Icons.fact_check_outlined,
+              color: blocked
+                  ? const Color(0xFFC62828)
+                  : const Color(0xFF2E7D32),
+            ),
+            const SizedBox(width: 8),
+            Text(blocked ? 'Verifikasi Gagal' : 'Fakta Sumber'),
+          ],
+        ),
+        content: SingleChildScrollView(child: Text(facts)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
       ),
     );
   }
@@ -4840,12 +5052,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                         if (_submitting && index == _entries.length) {
                           return GeminiTypingIndicator(
                             message: _activeProcessLabel,
-                            steps: _activeProcessEvents
-                                .map(
-                                  (e) =>
-                                      '${e.label} (T+${e.elapsed.inMilliseconds} ms)',
-                                )
-                                .toList(),
+                            onTap: _activeProcessEvents.length > 1
+                                ? () => setState(
+                                    () =>
+                                        _showProcessSteps = !_showProcessSteps,
+                                  )
+                                : null,
+                            steps: _showProcessSteps
+                                ? _activeProcessEvents
+                                      .map(
+                                        (e) =>
+                                            '${e.label} (T+${e.elapsed.inMilliseconds} ms)',
+                                      )
+                                      .toList()
+                                : null,
                             currentStepIndex: _activeProcessEvents.isNotEmpty
                                 ? _activeProcessEvents.length - 1
                                 : 0,
@@ -4922,7 +5142,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               : null,
                           onCopyFeedback: entry.isUser
                               ? null
-                              : () => _showFeedbackActions(entry),
+                              : () => _copyDeveloperReport(entry),
+                          onMarkIssue: entry.isUser
+                              ? null
+                              : () => _markAssistantIssue(entry),
+                          issueLogged:
+                              !entry.isUser &&
+                              _reportedAssistantIssueSourceIds.contains(
+                                _sourceMessageId(entry),
+                              ),
                           onToggleTechnicalDetails: entry.intent == null
                               ? null
                               : () {
@@ -4936,6 +5164,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     }
                                   });
                                 },
+                          onShowVerifiedFacts: entry.verifiedFacts == null
+                              ? null
+                              : () => _showVerifiedFacts(entry),
                           showTechnicalDetails: _technicalDetailsExpanded
                               .contains(index),
                           onRetryGemini:

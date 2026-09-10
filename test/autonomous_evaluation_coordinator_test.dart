@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -9,6 +10,7 @@ import 'package:ffm_manager/features/assistant/data/telegram_bot_service.dart';
 import 'package:ffm_manager/features/assistant/data/telegram_config_repository.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:ffm_manager/features/assistant/domain/autonomous_evaluation_coordinator.dart';
+import 'package:drift/drift.dart' as drift;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,22 +30,27 @@ void main() {
   });
 
   group('AutonomousEvaluationCoordinator Tests', () {
-    test('Runs evaluation across detectors and saves insights without error', () async {
-      AutonomousEvaluationCoordinator.resetDebounce();
-      final coordinator = AutonomousEvaluationCoordinator(
-        database: db,
-        insightRepository: repo,
-        clock: () => now,
-      );
+    test(
+      'Runs evaluation across detectors and saves insights without error',
+      () async {
+        AutonomousEvaluationCoordinator.resetDebounce();
+        final coordinator = AutonomousEvaluationCoordinator(
+          database: db,
+          insightRepository: repo,
+          clock: () => now,
+        );
 
-      // Jalankan evaluasi pada database kosong
-      final insights = await coordinator.runEvaluation(householdId: 'house-coord');
-      expect(insights, isA<List>());
+        // Jalankan evaluasi pada database kosong
+        final insights = await coordinator.runEvaluation(
+          householdId: 'house-coord',
+        );
+        expect(insights, isA<List>());
 
-      // Verifikasi bahwa repo aktif
-      final active = await repo.getActiveInsights(householdId: 'house-coord');
-      expect(active, isA<List>());
-    });
+        // Verifikasi bahwa repo aktif
+        final active = await repo.getActiveInsights(householdId: 'house-coord');
+        expect(active, isA<List>());
+      },
+    );
 
     test('Debounces subsequent evaluation calls within interval unless forced', () async {
       AutonomousEvaluationCoordinator.resetDebounce();
@@ -55,12 +62,16 @@ void main() {
       );
 
       // Panggilan pertama berhasil
-      final first = await coordinator.runEvaluation(householdId: 'house-debounce');
+      final first = await coordinator.runEvaluation(
+        householdId: 'house-debounce',
+      );
       expect(first, isNotNull);
 
       // Panggilan kedua hanya selang 5 detik -> di-debounce
       currentTime = currentTime.add(const Duration(seconds: 5));
-      final debounced = await coordinator.runEvaluation(householdId: 'house-debounce');
+      final debounced = await coordinator.runEvaluation(
+        householdId: 'house-debounce',
+      );
       expect(debounced, isEmpty);
 
       // Panggilan dengan force: true -> bypass debounce
@@ -72,58 +83,105 @@ void main() {
 
       // Panggilan setelah interval lewat (misal 20 detik) -> dieksekusi kembali
       currentTime = currentTime.add(const Duration(seconds: 20));
-      final afterInterval = await coordinator.runEvaluation(householdId: 'house-debounce');
+      final afterInterval = await coordinator.runEvaluation(
+        householdId: 'house-debounce',
+      );
       expect(afterInterval, isNotNull);
     });
 
-    test('Forwards high-priority insight to Telegram when enabled and configured', () async {
-      AutonomousEvaluationCoordinator.resetDebounce();
-      final coordinator = AutonomousEvaluationCoordinator(
-        database: db,
-        insightRepository: repo,
-        clock: () => now,
-      );
+    test(
+      'Forwards high-priority insight to Telegram when enabled and configured',
+      () async {
+        AutonomousEvaluationCoordinator.resetDebounce();
+        final coordinator = AutonomousEvaluationCoordinator(
+          database: db,
+          insightRepository: repo,
+          clock: () => now,
+        );
 
-      expect(coordinator.telegramBotService, isNull);
-      expect(coordinator.telegramConfigRepository, isNull);
-    });
+        expect(coordinator.telegramBotService, isNull);
+        expect(coordinator.telegramConfigRepository, isNull);
+      },
+    );
 
-    test('checkAndSendWeeklyReport sends report and updates lastWeeklyReportSent', () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final teleRepo = TelegramConfigRepository(preferences: prefs);
+    test(
+      'autonomous evaluation creates a linked reminder for a due liability',
+      () async {
+        AutonomousEvaluationCoordinator.resetDebounce();
+        await db
+            .into(db.liabilities)
+            .insert(
+              LiabilitiesCompanion.insert(
+                id: 'liability-auto-1',
+                householdId: 'house-auto',
+                name: 'Cicilan motor',
+                originalAmount: 12000000,
+                remainingBalance: 8000000,
+                startDate: now.subtract(const Duration(days: 30)),
+                dueDate: drift.Value(now.add(const Duration(days: 3))),
+                createdAt: now.subtract(const Duration(days: 30)),
+              ),
+            );
+        final coordinator = AutonomousEvaluationCoordinator(
+          database: db,
+          insightRepository: repo,
+          clock: () => now,
+        );
 
-      await teleRepo.saveConfig(const TelegramConfig(
-        botToken: 'TEST_TOKEN',
-        chatId: '-100123456',
-        isEnabled: true,
-        weeklyReportEnabled: true,
-      ));
+        await coordinator.runEvaluation(householdId: 'house-auto', force: true);
 
-      var sentText = '';
-      final mockClient = MockClient((request) async {
-        final body = jsonDecode(request.body) as Map<String, dynamic>;
-        sentText = body['text'] as String;
-        return http.Response(jsonEncode({'ok': true}), 200);
-      });
-      final teleService = TelegramBotService(client: mockClient);
+        final reminders = await (db.select(
+          db.reminders,
+        )..where((row) => row.householdId.equals('house-auto'))).get();
+        expect(reminders, hasLength(1));
+        expect(reminders.single.origin, 'autonomous');
+        expect(reminders.single.sourceType, 'liability');
+        expect(reminders.single.sourceId, 'liability-auto-1');
+        expect(await db.select(db.transactions).get(), isEmpty);
+      },
+    );
 
-      final coordinator = AutonomousEvaluationCoordinator(
-        database: db,
-        insightRepository: repo,
-        clock: () => now,
-        telegramBotService: teleService,
-        telegramConfigRepository: teleRepo,
-      );
+    test(
+      'checkAndSendWeeklyReport sends report and updates lastWeeklyReportSent',
+      () async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final teleRepo = TelegramConfigRepository(preferences: prefs);
 
-      final success = await coordinator.checkAndSendWeeklyReport(
-        householdId: 'house-weekly',
-        force: true,
-      );
+        await teleRepo.saveConfig(
+          const TelegramConfig(
+            botToken: 'TEST_TOKEN',
+            chatId: '-100123456',
+            isEnabled: true,
+            weeklyReportEnabled: true,
+          ),
+        );
 
-      expect(success, isTrue);
-      expect(sentText, contains('Laporan Keuangan Mingguan'));
-      expect(await teleRepo.loadLastWeeklyReportSent(), isNotNull);
-    });
+        var sentText = '';
+        final mockClient = MockClient((request) async {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          sentText = body['text'] as String;
+          return http.Response(jsonEncode({'ok': true}), 200);
+        });
+        final teleService = TelegramBotService(client: mockClient);
+
+        final coordinator = AutonomousEvaluationCoordinator(
+          database: db,
+          insightRepository: repo,
+          clock: () => now,
+          telegramBotService: teleService,
+          telegramConfigRepository: teleRepo,
+        );
+
+        final success = await coordinator.checkAndSendWeeklyReport(
+          householdId: 'house-weekly',
+          force: true,
+        );
+
+        expect(success, isTrue);
+        expect(sentText, contains('Laporan Keuangan Mingguan'));
+        expect(await teleRepo.loadLastWeeklyReportSent(), isNotNull);
+      },
+    );
   });
 }

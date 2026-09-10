@@ -77,8 +77,18 @@ class FfmAssistantGroundingValidator {
       final currentDayNum = now.day.toString().padLeft(2, '0');
       final currentDateIso = '$currentYear-$currentMonthNum-$currentDayNum';
       const indonesianMonths = [
-        'januari', 'februari', 'maret', 'april', 'mei', 'juni',
-        'juli', 'agustus', 'september', 'oktober', 'november', 'desember'
+        'januari',
+        'februari',
+        'maret',
+        'april',
+        'mei',
+        'juni',
+        'juli',
+        'agustus',
+        'september',
+        'oktober',
+        'november',
+        'desember',
       ];
       final currentMonthName = indonesianMonths[now.month - 1];
       final currentDayMonth = '${now.day} $currentMonthName';
@@ -87,11 +97,13 @@ class FfmAssistantGroundingValidator {
           .allMatches(geminiText)
           .map((match) => match.group(0)!.toLowerCase())
           .toList(growable: false);
-      if (dates.any((date) =>
-          !normalizedEvidence.contains(date) &&
-          !date.contains(currentDateIso) &&
-          !date.contains(currentDayMonth) &&
-          date != currentMonthName)) {
+      if (dates.any(
+        (date) =>
+            !normalizedEvidence.contains(date) &&
+            !date.contains(currentDateIso) &&
+            !date.contains(currentDayMonth) &&
+            date != currentMonthName,
+      )) {
         return 'Tanggal pada jawaban belum dapat diverifikasi dari data lokal. Minta ringkasan terbaru untuk tanggal yang pasti.';
       }
     }
@@ -110,7 +122,7 @@ class FfmAssistantGroundingValidator {
   }
 
   static String _normalizeDigits(String text) {
-    return text.replaceAll(RegExp(r'[^0-9]'), ' ');
+    return text.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
   static bool _hasLargeNumber(String text) {

@@ -133,6 +133,10 @@ class FfmAssistantInterpreter {
         );
   }
 
+  /// Callback untuk melaporkan progress proses ke UI secara real-time.
+  /// Dipanggil di stage berat (normalisasi, fetch data, Gemini call, dll).
+  void Function(String message)? onProgress;
+
   final AppDatabase _database;
   final FfmAssistantLocalMemory _memory;
   final AppThemeController? _themeController;
@@ -423,6 +427,8 @@ class FfmAssistantInterpreter {
             ),
           )
         : '';
+    onProgress?.call('Menyusun konteks keuangan...');
+    await Future<void>.delayed(Duration.zero);
     final householdContext = await _financialSnapshot
         .buildHouseholdProfileContext(householdId: AppContext.householdId);
     final masterDataContext = evidenceScope.includeMasterData
@@ -667,6 +673,8 @@ class FfmAssistantInterpreter {
       boundedContext: geminiContext,
       householdId: AppContext.householdId,
     );
+    onProgress?.call('Gemini merespons, memvalidasi jawaban...');
+    await Future<void>.delayed(Duration.zero);
     if (!turn.ok) {
       return _InterpretResult.single(
         _cloudError(
@@ -1782,6 +1790,12 @@ class FfmAssistantInterpreter {
     FfmAssistantDraft? activeDraft,
   }) async {
     var normalized = _normalize(rawText);
+    onProgress?.call('Memahami pesan...');
+    await Future<void>.delayed(Duration.zero);
+    normalized = _resolveContextualReadFollowUp(
+      normalized,
+      lastAssistantMessage: lastAssistantMessage,
+    );
     final refreshMarketRequest = _containsAny(normalized, const [
       'refresh berita',
       'refresh valas',
@@ -1808,23 +1822,24 @@ class FfmAssistantInterpreter {
     }
     final isGeminiConversationMode =
         routingMode == FfmAssistantRoutingMode.geminiCloud;
-    final hasActionVerb = _containsAny(normalized, const [
-      'buat',
-      'tambah',
-      'mulai',
-      'jalankan',
-      'simpan',
-      'catat',
-      'masukkan',
-      'selesai',
-      'beres',
-      'stop',
-      'tutup',
-      'perbarui',
-      'update',
-      'hapus',
-      'buka',
-    ]);
+    final hasActionVerb =
+        _containsAny(normalized, const [
+          'buat',
+          'tambah',
+          'mulai',
+          'jalankan',
+          'simpan',
+          'masukkan',
+          'selesai',
+          'beres',
+          'stop',
+          'tutup',
+          'perbarui',
+          'update',
+          'hapus',
+          'buka',
+        ]) ||
+        RegExp(r'\bcatat\b', caseSensitive: false).hasMatch(normalized);
     // Kata arah perubahan/pindah yang memicu jalur draft deterministic tetapi
     // tidak memblokir pertanyaan bebas (mis. "sebaiknya saya jual motor?")
     // agar Gemini tetap bisa menjawab tanpa membuka gate mutasi.
@@ -1850,6 +1865,8 @@ class FfmAssistantInterpreter {
     // Fetch master data early for Gemini validation
     final accounts = await _activeAccounts();
     final categories = await _activeCategories();
+    onProgress?.call('Data master siap, memeriksa aturan lokal...');
+    await Future<void>.delayed(Duration.zero);
 
     // Fallback rule-based
     if (normalized.isEmpty) {
@@ -2001,7 +2018,9 @@ class FfmAssistantInterpreter {
     // Pertanyaan data terbaru harus dijawab langsung dari database agar tidak
     // bergantung pada wording Gemini atau gagal di grounding validator.
     if (!hasActionVerb && !_isNavigationRequest(normalized)) {
-      final queryTexts = _isLatestReadRequest(normalized)
+      final queryTexts =
+          (_isLatestReadRequest(normalized) ||
+              _isExpenseExtremeRequest(normalized))
           ? [normalized]
           : _latestReadCorrectionQueries(
               normalized,
@@ -2041,6 +2060,29 @@ class FfmAssistantInterpreter {
     final earlyThemeIntent = _parseThemeChangeRequest(rawText, normalized);
     if (earlyThemeIntent != null) return earlyThemeIntent;
 
+    // ── KOREKSI HIJRIAH (Deterministik) ───────────────────────────────────────
+    // Perubahan offset kalender Hijriah (-2 s/d +2 hari) dijalankan deterministik
+    // agar respons cepat dan tidak bergantung pada Gemini.
+    final earlyHijriIntent = _parseHijriAdjustmentRequest(rawText, normalized);
+    if (earlyHijriIntent != null) return earlyHijriIntent;
+
+    // ── KALENDER LOKAL (Deterministik) ────────────────────────────────────────
+    // Pertanyaan kalender dijawab dari data lokal perangkat sebelum Gemini agar
+    // tidak salah routing (misal "cek kalender perangkat" jadi ganti tema).
+    final earlyCalendarAnswer = FfmAssistantLocalCalendar.answer(
+      normalized,
+      now: _clock(),
+    );
+    if (earlyCalendarAnswer != null) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.calendarQuery,
+        confidence: 1,
+        response: earlyCalendarAnswer,
+      );
+    }
+
     // ── GREETING & SAPAAN (Deterministik) ─────────────────────────────────────
     // Sapaan simple dijawab langsung tanpa ke Gemini untuk respons cepat, hanya
     // di mode Agent. Di mode Gemini Cloud, sapaan tetap diteruskan ke Gemini
@@ -2060,6 +2102,8 @@ class FfmAssistantInterpreter {
     // proposal yang dikembalikan tetap diparse dan divalidasi oleh FFM;
     // Gemini tidak pernah menulis state aplikasi secara langsung.
     if (isGeminiConversationMode) {
+      onProgress?.call('Menghubungi Gemini Cloud...');
+      await Future<void>.delayed(Duration.zero);
       final geminiResult = await _tryGeminiResponse(
         rawText,
         normalized,
@@ -2189,23 +2233,6 @@ class FfmAssistantInterpreter {
             '${financialEducation.title}\n${financialEducation.message}$contextNote',
       );
     }
-
-    final calendarAnswer = FfmAssistantLocalCalendar.answer(
-      normalized,
-      now: _clock(),
-    );
-    if (calendarAnswer != null) {
-      return FfmAssistantIntent(
-        rawText: rawText,
-        normalizedText: normalized,
-        type: FfmAssistantIntentType.calendarQuery,
-        confidence: 1,
-        response: calendarAnswer,
-      );
-    }
-
-    final themeIntent = _parseThemeChangeRequest(rawText, normalized);
-    if (themeIntent != null) return themeIntent;
 
     if (_isOtherMenuListRequest(normalized)) {
       return FfmAssistantIntent(
@@ -3726,6 +3753,11 @@ class FfmAssistantInterpreter {
         clean.startsWith('redup') ||
         clean.startsWith('putih');
 
+    // hasSystem butuh konteks tema agar tidak false-positive
+    // pada kalimat seperti "cek kalender perangkat" atau "data perangkat".
+    final hasSystemWithThemeContext =
+        hasSystem && (isThemeWord || isActionWord || isDirectThemeCommand);
+
     // Perintah toggle umum tanpa menyebut gelap/terang: "ubah mode", "ganti tema", "ganti warna", "tema ganti"
     final isGenericToggle =
         (isThemeWord &&
@@ -3735,9 +3767,12 @@ class FfmAssistantInterpreter {
                 clean.startsWith('warna ganti'))) &&
         !hasDark &&
         !hasLight &&
-        !hasSystem;
+        !hasSystemWithThemeContext;
 
-    if (!hasDark && !hasLight && !hasSystem && !isGenericToggle) {
+    if (!hasDark &&
+        !hasLight &&
+        !hasSystemWithThemeContext &&
+        !isGenericToggle) {
       return null;
     }
 
@@ -3757,7 +3792,7 @@ class FfmAssistantInterpreter {
     } else if (hasLight) {
       themeTarget = 'light';
       responseText = 'Siap! Tampilan aplikasi sudah diubah ke mode terang ☀️';
-    } else if (hasSystem) {
+    } else if (hasSystemWithThemeContext) {
       themeTarget = 'system';
       responseText = 'Baik, tema aplikasi sekarang mengikuti pengaturan sistem perangkat Anda 📱';
     } else if (isGenericToggle) {
@@ -3780,6 +3815,118 @@ class FfmAssistantInterpreter {
       confidence: 1.0,
       response: responseText,
       pluginMetadata: {'theme': themeTarget},
+    );
+  }
+
+  FfmAssistantIntent? _parseHijriAdjustmentRequest(
+    String rawText,
+    String normalized,
+  ) {
+    final clean = normalized.toLowerCase().trim();
+
+    final isHijriContext =
+        clean.contains('hijri') ||
+        clean.contains('hijriah') ||
+        clean.contains('hisab') ||
+        clean.contains('kalender hijri') ||
+        clean.contains('tanggal hijri');
+
+    if (!isHijriContext) return null;
+
+    // Pola: "geser maju 1 hari", "mundurkan 1 hari", "tambah 1 hari", "kurangi 1 hari"
+    // "offset +1", "koreksi +1", "geser +1", "geser -1"
+    int? adjustment;
+
+    // Cek pola "majukan/maju/ke depan +N"
+    if (clean.contains('majukan') ||
+        clean.contains(' maju ') ||
+        clean.contains('ke depan') ||
+        clean.contains('tambah') ||
+        clean.contains('geser plus') ||
+        clean.contains('geser +')) {
+      // Cari angka
+      final numMatch = RegExp(r'[+\-]?\d+').firstMatch(clean);
+      if (numMatch != null) {
+        final n = int.tryParse(numMatch.group(0)!);
+        if (n != null) adjustment = n.abs();
+      }
+      adjustment ??= 1;
+    }
+
+    // Cek pola "mundurkan/mundur/ke belakang -N"
+    if (clean.contains('mundurkan') ||
+        clean.contains(' mundur ') ||
+        clean.contains('ke belakang') ||
+        clean.contains('kurangi') ||
+        clean.contains('geser min') ||
+        clean.contains('geser -')) {
+      final numMatch = RegExp(r'[+\-]?\d+').firstMatch(clean);
+      if (numMatch != null) {
+        final n = int.tryParse(numMatch.group(0)!);
+        if (n != null) adjustment = -n.abs();
+      }
+      adjustment ??= -1;
+    }
+
+    // Cek pola eksplisit "offset N", "koreksi N", "geser N hari"
+    if (adjustment == null) {
+      final explicitMatch = RegExp(r'(?:offset|koreksi|geser)\s*([+\-]?\d+)')
+          .firstMatch(clean);
+      if (explicitMatch != null) {
+        adjustment = int.tryParse(explicitMatch.group(1)!);
+      }
+    }
+
+    // Cek pola "N hari ke depan/belakang" dalam konteks hijriah
+    if (adjustment == null) {
+      final shiftMatch = RegExp(
+        r'(\d+)\s*hari\s*(?:ke\s*)?(?:depan|kedepan|kedepan)',
+      ).firstMatch(clean);
+      if (shiftMatch != null) {
+        adjustment = int.tryParse(shiftMatch.group(1)!);
+      }
+    }
+    if (adjustment == null) {
+      final shiftMatch = RegExp(
+        r'(\d+)\s*hari\s*(?:ke\s*)?(?:belakang|kebelakang|ke belakang)',
+      ).firstMatch(clean);
+      if (shiftMatch != null) {
+        final n = int.tryParse(shiftMatch.group(1)!);
+        if (n != null) adjustment = -n;
+      }
+    }
+
+    // Cek pola "geser N hari" tanpa arah → default ke depan
+    if (adjustment == null) {
+      final genericShift = RegExp(r'geser\s*(\d+)\s*hari').firstMatch(clean);
+      if (genericShift != null) {
+        adjustment = int.tryParse(genericShift.group(1)!);
+      }
+    }
+
+    if (adjustment == null) return null;
+    if (adjustment < -2 || adjustment > 2) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.changeHijriAdjustment,
+        confidence: 1,
+        response:
+            'Offset Hijriah hanya bisa dari -2 s/d +2 hari. Kamu minta $adjustment hari.',
+        pluginMetadata: {'adjustment': adjustment.toString()},
+      );
+    }
+
+    final label = adjustment == 0
+        ? 'standar (0 hari)'
+        : '${adjustment > 0 ? "+" : ""}$adjustment hari';
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.changeHijriAdjustment,
+      confidence: 1.0,
+      response: 'Tanggal Hijriah dikoreksi ke offset $label.',
+      pluginMetadata: {'adjustment': adjustment.toString()},
     );
   }
 
@@ -4339,15 +4486,52 @@ class FfmAssistantInterpreter {
   bool _isExplicitPageNavigationRequest(String text) =>
       text.startsWith('buka') || text.startsWith('tampilkan');
 
-  bool _isLatestReadRequest(String text) =>
+  bool _isLatestReadRequest(String text) {
+    final hasLatestCue = RegExp(
+      r'\b(?:terakhir|terbaru|paling\s+baru|baru\s+saja)\b',
+      caseSensitive: false,
+    ).hasMatch(text);
+    final hasPeriodCue = RegExp(
+      r'\b(?:3|tiga)\s+bulan|\b90\s+hari|\b(?:1|satu)\s+tahun|\bsetahun|\b12\s+bulan|\btahun\s+lalu|\btahun\s+terakhir|\bbulan\s+ini|\bbulan\s+lalu',
+      caseSensitive: false,
+    ).hasMatch(text);
+    return (hasLatestCue || hasPeriodCue) &&
+        RegExp(
+          r'\b(?:transaksi|aktivitas|kegiatan|catatan|jurnal)\b',
+          caseSensitive: false,
+        ).hasMatch(text);
+  }
+
+  bool _isExpenseExtremeRequest(String text) =>
+      RegExp(r'\bpengeluaran\b', caseSensitive: false).hasMatch(text) &&
       RegExp(
-        r'\b(?:terakhir|terbaru|paling\s+baru|baru\s+saja)\b',
+        r'\b(?:terbesar|paling\s+besar|tertinggi|terkecil|paling\s+kecil|terendah)\b',
         caseSensitive: false,
       ).hasMatch(text) &&
       RegExp(
-        r'\b(?:transaksi|aktivitas|kegiatan|catatan|jurnal)\b',
+        r'\b(?:3\s*bulan|tiga\s+bulan|90\s*hari|1\s*tahun|satu\s+tahun|setahun|12\s*bulan|tahun\s+terakhir|bulan\s+ini|bulan\s+lalu)\b',
         caseSensitive: false,
       ).hasMatch(text);
+
+  String _resolveContextualReadFollowUp(
+    String normalized, {
+    required String? lastAssistantMessage,
+  }) {
+    final text = normalized.trim();
+    final last = lastAssistantMessage?.toLowerCase() ?? '';
+    final asksActivityFollowUp = RegExp(
+      r'^(?:kalau|kalo|terus|lalu|trus)?\s*(?:aktivitas|kegiatan)\??$',
+      caseSensitive: false,
+    ).hasMatch(text);
+    if (asksActivityFollowUp &&
+        RegExp(
+          r'\b(?:transaksi\s+terakhir|transaksi\s+terbaru|data\s+terbaru)\b',
+          caseSensitive: false,
+        ).hasMatch(last)) {
+      return 'aktivitas terakhir';
+    }
+    return normalized;
+  }
 
   List<String> _latestReadCorrectionQueries(
     String text, {

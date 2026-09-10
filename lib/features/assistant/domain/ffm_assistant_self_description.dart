@@ -6,7 +6,7 @@ class FfmAssistantSelfDescriptionService {
 
   static const appName = 'Family Finance Manager (FFM)';
   static const appPurpose =
-      'aplikasi pengelolaan keuangan keluarga offline-first dengan pendamping Gemini Cloud';
+      'aplikasi pengelolaan keuangan keluarga hybrid dengan data aplikasi, tool deterministik, dan pendamping Gemini Cloud';
   static const creatorName = 'Rafi Sinkkat';
   static const creatorYouTube =
       'https://youtube.com/@clipsmartt?si=T4-4Zja6FZlcgdDe';

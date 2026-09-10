@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'ffm_assistant_models.dart';
 
 enum FfmAssistantInsightType {
@@ -10,14 +11,11 @@ enum FfmAssistantInsightType {
   goalProgressRisk,
   budgetAlert,
   debtPayoffAcceleration,
+  reminderDue,
+  reminderSuggestion,
 }
 
-enum FfmAssistantInsightSeverity {
-  info,
-  caution,
-  warning,
-  critical,
-}
+enum FfmAssistantInsightSeverity { info, caution, warning, critical }
 
 enum FfmAssistantInsightStatus {
   newInsight,
@@ -155,7 +153,9 @@ class FfmAssistantInsight {
       'gemini_explanation': geminiExplanation,
       'suggested_action': suggestedAction,
       'destination': destination?.name,
-      'action_payload': actionPayload != null ? jsonEncode(actionPayload) : null,
+      'action_payload': actionPayload != null
+          ? jsonEncode(actionPayload)
+          : null,
       'created_at': createdAt.millisecondsSinceEpoch,
       'expires_at': expiresAt?.millisecondsSinceEpoch,
       'snoozed_until': snoozedUntil?.millisecondsSinceEpoch,
@@ -190,20 +190,31 @@ class FfmAssistantInsight {
     } catch (_) {}
 
     final typeName = map['type']?.toString();
-    final type = FfmAssistantInsightType.values.where((v) => v.name == typeName).firstOrNull ??
+    final type =
+        FfmAssistantInsightType.values
+            .where((v) => v.name == typeName)
+            .firstOrNull ??
         FfmAssistantInsightType.budgetAlert;
 
     final severityName = map['severity']?.toString();
-    final severity = FfmAssistantInsightSeverity.values.where((v) => v.name == severityName).firstOrNull ??
+    final severity =
+        FfmAssistantInsightSeverity.values
+            .where((v) => v.name == severityName)
+            .firstOrNull ??
         FfmAssistantInsightSeverity.info;
 
     final statusName = map['status']?.toString();
-    final status = FfmAssistantInsightStatus.values.where((v) => v.name == statusName).firstOrNull ??
+    final status =
+        FfmAssistantInsightStatus.values
+            .where((v) => v.name == statusName)
+            .firstOrNull ??
         FfmAssistantInsightStatus.newInsight;
 
     final destName = map['destination']?.toString();
     final destination = destName != null
-        ? FfmAssistantDestination.values.where((v) => v.name == destName).firstOrNull
+        ? FfmAssistantDestination.values
+              .where((v) => v.name == destName)
+              .firstOrNull
         : null;
 
     final createdAtMs = int.tryParse(map['created_at']?.toString() ?? '') ?? 0;
@@ -217,7 +228,8 @@ class FfmAssistantInsight {
       type: type,
       severity: severity,
       priority: int.tryParse(map['priority']?.toString() ?? '50') ?? 50,
-      confidence: double.tryParse(map['confidence']?.toString() ?? '1.0') ?? 1.0,
+      confidence:
+          double.tryParse(map['confidence']?.toString() ?? '1.0') ?? 1.0,
       title: map['title']?.toString() ?? '',
       summary: map['summary']?.toString() ?? '',
       evidence: parsedEvidence,
@@ -226,12 +238,18 @@ class FfmAssistantInsight {
       destination: destination,
       actionPayload: parsedPayload,
       createdAt: DateTime.fromMillisecondsSinceEpoch(createdAtMs),
-      expiresAt: expiresAtMs != null ? DateTime.fromMillisecondsSinceEpoch(expiresAtMs) : null,
-      snoozedUntil: snoozedUntilMs != null ? DateTime.fromMillisecondsSinceEpoch(snoozedUntilMs) : null,
+      expiresAt: expiresAtMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(expiresAtMs)
+          : null,
+      snoozedUntil: snoozedUntilMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(snoozedUntilMs)
+          : null,
       dedupeKey: map['dedupe_key']?.toString() ?? '',
       cooldownKey: map['cooldown_key']?.toString(),
       status: status,
-      updatedAt: updatedAtMs != null ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs) : null,
+      updatedAt: updatedAtMs != null
+          ? DateTime.fromMillisecondsSinceEpoch(updatedAtMs)
+          : null,
     );
   }
 }

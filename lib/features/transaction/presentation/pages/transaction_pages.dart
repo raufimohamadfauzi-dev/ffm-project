@@ -20,6 +20,7 @@ import '../../domain/entities/transaction_entity.dart';
 import '../../domain/usecases/transaction_crud_usecases.dart';
 import 'transaction_detail_page.dart';
 import 'transaction_form_page.dart';
+import 'archive_manager_page.dart';
 import 'goal_contribution_form_page.dart';
 import 'json_transaction_batch_page.dart';
 import 'quick_transaction_batch_page.dart';
@@ -75,12 +76,17 @@ class _TransactionListPageState extends State<TransactionListPage> {
   DateTime? _startDateFilter;
   DateTime? _endDateFilter;
   var _isSearchOpen = false;
+  var _hasMoreTransactions = true;
+  var _loadingMore = false;
+  static const _pageSize = 80;
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadTransactions();
   }
 
@@ -478,14 +484,28 @@ class _TransactionListPageState extends State<TransactionListPage> {
     return true;
   }
 
+  /// Konversi endDate inclusive (dari filter sheet) ke exclusive untuk DB.
+  DateTime? get _endDateExclusive => _endDateFilter != null
+      ? DateTime(
+          _endDateFilter!.year,
+          _endDateFilter!.month,
+          _endDateFilter!.day,
+        ).add(const Duration(days: 1))
+      : null;
+
   Future<void> _loadTransactions() async {
     try {
       setState(() {
         _loading = true;
         _errorMessage = null;
+        _hasMoreTransactions = true;
       });
-      final transactions = await getIt<GetTransactions>()(
+      final result = await getIt<GetTransactionsPage>()(
         AppContext.householdId,
+        limit: _pageSize,
+        offset: 0,
+        startDate: _startDateFilter,
+        endDate: _endDateExclusive,
       );
       final database = getIt<AppDatabase>();
       final categories =
@@ -528,11 +548,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
       setState(() {
         _transactions
           ..clear()
-          ..addAll(transactions);
+          ..addAll(result.items);
         _categories = categories;
         _merchants = merchants;
         _accounts = accounts;
         _transfers = transfers;
+        _hasMoreTransactions = result.hasMore;
         _loading = false;
         _errorMessage = null;
       });
@@ -542,6 +563,35 @@ class _TransactionListPageState extends State<TransactionListPage> {
         _loading = false;
         _errorMessage = 'Gagal memuat transaksi: $e';
       });
+    }
+  }
+
+  Future<void> _loadMoreTransactions() async {
+    if (_loadingMore || !_hasMoreTransactions || _query.isNotEmpty) return;
+    setState(() => _loadingMore = true);
+    try {
+      final result = await getIt<GetTransactionsPage>()(
+        AppContext.householdId,
+        limit: _pageSize,
+        offset: _transactions.length,
+        startDate: _startDateFilter,
+        endDate: _endDateExclusive,
+      );
+      if (!mounted) return;
+      setState(() {
+        _transactions.addAll(result.items);
+        _hasMoreTransactions = result.hasMore;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadMoreTransactions();
     }
   }
 
@@ -1586,6 +1636,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       ),
     );
     if (result == null || !mounted) return;
+    final dateChanged = result.startDate != _startDateFilter ||
+        result.endDate != _endDateFilter;
     setState(() {
       _typeFilter = result.typeFilter;
       _currentMonthOnly = result.currentMonthOnly;
@@ -1596,6 +1648,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       _startDateFilter = result.startDate;
       _endDateFilter = result.endDate;
     });
+    // Reload dari DB jika filter periode berubah agar pagination benar.
+    if (dateChanged) unawaited(_loadTransactions());
   }
 
   Future<void> _saveMetadata(
@@ -1906,6 +1960,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
 
   @override
   void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -2028,27 +2085,6 @@ class _TransactionListPageState extends State<TransactionListPage> {
   Widget build(BuildContext context) {
     final visibleTransactions = _visibleTransactions;
     final visibleTransfers = _visibleTransfers;
-    final timeline =
-        <
-            ({
-              TransactionWithItems? transaction,
-              Transfer? transfer,
-              DateTime date,
-            })
-          >[
-            ...visibleTransactions.map(
-              (entry) => (
-                transaction: entry,
-                transfer: null,
-                date: entry.transaction.date,
-              ),
-            ),
-            ...visibleTransfers.map(
-              (transfer) =>
-                  (transaction: null, transfer: transfer, date: transfer.date),
-            ),
-          ]
-          ..sort((left, right) => right.date.compareTo(left.date));
     final incomeTotal = visibleTransactions
         .where(
           (entry) =>
@@ -2138,6 +2174,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
                           _openQuickEntry();
                         case 'json':
                           _openJsonBatch();
+                        case 'arsip':
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const ArchiveManagerPage(),
+                            ),
+                          );
                       }
                     },
                     itemBuilder: (context) => const [
@@ -2160,6 +2202,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
                         child: ListTile(
                           leading: Icon(Icons.auto_awesome_outlined),
                           title: Text('Tempel hasil dari Asisten AI'),
+                        ),
+                      ),
+                      PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'arsip',
+                        child: ListTile(
+                          leading: Icon(Icons.archive_outlined),
+                          title: Text('Arsip Transaksi'),
                         ),
                       ),
                     ],
@@ -2238,212 +2288,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
                         ),
                       ],
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 56),
-                      itemCount: timeline.length + 2,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) {
-                        if (index == 0) {
-                          return TransactionFlowSummary(
-                            incomeTotal: incomeTotal,
-                            expenseTotal: expenseTotal,
-                            transactionCount: visibleTransactions.length,
-                            transferCount: visibleTransfers.length,
-                          );
-                        }
-                        if (index == 1) {
-                          return AccountBalancesCard(
-                            accounts: _accounts,
-                            transactions: _transactions,
-                            transfers: _transfers,
-                            accountTypeLabel: _accountTypeLabel,
-                          );
-                        }
-                        final timelineItem = timeline[index - 2];
-                        final transfer = timelineItem.transfer;
-                        if (transfer != null) {
-                          return TransferHistoryCard(
-                            transfer: transfer,
-                            fromLabel: _accountLabel(transfer.fromAccountId),
-                            toLabel: _accountLabel(transfer.toAccountId),
-                            dateLabel: _dateLabel,
-                            onEdit: () =>
-                                _openTransfer(existingTransfer: transfer),
-                            onDelete: () => _deleteTransfer(transfer),
-                          );
-                        }
-                        final entry = timelineItem.transaction!;
-                        final item = entry.transaction;
-                        final isIncome = item.amount >= 0;
-                        final isGoalUsage =
-                            item.goalId != null && item.source == 'goal_usage';
-                        final isGoalContribution =
-                            item.goalId != null && !isGoalUsage;
-                        final merchantName = _merchantLabel(item.merchantId);
-                        final color = isGoalContribution
-                            ? AppColors.primary
-                            : isGoalUsage
-                            ? AppColors.negative
-                            : isIncome
-                            ? AppColors.positive
-                            : AppColors.negative;
-                        return AppCard(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          color: isIncome
-                              ? AppColors.positiveSoft.withValues(alpha: .72)
-                              : AppColors.negativeSoft.withValues(alpha: .78),
-                          onTap: () => _openDetail(entry),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 18,
-                                    backgroundColor: color.withValues(
-                                      alpha: .14,
-                                    ),
-                                    foregroundColor: color,
-                                    child: Icon(
-                                      isIncome
-                                          ? Icons.south_west_rounded
-                                          : Icons.north_east_rounded,
-                                      size: 18,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                merchantName.isNotEmpty
-                                                    ? merchantName
-                                                    : isGoalContribution
-                                                    ? 'Uang terkumpul untuk target'
-                                                    : isGoalUsage
-                                                    ? 'Penggunaan dana target'
-                                                    : _categoryLabel(
-                                                        item.categoryId,
-                                                      ),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w700,
-                                                      fontSize: 13,
-                                                    ),
-                                              ),
-                                            ),
-                                            if (isDataSusulan(
-                                              item.date,
-                                              now: item.recordedAt,
-                                            ))
-                                              const Padding(
-                                                padding: EdgeInsets.only(
-                                                  left: 4,
-                                                ),
-                                                child: AppStatusChip(
-                                                  label: 'Susulan',
-                                                  color: AppColors.warning,
-                                                  backgroundColor:
-                                                      AppColors.warningSoft,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 2),
-                                        if (merchantName.isNotEmpty &&
-                                            !isGoalContribution &&
-                                            !isGoalUsage)
-                                          Text(
-                                            _categoryLabel(item.categoryId),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: AppColors.inkMuted,
-                                                  fontSize: 11,
-                                                ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            isIncome ? '+' : '−',
-                                            style: TextStyle(
-                                              color: color,
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          AppMoneyText(
-                                            item.amount.abs(),
-                                            compact: true,
-                                            color: color,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  PopupMenuButton<String>(
-                                    tooltip: 'Aksi transaksi',
-                                    icon: const Icon(Icons.more_vert, size: 18),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(
-                                      minWidth: 32,
-                                      minHeight: 32,
-                                    ),
-                                    onSelected: (value) {
-                                      if (value == 'edit') {
-                                        _openEdit(entry);
-                                      } else if (value == 'delete') {
-                                        _deleteTransaction(entry);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'edit',
-                                        child: Text('Edit transaksi'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'delete',
-                                        child: Text('Hapus transaksi'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 6),
-                              HijriDateText(
-                                date: item.date,
-                                includeSeconds: false,
-                                compact: true,
-                                color: AppColors.inkMuted,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                  : _buildGroupedTimeline(
+                      visibleTransactions: visibleTransactions,
+                      visibleTransfers: visibleTransfers,
+                      incomeTotal: incomeTotal,
+                      expenseTotal: expenseTotal,
                     ),
             ),
           ],
@@ -2456,6 +2305,302 @@ class _TransactionListPageState extends State<TransactionListPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildGroupedTimeline({
+    required List<TransactionWithItems> visibleTransactions,
+    required List<Transfer> visibleTransfers,
+    required int incomeTotal,
+    required int expenseTotal,
+  }) {
+    final timeline =
+        <
+            ({
+              TransactionWithItems? transaction,
+              Transfer? transfer,
+              DateTime date,
+            })
+          >[
+            ...visibleTransactions.map(
+              (entry) => (
+                transaction: entry,
+                transfer: null,
+                date: entry.transaction.date,
+              ),
+            ),
+            ...visibleTransfers.map(
+              (transfer) =>
+                  (transaction: null, transfer: transfer, date: transfer.date),
+            ),
+          ]
+            ..sort((left, right) => right.date.compareTo(left.date));
+
+    final groups = <(String label, int startIndex)>[];
+    String? lastMonth;
+    for (var i = 0; i < timeline.length; i++) {
+      final d = timeline[i].date;
+      final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
+      if (key != lastMonth) {
+        final monthName = _monthLabel(d);
+        groups.add((monthName, i));
+        lastMonth = key;
+      }
+    }
+
+    final totalItems = timeline.length;
+    final hasMore = _hasMoreTransactions;
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 56),
+      itemCount: 2 + groups.length + totalItems + (hasMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return TransactionFlowSummary(
+            incomeTotal: incomeTotal,
+            expenseTotal: expenseTotal,
+            transactionCount: visibleTransactions.length,
+            transferCount: visibleTransfers.length,
+          );
+        }
+        if (index == 1) {
+          return AccountBalancesCard(
+            accounts: _accounts,
+            transactions: _transactions,
+            transfers: _transfers,
+            accountTypeLabel: _accountTypeLabel,
+          );
+        }
+        final itemIndex = index - 2;
+
+        var itemOffset = itemIndex;
+        for (final g in groups) {
+          if (itemOffset == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 4),
+              child: Text(
+                g.$1,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.inkMuted,
+                ),
+              ),
+            );
+          }
+          itemOffset--;
+        }
+
+        final timelineIndex = itemIndex - groups.length;
+        if (timelineIndex >= totalItems) {
+          if (_loadingMore) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
+          return TextButton(
+            onPressed: _loadMoreTransactions,
+            child: const Text('Muat lebih banyak'),
+          );
+        }
+
+        final timelineItem = timeline[timelineIndex];
+        final transfer = timelineItem.transfer;
+        if (transfer != null) {
+          return TransferHistoryCard(
+            transfer: transfer,
+            fromLabel: _accountLabel(transfer.fromAccountId),
+            toLabel: _accountLabel(transfer.toAccountId),
+            dateLabel: _dateLabel,
+            onEdit: () => _openTransfer(existingTransfer: transfer),
+            onDelete: () => _deleteTransfer(transfer),
+          );
+        }
+        final entry = timelineItem.transaction!;
+        final item = entry.transaction;
+        final isIncome = item.amount >= 0;
+        final isGoalUsage =
+            item.goalId != null && item.source == 'goal_usage';
+        final isGoalContribution = item.goalId != null && !isGoalUsage;
+        final merchantName = _merchantLabel(item.merchantId);
+        final color = isGoalContribution
+            ? AppColors.primary
+            : isGoalUsage
+            ? AppColors.negative
+            : isIncome
+            ? AppColors.positive
+            : AppColors.negative;
+        return AppCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          color: isIncome
+              ? AppColors.positiveSoft.withValues(alpha: .72)
+              : AppColors.negativeSoft.withValues(alpha: .78),
+          onTap: () => _openDetail(entry),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 18,
+                    backgroundColor: color.withValues(alpha: .14),
+                    foregroundColor: color,
+                    child: Icon(
+                      isIncome
+                          ? Icons.south_west_rounded
+                          : Icons.north_east_rounded,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                merchantName.isNotEmpty
+                                    ? merchantName
+                                    : isGoalContribution
+                                    ? 'Uang terkumpul untuk target'
+                                    : isGoalUsage
+                                    ? 'Penggunaan dana target'
+                                    : _categoryLabel(item.categoryId),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                              ),
+                            ),
+                            if (isDataSusulan(
+                              item.date,
+                              now: item.recordedAt,
+                            ))
+                              const Padding(
+                                padding: EdgeInsets.only(left: 4),
+                                child: AppStatusChip(
+                                  label: 'Susulan',
+                                  color: AppColors.warning,
+                                  backgroundColor: AppColors.warningSoft,
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        if (merchantName.isNotEmpty &&
+                            !isGoalContribution &&
+                            !isGoalUsage)
+                          Text(
+                            _categoryLabel(item.categoryId),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppColors.inkMuted,
+                                  fontSize: 11,
+                                ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isIncome ? '+' : '−',
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                          AppMoneyText(
+                            item.amount.abs(),
+                            compact: true,
+                            color: color,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Aksi transaksi',
+                    icon: const Icon(Icons.more_vert, size: 18),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _openEdit(entry);
+                      } else if (value == 'delete') {
+                        _deleteTransaction(entry);
+                      }
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit transaksi'),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Hapus transaksi'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              HijriDateText(
+                date: item.date,
+                includeSeconds: false,
+                compact: true,
+                color: AppColors.inkMuted,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _monthLabel(DateTime date) {
+    const months = [
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${months[date.month]} ${date.year}';
   }
 
   String _merchantLabel(String? merchantId) {

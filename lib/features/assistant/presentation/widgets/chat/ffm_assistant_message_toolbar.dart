@@ -9,6 +9,8 @@ enum FfmAssistantMessageMenuAction {
   cancelDraft,
   approveTeaching,
   technicalDetails,
+  verifiedFacts,
+  markIssue,
   retryGemini,
 }
 
@@ -51,6 +53,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
     this.onCancelDraft,
     this.onApproveTeaching,
     this.onShowTechnical,
+    this.onShowVerifiedFacts,
+    this.onMarkIssue,
+    this.issueLogged = false,
     this.onRetryGemini,
     required this.teachingSaved,
     required this.foregroundColor,
@@ -74,6 +79,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
   final VoidCallback? onCancelDraft;
   final VoidCallback? onApproveTeaching;
   final VoidCallback? onShowTechnical;
+  final VoidCallback? onShowVerifiedFacts;
+  final VoidCallback? onMarkIssue;
+  final bool issueLogged;
   final VoidCallback? onRetryGemini;
   final bool teachingSaved;
   final Color foregroundColor;
@@ -95,6 +103,8 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
         onCancelDraft != null ||
         onApproveTeaching != null ||
         onShowTechnical != null ||
+        onShowVerifiedFacts != null ||
+        onMarkIssue != null ||
         onRetryGemini != null;
     return Wrap(
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -174,7 +184,9 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
             message: 'Saran pertanyaan lanjutan ($followUpCount)',
             child: IconButton(
               onPressed: onShowFollowUpQuestions,
-              style: IconButton.styleFrom(foregroundColor: const Color(0xFFEAB308)),
+              style: IconButton.styleFrom(
+                foregroundColor: const Color(0xFFEAB308),
+              ),
               icon: const Icon(Icons.lightbulb_rounded),
             ),
           ),
@@ -204,6 +216,12 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     return;
                   case FfmAssistantMessageMenuAction.technicalDetails:
                     onShowTechnical?.call();
+                    return;
+                  case FfmAssistantMessageMenuAction.verifiedFacts:
+                    onShowVerifiedFacts?.call();
+                    return;
+                  case FfmAssistantMessageMenuAction.markIssue:
+                    onMarkIssue?.call();
                     return;
                   case FfmAssistantMessageMenuAction.retryGemini:
                     onRetryGemini?.call();
@@ -253,7 +271,7 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     value: FfmAssistantMessageMenuAction.copyFeedback,
                     child: FfmAssistantMenuLabel(
                       icon: Icons.copy_all_outlined,
-                      label: 'Salin bahan perbaikan',
+                      label: 'Salin laporan developer',
                     ),
                   ),
                 if (onShowTechnical != null)
@@ -262,6 +280,27 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
                     child: FfmAssistantMenuLabel(
                       icon: Icons.data_object_outlined,
                       label: 'Lihat detail teknis',
+                    ),
+                  ),
+                if (onShowVerifiedFacts != null)
+                  const PopupMenuItem(
+                    value: FfmAssistantMessageMenuAction.verifiedFacts,
+                    child: FfmAssistantMenuLabel(
+                      icon: Icons.fact_check_outlined,
+                      label: 'Lihat fakta sumber',
+                    ),
+                  ),
+                if (onMarkIssue != null)
+                  PopupMenuItem(
+                    value: FfmAssistantMessageMenuAction.markIssue,
+                    enabled: !issueLogged,
+                    child: FfmAssistantMenuLabel(
+                      icon: issueLogged
+                          ? Icons.assignment_turned_in_outlined
+                          : Icons.report_problem_outlined,
+                      label: issueLogged
+                          ? 'Sudah dicatat di Asisten Log'
+                          : 'Tandai sebagai masalah',
                     ),
                   ),
                 if (onRetryGemini != null)

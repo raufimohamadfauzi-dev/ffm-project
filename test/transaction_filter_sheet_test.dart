@@ -96,7 +96,33 @@ void main() {
     expect(result?.currentMonthOnly, isFalse);
   });
 
-  testWidgets('menerapkan filter merchant dan pemilik dari dropdown', (tester) async {
+  testWidgets('menerapkan preset periode tahun lalu', (tester) async {
+    TransactionFilter? result;
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildLauncher(onResult: (value) => result = value));
+    await tester.tap(find.text('Buka'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Semua waktu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tahun lalu').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Terapkan'));
+    await tester.pumpAndSettle();
+
+    expect(result?.currentMonthOnly, isFalse);
+    expect(result?.startDate, isNotNull);
+    expect(result?.endDate, isNotNull);
+    expect(result!.startDate!.year, DateTime.now().year - 1);
+    expect(result!.endDate!.year, DateTime.now().year - 1);
+  });
+
+  testWidgets('menerapkan filter merchant dan pemilik dari dropdown', (
+    tester,
+  ) async {
     TransactionFilter? result;
     tester.view.physicalSize = const Size(800, 1400);
     tester.view.devicePixelRatio = 1.0;
@@ -127,33 +153,36 @@ void main() {
     expect(result?.owner, 'Istri');
   });
 
-  testWidgets('reset mengembalikan filter default termasuk merchant dan owner', (tester) async {
-    TransactionFilter? result;
-    tester.view.physicalSize = const Size(800, 1400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'reset mengembalikan filter default termasuk merchant dan owner',
+    (tester) async {
+      TransactionFilter? result;
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      buildLauncher(
-        onResult: (value) => result = value,
-        typeFilter: 'Pengeluaran',
-        currentMonthOnly: true,
-        merchantId: 'm-1',
-        owner: 'Istri',
-      ),
-    );
+      await tester.pumpWidget(
+        buildLauncher(
+          onResult: (value) => result = value,
+          typeFilter: 'Pengeluaran',
+          currentMonthOnly: true,
+          merchantId: 'm-1',
+          owner: 'Istri',
+        ),
+      );
 
-    await tester.tap(find.text('Buka'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Reset'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Buka'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reset'));
+      await tester.pumpAndSettle();
 
-    expect(result?.typeFilter, 'Semua');
-    expect(result?.currentMonthOnly, isFalse);
-    expect(result?.accountId, isNull);
-    expect(result?.categoryId, isNull);
-    expect(result?.merchantId, isNull);
-    expect(result?.owner, isNull);
-  });
+      expect(result?.typeFilter, 'Semua');
+      expect(result?.currentMonthOnly, isFalse);
+      expect(result?.accountId, isNull);
+      expect(result?.categoryId, isNull);
+      expect(result?.merchantId, isNull);
+      expect(result?.owner, isNull);
+    },
+  );
 }

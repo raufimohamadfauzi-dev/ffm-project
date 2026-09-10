@@ -358,6 +358,9 @@ class Reminders extends Table {
   IntColumn get notificationId => integer()();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();
+  TextColumn get sourceType => text().nullable()();
+  TextColumn get sourceId => text().nullable()();
+  TextColumn get origin => text().withDefault(const Constant('user'))();
   // Calendar integration fields
   IntColumn get calendarEventId => integer().nullable()();
   BoolColumn get isSyncedToCalendar =>

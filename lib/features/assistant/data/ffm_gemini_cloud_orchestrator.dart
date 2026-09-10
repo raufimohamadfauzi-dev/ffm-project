@@ -122,8 +122,7 @@ class FfmGeminiCloudOrchestrator {
       // Enforce single function call per turn.
       if (result.functionCalls!.length > 1) {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage:
-              'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
+          errorMessage: 'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
@@ -162,7 +161,8 @@ class FfmGeminiCloudOrchestrator {
         finalText += '\n$jsonStr';
       } else {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage: 'Gemini memanggil fungsi yang tidak diizinkan: ${call.name}.',
+          errorMessage:
+              'Gemini memanggil fungsi yang tidak diizinkan: ${call.name}.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
@@ -213,11 +213,14 @@ class FfmGeminiCloudOrchestrator {
         finalText = result.text?.trim() ?? '';
         if (result.usageMetadata != null) {
           totalUsage = GeminiUsageMetadata(
-            promptTokenCount: (totalUsage?.promptTokenCount ?? 0) +
+            promptTokenCount:
+                (totalUsage?.promptTokenCount ?? 0) +
                 result.usageMetadata!.promptTokenCount,
-            candidatesTokenCount: (totalUsage?.candidatesTokenCount ?? 0) +
+            candidatesTokenCount:
+                (totalUsage?.candidatesTokenCount ?? 0) +
                 result.usageMetadata!.candidatesTokenCount,
-            totalTokenCount: (totalUsage?.totalTokenCount ?? 0) +
+            totalTokenCount:
+                (totalUsage?.totalTokenCount ?? 0) +
                 result.usageMetadata!.totalTokenCount,
           );
         }
@@ -373,8 +376,7 @@ class FfmGeminiCloudOrchestrator {
                 'title': {'type': 'STRING', 'description': 'Judul atau nama'},
                 'party': {
                   'type': 'STRING',
-                  'description':
-                      'Nama pihak terkait: sumber pemasukan untuk income, pemakai dana untuk expense, pemberi pinjaman untuk liability, atau peminjam untuk receivable',
+                  'description': 'Nama pihak terkait: sumber pemasukan untuk income, pemakai dana untuk expense, pemberi pinjaman untuk liability, atau peminjam untuk receivable',
                 },
                 'amount': {'type': 'NUMBER', 'description': 'Nominal uang'},
                 'adminFee': {
@@ -437,18 +439,15 @@ class FfmGeminiCloudOrchestrator {
                 },
                 'monthlyInstallment': {
                   'type': 'NUMBER',
-                  'description':
-                      'Nominal cicilan per bulan untuk hutang (liability) atau piutang (receivable)',
+                  'description': 'Nominal cicilan per bulan untuk hutang (liability) atau piutang (receivable)',
                 },
                 'interestRate': {
                   'type': 'NUMBER',
-                  'description':
-                      'Bunga dalam persen per tahun untuk hutang (liability) atau piutang (receivable)',
+                  'description': 'Bunga dalam persen per tahun untuk hutang (liability) atau piutang (receivable)',
                 },
                 'categoryIds': {
                   'type': 'STRING',
-                  'description':
-                      'Daftar nama kategori dipisah koma untuk anggaran multi-kategori (type budget)',
+                  'description': 'Daftar nama kategori dipisah koma untuk anggaran multi-kategori (type budget)',
                 },
                 'targetDate': {
                   'type': 'STRING',
@@ -456,8 +455,7 @@ class FfmGeminiCloudOrchestrator {
                 },
                 'dueDate': {
                   'type': 'STRING',
-                  'description':
-                      'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',
+                  'description': 'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',
                 },
                 'period': {
                   'type': 'STRING',
@@ -481,7 +479,8 @@ class FfmGeminiCloudOrchestrator {
                 },
                 'dailyOperationalBudget': {
                   'type': 'NUMBER',
-                  'description': 'Anggaran biaya operasional harian tani / usaha (angka)',
+                  'description':
+                      'Anggaran biaya operasional harian tani / usaha (angka)',
                 },
                 'daysRemaining': {
                   'type': 'NUMBER',
@@ -524,7 +523,7 @@ Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
 Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data pengguna. Jangan mengarang saldo, nominal, akun, kategori, transaksi, tanggal, atau status penyimpanan.
 
 ATURAN IDENTITAS APLIKASI & PEMBUAT:
-- FFM = Family Finance Manager, aplikasi pengelolaan keuangan keluarga offline-first.
+- FFM = Family Finance Manager, aplikasi pengelolaan keuangan keluarga hybrid: data aplikasi tetap otoritatif, tool deterministik menghitung angka, dan Gemini Cloud membantu memahami/menjelaskan secara natural.
 - Pembuat/developer aplikasi ini adalah Rafi Sinkkat.
 
 ATURAN IDENTITAS KELUARGA & SAPAAN:

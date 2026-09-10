@@ -106,7 +106,7 @@ void main() {
           )
           .getSingleOrNull();
 
-      expect(version.data['user_version'], 55);
+      expect(version.data['user_version'], 57);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -209,4 +209,63 @@ void main() {
     );
     expect(legacy.data['scheduled_at'], isNull);
   });
+
+  test(
+    'menambahkan tautan sumber dan origin pada pengingat dari schema 55',
+    () async {
+      final executor = NativeDatabase.memory(
+        setup: (database) {
+          database.execute(
+            'CREATE TABLE reminders ('
+            'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, title TEXT NOT NULL, '
+            'note TEXT, scheduled_at INTEGER NOT NULL, '
+            "recurrence_type TEXT NOT NULL DEFAULT 'once', "
+            "weekdays_json TEXT NOT NULL DEFAULT '[]', "
+            'is_active INTEGER NOT NULL DEFAULT 1, sound_uri TEXT, sound_name TEXT, '
+            'default_snooze_minutes INTEGER NOT NULL DEFAULT 10, '
+            'notification_id INTEGER NOT NULL, created_at INTEGER NOT NULL, '
+            'updated_at INTEGER, calendar_event_id INTEGER, '
+            'is_synced_to_calendar INTEGER NOT NULL DEFAULT 0, synced_at INTEGER)',
+          );
+          database.execute(
+            "INSERT INTO reminders (id, household_id, title, scheduled_at, notification_id, created_at) "
+            "VALUES ('legacy-reminder', 'local-household', 'Bayar tagihan', 1, 1, 1)",
+          );
+          database.execute('PRAGMA user_version = 55');
+        },
+      );
+      final database = AppDatabase(executor);
+      addTearDown(database.close);
+
+      final columns = await database
+          .customSelect('PRAGMA table_info("reminders")')
+          .get();
+      final legacy = await database
+          .customSelect(
+            "SELECT source_type, source_id FROM reminders WHERE id = 'legacy-reminder'",
+          )
+          .getSingle();
+
+      expect(
+        columns.where((row) => row.read<String>('name') == 'source_type'),
+        hasLength(1),
+      );
+      expect(
+        columns.where((row) => row.read<String>('name') == 'source_id'),
+        hasLength(1),
+      );
+      expect(
+        columns.where((row) => row.read<String>('name') == 'origin'),
+        hasLength(1),
+      );
+      final reminder = await database
+          .customSelect(
+            "SELECT origin FROM reminders WHERE id = 'legacy-reminder'",
+          )
+          .getSingle();
+      expect(reminder.data['origin'], 'user');
+      expect(legacy.data['source_type'], isNull);
+      expect(legacy.data['source_id'], isNull);
+    },
+  );
 }

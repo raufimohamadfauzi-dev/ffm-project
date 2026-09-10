@@ -54,33 +54,67 @@ class FfmAssistantProfileExportService {
       throw Exception('Passphrase salah atau file profil rusak.');
     }
 
-    final payload = jsonDecode(jsonPayload) as Map<String, dynamic>;
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(jsonPayload);
+    } catch (_) {
+      throw Exception('Format file profil tidak valid.');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Format file profil tidak valid.');
+    }
+    final payload = decoded;
+
     if (payload['version'] != 1) {
       throw Exception('Versi profil tidak didukung.');
     }
 
-    final importedHouseholdId = payload['householdId'] as String?;
-    if (importedHouseholdId != householdId) {
-      // Allow importing to a different household if intended, but typically we
-      // just map it to the current active household.
-    }
-
     final preferences = payload['preferences'] as List<dynamic>? ?? [];
     for (final pref in preferences) {
-      final p = pref as Map<String, dynamic>;
+      if (pref is! Map<String, dynamic>) continue;
+      final key = pref['key'];
+      final value = pref['value'];
+      if (key is! String || key.isEmpty || value is! String || value.isEmpty) {
+        continue;
+      }
       await _repository.setPreference(
         householdId: householdId,
-        preferenceKey: p['key'] as String,
-        preferenceValue: p['value'] as String,
+        preferenceKey: key,
+        preferenceValue: value,
       );
     }
 
     final patterns = payload['patterns'] as List<dynamic>? ?? [];
     if (patterns.isNotEmpty) {
-      await _repository.importPatterns(
-        householdId: householdId,
-        patterns: patterns.cast<Map<String, dynamic>>(),
-      );
+      final validPatterns = <Map<String, dynamic>>[];
+      for (final p in patterns) {
+        if (p is! Map<String, dynamic>) continue;
+        final merchant = p['merchantName'];
+        final field = p['fieldName'];
+        final value = p['mostCommonValue'];
+        if (merchant is! String ||
+            field is! String ||
+            value is! String ||
+            merchant.isEmpty ||
+            field.isEmpty ||
+            value.isEmpty) {
+          continue;
+        }
+        validPatterns.add({
+          'merchantName': merchant,
+          'fieldName': field,
+          'mostCommonValue': value,
+          'confidenceScore': (p['confidenceScore'] as num?)?.toDouble() ?? 0.0,
+          'sampleCount': (p['sampleCount'] as num?)?.toInt() ?? 0,
+          'lastUpdated': p['lastUpdated'] as String? ?? '',
+        });
+      }
+      if (validPatterns.isNotEmpty) {
+        await _repository.importPatterns(
+          householdId: householdId,
+          patterns: validPatterns,
+        );
+      }
     }
   }
 

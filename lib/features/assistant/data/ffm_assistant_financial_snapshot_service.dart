@@ -207,9 +207,9 @@ class FfmAssistantFinancialSnapshotService {
             ))
             .get();
 
-    final household = await (_database.select(_database.households)
-          ..where((row) => row.id.equals(householdId)))
-        .getSingleOrNull();
+    final household = await (_database.select(
+      _database.households,
+    )..where((row) => row.id.equals(householdId))).getSingleOrNull();
     final familyParts = <String>[];
     if (household != null) {
       if (household.name.trim().isNotEmpty &&
@@ -220,8 +220,7 @@ class FfmAssistantFinancialSnapshotService {
           household.husbandName!.trim().isNotEmpty) {
         familyParts.add('suami="${household.husbandName!.trim()}"');
       }
-      if (household.wifeName != null &&
-          household.wifeName!.trim().isNotEmpty) {
+      if (household.wifeName != null && household.wifeName!.trim().isNotEmpty) {
         familyParts.add('istri="${household.wifeName!.trim()}"');
       }
     }
@@ -254,9 +253,9 @@ class FfmAssistantFinancialSnapshotService {
   Future<String> buildHouseholdProfileContext({
     required String householdId,
   }) async {
-    final household = await (_database.select(_database.households)
-          ..where((row) => row.id.equals(householdId)))
-        .getSingleOrNull();
+    final household = await (_database.select(
+      _database.households,
+    )..where((row) => row.id.equals(householdId))).getSingleOrNull();
     if (household == null) return '';
 
     final parts = <String>[];
@@ -579,22 +578,23 @@ class FfmAssistantFinancialSnapshotService {
     try {
       final refDate = now ?? DateTime.now();
       final threeMonthsAgo = DateTime(refDate.year, refDate.month - 3, 1);
-      final expenseRows = await (_database.select(_database.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(householdId) &
-                  row.type.equals('expense') &
-                  row.isArchived.equals(false) &
-                  row.isDeleted.equals(false) &
-                  row.date.isBiggerOrEqualValue(threeMonthsAgo),
-            ))
-          .get();
+      final expenseRows =
+          await (_database.select(_database.transactions)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.type.equals('expense') &
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false) &
+                    row.date.isBiggerOrEqualValue(threeMonthsAgo),
+              ))
+              .get();
       var totalExpense3Mo = 0;
       for (final t in expenseRows) {
         totalExpense3Mo += t.amount.abs();
       }
-      final avgMonthlyExpense =
-          expenseRows.isEmpty ? 0 : (totalExpense3Mo / 3).round();
+      final avgMonthlyExpense = expenseRows.isEmpty
+          ? 0
+          : (totalExpense3Mo / 3).round();
       if (avgMonthlyExpense > 0) {
         emergencyFundInsight =
             ' | Rata-rata pengeluaran/bulan: Rp $avgMonthlyExpense (Patokan Dana Darurat: 3 bln=Rp ${avgMonthlyExpense * 3}, 6 bln=Rp ${avgMonthlyExpense * 6}, 12 bln=Rp ${avgMonthlyExpense * 12})';
@@ -695,36 +695,97 @@ class FfmAssistantFinancialSnapshotService {
     required String householdId,
     int maxItems = 10,
     int maxCharacters = 800,
+    DateTime? periodStart,
+    DateTime? periodEndExclusive,
   }) async {
     final sessions =
         await (_database.select(_database.activitySessions)
-              ..where(
-                (row) =>
+              ..where((row) {
+                final filter =
                     row.householdId.equals(householdId) &
                     row.isArchived.equals(false) &
-                    row.status.equals('active'),
-              )
+                    row.status.equals('active');
+                if (periodStart == null || periodEndExclusive == null) {
+                  return filter;
+                }
+                return filter &
+                    row.startedAt.isBiggerOrEqualValue(periodStart) &
+                    row.startedAt.isSmallerThanValue(periodEndExclusive);
+              })
               ..orderBy([(row) => OrderingTerm.desc(row.priority)]))
             .get();
-    if (sessions.isEmpty) {
-      return 'Activities digest: tidak ada aktivitas aktif.';
+    final recentSessions =
+        await (_database.select(_database.activitySessions)
+              ..where((row) {
+                final filter =
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.status.equals('active').not();
+                if (periodStart == null || periodEndExclusive == null) {
+                  return filter;
+                }
+                return filter &
+                    row.startedAt.isBiggerOrEqualValue(periodStart) &
+                    row.startedAt.isSmallerThanValue(periodEndExclusive);
+              })
+              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+              ..limit(maxItems))
+            .get();
+    final recentEntries =
+        await (_database.select(_database.activityEntries)
+              ..where((row) {
+                final filter =
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false);
+                if (periodStart == null || periodEndExclusive == null) {
+                  return filter;
+                }
+                return filter &
+                    row.startedAt.isBiggerOrEqualValue(periodStart) &
+                    row.startedAt.isSmallerThanValue(periodEndExclusive);
+              })
+              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+              ..limit(maxItems))
+            .get();
+    if (sessions.isEmpty && recentSessions.isEmpty && recentEntries.isEmpty) {
+      return 'Activities digest: tidak ada aktivitas aktif atau riwayat aktivitas terbaru yang tersimpan.';
     }
-    final visible = sessions.take(maxItems).toList(growable: false);
-    final lines = visible
-        .map((row) {
+    final lines = <String>[];
+    if (sessions.isEmpty) {
+      lines.add('aktif=tidak ada');
+    } else {
+      lines.addAll(
+        sessions.take(maxItems).map((row) {
           final name = row.title.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
           final priorityLabel = row.priority > 0 ? '[PRIORITAS] ' : '';
           final note = (row.notes != null && row.notes!.trim().isNotEmpty)
               ? '|catatan=${row.notes!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim()}'
               : '';
-          return '$priorityLabel$name|kategori=${row.category}$note';
-        })
-        .toList(growable: false);
-    final suffix = sessions.length > maxItems
-        ? '; … (+${sessions.length - maxItems} lebih)'
+          return 'aktif:$priorityLabel$name|kategori=${row.category}$note';
+        }),
+      );
+    }
+    lines.addAll(
+      recentSessions.take(maxItems).map((row) {
+        final name = row.title.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+        final date = row.startedAt.toIso8601String().substring(0, 10);
+        return 'riwayat_sesi:$date|$name|status=${row.status}|jenis=${row.kind}';
+      }),
+    );
+    lines.addAll(
+      recentEntries.take(maxItems).map((row) {
+        final name = row.title.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+        final date = row.startedAt.toIso8601String().substring(0, 10);
+        return 'riwayat_catatan:$date|$name|tipe=${row.activityType}';
+      }),
+    );
+    final suffix =
+        sessions.length + recentSessions.length + recentEntries.length >
+            maxItems
+        ? '; … (sebagian riwayat disingkat)'
         : '';
     return _clip(
-      'Activities digest (aktivitas & prioritas berjalan): ${lines.join('; ')}$suffix.',
+      'Activities digest (aktivitas aktif dan riwayat terbaru): ${lines.take(maxItems).join('; ')}$suffix.',
       maxCharacters,
     );
   }

@@ -5,6 +5,8 @@ import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/presentation/pages/reminder_page.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/entities/goal_entity.dart';
@@ -172,6 +174,24 @@ class GoalDetailPage extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Detail target'),
           actions: [
+            IconButton(
+              tooltip: 'Buat pengingat target',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReminderPage(
+                    initialTitle: 'Cek progres target: ${goal.name}',
+                    initialNote: 'Terkait target keuangan ${goal.name}.',
+                    initialScheduledAt: goal.targetDate.isAfter(DateTime.now())
+                        ? goal.targetDate
+                        : DateTime.now().add(const Duration(hours: 1)),
+                    initialSourceType: ReminderSourceType.goal,
+                    initialSourceId: goal.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.add_alert_outlined),
+            ),
             IconButton(
               tooltip: 'Ubah target',
               onPressed: () => _edit(context),

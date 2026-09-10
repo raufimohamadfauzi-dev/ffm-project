@@ -7,6 +7,8 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/presentation/pages/reminder_page.dart';
 import '../../../../shared/widgets/date_time_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../domain/usecases/recurring_transaction_crud_usecases.dart';
@@ -114,6 +116,24 @@ class _RecurringTransactionPageState extends State<RecurringTransactionPage> {
       rule.id,
     );
     if (mounted) await _refresh();
+  }
+
+  Future<void> _createReminder(RecurringTransaction rule) async {
+    final scheduledAt = rule.startDate.isAfter(DateTime.now())
+        ? rule.startDate
+        : DateTime.now().add(const Duration(hours: 1));
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReminderPage(
+          initialTitle: 'Cek jadwal rutin: ${rule.name}',
+          initialNote: 'Terkait jadwal transaksi rutin ${rule.name}.',
+          initialScheduledAt: scheduledAt,
+          initialSourceType: ReminderSourceType.recurringTransaction,
+          initialSourceId: rule.id,
+        ),
+      ),
+    );
   }
 
   String _typeLabel(String type) =>
@@ -226,10 +246,15 @@ class _RecurringTransactionPageState extends State<RecurringTransactionPage> {
                           trailing: PopupMenuButton<String>(
                             onSelected: (value) {
                               if (value == 'edit') _openEditor(existing: rule);
+                              if (value == 'reminder') _createReminder(rule);
                               if (value == 'archive') _archive(rule);
                             },
                             itemBuilder: (context) => const [
                               PopupMenuItem(value: 'edit', child: Text('Edit')),
+                              PopupMenuItem(
+                                value: 'reminder',
+                                child: Text('Buat pengingat'),
+                              ),
                               PopupMenuItem(
                                 value: 'archive',
                                 child: Text('Nonaktifkan'),

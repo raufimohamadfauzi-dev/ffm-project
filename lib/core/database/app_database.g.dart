@@ -13388,6 +13388,38 @@ class $RemindersTable extends Reminders
     type: DriftSqlType.dateTime,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _sourceTypeMeta = const VerificationMeta(
+    'sourceType',
+  );
+  @override
+  late final GeneratedColumn<String> sourceType = GeneratedColumn<String>(
+    'source_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sourceIdMeta = const VerificationMeta(
+    'sourceId',
+  );
+  @override
+  late final GeneratedColumn<String> sourceId = GeneratedColumn<String>(
+    'source_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _originMeta = const VerificationMeta('origin');
+  @override
+  late final GeneratedColumn<String> origin = GeneratedColumn<String>(
+    'origin',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('user'),
+  );
   static const VerificationMeta _calendarEventIdMeta = const VerificationMeta(
     'calendarEventId',
   );
@@ -13440,6 +13472,9 @@ class $RemindersTable extends Reminders
     notificationId,
     createdAt,
     updatedAt,
+    sourceType,
+    sourceId,
+    origin,
     calendarEventId,
     isSyncedToCalendar,
     syncedAt,
@@ -13567,6 +13602,24 @@ class $RemindersTable extends Reminders
         updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
       );
     }
+    if (data.containsKey('source_type')) {
+      context.handle(
+        _sourceTypeMeta,
+        sourceType.isAcceptableOrUnknown(data['source_type']!, _sourceTypeMeta),
+      );
+    }
+    if (data.containsKey('source_id')) {
+      context.handle(
+        _sourceIdMeta,
+        sourceId.isAcceptableOrUnknown(data['source_id']!, _sourceIdMeta),
+      );
+    }
+    if (data.containsKey('origin')) {
+      context.handle(
+        _originMeta,
+        origin.isAcceptableOrUnknown(data['origin']!, _originMeta),
+      );
+    }
     if (data.containsKey('calendar_event_id')) {
       context.handle(
         _calendarEventIdMeta,
@@ -13656,6 +13709,18 @@ class $RemindersTable extends Reminders
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       ),
+      sourceType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_type'],
+      ),
+      sourceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_id'],
+      ),
+      origin: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}origin'],
+      )!,
       calendarEventId: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}calendar_event_id'],
@@ -13692,6 +13757,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
   final int notificationId;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final String? sourceType;
+  final String? sourceId;
+  final String origin;
   final int? calendarEventId;
   final bool isSyncedToCalendar;
   final DateTime? syncedAt;
@@ -13710,6 +13778,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     required this.notificationId,
     required this.createdAt,
     this.updatedAt,
+    this.sourceType,
+    this.sourceId,
+    required this.origin,
     this.calendarEventId,
     required this.isSyncedToCalendar,
     this.syncedAt,
@@ -13739,6 +13810,13 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     if (!nullToAbsent || updatedAt != null) {
       map['updated_at'] = Variable<DateTime>(updatedAt);
     }
+    if (!nullToAbsent || sourceType != null) {
+      map['source_type'] = Variable<String>(sourceType);
+    }
+    if (!nullToAbsent || sourceId != null) {
+      map['source_id'] = Variable<String>(sourceId);
+    }
+    map['origin'] = Variable<String>(origin);
     if (!nullToAbsent || calendarEventId != null) {
       map['calendar_event_id'] = Variable<int>(calendarEventId);
     }
@@ -13771,6 +13849,13 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       updatedAt: updatedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(updatedAt),
+      sourceType: sourceType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceType),
+      sourceId: sourceId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceId),
+      origin: Value(origin),
       calendarEventId: calendarEventId == null && nullToAbsent
           ? const Value.absent()
           : Value(calendarEventId),
@@ -13803,6 +13888,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       notificationId: serializer.fromJson<int>(json['notificationId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
+      sourceType: serializer.fromJson<String?>(json['sourceType']),
+      sourceId: serializer.fromJson<String?>(json['sourceId']),
+      origin: serializer.fromJson<String>(json['origin']),
       calendarEventId: serializer.fromJson<int?>(json['calendarEventId']),
       isSyncedToCalendar: serializer.fromJson<bool>(json['isSyncedToCalendar']),
       syncedAt: serializer.fromJson<DateTime?>(json['syncedAt']),
@@ -13826,6 +13914,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       'notificationId': serializer.toJson<int>(notificationId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
+      'sourceType': serializer.toJson<String?>(sourceType),
+      'sourceId': serializer.toJson<String?>(sourceId),
+      'origin': serializer.toJson<String>(origin),
       'calendarEventId': serializer.toJson<int?>(calendarEventId),
       'isSyncedToCalendar': serializer.toJson<bool>(isSyncedToCalendar),
       'syncedAt': serializer.toJson<DateTime?>(syncedAt),
@@ -13847,6 +13938,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     int? notificationId,
     DateTime? createdAt,
     Value<DateTime?> updatedAt = const Value.absent(),
+    Value<String?> sourceType = const Value.absent(),
+    Value<String?> sourceId = const Value.absent(),
+    String? origin,
     Value<int?> calendarEventId = const Value.absent(),
     bool? isSyncedToCalendar,
     Value<DateTime?> syncedAt = const Value.absent(),
@@ -13865,6 +13959,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     notificationId: notificationId ?? this.notificationId,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
+    sourceType: sourceType.present ? sourceType.value : this.sourceType,
+    sourceId: sourceId.present ? sourceId.value : this.sourceId,
+    origin: origin ?? this.origin,
     calendarEventId: calendarEventId.present
         ? calendarEventId.value
         : this.calendarEventId,
@@ -13899,6 +13996,11 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           : this.notificationId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      sourceType: data.sourceType.present
+          ? data.sourceType.value
+          : this.sourceType,
+      sourceId: data.sourceId.present ? data.sourceId.value : this.sourceId,
+      origin: data.origin.present ? data.origin.value : this.origin,
       calendarEventId: data.calendarEventId.present
           ? data.calendarEventId.value
           : this.calendarEventId,
@@ -13926,6 +14028,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           ..write('notificationId: $notificationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('origin: $origin, ')
           ..write('calendarEventId: $calendarEventId, ')
           ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
           ..write('syncedAt: $syncedAt')
@@ -13949,6 +14054,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     notificationId,
     createdAt,
     updatedAt,
+    sourceType,
+    sourceId,
+    origin,
     calendarEventId,
     isSyncedToCalendar,
     syncedAt,
@@ -13971,6 +14079,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           other.notificationId == this.notificationId &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
+          other.sourceType == this.sourceType &&
+          other.sourceId == this.sourceId &&
+          other.origin == this.origin &&
           other.calendarEventId == this.calendarEventId &&
           other.isSyncedToCalendar == this.isSyncedToCalendar &&
           other.syncedAt == this.syncedAt);
@@ -13991,6 +14102,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
   final Value<int> notificationId;
   final Value<DateTime> createdAt;
   final Value<DateTime?> updatedAt;
+  final Value<String?> sourceType;
+  final Value<String?> sourceId;
+  final Value<String> origin;
   final Value<int?> calendarEventId;
   final Value<bool> isSyncedToCalendar;
   final Value<DateTime?> syncedAt;
@@ -14010,6 +14124,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.notificationId = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.origin = const Value.absent(),
     this.calendarEventId = const Value.absent(),
     this.isSyncedToCalendar = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -14030,6 +14147,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     required int notificationId,
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
+    this.sourceType = const Value.absent(),
+    this.sourceId = const Value.absent(),
+    this.origin = const Value.absent(),
     this.calendarEventId = const Value.absent(),
     this.isSyncedToCalendar = const Value.absent(),
     this.syncedAt = const Value.absent(),
@@ -14055,6 +14175,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Expression<int>? notificationId,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<String>? sourceType,
+    Expression<String>? sourceId,
+    Expression<String>? origin,
     Expression<int>? calendarEventId,
     Expression<bool>? isSyncedToCalendar,
     Expression<DateTime>? syncedAt,
@@ -14076,6 +14199,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       if (notificationId != null) 'notification_id': notificationId,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (sourceType != null) 'source_type': sourceType,
+      if (sourceId != null) 'source_id': sourceId,
+      if (origin != null) 'origin': origin,
       if (calendarEventId != null) 'calendar_event_id': calendarEventId,
       if (isSyncedToCalendar != null)
         'is_synced_to_calendar': isSyncedToCalendar,
@@ -14099,6 +14225,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Value<int>? notificationId,
     Value<DateTime>? createdAt,
     Value<DateTime?>? updatedAt,
+    Value<String?>? sourceType,
+    Value<String?>? sourceId,
+    Value<String>? origin,
     Value<int?>? calendarEventId,
     Value<bool>? isSyncedToCalendar,
     Value<DateTime?>? syncedAt,
@@ -14119,6 +14248,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       notificationId: notificationId ?? this.notificationId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      sourceType: sourceType ?? this.sourceType,
+      sourceId: sourceId ?? this.sourceId,
+      origin: origin ?? this.origin,
       calendarEventId: calendarEventId ?? this.calendarEventId,
       isSyncedToCalendar: isSyncedToCalendar ?? this.isSyncedToCalendar,
       syncedAt: syncedAt ?? this.syncedAt,
@@ -14171,6 +14303,15 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (sourceType.present) {
+      map['source_type'] = Variable<String>(sourceType.value);
+    }
+    if (sourceId.present) {
+      map['source_id'] = Variable<String>(sourceId.value);
+    }
+    if (origin.present) {
+      map['origin'] = Variable<String>(origin.value);
+    }
     if (calendarEventId.present) {
       map['calendar_event_id'] = Variable<int>(calendarEventId.value);
     }
@@ -14203,6 +14344,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
           ..write('notificationId: $notificationId, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('sourceType: $sourceType, ')
+          ..write('sourceId: $sourceId, ')
+          ..write('origin: $origin, ')
           ..write('calendarEventId: $calendarEventId, ')
           ..write('isSyncedToCalendar: $isSyncedToCalendar, ')
           ..write('syncedAt: $syncedAt, ')
@@ -40303,6 +40447,9 @@ typedef $$RemindersTableCreateCompanionBuilder =
       required int notificationId,
       required DateTime createdAt,
       Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
       Value<int?> calendarEventId,
       Value<bool> isSyncedToCalendar,
       Value<DateTime?> syncedAt,
@@ -40324,6 +40471,9 @@ typedef $$RemindersTableUpdateCompanionBuilder =
       Value<int> notificationId,
       Value<DateTime> createdAt,
       Value<DateTime?> updatedAt,
+      Value<String?> sourceType,
+      Value<String?> sourceId,
+      Value<String> origin,
       Value<int?> calendarEventId,
       Value<bool> isSyncedToCalendar,
       Value<DateTime?> syncedAt,
@@ -40406,6 +40556,21 @@ class $$RemindersTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get origin => $composableBuilder(
+    column: $table.origin,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -40504,6 +40669,21 @@ class $$RemindersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sourceId => $composableBuilder(
+    column: $table.sourceId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get origin => $composableBuilder(
+    column: $table.origin,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get calendarEventId => $composableBuilder(
     column: $table.calendarEventId,
     builder: (column) => ColumnOrderings(column),
@@ -40583,6 +40763,17 @@ class $$RemindersTableAnnotationComposer
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 
+  GeneratedColumn<String> get sourceType => $composableBuilder(
+    column: $table.sourceType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get sourceId =>
+      $composableBuilder(column: $table.sourceId, builder: (column) => column);
+
+  GeneratedColumn<String> get origin =>
+      $composableBuilder(column: $table.origin, builder: (column) => column);
+
   GeneratedColumn<int> get calendarEventId => $composableBuilder(
     column: $table.calendarEventId,
     builder: (column) => column,
@@ -40639,6 +40830,9 @@ class $$RemindersTableTableManager
                 Value<int> notificationId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
+                Value<String?> sourceType = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String> origin = const Value.absent(),
                 Value<int?> calendarEventId = const Value.absent(),
                 Value<bool> isSyncedToCalendar = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -40658,6 +40852,9 @@ class $$RemindersTableTableManager
                 notificationId: notificationId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sourceType: sourceType,
+                sourceId: sourceId,
+                origin: origin,
                 calendarEventId: calendarEventId,
                 isSyncedToCalendar: isSyncedToCalendar,
                 syncedAt: syncedAt,
@@ -40679,6 +40876,9 @@ class $$RemindersTableTableManager
                 required int notificationId,
                 required DateTime createdAt,
                 Value<DateTime?> updatedAt = const Value.absent(),
+                Value<String?> sourceType = const Value.absent(),
+                Value<String?> sourceId = const Value.absent(),
+                Value<String> origin = const Value.absent(),
                 Value<int?> calendarEventId = const Value.absent(),
                 Value<bool> isSyncedToCalendar = const Value.absent(),
                 Value<DateTime?> syncedAt = const Value.absent(),
@@ -40698,6 +40898,9 @@ class $$RemindersTableTableManager
                 notificationId: notificationId,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                sourceType: sourceType,
+                sourceId: sourceId,
+                origin: origin,
                 calendarEventId: calendarEventId,
                 isSyncedToCalendar: isSyncedToCalendar,
                 syncedAt: syncedAt,

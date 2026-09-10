@@ -71,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 55;
+  int get schemaVersion => 57;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -118,6 +118,19 @@ class AppDatabase extends _$AppDatabase {
           'CREATE INDEX IF NOT EXISTS idx_utility_token_purchases_transaction '
           'ON utility_token_purchases (transaction_id)',
         );
+      }
+      if (from < 56 && await _hasTable('reminders')) {
+        if (!await _hasColumns('reminders', const ['source_type'])) {
+          await m.addColumn(reminders, reminders.sourceType);
+        }
+        if (!await _hasColumns('reminders', const ['source_id'])) {
+          await m.addColumn(reminders, reminders.sourceId);
+        }
+      }
+      if (from < 57 && await _hasTable('reminders')) {
+        if (!await _hasColumns('reminders', const ['origin'])) {
+          await m.addColumn(reminders, reminders.origin);
+        }
       }
       if (from < 22) {
         await m.addColumn(transactions, transactions.receiptRawText);

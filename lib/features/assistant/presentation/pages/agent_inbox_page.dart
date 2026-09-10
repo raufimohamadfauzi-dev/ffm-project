@@ -16,6 +16,8 @@ import '../../data/autonomous_activity_repository.dart';
 import '../widgets/autonomous_activity_dialogs.dart';
 import '../widgets/proactive_settings_dialog.dart';
 import '../widgets/ffm_assistant_page_context.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/presentation/pages/reminder_page.dart';
 
 class AgentInboxPage extends StatefulWidget {
   final AutonomousActivityRepository? activityRepository;
@@ -130,6 +132,40 @@ class _AgentInboxPageState extends State<AgentInboxPage>
     // Jika insight memiliki usulan mutasi/payload, tampilkan preview dan konfirmasi eksplisit
     if (insight.actionPayload != null && insight.actionPayload!.isNotEmpty) {
       final payload = insight.actionPayload!;
+      if (payload['type'] == 'reminder_suggestion') {
+        final sourceType = ReminderSourceTypeX.fromStorage(
+          payload['sourceType']?.toString(),
+        );
+        final sourceId = payload['sourceId']?.toString().trim();
+        final title = payload['title']?.toString().trim();
+        final scheduledAt = DateTime.tryParse(
+          payload['scheduledAt']?.toString() ?? '',
+        );
+        if (sourceType == null ||
+            sourceId == null ||
+            sourceId.isEmpty ||
+            title == null ||
+            title.isEmpty ||
+            scheduledAt == null) {
+          await _repository.dismiss(insight.id);
+          await _loadInsights();
+          return;
+        }
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => ReminderPage(
+              initialTitle: title,
+              initialNote: payload['note']?.toString(),
+              initialScheduledAt: scheduledAt,
+              initialSourceType: sourceType,
+              initialSourceId: sourceId,
+            ),
+          ),
+        );
+        await _repository.markSeen(insight.id);
+        await _loadInsights();
+        return;
+      }
       final isRebalance = payload['type'] == 'envelope_transfer';
       final confirmed = await showDialog<bool>(
         context: context,
@@ -774,6 +810,9 @@ class _InsightCardState extends State<_InsightCard> {
       FfmAssistantInsightType.goalProgressRisk => Icons.flag_rounded,
       FfmAssistantInsightType.budgetAlert => Icons.pie_chart_rounded,
       FfmAssistantInsightType.debtPayoffAcceleration => Icons.speed_rounded,
+      FfmAssistantInsightType.reminderDue =>
+        Icons.notifications_active_outlined,
+      FfmAssistantInsightType.reminderSuggestion => Icons.add_alert_outlined,
     };
   }
 

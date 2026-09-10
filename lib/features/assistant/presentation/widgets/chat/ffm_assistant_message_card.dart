@@ -10,7 +10,6 @@ import 'activity_session_chat_card.dart';
 import 'ffm_assistant_draft_preview.dart';
 import 'ffm_assistant_message_toolbar.dart';
 import 'ffm_assistant_process_disclosure.dart';
-import 'ffm_verified_facts_card.dart';
 import 'ffm_analysis_results_card.dart';
 import 'ffm_assistant_feedback_toolbar.dart';
 import 'ffm_json_expandable.dart';
@@ -35,6 +34,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onConfirmActivity,
     this.showTechnicalDetails = false,
     this.onToggleTechnicalDetails,
+    this.onShowVerifiedFacts,
+    this.onMarkIssue,
+    this.issueLogged = false,
     this.onRetryGemini,
     required this.activityConfirmed,
     this.actionPlan,
@@ -72,6 +74,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final VoidCallback? onConfirmActivity;
   final bool showTechnicalDetails;
   final VoidCallback? onToggleTechnicalDetails;
+  final VoidCallback? onShowVerifiedFacts;
+  final VoidCallback? onMarkIssue;
+  final bool issueLogged;
   final VoidCallback? onRetryGemini;
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
@@ -110,10 +115,25 @@ class FfmAssistantMessageCard extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final isUser = entry.isUser;
     final intent = entry.intent;
+    final origin = intent?.responseOrigin;
+    final groundingBlocked =
+        intent?.pluginMetadata?['groundingBlocked'] == true;
 
     final userBubbleColor = isDark
         ? const Color(0xFF1E1E1E)
         : const Color(0xFFFFFFFF);
+    final assistantLineColor = groundingBlocked
+        ? (isDark ? const Color(0xFFFF6B6B) : const Color(0xFFC62828))
+        : switch (origin) {
+            FfmAssistantResponseOrigin.agentOrchestrator =>
+              (isDark ? const Color(0xFFB39DDB) : const Color(0xFF5E35B1)),
+            FfmAssistantResponseOrigin.localFallback =>
+              (isDark ? const Color(0xFFFFCC80) : const Color(0xFFEF6C00)),
+            FfmAssistantResponseOrigin.cloudError =>
+              (isDark ? const Color(0xFFFF6B6B) : const Color(0xFFC62828)),
+            FfmAssistantResponseOrigin.geminiCloud || null =>
+              (isDark ? const Color(0xFF80CBC4) : const Color(0xFF00796B)),
+          };
     final textColor = isUser
         ? (isDark ? Colors.white : Colors.black)
         : (isDark ? Colors.white : Colors.black);
@@ -129,15 +149,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        if (!isUser && entry.verifiedFacts != null && entry.verifiedFacts!.isNotEmpty) ...[
-          FfmVerifiedFactsCard(
-            facts: entry.verifiedFacts!,
-            isExpanded: showVerifiedFacts,
-            onToggle: onToggleVerifiedFacts,
-          ),
-          const SizedBox(height: 8),
-        ],
-        if (!isUser && entry.analysisResults != null && entry.analysisResults!.isNotEmpty) ...[
+        if (!isUser &&
+            entry.analysisResults != null &&
+            entry.analysisResults!.isNotEmpty) ...[
           FfmAnalysisResultsCard(
             results: entry.analysisResults!,
             isExpanded: showAnalysisResults,
@@ -272,14 +286,18 @@ class FfmAssistantMessageCard extends StatelessWidget {
         ],
         if (!isUser && entry.feedbackType != null) ...[
           const SizedBox(height: 8),
-          _buildFeedbackIndicator(context, entry.feedbackType!, entry.feedbackCategory),
+          _buildFeedbackIndicator(
+            context,
+            entry.feedbackType!,
+            entry.feedbackCategory,
+          ),
         ],
-        if (!isUser && 
-            (onFeedbackThumbsUp != null || 
-             onFeedbackThumbsDown != null ||
-             onFeedbackMarkIncorrect != null ||
-             onFeedbackReportIssue != null ||
-             onFeedbackProvideCorrection != null)) ...[
+        if (!isUser &&
+            (onFeedbackThumbsUp != null ||
+                onFeedbackThumbsDown != null ||
+                onFeedbackMarkIncorrect != null ||
+                onFeedbackReportIssue != null ||
+                onFeedbackProvideCorrection != null)) ...[
           const SizedBox(height: 8),
           FfmAssistantFeedbackToolbar(
             onThumbsUp: onFeedbackThumbsUp ?? () {},
@@ -314,8 +332,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onPrimaryAction: onIntent,
             onConfirmActivity: onConfirmActivity,
             onShowTechnical: onToggleTechnicalDetails,
-            onRetryGemini: intent?.responseOrigin ==
-                    FfmAssistantResponseOrigin.cloudError
+            onShowVerifiedFacts: onShowVerifiedFacts,
+            onMarkIssue: onMarkIssue,
+            issueLogged: issueLogged,
+            onRetryGemini:
+                intent?.responseOrigin == FfmAssistantResponseOrigin.cloudError
                 ? onRetryGemini
                 : null,
             activityConfirmed: activityConfirmed,
@@ -330,7 +351,9 @@ class FfmAssistantMessageCard extends StatelessWidget {
             onApproveTeaching: onApproveTeaching,
             teachingSaved: teachingSaved,
             foregroundColor: textColor,
-            onShowFollowUpQuestions: onShowFollowUpQuestions != null && entry.suggestedQuestions.isNotEmpty
+            onShowFollowUpQuestions:
+                onShowFollowUpQuestions != null &&
+                    entry.suggestedQuestions.isNotEmpty
                 ? () => onShowFollowUpQuestions!(entry.suggestedQuestions)
                 : null,
             followUpCount: entry.suggestedQuestions.length,
@@ -338,10 +361,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
         ],
         if (showTechnicalDetails && intent != null) ...[
           const SizedBox(height: 8),
-          FfmJsonExpandable(
-            intent: intent,
-            initiallyExpanded: true,
-          ),
+          FfmJsonExpandable(intent: intent, initiallyExpanded: true),
         ],
       ],
     );
@@ -386,9 +406,20 @@ class FfmAssistantMessageCard extends StatelessWidget {
                       child: content,
                     ),
                   )
-                : Padding(
-                    padding: const EdgeInsets.fromLTRB(2, 2, 4, 4),
-                    child: content,
+                : DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: assistantLineColor, width: 2),
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(20),
+                        topRight: Radius.circular(20),
+                        bottomLeft: Radius.circular(4),
+                        bottomRight: Radius.circular(20),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                      child: content,
+                    ),
                   ),
           ),
         ),
@@ -396,7 +427,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
     );
   }
 
-  Widget _buildFeedbackIndicator(BuildContext context, String feedbackType, String? feedbackCategory) {
+  Widget _buildFeedbackIndicator(
+    BuildContext context,
+    String feedbackType,
+    String? feedbackCategory,
+  ) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -441,19 +476,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 14,
-            color: color,
-          ),
+          Icon(icon, size: 14, color: color),
           const SizedBox(width: 6),
           Text(
             label,
@@ -501,7 +529,8 @@ class FfmChatFileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final fileName = path.split(RegExp(r'[/\\]')).last;
-    final isImage = format?.toLowerCase() == 'image' ||
+    final isImage =
+        format?.toLowerCase() == 'image' ||
         path.toLowerCase().endsWith('.jpg') ||
         path.toLowerCase().endsWith('.jpeg') ||
         path.toLowerCase().endsWith('.png') ||
@@ -589,7 +618,10 @@ class FfmChatFileCard extends StatelessWidget {
                         fileName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12.5,
+                        ),
                       ),
                       Text(
                         'Foto struk • Ketuk untuk lihat',
@@ -741,10 +773,7 @@ class _BubbleTapRevealState extends State<_BubbleTapReveal> {
             : CrossAxisAlignment.start,
         children: [
           widget.child,
-          if (_visible) ...[
-            const SizedBox(height: 4),
-            _metadataLine(context),
-          ],
+          if (_visible) ...[const SizedBox(height: 4), _metadataLine(context)],
         ],
       ),
     );

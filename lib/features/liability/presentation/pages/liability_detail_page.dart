@@ -9,6 +9,8 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/presentation/pages/reminder_page.dart';
 import '../../domain/debt_receivable_validation.dart';
 import '../../domain/entities/liability_entity.dart';
 import '../../domain/usecases/liability_crud_usecases.dart';
@@ -39,15 +41,16 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
   Future<void> _loadHistory() async {
     try {
       final db = getIt<AppDatabase>();
-      final txs = await (db.select(db.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(AppContext.householdId) &
-                  row.source.equals('liability_payment') &
-                  row.sourceId.equals(_liability.id),
-            )
-            ..orderBy([(row) => OrderingTerm.desc(row.date)]))
-          .get();
+      final txs =
+          await (db.select(db.transactions)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(AppContext.householdId) &
+                      row.source.equals('liability_payment') &
+                      row.sourceId.equals(_liability.id),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+              .get();
 
       if (!mounted) return;
       setState(() {
@@ -61,13 +64,13 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
 
   Future<void> _refreshData() async {
     final db = getIt<AppDatabase>();
-    final row = await (db.select(db.liabilities)
-          ..where(
-            (r) =>
-                r.householdId.equals(AppContext.householdId) &
-                r.id.equals(_liability.id),
-          ))
-        .getSingleOrNull();
+    final row =
+        await (db.select(db.liabilities)..where(
+              (r) =>
+                  r.householdId.equals(AppContext.householdId) &
+                  r.id.equals(_liability.id),
+            ))
+            .getSingleOrNull();
 
     if (row != null && mounted) {
       setState(() {
@@ -113,6 +116,25 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
         appBar: AppBar(
           title: const Text('Detail hutang'),
           actions: [
+            IconButton(
+              tooltip: 'Buat pengingat pembayaran',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReminderPage(
+                    initialTitle: 'Bayar hutang: ${_liability.name}',
+                    initialNote: 'Terkait hutang ${_liability.name}.',
+                    initialScheduledAt:
+                        _liability.dueDate.isAfter(DateTime.now())
+                        ? _liability.dueDate
+                        : DateTime.now().add(const Duration(hours: 1)),
+                    initialSourceType: ReminderSourceType.liability,
+                    initialSourceId: _liability.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.add_alert_outlined),
+            ),
             IconButton(
               tooltip: 'Edit hutang',
               onPressed: () async {
@@ -224,7 +246,10 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                   children: [
                     ListTile(
                       title: const Text('Nominal awal'),
-                      trailing: AppMoneyText(_liability.originalAmount, compact: true),
+                      trailing: AppMoneyText(
+                        _liability.originalAmount,
+                        compact: true,
+                      ),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -275,14 +300,15 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.bolt,
-                                color: AppColors.primary, size: 20),
+                            const Icon(
+                              Icons.bolt,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               'Strategi Bebas Hutang',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
+                              style: Theme.of(context).textTheme.titleSmall
                                   ?.copyWith(fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -292,9 +318,8 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                           _liability.monthlyInstallment > 0
                               ? 'Dengan cicilan Rp ${_liability.monthlyInstallment}/bln, pelunasan hutang ini dapat dipercepat dengan metode Snowball atau Avalanche.'
                               : 'Cicilan belum diisi manual; sistem akan menggunakan estimasi pembayaran adaptif.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppColors.inkMuted,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppColors.inkMuted),
                         ),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
@@ -302,8 +327,7 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    const DebtPayoffStrategyPage(),
+                                builder: (_) => const DebtPayoffStrategyPage(),
                               ),
                             );
                           },
@@ -321,9 +345,8 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
               // Riwayat Pembayaran Kas
               Text(
                 'Riwayat Pembayaran Kas',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
 
@@ -340,9 +363,8 @@ class _LiabilityDetailPageState extends State<LiabilityDetailPage> {
                   child: Center(
                     child: Text(
                       'Belum ada riwayat pembayaran yang tercatat.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.inkMuted,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.inkMuted),
                     ),
                   ),
                 )
@@ -498,9 +520,8 @@ class _LiabilityEditPageState extends State<LiabilityEditPage> {
             children: [
               Text(
                 'Hutang: ${widget.liability.name}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               TextFormField(

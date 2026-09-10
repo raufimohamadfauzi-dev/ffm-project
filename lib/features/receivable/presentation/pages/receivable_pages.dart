@@ -10,6 +10,8 @@ import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
+import '../../../reminder/domain/entities/reminder_entity.dart';
+import '../../../reminder/presentation/pages/reminder_page.dart';
 import '../../../liability/domain/debt_receivable_validation.dart';
 import '../../../liability/presentation/widgets/debt_payment_dialog.dart';
 import '../../domain/entities/receivable_entity.dart';
@@ -222,7 +224,10 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                         HijriDateLabel(date: item.dueDate),
                       ],
                     ),
-                    trailing: AppMoneyText(item.remainingBalance, compact: true),
+                    trailing: AppMoneyText(
+                      item.remainingBalance,
+                      compact: true,
+                    ),
                   ),
                 ),
               ),
@@ -234,10 +239,12 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _receivables.where((item) {
-      if (_searchQuery.isEmpty) return true;
-      return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
-    }).toList(growable: false);
+    final filtered = _receivables
+        .where((item) {
+          if (_searchQuery.isEmpty) return true;
+          return item.name.toLowerCase().contains(_searchQuery.toLowerCase());
+        })
+        .toList(growable: false);
 
     final total = filtered.fold<int>(
       0,
@@ -335,7 +342,8 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Total Sisa Piutang',
@@ -351,7 +359,9 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                                   children: [
                                     _StatBadge(
                                       label: 'Estimasi/bln',
-                                      value: _moneyLabel(totalMonthlyInstallment),
+                                      value: _moneyLabel(
+                                        totalMonthlyInstallment,
+                                      ),
                                     ),
                                     if (totalOverdue > 0) ...[
                                       const SizedBox(height: 4),
@@ -423,8 +433,7 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                           _list(
                             _sortItems(filtered),
                             emptyTitle: 'Belum ada piutang',
-                            emptyMessage:
-                                'Catat uang yang masih harus diterima supaya lebih gampang dipantau.',
+                            emptyMessage: 'Catat uang yang masih harus diterima supaya lebih gampang dipantau.',
                           ),
                           _list(
                             _sortItems(active),
@@ -435,32 +444,27 @@ class _ReceivableListPageState extends State<ReceivableListPage> {
                           _list(
                             _sortItems(overdue),
                             emptyTitle: 'Tidak ada piutang terlambat',
-                            emptyMessage:
-                                'Piutang yang melewati jatuh tempo akan muncul di sini.',
+                            emptyMessage: 'Piutang yang melewati jatuh tempo akan muncul di sini.',
                           ),
                           _list(
                             _sortItems(dueWithinWeek),
                             emptyTitle: 'Belum ada jatuh tempo 0-7 hari',
-                            emptyMessage:
-                                'Piutang dengan jatuh tempo satu minggu ke depan akan muncul di sini.',
+                            emptyMessage: 'Piutang dengan jatuh tempo satu minggu ke depan akan muncul di sini.',
                           ),
                           _list(
                             _sortItems(dueWithinMonth),
                             emptyTitle: 'Belum ada jatuh tempo 8-30 hari',
-                            emptyMessage:
-                                'Piutang dengan jatuh tempo 8 sampai 30 hari ke depan akan muncul di sini.',
+                            emptyMessage: 'Piutang dengan jatuh tempo 8 sampai 30 hari ke depan akan muncul di sini.',
                           ),
                           _list(
                             _sortItems(dueOverMonth),
                             emptyTitle: 'Belum ada jatuh tempo > 30 hari',
-                            emptyMessage:
-                                'Piutang dengan jatuh tempo lebih dari 30 hari akan muncul di sini.',
+                            emptyMessage: 'Piutang dengan jatuh tempo lebih dari 30 hari akan muncul di sini.',
                           ),
                           _list(
                             _sortItems(paidOff),
                             emptyTitle: 'Belum ada piutang lunas',
-                            emptyMessage:
-                                'Piutang yang saldonya sudah nol akan muncul di sini.',
+                            emptyMessage: 'Piutang yang saldonya sudah nol akan muncul di sini.',
                           ),
                         ],
                       ),
@@ -523,7 +527,11 @@ class _LoadError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.negative),
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppColors.negative,
+            ),
             const SizedBox(height: 12),
             Text(
               'Gagal memuat data piutang',
@@ -680,8 +688,7 @@ class _ReceivableFormPageState extends State<ReceivableFormPage> {
             children: [
               const AppHelpBanner(
                 title: 'Catat uang yang masih harus diterima',
-                message:
-                    'Piutang belum dihitung sebagai pemasukan. Saat uang benar-benar masuk, catat transaksi pemasukan ke rekening atau dompet yang menerima.',
+                message: 'Piutang belum dihitung sebagai pemasukan. Saat uang benar-benar masuk, catat transaksi pemasukan ke rekening atau dompet yang menerima.',
                 icon: Icons.info_outline,
               ),
               const SizedBox(height: 16),
@@ -721,7 +728,8 @@ class _ReceivableFormPageState extends State<ReceivableFormPage> {
                 keyboardType: TextInputType.number,
                 inputFormatters: [RupiahInputFormatter()],
                 decoration: const InputDecoration(
-                  labelText: 'Perkiraan cicilan per bulan (0 jika sekali bayar)',
+                  labelText:
+                      'Perkiraan cicilan per bulan (0 jika sekali bayar)',
                 ),
                 validator: (val) => parseRupiah(val ?? '') < 0
                     ? 'Cicilan tidak boleh negatif'
@@ -791,15 +799,16 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
   Future<void> _loadHistory() async {
     try {
       final db = getIt<AppDatabase>();
-      final txs = await (db.select(db.transactions)
-            ..where(
-              (row) =>
-                  row.householdId.equals(AppContext.householdId) &
-                  row.source.equals('receivable_payment') &
-                  row.sourceId.equals(_receivable.id),
-            )
-            ..orderBy([(row) => OrderingTerm.desc(row.date)]))
-          .get();
+      final txs =
+          await (db.select(db.transactions)
+                ..where(
+                  (row) =>
+                      row.householdId.equals(AppContext.householdId) &
+                      row.source.equals('receivable_payment') &
+                      row.sourceId.equals(_receivable.id),
+                )
+                ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+              .get();
 
       if (!mounted) return;
       setState(() {
@@ -813,13 +822,13 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
 
   Future<void> _refreshData() async {
     final db = getIt<AppDatabase>();
-    final row = await (db.select(db.receivables)
-          ..where(
-            (r) =>
-                r.householdId.equals(AppContext.householdId) &
-                r.id.equals(_receivable.id),
-          ))
-        .getSingleOrNull();
+    final row =
+        await (db.select(db.receivables)..where(
+              (r) =>
+                  r.householdId.equals(AppContext.householdId) &
+                  r.id.equals(_receivable.id),
+            ))
+            .getSingleOrNull();
 
     if (row != null && mounted) {
       setState(() {
@@ -866,6 +875,25 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
           title: const Text('Detail piutang'),
           actions: [
             IconButton(
+              tooltip: 'Buat pengingat penagihan',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReminderPage(
+                    initialTitle: 'Tagih piutang: ${_receivable.name}',
+                    initialNote: 'Terkait piutang ${_receivable.name}.',
+                    initialScheduledAt:
+                        _receivable.dueDate.isAfter(DateTime.now())
+                        ? _receivable.dueDate
+                        : DateTime.now().add(const Duration(hours: 1)),
+                    initialSourceType: ReminderSourceType.receivable,
+                    initialSourceId: _receivable.id,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.add_alert_outlined),
+            ),
+            IconButton(
               tooltip: 'Edit piutang',
               onPressed: () async {
                 final updated = await Navigator.push<bool>(
@@ -905,7 +933,10 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                       const SizedBox(height: 4),
-                      AppMoneyText(_receivable.remainingBalance, compact: false),
+                      AppMoneyText(
+                        _receivable.remainingBalance,
+                        compact: false,
+                      ),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -980,7 +1011,10 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
                   children: [
                     ListTile(
                       title: const Text('Nominal awal'),
-                      trailing: AppMoneyText(_receivable.originalAmount, compact: true),
+                      trailing: AppMoneyText(
+                        _receivable.originalAmount,
+                        compact: true,
+                      ),
                     ),
                     const Divider(height: 1),
                     ListTile(
@@ -1026,9 +1060,8 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
               // Riwayat Pembayaran Kas
               Text(
                 'Riwayat Penerimaan Kas',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
 
@@ -1045,9 +1078,8 @@ class _ReceivableDetailPageState extends State<ReceivableDetailPage> {
                   child: Center(
                     child: Text(
                       'Belum ada riwayat pembayaran yang diterima.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.inkMuted,
-                      ),
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.inkMuted),
                     ),
                   ),
                 )
@@ -1203,9 +1235,8 @@ class _ReceivableEditPageState extends State<ReceivableEditPage> {
             children: [
               Text(
                 'Piutang: ${widget.receivable.name}',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               TextFormField(

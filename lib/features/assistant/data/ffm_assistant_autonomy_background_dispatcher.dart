@@ -35,7 +35,6 @@ void ffmAssistantAutonomyCallbackDispatcher() {
         await getIt<ReminderScheduleReplenisher>().replenish(
           householdId: 'local-household',
         );
-        return true;
       }
       if (isMarketNewsTask) {
         final service = getIt<MarketNewsRadarService>();
@@ -70,7 +69,8 @@ void ffmAssistantAutonomyCallbackDispatcher() {
         }
         return true;
       }
-      if (getIt.isRegistered<ReminderScheduleReplenisher>()) {
+      if (!isReminderTask &&
+          getIt.isRegistered<ReminderScheduleReplenisher>()) {
         await getIt<ReminderScheduleReplenisher>().replenish(
           householdId: 'local-household',
         );

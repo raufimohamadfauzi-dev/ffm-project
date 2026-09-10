@@ -168,6 +168,95 @@ class GetTransactions {
   }
 }
 
+class TransactionPageResult {
+  const TransactionPageResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<TransactionWithItems> items;
+  final bool hasMore;
+  final int totalCount;
+}
+
+class GetTransactionsPage {
+  const GetTransactionsPage(this.database);
+  final AppDatabase database;
+
+  Future<TransactionPageResult> call(
+    String householdId, {
+    int limit = 80,
+    int offset = 0,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final query = database.select(database.transactions)
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      query.where((row) => row.date.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where((row) => row.date.isSmallerThanValue(endDate));
+    }
+    final countQuery = database.selectOnly(database.transactions)
+      ..addColumns([database.transactions.id.count()])
+      ..where(
+        database.transactions.householdId.equals(householdId) &
+        database.transactions.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      countQuery.where(
+        database.transactions.date.isBiggerOrEqualValue(startDate),
+      );
+    }
+    if (endDate != null) {
+      countQuery.where(
+        database.transactions.date.isSmallerThanValue(endDate),
+      );
+    }
+    final countResult = await countQuery.getSingle();
+    final totalCount =
+        countResult.read(database.transactions.id.count()) ?? 0;
+
+    query
+      ..orderBy([(row) => OrderingTerm.desc(row.date)])
+      ..limit(limit, offset: offset);
+    final rows = await query.get();
+    if (rows.isEmpty) {
+      return TransactionPageResult(
+        items: const [],
+        hasMore: false,
+        totalCount: totalCount,
+      );
+    }
+    final ids = rows.map((row) => row.id).toSet();
+    final itemRows = await (database.select(
+      database.transactionItems,
+    )..where((row) => row.transactionId.isIn(ids))).get();
+    final byTransaction = <String, List<TransactionItem>>{};
+    for (final item in itemRows) {
+      (byTransaction[item.transactionId] ??= <TransactionItem>[]).add(item);
+    }
+    return TransactionPageResult(
+      items: rows
+          .map(
+            (row) => TransactionWithItems(
+              transaction: row,
+              items: byTransaction[row.id] ?? const [],
+            ),
+          )
+          .toList(growable: false),
+      hasMore: offset + limit < totalCount,
+      totalCount: totalCount,
+    );
+  }
+}
+
 class GetTransaction {
   const GetTransaction(this.database);
   final AppDatabase database;

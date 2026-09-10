@@ -35,6 +35,16 @@ void main() {
       expect(error, isNull);
     });
 
+    test('mengizinkan angka berformat rupiah yang sama dengan evidence', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Kas likuid saat ini Rp 1.234.567.',
+        verifiedFacts: 'Liquid Cash Balance: Rp1.234.567',
+        analysisFacts: null,
+        capabilityEvidence: null,
+      );
+      expect(error, isNull);
+    });
+
     test('mengizinkan jawaban tanpa angka/tanggal', () {
       final error = FfmAssistantGroundingValidator.validatePlainText(
         geminiText: 'Halo, ada yang bisa dibantu?',
@@ -80,26 +90,30 @@ void main() {
 
     test('mengizinkan angka yang bersumber dari riwayat percakapan sebelumnya', () {
       final error = FfmAssistantGroundingValidator.validatePlainText(
-        geminiText: 'Tadi Anda menyebutkan ingin membeli sepeda seharga Rp 2.500.000.',
+        geminiText:
+            'Tadi Anda menyebutkan ingin membeli sepeda seharga Rp 2.500.000.',
         verifiedFacts: null,
         analysisFacts: null,
         capabilityEvidence: null,
-        conversationHistory: 'Pengguna: Rencana beli sepeda 2500000 bulan depan.',
+        conversationHistory:
+            'Pengguna: Rencana beli sepeda 2500000 bulan depan.',
       );
       expect(error, isNull);
     });
 
-    test('tetap memblokir klaim penyimpanan data meskipun isGeneralOrHelp true', () {
-      final error = FfmAssistantGroundingValidator.validatePlainText(
-        geminiText: 'Data sudah tersimpan ke aplikasi.',
-        verifiedFacts: null,
-        analysisFacts: null,
-        capabilityEvidence: null,
-        isGeneralOrHelp: true,
-      );
-      expect(error, isNotNull);
-      expect(error, contains('tidak dapat menampilkan klaim penyimpanan'));
-    });
+    test(
+      'tetap memblokir klaim penyimpanan data meskipun isGeneralOrHelp true',
+      () {
+        final error = FfmAssistantGroundingValidator.validatePlainText(
+          geminiText: 'Data sudah tersimpan ke aplikasi.',
+          verifiedFacts: null,
+          analysisFacts: null,
+          capabilityEvidence: null,
+          isGeneralOrHelp: true,
+        );
+        expect(error, isNotNull);
+        expect(error, contains('tidak dapat menampilkan klaim penyimpanan'));
+      },
+    );
   });
 }
-

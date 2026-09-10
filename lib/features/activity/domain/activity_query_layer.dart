@@ -257,6 +257,128 @@ class ActivityQueryLayer {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   );
+
+  Future<ActivityEntryPageResult> queryEntriesPage({
+    required String householdId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 80,
+    int offset = 0,
+  }) async {
+    var query = database.select(database.activityEntries)
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      query.where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where((row) => row.startedAt.isSmallerThanValue(endDate));
+    }
+    final countQuery = database.selectOnly(database.activityEntries)
+      ..addColumns([database.activityEntries.id.count()])
+      ..where(
+        database.activityEntries.householdId.equals(householdId) &
+        database.activityEntries.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      countQuery.where(
+        database.activityEntries.startedAt.isBiggerOrEqualValue(startDate),
+      );
+    }
+    if (endDate != null) {
+      countQuery.where(
+        database.activityEntries.startedAt.isSmallerThanValue(endDate),
+      );
+    }
+    final countResult = await countQuery.getSingle();
+    final totalCount =
+        countResult.read(database.activityEntries.id.count()) ?? 0;
+    query
+      ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+      ..limit(limit, offset: offset);
+    final rows = await query.get();
+    return ActivityEntryPageResult(
+      items: rows,
+      hasMore: offset + limit < totalCount,
+      totalCount: totalCount,
+    );
+  }
+
+  Future<ActivityDailyNotePageResult> queryDailyNotesPage({
+    required String householdId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 80,
+    int offset = 0,
+  }) async {
+    var query = database.select(database.dailyNotes)
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      query.where((row) => row.noteDate.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where((row) => row.noteDate.isSmallerThanValue(endDate));
+    }
+    final countQuery = database.selectOnly(database.dailyNotes)
+      ..addColumns([database.dailyNotes.id.count()])
+      ..where(
+        database.dailyNotes.householdId.equals(householdId) &
+        database.dailyNotes.isArchived.equals(false),
+      );
+    if (startDate != null) {
+      countQuery.where(
+        database.dailyNotes.noteDate.isBiggerOrEqualValue(startDate),
+      );
+    }
+    if (endDate != null) {
+      countQuery.where(
+        database.dailyNotes.noteDate.isSmallerThanValue(endDate),
+      );
+    }
+    final countResult = await countQuery.getSingle();
+    final totalCount =
+        countResult.read(database.dailyNotes.id.count()) ?? 0;
+    query
+      ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+      ..limit(limit, offset: offset);
+    final rows = await query.get();
+    return ActivityDailyNotePageResult(
+      items: rows,
+      hasMore: offset + limit < totalCount,
+      totalCount: totalCount,
+    );
+  }
+}
+
+class ActivityEntryPageResult {
+  const ActivityEntryPageResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<ActivityEntry> items;
+  final bool hasMore;
+  final int totalCount;
+}
+
+class ActivityDailyNotePageResult {
+  const ActivityDailyNotePageResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<DailyNote> items;
+  final bool hasMore;
+  final int totalCount;
 }
 
 /// Hasil query yang dapat digunakan untuk analisis dan verifikasi

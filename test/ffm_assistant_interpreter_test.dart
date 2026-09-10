@@ -541,6 +541,205 @@ void main() {
     expect(intent.draft, isNull);
   });
 
+  test('memfilter riwayat aktivitas berdasarkan 1 tahun terakhir', () async {
+    final now = DateTime(2026, 9, 10, 8);
+    await (database.into(database.activityEntries)).insert(
+      ActivityEntriesCompanion.insert(
+        id: 'activity-in-range',
+        householdId: AppContext.householdId,
+        title: 'Panen jagung',
+        activityType: const Value('Kegiatan'),
+        startedAt: DateTime(2026, 1, 12, 8),
+        createdAt: DateTime(2026, 1, 12, 8),
+      ),
+    );
+    await (database.into(database.activityEntries)).insert(
+      ActivityEntriesCompanion.insert(
+        id: 'activity-out-of-range',
+        householdId: AppContext.householdId,
+        title: 'Catatan lama',
+        activityType: const Value('Jurnal'),
+        startedAt: DateTime(2025, 8, 20, 8),
+        createdAt: DateTime(2025, 8, 20, 8),
+      ),
+    );
+    await (database.into(database.activitySessions)).insert(
+      ActivitySessionsCompanion.insert(
+        id: 'session-in-range',
+        householdId: AppContext.householdId,
+        title: 'Perawatan kebun',
+        startedAt: DateTime(2026, 2, 4, 7),
+        endedAt: Value(DateTime(2026, 2, 4, 9)),
+        status: const Value('completed'),
+        createdAt: DateTime(2026, 2, 4, 7),
+      ),
+    );
+
+    final periodInterpreter = FfmAssistantInterpreter(
+      database,
+      clock: () => now,
+    );
+    final intent = await periodInterpreter.interpret(
+      'aktivitas 1 tahun terakhir apa?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Panen jagung'));
+    expect(intent.response, contains('Perawatan kebun'));
+    expect(intent.response, isNot(contains('Catatan lama')));
+  });
+
+  test('memfilter catatan harian berdasarkan tahun lalu', () async {
+    await (database.into(database.dailyNotes)).insert(
+      DailyNotesCompanion.insert(
+        id: 'note-last-year',
+        householdId: AppContext.householdId,
+        noteDate: DateTime(2025, 7, 12),
+        title: const Value('Panen'),
+        body: 'Hasil panen tahun lalu.',
+        createdAt: DateTime(2025, 7, 12),
+      ),
+    );
+    await (database.into(database.dailyNotes)).insert(
+      DailyNotesCompanion.insert(
+        id: 'note-current-year',
+        householdId: AppContext.householdId,
+        noteDate: DateTime(2026, 7, 12),
+        title: const Value('Belanja'),
+        body: 'Belanja bulan ini.',
+        createdAt: DateTime(2026, 7, 12),
+      ),
+    );
+
+    final periodInterpreter = FfmAssistantInterpreter(
+      database,
+      clock: () => DateTime(2026, 9, 10, 8),
+    );
+    final intent = await periodInterpreter.interpret(
+      'catatan tahun lalu',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Hasil panen tahun lalu'));
+    expect(intent.response, isNot(contains('Belanja bulan ini')));
+  });
+
+  test(
+    'follow-up kalau aktivitas membaca aktivitas terakhir secara lokal',
+    () async {
+      await (database.into(database.activityEntries)).insert(
+        ActivityEntriesCompanion.insert(
+          id: 'follow-up-activity',
+          householdId: AppContext.householdId,
+          title: 'Siram cabai',
+          activityType: const Value('Kegiatan'),
+          startedAt: DateTime(2026, 9, 9, 7),
+          createdAt: DateTime(2026, 9, 9, 7),
+        ),
+      );
+
+      final intent = await interpreter.interpret(
+        'kalau aktivitas?',
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+        lastAssistantMessage: 'Transaksi terakhir\nPengeluaran Rp20.000.',
+      );
+
+      expect(intent.type, FfmAssistantIntentType.queryData);
+      expect(intent.normalizedText, 'aktivitas terakhir');
+      expect(intent.response, contains('Siram cabai'));
+      expect(intent.draft, isNull);
+    },
+  );
+
+  test('menjawab pengeluaran terbesar dan terkecil 3 bulan terakhir', () async {
+    final now = DateTime(2026, 9, 10, 8);
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'food',
+            householdId: AppContext.householdId,
+            name: 'Makan',
+            type: 'expense',
+            createdAt: DateTime(2026, 8, 1),
+          ),
+        );
+    await database
+        .into(database.categories)
+        .insert(
+          CategoriesCompanion.insert(
+            id: 'farm',
+            householdId: AppContext.householdId,
+            name: 'Kebun',
+            type: 'expense',
+            createdAt: DateTime(2026, 8, 1),
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'big-expense',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            categoryId: const Value('farm'),
+            amount: -250000,
+            date: DateTime(2026, 8, 3),
+            recordedAt: DateTime(2026, 8, 3),
+            createdAt: DateTime(2026, 8, 3),
+            note: const Value('Beli pupuk'),
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'small-expense',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            categoryId: const Value('food'),
+            amount: -12000,
+            date: DateTime(2026, 9, 2),
+            recordedAt: DateTime(2026, 9, 2),
+            createdAt: DateTime(2026, 9, 2),
+            note: const Value('Air mineral'),
+          ),
+        );
+    await database
+        .into(database.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            id: 'old-expense',
+            householdId: AppContext.householdId,
+            type: 'expense',
+            categoryId: const Value('food'),
+            amount: -999000,
+            date: DateTime(2026, 4, 1),
+            recordedAt: DateTime(2026, 4, 1),
+            createdAt: DateTime(2026, 4, 1),
+            note: const Value('Di luar periode'),
+          ),
+        );
+
+    final localInterpreter = FfmAssistantInterpreter(
+      database,
+      clock: () => now,
+    );
+    final intent = await localInterpreter.interpret(
+      'dalam 3 bulan terakhir pengeluaran paling besar dan paling kecil apa?',
+      routingMode: FfmAssistantRoutingMode.geminiCloud,
+    );
+
+    expect(intent.type, FfmAssistantIntentType.queryData);
+    expect(intent.response, contains('Rp250.000'));
+    expect(intent.response, contains('Beli pupuk'));
+    expect(intent.response, contains('Rp12.000'));
+    expect(intent.response, contains('Air mineral'));
+    expect(intent.response, isNot(contains('Rp999.000')));
+  });
+
   test('membaca ulang data saat pengguna mengoreksi jawaban kosong', () async {
     await (database.into(database.activityEntries)).insert(
       ActivityEntriesCompanion.insert(

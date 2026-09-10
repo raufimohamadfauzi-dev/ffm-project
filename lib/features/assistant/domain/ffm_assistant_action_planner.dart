@@ -41,6 +41,17 @@ class FfmAssistantActionPlanner {
         ),
       );
     }
+    if (intent.type == FfmAssistantIntentType.changeHijriAdjustment) {
+      final adjustment =
+          intent.pluginMetadata?['adjustment']?.toString() ?? '0';
+      steps.add(
+        FfmAssistantActionStep(
+          id: 'set_hijri_adjustment',
+          capabilityId: 'system.set_hijri_adjustment',
+          parameters: {'adjustment': adjustment},
+        ),
+      );
+    }
     if (intent.pluginMetadata?['refreshMarketNews'] == true) {
       steps.add(
         const FfmAssistantActionStep(

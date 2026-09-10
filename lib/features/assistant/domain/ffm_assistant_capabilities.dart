@@ -962,6 +962,15 @@ class FfmAssistantCapabilityRegistry {
       readOnly: true,
     ),
     const FfmAssistantCapability(
+      id: 'system.set_hijri_adjustment',
+      label: 'Ubah offset kalender Hijriah',
+      description:
+          'Menggeser tanggal Hijriah mundur/maju -2 s/d +2 hari sesuai koreksi Hilal lokal.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      parameterNames: ['adjustment'],
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
       id: 'market.refresh',
       label: 'Segarkan berita dan valas',
       description: 'Mengambil ulang berita, kurs valas, dan data pasar publik.',

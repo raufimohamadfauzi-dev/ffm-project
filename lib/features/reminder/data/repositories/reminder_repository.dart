@@ -48,6 +48,16 @@ class ReminderRepository {
   }
 
   Future<void> saveReminder(ReminderEntity entity) async {
+    final sourceId = entity.sourceId?.trim();
+    final hasSourceType = entity.sourceType != null;
+    final hasSourceId = sourceId != null && sourceId.isNotEmpty;
+    if (hasSourceType != hasSourceId) {
+      throw ArgumentError.value(
+        entity.sourceId,
+        'sourceId',
+        'Sumber pengingat wajib memuat tipe dan ID secara bersamaan.',
+      );
+    }
     final now = DateTime.now();
     await database
         .into(database.reminders)
@@ -67,6 +77,9 @@ class ReminderRepository {
             notificationId: entity.notificationId,
             createdAt: entity.createdAt ?? now,
             updatedAt: Value(now),
+            sourceType: Value(entity.sourceType?.storageValue),
+            sourceId: Value(sourceId),
+            origin: Value(entity.origin.storageValue),
           ),
         );
     await AuditLogger(database).record(
@@ -78,6 +91,10 @@ class ReminderRepository {
         'title': entity.title,
         'recurrence': entity.recurrenceType.storageValue,
         'isActive': entity.isActive,
+        if (entity.sourceType != null)
+          'sourceType': entity.sourceType!.storageValue,
+        if (sourceId != null && sourceId.isNotEmpty) 'sourceId': sourceId,
+        'origin': entity.origin.storageValue,
       },
     );
   }
@@ -369,6 +386,9 @@ class ReminderRepository {
     notificationId: row.notificationId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    sourceType: ReminderSourceTypeX.fromStorage(row.sourceType),
+    sourceId: row.sourceId,
+    origin: ReminderOriginX.fromStorage(row.origin),
   );
 
   ReminderHistoryEntity _toHistory(ReminderHistory row) =>

@@ -1,4 +1,5 @@
 import '../repositories/reminder_repository.dart';
+import '../../../assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import 'reminder_notification_service.dart';
 import '../../domain/usecases/reminder_usecases.dart';
 
@@ -8,12 +9,14 @@ class ReminderScheduleReplenisher {
   const ReminderScheduleReplenisher(
     this._repository,
     this._notifications,
-    this._calculator,
-  );
+    this._calculator, [
+    this._autonomyTrigger,
+  ]);
 
   final ReminderRepository _repository;
   final ReminderNotificationGateway _notifications;
   final ReminderOccurrenceCalculator _calculator;
+  final FfmAssistantAutonomyTriggerService? _autonomyTrigger;
 
   Future<int> replenish({required String householdId, DateTime? now}) async {
     final permission = await _notifications.permissionState();
@@ -39,6 +42,24 @@ class ReminderScheduleReplenisher {
         );
         scheduled++;
       }
+    }
+    final due = await _repository.getDueUntriggeredHistories(
+      householdId,
+      current,
+    );
+    for (final history in due) {
+      await _autonomyTrigger?.emitSafely(
+        triggerId: history.id,
+        type: 'reminder.due',
+        householdId: householdId,
+        occurredAt: history.scheduledAt,
+        entityId: history.reminderId,
+        payload: {
+          'reminderId': history.reminderId,
+          'historyId': history.id,
+          'occurrenceKey': history.occurrenceKey,
+        },
+      );
     }
     return scheduled;
   }

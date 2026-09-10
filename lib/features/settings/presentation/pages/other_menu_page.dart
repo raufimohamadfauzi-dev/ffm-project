@@ -7,6 +7,7 @@ import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
 import '../../../assistant/presentation/pages/telegram_setup_page.dart';
 import '../../../assistant/presentation/pages/payment_detector_settings_page.dart';
+import '../../../assistant/presentation/pages/ffm_assistant_issue_log_page.dart';
 
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../asset/presentation/pages/asset_pages.dart';
@@ -80,6 +81,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Kunci aplikasi', 'PIN keamanan'],
       ['Penyimpanan FFM', 'hapus data reset aplikasi setelan Android'],
       ['Bantuan perbaikan', 'error laporan'],
+      ['Asisten Log', 'masalah assistant Gemini orkestrator jawaban developer'],
       ['Monitoring Agent', 'riwayat run tool eksekusi autonomy'],
       ['Pusat privasi', 'data enkripsi izin'],
       ['Struktur database', 'tabel database'],
@@ -519,6 +521,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Bantuan perbaikan',
                 'Lihat error yang benar-benar tercatat dan salin laporan aman untuk perbaikan APK.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.psychology_alt_rounded,
+              title: 'Asisten Log',
+              subtitle: 'Lihat masalah jawaban assistant, sumber tool, status perbaikan, dan salin laporan developer.',
+              iconColor: const Color(0xFF7C3AED),
+              iconBackgroundColor: const Color(0xFFEDE9FE),
+              badgeText: 'PERBAIKAN AI',
+              onTap: () => _open(context, const FfmAssistantIssueLogPage()),
+              visible: _matches(
+                'Asisten Log masalah assistant Gemini orkestrator jawaban developer',
+                'Lihat masalah jawaban assistant, sumber tool, status perbaikan, dan salin laporan developer.',
               ),
             ),
             _MenuCard(

@@ -1,5 +1,51 @@
 enum ReminderRecurrenceType { once, daily, weekly }
 
+enum ReminderOrigin { user, autonomous }
+
+extension ReminderOriginX on ReminderOrigin {
+  String get storageValue => switch (this) {
+    ReminderOrigin.user => 'user',
+    ReminderOrigin.autonomous => 'autonomous',
+  };
+
+  String get label => switch (this) {
+    ReminderOrigin.user => 'Dibuat pengguna',
+    ReminderOrigin.autonomous => 'Dibuat otonom',
+  };
+
+  static ReminderOrigin fromStorage(String? value) =>
+      value == 'autonomous' ? ReminderOrigin.autonomous : ReminderOrigin.user;
+}
+
+/// Jenis entitas keuangan yang dapat menjadi asal sebuah pengingat.
+/// Nilainya dibatasi agar pengingat tidak menyimpan nama tabel atau tipe objek
+/// arbitrer dari input pengguna maupun model.
+enum ReminderSourceType { liability, receivable, goal, recurringTransaction }
+
+extension ReminderSourceTypeX on ReminderSourceType {
+  String get storageValue => switch (this) {
+    ReminderSourceType.liability => 'liability',
+    ReminderSourceType.receivable => 'receivable',
+    ReminderSourceType.goal => 'goal',
+    ReminderSourceType.recurringTransaction => 'recurring_transaction',
+  };
+
+  String get label => switch (this) {
+    ReminderSourceType.liability => 'hutang',
+    ReminderSourceType.receivable => 'piutang',
+    ReminderSourceType.goal => 'target keuangan',
+    ReminderSourceType.recurringTransaction => 'jadwal transaksi rutin',
+  };
+
+  static ReminderSourceType? fromStorage(String? value) => switch (value) {
+    'liability' => ReminderSourceType.liability,
+    'receivable' => ReminderSourceType.receivable,
+    'goal' => ReminderSourceType.goal,
+    'recurring_transaction' => ReminderSourceType.recurringTransaction,
+    _ => null,
+  };
+}
+
 extension ReminderRecurrenceTypeX on ReminderRecurrenceType {
   String get storageValue => switch (this) {
     ReminderRecurrenceType.once => 'once',
@@ -64,6 +110,9 @@ class ReminderEntity {
     this.defaultSnoozeMinutes = 10,
     this.createdAt,
     this.updatedAt,
+    this.sourceType,
+    this.sourceId,
+    this.origin = ReminderOrigin.user,
   });
 
   final String id;
@@ -80,6 +129,12 @@ class ReminderEntity {
   final int notificationId;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// Keduanya harus diisi bersamaan oleh repository agar asal pengingat dapat
+  /// diverifikasi kembali sebelum asisten memberi saran tindakan.
+  final ReminderSourceType? sourceType;
+  final String? sourceId;
+  final ReminderOrigin origin;
 }
 
 class ReminderHistoryEntity {

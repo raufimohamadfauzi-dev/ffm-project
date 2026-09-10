@@ -41,6 +41,8 @@ import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dar
 import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
+import '../../features/assistant/data/ffm_assistant_reminder_due_insight_service.dart';
+import '../../features/assistant/data/ffm_assistant_autonomous_reminder_service.dart';
 import '../../features/assistant/data/nfc_bridge.dart';
 import '../../features/assistant/data/nfc_card_repository.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_scheduler.dart';
@@ -105,6 +107,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<AppPinService>(AppPinService.new);
   getIt.registerLazySingleton<AppThemeController>(AppThemeController.new);
   getIt.registerLazySingleton<GetTransactions>(() => GetTransactions(db));
+  getIt.registerLazySingleton<GetTransactionsPage>(
+    () => GetTransactionsPage(db),
+  );
   getIt.registerLazySingleton<BudgetGuardService>(() => BudgetGuardService(db));
   getIt.registerLazySingleton<AuditLogRepository>(
     () => SqliteAuditLogRepository(db),
@@ -238,6 +243,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       getIt<ReminderRepository>(),
       getIt<ReminderNotificationService>(),
       getIt<ReminderOccurrenceCalculator>(),
+      getIt<FfmAssistantAutonomyTriggerService>(),
     ),
   );
   getIt.registerLazySingleton<ReminderSoundPicker>(
@@ -424,12 +430,27 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       telegramConfigRepository: getIt<TelegramConfigRepository>(),
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
       telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
+      autonomousReminderService: getIt<FfmAssistantAutonomousReminderService>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantAutonomousReminderService>(
+    () => FfmAssistantAutonomousReminderService(
+      getIt<ReminderRepository>(),
+      getIt<ReminderScheduleReplenisher>(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyBackgroundEventHandler>(
     () => FfmAssistantAutonomyBackgroundEventHandler(
       getIt<FfmAssistantAgentTaskEventHandler>(),
+      getIt<FfmAssistantReminderDueInsightService>(),
       getIt<AutonomousEvaluationCoordinator>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantReminderDueInsightService>(
+    () => FfmAssistantReminderDueInsightService(
+      db,
+      getIt<ReminderRepository>(),
+      FfmAssistantInsightRepository(db),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantUserModelService>(

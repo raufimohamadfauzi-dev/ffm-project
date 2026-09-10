@@ -23,7 +23,7 @@ void main() {
     expect(intent.type, FfmAssistantIntentType.assistantIdentity);
     expect(intent.response, contains('Family Finance Manager (FFM)'));
     expect(intent.response, contains('Rafi Sinkkat'));
-    expect(intent.response, contains('offline-first'));
+    expect(intent.response, contains('keluarga hybrid'));
     expect(intent.response, contains('draft tidak sama dengan data tersimpan'));
   });
 

@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/autonomous_activity_repository.dart';
 import '../../../assistant/domain/entities/autonomous_activity_models.dart';
@@ -19,6 +20,7 @@ class ActivityState {
     this.entries = const [],
     this.checkpoints = const {},
     this.notes = const [],
+    this.dailyNotes = const [],
     this.linkedCosts = const {},
     this.habitSuggestions = const [],
     this.autonomousActivities = const [],
@@ -35,6 +37,7 @@ class ActivityState {
   final List<ActivityJournalEntryEntity> entries;
   final Map<String, List<ActivityCheckpointEntity>> checkpoints;
   final List<ActivityNoteEntity> notes;
+  final List<DailyNote> dailyNotes;
   final Map<String, int> linkedCosts;
   final List<String> habitSuggestions;
   final List<AutonomousActivityRecord> autonomousActivities;
@@ -63,6 +66,7 @@ class ActivityState {
     List<ActivityJournalEntryEntity>? entries,
     Map<String, List<ActivityCheckpointEntity>>? checkpoints,
     List<ActivityNoteEntity>? notes,
+    List<DailyNote>? dailyNotes,
     Map<String, int>? linkedCosts,
     List<String>? habitSuggestions,
     List<AutonomousActivityRecord>? autonomousActivities,
@@ -80,6 +84,7 @@ class ActivityState {
     entries: entries ?? this.entries,
     checkpoints: checkpoints ?? this.checkpoints,
     notes: notes ?? this.notes,
+    dailyNotes: dailyNotes ?? this.dailyNotes,
     linkedCosts: linkedCosts ?? this.linkedCosts,
     habitSuggestions: habitSuggestions ?? this.habitSuggestions,
     autonomousActivities: autonomousActivities ?? this.autonomousActivities,
@@ -95,10 +100,8 @@ class ActivityState {
 }
 
 class ActivityBloc extends Cubit<ActivityState> {
-  ActivityBloc(
-    this.repository, {
-    this.autonomousRepository,
-  }) : super(const ActivityState());
+  ActivityBloc(this.repository, {this.autonomousRepository})
+    : super(const ActivityState());
 
   final ActivityRepository repository;
   final AutonomousActivityRepository? autonomousRepository;
@@ -147,9 +150,12 @@ class ActivityBloc extends Cubit<ActivityState> {
       );
       // Sesi catatan tidak boleh berada di activeSessions
       final activeSessions = activeSessionsRaw
-          .where((s) => !s.isHistory && s.status == ActivitySessionStatus.active)
+          .where(
+            (s) => !s.isHistory && s.status == ActivitySessionStatus.active,
+          )
           .toList();
       final notes = await repository.getNotes(AppContext.householdId);
+      final dailyNotes = await repository.getDailyNotes(AppContext.householdId);
 
       // Fetch habit suggestions
       final habits =
@@ -196,6 +202,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           entries: entries,
           checkpoints: checkpointMap,
           notes: notes,
+          dailyNotes: dailyNotes,
           linkedCosts: costMap,
           habitSuggestions: suggestions,
           autonomousActivities: autonomousList,
@@ -290,7 +297,8 @@ class ActivityBloc extends Cubit<ActivityState> {
           subjectType: subjectType,
           subjectId: subjectId,
           startedAt: now,
-          endedAt: (resolvedKind == ActivityKind.note ||
+          endedAt:
+              (resolvedKind == ActivityKind.note ||
                   resolvedKind == ActivityKind.event ||
                   mode == ActivityMode.history)
               ? now
@@ -298,20 +306,22 @@ class ActivityBloc extends Cubit<ActivityState> {
           scheduledAt: scheduledAt,
           dueDate: dueDate,
           isAllDay: isAllDay,
-          isCompleted: (resolvedKind == ActivityKind.note ||
+          isCompleted:
+              (resolvedKind == ActivityKind.note ||
                   resolvedKind == ActivityKind.event ||
                   mode == ActivityMode.history)
               ? true
               : isCompleted,
           priority: priority,
-          status: (resolvedKind == ActivityKind.note ||
+          status:
+              (resolvedKind == ActivityKind.note ||
                   resolvedKind == ActivityKind.event ||
                   mode == ActivityMode.history)
               ? ActivitySessionStatus.completed
               : ((resolvedKind == ActivityKind.timer ||
-                      resolvedKind == ActivityKind.task)
-                  ? ActivitySessionStatus.active
-                  : ActivitySessionStatus.completed),
+                        resolvedKind == ActivityKind.task)
+                    ? ActivitySessionStatus.active
+                    : ActivitySessionStatus.completed),
           notes: notes,
           createdAt: DateTime.now(),
         ),
@@ -415,7 +425,10 @@ class ActivityBloc extends Cubit<ActivityState> {
     DateTime? endedAt,
     int? priority,
   }) async {
-    final current = await repository.getSession(AppContext.householdId, sessionId);
+    final current = await repository.getSession(
+      AppContext.householdId,
+      sessionId,
+    );
     if (current == null) return;
     final resolvedCategory = await repository.resolveActiveActivityCategory(
       householdId: AppContext.householdId,
@@ -484,10 +497,10 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         final cleanNotes =
             (intent.rawTranscript.trim().isNotEmpty &&
-                    intent.rawTranscript.trim().toLowerCase() !=
-                        title.trim().toLowerCase())
-                ? intent.rawTranscript.trim()
-                : null;
+                intent.rawTranscript.trim().toLowerCase() !=
+                    title.trim().toLowerCase())
+            ? intent.rawTranscript.trim()
+            : null;
         await startSession(
           title: title.trim(),
           category: intent.category,
@@ -504,10 +517,10 @@ class ActivityBloc extends Cubit<ActivityState> {
         }
         final cleanNotes =
             (intent.rawTranscript.trim().isNotEmpty &&
-                    intent.rawTranscript.trim().toLowerCase() !=
-                        title.trim().toLowerCase())
-                ? intent.rawTranscript.trim()
-                : null;
+                intent.rawTranscript.trim().toLowerCase() !=
+                    title.trim().toLowerCase())
+            ? intent.rawTranscript.trim()
+            : null;
         await startSession(
           title: title.trim(),
           category: intent.category,
@@ -526,7 +539,9 @@ class ActivityBloc extends Cubit<ActivityState> {
             );
           }
           if (state.activeSessions.isEmpty) {
-            throw StateError('Tidak ada aktivitas aktif yang bisa diselesaikan.');
+            throw StateError(
+              'Tidak ada aktivitas aktif yang bisa diselesaikan.',
+            );
           }
         }
         await finishSession(
@@ -546,7 +561,8 @@ class ActivityBloc extends Cubit<ActivityState> {
       case ActivityVoiceIntentType.note:
         final sessionId = intent.targetSessionId;
         if (sessionId == null) {
-          final title = intent.targetTitle ??
+          final title =
+              intent.targetTitle ??
               (intent.checkpointLabel?.isNotEmpty == true
                   ? intent.checkpointLabel!
                   : intent.rawTranscript);
@@ -555,10 +571,10 @@ class ActivityBloc extends Cubit<ActivityState> {
           }
           final cleanNotes =
               (intent.rawTranscript.trim().isNotEmpty &&
-                      intent.rawTranscript.trim().toLowerCase() !=
-                          title.trim().toLowerCase())
-                  ? intent.rawTranscript.trim()
-                  : null;
+                  intent.rawTranscript.trim().toLowerCase() !=
+                      title.trim().toLowerCase())
+              ? intent.rawTranscript.trim()
+              : null;
           await startSession(
             title: title.trim(),
             category: intent.category,
@@ -638,12 +654,19 @@ class ActivityBloc extends Cubit<ActivityState> {
     // Proteksi batas maksimal 10 aktivitas prioritas aktif
     if (newPriority > 0) {
       final activePriorityCount = state.sessions
-          .where((s) => s.priority > 0 && !s.isArchived && s.status != ActivitySessionStatus.completed)
+          .where(
+            (s) =>
+                s.priority > 0 &&
+                !s.isArchived &&
+                s.status != ActivitySessionStatus.completed,
+          )
           .length;
       if (activePriorityCount >= 10) {
-        emit(state.copyWith(
-          error: 'Maksimal 10 aktivitas prioritas aktif yang diizinkan.',
-        ));
+        emit(
+          state.copyWith(
+            error: 'Maksimal 10 aktivitas prioritas aktif yang diizinkan.',
+          ),
+        );
         return false;
       }
     }
@@ -668,11 +691,21 @@ class ActivityBloc extends Cubit<ActivityState> {
       if (success) {
         await load();
       } else {
-        emit(state.copyWith(saving: false, error: 'Aksi otonom tidak dapat dibatalkan.'));
+        emit(
+          state.copyWith(
+            saving: false,
+            error: 'Aksi otonom tidak dapat dibatalkan.',
+          ),
+        );
       }
       return success;
     } catch (error) {
-      emit(state.copyWith(saving: false, error: 'Gagal membatalkan aksi otonom: $error'));
+      emit(
+        state.copyWith(
+          saving: false,
+          error: 'Gagal membatalkan aksi otonom: $error',
+        ),
+      );
       return false;
     }
   }
@@ -697,17 +730,26 @@ class ActivityBloc extends Cubit<ActivityState> {
       if (success) {
         await load();
       } else {
-        emit(state.copyWith(saving: false, error: 'Koreksi aksi otonom gagal.'));
+        emit(
+          state.copyWith(saving: false, error: 'Koreksi aksi otonom gagal.'),
+        );
       }
       return success;
     } catch (error) {
-      emit(state.copyWith(saving: false, error: 'Gagal mengoreksi aksi otonom: $error'));
+      emit(
+        state.copyWith(
+          saving: false,
+          error: 'Gagal mengoreksi aksi otonom: $error',
+        ),
+      );
       return false;
     }
   }
 
   /// Menghasilkan Refleksi Jurnal Harian Cerdas gabungan produktivitas & finansial.
-  Future<ActivitySessionEntity?> generateDailyAiJournal({DateTime? targetDate}) async {
+  Future<ActivitySessionEntity?> generateDailyAiJournal({
+    DateTime? targetDate,
+  }) async {
     final date = targetDate ?? DateTime.now();
 
     // Sesi aktivitas hari ini
@@ -726,12 +768,14 @@ class ActivityBloc extends Cubit<ActivityState> {
       final dur = s.endedAt != null
           ? s.endedAt!.difference(s.startedAt).inMinutes
           : (s.status == ActivitySessionStatus.active
-              ? DateTime.now().difference(s.startedAt).inMinutes
-              : 0);
+                ? DateTime.now().difference(s.startedAt).inMinutes
+                : 0);
       totalMinutes += dur > 0 ? dur : 0;
       final cost = state.linkedCosts[s.id] ?? 0;
       totalLinkedCost += cost;
-      final costStr = cost > 0 ? ' (Biaya: Rp ${formatRupiahInput(cost.toString())})' : '';
+      final costStr = cost > 0
+          ? ' (Biaya: Rp ${formatRupiahInput(cost.toString())})'
+          : '';
       sessionSummaries.add('• ${s.title}$costStr');
     }
 
@@ -757,7 +801,9 @@ class ActivityBloc extends Cubit<ActivityState> {
 
     final narrative = StringBuffer();
     narrative.writeln('📋 Rangkuman Jurnal Hari Ini:');
-    narrative.writeln('Total waktu produktif: $timeStr dari ${todaySessions.length} sesi kegiatan.');
+    narrative.writeln(
+      'Total waktu produktif: $timeStr dari ${todaySessions.length} sesi kegiatan.',
+    );
     narrative.writeln(costSummary);
     if (sessionSummaries.isNotEmpty) {
       narrative.writeln('\nRincian Kegiatan:');
@@ -768,7 +814,8 @@ class ActivityBloc extends Cubit<ActivityState> {
       narrative.writeln(autoSummaries.join('\n'));
     }
 
-    final dateStr = '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final dateStr =
+        '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     final journalSession = ActivitySessionEntity(
       id: _uuid.v4(),
       householdId: AppContext.householdId,
