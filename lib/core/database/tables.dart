@@ -111,6 +111,24 @@ class TransactionParties extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_transactions_category_date
+ON transactions (household_id, category_id, is_deleted, date DESC)
+''')
+@TableIndex.sql('''
+CREATE INDEX idx_transactions_merchant_date
+ON transactions (household_id, merchant_id, is_deleted, date DESC)
+''')
+@TableIndex.sql('''
+CREATE INDEX idx_transactions_household_visibility_date_id
+ON transactions (
+  household_id,
+  is_archived,
+  is_deleted,
+  date DESC,
+  id DESC
+)
+''')
 class Transactions extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -144,6 +162,10 @@ class Transactions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_transaction_items_transaction
+ON transaction_items (transaction_id)
+''')
 class TransactionItems extends Table {
   TextColumn get id => text()();
   TextColumn get transactionId => text()();
@@ -191,6 +213,15 @@ class UtilityTokenPurchases extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_transfers_household_deleted_date_id
+ON transfers (
+  household_id,
+  is_deleted,
+  date DESC,
+  id DESC
+)
+''')
 class Transfers extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -342,6 +373,10 @@ class RecurringTransactions extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_reminders_status_due
+ON reminders (household_id, is_active, scheduled_at)
+''')
 class Reminders extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -390,6 +425,15 @@ class ReminderHistories extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_activity_sessions_household_archived_started_id
+ON activity_sessions (
+  household_id,
+  is_archived,
+  started_at DESC,
+  id DESC
+)
+''')
 class ActivitySessions extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -470,6 +514,15 @@ class ActivityCheckpoints extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+@TableIndex.sql('''
+CREATE INDEX idx_activity_entries_household_archived_started_id
+ON activity_entries (
+  household_id,
+  is_archived,
+  started_at DESC,
+  id DESC
+)
+''')
 class ActivityEntries extends Table {
   TextColumn get id => text()();
   TextColumn get sessionId => text().nullable()();
@@ -501,6 +554,15 @@ class ActivityEntries extends Table {
 ///
 /// Tabel ini tidak boleh dipakai untuk menggantikan ActivitySessions,
 /// ActivityCheckpoints, maupun ActivityEntries yang sudah ada.
+@TableIndex.sql('''
+CREATE INDEX idx_daily_notes_household_archived_date_id
+ON daily_notes (
+  household_id,
+  is_archived,
+  note_date DESC,
+  id DESC
+)
+''')
 class DailyNotes extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
@@ -658,6 +720,10 @@ class HijriCorrectionLogs extends Table {
 ///
 /// Tidak menyimpan riwayat percakapan mentah. Tabel hanya berisi alias,
 /// jawaban, kebiasaan, atau alur yang pengguna setujui untuk dipakai ulang.
+@TableIndex.sql('''
+CREATE INDEX idx_assistant_memories_kind
+ON assistant_memories (household_id, kind, is_archived)
+''')
 class AssistantMemories extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();

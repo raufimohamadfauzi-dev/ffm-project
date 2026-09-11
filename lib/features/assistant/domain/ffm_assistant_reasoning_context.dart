@@ -102,7 +102,7 @@ class FfmAssistantReasoningContext {
       if (currentTheme != null && currentTheme!.trim().isNotEmpty)
         'Tema tampilan aplikasi saat ini: $currentTheme.',
       if (pageSummary?.trim().isNotEmpty == true)
-        'Ringkasan halaman: ${_clip(pageSummary!, 900)}',
+        'Ringkasan halaman: ${_clip(pageSummary!, 1800)}',
       if (verifiedFacts.trim().isNotEmpty)
         'VERIFIED FACTS: ${_clip(verifiedFacts, 2000)}',
       if (analysisResults.trim().isNotEmpty)

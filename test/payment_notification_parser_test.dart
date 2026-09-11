@@ -381,6 +381,177 @@ void main() {
         expect(result?.accountLabel, equals('MotionPay'));
         expect(result?.mutationType, equals(PaymentMutationType.debit));
       });
+
+      test('Neobank transfer berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.bnc.finance',
+          title: 'Neobank',
+          body: 'Transfer ke BUDI berhasil sebesar Rp 50.000',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Neobank'));
+        expect(result?.amount, equals(50000.0));
+        expect(result?.merchantName, equals('BUDI'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('Krom Bank QRIS berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'id.krom.bank',
+          title: 'Krom Bank',
+          body: 'Pembayaran QRIS di KOPI KENANGAN berhasil Rp 28.000',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Krom Bank'));
+        expect(result?.amount, equals(28000.0));
+        expect(result?.merchantName, equals('KOPI KENANGAN'));
+        expect(result?.suggestedCategory, equals('Makanan & Minuman'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('Bank Jago QRIS berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.jago.digitalBanking',
+          title: 'Bank Jago',
+          body: 'Pembayaran QRIS ke STARBUCKS berhasil Rp 65.000',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Bank Jago'));
+        expect(result?.amount, equals(65000.0));
+        expect(result?.merchantName, equals('STARBUCKS'));
+        expect(result?.suggestedCategory, equals('Makanan & Minuman'));
+      });
+
+      test('blu by BCA Digital transfer berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'id.co.bcadigital.blu',
+          title: 'blu by BCA Digital',
+          body: 'Transfer ke rekening SITI AMINAH sebesar Rp 100.000 berhasil',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('blu BCA Digital'));
+        expect(result?.amount, equals(100000.0));
+        expect(result?.merchantName, equals('SITI AMINAH'));
+      });
+
+      test('Tokopedia pembayaran pesanan diverifikasi', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.tokopedia.tkpd',
+          title: 'Tokopedia',
+          body: 'Pembayaran pesanan Rp 150.000 telah berhasil diverifikasi.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Tokopedia'));
+        expect(result?.amount, equals(150000.0));
+        expect(result?.merchantName, equals('TOKOPEDIA'));
+        expect(result?.suggestedCategory, equals('Belanja & Ritel'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('Shopee pembayaran pesanan berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.shopee.id',
+          title: 'Shopee',
+          body: 'Pembayaran sebesar Rp 85.000 untuk pesanan telah berhasil.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('ShopeePay'));
+        expect(result?.amount, equals(85000.0));
+        expect(result?.merchantName, equals('SHOPEE'));
+        expect(result?.suggestedCategory, equals('Belanja & Ritel'));
+      });
+
+      test('Lazada pembayaran pesanan selesai', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.lazada.android',
+          title: 'Lazada',
+          body: 'Pesanan telah dibayar! Pembayaran sebesar Rp 110.000 berhasil.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Lazada'));
+        expect(result?.amount, equals(110000.0));
+        expect(result?.merchantName, equals('LAZADA'));
+        expect(result?.suggestedCategory, equals('Belanja & Ritel'));
+      });
+
+      test('TikTok Shop pembayaran pesanan dikonfirmasi', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.zhiliaoapp.musically',
+          title: 'TikTok Shop',
+          body: 'Pembayaran pesanan Rp 95.000 telah berhasil dikonfirmasi.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('TikTok Shop'));
+        expect(result?.amount, equals(95000.0));
+        expect(result?.merchantName, equals('TIKTOK SHOP'));
+        expect(result?.suggestedCategory, equals('Belanja & Ritel'));
+      });
+
+      test('LinkAja pembayaran QRIS sukses', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.telkom.mwallet',
+          title: 'LinkAja',
+          body: 'Pembayaran QRIS ke INDOMARET sebesar Rp 30.000 sukses',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('LinkAja'));
+        expect(result?.amount, equals(30000.0));
+        expect(result?.merchantName, equals('INDOMARET'));
+        expect(result?.suggestedCategory, equals('Belanja & Ritel'));
+      });
+
+      test('PayPal pembayaran terkirim', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.paypal.android.p2pmobile',
+          title: 'PayPal',
+          body: 'You sent Rp 150.000 to JOHN DOE.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('PayPal'));
+        expect(result?.amount, equals(150000.0));
+        expect(result?.merchantName, equals('JOHN DOE'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('Wise transfer berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.transferwise.android',
+          title: 'Wise',
+          body: 'Transfer ke BUDI SANTOSO berhasil sebesar Rp 250.000',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Wise'));
+        expect(result?.amount, equals(250000.0));
+        expect(result?.merchantName, equals('BUDI SANTOSO'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
+
+      test('DOKU pembayaran QRIS berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.doku.wallet',
+          title: 'DOKU',
+          body: 'Pembayaran QRIS ke KOPI KENANGAN berhasil Rp 22.000',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('DOKU'));
+        expect(result?.amount, equals(22000.0));
+        expect(result?.merchantName, equals('KOPI KENANGAN'));
+        expect(result?.suggestedCategory, equals('Makanan & Minuman'));
+      });
+
+      test('Bibit pembelian investasi berhasil', () {
+        final result = PaymentNotificationParser.parse(
+          packageName: 'com.bibit.bibitid',
+          title: 'Bibit',
+          body: 'Pembayaran pembelian reksadana sebesar Rp 100.000 berhasil.',
+        );
+        expect(result, isNotNull);
+        expect(result?.accountLabel, equals('Bibit'));
+        expect(result?.amount, equals(100000.0));
+        expect(result?.merchantName, equals('BIBIT'));
+        expect(result?.suggestedCategory, equals('Investasi & Finansial'));
+        expect(result?.mutationType, equals(PaymentMutationType.debit));
+      });
     });
   });
 

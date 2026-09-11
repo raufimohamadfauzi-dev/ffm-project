@@ -51,6 +51,7 @@ import 'ffm_assistant_reminder_mutation_service.dart';
 import 'ffm_activity_habit_learner.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'autonomous_activity_repository.dart';
+import 'ffm_assistant_financial_snapshot_service.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
@@ -140,6 +141,8 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.recurring': _readRecurring,
     'read.reminders': _readReminders,
     'read.model_status': _readModelStatus,
+    'read.schema': _readSchema,
+    'read.tables': _readSchema,
     'system.set_theme': _setTheme,
     'system.set_hijri_adjustment': _setHijriAdjustment,
     'market.refresh': _refreshMarket,
@@ -353,6 +356,16 @@ class FfmAssistantCapabilityAdapterRegistry {
     return FfmAssistantCapabilityExecutionResult.success(
       'Kategori aktif (${rows.length}): $parts.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _readSchema(
+    FfmAssistantActionStep step,
+  ) async {
+    final snapshotService = FfmAssistantFinancialSnapshotService(_database);
+    final schema = await snapshotService.buildSchemaContext(
+      householdId: _householdId,
+    );
+    return FfmAssistantCapabilityExecutionResult.success(schema);
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareDraft(

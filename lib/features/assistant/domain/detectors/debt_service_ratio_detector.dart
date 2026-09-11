@@ -33,9 +33,9 @@ class DebtServiceRatioDetector {
 
     int totalMonthlyDebt = 0;
     for (final l in upcomingDebts) {
-      totalMonthlyDebt += l.monthlyInstallment > 0
-          ? l.monthlyInstallment
-          : l.remainingBalance;
+      // Sisa pokok bukan cicilan bulanan. Abaikan kewajiban tanpa nominal
+      // cicilan agar DSR tidak menghasilkan alarm palsu.
+      totalMonthlyDebt += l.monthlyInstallment;
     }
     if (totalMonthlyDebt <= 0) return null;
 

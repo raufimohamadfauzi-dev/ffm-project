@@ -844,6 +844,10 @@ class ReminderNotificationService
             contentTitle: title,
             summaryText: 'Asisten AI',
           ),
+          actions: const [
+            AndroidNotificationAction('open', 'Lihat Draf / Detail'),
+            AndroidNotificationAction('snooze_10', 'Nanti'),
+          ],
         ),
       ),
       payload: payload,

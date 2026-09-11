@@ -164,6 +164,7 @@ void main() {
       expect(FfmAnalysisPeriod.thisMonth, isNotNull);
       expect(FfmAnalysisPeriod.lastMonth, isNotNull);
       expect(FfmAnalysisPeriod.thisYear, isNotNull);
+      expect(FfmAnalysisPeriod.previousYear, isNotNull);
     });
 
     test('FfmTrendType should have expected values', () {

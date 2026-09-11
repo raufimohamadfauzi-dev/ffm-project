@@ -3,10 +3,13 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/diagnostics/app_diagnostics_service.dart';
 import '../../../core/di/injection.dart';
+import '../../../core/network/supabase_config.dart';
 import '../../advisor/data/cash_flow_profile_repository.dart';
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/data/services/reminder_notification_service.dart';
+import '../../reminder/data/services/reminder_schedule_replenisher.dart';
 import '../data/ffm_assistant_autonomous_reminder_service.dart';
 import '../data/ffm_assistant_insight_repository.dart';
 import 'detectors/anomaly_spike_detector.dart';
@@ -19,11 +22,14 @@ import 'detectors/predictive_runway_detector.dart';
 import 'detectors/reminder_suggestion_detector.dart';
 import 'ffm_assistant_insight.dart';
 import 'ffm_proactive_delivery_policy.dart';
+import '../data/ffm_assistant_autonomy_repository.dart';
+import '../data/ffm_gemini_cloud_orchestrator.dart';
 import '../data/telegram_bot_service.dart';
 import '../data/telegram_config_repository.dart';
 import '../data/telegram_delivery_processor.dart';
 import '../data/telegram_delivery_repository.dart';
 import '../data/telegram_message_formatter.dart';
+import 'ffm_assistant_action_plan.dart';
 
 class AutonomousEvaluationCoordinator {
   AutonomousEvaluationCoordinator({
@@ -37,9 +43,20 @@ class AutonomousEvaluationCoordinator {
     this.telegramDeliveryRepository,
     this.telegramDeliveryProcessor,
     CashFlowProfileRepository? cashFlowProfileRepository,
+    SupabaseConfig? supabaseConfig,
     FfmAssistantAutonomousReminderService? autonomousReminderService,
+    FfmAssistantAutonomyRepository? autonomyRepository,
+    FfmGeminiCloudOrchestrator? geminiOrchestrator,
   }) : _db = database,
        _repo = insightRepository,
+       _autonomyRepo = autonomyRepository ??
+           (getIt.isRegistered<FfmAssistantAutonomyRepository>()
+               ? getIt<FfmAssistantAutonomyRepository>()
+               : null),
+       _geminiOrchestrator = geminiOrchestrator ??
+           (getIt.isRegistered<FfmGeminiCloudOrchestrator>()
+               ? getIt<FfmGeminiCloudOrchestrator>()
+               : null),
        _clock = clock ?? DateTime.now,
        _runwayDetector = PredictiveRunwayDetector(
          database,
@@ -55,10 +72,30 @@ class AutonomousEvaluationCoordinator {
        _dsrDetector = DebtServiceRatioDetector(database),
        _goalDetector = GoalProgressRiskDetector(database),
        _debtPayoffDetector = DebtPayoffAccelerationDetector(database),
-       _reminderSuggestionDetector = ReminderSuggestionDetector(database),
+       _reminderSuggestionDetector = ReminderSuggestionDetector(
+         database,
+         diagnostics: getIt.isRegistered<AppDiagnosticsService>()
+             ? getIt<AppDiagnosticsService>()
+             : null,
+         telegramConfig: getIt.isRegistered<TelegramConfigRepository>()
+             ? getIt<TelegramConfigRepository>()
+             : null,
+         cashFlowProfiles:
+             cashFlowProfileRepository ??
+             (getIt.isRegistered<CashFlowProfileRepository>()
+                 ? getIt<CashFlowProfileRepository>()
+                 : null),
+         supabaseConfig: supabaseConfig,
+         enableCompleteness: true,
+       ),
        _autonomousReminderService =
            autonomousReminderService ??
-           FfmAssistantAutonomousReminderService(ReminderRepository(database));
+           FfmAssistantAutonomousReminderService(
+             ReminderRepository(database),
+             getIt.isRegistered<ReminderScheduleReplenisher>()
+                 ? getIt<ReminderScheduleReplenisher>()
+                 : null,
+           );
 
   static final Map<String, DateTime> _lastEvaluationTimes = {};
   static const Duration minimumEvaluationInterval = Duration(seconds: 15);
@@ -76,6 +113,8 @@ class AutonomousEvaluationCoordinator {
   final TelegramConfigRepository? telegramConfigRepository;
   final TelegramDeliveryRepository? telegramDeliveryRepository;
   final TelegramDeliveryProcessor? telegramDeliveryProcessor;
+  final FfmAssistantAutonomyRepository? _autonomyRepo;
+  final FfmGeminiCloudOrchestrator? _geminiOrchestrator;
 
   final PredictiveRunwayDetector _runwayDetector;
   final IntelligentEnvelopeRebalanceDetector _rebalanceDetector;
@@ -181,14 +220,55 @@ class AutonomousEvaluationCoordinator {
     final savedInsights = <FfmAssistantInsight>[];
 
     // Simpan hanya insight yang belum aktif (deduplikasi dilakukan di repository)
-    for (final candidate in candidates) {
+    for (var candidate in candidates) {
       final existing = await _repo.findActiveByDedupeKey(
         householdId: householdId,
         dedupeKey: candidate.dedupeKey,
       );
       if (existing == null) {
+        final orchestrator = _geminiOrchestrator;
         final saved = await _repo.saveInsight(candidate);
         savedInsights.add(saved);
+
+        final autonomyRepo = _autonomyRepo;
+        if (autonomyRepo != null && saved.actionPayload != null) {
+          try {
+            final payload = saved.actionPayload!;
+            final planId = 'autonomy:plan:${saved.id}';
+            final plan = FfmAssistantActionPlan(
+              id: planId,
+              summary: saved.suggestedAction ?? saved.title,
+              steps: [
+                FfmAssistantActionStep(
+                  id: 'draft_step',
+                  capabilityId: _capabilityForActionPayload(payload),
+                  parameters: payload,
+                ),
+              ],
+              createdAt: now,
+              requiresConfirmation: true,
+            );
+            await autonomyRepo.recordPlan(plan, householdId: householdId);
+            await autonomyRepo.recordApprovalRequest(
+              plan,
+              householdId: householdId,
+            );
+          } catch (_) {}
+        }
+
+        if (orchestrator != null &&
+            candidate.geminiExplanation == null &&
+            (candidate.priority >= 70 ||
+                candidate.severity == FfmAssistantInsightSeverity.critical ||
+                candidate.severity == FfmAssistantInsightSeverity.warning)) {
+          unawaited(
+            _precomputeGeminiExplanation(
+              orchestrator: orchestrator,
+              insight: saved,
+              householdId: householdId,
+            ),
+          );
+        }
       }
     }
 
@@ -307,6 +387,30 @@ class AutonomousEvaluationCoordinator {
     } catch (_) {}
 
     return savedInsights;
+  }
+
+  Future<void> _precomputeGeminiExplanation({
+    required FfmGeminiCloudOrchestrator orchestrator,
+    required FfmAssistantInsight insight,
+    required String householdId,
+  }) async {
+    try {
+      final prompt =
+          'Berikan penjelasan ringkas (2 kalimat), ramah, dan solutif sebagai Asisten FFM '
+          'tentang peringatan keuangan berikut: "${insight.title}". '
+          'Ringkasan data: ${insight.summary}.';
+      final turnResult = await orchestrator.run(
+        userText: prompt,
+        boundedContext: 'PROACTIVE_RADAR_INSIGHT: ${insight.title}',
+        householdId: householdId,
+      );
+      if (turnResult.ok && turnResult.text != null) {
+        await _repo.updateGeminiExplanation(
+          insightId: insight.id,
+          explanation: turnResult.text!,
+        );
+      }
+    } catch (_) {}
   }
 
   /// Memeriksa dan mengirimkan Laporan Mingguan ke Telegram jika belum terkirim pekan ini (*Catch-Up*).
@@ -508,5 +612,17 @@ class AutonomousEvaluationCoordinator {
     final jan1 = DateTime(thursday.year, 1, 1);
     final week = (thursday.difference(jan1).inDays / 7).floor() + 1;
     return '$householdId:${thursday.year}-W${week.toString().padLeft(2, '0')}';
+  }
+
+  static String _capabilityForActionPayload(Map<String, dynamic> payload) {
+    final type = payload['type']?.toString();
+    return switch (type) {
+      'envelope_transfer' => 'mutate.save_draft',
+      'debt_payoff_allocation' => 'mutate.debt_payment',
+      'reminder_suggestion' => 'draft.reminder',
+      'goal_deposit_plan' => 'draft.goal_deposit',
+      'duplicate_transaction_review' => 'sensitive.delete',
+      _ => 'mutate.save_draft',
+    };
   }
 }

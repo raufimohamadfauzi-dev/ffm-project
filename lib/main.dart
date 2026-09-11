@@ -43,6 +43,7 @@ import 'features/liability/presentation/pages/liability_pages.dart';
 import 'features/recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 import 'features/receivable/presentation/pages/receivable_pages.dart';
 import 'features/reminder/data/services/reminder_notification_service.dart';
+import 'features/reminder/data/services/reminder_schedule_replenisher.dart';
 import 'features/reminder/domain/entities/reminder_entity.dart';
 import 'features/reminder/presentation/bloc/reminder_bloc.dart';
 import 'features/reminder/presentation/pages/reminder_page.dart';
@@ -76,6 +77,7 @@ import 'features/assistant/data/notification_listener_bridge.dart';
 import 'features/assistant/presentation/pages/payment_detector_settings_page.dart';
 import 'features/assistant/presentation/pages/telegram_setup_page.dart';
 import 'features/assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
+import 'features/assistant/presentation/pages/ffm_assistant_issue_log_page.dart';
 import 'features/hijri/presentation/pages/hijri_settings_page.dart';
 import 'features/settings/presentation/pages/calendar_settings_page.dart';
 import 'features/asset/presentation/pages/market_news_radar_page.dart';
@@ -140,6 +142,9 @@ Future<void> main() async {
     final reminderNotificationService = getIt<ReminderNotificationService>();
     await reminderNotificationService.initialize();
     await getIt<ReminderBloc>().recover();
+    await getIt<ReminderScheduleReplenisher>().replenish(
+      householdId: AppContext.householdId,
+    );
   } catch (error, stackTrace) {
     await diagnostics.recordException(
       code: 'REMINDER_BOOTSTRAP_FAILED',
@@ -540,7 +545,12 @@ class _FfmAppState extends State<FfmApp> with WidgetsBindingObserver {
               onCompleted: _unlock,
               pinLength: _pinLength,
               secondaryLabel: 'Lupa PIN?',
-              onSecondaryAction: () => showForgotPinDialog(context),
+              onSecondaryAction: () {
+                // Debounce rapid tap
+                if (mounted) {
+                  showForgotPinDialog(context);
+                }
+              },
             ),
           )
         : AppShell(
@@ -637,6 +647,9 @@ class _AppShellState extends State<AppShell> {
       getIt<ReminderNotificationService>();
   FfmAssistantProactiveMonitor? _proactiveMonitor;
   FfmAssistantDraft? _assistantTransactionDraft;
+  DateTime? _assistantTransactionPeriodStart;
+  DateTime? _assistantTransactionPeriodEnd;
+  var _assistantTransactionPeriodRequestId = 0;
   final _assistantSession = FfmAssistantChatSession();
 
   final _nfcBridge = NfcBridge();
@@ -777,6 +790,9 @@ class _AppShellState extends State<AppShell> {
     TransactionListPage(
       assistantDraft: _assistantTransactionDraft,
       assistantRequestId: _assistantRequestId,
+      initialStartDate: _assistantTransactionPeriodStart,
+      initialEndDate: _assistantTransactionPeriodEnd,
+      initialPeriodRequestId: _assistantTransactionPeriodRequestId,
       onOpenAssistant: _openAssistant,
       onAssistantDraftSaved: _markActiveAssistantDraftCompleted,
       onAssistantDraftReturnedWithoutSave: _markActiveAssistantDraftReady,
@@ -869,10 +885,12 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _handleAssistantIntent(FfmAssistantIntent intent) async {
+    if (!mounted) return;
     final destination = intent.destination;
     if (destination == null) return;
     switch (destination) {
       case FfmAssistantDestination.summary:
+        if (!mounted) return;
         setState(() => _index = 0);
       case FfmAssistantDestination.transactions:
         if (intent.draft != null) {
@@ -894,11 +912,19 @@ class _AppShellState extends State<AppShell> {
             });
           }
         } else {
-          setState(() => _index = 1);
+          setState(() {
+            _index = 1;
+            _assistantTransactionPeriodStart = intent.periodStart;
+            _assistantTransactionPeriodEnd = intent.periodEnd;
+            if (intent.periodStart != null || intent.periodEnd != null) {
+              _assistantTransactionPeriodRequestId++;
+            }
+          });
         }
       case FfmAssistantDestination.budget:
         final draft = intent.draft;
         if (draft?.kind == FfmAssistantDraftKind.budget) {
+          if (!mounted) return;
           await Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => EnvelopeBudgetPage(
@@ -912,13 +938,17 @@ class _AppShellState extends State<AppShell> {
             ),
           );
         } else {
+          if (!mounted) return;
           setState(() => _index = 3);
         }
       case FfmAssistantDestination.analysis:
+        if (!mounted) return;
         setState(() => _index = 4);
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const AnalysisPage()));
       case FfmAssistantDestination.otherMenu:
+        if (!mounted) return;
         setState(() => _index = 4);
       case FfmAssistantDestination.masterData:
         final draft = intent.draft;
@@ -947,12 +977,14 @@ class _AppShellState extends State<AppShell> {
                   ),
           ),
         );
+        if (!mounted) return;
         if (!isProfileTarget &&
             draft?.kind == FfmAssistantDraftKind.masterData) {
           await _syncAssistantDraftAfterForm(createdId != null);
         }
       case FfmAssistantDestination.assistantProfile:
       case FfmAssistantDestination.familyProfile:
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => FamilyProfilePage(
@@ -965,6 +997,7 @@ class _AppShellState extends State<AppShell> {
         );
       case FfmAssistantDestination.assets:
         final draft = intent.draft;
+        if (!mounted) return;
         final saved = await Navigator.of(context).push<bool>(
           MaterialPageRoute(
             builder: (_) => draft?.kind == FfmAssistantDraftKind.asset
@@ -978,6 +1011,7 @@ class _AppShellState extends State<AppShell> {
                 : const AssetListPage(),
           ),
         );
+        if (!mounted) return;
         if (draft?.kind == FfmAssistantDraftKind.asset) {
           await _syncAssistantDraftAfterForm(saved);
         }
@@ -991,6 +1025,7 @@ class _AppShellState extends State<AppShell> {
           final saved = await _saveGoalDraft(draft);
           await _syncAssistantDraftAfterForm(saved);
         } else {
+          if (!mounted) return;
           final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (_) => draft?.kind == FfmAssistantDraftKind.goal
@@ -1002,6 +1037,7 @@ class _AppShellState extends State<AppShell> {
                   : const GoalListPage(),
             ),
           );
+          if (!mounted) return;
           if (draft?.kind == FfmAssistantDraftKind.goal) {
             await _syncAssistantDraftAfterForm(saved);
           }
@@ -1009,6 +1045,7 @@ class _AppShellState extends State<AppShell> {
       case FfmAssistantDestination.liabilities:
         final draft = intent.draft;
         if (draft?.kind == FfmAssistantDraftKind.liability) {
+          if (!mounted) return;
           final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (_) => LiabilityFormPage(
@@ -1019,6 +1056,7 @@ class _AppShellState extends State<AppShell> {
           );
           await _syncAssistantDraftAfterForm(saved);
         } else if (draft?.kind == FfmAssistantDraftKind.receivable) {
+          if (!mounted) return;
           final saved = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (_) => ReceivableFormPage(
@@ -1029,10 +1067,12 @@ class _AppShellState extends State<AppShell> {
           );
           await _syncAssistantDraftAfterForm(saved);
         } else {
+          if (!mounted) return;
           setState(() => _index = 4);
         }
       case FfmAssistantDestination.activity:
         final draft = intent.draft;
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ActivityPage(
@@ -1045,11 +1085,14 @@ class _AppShellState extends State<AppShell> {
               initialNotes: draft?.kind == FfmAssistantDraftKind.activity
                   ? draft?.note
                   : null,
+              initialStartDate: intent.periodStart,
+              initialEndDate: intent.periodEnd,
             ),
           ),
         );
       case FfmAssistantDestination.reminders:
         final draft = intent.draft;
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ReminderPage(
@@ -1071,72 +1114,95 @@ class _AppShellState extends State<AppShell> {
           ),
         );
       case FfmAssistantDestination.backup:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const BackupPage()));
       case FfmAssistantDestination.monthlyReport:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const MonthlyReportPage()));
       case FfmAssistantDestination.reconciliation:
+        if (!mounted) return;
         setState(() => _index = 4);
       case FfmAssistantDestination.appSecurity:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const PinSecurityPage()));
       case FfmAssistantDestination.diagnostics:
+        if (!mounted) return;
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const AppDiagnosticsPage()));
       case FfmAssistantDestination.activityLog:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const ActivityLogPage()));
 
       case FfmAssistantDestination.recurringTransaction:
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const RecurringTransactionPage()),
         );
 
       case FfmAssistantDestination.privacyCenter:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const PrivacyCenterPage()));
       case FfmAssistantDestination.databaseStructure:
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const DatabaseStructurePage()),
         );
 
       case FfmAssistantDestination.intelligenceDashboard:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const SupabaseSetupPage()));
       case FfmAssistantDestination.paymentDetector:
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const PaymentDetectorSettingsPage(),
           ),
         );
       case FfmAssistantDestination.telegramSetup:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const TelegramSetupPage()));
       case FfmAssistantDestination.agentInbox:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const AgentInboxPage()));
       case FfmAssistantDestination.autonomyMonitor:
+        if (!mounted) return;
         await Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => const FfmAssistantAutonomyMonitorPage(),
           ),
         );
       case FfmAssistantDestination.hijriSettings:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const HijriSettingsPage()));
       case FfmAssistantDestination.calendarSettings:
+        if (!mounted) return;
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const CalendarSettingsPage()));
       case FfmAssistantDestination.marketNewsRadar:
+        if (!mounted) return;
         await Navigator.of(
           context,
         ).push(MaterialPageRoute(builder: (_) => const MarketNewsRadarPage()));
       case FfmAssistantDestination.utilityMeter:
+        if (!mounted) return;
         await Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const UtilityMeterPage()));
+      case FfmAssistantDestination.assistantIssueLog:
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const FfmAssistantIssueLogPage()),
+        );
     }
   }
 

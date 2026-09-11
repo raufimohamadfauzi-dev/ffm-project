@@ -336,6 +336,41 @@ void main() {
       expect(insight.evidence['dsrPercent'], 45);
     });
 
+    test('DebtServiceRatioDetector ignores debt principal without monthly installment', () async {
+      final dateInc = now.subtract(const Duration(days: 5));
+      await db.into(db.transactions).insert(
+        TransactionsCompanion.insert(
+          id: 'tx-inc-no-installment',
+          householdId: householdId,
+          type: 'income',
+          amount: 5000000,
+          date: dateInc,
+          recordedAt: dateInc,
+          createdAt: dateInc,
+        ),
+      );
+      await db.into(db.liabilities).insert(
+        LiabilitiesCompanion.insert(
+          id: 'liab-no-installment',
+          householdId: householdId,
+          name: 'Pinjaman tanpa cicilan',
+          originalAmount: 15000000,
+          remainingBalance: 15000000,
+          startDate: now.subtract(const Duration(days: 90)),
+          dueDate: Value(now.add(const Duration(days: 12))),
+          monthlyInstallment: const Value(0),
+          createdAt: now,
+        ),
+      );
+
+      final insight = await DebtServiceRatioDetector(db).detect(
+        householdId: householdId,
+        now: now,
+      );
+
+      expect(insight == null, isTrue);
+    });
+
     test('GoalProgressRiskDetector triggers required monthly delta when savings rate lags', () async {
       await db.into(db.goals).insert(
             GoalsCompanion.insert(
@@ -374,6 +409,42 @@ void main() {
       expect(insight.evidence['shortage'], 8000000);
       expect(insight.evidence['requiredMonthlyRate'], 4000000);
       expect(insight.evidence['requiredDelta'], 3500000);
+    });
+
+    test('GoalProgressRiskDetector does not count goal usage as savings', () async {
+      await db.into(db.goals).insert(
+        GoalsCompanion.insert(
+          id: 'goal-usage-filter',
+          householdId: householdId,
+          name: 'Dana usaha',
+          targetAmount: 10000000,
+          currentAmount: const Value(2000000),
+          targetDate: Value(now.add(const Duration(days: 60))),
+          createdAt: now.subtract(const Duration(days: 60)),
+        ),
+      );
+      final dateGoal = now.subtract(const Duration(days: 20));
+      await db.into(db.transactions).insert(
+        TransactionsCompanion.insert(
+          id: 'tx-goal-usage',
+          householdId: householdId,
+          type: 'expense',
+          source: const Value('goal_usage'),
+          amount: -5000000,
+          goalId: const Value('goal-usage-filter'),
+          date: dateGoal,
+          recordedAt: dateGoal,
+          createdAt: dateGoal,
+        ),
+      );
+
+      final insight = await GoalProgressRiskDetector(db).detect(
+        householdId: householdId,
+        now: now,
+      );
+
+      expect(insight, isNotNull);
+      expect(insight!.evidence['currentMonthlyRate'], 0);
     });
   });
 }

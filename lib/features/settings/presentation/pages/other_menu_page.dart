@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../shared/widgets/app_components.dart';
 import '../../../audit/presentation/pages/activity_log_page.dart';
+import '../../../data_retention/presentation/pages/data_retention_manager_page.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/pages/agent_inbox_page.dart';
 import '../../../assistant/presentation/pages/ffm_assistant_autonomy_monitor_page.dart';
@@ -66,6 +67,7 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
       ['Ekspor & cadangan', 'JSON CSV HTML PDF berkas'],
       ['Ringkasan bulanan', 'arus kas laporan'],
       ['Log aktivitas', 'transaksi transfer impor'],
+      ['Retensi & Arsip', 'arsip hapus permanen riwayat batas tanggal backup'],
       ['Analisa', 'pola keuangan'],
       ['Pengingat', 'lokal lupa'],
       ['Pemasukan berkala', 'rutin harian mingguan bulanan'],
@@ -213,6 +215,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
                 'Simpan dan uji model Gemini untuk chatbot, serta sambungkan memori Supabase.',
               ),
             ),
+            _MenuCard(
+              icon: Icons.psychology_alt_rounded,
+              title: 'Asisten Log & Anomali',
+              subtitle: 'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+              iconColor: const Color(0xFF7C3AED),
+              iconBackgroundColor: const Color(0xFFEDE9FE),
+              badgeText: 'LOG AI',
+              onTap: () => _open(context, const FfmAssistantIssueLogPage()),
+              visible: _matches(
+                'Asisten Log Anomali error debug laporan masalah bug chatbot',
+                'Riwayat laporan jawaban keliru dan pertanyaan gagal dijawab, lengkap dengan trace eksekusi untuk LLM / developer.',
+              ),
+            ),
             const SizedBox(height: 16),
             const AppSectionHeader(title: 'Data keluarga'),
             const SizedBox(height: 8),
@@ -310,6 +325,19 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               visible: _matches(
                 'Log aktivitas',
                 'Lihat jejak perubahan transaksi, transfer, impor, dan rekonsiliasi.',
+              ),
+            ),
+            _MenuCard(
+              icon: Icons.inventory_rounded,
+              title: 'Retensi & Arsip',
+              subtitle: 'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
+              iconColor: const Color(0xFFB45309),
+              iconBackgroundColor: const Color(0xFFFEF3C7),
+              badgeText: 'ARSIP',
+              onTap: () => _open(context, const DataRetentionManagerPage()),
+              visible: _matches(
+                'Retensi Arsip hapus permanen riwayat batas tanggal backup',
+                'Arsipkan atau hapus permanen data lama per tanggal dengan preview dan cadangan wajib.',
               ),
             ),
             const SizedBox(height: 16),

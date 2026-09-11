@@ -176,6 +176,8 @@ class FfmAssistantWorkItem {
         return 'Radar Pasar & Berita';
       case FfmAssistantDestination.utilityMeter:
         return 'Meteran & Token';
+      case FfmAssistantDestination.assistantIssueLog:
+        return 'Asisten Log';
     }
   }
 

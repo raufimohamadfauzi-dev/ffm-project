@@ -27,6 +27,15 @@ class JsonBackupService {
 
   final AppDatabase database;
 
+  /// Memeriksa apakah proteksi backup gate perlu diaktifkan sebelum hapus/arsip massal
+  bool verifyBackupGateRequirement({
+    required DateTime? lastBackupTime,
+    Duration threshold = const Duration(hours: 24),
+  }) {
+    if (lastBackupTime == null) return true;
+    return DateTime.now().difference(lastBackupTime) > threshold;
+  }
+
   Future<String> exportJson({
     List<Map<String, Object?>>? assistantChatHistory,
     List<Map<String, Object?>>? assistantChatConversations,
@@ -346,11 +355,14 @@ class JsonBackupService {
   }
 
   Object? _databaseValue(String column, Object? value) {
-    if (value is DateTime) return value.microsecondsSinceEpoch;
+    // Drift menyimpan kolom DateTime sebagai Unix seconds (INTEGER),
+    // sehingga restore harus menulis seconds agar pembacaan ulang via Drift
+    // (fromMillisecondsSinceEpoch(seconds * 1000)) tidak melempar RangeError.
+    if (value is DateTime) return value.millisecondsSinceEpoch ~/ 1000;
     if (value is bool) return value ? 1 : 0;
     if (value is String && _isTimestampColumn(column)) {
       final dateTime = DateTime.tryParse(value);
-      if (dateTime != null) return dateTime.microsecondsSinceEpoch;
+      if (dateTime != null) return dateTime.millisecondsSinceEpoch ~/ 1000;
     }
     return value;
   }

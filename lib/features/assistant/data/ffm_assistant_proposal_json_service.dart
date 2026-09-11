@@ -1057,6 +1057,23 @@ class FfmAssistantProposalJsonService {
   }
 
   static String? _extractJson(String text) {
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    var cleaned = text.replaceAll(RegExp(r'^```(?:json)?\s*\n?|\n?\s*```$'), '');
+    cleaned = cleaned.trim();
+
+    // Try extracting a JSON object first
+    final objectResult = _extractJsonObject(cleaned);
+    if (objectResult != null) return objectResult;
+
+    // Fallback: try extracting a JSON array
+    final arrayResult = _extractJsonArray(cleaned);
+    if (arrayResult != null) return arrayResult;
+
+    // Last resort: extract between first { and last } (handles preamble text)
+    return _extractJsonFallback(cleaned);
+  }
+
+  static String? _extractJsonObject(String text) {
     final start = text.indexOf('{');
     if (start < 0) return null;
     var depth = 0;
@@ -1084,6 +1101,43 @@ class FfmAssistantProposalJsonService {
       }
     }
     return null;
+  }
+
+  static String? _extractJsonArray(String text) {
+    final start = text.indexOf('[');
+    if (start < 0) return null;
+    var depth = 0;
+    var inString = false;
+    var escaped = false;
+    for (var index = start; index < text.length; index++) {
+      final character = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (character == r'\') {
+          escaped = true;
+        } else if (character == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (character == '"') {
+        inString = true;
+      } else if (character == '[') {
+        depth++;
+      } else if (character == ']') {
+        depth--;
+        if (depth == 0) return text.substring(start, index + 1);
+      }
+    }
+    return null;
+  }
+
+  static String? _extractJsonFallback(String text) {
+    final firstBrace = text.indexOf('{');
+    final lastBrace = text.lastIndexOf('}');
+    if (firstBrace < 0 || lastBrace <= firstBrace) return null;
+    return text.substring(firstBrace, lastBrace + 1);
   }
 
   static String? _boundedText(Object? value, int maxLength) {

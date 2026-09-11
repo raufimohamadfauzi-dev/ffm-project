@@ -144,9 +144,13 @@ class GetTransactions {
               ..where(
                 (row) =>
                     row.householdId.equals(householdId) &
-                    row.isArchived.equals(false),
+                    row.isArchived.equals(false) &
+                    row.isDeleted.equals(false),
               )
-              ..orderBy([(row) => OrderingTerm.desc(row.date)]))
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.date),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
             .get();
     if (rows.isEmpty) return const [];
     final ids = rows.map((row) => row.id).toSet();
@@ -195,7 +199,8 @@ class GetTransactionsPage {
       ..where(
         (row) =>
             row.householdId.equals(householdId) &
-            row.isArchived.equals(false),
+            row.isArchived.equals(false) &
+            row.isDeleted.equals(false),
       );
     if (startDate != null) {
       query.where((row) => row.date.isBiggerOrEqualValue(startDate));
@@ -207,7 +212,8 @@ class GetTransactionsPage {
       ..addColumns([database.transactions.id.count()])
       ..where(
         database.transactions.householdId.equals(householdId) &
-        database.transactions.isArchived.equals(false),
+        database.transactions.isArchived.equals(false) &
+        database.transactions.isDeleted.equals(false),
       );
     if (startDate != null) {
       countQuery.where(
@@ -224,7 +230,10 @@ class GetTransactionsPage {
         countResult.read(database.transactions.id.count()) ?? 0;
 
     query
-      ..orderBy([(row) => OrderingTerm.desc(row.date)])
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.date),
+        (row) => OrderingTerm.desc(row.id),
+      ])
       ..limit(limit, offset: offset);
     final rows = await query.get();
     if (rows.isEmpty) {
@@ -902,5 +911,74 @@ class DeleteTransaction {
             updatedAt: Value(now),
           ),
         );
+  }
+}
+
+class TransferPageResult {
+  const TransferPageResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<Transfer> items;
+  final bool hasMore;
+  final int totalCount;
+}
+
+class GetTransfersPage {
+  const GetTransfersPage(this.database);
+  final AppDatabase database;
+
+  Future<TransferPageResult> call(
+    String householdId, {
+    int limit = 80,
+    int offset = 0,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
+    final query = database.select(database.transfers)
+      ..where(
+        (row) =>
+            row.householdId.equals(householdId) &
+            row.isDeleted.equals(false),
+      );
+    if (startDate != null) {
+      query.where((row) => row.date.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query.where((row) => row.date.isSmallerThanValue(endDate));
+    }
+    final countQuery = database.selectOnly(database.transfers)
+      ..addColumns([database.transfers.id.count()])
+      ..where(
+        database.transfers.householdId.equals(householdId) &
+        database.transfers.isDeleted.equals(false),
+      );
+    if (startDate != null) {
+      countQuery.where(
+        database.transfers.date.isBiggerOrEqualValue(startDate),
+      );
+    }
+    if (endDate != null) {
+      countQuery.where(
+        database.transfers.date.isSmallerThanValue(endDate),
+      );
+    }
+    final countResult = await countQuery.getSingle();
+    final totalCount = countResult.read(database.transfers.id.count()) ?? 0;
+
+    query
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.date),
+        (row) => OrderingTerm.desc(row.id),
+      ])
+      ..limit(limit, offset: offset);
+    final rows = await query.get();
+    return TransferPageResult(
+      items: rows,
+      hasMore: offset + limit < totalCount,
+      totalCount: totalCount,
+    );
   }
 }

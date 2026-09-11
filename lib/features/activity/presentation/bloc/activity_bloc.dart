@@ -11,6 +11,7 @@ import '../../../assistant/data/autonomous_activity_repository.dart';
 import '../../../assistant/domain/entities/autonomous_activity_models.dart';
 import '../../data/repositories/activity_repository.dart';
 import '../../domain/entities/activity_entity.dart';
+import '../../domain/activity_query_layer.dart';
 import '../../domain/activity_voice.dart';
 
 class ActivityState {
@@ -27,6 +28,10 @@ class ActivityState {
     this.activeSession,
     this.loading = false,
     this.saving = false,
+    this.isLoadingMore = false,
+    this.hasMoreSessions = false,
+    this.hasMoreDailyNotes = false,
+    this.includeArchived = false,
     this.error,
     this.revision = 0,
     this.lastUpdatedAt,
@@ -44,6 +49,10 @@ class ActivityState {
   final ActivitySessionEntity? activeSession;
   final bool loading;
   final bool saving;
+  final bool isLoadingMore;
+  final bool hasMoreSessions;
+  final bool hasMoreDailyNotes;
+  final bool includeArchived;
   final String? error;
   final int revision;
   final DateTime? lastUpdatedAt;
@@ -74,6 +83,10 @@ class ActivityState {
     bool clearActiveSession = false,
     bool? loading,
     bool? saving,
+    bool? isLoadingMore,
+    bool? hasMoreSessions,
+    bool? hasMoreDailyNotes,
+    bool? includeArchived,
     String? error,
     bool clearError = false,
     int? revision,
@@ -93,6 +106,10 @@ class ActivityState {
         : activeSession ?? this.activeSession,
     loading: loading ?? this.loading,
     saving: saving ?? this.saving,
+    isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+    hasMoreSessions: hasMoreSessions ?? this.hasMoreSessions,
+    hasMoreDailyNotes: hasMoreDailyNotes ?? this.hasMoreDailyNotes,
+    includeArchived: includeArchived ?? this.includeArchived,
     error: clearError ? null : error ?? this.error,
     revision: revision ?? this.revision,
     lastUpdatedAt: lastUpdatedAt ?? this.lastUpdatedAt,
@@ -101,11 +118,14 @@ class ActivityState {
 
 class ActivityBloc extends Cubit<ActivityState> {
   ActivityBloc(this.repository, {this.autonomousRepository})
-    : super(const ActivityState());
+    : queryLayer = ActivityQueryLayer(repository.database),
+      super(const ActivityState());
 
   final ActivityRepository repository;
   final AutonomousActivityRepository? autonomousRepository;
+  final ActivityQueryLayer queryLayer;
   static const _uuid = Uuid();
+  static const _historyPageSize = 50;
   bool _migrated = false;
   bool _healingDone = false;
 
@@ -118,7 +138,12 @@ class ActivityBloc extends Cubit<ActivityState> {
         _migrated = true;
       }
 
-      var sessions = await repository.getSessions(AppContext.householdId);
+      var sessionPage = await queryLayer.querySessionsPage(
+        householdId: AppContext.householdId,
+        limit: _historyPageSize,
+      );
+      var sessions = sessionPage.items;
+      var hasMoreSessions = sessionPage.hasMore;
 
       // Auto-healing 1x untuk data catatan lama agar tidak berstatus 'active' atau 'berjalan'
       if (!_healingDone) {
@@ -140,7 +165,12 @@ class ActivityBloc extends Cubit<ActivityState> {
           }
         }
         if (needsReload) {
-          sessions = await repository.getSessions(AppContext.householdId);
+          sessionPage = await queryLayer.querySessionsPage(
+            householdId: AppContext.householdId,
+            limit: _historyPageSize,
+          );
+          sessions = sessionPage.items;
+          hasMoreSessions = sessionPage.hasMore;
         }
       }
 
@@ -155,7 +185,12 @@ class ActivityBloc extends Cubit<ActivityState> {
           )
           .toList();
       final notes = await repository.getNotes(AppContext.householdId);
-      final dailyNotes = await repository.getDailyNotes(AppContext.householdId);
+      final dailyNotePage = await queryLayer.queryDailyNotesPage(
+        householdId: AppContext.householdId,
+        limit: _historyPageSize,
+      );
+      final dailyNotes = dailyNotePage.items;
+      final hasMoreDailyNotes = dailyNotePage.hasMore;
 
       // Fetch habit suggestions
       final habits =
@@ -210,6 +245,9 @@ class ActivityBloc extends Cubit<ActivityState> {
           clearActiveSession: active == null,
           loading: false,
           saving: false,
+          hasMoreSessions: hasMoreSessions,
+          hasMoreDailyNotes: hasMoreDailyNotes,
+          isLoadingMore: false,
           revision: state.revision + 1,
           lastUpdatedAt: DateTime.now(),
         ),
@@ -221,6 +259,125 @@ class ActivityBloc extends Cubit<ActivityState> {
           error: 'Data aktivitas belum bisa dimuat: $error',
         ),
       );
+    }
+  }
+
+  Future<void> loadHistory({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? keyword,
+    String? categoryId,
+    bool? includeArchived,
+  }) async {
+    emit(state.copyWith(loading: true, clearError: true));
+    try {
+      final resolvedIncludeArchived = includeArchived ?? state.includeArchived;
+      final sessionPage = await queryLayer.querySessionsPage(
+        householdId: AppContext.householdId,
+        startDate: startDate,
+        endDate: endDate,
+        keyword: keyword,
+        categoryId: categoryId,
+        includeArchived: resolvedIncludeArchived,
+        limit: _historyPageSize,
+      );
+      final dailyNotePage = await queryLayer.queryDailyNotesPage(
+        householdId: AppContext.householdId,
+        startDate: startDate,
+        endDate: endDate,
+        keyword: keyword,
+        includeArchived: resolvedIncludeArchived,
+        limit: _historyPageSize,
+      );
+      final checkpointMap = <String, List<ActivityCheckpointEntity>>{};
+      final costMap = <String, int>{};
+      for (final session in sessionPage.items) {
+        checkpointMap[session.id] = await repository.getCheckpoints(session.id);
+        costMap[session.id] = await repository.getActivityLinkedCost(session.id);
+      }
+      emit(
+        state.copyWith(
+          sessions: sessionPage.items,
+          dailyNotes: dailyNotePage.items,
+          checkpoints: checkpointMap,
+          linkedCosts: costMap,
+          hasMoreSessions: sessionPage.hasMore,
+          hasMoreDailyNotes: dailyNotePage.hasMore,
+          includeArchived: resolvedIncludeArchived,
+          loading: false,
+          revision: state.revision + 1,
+          lastUpdatedAt: DateTime.now(),
+        ),
+      );
+    } catch (error) {
+      emit(state.copyWith(loading: false, error: 'Gagal memuat riwayat: $error'));
+    }
+  }
+
+  Future<void> loadMoreHistory({
+    DateTime? startDate,
+    DateTime? endDate,
+    String? keyword,
+    String? categoryId,
+    bool? includeArchived,
+  }) async {
+    if (state.isLoadingMore || (!state.hasMoreSessions && !state.hasMoreDailyNotes)) return;
+    emit(state.copyWith(isLoadingMore: true));
+    try {
+      final resolvedIncludeArchived = includeArchived ?? state.includeArchived;
+      var newSessions = state.sessions;
+      var newHasMoreSessions = state.hasMoreSessions;
+      if (state.hasMoreSessions) {
+        final page = await queryLayer.querySessionsPage(
+          householdId: AppContext.householdId,
+          startDate: startDate,
+          endDate: endDate,
+          keyword: keyword,
+          categoryId: categoryId,
+          includeArchived: resolvedIncludeArchived,
+          limit: _historyPageSize,
+          offset: state.sessions.length,
+        );
+        newSessions = [...state.sessions, ...page.items];
+        newHasMoreSessions = page.hasMore;
+      }
+
+      var newDailyNotes = state.dailyNotes;
+      var newHasMoreDailyNotes = state.hasMoreDailyNotes;
+      if (state.hasMoreDailyNotes) {
+        final page = await queryLayer.queryDailyNotesPage(
+          householdId: AppContext.householdId,
+          startDate: startDate,
+          endDate: endDate,
+          keyword: keyword,
+          includeArchived: resolvedIncludeArchived,
+          limit: _historyPageSize,
+          offset: state.dailyNotes.length,
+        );
+        newDailyNotes = [...state.dailyNotes, ...page.items];
+        newHasMoreDailyNotes = page.hasMore;
+      }
+
+      final checkpointMap = Map<String, List<ActivityCheckpointEntity>>.of(state.checkpoints);
+      final costMap = Map<String, int>.of(state.linkedCosts);
+      for (final session in newSessions.skip(state.sessions.length)) {
+        checkpointMap[session.id] = await repository.getCheckpoints(session.id);
+        costMap[session.id] = await repository.getActivityLinkedCost(session.id);
+      }
+
+      emit(
+        state.copyWith(
+          sessions: newSessions,
+          dailyNotes: newDailyNotes,
+          checkpoints: checkpointMap,
+          linkedCosts: costMap,
+          hasMoreSessions: newHasMoreSessions,
+          hasMoreDailyNotes: newHasMoreDailyNotes,
+          isLoadingMore: false,
+        ),
+      );
+    } catch (_) {
+      emit(state.copyWith(isLoadingMore: false));
     }
   }
 
@@ -628,6 +785,14 @@ class ActivityBloc extends Cubit<ActivityState> {
 
   Future<void> archiveSession(String id) async {
     await _save(() => repository.archiveSession(AppContext.householdId, id));
+  }
+
+  Future<void> restoreSession(String id) async {
+    await _save(() => repository.restoreSession(AppContext.householdId, id));
+  }
+
+  Future<void> restoreDailyNote(String id) async {
+    await _save(() => repository.restoreDailyNote(AppContext.householdId, id));
   }
 
   Future<void> deleteSessionPermanently(String id) async {

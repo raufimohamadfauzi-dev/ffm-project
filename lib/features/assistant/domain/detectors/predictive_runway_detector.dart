@@ -102,10 +102,13 @@ class PredictiveRunwayDetector {
 
     // 4. Hitung pengeluaran aktual 14 hari terakhir untuk laju belanja harian
     final fourteenDaysAgo = now.subtract(const Duration(days: 14));
-    final recentExpenses = txs.where((t) =>
+    final recentExpenses = txs.where(
+      (t) =>
+        t.type == 'expense' &&
         t.amount < 0 &&
         t.date.isAfter(fourteenDaysAgo) &&
-        !t.date.isAfter(now));
+        !t.date.isAfter(now),
+    );
 
     final totalRecentSpent =
         recentExpenses.fold<int>(0, (sum, t) => sum + t.amount.abs());
@@ -153,6 +156,14 @@ class PredictiveRunwayDetector {
         },
         suggestedAction: 'Tinjau pos pengeluaran terbesar untuk kurangi belanja non-esensial',
         destination: FfmAssistantDestination.analysis,
+        actionPayload: {
+          'type': 'runway_risk_review',
+          'spendableCash': spendableCash,
+          'currentDailyBurn': currentDailyBurn,
+          'safeDailySpend': safeDailySpend,
+          'daysShort': daysShort,
+          'targetLabel': targetLabel,
+        },
         createdAt: now,
         expiresAt: nextTargetDate,
         dedupeKey: 'runway_risk_${activeProfile?.id ?? ''}_$dedupeMonth',

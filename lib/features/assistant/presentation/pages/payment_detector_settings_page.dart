@@ -8,8 +8,30 @@ import '../../../transaction/domain/usecases/transaction_crud_usecases.dart';
 import '../../data/notification_listener_bridge.dart';
 import '../../data/payment_draft_repository.dart';
 import '../../data/payment_notification_parser.dart';
+import '../../data/payment_analytics_service.dart';
 import '../../domain/ffm_assistant_models.dart';
 import '../widgets/ffm_assistant_page_context.dart';
+
+/// Jenis error yang bisa terjadi saat mengkonfirmasi draft pembayaran.
+enum PaymentDraftError {
+  accountNotFound,
+  categoryNotFound,
+  databaseError,
+  unknownError;
+
+  String get userMessage {
+    switch (this) {
+      case PaymentDraftError.accountNotFound:
+        return 'Akun tidak ditemukan. Silakan tambahkan akun terlebih dahulu.';
+      case PaymentDraftError.categoryNotFound:
+        return 'Kategori tidak ditemukan. Silakan tambahkan kategori terlebih dahulu.';
+      case PaymentDraftError.databaseError:
+        return 'Gagal menyimpan transaksi. Silakan coba lagi.';
+      case PaymentDraftError.unknownError:
+        return 'Terjadi kesalahan. Silakan coba lagi.';
+    }
+  }
+}
 
 /// Halaman pengaturan Pendeteksi Bayar Otomatis (QRIS & Bank).
 ///
@@ -28,10 +50,12 @@ class _PaymentDetectorSettingsPageState
     extends State<PaymentDetectorSettingsPage> with WidgetsBindingObserver {
   late final NotificationListenerBridge _bridge;
   late final PaymentDraftRepository _draftRepo;
+  late final PaymentAnalyticsService _analytics;
 
   bool _isPermissionGranted = false;
   bool _isLoading = true;
   List<PaymentDraft> _allDrafts = [];
+  final Set<String> _confirmingDrafts = {};
 
 
   @override
@@ -40,6 +64,7 @@ class _PaymentDetectorSettingsPageState
     WidgetsBinding.instance.addObserver(this);
     _bridge = getIt<NotificationListenerBridge>();
     _draftRepo = getIt<PaymentDraftRepository>();
+    _analytics = PaymentAnalyticsService();
     _checkPermission();
     _loadDrafts();
   }
@@ -78,6 +103,12 @@ class _PaymentDetectorSettingsPageState
   }
 
   Future<void> _confirmDraft(PaymentDraft draft) async {
+    if (mounted) {
+      setState(() {
+        _confirmingDrafts.add(draft.id);
+      });
+    }
+
     try {
       final db = getIt<AppDatabase>();
       final isDebit = draft.mutationType == PaymentMutationType.debit;
@@ -89,6 +120,11 @@ class _PaymentDetectorSettingsPageState
       final accounts = await (db.select(db.accounts)
             ..where((a) => a.isArchived.equals(false)))
           .get();
+      
+      if (accounts.isEmpty) {
+        throw PaymentDraftError.accountNotFound;
+      }
+      
       Account? matchedAccount;
       final lowerSource = draft.sourceApp.toLowerCase();
       final lowerLabel = draft.accountLabel.toLowerCase();
@@ -106,17 +142,99 @@ class _PaymentDetectorSettingsPageState
             matchedAccount = a;
             break;
           }
+        } else if (lowerLabel.contains('neo') || lowerSource.contains('bnc')) {
+          if (aName.contains('neo') || aName.contains('bnc')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('krom') || lowerSource.contains('krom')) {
+          if (aName.contains('krom')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('jago') || lowerSource.contains('jago')) {
+          if (aName.contains('jago')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('blu') || lowerSource.contains('bcadigital')) {
+          if (aName.contains('blu')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('jenius') || lowerSource.contains('btpn')) {
+          if (aName.contains('jenius')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('shopee') || lowerSource.contains('shopee')) {
+          if (aName.contains('shopee')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('tokopedia') || lowerSource.contains('tokopedia')) {
+          if (aName.contains('tokopedia') || aName.contains('gopay')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('lazada') || lowerSource.contains('lazada')) {
+          if (aName.contains('lazada')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('tiktok') ||
+            lowerSource.contains('musically') ||
+            lowerSource.contains('trill')) {
+          if (aName.contains('tiktok')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('paypal') || lowerSource.contains('paypal')) {
+          if (aName.contains('paypal')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('wise') || lowerSource.contains('transferwise')) {
+          if (aName.contains('wise')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('doku') || lowerSource.contains('doku')) {
+          if (aName.contains('doku')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('google') || lowerSource.contains('walletnfcrel')) {
+          if (aName.contains('google')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('bibit') || lowerSource.contains('bibit')) {
+          if (aName.contains('bibit')) {
+            matchedAccount = a;
+            break;
+          }
+        } else if (lowerLabel.contains('ajaib') || lowerSource.contains('ajaib')) {
+          if (aName.contains('ajaib')) {
+            matchedAccount = a;
+            break;
+          }
         } else if (aName.contains(lowerLabel)) {
           matchedAccount = a;
           break;
         }
       }
-      matchedAccount ??= accounts.isNotEmpty ? accounts.first : null;
+      matchedAccount ??= accounts.first;
 
       // 2. Cari kategori yang cocok
       final categories = await (db.select(db.categories)
             ..where((c) => c.isActive.equals(true)))
           .get();
+      
+      if (categories.isEmpty) {
+        throw PaymentDraftError.categoryNotFound;
+      }
+      
       Category? matchedCategory;
       if (draft.suggestedCategory != null) {
         final targetCat = draft.suggestedCategory!.toLowerCase();
@@ -131,7 +249,7 @@ class _PaymentDetectorSettingsPageState
       if (matchedCategory == null) {
         final targetType = isDebit ? 'expense' : 'income';
         matchedCategory = categories.where((c) => c.type == targetType).firstOrNull ??
-            categories.firstOrNull;
+            categories.first;
       }
 
       // 3. Simpan transaksi secara nyata ke database
@@ -146,8 +264,8 @@ class _PaymentDetectorSettingsPageState
           date: draft.createdAt,
           amount: signedAmount,
           owner: 'Asisten (Notifikasi)',
-          categoryId: matchedCategory?.id,
-          accountId: matchedAccount?.id,
+          categoryId: matchedCategory.id,
+          accountId: matchedAccount.id,
           note:
               'Otomatis dari notifikasi ${draft.accountLabel}${draft.merchantName.isNotEmpty ? ' (${draft.merchantName})' : ''}',
           source: 'notification_detector',
@@ -158,10 +276,10 @@ class _PaymentDetectorSettingsPageState
       );
 
       await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
+      await _analytics.recordUserConfirmation();
       _loadDrafts();
       if (mounted) {
-        final targetName =
-            matchedAccount != null ? 'ke ${matchedAccount.name}' : '';
+        final targetName = 'ke ${matchedAccount.name}';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -172,23 +290,50 @@ class _PaymentDetectorSettingsPageState
           ),
         );
       }
-    } catch (_) {
-      // Fallback update status jika ada kendala database
-      await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.confirmed);
-      _loadDrafts();
+    } on PaymentDraftError catch (error) {
+      // Handle specific payment draft errors
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Status draft ${draft.formattedAmount} diperbarui.'),
+            content: Text(error.userMessage),
+            backgroundColor: Colors.orange.shade700,
             behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Tutup',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
           ),
         );
+      }
+    } catch (error) {
+      // Handle general database errors
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan transaksi: ${error.toString()}'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Coba Lagi',
+              textColor: Colors.white,
+              onPressed: () => _confirmDraft(draft),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _confirmingDrafts.remove(draft.id);
+        });
       }
     }
   }
 
   Future<void> _dismissDraft(PaymentDraft draft) async {
     await _draftRepo.updateStatus(draft.id, PaymentDraftStatus.dismissed);
+    await _analytics.recordUserDismissal();
     _loadDrafts();
   }
 
@@ -263,6 +408,7 @@ class _PaymentDetectorSettingsPageState
                             .where((d) => d.status == PaymentDraftStatus.pending)
                             .map((d) => _DraftCard(
                                   draft: d,
+                                  isConfirming: _confirmingDrafts.contains(d.id),
                                   onConfirm: () => _confirmDraft(d),
                                   onDismiss: () => _dismissDraft(d),
                                 )),
@@ -476,14 +622,56 @@ class _MonitoredAppsCard extends StatelessWidget {
   const _MonitoredAppsCard();
 
   static const _apps = [
+    // Bank Konvensional
     ('BCA Mobile & myBCA', Icons.account_balance),
     ("Livin' by Mandiri", Icons.account_balance),
     ('BRImo', Icons.account_balance),
     ('BNI Mobile & Wondr', Icons.account_balance),
+    // Bank Digital
+    ('Neobank (BNC)', Icons.account_balance),
+    ('Krom Bank', Icons.account_balance),
+    ('Bank Jago', Icons.account_balance),
+    ('SeaBank', Icons.account_balance),
+    ('blu by BCA Digital', Icons.account_balance),
+    ('Jenius', Icons.account_balance),
+    ('Allo Bank', Icons.account_balance),
+    ('Bank Saqu', Icons.account_balance),
+    ('Superbank', Icons.account_balance),
+    ('TMRW by UOB', Icons.account_balance),
+    ('LINE Bank', Icons.account_balance),
+    ('digibank DBS', Icons.account_balance),
+    // E-Commerce / Marketplace
+    ('Tokopedia', Icons.storefront),
+    ('Shopee', Icons.shopping_bag_outlined),
+    ('Lazada', Icons.shopping_bag_outlined),
+    ('TikTok Shop', Icons.shopping_bag_outlined),
+    ('Blibli', Icons.storefront),
+    ('Bukalapak', Icons.storefront),
+    // E-Wallet & Pembayaran Digital
     ('GoPay', Icons.wallet),
     ('OVO', Icons.wallet),
     ('DANA', Icons.wallet),
     ('ShopeePay', Icons.shopping_bag_outlined),
+    ('LinkAja', Icons.wallet),
+    ('AstraPay', Icons.wallet),
+    ('Flip', Icons.currency_exchange),
+    ('i.saku', Icons.account_balance_wallet),
+    ('MotionPay', Icons.payment),
+    ('PayPal', Icons.payment),
+    ('DOKU', Icons.wallet),
+    ('KasPro', Icons.wallet),
+    ('Google Wallet', Icons.wallet),
+    ('Wise', Icons.currency_exchange),
+    ('Paytren', Icons.wallet),
+    ('OY! Indonesia', Icons.currency_exchange),
+    ('Pluang', Icons.trending_up),
+    ('Bibit', Icons.trending_up),
+    ('Ajaib', Icons.trending_up),
+    // Bisnis & Pengiriman
+    ('DANA Bisnis', Icons.store),
+    ('Honest', Icons.credit_card),
+    ('Lalamove', Icons.local_shipping),
+    ('Qmove', Icons.local_shipping),
   ];
 
   @override
@@ -566,11 +754,13 @@ class _SectionHeader extends StatelessWidget {
 class _DraftCard extends StatelessWidget {
   const _DraftCard({
     required this.draft,
+    required this.isConfirming,
     required this.onConfirm,
     required this.onDismiss,
   });
 
   final PaymentDraft draft;
+  final bool isConfirming;
   final VoidCallback onConfirm;
   final VoidCallback onDismiss;
 
@@ -661,24 +851,39 @@ class _DraftCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: FilledButton.icon(
-                    icon: const Icon(Icons.check, size: 16),
-                    label: const Text('Simpan'),
-                    onPressed: onConfirm,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.green.shade600,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Opacity(
+                    opacity: isConfirming ? 0.7 : 1.0,
+                    child: FilledButton.icon(
+                      icon: isConfirming
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.check, size: 16),
+                      label: Text(isConfirming ? 'Memproses...' : 'Simpan'),
+                      onPressed: isConfirming ? null : onConfirm,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.green.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.close, size: 16),
-                    label: const Text('Abaikan'),
-                    onPressed: onDismiss,
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Opacity(
+                    opacity: isConfirming ? 0.7 : 1.0,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.close, size: 16),
+                      label: const Text('Abaikan'),
+                      onPressed: isConfirming ? null : onDismiss,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
                 ),

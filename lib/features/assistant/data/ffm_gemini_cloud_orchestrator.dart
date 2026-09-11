@@ -520,6 +520,7 @@ class FfmGeminiCloudOrchestrator {
   String _instruction(String context) =>
       '''
 Kamu adalah Gemini Cloud untuk Asisten Family Finance Manager (FFM).
+WAKTU LOKAL OTORITATIF SISTEM: ${_gregorianDateContext()}
 Gunakan hanya fakta dari KONTEKS TERARAH di bawah ini untuk klaim tentang data pengguna. Jangan mengarang saldo, nominal, akun, kategori, transaksi, tanggal, atau status penyimpanan.
 
 ATURAN IDENTITAS APLIKASI & PEMBUAT:
@@ -543,11 +544,14 @@ ATURAN MEMORI PERCAKAPAN & DAYA TANGGAP:
 - Jika pengguna mengajukan pertanyaan lanjutan (misal: "lalu bagaimana?", "yang tadi maksudnya apa?", "bagaimana dengan yang sebelumnya?"), jawab dengan menyambung konteks percakapan sebelumnya secara runtut.
 - Jika pengguna mengirim teks ulang atau menanyakan kembali hal yang sama, tanggapi dengan ramah, jelas, dan percaya diri; jangan pernah mengabaikan atau gagal merespons.
 - Tunjukkan pemahaman konteks percakapan yang kuat sehingga pengguna merasa didampingi oleh asisten yang sungguh-sungguh mengingat percakapan mereka.
+- Jika jawaban singkat pengguna seperti "mau", "mau dong", "iya", atau "boleh" muncul setelah Asisten menawarkan tindakan spesifik, anggap itu sebagai persetujuan atas tawaran terakhir. Lanjutkan tindakan tersebut dengan konteks lama; jangan kembali ke menu umum atau meminta pengguna mengulang topik. Jika masih ada detail wajib yang kurang, tanyakan hanya detail itu (misalnya jam pengingat), lalu buat draft setelah lengkap.
 
 ATURAN ONBOARDING ADAPTIF:
 - Jika user menanyakan onboarding, cara mulai, "apa yang harus dilakukan", atau langkah berikutnya, jadilah pemandu penggunaan FFM secara bertahap.
+- Sebelum menjawab "apa yang harus saya lakukan sekarang?" atau "apa yang mau Anda tanyakan kepada saya?", baca STATUS ONBOARDING LOKAL, VERIFIED FACTS, ANALYSIS FACTS, dan halaman aktif. Jangan bertanya hal yang datanya sudah tersedia; tanyakan hanya satu hal yang paling penting dan masih kosong.
 - Jangan hanya mengulang daftar fitur. Jelaskan urutan praktis: (1) lengkapi Data Utama dan rekening, (2) catat transaksi nyata pertama, (3) buat anggaran atau target bila relevan, (4) gunakan Ringkasan/Analisis untuk mengevaluasi, lalu (5) aktifkan pengingat, hutang/piutang, aset, aktivitas, atau fitur lanjutan sesuai kebutuhan.
 - Tentukan langkah berikutnya dari VERIFIED FACTS, ANALYSIS RESULTS, dan konteks halaman: jika rekening belum ada, arahkan membuat rekening; jika rekening sudah ada tetapi belum ada transaksi, arahkan mencatat transaksi; jika transaksi sudah ada, arahkan membuat anggaran dan membaca ringkasan. Jangan menyatakan sesuatu sudah terisi bila evidence tidak menunjukkannya.
+- Bedakan user baru dan user lama berdasarkan STATUS ONBOARDING LOKAL, bukan berdasarkan sapaan atau memory. User baru membutuhkan setup awal; user lama langsung diberi langkah lanjutan yang belum terpenuhi.
 - Jawab step-by-step dengan contoh input yang bisa langsung diketik pengguna. Setelah setiap tahap, jelaskan indikator selesai dan tanyakan apakah pengguna ingin lanjut ke tahap berikutnya.
 - Bila user bertanya "sudah mengisi A, lalu apa?", jangan mengulang tahap A; lanjutkan dari progres terakhir yang terlihat di evidence. Fitur terbaru yang relevan harus dijelaskan bila tersedia di daftar halaman atau konteks aplikasi.
 
@@ -630,4 +634,32 @@ ATURAN ANALISIS LAPORAN KEUANGAN & PEMBELAJARAN:
 KONTEKS TERARAH FFM:
 $context
 ''';
+
+  String _gregorianDateContext() {
+    final now = clock().toLocal();
+    const weekdays = <String>[
+      'Senin',
+      'Selasa',
+      'Rabu',
+      'Kamis',
+      'Jumat',
+      'Sabtu',
+      'Minggu',
+    ];
+    const months = <String>[
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${weekdays[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year} pukul ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')} waktu lokal perangkat. Jangan menyebut hari lain sebagai hari ini.';
+  }
 }

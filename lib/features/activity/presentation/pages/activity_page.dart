@@ -28,11 +28,15 @@ class ActivityPage extends StatelessWidget {
     this.initialTitle,
     this.initialCategory,
     this.initialNotes,
+    this.initialStartDate,
+    this.initialEndDate,
   });
 
   final String? initialTitle;
   final String? initialCategory;
   final String? initialNotes;
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +49,8 @@ class ActivityPage extends StatelessWidget {
           initialTitle: initialTitle,
           initialCategory: initialCategory,
           initialNotes: initialNotes,
+          initialStartDate: initialStartDate,
+          initialEndDate: initialEndDate,
         ),
       ),
     );
@@ -56,11 +62,15 @@ class _ActivityView extends StatefulWidget {
     this.initialTitle,
     this.initialCategory,
     this.initialNotes,
+    this.initialStartDate,
+    this.initialEndDate,
   });
 
   final String? initialTitle;
   final String? initialCategory;
   final String? initialNotes;
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
 
   @override
   State<_ActivityView> createState() => _ActivityViewState();
@@ -71,6 +81,7 @@ class _ActivityViewState extends State<_ActivityView>
   String? _categoryFilterId;
   String _modeFilter = 'Semua mode';
   String _riwayatTab = 'Semua';
+  bool _includeArchived = false;
   final _searchController = TextEditingController();
   String _searchQuery = '';
   DateTime? _dayFilter;
@@ -87,6 +98,7 @@ class _ActivityViewState extends State<_ActivityView>
   bool _voiceInitialized = false;
   bool _processingFinalVoice = false;
   List<String> _voiceCategories = const [];
+  Timer? _filterTimer;
   Map<String, String> _activityCategoryIds = const {};
 
   @override
@@ -103,6 +115,17 @@ class _ActivityViewState extends State<_ActivityView>
             initialNotes: widget.initialNotes,
           );
         }
+      });
+    }
+    if (widget.initialStartDate != null || widget.initialEndDate != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _dayFilter = null;
+          _startDateFilter = widget.initialStartDate;
+          _endDateFilter = widget.initialEndDate;
+        });
+        _onFilterChanged();
       });
     }
   }
@@ -135,11 +158,81 @@ class _ActivityViewState extends State<_ActivityView>
 
   @override
   void dispose() {
+    _filterTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _speechService.stop();
     _speechService.stopSpeaking();
     super.dispose();
+  }
+
+  void _onFilterChanged() {
+    _filterTimer?.cancel();
+    _filterTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      DateTime? startDate;
+      DateTime? endDate;
+      if (_dayFilter != null) {
+        final day = _dayFilter!;
+        startDate = DateTime(day.year, day.month, day.day);
+        endDate = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+      } else if (_startDateFilter != null || _endDateFilter != null) {
+        startDate = _startDateFilter;
+        if (_endDateFilter != null) {
+          final end = _endDateFilter!;
+          endDate = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+        }
+      }
+      context.read<ActivityBloc>().loadHistory(
+        startDate: startDate,
+        endDate: endDate,
+        keyword: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
+        categoryId: _categoryFilterId,
+        includeArchived: _includeArchived,
+      );
+    });
+  }
+
+  void _loadMoreHistory() {
+    DateTime? startDate;
+    DateTime? endDate;
+    if (_dayFilter != null) {
+      final day = _dayFilter!;
+      startDate = DateTime(day.year, day.month, day.day);
+      endDate = DateTime(day.year, day.month, day.day, 23, 59, 59, 999);
+    } else if (_startDateFilter != null || _endDateFilter != null) {
+      startDate = _startDateFilter;
+      if (_endDateFilter != null) {
+        final end = _endDateFilter!;
+        endDate = DateTime(end.year, end.month, end.day, 23, 59, 59, 999);
+      }
+    }
+    context.read<ActivityBloc>().loadMoreHistory(
+      startDate: startDate,
+      endDate: endDate,
+      keyword: _searchQuery.trim().isEmpty ? null : _searchQuery.trim(),
+      categoryId: _categoryFilterId,
+      includeArchived: _includeArchived,
+    );
+  }
+
+  Widget _buildLoadMoreButton(ActivityState state) {
+    return Center(
+      child: state.isLoadingMore
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: 10),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : TextButton.icon(
+              onPressed: _loadMoreHistory,
+              icon: const Icon(Icons.expand_more),
+              label: const Text('Muat lebih banyak'),
+            ),
+    );
   }
 
   bool _matchesDay(DateTime value) {
@@ -226,6 +319,7 @@ class _ActivityViewState extends State<_ActivityView>
                 .toList(),
           ),
           onArchive: () => _confirmArchiveSession(session),
+          onRestore: () => _confirmRestoreSession(session),
           onDelete: () => _confirmDeleteSession(session),
           onEdit: () => _editSession(session),
           onTogglePriority: () =>
@@ -266,7 +360,12 @@ class _ActivityViewState extends State<_ActivityView>
       initialDate: _dayFilter ?? DateTime.now(),
     );
     if (picked == null || !mounted) return;
-    setState(() => _dayFilter = picked);
+    setState(() {
+      _dayFilter = picked;
+      _startDateFilter = null;
+      _endDateFilter = null;
+    });
+    _onFilterChanged();
   }
 
   Future<void> _pickDateRange() async {
@@ -285,6 +384,7 @@ class _ActivityViewState extends State<_ActivityView>
       _startDateFilter = range.start;
       _endDateFilter = range.end;
     });
+    _onFilterChanged();
   }
 
   void _applyPeriodPreset(FfmDatePeriodPreset preset) {
@@ -294,6 +394,7 @@ class _ActivityViewState extends State<_ActivityView>
       _startDateFilter = period.start;
       _endDateFilter = period.endInclusive;
     });
+    _onFilterChanged();
   }
 
   String _periodLabel() {
@@ -873,15 +974,14 @@ class _ActivityViewState extends State<_ActivityView>
     if (updated != null) _speakVoicePreview(updated);
   }
 
-  Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
+Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Arsipkan aktivitas?'),
         content: Text(
-          '“${session.title}” akan disembunyikan dari daftar aktif/tersimpan di halaman ini. '
-          'Data tidak dihapus, namun saat ini tidak ada tampilan khusus untuk membuka kembali aktivitas yang diarsipkan. '
-          'Gunakan “Hapus permanen” jika kamu yakin tidak membutuhkannya lagi.',
+          '"${session.title}" akan disembunyikan dari daftar aktif. '
+          'Data tetap tersimpan. Aktifkan filter "Arsip" lalu pilih "Pulihkan" untuk mengembalikannya.',
         ),
         actions: [
           TextButton(
@@ -897,6 +997,52 @@ class _ActivityViewState extends State<_ActivityView>
     );
     if (confirmed != true || !mounted) return;
     await context.read<ActivityBloc>().archiveSession(session.id);
+  }
+
+  Future<void> _confirmRestoreSession(ActivitySessionEntity session) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Kembalikan dari arsip?'),
+        content: Text(
+          '"${session.title}" akan muncul kembali di daftar aktif.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Pulihkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<ActivityBloc>().restoreSession(session.id);
+  }
+
+  Future<void> _confirmRestoreDailyNote(dynamic note) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Kembalikan dari arsip?'),
+        content: const Text('Catatan harian ini akan muncul kembali di daftar.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Pulihkan'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await context.read<ActivityBloc>().restoreDailyNote(note.id);
   }
 
   Future<void> _confirmDeleteSession(ActivitySessionEntity session) async {
@@ -1091,8 +1237,10 @@ class _ActivityViewState extends State<_ActivityView>
                               ),
                             ),
                           ],
-                          onChanged: (value) =>
-                              setState(() => _categoryFilterId = value),
+                          onChanged: (value) {
+                            setState(() => _categoryFilterId = value);
+                            _onFilterChanged();
+                          },
                         ),
                         OutlinedButton.icon(
                           onPressed: _pickDay,
@@ -1106,7 +1254,10 @@ class _ActivityViewState extends State<_ActivityView>
                         if (_dayFilter != null)
                           IconButton(
                             tooltip: 'Hapus filter tanggal',
-                            onPressed: () => setState(() => _dayFilter = null),
+                            onPressed: () {
+                              setState(() => _dayFilter = null);
+                              _onFilterChanged();
+                            },
                             icon: const Icon(Icons.clear),
                           ),
                         PopupMenuButton<FfmDatePeriodPreset>(
@@ -1175,10 +1326,13 @@ class _ActivityViewState extends State<_ActivityView>
                         if (_startDateFilter != null || _endDateFilter != null)
                           IconButton(
                             tooltip: 'Hapus filter periode',
-                            onPressed: () => setState(() {
-                              _startDateFilter = null;
-                              _endDateFilter = null;
-                            }),
+                            onPressed: () {
+                              setState(() {
+                                _startDateFilter = null;
+                                _endDateFilter = null;
+                              });
+                              _onFilterChanged();
+                            },
                             icon: const Icon(Icons.clear),
                           ),
                         DropdownButton<String>(
@@ -1198,9 +1352,18 @@ class _ActivityViewState extends State<_ActivityView>
                               child: Text('Catatan'),
                             ),
                           ],
-                          onChanged: (value) => setState(
-                            () => _modeFilter = value ?? 'Semua mode',
-                          ),
+                          onChanged: (value) {
+                            setState(() => _modeFilter = value ?? 'Semua mode');
+                            _onFilterChanged();
+                          },
+                        ),
+                        FilterChip(
+                          label: const Text('Arsip'),
+                          selected: _includeArchived,
+                          onSelected: (value) {
+                            setState(() => _includeArchived = value);
+                            _onFilterChanged();
+                          },
                         ),
                         SizedBox(
                           width: 160,
@@ -1216,8 +1379,10 @@ class _ActivityViewState extends State<_ActivityView>
                                 vertical: 6,
                               ),
                             ),
-                            onChanged: (value) =>
-                                setState(() => _searchQuery = value),
+                            onChanged: (value) {
+                            setState(() => _searchQuery = value);
+                            _onFilterChanged();
+                          },
                           ),
                         ),
                       ],
@@ -1245,7 +1410,7 @@ class _ActivityViewState extends State<_ActivityView>
                             (session) =>
                                 session.status !=
                                     ActivitySessionStatus.active &&
-                                !session.isArchived &&
+                                (_includeArchived || !session.isArchived) &&
                                 (_categoryFilterId == null ||
                                     session.categoryId == _categoryFilterId) &&
                                 _matchesDay(session.startedAt) &&
@@ -1431,13 +1596,28 @@ class _ActivityViewState extends State<_ActivityView>
                                           : note.title!.trim(),
                                     ),
                                     subtitle: Text(
-                                      '${_dateOnly(note.noteDate)}\n${note.body}',
+                                      '${_dateOnly(note.noteDate)}\n${note.body}${note.isArchived ? '\nArsip' : ''}',
                                       maxLines: 4,
                                       overflow: TextOverflow.ellipsis,
                                     ),
+                                    trailing: note.isArchived
+                                        ? IconButton(
+                                            tooltip: 'Pulihkan dari arsip',
+                                            icon: const Icon(
+                                              Icons.unarchive_outlined,
+                                            ),
+                                            onPressed: () =>
+                                                _confirmRestoreDailyNote(note),
+                                          )
+                                        : null,
                                     isThreeLine: true,
                                   ),
                                 ),
+                            if (state.hasMoreDailyNotes)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: _buildLoadMoreButton(state),
+                              ),
                           ] else if (_riwayatTab == '🤖 Otonom') ...[
                             if (visibleAutonomous.isEmpty)
                               const Padding(
@@ -1501,6 +1681,11 @@ class _ActivityViewState extends State<_ActivityView>
                               ..._buildGroupedSessionCards(
                                 visibleSessions: visibleSessions,
                                 state: state,
+                              ),
+                            if (state.hasMoreSessions)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: _buildLoadMoreButton(state),
                               ),
                           ],
                         ],
@@ -1962,6 +2147,7 @@ class _SessionCard extends StatelessWidget {
     this.linkedCost = 0,
     this.onEdit,
     this.onTogglePriority,
+    this.onRestore,
   });
   final ActivitySessionEntity session;
   final List<ActivityCheckpointEntity> checkpoints;
@@ -1972,6 +2158,7 @@ class _SessionCard extends StatelessWidget {
   final int linkedCost;
   final VoidCallback? onEdit;
   final VoidCallback? onTogglePriority;
+  final VoidCallback? onRestore;
 
   @override
   Widget build(BuildContext context) {
@@ -2046,6 +2233,27 @@ class _SessionCard extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: priorityBadgeColor,
+                      ),
+                    ),
+                  ),
+                ],
+                if (session.isArchived) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Arsip',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.blueGrey.shade700,
                       ),
                     ),
                   ),
@@ -2187,6 +2395,7 @@ class _SessionCard extends StatelessWidget {
                         if (value == 'edit') onEdit?.call();
                         if (value == 'priority') onTogglePriority?.call();
                         if (value == 'archive') onArchive();
+                        if (value == 'restore') onRestore?.call();
                         if (value == 'delete') onDelete();
                       },
                       itemBuilder: (_) => [
@@ -2213,14 +2422,24 @@ class _SessionCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const PopupMenuItem(
-                          value: 'archive',
-                          child: ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(Icons.archive_outlined),
-                            title: Text('Arsipkan'),
+                        if (session.isArchived)
+                          PopupMenuItem(
+                            value: 'restore',
+                            child: const ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.unarchive_outlined),
+                              title: Text('Pulihkan dari arsip'),
+                            ),
+                          )
+                        else
+                          const PopupMenuItem(
+                            value: 'archive',
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(Icons.archive_outlined),
+                              title: Text('Arsipkan'),
+                            ),
                           ),
-                        ),
                         const PopupMenuItem(
                           value: 'delete',
                           child: ListTile(

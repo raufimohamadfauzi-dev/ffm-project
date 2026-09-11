@@ -200,12 +200,20 @@ class FfmAssistantAutonomyRepository {
 
   /// Menyimpan status plan dengan urutan penulisan serial agar status lama
   /// tidak menimpa status terbaru ketika UI menerima banyak progress update.
-  Future<void> recordPlan(FfmAssistantActionPlan plan) {
-    _runWriteQueue = _runWriteQueue.then((_) => _recordPlan(plan));
+  Future<void> recordPlan(
+    FfmAssistantActionPlan plan, {
+    String householdId = FfmAssistantAutonomyRepository.householdId,
+  }) {
+    _runWriteQueue = _runWriteQueue.then(
+      (_) => _recordPlan(plan, householdId: householdId),
+    );
     return _runWriteQueue;
   }
 
-  Future<void> _recordPlan(FfmAssistantActionPlan plan) async {
+  Future<void> _recordPlan(
+    FfmAssistantActionPlan plan, {
+    required String householdId,
+  }) async {
     final existing = await (_db.select(
       _db.assistantAgentRuns,
     )..where((row) => row.id.equals(plan.id))).getSingleOrNull();
@@ -586,7 +594,10 @@ class FfmAssistantAutonomyRepository {
             ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
           .get();
 
-  Future<void> recordApprovalRequest(FfmAssistantActionPlan plan) async {
+  Future<void> recordApprovalRequest(
+    FfmAssistantActionPlan plan, {
+    String householdId = FfmAssistantAutonomyRepository.householdId,
+  }) async {
     await _db
         .into(_db.assistantAgentApprovals)
         .insert(

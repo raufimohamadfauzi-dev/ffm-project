@@ -5,6 +5,7 @@ import '../database/audit_logger.dart';
 import '../diagnostics/app_diagnostics_service.dart';
 import '../security/app_pin_service.dart';
 import '../theme/app_theme_controller.dart';
+import '../network/supabase_config.dart';
 import '../../features/activity/data/repositories/activity_repository.dart';
 import '../../features/activity/domain/services/activity_application_service.dart';
 import '../../features/activity/presentation/bloc/activity_bloc.dart';
@@ -40,6 +41,7 @@ import '../../features/assistant/data/ffm_assistant_agent_task_event_handler.dar
 import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_task_execution_host.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_worker.dart';
+import '../../features/assistant/data/ffm_assistant_learning_candidate_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_background_handler.dart';
 import '../../features/assistant/data/ffm_assistant_reminder_due_insight_service.dart';
 import '../../features/assistant/data/ffm_assistant_autonomous_reminder_service.dart';
@@ -49,6 +51,7 @@ import '../../features/assistant/data/ffm_assistant_autonomy_background_schedule
 import '../../features/assistant/data/ffm_assistant_foreground_service.dart';
 import '../../features/assistant/data/ffm_assistant_proactive_evaluation_task.dart';
 import '../../features/assistant/data/ffm_assistant_user_model_service.dart';
+import '../../features/assistant/data/ffm_assistant_correction_service.dart';
 import '../../features/assistant/data/ffm_personal_context_provider.dart';
 import '../../features/assistant/data/ffm_assistant_report_service.dart';
 import '../../features/assistant/data/ffm_assistant_unanswered_question_repository.dart';
@@ -58,6 +61,7 @@ import '../../features/assistant/data/telegram_delivery_processor.dart';
 import '../../features/assistant/data/telegram_delivery_repository.dart';
 import '../../features/assistant/data/ffm_assistant_insight_repository.dart';
 import '../../features/assistant/data/payment_draft_repository.dart';
+import '../../features/assistant/data/payment_analytics_service.dart';
 import '../../features/assistant/data/notification_listener_bridge.dart';
 import '../../features/advisor/data/cash_flow_profile_repository.dart';
 import '../../features/advisor/domain/services/proactive_cash_flow_checkin_service.dart';
@@ -110,6 +114,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<GetTransactionsPage>(
     () => GetTransactionsPage(db),
   );
+  getIt.registerLazySingleton<GetTransfersPage>(() => GetTransfersPage(db));
   getIt.registerLazySingleton<BudgetGuardService>(() => BudgetGuardService(db));
   getIt.registerLazySingleton<AuditLogRepository>(
     () => SqliteAuditLogRepository(db),
@@ -341,6 +346,10 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   getIt.registerLazySingleton<FfmAssistantAutonomyWorker>(
     () => FfmAssistantAutonomyWorker(
       repository: getIt<FfmAssistantAutonomyRepository>(),
+      database: db,
+      candidateService: FfmAssistantLearningCandidateService(
+        getIt<FfmAssistantMemoryRepository>(),
+      ),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomyTaskExecutionHost>(
@@ -383,6 +392,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   // Fitur 02: Pendeteksi Notifikasi QRIS & Bank
   getIt.registerLazySingleton<PaymentDraftRepository>(
     PaymentDraftRepository.new,
+  );
+  getIt.registerLazySingleton<PaymentAnalyticsService>(
+    PaymentAnalyticsService.new,
   );
   getIt.registerLazySingleton<NotificationListenerBridge>(
     () => NotificationListenerBridge(getIt<PaymentDraftRepository>()),
@@ -431,6 +443,7 @@ Future<void> configureDependencies({AppDatabase? database}) async {
       telegramDeliveryRepository: getIt<TelegramDeliveryRepository>(),
       telegramDeliveryProcessor: getIt<TelegramDeliveryProcessor>(),
       autonomousReminderService: getIt<FfmAssistantAutonomousReminderService>(),
+      supabaseConfig: SupabaseConfig(),
     ),
   );
   getIt.registerLazySingleton<FfmAssistantAutonomousReminderService>(
@@ -455,6 +468,9 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   );
   getIt.registerLazySingleton<FfmAssistantUserModelService>(
     () => FfmAssistantUserModelService(getIt<FfmAssistantMemoryRepository>()),
+  );
+  getIt.registerLazySingleton<FfmAssistantCorrectionService>(
+    () => FfmAssistantCorrectionService(getIt<FfmAssistantMemoryRepository>()),
   );
   getIt.registerLazySingleton<FfmAssistantDraftFeedbackService>(
     FfmAssistantDraftFeedbackService.new,

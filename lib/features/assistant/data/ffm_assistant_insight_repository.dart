@@ -100,6 +100,27 @@ class FfmAssistantInsightRepository {
     return insight;
   }
 
+  Future<void> updateGeminiExplanation({
+    required String insightId,
+    required String explanation,
+  }) async {
+    await _ensureTable();
+    final trimmed = explanation.trim();
+    if (trimmed.isEmpty) return;
+    await _db.customUpdate(
+      '''
+      UPDATE assistant_insights
+      SET gemini_explanation = ?, updated_at = ?
+      WHERE id = ?
+      ''',
+      variables: [
+        Variable.withString(trimmed),
+        Variable.withInt(_clock().millisecondsSinceEpoch),
+        Variable.withString(insightId),
+      ],
+    );
+  }
+
   Future<FfmAssistantInsight?> findActiveByDedupeKey({
     required String householdId,
     required String dedupeKey,

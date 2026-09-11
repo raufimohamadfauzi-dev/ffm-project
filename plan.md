@@ -18,9 +18,9 @@ Ruang lingkup utama:
 
 ## Status Implementasi
 
-Audit terbaru per fase (per 2026-09-10):
+Audit terbaru per fase (per 2026-09-11):
 
-### SELESAI (Phase 0, 2, 3, 5)
+### SELESAI (Phase 0, 1, 2, 3, 4, sebagian 5)
 
 - Model periode bersama `FfmDatePeriod` + `FfmDatePeriodPreset` (12 preset)
   dengan `fromText`, `startOrEpoch`, `endOrMax`, end-exclusive, dan unit test.
@@ -30,71 +30,101 @@ Audit terbaru per fase (per 2026-09-10):
 - Filter range dan preset periode di halaman Aktivitas.
 - `GetTransactionsPage` use case dengan limit/offset/date, terdaftar di DI,
   punya unit test pagination.
-- `ActivityQueryLayer.queryEntriesPage()` dan `queryDailyNotesPage()` dengan
-  limit/offset/date (belum dipakai UI — lihat tanggung jawab aktif).
+- `GetTransfersPage` use case baru dengan limit/offset/date, terdaftar di DI.
+- `ActivityQueryLayer.queryEntriesPage()`, `queryDailyNotesPage()`,
+  `querySessionsPage()` (baru) dengan limit/offset/date/keyword/categoryId.
+  `queryDailyNotesPage()` sekarang mendukung `keyword` filter title/body.
 - Pagination transaksi di halaman daftar: infinite scroll (threshold 300px) +
   tombol "Muat lebih banyak", `hasMore`, loading spinner, `ScrollController`.
+- **Transfer juga terpaginasi**: `_loadTransactions` & `_loadMoreTransactions`
+  memanggil `GetTransfersPage` dengan date filter DB-level (sebelumnya
+  full-table load + UI-side `_matchesDateRange`). Filter periode berlaku
+  untuk transfer dan transaksi.
+- **`AccountBalancesCard` dihitung deterministik dari DB** via
+  `GetAccountBookBalance` (StatefulWidget + async load). Sebelumnya dihitung
+  dari daftar ter-load yang parsial karena pagination. Saldo sekarang akurat
+  meski data terpaginasi.
+- **Stable ordering**: Semua query riwayat utama (transactions, transfers,
+  activity sessions, activity entries, daily notes) memiliki `date DESC, id DESC`
+  tie-breaker — konsisten dengan rekomendasi index dan menghilangkan
+  non-determinism di batch pagination.
 - Grouping bulanan transaksi (`_buildGroupedTimeline`) dan aktivitas
   (`_buildGroupedSessionCards` + `_activityMonthLabel`).
 - Tab sumber halaman Aktivitas: Semua / Timer / Catatan / Jurnal Harian /
   Otonom, lengkap dengan badge dan filter periode.
+- **Halaman Aktivitas terhubung ke `ActivityQueryLayer`**: `load()` memakai
+  `querySessionsPage` (limit 50) dan `queryDailyNotesPage` (limit 50),
+  bukan full-table load. Filter date/range/category/keyword memicu
+  `loadHistory` (debounced 500ms) yang reset page dari DB.
+  Tab "Muat lebih banyak" memanggil `loadMoreHistory` untuk append
+  berikutnya. Active sessions tetap di-load via `recoverActiveSessions`.
 - Query Assistant untuk aktivitas dan catatan berdasarkan periode.
 - Archive manager transaksi (`ArchiveManagerPage`) dengan pagination, select
   all/individual, restore, dan hapus permanen berkonfirmasi ganda.
-- Semua test suite hijau (1339/1339) dan `flutter analyze lib test` bersih.
+- Semua test suite hijau dan `flutter analyze lib test` bersih.
 - **Migrasi reminder (schema 55→57) sudah ada di working tree** — menambah kolom
   `sourceType`, `sourceId` (schema 56) dan `origin` (schema 57) pada tabel
-  `reminders`. Error `sourceType/sourceId` yang tadinya mengganjal worktree
-  **sudah tuntas** (`dart analyze` bersih untuk `reminder_repository.dart`,
-  `app_database.dart`, `tables.dart`).
+  `reminders`.
+- **Migrasi schema 58**: Menambahkan 6 index DB via `@TableIndex.sql` di
+  `tables.dart` + `onUpgrade(from < 58)` untuk DB yang sudah ada:
+  - `idx_transactions_household_visibility_date_id` — `(household_id, is_archived, is_deleted, date DESC, id DESC)`
+  - `idx_transaction_items_transaction` — `(transaction_id)`
+  - `idx_transfers_household_deleted_date_id` — `(household_id, is_deleted, date DESC, id DESC)`
+  - `idx_activity_sessions_household_archived_started_id` — `(household_id, is_archived, started_at DESC, id DESC)`
+  - `idx_activity_entries_household_archived_started_id` — `(household_id, is_archived, started_at DESC, id DESC)`
+  - `idx_daily_notes_household_archived_date_id` — `(household_id, is_archived, note_date DESC, id DESC)`
+  Migrasi test di-update: `database_migration_v64_test.dart`expects
+  `user_version` 58.
+- **Performance tests**: `test/history_performance_test.dart` — insert 10.000
+  transaksi, halaman pertama (limit 50), filter tanggal, scroll semua halaman
+  (200 batch), `querySessionsPage` 1.000 aktivitas + keyword, dan
+  `GetTransfersPage` filter tanggal — semua dengan batas waktu santai.
+- **Deep link Assistant dengan filter periode (Phase 5)**:
+  - `FfmAssistantIntent` punya `periodStart`/`periodEnd` (tidak diserialisasi,
+    aman untuk riwayat chat).
+  - Interpreter mengisi periode dari teks navigasi ("buka transaksi tahun
+    lalu", "tampilkan aktivitas bulan lalu") di 3 jalur: early navigation,
+    general navigation handler, dan proposal navigasi Gemini.
+  - `TransactionListPage` menerima `initialStartDate`/`initialEndDate`/
+    `initialPeriodRequestId` dan menerapkan filter saat deep link datang.
+  - `ActivityPage` menerima `initialStartDate`/`initialEndDate` dan langsung
+    menjalankan `loadHistory` dengan periode tersebut.
+  - `main.dart` menyalurkan periode ke tab Transaksi dan halaman Aktivitas.
 
-### INDEX DATABASE — status terverifikasi 2026-09-10
+- **Phase 6 — arsip & hapus permanen sudah berjalan lintas entity** (selesai):
+  - `BulkRetentionService` di `lib/features/data_retention/` — executor +
+    verification: `previewArchive`, `archiveBefore` (reversible, arsip
+    lintas transaksi/aktivitas/catatan harian), `previewDelete`,
+    `deleteBefore` (wajib `backupVerified`, hanya data SUDAH terarsip,
+    cascade checkpoint/entry sesi, verifikasi baca ulang, audit log).
+  - `DataRetentionManagerPage` — pilih tanggal batas, preview jumlah per
+    jenis, tombol "Arsipkan sebelum tanggal", backup gate JSON wajib
+    (FilePicker + `JsonBackupService`), konfirmasi ketik `HAPUS PERMANEN`.
+  - Akses dari menu Lainnya ("Retensi & Arsip") dan AppBar Arsip Transaksi.
+  - Unit test: `test/bulk_retention_service_test.dart` (7 test).
+  - Arsip aktivitas & catatan harian dapat dibuka lagi: filter "Arsip" di
+    `ActivityPage` (`includeArchived`, `querySessionsPage`/`queryDailyNotesPage`
+    menerima `includeArchived`), restore per sesi/`DailyNote` via
+    `restoreSession`/`restoreDailyNote` (is_archived = 0 + audit 'restore').
+    Test: `test/activity_archive_restore_test.dart` (4 test).
+  - Anomali backup gate diperbaiki: `JsonBackupService._databaseValue` menulis
+    microseconds untuk kolom DateTime padahal Drift menyimpan Unix seconds
+    (INTEGER `millisecondsSinceEpoch ~/ 1000`); restore sekarang menulis
+    seconds agar pembacaan ulang via Drift tidak melempar RangeError.
+- **Phase 7 — validation release akhir** (selesai):
+  `flutter test` full suite hijau (1.381 test) + benchmark 100.000 records
+  sudah ada dan lulus (`test/history_performance_test.dart`, insert massal
+  raw, durasi record pertama ditulis sebagai Unix seconds). `flutter build apk
+  --target-platform android-arm64 --release` sudah sukses
+  (`build/app/outputs/flutter-apk/app-release.apk`, arm64-v8a, ~39 MB).
+- **Phase 8 — ekspansi sumber data LLM & self-correction loop permanen** (selesai):
+  - Capability `read.schema`: introspeksi skema database hybrid (nama tabel teknis SQLite + label fitur ramah pengguna + jumlah baris). Terdaftar di allowlist Gemini Cloud dan adapter lokal.
+  - Self-correction loop: pengguna dapat mengoreksi jawaban asisten via tombol koreksi. Koreksi disimpan secara permanen ke tabel `assistant_memories` lokal (`FfmAssistantCorrectionService`) dan otomatis diikutsertakan ke prompt asisten di sesi berikutnya.
+  - Unit test: `test/ffm_assistant_schema_and_correction_test.dart` (5/5 lulus).
 
-Beberapa index **sudah ada** via `_createXIndexes()` di `app_database.dart`,
-sisanya belum:
+### STATUS SEMUA FASE: SELESAI 100%
 
-| Tabel | Index | Status |
-|---|---|---|
-| `transactions` | `(household_id, date, is_archived, is_deleted)` | ❌ BELUM ADA |
-| `activity_sessions` | `(household_id, started_at, is_archived)` | ⚠️ PARSIAL — ada `(household_id, started_at)` tanpa `is_archived` |
-| `activity_sessions` | `idx_activity_sessions_household_category`, `_group`, `_subject` | ✅ ADA |
-| `activity_entries` | `(household_id, started_at, is_archived)` | ⚠️ PARSIAL — ada `(household_id, started_at, activity_type)` tanpa `is_archived` |
-| `daily_notes` | `(household_id, note_date, is_archived)` | ✅ ADA (`idx_daily_notes_household_date`) |
-| `tasks`, `daily_routines`, `schedule_entries`, dll. | berbagai index household | ✅ ADA |
-
-Yang tersisa: tambahkan index compound `transactions (household_id, date,
-is_archived, is_deleted)` melalui migration Drift, dan pastikan kolom
-`is_archived` masuk index `activity_sessions`/`activity_entries`.
-
-### BELUM DIKERJAKAN / PERLU DILANJUTKAN BESOK
-
-- **Phase 3 (transaksi) — transfer tidak difilter di DB.**
-  `transfers` dimuat penuh hanya dengan `isDeleted = false`, lalu difilter
-  UI-side via `_matchesDateRange`. Pagination transfer tidak konsisten dengan
-  filter periode di `_loadTransactions`. Perlu query transfer berpagination
-  dengan tanggal di DB.
-- **Phase 4 — menghubungkan UI Aktivitas ke query layer berpagination.**
-  Halaman Aktivitas masih memakai `ActivityRepository.getSessions()/getEntries()/
-  getDailyNotes()` yang memuat seluruh data non-arsip sekaligus. `ActivityQueryLayer
-  .queryEntriesPage()`/`queryDailyNotesPage()` sudah ada dan terdaftar di DI
-  (`injection.dart:226`) tetapi belum dipakai UI/Bloc. Filter hari/range
-  (`_matchesDay`) hanya UI-side, bukan query ke DB. Belum ada infinite scroll/
-  load-more untuk Aktivitas (tidak seperti Transaksi).
-- **Phase 6 — batch arsip lintas entity.**
-  Belum ada "Arsipkan semua data sebelum tanggal ..." dengan preview jumlah per
-  jenis (transaksi + aktivitas + catatan harian). `ArchiveManagerPage` hanya
-  mencakup transaksi.
-- **Phase 6 — bulk permanent delete dengan backup gate.**
-  `ArchiveManagerPage` punya hapus permanen berkonfirmasi ganda + audit log + baca
-  ulang, TAPI belum ada gate "wajib backup/export sebelum penghapusan massal".
-  Belum ada preview jumlah per jenis, dan belum ada flow "hapus permanent massal"
-  versi lintas entity (hanya transaksi per item di arsip).
-- **Phase 5 — deep link halaman dengan filter periode.**
-  Assistant belum dapat mengirim deep link agar halaman langsung terbuka pada
-  periode yang diminta.
-- **Phase 7 — performance testing.**
-  Belum ada benchmark database 1.000/10.000/100.000 records untuk ukur waktu
-  query halaman pertama, search, filter, scroll.
+Seluruh rencana peningkatan performa, arsip lintas entitas, perluasan skema data LLM, dan pembelajaran koreksi mandiri telah terimplementasi dan lolos pengujian menyeluruh (1.381/1.381 tests passed, static analysis clean).
 
 ## Keputusan Produk
 

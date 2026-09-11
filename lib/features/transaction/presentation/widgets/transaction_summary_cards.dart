@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/database/app_database.dart';
+import '../../../../core/di/injection.dart' show getIt;
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/hijri_date_components.dart';
-import '../../domain/entities/transaction_entity.dart';
+import '../../../recurring_transaction/domain/usecases/recurring_transaction_crud_usecases.dart';
 
 class TransferHistoryCard extends StatelessWidget {
   const TransferHistoryCard({
@@ -154,35 +155,64 @@ class TransferHistoryCard extends StatelessWidget {
   }
 }
 
-class AccountBalancesCard extends StatelessWidget {
+class AccountBalancesCard extends StatefulWidget {
   const AccountBalancesCard({
     super.key,
+    required this.householdId,
     required this.accounts,
-    required this.transactions,
-    required this.transfers,
-    required this.accountTypeLabel,
   });
 
+  final String householdId;
   final List<Account> accounts;
-  final List<TransactionWithItems> transactions;
-  final List<Transfer> transfers;
-  final String Function(String) accountTypeLabel;
 
-  int _balance(Account account) {
-    final transactionTotal = transactions
-        .where((entry) => entry.transaction.accountId == account.id)
-        .fold<int>(0, (sum, entry) => sum + entry.transaction.amount);
-    final incoming = transfers
-        .where((transfer) => transfer.toAccountId == account.id)
-        .fold<int>(0, (sum, transfer) => sum + transfer.amount);
-    final outgoing = transfers
-        .where((transfer) => transfer.fromAccountId == account.id)
-        .fold<int>(0, (sum, transfer) => sum + transfer.amount);
-    return account.openingBalance + transactionTotal + incoming - outgoing;
+  @override
+  State<AccountBalancesCard> createState() => _AccountBalancesCardState();
+}
+
+class _AccountBalancesCardState extends State<AccountBalancesCard> {
+  var _balances = <String, int>{};
+  var _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBalances();
   }
 
   @override
+  void didUpdateWidget(covariant AccountBalancesCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accounts != widget.accounts ||
+        oldWidget.householdId != widget.householdId) {
+      _loadBalances();
+    }
+  }
+
+  Future<void> _loadBalances() async {
+    setState(() {
+      _loading = true;
+      _balances = <String, int>{};
+    });
+    final service = getIt<GetAccountBookBalance>();
+    final balances = <String, int>{};
+    for (final account in widget.accounts) {
+      balances[account.id] = await service(
+        widget.householdId,
+        account.id,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      _balances = balances;
+      _loading = false;
+    });
+  }
+
+  int _balance(Account account) => _balances[account.id] ?? 0;
+
+  @override
   Widget build(BuildContext context) {
+    final accounts = widget.accounts;
     return AppCard(
       color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -212,6 +242,17 @@ class AccountBalancesCard extends StatelessWidget {
             const Text(
               'Belum ada rekening. Tambahkan lewat Data Utama.',
               style: TextStyle(fontSize: 12),
+            )
+          else if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
             )
           else
             SizedBox(

@@ -86,6 +86,12 @@ class _FfmAssistantProcessDisclosureState
     'draft.income' => 'Menyusun draf pemasukan',
     'draft.transfer' => 'Menyusun draf transfer',
     'draft.goal' => 'Menyusun draf target keuangan',
+    'mutate.update' => 'Menyimpan perubahan data',
+    'verify.activity_mutation' => 'Memverifikasi aktivitas tersimpan',
+    'verify.transaction_mutation' => 'Memverifikasi transaksi tersimpan',
+    'verify.reminder_mutation' => 'Memverifikasi pengingat tersimpan',
+    'verify.goal_mutation' => 'Memverifikasi target tersimpan',
+    'verify.budget_mutation' => 'Memverifikasi anggaran tersimpan',
     _ =>
       capabilityId
           .replaceFirst(RegExp(r'^(read|draft|mutate|verify|navigate)\.'), '')
@@ -329,6 +335,22 @@ class _FfmAssistantProcessDisclosureState
                           );
                         },
                       ),
+                      if (step.result != null || step.error != null) ...[
+                        const SizedBox(height: 3),
+                        Padding(
+                          padding: const EdgeInsets.only(left: 25),
+                          child: Text(
+                            step.error != null
+                                ? 'Alasan: ${step.error}'
+                                : 'Hasil: ${step.result}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: step.error != null
+                                  ? theme.colorScheme.error
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 7),
                     ],
                   ],

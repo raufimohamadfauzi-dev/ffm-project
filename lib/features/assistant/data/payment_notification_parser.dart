@@ -77,23 +77,65 @@ class PaymentNotificationParser {
   );
 
   static const _trustedPackages = <String>{
+    // Bank Konvensional
     'com.bca',
     'com.bca.mybca',
     'com.bankmandiri.livin',
     'id.co.bri.brimo',
     'id.bni.mobile',
     'id.co.bni.wondr',
+
+    // Bank Digital
     'com.seabank.id',
+    'com.bnc.finance',
+    'id.krom.bank',
+    'com.jago.digitalBanking',
+    'id.co.bcadigital.blu',
+    'bcadigital.blubybcadigital',
+    'com.btpn.dc',
+    'com.alloapp.yump',
+    'id.co.banksaqu.mobile',
+    'id.co.banksaqu.app',
+    'id.co.superbank.mobile',
+    'id.co.superbank.app',
+    'com.uob.id.tmrw',
+    'com.linecorp.linebankid',
+    'id.co.dbs.digibank',
+
+    // E-Wallet & Pembayaran Digital
     'com.gojek.app',
     'com.gopay.wallet',
     'ovo.id',
     'id.dana',
     'com.shopee.id',
     'id.flip',
-    'id.dana.kasir',
+    'com.telkom.mwallet',
+    'com.astrapay',
     'com.isaku.app',
-    'com.honestbank.android',
     'com.spin.app.latest',
+    'com.paypal.android.p2pmobile',
+    'com.doku.wallet',
+    'id.kaspro.app',
+    'com.google.android.apps.walletnfcrel',
+    'com.transferwise.android',
+    'com.treni.paytren',
+    'id.oy.app',
+    'com.pluang',
+    'com.bibit.bibitid',
+    'com.ajaib.android',
+
+    // E-Commerce / Marketplace
+    'com.tokopedia.tkpd',
+    'com.lazada.android',
+    'com.zhiliaoapp.musically',
+    'com.ss.android.ugc.trill',
+    'blibli.mobile.commerce',
+    'com.blibli.mobile.android',
+    'com.bukalapak.android',
+
+    // Merchant, Bisnis & Pengiriman
+    'id.dana.kasir',
+    'com.honestbank.android',
     'hk.easyvan.app.client',
     'com.qmove.logistics.consignor',
   };
@@ -109,7 +151,7 @@ class PaymentNotificationParser {
   );
 
   static final _successKeywords = RegExp(
-    r'\b(berhasil|sukses|terbayar|dibayar|terkirim|diterima|masuk|keluar|potong|dipotong|transaksi)\b',
+    r'\b(berhasil|sukses|terbayar|dibayar|terkirim|diterima|masuk|keluar|potong|dipotong|transaksi|selesai|dikonfirmasi|diverifikasi|sent|paid|received|completed|success)\b',
     caseSensitive: false,
   );
 
@@ -129,9 +171,19 @@ class PaymentNotificationParser {
       r'(?:dari|from)\s+([A-Z0-9][A-Z0-9 &\-\.]{1,48}?)(?=\s+sebesar|\s+berhasil|\s+sukses|\s+telah|\s+masuk|\s+Rp|\.|$)',
       caseSensitive: false,
     ),
-    // "ke MERCHANT berhasil" — merchant sebelum kata berhasil/sukses (abaikan kata rekening/akun/saldo/dompet)
+    // "ke rekening/akun NAMA"
     RegExp(
-      r'\bke\s+(?!(?:rekening|akun|dompet|saldo|kantong)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\s+via|\.|$)',
+      r'\b(?:ke\s+rekening|ke\s+akun|to\s+account)\s+([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
+      caseSensitive: false,
+    ),
+    // PayPal / English: "You sent [amount] to [MERCHANT]" / "You paid [amount] to [MERCHANT]"
+    RegExp(
+      r'(?:sent|paid|payment(?:\s+of)?)\s+(?:(?:Rp\.?\s*|IDR\s*)[\d.,]+\s+)?to\s+([A-Z0-9][A-Z0-9 &\-\.]{1,48}?)(?=\.|\s+via|$)',
+      caseSensitive: false,
+    ),
+    // "ke/to MERCHANT berhasil" — merchant sebelum kata berhasil/sukses (abaikan kata rekening/akun/saldo/dompet)
+    RegExp(
+      r'\b(?:ke|to)\s+(?!(?:rekening|akun|dompet|saldo|kantong|account)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\s+via|\.|$)',
       caseSensitive: false,
     ),
     // "di MERCHANT berhasil" — merchant sebelum kata berhasil/sukses
@@ -144,14 +196,19 @@ class PaymentNotificationParser {
       r'[Pp]embayaran\s+(?:ke|di)\s+([A-Z][A-Z0-9 &\-\.]{2,49})',
       caseSensitive: false,
     ),
+    // "pesanan di/pada/ke MERCHANT"
+    RegExp(
+      r'(?:pesanan|order)\s+(?:di|pada|ke)\s+([A-Z0-9][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\.|$|\s+sebesar)',
+      caseSensitive: false,
+    ),
     // "Transfer ke NAMA" — nama sebelum berhasil/Rp
     RegExp(
-      r'[Tt]ransfer\s+(?:ke|to)\s+(?!(?:rekening|akun|dompet|saldo|kantong)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
+      r'[Tt]ransfer\s+(?:ke|to)\s+(?!(?:rekening|akun|dompet|saldo|kantong|account)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
       caseSensitive: false,
     ),
     // "Bayar MERCHANT" / "Membayar MERCHANT"
     RegExp(
-      r'[Bb]ayar(?:an)?\s+([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
+      r'\b(?:[Bb]ayar|[Mm]embayar)\s+(?!(?:pesanan|sebesar|sejumlah|tagihan|untuk|dengan|rekening|akun)\b)([A-Z][A-Z0-9 &\-\.]{1,48}?)(?=\s+berhasil|\s+sukses|\s+sebesar|\s+Rp|\.|$)',
       caseSensitive: false,
     ),
     // GoPay: "Ke MERCHANT" (seluruh string)
@@ -168,12 +225,12 @@ class PaymentNotificationParser {
   // ---------------------------------------------------------------------------
 
   static final _debitKeywords = RegExp(
-    r'\b(bayar|pembayaran|transfer|beli|belanja|tarik|keluar|debit|withdrawal|payment|purchase)\b',
+    r'\b(bayar|pembayaran|pesanan|order|checkout|transfer|beli|belanja|tarik|keluar|debit|withdrawal|payment|purchase|sent|paid|send)\b',
     caseSensitive: false,
   );
 
   static final _creditKeywords = RegExp(
-    r'\b(terima|masuk|top.?up|isi ulang|credit|menerima|diterima|incoming|receive)\b',
+    r'\b(terima|masuk|top.?up|isi ulang|credit|menerima|diterima|incoming|receive|received|refund)\b',
     caseSensitive: false,
   );
 
@@ -234,6 +291,8 @@ class PaymentNotificationParser {
       'blibli',
       'bukalapak',
       'zalora',
+      'tiktok',
+      'tiktok shop',
     ],
     'Transportasi': [
       'gojek',
@@ -301,6 +360,19 @@ class PaymentNotificationParser {
       'steam',
       'ps store',
     ],
+    'Investasi & Finansial': [
+      'bibit',
+      'ajaib',
+      'pluang',
+      'reksadana',
+      'saham',
+      'crypto',
+      'kripto',
+      'deposito',
+      'investasi',
+      'paypal',
+      'wise',
+    ],
   };
 
   // ---------------------------------------------------------------------------
@@ -308,25 +380,82 @@ class PaymentNotificationParser {
   // ---------------------------------------------------------------------------
 
   static const _appLabels = <String, String>{
+    // Bank Konvensional
     'com.bca': 'BCA Mobile',
     'com.bca.mybca': 'myBCA',
     'com.bankmandiri.livin': "Livin' Mandiri",
     'id.co.bri.brimo': 'BRImo',
     'id.bni.mobile': 'BNI Mobile',
     'id.co.bni.wondr': 'Wondr BNI',
+
+    // Bank Digital
     'com.seabank.id': 'SeaBank',
+    'com.bnc.finance': 'Neobank',
+    'id.krom.bank': 'Krom Bank',
+    'com.jago.digitalBanking': 'Bank Jago',
+    'id.co.bcadigital.blu': 'blu BCA Digital',
+    'bcadigital.blubybcadigital': 'blu BCA Digital',
+    'com.btpn.dc': 'Jenius',
+    'com.alloapp.yump': 'Allo Bank',
+    'id.co.banksaqu.mobile': 'Bank Saqu',
+    'id.co.banksaqu.app': 'Bank Saqu',
+    'id.co.superbank.mobile': 'Superbank',
+    'id.co.superbank.app': 'Superbank',
+    'com.uob.id.tmrw': 'TMRW by UOB',
+    'com.linecorp.linebankid': 'LINE Bank',
+    'id.co.dbs.digibank': 'digibank DBS',
+
+    // E-Wallet & Pembayaran Digital
     'com.gojek.app': 'GoPay',
     'com.gopay.wallet': 'GoPay',
     'ovo.id': 'OVO',
     'id.dana': 'DANA',
     'com.shopee.id': 'ShopeePay',
     'id.flip': 'Flip',
-    'id.dana.kasir': 'DANA Bisnis',
+    'com.telkom.mwallet': 'LinkAja',
+    'com.astrapay': 'AstraPay',
     'com.isaku.app': 'i.saku',
-    'com.honestbank.android': 'Honest',
     'com.spin.app.latest': 'MotionPay',
+    'com.paypal.android.p2pmobile': 'PayPal',
+    'com.doku.wallet': 'DOKU',
+    'id.kaspro.app': 'KasPro',
+    'com.google.android.apps.walletnfcrel': 'Google Wallet',
+    'com.transferwise.android': 'Wise',
+    'com.treni.paytren': 'Paytren',
+    'id.oy.app': 'OY! Indonesia',
+    'com.pluang': 'Pluang',
+    'com.bibit.bibitid': 'Bibit',
+    'com.ajaib.android': 'Ajaib',
+
+    // E-Commerce / Marketplace
+    'com.tokopedia.tkpd': 'Tokopedia',
+    'com.lazada.android': 'Lazada',
+    'com.zhiliaoapp.musically': 'TikTok Shop',
+    'com.ss.android.ugc.trill': 'TikTok Shop',
+    'blibli.mobile.commerce': 'Blibli',
+    'com.blibli.mobile.android': 'Blibli',
+    'com.bukalapak.android': 'Bukalapak',
+
+    // Merchant, Bisnis & Pengiriman
+    'id.dana.kasir': 'DANA Bisnis',
+    'com.honestbank.android': 'Honest',
     'hk.easyvan.app.client': 'Lalamove',
     'com.qmove.logistics.consignor': 'Qmove',
+  };
+
+  /// Default merchant name untuk platform marketplace saat merchant spesifik tidak tertangkap
+  static const _defaultPlatformMerchant = <String, String>{
+    'com.tokopedia.tkpd': 'TOKOPEDIA',
+    'com.shopee.id': 'SHOPEE',
+    'com.lazada.android': 'LAZADA',
+    'com.zhiliaoapp.musically': 'TIKTOK SHOP',
+    'com.ss.android.ugc.trill': 'TIKTOK SHOP',
+    'blibli.mobile.commerce': 'BLIBLI',
+    'com.blibli.mobile.android': 'BLIBLI',
+    'com.bukalapak.android': 'BUKALAPAK',
+    'com.bibit.bibitid': 'BIBIT',
+    'com.ajaib.android': 'AJAIB',
+    'com.pluang': 'PLUANG',
   };
 
   // ---------------------------------------------------------------------------
@@ -360,7 +489,7 @@ class PaymentNotificationParser {
     final mutationType = _detectMutationType(combined);
 
     // 3. Ekstrak nama merchant / penerima
-    final merchantName = _extractMerchant(title, body);
+    final merchantName = _extractMerchant(title, body, packageName: packageName);
 
     // 4. Saran kategori
     final suggestedCategory = merchantName.isNotEmpty
@@ -445,7 +574,7 @@ class PaymentNotificationParser {
   static bool _hasTransactionContext(String text) =>
       _successKeywords.hasMatch(text) ||
       RegExp(
-        r'\b(qris|pembayaran|pembelian|transfer\s+(?:ke|dari|masuk|keluar)|top.?up|isi ulang|tarik tunai|withdraw|bayar|membayar|order|perjalanan|ongkos)\b',
+        r'\b(qris|pembayaran|pembelian|pesanan|order|checkout|belanja|transfer\s+(?:ke|dari|masuk|keluar)|top.?up|isi ulang|tarik tunai|withdraw|bayar|membayar|perjalanan|ongkos)\b',
         caseSensitive: false,
       ).hasMatch(text);
 
@@ -461,7 +590,7 @@ class PaymentNotificationParser {
     return score.clamp(0, 100);
   }
 
-  static String _extractMerchant(String title, String body) {
+  static String _extractMerchant(String title, String body, {String? packageName}) {
     final patterns = _merchantPatterns;
     // Coba ekstrak dari body terlebih dahulu (lebih informatif)
     for (final pattern in patterns) {
@@ -478,6 +607,11 @@ class PaymentNotificationParser {
         final merchant = (match.group(1) ?? '').trim();
         if (merchant.length >= 2) return _cleanMerchant(merchant);
       }
+    }
+    // Fallback ke default platform merchant jika aplikasi e-commerce/marketplace
+    if (packageName != null) {
+      final defaultMerchant = _defaultPlatformMerchant[packageName];
+      if (defaultMerchant != null) return defaultMerchant;
     }
     return '';
   }

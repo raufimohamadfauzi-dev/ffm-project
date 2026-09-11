@@ -106,7 +106,7 @@ void main() {
           )
           .getSingleOrNull();
 
-      expect(version.data['user_version'], 57);
+      expect(version.data['user_version'], 59);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -268,4 +268,47 @@ void main() {
       expect(legacy.data['source_id'], isNull);
     },
   );
+
+  group('Migrasi database v59', () {
+    test('membuat index performa schema 59', () async {
+      final executor = NativeDatabase.memory(
+        setup: (database) {
+          database.execute(
+            'CREATE TABLE transactions ('
+            'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, category_id TEXT, '
+            'merchant_id TEXT, is_deleted INTEGER NOT NULL DEFAULT 0, date INTEGER NOT NULL)',
+          );
+          database.execute(
+            'CREATE TABLE reminders ('
+            'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, scheduled_at INTEGER NOT NULL)',
+          );
+          database.execute(
+            'CREATE TABLE assistant_memories ('
+            'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, kind TEXT NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)',
+          );
+          database.execute('PRAGMA user_version = 58');
+        },
+      );
+      final database = AppDatabase(executor);
+      addTearDown(database.close);
+
+      final version = await database
+          .customSelect('PRAGMA user_version')
+          .getSingle();
+      final schema59Indexes = await database
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'index' AND name IN ("
+            "'idx_transactions_category_date', "
+            "'idx_transactions_merchant_date', "
+            "'idx_reminders_status_due', "
+            "'idx_assistant_memories_kind'"
+            ")",
+          )
+          .get();
+
+      expect(version.data['user_version'], 59);
+      expect(schema59Indexes, hasLength(4));
+    });
+  });
 }

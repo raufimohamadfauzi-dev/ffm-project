@@ -133,9 +133,28 @@ class PaymentDraftRepository {
   static const _retentionDuration = Duration(days: 7);
 
   SharedPreferences? _cachedPrefs;
+  int _saveAttempts = 0;
+  int _saveFailures = 0;
 
   Future<SharedPreferences> _prefs() async =>
       _cachedPrefs ??= await SharedPreferences.getInstance();
+
+  /// Mendapatkan statistik error untuk analytics
+  Map<String, int> getErrorStats() {
+    return {
+      'saveAttempts': _saveAttempts,
+      'saveFailures': _saveFailures,
+      'successRate': _saveAttempts > 0 
+          ? ((_saveAttempts - _saveFailures) / _saveAttempts * 100).round() 
+          : 100,
+    };
+  }
+
+  /// Reset error stats (untuk testing/debugging)
+  void resetErrorStats() {
+    _saveAttempts = 0;
+    _saveFailures = 0;
+  }
 
   // ---------------------------------------------------------------------------
   // Tulis
@@ -144,42 +163,56 @@ class PaymentDraftRepository {
   /// Tambahkan draft baru jika bukan duplikat.
   /// Kembalikan draft yang ditambahkan, atau null jika duplikat.
   Future<PaymentDraft?> addIfNotDuplicate(PaymentDraft draft) async {
-    final drafts = await _loadAll();
+    _saveAttempts++;
+    
+    try {
+      final drafts = await _loadAll();
 
-    // Periksa duplikat: ID sama, atau notifikasi yang sama dikirim ulang.
-    // Nominal + aplikasi saja tidak cukup karena dua pembayaran identik
-    // tetap dapat terjadi dalam jendela lima menit.
-    final isDuplicate = drafts.any((d) {
-      if (d.id == draft.id) return true;
-      final timeDiff = draft.createdAt.difference(d.createdAt).abs();
-      final sameNotification =
-          _normalize(d.rawTitle) == _normalize(draft.rawTitle) &&
-          _normalize(d.rawBody) == _normalize(draft.rawBody);
-      final sameTransactionShape =
-          d.merchantName.isNotEmpty &&
-          draft.merchantName.isNotEmpty &&
-          d.merchantName == draft.merchantName;
-      return d.amount == draft.amount &&
-          d.sourceApp == draft.sourceApp &&
-          d.status == PaymentDraftStatus.pending &&
-          timeDiff <= _dedupWindow &&
-          (sameNotification || sameTransactionShape);
-    });
+      // Periksa duplikat: ID sama, atau notifikasi yang sama dikirim ulang.
+      // Nominal + aplikasi saja tidak cukup karena dua pembayaran identik
+      // tetap dapat terjadi dalam jendela lima menit.
+      final isDuplicate = drafts.any((d) {
+        if (d.id == draft.id) return true;
+        final timeDiff = draft.createdAt.difference(d.createdAt).abs();
+        final sameNotification =
+            _normalize(d.rawTitle) == _normalize(draft.rawTitle) &&
+            _normalize(d.rawBody) == _normalize(draft.rawBody);
+        final sameTransactionShape =
+            d.merchantName.isNotEmpty &&
+            draft.merchantName.isNotEmpty &&
+            d.merchantName == draft.merchantName;
+        return d.amount == draft.amount &&
+            d.sourceApp == draft.sourceApp &&
+            d.status == PaymentDraftStatus.pending &&
+            timeDiff <= _dedupWindow &&
+            (sameNotification || sameTransactionShape);
+      });
 
-    if (isDuplicate) return null;
+      if (isDuplicate) return null;
 
-    drafts.insert(0, draft); // Terbaru di depan
-    await _saveAll(drafts);
-    return draft;
+      drafts.insert(0, draft); // Terbaru di depan
+      await _saveAll(drafts);
+      return draft;
+    } catch (e) {
+      _saveFailures++;
+      rethrow;
+    }
   }
 
   /// Perbarui status draft (konfirmasi / abaikan).
   Future<void> updateStatus(String id, PaymentDraftStatus status) async {
-    final drafts = await _loadAll();
-    final idx = drafts.indexWhere((d) => d.id == id);
-    if (idx >= 0) {
-      drafts[idx] = drafts[idx].copyWith(status: status);
-      await _saveAll(drafts);
+    _saveAttempts++;
+    
+    try {
+      final drafts = await _loadAll();
+      final idx = drafts.indexWhere((d) => d.id == id);
+      if (idx >= 0) {
+        drafts[idx] = drafts[idx].copyWith(status: status);
+        await _saveAll(drafts);
+      }
+    } catch (e) {
+      _saveFailures++;
+      rethrow;
     }
   }
 

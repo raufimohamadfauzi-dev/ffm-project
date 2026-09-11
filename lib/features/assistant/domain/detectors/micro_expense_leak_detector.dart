@@ -100,6 +100,14 @@ class MicroExpenseLeakDetector {
         suggestedAction:
             'Tinjau transaksi kecil & biaya transfer untuk menghemat hingga Rp ${_formatRupiah(monthlyProjected)}/bulan',
         destination: FfmAssistantDestination.transactions,
+        actionPayload: {
+          'type': 'micro_expense_review',
+          'totalMicroExpense': totalMicroExpense,
+          'monthlyProjected': monthlyProjected,
+          'count': microExpenses.length,
+          'feeCount': feeTxs.length,
+          'totalFeeExpense': totalFeeExpense,
+        },
         createdAt: now,
         expiresAt: now.add(const Duration(days: 7)),
         dedupeKey: dedupeKey,

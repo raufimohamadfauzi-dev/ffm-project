@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/utils/string_sanitizer.dart';
 import '../../data/telegram_bot_service.dart';
 import '../../data/telegram_config_repository.dart';
 import '../../domain/autonomous_evaluation_coordinator.dart';
@@ -650,10 +651,10 @@ class _TelegramSetupPageState extends State<TelegramSetupPage> {
                 style: const TextStyle(fontSize: 12),
                 children: [
                   TextSpan(
-                    text: '$label ',
+                    text: '${StringSanitizer.sanitizeForTextWidget(label)} ',
                     style: TextStyle(color: color, fontWeight: FontWeight.w600),
                   ),
-                  TextSpan(text: value),
+                  TextSpan(text: StringSanitizer.sanitizeForTextWidget(value)),
                 ],
               ),
             ),

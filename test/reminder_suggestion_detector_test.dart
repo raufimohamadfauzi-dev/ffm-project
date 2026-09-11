@@ -150,4 +150,76 @@ void main() {
       expect(scheduledAt.minute, 30);
     },
   );
+
+  test('mendeteksi aktivitas terjadwal sebagai pengingat otonom', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    final scheduledAt = now.add(const Duration(days: 2, hours: 3));
+    await database.into(database.activitySessions).insert(
+      ActivitySessionsCompanion.insert(
+        id: 'activity-1',
+        householdId: householdId,
+        title: 'Cek kebun',
+        startedAt: now,
+        scheduledAt: drift.Value(scheduledAt),
+        createdAt: now,
+      ),
+    );
+
+    final insight = await ReminderSuggestionDetector(database).detect(
+      householdId: householdId,
+      now: now,
+    );
+
+    expect(insight?.actionPayload?['sourceType'], 'activity');
+    expect(insight?.actionPayload?['sourceId'], 'activity-1');
+  });
+
+  test('mendeteksi tugas terbuka yang memiliki tenggat', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    await database.into(database.tasks).insert(
+      TasksCompanion.insert(
+        id: 'task-1',
+        householdId: householdId,
+        title: 'Isi data pemasukan',
+        dueDate: drift.Value(now.add(const Duration(days: 1))),
+        createdAt: now,
+      ),
+    );
+
+    final insight = await ReminderSuggestionDetector(database).detect(
+      householdId: householdId,
+      now: now,
+    );
+
+    expect(insight?.actionPayload?['sourceType'], 'task');
+    expect(insight?.actionPayload?['sourceId'], 'task-1');
+  });
+
+  test('mengingatkan profil keluarga yang masih kosong', () async {
+    final database = createInMemoryDatabaseForTests();
+    addTearDown(database.close);
+    await database.into(database.accounts).insert(
+      AccountsCompanion.insert(
+        id: 'account-1',
+        householdId: householdId,
+        name: 'Kas keluarga',
+        type: 'cash',
+        createdAt: now,
+      ),
+    );
+    final detector = ReminderSuggestionDetector(
+      database,
+      enableCompleteness: true,
+    );
+
+    final insight = await detector.detect(
+      householdId: householdId,
+      now: now,
+    );
+
+    expect(insight?.actionPayload?['sourceType'], 'family_profile');
+    expect(insight?.actionPayload?['sourceId'], 'family_profile:2026-09');
+  });
 }

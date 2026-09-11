@@ -94,6 +94,9 @@ class FfmAssistantReminderDueInsightService {
         householdId,
         sourceId,
       ),
+      ReminderSourceType.activity => null,
+      ReminderSourceType.task => null,
+      _ => null,
     };
   }
 

@@ -42,6 +42,9 @@ class TransactionListPage extends StatefulWidget {
     super.key,
     this.assistantDraft,
     this.assistantRequestId = 0,
+    this.initialStartDate,
+    this.initialEndDate,
+    this.initialPeriodRequestId = 0,
     this.onOpenAssistant,
     this.onAssistantDraftSaved,
     this.onAssistantDraftReturnedWithoutSave,
@@ -49,6 +52,12 @@ class TransactionListPage extends StatefulWidget {
 
   final FfmAssistantDraft? assistantDraft;
   final int assistantRequestId;
+
+  /// Periode deep link dari Assistant ("buka transaksi tahun lalu").
+  final DateTime? initialStartDate;
+  final DateTime? initialEndDate;
+  final int initialPeriodRequestId;
+
   final Future<void> Function()? onOpenAssistant;
   final Future<void> Function()? onAssistantDraftSaved;
   final Future<void> Function()? onAssistantDraftReturnedWithoutSave;
@@ -62,7 +71,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   var _categories = <Category>[];
   var _merchants = <Merchant>[];
   var _accounts = <Account>[];
-  var _transfers = <Transfer>[];
+  final _transfers = <Transfer>[];
   Set<String>? _ftsTransactionIds;
   var _loading = true;
   String? _errorMessage;
@@ -77,6 +86,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   DateTime? _endDateFilter;
   var _isSearchOpen = false;
   var _hasMoreTransactions = true;
+  var _hasMoreTransfers = true;
   var _loadingMore = false;
   static const _pageSize = 80;
   final _searchController = TextEditingController();
@@ -88,11 +98,21 @@ class _TransactionListPageState extends State<TransactionListPage> {
     super.initState();
     _scrollController.addListener(_onScroll);
     _loadTransactions();
+    if (widget.initialStartDate != null || widget.initialEndDate != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyAssistantPeriod();
+      });
+    }
   }
 
   @override
   void didUpdateWidget(covariant TransactionListPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.initialPeriodRequestId != oldWidget.initialPeriodRequestId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _applyAssistantPeriod();
+      });
+    }
     if (widget.assistantRequestId == oldWidget.assistantRequestId ||
         widget.assistantDraft == null) {
       return;
@@ -100,6 +120,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _openAssistantDraft(widget.assistantDraft!);
     });
+  }
+
+  Future<void> _applyAssistantPeriod() async {
+    _startDateFilter = widget.initialStartDate;
+    _endDateFilter = widget.initialEndDate;
+    _currentMonthOnly = false;
+    await _loadTransactions();
   }
 
   Future<void> _openAssistantDraft(FfmAssistantDraft draft) async {
@@ -535,15 +562,13 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 )
                 ..orderBy([(table) => OrderingTerm.asc(table.name)]))
               .get();
-      final transfers =
-          await (database.select(database.transfers)
-                ..where(
-                  (table) =>
-                      table.householdId.equals(AppContext.householdId) &
-                      table.isDeleted.equals(false),
-                )
-                ..orderBy([(table) => OrderingTerm.desc(table.date)]))
-              .get();
+      final transfersResult = await getIt<GetTransfersPage>()(
+        AppContext.householdId,
+        limit: _pageSize,
+        offset: 0,
+        startDate: _startDateFilter,
+        endDate: _endDateExclusive,
+      );
       if (!mounted) return;
       setState(() {
         _transactions
@@ -552,8 +577,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
         _categories = categories;
         _merchants = merchants;
         _accounts = accounts;
-        _transfers = transfers;
+        _transfers
+          ..clear()
+          ..addAll(transfersResult.items);
         _hasMoreTransactions = result.hasMore;
+        _hasMoreTransfers = transfersResult.hasMore;
         _loading = false;
         _errorMessage = null;
       });
@@ -567,7 +595,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   Future<void> _loadMoreTransactions() async {
-    if (_loadingMore || !_hasMoreTransactions || _query.isNotEmpty) return;
+    if (_loadingMore ||
+        (!_hasMoreTransactions && !_hasMoreTransfers) ||
+        _query.isNotEmpty) {
+      return;
+    }
     setState(() => _loadingMore = true);
     try {
       final result = await getIt<GetTransactionsPage>()(
@@ -577,10 +609,22 @@ class _TransactionListPageState extends State<TransactionListPage> {
         startDate: _startDateFilter,
         endDate: _endDateExclusive,
       );
+      var transfersResult = const TransferPageResult(items: [], hasMore: false, totalCount: 0);
+      if (_hasMoreTransfers) {
+        transfersResult = await getIt<GetTransfersPage>()(
+          AppContext.householdId,
+          limit: _pageSize,
+          offset: _transfers.length,
+          startDate: _startDateFilter,
+          endDate: _endDateExclusive,
+        );
+      }
       if (!mounted) return;
       setState(() {
         _transactions.addAll(result.items);
         _hasMoreTransactions = result.hasMore;
+        _transfers.addAll(transfersResult.items);
+        _hasMoreTransfers = transfersResult.hasMore;
         _loadingMore = false;
       });
     } catch (_) {
@@ -2348,7 +2392,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
     }
 
     final totalItems = timeline.length;
-    final hasMore = _hasMoreTransactions;
+    final hasMore = _hasMoreTransactions || _hasMoreTransfers;
 
     return ListView.builder(
       controller: _scrollController,
@@ -2364,12 +2408,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
           );
         }
         if (index == 1) {
-          return AccountBalancesCard(
-            accounts: _accounts,
-            transactions: _transactions,
-            transfers: _transfers,
-            accountTypeLabel: _accountTypeLabel,
-          );
+return AccountBalancesCard(
+                householdId: AppContext.householdId,
+                accounts: _accounts,
+              );
         }
         final itemIndex = index - 2;
 

@@ -181,7 +181,7 @@ void main() {
       expect(half.request, isNull);
     });
 
-    test('read.transactions tanpa argumen mengambil seluruh bulan', () async {
+    test('read.transactions tanpa argumen mengambil bulan berjalan (current_month)', () async {
       final now = DateTime(2026, 8, 15);
       final parsed = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
         '{"formatVersion":"ffm-assistant-capability-request-v1","kind":"read_capability_request","capabilityId":"read.transactions","arguments":{}}',
@@ -192,7 +192,8 @@ void main() {
         now: now,
       );
       expect(evidence, contains('Transaction digest'));
-      expect(evidence, contains('rentang=seluruh_bulan'));
+      // Default period = 'current_month' → rentang eksplisit awal-bulan..now
+      expect(evidence, contains('rentang=2026-08-01..2026-08-15'));
     });
 
     test(

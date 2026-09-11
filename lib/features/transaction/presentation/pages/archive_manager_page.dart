@@ -6,6 +6,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/database/audit_logger.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../data_retention/presentation/pages/data_retention_manager_page.dart';
 import '../../domain/entities/transaction_entity.dart';
 import '../../domain/usecases/transaction_crud_usecases.dart';
 
@@ -65,7 +66,10 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
     final totalCount =
         countResult.read(database.transactions.id.count()) ?? 0;
     query
-      ..orderBy([(row) => OrderingTerm.desc(row.date)])
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.date),
+        (row) => OrderingTerm.desc(row.id),
+      ])
       ..limit(_pageSize, offset: offset);
     final rows = await query.get();
     if (rows.isEmpty) {
@@ -316,6 +320,15 @@ class _ArchiveManagerPageState extends State<ArchiveManagerPage> {
                     ? Icons.check_box
                     : Icons.check_box_outline_blank,
               ),
+            ),
+            IconButton(
+              tooltip: 'Retensi & Arsip',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const DataRetentionManagerPage(),
+                ),
+              ),
+              icon: const Icon(Icons.inventory_rounded),
             ),
           ],
         ],

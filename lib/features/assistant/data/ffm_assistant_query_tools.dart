@@ -1747,7 +1747,9 @@ class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
             normalizedText.contains('90 hari') ||
             normalizedText.contains('3 bulan') ||
             normalizedText.contains('bulan ini') ||
-            normalizedText.contains('bulan lalu')) &&
+            normalizedText.contains('bulan lalu') ||
+            normalizedText.contains('tahun lalu') ||
+            normalizedText.contains('tahun kemarin')) &&
         (normalizedText.contains('berapa') ||
             normalizedText.contains('total') ||
             normalizedText.contains('ringkasan'));
@@ -1766,6 +1768,9 @@ class _PeriodAnalysisQueryTool implements FfmAssistantQueryTool {
       period = FfmAnalysisPeriod.thisMonth;
     } else if (request.normalizedText.contains('bulan lalu')) {
       period = FfmAnalysisPeriod.lastMonth;
+    } else if (request.normalizedText.contains('tahun lalu') ||
+        request.normalizedText.contains('tahun kemarin')) {
+      period = FfmAnalysisPeriod.previousYear;
     }
 
     final analysis = await _analysisEngine.analyzePeriod(

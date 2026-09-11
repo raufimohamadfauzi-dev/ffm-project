@@ -115,11 +115,21 @@ class FfmAssistantResponseFeedbackRepository {
             note,
             protectedTerms: protectedTerms,
           );
-    if (question.isEmpty ||
-        response.isEmpty ||
-        question.length > 500 ||
-        response.length > 1200) {
+    final boundedQuestion = _bounded(question, 2000) ?? '';
+    final boundedResponse = _bounded(response, 8000) ?? '';
+    if (boundedQuestion.isEmpty || boundedResponse.isEmpty) {
       return null;
+    }
+
+    // Cek anti-duplikasi bila ada laporan dengan pertanyaan dan jawaban yang persis sama
+    if (sourceMessageId == null) {
+      final existingAll = await readAllIssues();
+      final duplicate = existingAll.where(
+        (item) =>
+            item.questionText == boundedQuestion &&
+            item.responseText == boundedResponse,
+      );
+      if (duplicate.isNotEmpty) return duplicate.first;
     }
     final now = _clock();
     final id = const Uuid().v4();
@@ -198,6 +208,13 @@ class FfmAssistantResponseFeedbackRepository {
     await (_database.delete(
       _database.assistantResponseFeedbacks,
     )..where((row) => row.id.equals(id))).go();
+  }
+
+  Future<void> deleteAllIssues() async {
+    final issues = await readAllIssues();
+    for (final issue in issues) {
+      await delete(issue.id);
+    }
   }
 
   Future<void> updateIssueNote(String id, String? note) async {
@@ -377,6 +394,7 @@ Laporan ini disalin manual oleh pengguna. Tidak ada tindakan otomatis dan tidak 
 ''';
 
   String _formatIssue(FfmAssistantResponseFeedback issue) {
+    final metadata = issue.issueMetadata;
     final buffer = StringBuffer()
       ..writeln('ID: ${issue.id}')
       ..writeln('Status: ${issue.reviewStatus.name}')
@@ -385,8 +403,31 @@ Laporan ini disalin manual oleh pengguna. Tidak ada tindakan otomatis dan tidak 
       ..writeln('Pertanyaan: ${issue.questionText}')
       ..writeln('Jawaban: ${issue.responseText}')
       ..writeln('Catatan: ${issue.note ?? '-'}');
-    for (final entry in issue.issueMetadata.entries) {
-      buffer.writeln('${entry.key}: ${entry.value}');
+
+    for (final entry in metadata.entries) {
+      if (entry.key == 'processTrace' && entry.value is Map) {
+        final trace = entry.value as Map;
+        buffer.writeln('processTrace.origin: ${trace['origin']}');
+        buffer.writeln('processTrace.elapsedMs: ${trace['elapsedMs']}');
+        if (trace['fallbackReason'] != null) {
+          buffer.writeln('processTrace.fallbackReason: ${trace['fallbackReason']}');
+        }
+        if (trace['tokenUsage'] != null) {
+          buffer.writeln('processTrace.tokenUsage: ${trace['tokenUsage']}');
+        }
+        final events = trace['events'];
+        if (events is List) {
+          buffer.writeln('processTrace.timeline:');
+          for (var i = 0; i < events.length; i++) {
+            final ev = events[i];
+            if (ev is Map) {
+              buffer.writeln('  - [${ev['elapsedMs']}ms] ${ev['label']}${ev['detail'] != null ? ' (${ev['detail']})' : ''}');
+            }
+          }
+        }
+      } else {
+        buffer.writeln('${entry.key}: ${entry.value}');
+      }
     }
     return buffer.toString();
   }

@@ -25,6 +25,19 @@ String formatTanggalLengkap(DateTime dateTime, {bool includeSeconds = false}) {
   return '${dateTime.day} ${_bulanIndonesia[dateTime.month - 1]} ${dateTime.year}$waktu';
 }
 
+String formatTanggalDenganHari(DateTime dateTime, {bool includeSeconds = false}) {
+  const hari = <String>[
+    'Senin',
+    'Selasa',
+    'Rabu',
+    'Kamis',
+    'Jumat',
+    'Sabtu',
+    'Minggu',
+  ];
+  return '${hari[dateTime.weekday - 1]}, ${formatTanggalLengkap(dateTime, includeSeconds: includeSeconds)}';
+}
+
 bool isDataSusulan(DateTime kejadian, {DateTime? now}) {
   final reference = now ?? DateTime.now();
   return reference.difference(kejadian).inHours > 24;

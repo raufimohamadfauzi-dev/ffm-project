@@ -154,6 +154,10 @@ class FfmAssistantUnansweredQuestionRepository {
     _database.assistantUnansweredQuestions,
   )..where((row) => row.id.equals(id))).go();
 
+  Future<void> deleteAll() => (_database.delete(
+    _database.assistantUnansweredQuestions,
+  )..where((row) => row.householdId.equals(householdId))).go();
+
   Future<String> exportForExternalLlm({bool includeResolved = false}) async {
     final openQuestions = await readOpen();
     final resolvedQuestions = includeResolved ? await readResolved() : const [];

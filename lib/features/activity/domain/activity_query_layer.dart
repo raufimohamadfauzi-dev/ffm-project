@@ -97,7 +97,10 @@ class ActivityQueryLayer {
     }
 
     // Ordering default: terbaru dulu
-    query = query..orderBy([(row) => OrderingTerm.desc(row.startedAt)]);
+    query = query..orderBy([
+        (row) => OrderingTerm.desc(row.startedAt),
+        (row) => OrderingTerm.desc(row.id),
+      ]);
 
     // Pagination
     if (limit != null) {
@@ -106,6 +109,87 @@ class ActivityQueryLayer {
 
     final rows = await query.get();
     return rows.map(_fromRow).toList();
+  }
+
+  Future<ActivitySessionPageResult> querySessionsPage({
+    required String householdId,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? keyword,
+    String? categoryId,
+    String? kind,
+    bool includeArchived = false,
+    int limit = 80,
+    int offset = 0,
+  }) async {
+    var query = database.select(database.activitySessions)
+      ..where((row) => row.householdId.equals(householdId));
+    if (!includeArchived) {
+      query = query..where((row) => row.isArchived.equals(false));
+    }
+    if (startDate != null) {
+      query = query..where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      query = query..where((row) => row.startedAt.isSmallerOrEqualValue(endDate));
+    }
+    if (categoryId != null) {
+      query = query..where((row) => row.categoryId.equals(categoryId));
+    }
+    if (kind != null) {
+      query = query..where((row) => row.kind.equals(kind));
+    }
+    if (keyword != null && keyword.isNotEmpty) {
+      final k = keyword.toLowerCase();
+      query = query..where(
+        (row) =>
+            row.title.lower().contains(k) |
+            row.notes.lower().contains(k) |
+            row.category.lower().contains(k),
+      );
+    }
+
+    final countQuery = database.selectOnly(database.activitySessions)
+      ..addColumns([database.activitySessions.id.count()])
+      ..where(database.activitySessions.householdId.equals(householdId));
+    if (!includeArchived) {
+      countQuery.where(database.activitySessions.isArchived.equals(false));
+    }
+    if (startDate != null) {
+      countQuery.where(database.activitySessions.startedAt.isBiggerOrEqualValue(startDate));
+    }
+    if (endDate != null) {
+      countQuery.where(database.activitySessions.startedAt.isSmallerOrEqualValue(endDate));
+    }
+    if (categoryId != null) {
+      countQuery.where(database.activitySessions.categoryId.equals(categoryId));
+    }
+    if (kind != null) {
+      countQuery.where(database.activitySessions.kind.equals(kind));
+    }
+    if (keyword != null && keyword.isNotEmpty) {
+      final k = keyword.toLowerCase();
+      countQuery.where(
+        database.activitySessions.title.lower().contains(k) |
+        database.activitySessions.notes.lower().contains(k) |
+        database.activitySessions.category.lower().contains(k),
+      );
+    }
+
+    final countResult = await countQuery.getSingle();
+    final totalCount = countResult.read(database.activitySessions.id.count()) ?? 0;
+
+    query = query..orderBy([
+      (row) => OrderingTerm.desc(row.startedAt),
+      (row) => OrderingTerm.desc(row.id),
+    ])..limit(limit, offset: offset);
+
+    final rows = await query.get();
+    return ActivitySessionPageResult(
+      items: rows.map(_fromRow).toList(),
+      hasMore: offset + limit < totalCount,
+      totalCount: totalCount,
+    );
   }
 
   /// Query aktivitas berdasarkan ID spesifik
@@ -297,7 +381,10 @@ class ActivityQueryLayer {
     final totalCount =
         countResult.read(database.activityEntries.id.count()) ?? 0;
     query
-      ..orderBy([(row) => OrderingTerm.desc(row.startedAt)])
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.startedAt),
+        (row) => OrderingTerm.desc(row.id),
+      ])
       ..limit(limit, offset: offset);
     final rows = await query.get();
     return ActivityEntryPageResult(
@@ -311,6 +398,8 @@ class ActivityQueryLayer {
     required String householdId,
     DateTime? startDate,
     DateTime? endDate,
+    String? keyword,
+    bool includeArchived = false,
     int limit = 80,
     int offset = 0,
   }) async {
@@ -318,7 +407,7 @@ class ActivityQueryLayer {
       ..where(
         (row) =>
             row.householdId.equals(householdId) &
-            row.isArchived.equals(false),
+            (includeArchived ? const Constant(true) : row.isArchived.equals(false)),
       );
     if (startDate != null) {
       query.where((row) => row.noteDate.isBiggerOrEqualValue(startDate));
@@ -326,11 +415,21 @@ class ActivityQueryLayer {
     if (endDate != null) {
       query.where((row) => row.noteDate.isSmallerThanValue(endDate));
     }
+    if (keyword != null && keyword.isNotEmpty) {
+      final k = keyword.toLowerCase();
+      query.where(
+        (row) =>
+            row.title.lower().contains(k) |
+            row.body.lower().contains(k),
+      );
+    }
     final countQuery = database.selectOnly(database.dailyNotes)
       ..addColumns([database.dailyNotes.id.count()])
       ..where(
         database.dailyNotes.householdId.equals(householdId) &
-        database.dailyNotes.isArchived.equals(false),
+        (includeArchived
+            ? const Constant(true)
+            : database.dailyNotes.isArchived.equals(false)),
       );
     if (startDate != null) {
       countQuery.where(
@@ -342,11 +441,21 @@ class ActivityQueryLayer {
         database.dailyNotes.noteDate.isSmallerThanValue(endDate),
       );
     }
+    if (keyword != null && keyword.isNotEmpty) {
+      final k = keyword.toLowerCase();
+      countQuery.where(
+        database.dailyNotes.title.lower().contains(k) |
+        database.dailyNotes.body.lower().contains(k),
+      );
+    }
     final countResult = await countQuery.getSingle();
     final totalCount =
         countResult.read(database.dailyNotes.id.count()) ?? 0;
     query
-      ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.noteDate),
+        (row) => OrderingTerm.desc(row.id),
+      ])
       ..limit(limit, offset: offset);
     final rows = await query.get();
     return ActivityDailyNotePageResult(
@@ -381,7 +490,18 @@ class ActivityDailyNotePageResult {
   final int totalCount;
 }
 
-/// Hasil query yang dapat digunakan untuk analisis dan verifikasi
+class ActivitySessionPageResult {
+  const ActivitySessionPageResult({
+    required this.items,
+    required this.hasMore,
+    required this.totalCount,
+  });
+
+  final List<ActivitySessionEntity> items;
+  final bool hasMore;
+  final int totalCount;
+}
+
 class ActivityQueryResult {
   const ActivityQueryResult({
     required this.activities,

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../../../core/database/app_database.dart';
+import '../../../core/database/app_context.dart';
 import '../../../core/di/injection.dart';
 import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../asset/data/services/market_news_radar_service.dart';
@@ -33,7 +34,7 @@ void ffmAssistantAutonomyCallbackDispatcher() {
       await configureDependencies();
       if (isReminderTask) {
         await getIt<ReminderScheduleReplenisher>().replenish(
-          householdId: 'local-household',
+          householdId: AppContext.householdId,
         );
       }
       if (isMarketNewsTask) {
@@ -72,7 +73,7 @@ void ffmAssistantAutonomyCallbackDispatcher() {
       if (!isReminderTask &&
           getIt.isRegistered<ReminderScheduleReplenisher>()) {
         await getIt<ReminderScheduleReplenisher>().replenish(
-          householdId: 'local-household',
+          householdId: AppContext.householdId,
         );
       }
       final result = await getIt<FfmAssistantAutonomyWorker>().runOnce(
@@ -82,7 +83,7 @@ void ffmAssistantAutonomyCallbackDispatcher() {
         // Proses antrean pengiriman Telegram yang durabel (transaksi, laporan
         // mingguan, dan alarm) pada siklus background.
         await getIt<TelegramDeliveryProcessor>().processPending(
-          householdId: 'local-household',
+          householdId: AppContext.householdId,
         );
       }
       if (getIt.isRegistered<FfmAssistantProactiveEvaluationTask>()) {

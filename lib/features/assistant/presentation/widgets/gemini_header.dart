@@ -53,6 +53,8 @@ class GeminiHeader extends StatelessWidget {
     this.memoryCount = 0,
     this.onOpenInbox,
     this.inboxCount = 0,
+    this.onOpenIssueLog,
+    this.issueCount = 0,
   });
 
   final FfmAssistantPage? currentPage;
@@ -73,6 +75,8 @@ class GeminiHeader extends StatelessWidget {
   final int memoryCount;
   final VoidCallback? onOpenInbox;
   final int inboxCount;
+  final VoidCallback? onOpenIssueLog;
+  final int issueCount;
 
   @override
   Widget build(BuildContext context) {
@@ -280,10 +284,62 @@ class GeminiHeader extends StatelessWidget {
                       ),
                   ],
                 ),
+              if (onOpenIssueLog != null)
+                Stack(
+                  alignment: Alignment.topRight,
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Asisten Log ($issueCount anomali)',
+                      onPressed: onOpenIssueLog,
+                      icon: Icon(
+                        issueCount > 0
+                            ? Icons.psychology_alt_rounded
+                            : Icons.psychology_alt_outlined,
+                        size: 21,
+                        color: issueCount > 0
+                            ? (isDark
+                                  ? const Color(0xFFC084FC)
+                                  : const Color(0xFF7C3AED))
+                            : (isDark
+                                  ? const Color(0xFF9A9590)
+                                  : const Color(0xFF6B5E4F)),
+                      ),
+                    ),
+                    if (issueCount > 0)
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isDark
+                                ? const Color(0xFFC084FC)
+                                : const Color(0xFF7C3AED),
+                          ),
+                          child: Center(
+                            child: Text(
+                              issueCount > 9 ? '9+' : '$issueCount',
+                              style: const TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               PopupMenuButton<String>(
                 tooltip: 'Menu Asisten',
                 onSelected: (value) {
                   switch (value) {
+                    case 'issueLog':
+                      onOpenIssueLog?.call();
                     case 'inbox':
                       onOpenInbox?.call();
                     case 'voice':
@@ -293,6 +349,15 @@ class GeminiHeader extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => [
+                  if (onOpenIssueLog != null)
+                    const PopupMenuItem(
+                      value: 'issueLog',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.psychology_alt_rounded),
+                        title: Text('Asisten Log (Anomali AI)'),
+                      ),
+                    ),
                   if (onOpenInbox != null)
                     const PopupMenuItem(
                       value: 'inbox',

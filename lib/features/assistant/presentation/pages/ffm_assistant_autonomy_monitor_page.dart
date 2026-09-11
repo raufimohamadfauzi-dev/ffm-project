@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/database/app_database.dart';
 import '../../../../core/di/injection.dart';
+import '../../../../core/utils/string_sanitizer.dart';
 import '../../data/ffm_assistant_autonomy_repository.dart';
 import '../../data/ffm_assistant_foreground_service.dart';
 import '../../data/ffm_assistant_insight_repository.dart';
@@ -894,10 +895,10 @@ class _InfoLine extends StatelessWidget {
           TextSpan(
             children: [
               TextSpan(
-                text: '$label\n',
+                text: '${StringSanitizer.sanitizeForTextWidget(label)}\n',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
-              TextSpan(text: value),
+              TextSpan(text: StringSanitizer.sanitizeForTextWidget(value)),
             ],
           ),
         ),

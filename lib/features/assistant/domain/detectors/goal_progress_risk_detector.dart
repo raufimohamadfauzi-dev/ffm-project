@@ -49,6 +49,8 @@ class GoalProgressRiskDetector {
         return !t.isArchived &&
             !t.isDeleted &&
             t.goalId == goal.id &&
+        t.source != 'goal_usage' &&
+        t.amount < 0 &&
             !t.date.isBefore(sixtyDaysAgo);
       }).toList();
 
@@ -89,6 +91,14 @@ class GoalProgressRiskDetector {
           },
           suggestedAction: 'Buka Target Keuangan untuk membuat setoran atau menyesuaikan tenggat',
           destination: FfmAssistantDestination.goals,
+          actionPayload: {
+            'type': 'goal_deposit_plan',
+            'goalId': goal.id,
+            'goalName': goal.name,
+            'shortage': shortage,
+            'suggestedAmount': requiredDelta,
+            'requiredMonthlyRate': requiredMonthlyRate,
+          },
           createdAt: now,
           expiresAt: targetDate,
           dedupeKey: dedupeKey,

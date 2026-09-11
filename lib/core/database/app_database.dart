@@ -71,7 +71,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 57;
+  int get schemaVersion => 59;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -352,6 +352,57 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 20) {
         await _seedInitialData();
+      }
+      if (from < 58) {
+        // Index pagination riwayat dengan stable ordering date+id.
+        if (await _hasTable('transactions') &&
+            await _hasColumns('transactions', const ['household_id', 'is_archived', 'is_deleted', 'date', 'id'])) {
+          await m.createIndex(idxTransactionsHouseholdVisibilityDateId);
+        }
+        if (await _hasTable('transactions') &&
+            await _hasTable('transaction_items')) {
+          await m.createIndex(idxTransactionItemsTransaction);
+        }
+        if (await _hasTable('transfers') &&
+            await _hasColumns('transfers', const ['household_id', 'is_deleted', 'date', 'id'])) {
+          await m.createIndex(idxTransfersHouseholdDeletedDateId);
+        }
+        if (await _hasTable('activity_sessions') &&
+            await _hasColumns('activity_sessions', const ['household_id', 'is_archived', 'started_at', 'id'])) {
+          await m.createIndex(idxActivitySessionsHouseholdArchivedStartedId);
+        }
+        if (await _hasTable('activity_entries') &&
+            await _hasColumns('activity_entries', const ['household_id', 'is_archived', 'started_at', 'id'])) {
+          await m.createIndex(idxActivityEntriesHouseholdArchivedStartedId);
+        }
+        if (await _hasTable('daily_notes') &&
+            await _hasColumns('daily_notes', const ['household_id', 'is_archived', 'date', 'id'])) {
+          await m.createIndex(idxDailyNotesHouseholdArchivedDateId);
+        }
+      }
+      if (from < 59) {
+        if (await _hasTable('transactions')) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_transactions_category_date '
+            'ON transactions (household_id, category_id, is_deleted, date DESC)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_transactions_merchant_date '
+            'ON transactions (household_id, merchant_id, is_deleted, date DESC)',
+          );
+        }
+        if (await _hasTable('reminders')) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_reminders_status_due '
+            'ON reminders (household_id, is_active, scheduled_at)',
+          );
+        }
+        if (await _hasTable('assistant_memories')) {
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_assistant_memories_kind '
+            'ON assistant_memories (household_id, kind, is_archived)',
+          );
+        }
       }
     },
     beforeOpen: (details) async {

@@ -32,7 +32,10 @@ class ActivityRepository {
                     row.householdId.equals(householdId) &
                     row.isArchived.equals(false),
               )
-              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.startedAt),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
             .get();
     return rows.map(_sessionFromRow).toList();
   }
@@ -61,7 +64,10 @@ class ActivityRepository {
                     item.status.equals(ActivitySessionStatus.active.value) &
                     item.isArchived.equals(false),
               )
-              ..orderBy([(item) => OrderingTerm.asc(item.startedAt)]))
+              ..orderBy([
+                (item) => OrderingTerm.asc(item.startedAt),
+                (item) => OrderingTerm.asc(item.id),
+              ]))
             .get();
     return rows.map(_sessionFromRow).toList();
   }
@@ -130,7 +136,10 @@ class ActivityRepository {
                     row.householdId.equals(householdId) &
                     row.isArchived.equals(false),
               )
-              ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.startedAt),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
             .get();
     return rows.map(_entryFromRow).toList();
   }
@@ -143,7 +152,10 @@ class ActivityRepository {
                     row.householdId.equals(householdId) &
                     row.isArchived.equals(false),
               )
-              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)]))
+              ..orderBy([
+                (row) => OrderingTerm.desc(row.noteDate),
+                (row) => OrderingTerm.desc(row.id),
+              ]))
             .get();
     return rows;
   }
@@ -462,6 +474,42 @@ class ActivityRepository {
     await auditLogger.record(
       action: 'archive',
       entity: 'activity_session',
+      householdId: householdId,
+      newValue: {'id': id},
+    );
+  }
+
+  Future<void> restoreSession(String householdId, String id) async {
+    await (database.update(database.activitySessions)..where(
+          (row) => row.householdId.equals(householdId) & row.id.equals(id),
+        ))
+        .write(
+          ActivitySessionsCompanion(
+            isArchived: const Value(false),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    await auditLogger.record(
+      action: 'restore',
+      entity: 'activity_session',
+      householdId: householdId,
+      newValue: {'id': id},
+    );
+  }
+
+  Future<void> restoreDailyNote(String householdId, String id) async {
+    await (database.update(database.dailyNotes)..where(
+          (row) => row.householdId.equals(householdId) & row.id.equals(id),
+        ))
+        .write(
+          DailyNotesCompanion(
+            isArchived: const Value(false),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
+    await auditLogger.record(
+      action: 'restore',
+      entity: 'daily_note',
       householdId: householdId,
       newValue: {'id': id},
     );

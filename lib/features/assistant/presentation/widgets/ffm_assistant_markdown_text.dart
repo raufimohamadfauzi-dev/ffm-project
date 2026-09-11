@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'ffm_assistant_external_link.dart';
+import '../../../../core/utils/string_sanitizer.dart';
 
 class FfmAssistantMarkdownText extends StatelessWidget {
   const FfmAssistantMarkdownText({
@@ -180,15 +181,18 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   }
 
   InlineSpan _inlineSpans(String value, Color color, {bool bold = false}) {
+    // Sanitasi text untuk mencegah UTF-16 crash
+    final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
+    
     final spans = <InlineSpan>[];
     final pattern = RegExp(r'(\*\*|__)(.+?)\1');
     var cursor = 0;
-    for (final match in pattern.allMatches(value)) {
+    for (final match in pattern.allMatches(sanitizedValue)) {
       if (match.start > cursor) {
         spans.add(
           TextSpan(
             children: _linkSpans(
-              value.substring(cursor, match.start),
+              sanitizedValue.substring(cursor, match.start),
               color,
               bold: bold,
             ),
@@ -203,15 +207,15 @@ class FfmAssistantMarkdownText extends StatelessWidget {
       );
       cursor = match.end;
     }
-    if (cursor < value.length) {
+    if (cursor < sanitizedValue.length) {
       spans.add(
         TextSpan(
-          children: _linkSpans(value.substring(cursor), color, bold: bold),
+          children: _linkSpans(sanitizedValue.substring(cursor), color, bold: bold),
         ),
       );
     }
     if (spans.isEmpty) {
-      spans.add(TextSpan(children: _linkSpans(value, color, bold: bold)));
+      spans.add(TextSpan(children: _linkSpans(sanitizedValue, color, bold: bold)));
     }
     if (bold) {
       return TextSpan(
@@ -234,14 +238,17 @@ class FfmAssistantMarkdownText extends StatelessWidget {
   }
 
   List<InlineSpan> _linkSpans(String value, Color color, {required bool bold}) {
+    // Sanitasi text untuk mencegah UTF-16 crash
+    final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
+    
     final spans = <InlineSpan>[];
     final inlineCode = RegExp(r'`([^`]+)`');
     var cursor = 0;
-    for (final match in inlineCode.allMatches(value)) {
+    for (final match in inlineCode.allMatches(sanitizedValue)) {
       if (match.start > cursor) {
         spans.addAll(
           _plainOrLinkSpans(
-            value.substring(cursor, match.start),
+            sanitizedValue.substring(cursor, match.start),
             color,
             bold: bold,
           ),
@@ -261,9 +268,9 @@ class FfmAssistantMarkdownText extends StatelessWidget {
       );
       cursor = match.end;
     }
-    if (cursor < value.length) {
+    if (cursor < sanitizedValue.length) {
       spans.addAll(
-        _plainOrLinkSpans(value.substring(cursor), color, bold: bold),
+        _plainOrLinkSpans(sanitizedValue.substring(cursor), color, bold: bold),
       );
     }
     return spans;
@@ -274,12 +281,15 @@ class FfmAssistantMarkdownText extends StatelessWidget {
     Color color, {
     required bool bold,
   }) {
+    // Sanitasi text untuk mencegah UTF-16 crash
+    final sanitizedValue = StringSanitizer.sanitizeForTextWidget(value);
+    
     final spans = <InlineSpan>[];
-    final links = FfmAssistantExternalLinkParser.parse(value);
+    final links = FfmAssistantExternalLinkParser.parse(sanitizedValue);
     var cursor = 0;
     for (final link in links) {
       if (link.start > cursor) {
-        spans.add(TextSpan(text: value.substring(cursor, link.start)));
+        spans.add(TextSpan(text: sanitizedValue.substring(cursor, link.start)));
       }
       final linkColor = color.computeLuminance() > .45
           ? const Color(0xFF9BE8E0)
@@ -300,8 +310,8 @@ class FfmAssistantMarkdownText extends StatelessWidget {
       );
       cursor = link.end;
     }
-    if (cursor < value.length) {
-      spans.add(TextSpan(text: value.substring(cursor)));
+    if (cursor < sanitizedValue.length) {
+      spans.add(TextSpan(text: sanitizedValue.substring(cursor)));
     }
     return spans;
   }

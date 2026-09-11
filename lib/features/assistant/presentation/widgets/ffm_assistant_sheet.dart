@@ -82,7 +82,10 @@ import 'gemini_typing_indicator.dart';
 import 'ffm_assistant_page_context.dart';
 import 'ffm_assistant_draft_edit_dialog.dart';
 import 'ffm_assistant_message_correction_dialog.dart';
+import 'ffm_assistant_answer_correction_dialog.dart';
+import '../../data/ffm_assistant_correction_service.dart';
 import '../pages/agent_inbox_page.dart';
+import '../pages/ffm_assistant_issue_log_page.dart';
 import '../../data/ffm_assistant_insight_repository.dart';
 import '../../domain/ffm_assistant_insight.dart';
 import 'ffm_assistant_markdown_text.dart';
@@ -289,6 +292,11 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     final pluginCategory = intent.pluginCategory;
     final usedReadCapability =
         intent.pluginMetadata?['usedReadCapability'] as String?;
+    final knowledgeIndexSources =
+      (intent.pluginMetadata?['knowledgeIndexSources'] as List?)
+        ?.map((item) => item.toString())
+        .toList(growable: false) ??
+      const <String>[];
 
     final sourceEvent = switch (origin) {
       FfmAssistantResponseOrigin.agentOrchestrator =>
@@ -344,6 +352,13 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           elapsed: Duration.zero,
         ),
         ..._activeProcessEvents,
+        if (knowledgeIndexSources.isNotEmpty)
+          FfmAssistantProcessEvent(
+            label: 'Knowledge Index mencari: ${knowledgeIndexSources.join(', ')}',
+            detail:
+                'Sumber dipilih dari katalog read-only; LLM tidak mendapat akses SQL bebas.',
+            elapsed: _processStopwatch.elapsed,
+          ),
         if (usedReadCapability != null)
           FfmAssistantProcessEvent(
             label: _geminiReadCapabilityLabel(usedReadCapability),
@@ -802,6 +817,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       String? lastAssistantText;
       for (final entry in restored.reversed) {
         if (!entry.isUser) {
+          lastAssistantText = entry.text;
           break;
         }
       }
@@ -999,6 +1015,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _checkAndInitiateGreetings() async {
+    if (_historyWasRestored || _entries.length > 1) return;
     if (getIt.isRegistered<AssistantOnboardingOrchestrator>()) {
       final onboarding = getIt<AssistantOnboardingOrchestrator>();
       final needsOnboarding = await onboarding.checkNeedsOnboarding();
@@ -1612,7 +1629,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     if (text.isEmpty || _submitting) return;
     setState(() {
       _submitting = true;
-      _showProcessSteps = false;
+      _showProcessSteps = true;
       _processStopwatch
         ..reset()
         ..start();
@@ -1970,11 +1987,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         }
       }
 
-      _setActiveProcess(
-        _routingMode == FfmAssistantRoutingMode.geminiCloud
-            ? 'Memahami permintaan...'
-            : 'Menyiapkan konteks Agent...',
-      );
+      _setActiveProcess('🔍 Menyiapkan konteks percakapan...');
       await Future<void>.delayed(Duration.zero);
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
         stopwatch.stop();
@@ -2015,9 +2028,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           : null;
       FfmAssistantUnderstandingResult? understanding;
       final activeDraftForTurn = _activeDraftForTurn(text);
+
+      _setActiveProcess('📖 Membaca data finansial terikat via Indeks DB (read.summary/read.transactions)...');
       _interpreter.onProgress = (message) {
-        _setActiveProcess(message);
+        if (message.contains('konteks') || message.contains('master') || message.contains('lokal')) {
+          _setActiveProcess('📖 Membaca data finansial terikat via Indeks DB (read.summary/read.transactions)...');
+        } else if (message.contains('Gemini') || message.contains('Cloud')) {
+          _setActiveProcess('🧠 Penalaran Gemini Cloud...');
+        } else if (message.contains('respons') || message.contains('validasi')) {
+          _setActiveProcess('✏️ Menyusun respons akhir...');
+        } else {
+          _setActiveProcess(message);
+        }
       };
+      if (_routingMode == FfmAssistantRoutingMode.geminiCloud) {
+        _setActiveProcess('🧠 Penalaran Gemini Cloud...');
+      }
       final intents = pending == null
           ? ((understanding = await _interpreter.interpretMany(
               text,
@@ -2047,7 +2073,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             );
       _interpreter.onProgress = null;
       stopwatch.stop();
-      _setActiveProcess('Menyusun respons...');
+      _setActiveProcess('✏️ Menyusun respons akhir...');
       await Future<void>.delayed(Duration.zero);
 
       if (!mounted) return;
@@ -3459,6 +3485,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       final review = widget.session.activeDraftReview;
       if (review == null) return;
       if (!review.canContinue) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Lengkapi dulu bagian yang ditandai di draft chat.'),
@@ -3573,6 +3600,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         return;
       }
       final handler = widget.onIntent;
+      if (!mounted) return;
       setState(() {
         _navigatingFromChat = true;
         _queuedIntents.remove(intent);
@@ -3580,6 +3608,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       Navigator.of(context).pop();
       await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) return;
       await handler(intent);
       return;
     }
@@ -4488,8 +4517,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   ) {
     if (entry.isUser) return null;
     final index = _entries.indexOf(entry);
-    if (index < 1) return null;
-    for (var cursor = index - 1; cursor >= 0; cursor--) {
+    final startIndex = index >= 0 ? index - 1 : _entries.length - 1;
+    for (var cursor = startIndex; cursor >= 0; cursor--) {
       final candidate = _entries[cursor];
       if (candidate.isUser && candidate.text.trim().isNotEmpty) {
         return FfmAssistantFeedbackContext(
@@ -4498,7 +4527,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         );
       }
     }
-    return null;
+    return FfmAssistantFeedbackContext(
+      userQuestion: '[Inisiasi / Sapaan Awal Asisten]',
+      assistantAnswer: entry.text,
+    );
   }
 
   Future<void> _copyDeveloperReport(FfmAssistantChatEntry entry) async {
@@ -4722,32 +4754,58 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   Future<void> _correctMessageFromEntry(FfmAssistantChatEntry entry) async {
     final feedback = _feedbackContextFor(entry);
     if (feedback == null) return;
-    final correction = await showDialog<FfmAssistantMessageCorrection>(
+    final result = await showDialog<FfmAssistantAnswerCorrectionResult>(
       context: context,
-      builder: (_) => FfmAssistantMessageCorrectionDialog(
-        originalMessage: feedback.userQuestion,
+      builder: (_) => FfmAssistantAnswerCorrectionDialog(
+        userQuestion: feedback.userQuestion,
+        assistantAnswer: feedback.assistantAnswer,
       ),
     );
-    if (correction == null || !mounted) return;
-    if (correction.rememberLocally) {
-      try {
-        await _memoryRepository.save(
-          kind: 'alias',
-          triggerText: feedback.userQuestion,
-          valueText: correction.correctedText,
-          source: 'chat_message_correction',
-        );
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Koreksi diproses, tapi belum bisa diingat lokal.'),
+    if (result == null || !mounted) return;
+
+    try {
+      final correctionService = FfmAssistantCorrectionService(_memoryRepository);
+      await correctionService.saveCorrection(
+        userQuestion: feedback.userQuestion,
+        correctedText: result.correctedText,
+        originalResponse: feedback.assistantAnswer,
+        topic: result.topic,
+      );
+
+      if (!mounted) return;
+      final entryIndex = _entries.indexOf(entry);
+      setState(() {
+        if (entryIndex >= 0) {
+          _entries[entryIndex] = entry.copyWith(
+            isCorrected: true,
+            correctionText: result.correctedText,
+          );
+        }
+        _entries.add(
+          FfmAssistantChatEntry(
+            isUser: false,
+            text: 'Terima kasih atas koreksinya! Saya telah mencatat aturan ini di memori permanen:\n\n'
+                '📌 Aturan baru: "${result.correctedText}"\n\n'
+                'Saya akan mematuhi aturan ini pada pertanyaan serupa berikutnya.',
+            createdAt: DateTime.now(),
+            receivedAt: DateTime.now(),
           ),
         );
-      }
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Koreksi tersimpan permanen di HP Anda! Asisten telah mempelajarinya.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Koreksi belum berhasil disimpan ke memori.'),
+        ),
+      );
     }
-    if (!mounted) return;
-    _submit(correction.correctedText);
   }
 
   Future<void> _correctUserMessage(FfmAssistantChatEntry entry) async {
@@ -5014,6 +5072,21 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                 cloudModel: _cloudModel,
                 onRefreshCloudStatus: _refreshCloudStatus,
                 onSetupGemini: _openGeminiSetup,
+                issueCount: _reportedAssistantIssueSourceIds.length,
+                onOpenIssueLog: () => Navigator.of(context)
+                    .push<String>(
+                      MaterialPageRoute(
+                        builder: (_) => const FfmAssistantIssueLogPage(),
+                        fullscreenDialog: true,
+                      ),
+                    )
+                    .then((result) {
+                      _loadReportedAssistantIssues();
+                      if (result != null && result.isNotEmpty && mounted) {
+                        _controller.text = result;
+                        _inputFocusNode.requestFocus();
+                      }
+                    }),
                 memoryCount: _memoryCount,
                 onOpenMemory: () => Navigator.of(context)
                     .push(

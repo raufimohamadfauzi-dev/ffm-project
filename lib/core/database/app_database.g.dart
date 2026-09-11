@@ -33831,6 +33831,30 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantAgentTaskExecutionsTable(this);
   late final $TelegramDeliveriesTable telegramDeliveries =
       $TelegramDeliveriesTable(this);
+  late final Index idxTransactionsHouseholdVisibilityDateId = Index(
+    'idx_transactions_household_visibility_date_id',
+    'CREATE INDEX idx_transactions_household_visibility_date_id ON transactions (household_id, is_archived, is_deleted, date DESC, id DESC)',
+  );
+  late final Index idxTransactionItemsTransaction = Index(
+    'idx_transaction_items_transaction',
+    'CREATE INDEX idx_transaction_items_transaction ON transaction_items (transaction_id)',
+  );
+  late final Index idxTransfersHouseholdDeletedDateId = Index(
+    'idx_transfers_household_deleted_date_id',
+    'CREATE INDEX idx_transfers_household_deleted_date_id ON transfers (household_id, is_deleted, date DESC, id DESC)',
+  );
+  late final Index idxActivitySessionsHouseholdArchivedStartedId = Index(
+    'idx_activity_sessions_household_archived_started_id',
+    'CREATE INDEX idx_activity_sessions_household_archived_started_id ON activity_sessions (household_id, is_archived, started_at DESC, id DESC)',
+  );
+  late final Index idxActivityEntriesHouseholdArchivedStartedId = Index(
+    'idx_activity_entries_household_archived_started_id',
+    'CREATE INDEX idx_activity_entries_household_archived_started_id ON activity_entries (household_id, is_archived, started_at DESC, id DESC)',
+  );
+  late final Index idxDailyNotesHouseholdArchivedDateId = Index(
+    'idx_daily_notes_household_archived_date_id',
+    'CREATE INDEX idx_daily_notes_household_archived_date_id ON daily_notes (household_id, is_archived, note_date DESC, id DESC)',
+  );
   late final Index idxTelegramDeliveriesDue = Index(
     'idx_telegram_deliveries_due',
     'CREATE INDEX idx_telegram_deliveries_due ON telegram_deliveries (household_id, status, retryable, next_attempt_at)',
@@ -33892,6 +33916,12 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     assistantAgentTasks,
     assistantAgentTaskExecutions,
     telegramDeliveries,
+    idxTransactionsHouseholdVisibilityDateId,
+    idxTransactionItemsTransaction,
+    idxTransfersHouseholdDeletedDateId,
+    idxActivitySessionsHouseholdArchivedStartedId,
+    idxActivityEntriesHouseholdArchivedStartedId,
+    idxDailyNotesHouseholdArchivedDateId,
     idxTelegramDeliveriesDue,
   ];
 }

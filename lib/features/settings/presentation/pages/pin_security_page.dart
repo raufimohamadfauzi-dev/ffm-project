@@ -330,7 +330,11 @@ class _PinSecurityPageState extends State<PinSecurityPage> {
                 label: const Text('Matikan PIN'),
               ),
               TextButton.icon(
-                onPressed: () => showForgotPinDialog(context),
+                onPressed: () {
+                  if (mounted) {
+                    showForgotPinDialog(context);
+                  }
+                },
                 icon: const Icon(Icons.help_outline),
                 label: const Text('Lupa PIN?'),
               ),

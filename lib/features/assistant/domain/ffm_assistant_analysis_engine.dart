@@ -359,7 +359,7 @@ class FfmAssistantAnalysisEngine {
       end: end,
       income: income,
       expense: expense,
-      transactionCount: transactions.length,
+      transactionCount: filteredTransactions.length,
       categoryBreakdown: categoryBreakdown,
     );
   }
@@ -416,6 +416,8 @@ class FfmAssistantAnalysisEngine {
         return (lastMonth, DateTime(now.year, now.month, 1));
       case FfmAnalysisPeriod.thisYear:
         return (DateTime(now.year, 1, 1), now);
+      case FfmAnalysisPeriod.previousYear:
+        return (DateTime(now.year - 1, 1, 1), DateTime(now.year, 1, 1));
     }
   }
 
@@ -433,6 +435,8 @@ class FfmAssistantAnalysisEngine {
         return 'bulan lalu';
       case FfmAnalysisPeriod.thisYear:
         return 'tahun ini';
+      case FfmAnalysisPeriod.previousYear:
+        return 'tahun lalu';
     }
   }
 }
@@ -589,6 +593,7 @@ enum FfmAnalysisPeriod {
   thisMonth,
   lastMonth,
   thisYear,
+  previousYear,
 }
 
 class FfmPeriodAnalysis {

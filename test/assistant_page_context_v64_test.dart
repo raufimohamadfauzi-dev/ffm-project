@@ -67,6 +67,8 @@ void main() {
           'lib/features/asset/presentation/pages/market_news_radar_page.dart',
       FfmAssistantDestination.utilityMeter:
           'lib/features/settings/presentation/pages/utility_meter_page.dart',
+      FfmAssistantDestination.assistantIssueLog:
+          'lib/features/assistant/presentation/pages/ffm_assistant_issue_log_page.dart',
     };
 
     expect(

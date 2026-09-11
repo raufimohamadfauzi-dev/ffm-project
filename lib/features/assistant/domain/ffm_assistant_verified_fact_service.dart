@@ -116,7 +116,11 @@ class FfmAssistantVerifiedFactService {
           .where((a) => a.assetType == 'cash')
           .fold<int>(0, (sum, a) => sum + a.value);
 
-      final divisor = period == FfmAnalysisPeriod.last90Days ? 3 : 1;
+        final divisor = period == FfmAnalysisPeriod.last90Days
+          ? 3
+          : period == FfmAnalysisPeriod.previousYear
+          ? 12
+          : 1;
       final monthlyIncome = periodAnalysis.income ~/ divisor;
       final monthlyExpense = periodAnalysis.expense ~/ divisor;
 
@@ -668,10 +672,12 @@ class FfmAnalysisFacts {
     sections.add('- Income: ${_formatCurrency(income)}');
     sections.add('- Expense: ${_formatCurrency(expense)}');
     sections.add('- Net Cashflow: ${_formatCurrency(netCashflow)}');
-    if (period == FfmAnalysisPeriod.last90Days) {
-      final monthlyAvgIncome = income ~/ 3;
-      final monthlyAvgExpense = expense ~/ 3;
-      final monthlyAvgCashflow = netCashflow ~/ 3;
+    if (period == FfmAnalysisPeriod.last90Days ||
+        period == FfmAnalysisPeriod.previousYear) {
+      final divisor = period == FfmAnalysisPeriod.last90Days ? 3 : 12;
+      final monthlyAvgIncome = income ~/ divisor;
+      final monthlyAvgExpense = expense ~/ divisor;
+      final monthlyAvgCashflow = netCashflow ~/ divisor;
       sections.add(
         '- Monthly Average Income: ${_formatCurrency(monthlyAvgIncome)}',
       );
@@ -692,8 +698,9 @@ class FfmAnalysisFacts {
       final sorted = categoryBreakdown.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
       for (final entry in sorted.take(5)) {
-        final avgPart = period == FfmAnalysisPeriod.last90Days
-            ? ' (avg: ${_formatCurrency(entry.value ~/ 3)}/month)'
+        final avgPart = period == FfmAnalysisPeriod.last90Days ||
+            period == FfmAnalysisPeriod.previousYear
+          ? ' (avg: ${_formatCurrency(entry.value ~/ (period == FfmAnalysisPeriod.last90Days ? 3 : 12))}/month)'
             : '';
         sections.add(
           '  - ${entry.key}: ${_formatCurrency(entry.value)}$avgPart',

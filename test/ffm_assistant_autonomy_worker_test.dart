@@ -1,9 +1,12 @@
 import 'package:drift/native.dart';
+import 'package:drift/drift.dart' as drift;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_repository.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_autonomy_worker.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_learning_candidate_service.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_memory_repository.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_agent_work.dart';
 
 void main() {
@@ -100,6 +103,72 @@ void main() {
       expect(result.processed, 1);
       expect(received?.type, 'agent.task.due');
       expect(received?.payload['taskId'], task.id);
+    },
+  );
+
+  test(
+    'konsolidasi memori mengusulkan workflow untuk pola merchant berulang',
+    () async {
+      final householdId = 'house-memory';
+      final merchantId = 'merchant-coffee';
+      final categoryId = 'category-drinks';
+      final now = DateTime.now();
+      await database.into(database.merchants).insert(
+            MerchantsCompanion.insert(
+              id: merchantId,
+              householdId: householdId,
+              name: 'Kopi Pagi',
+              createdAt: now,
+            ),
+          );
+      await database.into(database.categories).insert(
+            CategoriesCompanion.insert(
+              id: categoryId,
+              householdId: householdId,
+              name: 'Minuman',
+              type: 'expense',
+              createdAt: now,
+            ),
+          );
+
+      for (var index = 0; index < 3; index++) {
+        await database.into(database.transactions).insert(
+              TransactionsCompanion.insert(
+                id: 'memory-tx-$index',
+                householdId: householdId,
+                type: 'expense',
+                amount: -25000,
+                categoryId: drift.Value(categoryId),
+                merchantId: drift.Value(merchantId),
+                date: now.subtract(Duration(days: index)),
+                recordedAt: now,
+                createdAt: now,
+              ),
+            );
+      }
+
+      final candidateService = FfmAssistantLearningCandidateService(
+        FfmAssistantMemoryRepository(database),
+      );
+      final worker = FfmAssistantAutonomyWorker(
+        repository: repository,
+        database: database,
+        candidateService: candidateService,
+      );
+
+      await worker.consolidateMemory(householdId: householdId);
+      await worker.consolidateMemory(householdId: householdId);
+
+      final pending = await candidateService.readPending();
+      expect(pending, hasLength(1));
+      expect(pending.single.trigger, 'otonom.kategori.kopi pagi');
+      expect(pending.single.source, 'background-autonomy-memory');
+      expect(
+        pending.single.workflowJson['steps'],
+        contains(
+          containsPair('capabilityId', 'system.set_merchant_category'),
+        ),
+      );
     },
   );
 }

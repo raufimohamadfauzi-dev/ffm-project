@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/localization/app_copy.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/string_sanitizer.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../data/services/voice_transaction_parser.dart';
 import '../../domain/entities/transaction_entity.dart';
@@ -1140,10 +1141,10 @@ class VoiceGuideStep extends StatelessWidget {
                 style: DefaultTextStyle.of(context).style,
                 children: [
                   TextSpan(
-                    text: '$title. ',
+                    text: '${StringSanitizer.sanitizeForTextWidget(title)}. ',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  TextSpan(text: description),
+                  TextSpan(text: StringSanitizer.sanitizeForTextWidget(description)),
                 ],
               ),
             ),
@@ -1186,10 +1187,10 @@ class VoiceResultLine extends StatelessWidget {
                 style: DefaultTextStyle.of(context).style,
                 children: [
                   TextSpan(
-                    text: '$label: ',
+                    text: '${StringSanitizer.sanitizeForTextWidget(label)}: ',
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
-                  TextSpan(text: value),
+                  TextSpan(text: StringSanitizer.sanitizeForTextWidget(value)),
                 ],
               ),
             ),

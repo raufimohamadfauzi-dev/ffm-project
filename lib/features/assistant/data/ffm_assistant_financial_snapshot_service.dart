@@ -878,4 +878,58 @@ class FfmAssistantFinancialSnapshotService {
       maxCharacters,
     );
   }
+
+  /// Skema database hybrid FFM: memetakan nama fisik tabel SQLite ke label fitur ramah pengguna
+  /// dan menghitung jumlah baris data lokal secara aman.
+  /// Privasi terjamin: hanya mengekspos nama tabel, deskripsi fungsional, dan jumlah baris (tanpa saldo, ID, atau detail rahasia).
+  Future<String> buildSchemaContext({
+    required String householdId,
+    int maxCharacters = 1200,
+  }) async {
+    const tableMetadata = <String, String>{
+      'transactions': 'Riwayat Transaksi Finansial (pemasukan & pengeluaran)',
+      'accounts': 'Rekening Bank, Dompet Digital & Kas Tunai',
+      'categories': 'Kategori Transaksi & Anggaran',
+      'envelope_budgets': 'Pos Anggaran Keuangan (Envelope Budgets)',
+      'goals': 'Target Menabung & Impian Finansial',
+      'reminders': 'Pengingat Tagihan & Jadwal Tempo',
+      'recurring_transactions': 'Transaksi Otomatis & Berulang',
+      'liabilities': 'Pencatatan Hutang & Cicilan',
+      'receivables': 'Pencatatan Piutang',
+      'harvest_events': 'Catatan Hasil Panen & Pertanian',
+      'activity_sessions': 'Sesi Aktivitas Harian & Pekerjaan',
+      'daily_notes': 'Catatan Harian Pengguna',
+      'tasks': 'Daftar Tugas & Agenda',
+      'merchants': 'Daftar Toko / Tempat Belanja',
+      'tags': 'Label / Tag Transaksi',
+      'assets': 'Aset Kepemilikan & Barang Berharga',
+      'assistant_memories': 'Memori Preferensi & Koreksi Pembelajaran Asisten',
+    };
+
+    final lines = <String>[];
+    for (final entry in tableMetadata.entries) {
+      final tableName = entry.key;
+      final description = entry.value;
+      try {
+        final countResult = await _database.customSelect(
+          'SELECT COUNT(*) as c FROM "$tableName"',
+        ).getSingleOrNull();
+        final count = countResult?.read<int>('c') ?? 0;
+        lines.add('• $tableName ($description): $count baris');
+      } catch (_) {
+        // Abaikan jika tabel belum ada di environment tertentu
+      }
+    }
+
+    if (lines.isEmpty) {
+      return 'Skema database FFM: tidak ada tabel yang ditemukan.';
+    }
+
+    final context =
+        'Fakta Skema Database FFM (format: nama_tabel_sqlite (deskripsi_fitur): jumlah_baris):\n'
+        '${lines.join('\n')}\n'
+        'Gunakan nama tabel teknis dan deskripsi di atas untuk menjawab pertanyaan struktur data, penyimpanan, atau tabel SQLite di aplikasi.';
+    return _clip(context, maxCharacters);
+  }
 }
+

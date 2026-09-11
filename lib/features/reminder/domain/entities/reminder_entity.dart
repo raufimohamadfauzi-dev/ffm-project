@@ -20,7 +20,23 @@ extension ReminderOriginX on ReminderOrigin {
 /// Jenis entitas keuangan yang dapat menjadi asal sebuah pengingat.
 /// Nilainya dibatasi agar pengingat tidak menyimpan nama tabel atau tipe objek
 /// arbitrer dari input pengguna maupun model.
-enum ReminderSourceType { liability, receivable, goal, recurringTransaction }
+enum ReminderSourceType {
+  liability,
+  receivable,
+  goal,
+  recurringTransaction,
+  activity,
+  task,
+  familyProfile,
+  telegram,
+  diagnostics,
+  accountSetup,
+  goalSetup,
+  budgetSetup,
+  cashFlowProfile,
+  cloudSetup,
+  assistantLog,
+}
 
 extension ReminderSourceTypeX on ReminderSourceType {
   String get storageValue => switch (this) {
@@ -28,6 +44,17 @@ extension ReminderSourceTypeX on ReminderSourceType {
     ReminderSourceType.receivable => 'receivable',
     ReminderSourceType.goal => 'goal',
     ReminderSourceType.recurringTransaction => 'recurring_transaction',
+    ReminderSourceType.activity => 'activity',
+    ReminderSourceType.task => 'task',
+    ReminderSourceType.familyProfile => 'family_profile',
+    ReminderSourceType.telegram => 'telegram',
+    ReminderSourceType.diagnostics => 'diagnostics',
+    ReminderSourceType.accountSetup => 'account_setup',
+    ReminderSourceType.goalSetup => 'goal_setup',
+    ReminderSourceType.budgetSetup => 'budget_setup',
+    ReminderSourceType.cashFlowProfile => 'cash_flow_profile',
+    ReminderSourceType.cloudSetup => 'cloud_setup',
+    ReminderSourceType.assistantLog => 'assistant_log',
   };
 
   String get label => switch (this) {
@@ -35,6 +62,17 @@ extension ReminderSourceTypeX on ReminderSourceType {
     ReminderSourceType.receivable => 'piutang',
     ReminderSourceType.goal => 'target keuangan',
     ReminderSourceType.recurringTransaction => 'jadwal transaksi rutin',
+    ReminderSourceType.activity => 'aktivitas',
+    ReminderSourceType.task => 'tugas',
+    ReminderSourceType.familyProfile => 'profil keluarga',
+    ReminderSourceType.telegram => 'Telegram',
+    ReminderSourceType.diagnostics => 'diagnostik aplikasi',
+    ReminderSourceType.accountSetup => 'rekening',
+    ReminderSourceType.goalSetup => 'target keuangan',
+    ReminderSourceType.budgetSetup => 'anggaran',
+    ReminderSourceType.cashFlowProfile => 'siklus kas',
+    ReminderSourceType.cloudSetup => 'cloud asisten',
+    ReminderSourceType.assistantLog => 'Asisten Log',
   };
 
   static ReminderSourceType? fromStorage(String? value) => switch (value) {
@@ -42,6 +80,17 @@ extension ReminderSourceTypeX on ReminderSourceType {
     'receivable' => ReminderSourceType.receivable,
     'goal' => ReminderSourceType.goal,
     'recurring_transaction' => ReminderSourceType.recurringTransaction,
+    'activity' => ReminderSourceType.activity,
+    'task' => ReminderSourceType.task,
+    'family_profile' => ReminderSourceType.familyProfile,
+    'telegram' => ReminderSourceType.telegram,
+    'diagnostics' => ReminderSourceType.diagnostics,
+    'account_setup' => ReminderSourceType.accountSetup,
+    'goal_setup' => ReminderSourceType.goalSetup,
+    'budget_setup' => ReminderSourceType.budgetSetup,
+    'cash_flow_profile' => ReminderSourceType.cashFlowProfile,
+    'cloud_setup' => ReminderSourceType.cloudSetup,
+    'assistant_log' => ReminderSourceType.assistantLog,
     _ => null,
   };
 }

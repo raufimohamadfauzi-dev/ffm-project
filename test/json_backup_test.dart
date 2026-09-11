@@ -42,10 +42,10 @@ void main() {
         'Kebun A',
         'Panen pagi',
         null,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
         0,
-        now.microsecondsSinceEpoch,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
     await source.customStatement(
@@ -60,10 +60,10 @@ void main() {
         1000000,
         999000,
         -1000,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
         'Cek saldo',
         null,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
     await source.customStatement(
@@ -75,13 +75,13 @@ void main() {
         'reminder-1',
         AppContext.householdId,
         'Bayar listrik',
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
         'once',
         '[]',
         1,
         10,
         101,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
     await source.customStatement(
@@ -94,8 +94,8 @@ void main() {
         'database_change',
         'completed',
         'Ringkasan aman',
-        now.microsecondsSinceEpoch,
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
     await source.customStatement(
@@ -115,7 +115,7 @@ void main() {
         AppContext.householdId,
         'Menyiram kebun',
         'farming',
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
         'manual',
         0,
       ],
@@ -132,7 +132,7 @@ void main() {
         'future-1',
         AppContext.householdId,
         'ikut backup otomatis',
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
 
@@ -231,7 +231,7 @@ void main() {
         'future-old',
         AppContext.householdId,
         'data lama HP B',
-        now.microsecondsSinceEpoch,
+        now.millisecondsSinceEpoch ~/ 1000,
       ],
     );
     List<Map<String, Object?>>? restoredHistory;
@@ -264,10 +264,10 @@ void main() {
     expect(auditRows.single.read<String>('action'), 'create');
     expect(reconciliationRows, hasLength(1));
     expect(reconciliationRows.single.read<int>('difference'), -1000);
-    expect(reminderRows, hasLength(1));
+expect(reminderRows, hasLength(1));
     expect(
       reminderRows.single.read<int>('scheduled_at'),
-      now.microsecondsSinceEpoch,
+      now.millisecondsSinceEpoch ~/ 1000,
     );
     expect(agentRunRows, hasLength(1));
     expect(activityNoteRows.single.read<String>('text'), 'Menyiram kebun');
@@ -282,5 +282,34 @@ void main() {
     expect(restoredHistory!.single['text'], 'catat gaji');
     expect(restoredHistory!.single.containsKey('imagePath'), isFalse);
     expect(restoredHistory!.single.containsKey('api_key'), isFalse);
+  });
+
+  group('Backup Gate sebelum arsip/hapus massal', () {
+    late AppDatabase db;
+    late JsonBackupService service;
+
+    setUp(() {
+      db = createInMemoryDatabaseForTests();
+      service = JsonBackupService(db);
+    });
+
+    tearDown(() async => db.close());
+
+    test('verifyBackupGateRequirement mengembalikan true saat belum ada backup', () {
+      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: null);
+      expect(requireBackup, isTrue);
+    });
+
+    test('verifyBackupGateRequirement mengembalikan false jika backup baru dibuat 1 jam lalu', () {
+      final lastBackup = DateTime.now().subtract(const Duration(hours: 1));
+      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: lastBackup);
+      expect(requireBackup, isFalse);
+    });
+
+    test('verifyBackupGateRequirement mengembalikan true jika backup lebih lama dari threshold 24 jam', () {
+      final lastBackup = DateTime.now().subtract(const Duration(hours: 25));
+      final requireBackup = service.verifyBackupGateRequirement(lastBackupTime: lastBackup);
+      expect(requireBackup, isTrue);
+    });
   });
 }

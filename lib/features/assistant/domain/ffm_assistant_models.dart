@@ -190,7 +190,8 @@ enum FfmAssistantDestination {
   hijriSettings,
   calendarSettings,
   marketNewsRadar,
-  utilityMeter;
+  utilityMeter,
+  assistantIssueLog;
 
   FfmAssistantDestination get canonical =>
       this == assistantProfile ? familyProfile : this;
@@ -342,6 +343,8 @@ class FfmAssistantIntent {
     this.pluginMetadata,
     this.verifiedFacts,
     this.analysisResults,
+    this.periodStart,
+    this.periodEnd,
   });
 
   final String rawText;
@@ -350,6 +353,12 @@ class FfmAssistantIntent {
   final FfmAssistantDestination? destination;
   final FfmAssistantDraft? draft;
   final FfmAssistantDraftReview? review;
+
+  /// Rentang periode yang diminta saat deep link/context filter ke halaman.
+  /// Dipakai saat user meminta membuka halaman dengan periode, misal
+  /// "buka transaksi tahun lalu" atau "tampilkan aktivitas bulan lalu".
+  final DateTime? periodStart;
+  final DateTime? periodEnd;
   final double confidence;
   final String? clarification;
   final String? response;
@@ -389,6 +398,8 @@ class FfmAssistantIntent {
     Map<String, dynamic>? pluginMetadata,
     String? verifiedFacts,
     String? analysisResults,
+    DateTime? periodStart,
+    DateTime? periodEnd,
   }) => FfmAssistantIntent(
     rawText: rawText,
     normalizedText: normalizedText,
@@ -407,6 +418,8 @@ class FfmAssistantIntent {
     pluginMetadata: pluginMetadata ?? this.pluginMetadata,
     verifiedFacts: verifiedFacts ?? this.verifiedFacts,
     analysisResults: analysisResults ?? this.analysisResults,
+    periodStart: periodStart ?? this.periodStart,
+    periodEnd: periodEnd ?? this.periodEnd,
   );
 }
 
@@ -601,6 +614,8 @@ class FfmAssistantChatEntry {
     this.modelUsed,
     this.absorbedMemory,
     this.suggestedQuestions = const [],
+    this.isCorrected = false,
+    this.correctionText,
   });
 
   final bool isUser;
@@ -633,6 +648,60 @@ class FfmAssistantChatEntry {
 
   /// 3 saran pertanyaan lanjutan kontekstual untuk dipilih pengguna (indikator lampu 💡).
   final List<String> suggestedQuestions;
+
+  /// Menandakan pesan asisten ini telah dikoreksi secara manual oleh pengguna.
+  final bool isCorrected;
+
+  /// Teks koreksi yang diberikan pengguna.
+  final String? correctionText;
+
+  FfmAssistantChatEntry copyWith({
+    bool? isUser,
+    String? text,
+    FfmAssistantIntent? intent,
+    ActivityVoiceIntent? activityIntent,
+    String? understanding,
+    FfmAssistantDraftReview? review,
+    String? filePath,
+    String? fileFormat,
+    FfmAssistantProcessTrace? processTrace,
+    DateTime? createdAt,
+    String? verifiedFacts,
+    String? analysisResults,
+    String? feedbackType,
+    String? feedbackCategory,
+    DateTime? sentAt,
+    DateTime? receivedAt,
+    String? modelUsed,
+    String? absorbedMemory,
+    List<String>? suggestedQuestions,
+    bool? isCorrected,
+    String? correctionText,
+  }) {
+    return FfmAssistantChatEntry(
+      isUser: isUser ?? this.isUser,
+      text: text ?? this.text,
+      intent: intent ?? this.intent,
+      activityIntent: activityIntent ?? this.activityIntent,
+      understanding: understanding ?? this.understanding,
+      review: review ?? this.review,
+      filePath: filePath ?? this.filePath,
+      fileFormat: fileFormat ?? this.fileFormat,
+      processTrace: processTrace ?? this.processTrace,
+      createdAt: createdAt ?? this.createdAt,
+      verifiedFacts: verifiedFacts ?? this.verifiedFacts,
+      analysisResults: analysisResults ?? this.analysisResults,
+      feedbackType: feedbackType ?? this.feedbackType,
+      feedbackCategory: feedbackCategory ?? this.feedbackCategory,
+      sentAt: sentAt ?? this.sentAt,
+      receivedAt: receivedAt ?? this.receivedAt,
+      modelUsed: modelUsed ?? this.modelUsed,
+      absorbedMemory: absorbedMemory ?? this.absorbedMemory,
+      suggestedQuestions: suggestedQuestions ?? this.suggestedQuestions,
+      isCorrected: isCorrected ?? this.isCorrected,
+      correctionText: correctionText ?? this.correctionText,
+    );
+  }
 }
 
 /// Konteks pertanyaan yang perlu dijawab sebelum sebuah draft dapat dibuka.
@@ -1245,6 +1314,21 @@ abstract final class FfmAssistantCatalog {
         'pulsa listrik',
       ],
     ),
+    FfmAssistantPage(
+      destination: FfmAssistantDestination.assistantIssueLog,
+      name: 'Asisten Log',
+      description:
+          'Melihat masalah jawaban asisten, pertanyaan belum terjawab, dan ekspor laporan developer.',
+      aliases: [
+        'asisten log',
+        'log asisten',
+        'log anomali',
+        'laporan masalah asisten',
+        'masalah asisten',
+        'jawaban ngaco',
+        'catatan anomali',
+      ],
+    ),
   ];
 
   static const otherMenuItems = <FfmAssistantOtherMenuItem>[
@@ -1440,6 +1524,8 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantDestination.databaseStructure =>
       'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
     FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
+    FfmAssistantDestination.assistantIssueLog =>
+      'Asisten Log & Anomali mencatat jawaban asisten yang keliru, kurang lengkap, atau tidak sesuai, serta pertanyaan yang gagal dijawab. Dilengkapi riwayat trace eksekusi dan ekspor diagnostik siap pakai untuk dianalisis developer atau LLM.',
     FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
     FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
     FfmAssistantDestination.telegramSetup => 'Telegram Bot Keluarga mengirimkan laporan mingguan dan notifikasi peringatan boncos ke grup chat keluarga.',

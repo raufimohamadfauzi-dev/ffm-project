@@ -142,25 +142,67 @@ class FfmNotificationListenerService : NotificationListenerService() {
             return result
         }
 
-        /** Paket bank dan e-wallet resmi Indonesia yang dipercaya. */
+        /** Paket bank, e-wallet, dan e-commerce resmi Indonesia yang dipercaya. */
         val TRUSTED_PACKAGES = setOf(
+            // Bank Konvensional
             "com.bca",                      // BCA Mobile
             "com.bca.mybca",               // myBCA
             "com.bankmandiri.livin",        // Livin' by Mandiri
             "id.co.bri.brimo",             // BRImo
             "id.bni.mobile",               // BNI Mobile Banking
             "id.co.bni.wondr",             // Wondr by BNI
+
+            // Bank Digital
             "com.seabank.id",              // SeaBank Indonesia
+            "com.bnc.finance",             // Neobank (BNC)
+            "id.krom.bank",                // Krom Bank
+            "com.jago.digitalBanking",     // Bank Jago
+            "id.co.bcadigital.blu",        // blu by BCA Digital
+            "bcadigital.blubybcadigital",  // blu by BCA Digital (alt package)
+            "com.btpn.dc",                 // Jenius BTPN
+            "com.alloapp.yump",            // Allo Bank
+            "id.co.banksaqu.mobile",       // Bank Saqu
+            "id.co.banksaqu.app",          // Bank Saqu (alt package)
+            "id.co.superbank.mobile",      // Superbank
+            "id.co.superbank.app",         // Superbank (alt package)
+            "com.uob.id.tmrw",             // TMRW by UOB
+            "com.linecorp.linebankid",     // LINE Bank by Hana Bank
+            "id.co.dbs.digibank",          // digibank by DBS
+
+            // E-Wallet & Pembayaran Digital
             "com.gojek.app",               // GoPay (via Gojek)
             "com.gopay.wallet",            // GoPay standalone
             "ovo.id",                       // OVO
             "id.dana",                      // DANA
-            "com.shopee.id",               // ShopeePay (via Shopee)
+            "com.shopee.id",               // Shopee / ShopeePay
             "id.flip",                     // Flip
-            "id.dana.kasir",               // DANA Bisnis
+            "com.telkom.mwallet",          // LinkAja
+            "com.astrapay",                // AstraPay
             "com.isaku.app",               // i.saku
-            "com.honestbank.android",      // Honest
             "com.spin.app.latest",         // MotionPay
+            "com.paypal.android.p2pmobile", // PayPal
+            "com.doku.wallet",             // DOKU Wallet
+            "id.kaspro.app",               // KasPro
+            "com.google.android.apps.walletnfcrel", // Google Wallet
+            "com.transferwise.android",    // Wise
+            "com.treni.paytren",           // Paytren
+            "id.oy.app",                   // OY! Indonesia
+            "com.pluang",                  // Pluang
+            "com.bibit.bibitid",           // Bibit
+            "com.ajaib.android",           // Ajaib
+
+            // E-Commerce / Marketplace
+            "com.tokopedia.tkpd",          // Tokopedia
+            "com.lazada.android",          // Lazada
+            "com.zhiliaoapp.musically",    // TikTok / TikTok Shop
+            "com.ss.android.ugc.trill",    // TikTok / TikTok Shop (alt)
+            "blibli.mobile.commerce",      // Blibli
+            "com.blibli.mobile.android",   // Blibli (alt)
+            "com.bukalapak.android",       // Bukalapak
+
+            // Merchant, Bisnis & Pengiriman
+            "id.dana.kasir",               // DANA Bisnis
+            "com.honestbank.android",      // Honest
             "hk.easyvan.app.client",       // Lalamove
             "com.qmove.logistics.consignor", // Qmove
         )

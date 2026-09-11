@@ -639,7 +639,10 @@ class _HijriDateSummaryCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  formatTanggalLengkap(date.gregorian, includeSeconds: false),
+                  formatTanggalDenganHari(
+                    date.gregorian,
+                    includeSeconds: false,
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),

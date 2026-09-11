@@ -190,6 +190,66 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
               icon: const Icon(Icons.lightbulb_rounded),
             ),
           ),
+        if (!isUser && onMarkIssue != null)
+          Padding(
+            padding: const EdgeInsets.only(left: 4, right: 2),
+            child: Tooltip(
+              message: issueLogged
+                  ? 'Masalah ini sudah tercatat di Asisten Log'
+                  : 'Laporkan pertanyaan dan jawaban ngaco ini ke Asisten Log',
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: issueLogged ? null : onMarkIssue,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: issueLogged
+                        ? (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF132A1F)
+                              : const Color(0xFFE8F8F0))
+                        : (Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF2E181D)
+                              : const Color(0xFFFFF1F2)),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: issueLogged
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFF43F5E).withValues(alpha: 0.6),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        issueLogged
+                            ? Icons.check_circle_outline
+                            : Icons.report_problem_outlined,
+                        size: 13,
+                        color: issueLogged
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFF43F5E),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        issueLogged ? 'Tercatat' : 'Laporkan',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: issueLogged
+                              ? const Color(0xFF10B981)
+                              : const Color(0xFFF43F5E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (hasMoreActions)
           Tooltip(
             message: 'Aksi lainnya',

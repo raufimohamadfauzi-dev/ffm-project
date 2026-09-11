@@ -9,8 +9,6 @@ import '../ffm_assistant_markdown_text.dart';
 import 'activity_session_chat_card.dart';
 import 'ffm_assistant_draft_preview.dart';
 import 'ffm_assistant_message_toolbar.dart';
-import 'ffm_assistant_process_disclosure.dart';
-import 'ffm_analysis_results_card.dart';
 import 'ffm_assistant_feedback_toolbar.dart';
 import 'ffm_json_expandable.dart';
 
@@ -55,9 +53,11 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onFeedbackReportIssue,
     this.onFeedbackProvideCorrection,
     this.onShowFollowUpQuestions,
+    this.statusMessage,
   });
 
   final FfmAssistantChatEntry entry;
+  final String? statusMessage;
   final VoidCallback? onSpeak;
   final bool isSpeaking;
   final VoidCallback? onIntent;
@@ -122,17 +122,43 @@ class FfmAssistantMessageCard extends StatelessWidget {
     final userBubbleColor = isDark
         ? const Color(0xFF1E1E1E)
         : const Color(0xFFFFFFFF);
-    final assistantLineColor = groundingBlocked
-        ? (isDark ? const Color(0xFFFF6B6B) : const Color(0xFFC62828))
+    final (
+      Color assistantBorderColor,
+      Color assistantBgColor,
+      IconData assistantOriginIcon,
+      String assistantOriginLabel
+    ) = groundingBlocked
+        ? (
+            isDark ? const Color(0xFFFB7185) : const Color(0xFFE11D48),
+            isDark ? const Color(0xFF2E151A) : const Color(0xFFFFF1F2),
+            Icons.warning_amber_rounded,
+            '⚠️ Diblokir Validator',
+          )
         : switch (origin) {
-            FfmAssistantResponseOrigin.agentOrchestrator =>
-              (isDark ? const Color(0xFFB39DDB) : const Color(0xFF5E35B1)),
-            FfmAssistantResponseOrigin.localFallback =>
-              (isDark ? const Color(0xFFFFCC80) : const Color(0xFFEF6C00)),
-            FfmAssistantResponseOrigin.cloudError =>
-              (isDark ? const Color(0xFFFF6B6B) : const Color(0xFFC62828)),
-            FfmAssistantResponseOrigin.geminiCloud || null =>
-              (isDark ? const Color(0xFF80CBC4) : const Color(0xFF00796B)),
+            FfmAssistantResponseOrigin.agentOrchestrator => (
+                isDark ? const Color(0xFFA5B4FC) : const Color(0xFF6366F1),
+                isDark ? const Color(0xFF1E1B2E) : const Color(0xFFF5F3FF),
+                Icons.psychology_rounded,
+                '🧠 Orkestrator Lokal',
+              ),
+            FfmAssistantResponseOrigin.localFallback => (
+                isDark ? const Color(0xFFFCD34D) : const Color(0xFFD97706),
+                isDark ? const Color(0xFF261D12) : const Color(0xFFFFFBEB),
+                Icons.bolt_rounded,
+                '⚡ Aturan Lokal / Offline',
+              ),
+            FfmAssistantResponseOrigin.cloudError => (
+                isDark ? const Color(0xFFFB7185) : const Color(0xFFE11D48),
+                isDark ? const Color(0xFF2E151A) : const Color(0xFFFFF1F2),
+                Icons.error_outline_rounded,
+                '⚠️ Anomali / Error Cloud',
+              ),
+            FfmAssistantResponseOrigin.geminiCloud || null => (
+                isDark ? const Color(0xFF6EE7B7) : const Color(0xFF059669),
+                isDark ? const Color(0xFF12241C) : const Color(0xFFECFDF5),
+                Icons.auto_awesome,
+                '✨ Gemini Cloud',
+              ),
           };
     final textColor = isUser
         ? (isDark ? Colors.white : Colors.black)
@@ -142,30 +168,78 @@ class FfmAssistantMessageCard extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (!isUser && entry.processTrace != null) ...[
-          FfmAssistantProcessDisclosure(
-            trace: entry.processTrace!,
-            actionPlan: actionPlan,
+        if (!isUser) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: assistantBorderColor.withValues(
+                alpha: isDark ? 0.18 : 0.12,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: assistantBorderColor.withValues(alpha: 0.35),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  assistantOriginIcon,
+                  size: 12,
+                  color: assistantBorderColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  assistantOriginLabel,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: assistantBorderColor,
+                    letterSpacing: -0.2,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
         ],
-        if (!isUser &&
-            entry.analysisResults != null &&
-            entry.analysisResults!.isNotEmpty) ...[
-          FfmAnalysisResultsCard(
-            results: entry.analysisResults!,
-            isExpanded: showAnalysisResults,
-            onToggle: onToggleAnalysisResults,
+
+        if (statusMessage != null && statusMessage!.isNotEmpty) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 1.8),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    statusMessage!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isDark
+                          ? const Color(0xFF94A3B8)
+                          : const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 8),
-        ],
-        if (entry.filePath != null) ...[
-          FfmChatFileCard(
-            path: entry.filePath!,
-            format: entry.fileFormat,
-            onShare: onShareFile,
-          ),
-          if (entry.text.isNotEmpty) const SizedBox(height: 5),
         ],
         if (entry.text.isNotEmpty) ...[
           FfmAssistantMarkdownText(
@@ -219,6 +293,43 @@ class FfmAssistantMessageCard extends StatelessWidget {
                       color: isDark
                           ? const Color(0xFF56E3A6)
                           : const Color(0xFF007552),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (entry.isCorrected) ...[
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF2A2013) : const Color(0xFFFEF3C7),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: const Color(0xFFD97706).withValues(alpha: 0.4),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.edit_note_rounded,
+                  size: 14,
+                  color: Color(0xFFD97706),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    entry.correctionText != null && entry.correctionText!.isNotEmpty
+                        ? '✏️ Dikoreksi: "${entry.correctionText}"'
+                        : '✏️ Jawaban telah dikoreksi pengguna',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
                     ),
                   ),
                 ),
@@ -361,6 +472,12 @@ class FfmAssistantMessageCard extends StatelessWidget {
         ],
         if (showTechnicalDetails && intent != null) ...[
           const SizedBox(height: 8),
+          _AssistantExecutionMethodologyCard(
+            entry: entry,
+            intent: intent,
+            isDark: isDark,
+          ),
+          const SizedBox(height: 6),
           FfmJsonExpandable(intent: intent, initiallyExpanded: true),
         ],
       ],
@@ -408,16 +525,29 @@ class FfmAssistantMessageCard extends StatelessWidget {
                   )
                 : DecoratedBox(
                     decoration: BoxDecoration(
-                      border: Border.all(color: assistantLineColor, width: 2),
+                      color: assistantBgColor,
+                      border: Border.all(
+                        color: assistantBorderColor,
+                        width: 1.5,
+                      ),
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         topRight: Radius.circular(20),
                         bottomLeft: Radius.circular(4),
                         bottomRight: Radius.circular(20),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: assistantBorderColor.withValues(
+                            alpha: isDark ? 0.08 : 0.04,
+                          ),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                       child: content,
                     ),
                   ),
@@ -807,3 +937,171 @@ class _BubbleTapRevealState extends State<_BubbleTapReveal> {
     return '${two(value.hour)}:${two(value.minute)}:${two(value.second)}';
   }
 }
+
+class _AssistantExecutionMethodologyCard extends StatelessWidget {
+  const _AssistantExecutionMethodologyCard({
+    required this.entry,
+    required this.intent,
+    required this.isDark,
+  });
+
+  final FfmAssistantChatEntry entry;
+  final FfmAssistantIntent intent;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final trace = entry.processTrace;
+    final events = trace?.events ?? const [];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.account_tree_outlined,
+                size: 16,
+                color: Color(0xFF0284C7),
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '🔍 Langkah Eksekusi & Sumber Data AI',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (trace != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '⚡ ${trace.elapsed.inMilliseconds}ms',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF0284C7),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (events.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            ...events.map((e) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(
+                        Icons.check_circle_outline,
+                        size: 13,
+                        color: Color(0xFF10B981),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        e.label,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '+${e.elapsed.inMilliseconds}ms',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+          const SizedBox(height: 10),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.lightbulb_outline,
+                size: 15,
+                color: Color(0xFFD97706),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '💡 Cara Meniru Analisis Ini Sendiri:',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFD97706),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _getReproductionGuide(intent),
+                      style: TextStyle(
+                        fontSize: 11,
+                        height: 1.35,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getReproductionGuide(FfmAssistantIntent intent) {
+    final destination = intent.destination;
+    final usedReadCapability = intent.pluginMetadata?['usedReadCapability'] as String?;
+
+    if (usedReadCapability == 'read.transactions' || destination == FfmAssistantDestination.transactions) {
+      return '1. Buka menu Transaksi di beranda.\n2. Buka filter transaksi lalu sesuaikan rentang tanggal atau kategori terkait.\n3. Jumlahkan total transaksi yang muncul untuk mencocokkan hasil perhitungan deterministik.';
+    }
+    if (usedReadCapability == 'read.summary') {
+      return '1. Buka Ringkasan Kas di beranda utama.\n2. Cek akumulasi Pemasukan dan Pengeluaran bulan berjalan.\n3. Transfer antar rekening tidak dihitung sebagai arus kas pengeluaran.';
+    }
+    if (usedReadCapability == 'read.budget' || destination == FfmAssistantDestination.budget) {
+      return '1. Buka menu Anggaran.\n2. Periksa sisa alokasi pos anggaran per kategori untuk mengevaluasi batas belanja bulanan.';
+    }
+    if (usedReadCapability == 'read.reminders' || destination == FfmAssistantDestination.reminders) {
+      return '1. Buka menu Pengingat / Jadwal.\n2. Periksa daftar alarm aktif dan waktu jatuh tempo pengingat yang terdaftar.';
+    }
+    return '1. Buka menu data terkait di aplikasi FFM.\n2. Bandingkan data yang dibaca dengan ringkasan di atas untuk memverifikasi kebenaran finansial secara independen.';
+  }
+}
+

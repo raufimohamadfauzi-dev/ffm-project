@@ -27,11 +27,13 @@ import '../../asset/data/repositories/market_news_cache_repository.dart';
 import '../../hijri/domain/hijri_calendar_service.dart';
 import 'ffm_assistant_memory_repository.dart';
 import 'ffm_assistant_user_model_service.dart';
+import 'ffm_assistant_correction_service.dart';
 import 'ffm_assistant_local_memory.dart';
 import 'ffm_assistant_local_calendar.dart';
 import 'ffm_assistant_proposal_json_service.dart';
 import 'ffm_assistant_query_tools.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
+import 'ffm_assistant_knowledge_index.dart';
 import 'ffm_gemini_read_capability_service.dart';
 import 'ffm_gemini_cloud_orchestrator.dart';
 import 'ffm_assistant_personalization_repository.dart';
@@ -48,6 +50,7 @@ import '../domain/ffm_assistant_self_description.dart';
 import '../domain/ffm_assistant_financial_education.dart';
 import '../domain/ffm_context_relevance.dart';
 import '../domain/ffm_assistant_work_item.dart';
+import '../domain/assistant_onboarding_orchestrator.dart';
 import 'ffm_assistant_work_item_service.dart';
 import '../../activity/domain/entities/activity_entity.dart';
 import '../../activity/domain/activity_mode_detector.dart';
@@ -58,6 +61,7 @@ import 'ffm_agent_plugins.dart';
 /// Interpreter lokal berbasis aturan. Ia tidak pernah menulis database; semua
 /// perubahan dikembalikan sebagai draft untuk dipreview dan dikonfirmasi user.
 import 'ffm_category_suggestion_service.dart';
+import '../../../shared/ffm_date_period.dart';
 
 class FfmAssistantInterpreter {
   FfmAssistantInterpreter(
@@ -393,6 +397,10 @@ class FfmAssistantInterpreter {
       return FfmAnalysisPeriod.thisMonth;
     }
     if (normalized.contains('tahun ini')) return FfmAnalysisPeriod.thisYear;
+    if (normalized.contains('tahun lalu') ||
+        normalized.contains('tahun kemarin')) {
+      return FfmAnalysisPeriod.previousYear;
+    }
     return FfmAnalysisPeriod.last30Days;
   }
 
@@ -410,6 +418,8 @@ class FfmAssistantInterpreter {
     final evidenceScope = FfmAssistantReasoningEvidencePolicy.forRequest(
       normalized,
     );
+    final knowledgeIndexPlan =
+        FfmAssistantKnowledgeIndex.planForRequest(rawText);
     final requestClass = _classifyCloudRequest(
       normalized: normalized,
       evidenceScope: evidenceScope,
@@ -530,9 +540,41 @@ class FfmAssistantInterpreter {
             now: capturedAt,
           )
         : '';
+    final schemaContext =
+        _containsAny(normalized, const [
+          'tabel',
+          'table',
+          'database',
+          'skema',
+          'schema',
+          'sqlite',
+          'struktur data',
+          'data apa saja',
+          'penyimpanan',
+        ])
+        ? await _financialSnapshot.buildSchemaContext(
+            householdId: AppContext.householdId,
+          )
+        : '';
+    final correctionsContext = await FfmAssistantCorrectionService(
+      _taughtMemory,
+    ).buildCorrectionsContext(query: normalized);
     final approvedUserContext = await FfmAssistantUserModelService(
       _taughtMemory,
     ).buildContext(query: normalized);
+    final onboardingStage = await AssistantOnboardingOrchestrator(
+      database: _database,
+    ).evaluateAdaptiveStage();
+    final onboardingStatus = switch (onboardingStage) {
+      AdaptiveOnboardingStage.emptyData =>
+        'belum ada rekening aktif; mulai dari profil keluarga dan rekening',
+      AdaptiveOnboardingStage.needsFirstTransaction =>
+        'rekening sudah ada, tetapi transaksi pertama belum tercatat',
+      AdaptiveOnboardingStage.needsBudget =>
+        'transaksi sudah ada, tetapi anggaran belum dibuat',
+      AdaptiveOnboardingStage.graduated =>
+        'fondasi onboarding rekening, transaksi, dan anggaran sudah terpenuhi',
+    };
     final personalizationContext = await _personalization
         .buildPersonalizedContext(
           householdId: AppContext.householdId,
@@ -553,7 +595,9 @@ class FfmAssistantInterpreter {
       pageSummary: [
         if (pageContext != null && pageContext.trim().isNotEmpty) pageContext,
         'Tema UI aplikasi: $currentThemeLabel',
+        'STATUS ONBOARDING LOKAL: $onboardingStatus',
         if (householdContext.trim().isNotEmpty) householdContext,
+        knowledgeIndexPlan.toBoundedPrompt(),
         financialContext,
         masterDataContext,
         hijriContext,
@@ -563,6 +607,8 @@ class FfmAssistantInterpreter {
         assetsContext,
         liabilitiesContext,
         goalsContext,
+        schemaContext,
+        correctionsContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
       approvedUserContext: approvedUserContext,
@@ -711,6 +757,10 @@ class FfmAssistantInterpreter {
       'schemaVersion': FfmAssistantCloudContextEnvelope.schemaVersion,
       'requestClass': requestClassForMeta.name,
       'capturedAt': _clock().toIso8601String(),
+      'knowledgeIndex': FfmAssistantKnowledgeIndex.policyName,
+      'knowledgeIndexSources': FfmAssistantKnowledgeIndex.planForRequest(
+        rawText,
+      ).sourceIds,
       'evidenceScope': {
         'financialSummary': requestScopeForMeta.includeFinancialSummary,
         'recentTransactions': requestScopeForMeta.includeRecentTransactions,
@@ -774,15 +824,18 @@ class FfmAssistantInterpreter {
         if (destination != null) {
           final page = FfmAssistantCatalog.findByDestination(destination);
           final pageDescription = page?.description ?? '';
+          final period = FfmDatePeriod.fromText(normalized, now: _clock());
           return _InterpretResult.single(
             FfmAssistantIntent(
               rawText: rawText,
               normalizedText: normalized,
               type: FfmAssistantIntentType.openPage,
               destination: destination,
+              periodStart: period?.startOrEpoch,
+              periodEnd: period?.endOrMax,
               confidence: 1,
               response:
-                  'Siap, aku arahkan ke halaman ${page?.name ?? destination.name}. Tekan Buka untuk $pageDescription',
+                  'Siap, aku arahkan ke halaman ${page?.name ?? destination.name}. Tekan Buka untuk $pageDescription${_periodDeepLinkSuffix(period)}',
               responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
               pluginName: 'gemini_cloud',
               pluginCategory: 'gemini_cloud',
@@ -1796,6 +1849,17 @@ class FfmAssistantInterpreter {
       normalized,
       lastAssistantMessage: lastAssistantMessage,
     );
+    final naturalScheduledActivityRequest =
+        _containsAny(normalized, const [
+          'cek',
+          'periksa',
+          'pergi',
+          'kunjungi',
+          'kerjakan',
+          'lakukan',
+          'hadiri',
+        ]) &&
+        _containsWeekday(normalized);
     final refreshMarketRequest = _containsAny(normalized, const [
       'refresh berita',
       'refresh valas',
@@ -1886,11 +1950,40 @@ class FfmAssistantInterpreter {
       );
     }
 
+    if (!isGeminiConversationMode && naturalScheduledActivityRequest) {
+      final activityDate = _weekdayDateFromText(rawText);
+      final title = rawText
+          .replaceAll(
+            RegExp(
+              r'\b(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\b',
+              caseSensitive: false,
+            ),
+            '',
+          )
+          .trim()
+          .replaceFirst(
+            RegExp(r'^(?:saya|aku)\s+', caseSensitive: false),
+            '',
+          );
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.activity,
+        createdAt: _clock(),
+        title: title,
+        note: rawText.trim(),
+        date: activityDate,
+        formValues: const {
+          'activityMode': 'history',
+          'kind': 'event',
+        },
+      );
+      return _intentForDraft(rawText, normalized, draft);
+    }
+
     // Mode Gemini menjadikan Gemini sebagai lawan bicara utama. Dialog
     // deterministik hanya dipakai di mode Agent agar kata seperti "mau",
     // "bisa", atau "sip" dalam pertanyaan normal tidak menelan request
     // sebelum Gemini sempat memahaminya.
-    if (!isGeminiConversationMode) {
+    if (!isGeminiConversationMode && !naturalScheduledActivityRequest) {
       final conversationalTurn = await _resolveConversationalDialogueTurn(
         rawText,
         normalized,
@@ -2256,14 +2349,17 @@ class FfmAssistantInterpreter {
           'catat aktivitas',
           'buat aktivitas',
         ])) {
+      final period = FfmDatePeriod.fromText(normalized, now: _clock());
       return FfmAssistantIntent(
         rawText: rawText,
         normalizedText: normalized,
         type: FfmAssistantIntentType.openPage,
         destination: earlyNavigationDestination.destination,
+        periodStart: period?.startOrEpoch,
+        periodEnd: period?.endOrMax,
         confidence: .98,
         response:
-            'Siap, aku pindahkan kamu ke ${earlyNavigationDestination.name}. Tekan “Buka & cek” kalau sudah siap.',
+            'Siap, aku pindahkan kamu ke ${earlyNavigationDestination.name}. Tekan “Buka & cek” kalau sudah siap.${_periodDeepLinkSuffix(period)}',
       );
     }
 
@@ -2462,14 +2558,17 @@ class FfmAssistantInterpreter {
         ])) {
       final targetPage = FfmAssistantCatalog.findByText(normalized);
       if (targetPage != null) {
+        final period = FfmDatePeriod.fromText(normalized, now: _clock());
         return FfmAssistantIntent(
           rawText: rawText,
           normalizedText: normalized,
           type: FfmAssistantIntentType.openPage,
           destination: targetPage.destination,
+          periodStart: period?.startOrEpoch,
+          periodEnd: period?.endOrMax,
           confidence: 1,
           response:
-              'Siap, aku arahkan ke halaman ${targetPage.name}. Tekan Buka untuk ${targetPage.description.toLowerCase()}',
+              'Siap, aku arahkan ke halaman ${targetPage.name}. Tekan Buka untuk ${targetPage.description.toLowerCase()}${_periodDeepLinkSuffix(period)}',
         );
       }
     }
@@ -3229,6 +3328,34 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final isReminderOffer =
+        normalizedLast.contains('pengingat') &&
+        (normalizedLast.contains('beri tahu jam') ||
+            normalizedLast.contains('mau saya bantu'));
+    if (isReminderOffer && isAffirmativeResponse(normalized)) {
+      final reminderDate = _weekdayDateFromText(lastAssistantMessage);
+      final title = normalizedLast.contains('panen pepaya')
+          ? 'Panen pepaya'
+          : 'Kegiatan yang dibahas';
+      final draft = FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.reminder,
+        createdAt: _clock(),
+        title: title,
+        note: 'Pengingat dibuat dari tawaran sebelumnya di percakapan.',
+        date: reminderDate,
+      );
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.createReminder,
+        destination: FfmAssistantDestination.reminders,
+        draft: draft,
+        clarification: 'Jam berapa biasanya ingin diingatkan pada hari tersebut?',
+        confidence: 0.98,
+        response: 'Siap, saya siapkan pengingat $title. Jam berapa biasanya ingin diingatkan?',
+      );
+    }
+
     // 2. Kasus Sapaan & Penawaran Bantuan Afirmatif ("ada", "iya", "mau", "bisa", dsb.)
     final isAffirmative = const {
       'ada',
@@ -3469,6 +3596,24 @@ class FfmAssistantInterpreter {
 
     return null;
   }
+
+  bool isAffirmativeResponse(String value) => const {
+    'ada',
+    'iya',
+    'ya',
+    'mau',
+    'oke',
+    'ok',
+    'tolong',
+    'bantu',
+    'siap',
+    'lanjut',
+    'tentu',
+    'boleh',
+    'iya mau',
+    'ya mau',
+    'mau dong',
+  }.contains(value);
 
   Future<FfmAssistantIntent> _diagnosticStatus(
     String rawText,
@@ -4453,6 +4598,11 @@ class FfmAssistantInterpreter {
         'fungsi',
         'ada apa',
       ]);
+
+  String _periodDeepLinkSuffix(FfmDatePeriod? period) {
+    if (period == null || period.isAllTime) return '';
+    return ' dengan filter periode ${period.label}.';
+  }
 
   bool _isNavigationRequest(String text) => _containsAny(text, const [
     'buka halaman',
@@ -6158,6 +6308,34 @@ class FfmAssistantInterpreter {
     }
     final date = DateTime(year, month, day);
     return date.day == day && date.month == month ? date : null;
+  }
+
+  bool _containsWeekday(String value) => RegExp(
+    r'\b(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\b',
+    caseSensitive: false,
+  ).hasMatch(value);
+
+  DateTime? _weekdayDateFromText(String value) {
+    final match = RegExp(
+      r'\b(?:hari\s+)?(senin|selasa|rabu|kamis|jumat|sabtu|minggu)\b',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (match == null) return null;
+    final weekdays = <String, int>{
+      'senin': DateTime.monday,
+      'selasa': DateTime.tuesday,
+      'rabu': DateTime.wednesday,
+      'kamis': DateTime.thursday,
+      'jumat': DateTime.friday,
+      'sabtu': DateTime.saturday,
+      'minggu': DateTime.sunday,
+    };
+    final target = weekdays[match.group(1)!.toLowerCase()];
+    if (target == null) return null;
+    final now = _clock();
+    final daysAhead =
+        (target - now.weekday + DateTime.daysPerWeek) % DateTime.daysPerWeek;
+    return DateTime(now.year, now.month, now.day + daysAhead);
   }
 
   int? _scheduleMinutesFromText(String value) {
@@ -7897,8 +8075,21 @@ class FfmAssistantInterpreter {
         currentDestination == FfmAssistantDestination.activity &&
         !modeDecision.requiresClarification &&
         !explicitTransactionIntent;
-    final createActivity = explicitCreateActivity || contextualCreateActivity;
+    final naturalScheduledActivity =
+        _containsAny(normalized, const [
+          'cek',
+          'periksa',
+          'pergi',
+          'kunjungi',
+          'kerjakan',
+          'lakukan',
+          'hadiri',
+        ]) &&
+        _containsWeekday(normalized);
+    final createActivity =
+        explicitCreateActivity || contextualCreateActivity || naturalScheduledActivity;
     if (createActivity) {
+      final parsedActivityDate = _weekdayDateFromText(rawText);
       final title = explicitCreateActivity
           ? _draftTitle(normalized, const [
               'mulai aktivitas',
@@ -7906,7 +8097,16 @@ class FfmAssistantInterpreter {
               'catat aktivitas',
               'buat aktivitas',
             ])
-          : rawText.trim().replaceFirst(
+          : rawText
+                .replaceAll(
+                  RegExp(
+                    r'\b(?:hari\s+)?(?:senin|selasa|rabu|kamis|jumat|sabtu|minggu)\b',
+                    caseSensitive: false,
+                  ),
+                  '',
+                )
+                .trim()
+                .replaceFirst(
               RegExp(r'^(?:saya|aku)\s+', caseSensitive: false),
               '',
             );
@@ -7915,7 +8115,7 @@ class FfmAssistantInterpreter {
         createdAt: now,
         title: title,
         note: rawText.trim(),
-        date: now,
+        date: parsedActivityDate,
         formValues: {
           'activityMode': modeDecision.mode.value,
           'kind': modeDecision.mode.activityKind.value,
