@@ -790,6 +790,47 @@ class FfmAssistantFinancialSnapshotService {
     );
   }
 
+  /// Digest Catatan Harian (Daily Notes / Jurnal teks) untuk capability cloud.
+  Future<String> buildDailyNotesDigest({
+    required String householdId,
+    int maxItems = 10,
+    int maxCharacters = 800,
+    DateTime? periodStart,
+    DateTime? periodEndExclusive,
+  }) async {
+    final notes = await (_database.select(_database.dailyNotes)
+          ..where((row) {
+            final filter =
+                row.householdId.equals(householdId) &
+                row.isArchived.equals(false);
+            if (periodStart == null || periodEndExclusive == null) {
+              return filter;
+            }
+            return filter &
+                row.noteDate.isBiggerOrEqualValue(periodStart) &
+                row.noteDate.isSmallerThanValue(periodEndExclusive);
+          })
+          ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+          ..limit(maxItems))
+        .get();
+    if (notes.isEmpty) {
+      return 'Daily Notes digest: belum ada catatan harian / jurnal teks yang tersimpan.';
+    }
+    final lines = notes.map((row) {
+      final title = row.title != null && row.title!.trim().isNotEmpty
+          ? row.title!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim()
+          : 'Catatan Harian';
+      final date = row.noteDate.toIso8601String().substring(0, 10);
+      final body = row.body.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+      return 'note:$date|$title|isi=$body';
+    }).toList(growable: false);
+    final suffix = notes.length >= maxItems ? '; … (sebagian note disingkat)' : '';
+    return _clip(
+      'Daily Notes digest (catatan harian & jurnal): ${lines.join('; ')}$suffix.',
+      maxCharacters,
+    );
+  }
+
   /// Digest pengingat aktif untuk capability cloud.
   Future<String> buildRemindersDigest({
     required String householdId,

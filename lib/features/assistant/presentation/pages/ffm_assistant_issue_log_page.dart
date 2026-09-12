@@ -668,6 +668,28 @@ class _FfmAssistantIssueLogPageState extends State<FfmAssistantIssueLogPage>
       color: isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF9FAFB),
       child: Column(
         children: [
+          if (_issues.isNotEmpty || _unanswered.isNotEmpty) ...[
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C3AED),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(42),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => _handleExportAction(_IssueExportFormat.llmPrompt),
+                icon: const Icon(Icons.copy_all_rounded, size: 18),
+                label: const Text(
+                  'Salin Semua Percakapan & Log untuk Agent Coding',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           TextField(
             onChanged: (val) => setState(() => _searchQuery = val.trim()),
             decoration: InputDecoration(

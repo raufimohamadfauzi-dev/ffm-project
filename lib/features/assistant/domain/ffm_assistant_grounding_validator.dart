@@ -122,7 +122,38 @@ class FfmAssistantGroundingValidator {
   }
 
   static String _normalizeDigits(String text) {
-    return text.replaceAll(RegExp(r'[^0-9]'), '');
+    final rawDigits = text.replaceAll(RegExp(r'[^0-9]'), '');
+    final expanded = expandTextNumbers(text);
+    return '$rawDigits ${expanded.join(' ')}';
+  }
+
+  static List<String> expandTextNumbers(String text) {
+    final results = <String>[];
+    final pattern = RegExp(
+      r'(\d+(?:[.,]\d+)?)\s*(juta|jt|miliar|m|ribu|rb|k)\b',
+      caseSensitive: false,
+    );
+    for (final match in pattern.allMatches(text)) {
+      final numStr = match.group(1)!.replaceAll(',', '.');
+      final unit = match.group(2)!.toLowerCase();
+      final val = double.tryParse(numStr);
+      if (val == null) continue;
+
+      double multiplier = 1.0;
+      if (unit == 'juta' || unit == 'jt') {
+        multiplier = 1000000;
+      } else if (unit == 'miliar' || unit == 'm') {
+        multiplier = 1000000000;
+      } else if (unit == 'ribu' || unit == 'rb' || unit == 'k') {
+        multiplier = 1000;
+      }
+
+      final total = (val * multiplier).round();
+      if (total >= 1000) {
+        results.add(total.toString());
+      }
+    }
+    return results;
   }
 
   static bool _hasLargeNumber(String text) {

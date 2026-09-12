@@ -115,5 +115,24 @@ void main() {
         expect(error, contains('tidak dapat menampilkan klaim penyimpanan'));
       },
     );
+
+    test('mengizinkan teks angka Bahasa Indonesia seperti 1 juta dan 200rb', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Saya catat anggaran Kebutuhan Dapur Rp 1.000.000 per bulan.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+        conversationHistory: 'kebutuhan dapur max 1 juta per bulan, berarti per minggu 200 aja',
+      );
+      expect(error, isNull);
+    });
+
+    test('expandTextNumbers mengonversi teks angka ke bentuk digit', () {
+      final expanded = FfmAssistantGroundingValidator.expandTextNumbers(
+        'kebutuhan dapur max 1 juta per bulan, 200rb per minggu',
+      );
+      expect(expanded, contains('1000000'));
+      expect(expanded, contains('200000'));
+    });
   });
 }

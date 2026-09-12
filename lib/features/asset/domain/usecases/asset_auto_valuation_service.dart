@@ -191,6 +191,32 @@ class AssetAutoValuationService {
           computedNewValue = (nominal * snapshot.sarRate).round();
         }
       }
+      // 5. Deteksi Valas EUR (Euro)
+      else if (textCombined.contains('eur') || textCombined.contains('euro')) {
+        final nominal =
+            _extractForeignNominal(textCombined, 'eur') ??
+            _extractForeignNominal(textCombined, 'euro') ??
+            _extractForeignNominal(textCombined, '€');
+        if (nominal != null &&
+            nominal > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.eur)) {
+          computedNewValue = (nominal * snapshot.eurRate).round();
+        }
+      }
+      // 6. Deteksi Valas CHF (Franc Swiss)
+      else if (textCombined.contains('chf') ||
+          textCombined.contains('franc') ||
+          textCombined.contains('swiss')) {
+        final nominal =
+            _extractForeignNominal(textCombined, 'chf') ??
+            _extractForeignNominal(textCombined, 'franc') ??
+            _extractForeignNominal(textCombined, 'swiss');
+        if (nominal != null &&
+            nominal > 0 &&
+            snapshot.hasVerifiedPrice(MarketInstrument.chf)) {
+          computedNewValue = (nominal * snapshot.chfRate).round();
+        }
+      }
 
       if (computedNewValue != null && computedNewValue > 0) {
         totalAfter += computedNewValue;

@@ -397,6 +397,19 @@ class _MarketNewsRadarPageState extends State<MarketNewsRadarPage>
                     : Colors.indigo.shade800,
                 icon: Icons.euro,
               ),
+              _buildPriceCard(
+                title: 'CHF (Franc Swiss)',
+                price: _currencyFormat.format(snapshot.chfToIdr),
+                subtitle: _marketSubtitle(
+                  snapshot,
+                  MarketInstrument.chf,
+                  '1 CHF = IDR',
+                ),
+                color: isDark
+                    ? const Color(0xFFF43F5E)
+                    : const Color(0xFFBE123C),
+                icon: Icons.account_balance,
+              ),
             ],
           ),
           const SizedBox(height: 20),

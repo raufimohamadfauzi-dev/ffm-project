@@ -19,6 +19,8 @@ class FfmGeminiReadCapabilityPolicy {
     'read.receivable',
     'read.activity',
     'read.activities',
+    'read.dailyNotes',
+    'read.notes',
     'read.reminders',
     'read.reminder',
     'read.assets',
@@ -36,6 +38,7 @@ class FfmGeminiReadCapabilityPolicy {
     'read.liabilities',
     'read.receivables',
     'read.activities',
+    'read.dailyNotes',
     'read.reminders',
     'read.assets',
     'read.budget',
@@ -106,6 +109,13 @@ class FfmGeminiReadCapabilityService {
       case 'read.activity':
       case 'read.activities':
         return await _financialSnapshot.buildActivitiesDigest(
+          householdId: householdId,
+          periodStart: request.startDate,
+          periodEndExclusive: request.endDate?.add(const Duration(days: 1)),
+        );
+      case 'read.dailyNotes':
+      case 'read.notes':
+        return await _financialSnapshot.buildDailyNotesDigest(
           householdId: householdId,
           periodStart: request.startDate,
           periodEndExclusive: request.endDate?.add(const Duration(days: 1)),

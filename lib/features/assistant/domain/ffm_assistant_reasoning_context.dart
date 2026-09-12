@@ -36,7 +36,13 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
     final needsFinancial = needsOnboarding || RegExp(
       r'\b(saldo|uang|transaksi|pengeluaran|pemasukan|pendapatan|anggaran|laporan|analisa|analisis|hutang|utang|piutang|aset|target|transfer|rekening|ringkasan|rangkuman|rekap|saran|rekomendasi|evaluasi|bulan lalu|bulan depan|3 bulan|tiga bulan|harus saya lakukan|harus lakukan)\b',
     ).hasMatch(normalized);
-    final needsMasterData = needsOnboarding || RegExp(
+    final needsActivity = RegExp(
+      r'\b(aktivitas|kegiatan|perjalanan|checkpoint|sesi|durasi|live activity)\b',
+    ).hasMatch(normalized);
+    final needsDailyNotes = RegExp(
+      r'\b(catatan harian|jurnal|note|panen|kg|pupuk|sebar|hasil tani|tanaman|kebun)\b',
+    ).hasMatch(normalized);
+    final needsMasterData = needsOnboarding || needsActivity || needsDailyNotes || RegExp(
       r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi|suami|istri|pasangan|keluarga|rumah tangga|nama)\b',
     ).hasMatch(normalized);
     final needsRecentTransactions = RegExp(

@@ -1092,6 +1092,9 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
     'sar',
     'euro',
     'eur',
+    'chf',
+    'franc',
+    'swiss',
     'valas',
     'kripto',
     'crypto',
@@ -1157,6 +1160,12 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
       priceDetails.add('Kurs EUR: ${currencyFormat.format(snapshot.eurRate)}');
     }
 
+    if (text.contains('chf') || text.contains('franc') || text.contains('swiss')) {
+      priceDetails.add(
+        'Kurs CHF (Franc Swiss): ${currencyFormat.format(snapshot.chfRate)}',
+      );
+    }
+
     if (text.contains('btc') || text.contains('bitcoin')) {
       priceDetails.add(
         'Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}',
@@ -1182,6 +1191,7 @@ class _MarketPriceQueryTool implements FfmAssistantQueryTool {
         'Kurs USD: ${currencyFormat.format(snapshot.usdRate)}',
         'Kurs SGD: ${currencyFormat.format(snapshot.sgdRate)}',
         'Kurs SAR: ${currencyFormat.format(snapshot.sarRate)}',
+        'Kurs CHF (Franc Swiss): ${currencyFormat.format(snapshot.chfRate)}',
         'Harga Bitcoin: ${currencyFormat.format(snapshot.btcPrice)}',
         'Harga Ethereum: ${currencyFormat.format(snapshot.ethPrice)}',
       ]);
@@ -1220,6 +1230,9 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
     'tether',
     'euro',
     'eur',
+    'chf',
+    'franc',
+    'swiss',
     'sgd',
     'sar',
     'riyal',
@@ -1356,6 +1369,20 @@ class _AssetCalculationQueryTool implements FfmAssistantQueryTool {
         final value = (amount * snapshot.eurRate).round();
         calculations.add(
           '€${amount.toStringAsFixed(2).replaceAll('.', ',')} EUR = ${currencyFormat.format(value)}',
+        );
+      }
+    }
+
+    // Extract CHF amount
+    final chfMatch =
+        RegExp(r'(\d+([.,]\d+)?)\s*(chf|franc|swiss)').firstMatch(text);
+    if (chfMatch != null) {
+      final amountStr = chfMatch.group(1)!.replaceAll(',', '.');
+      final amount = double.tryParse(amountStr);
+      if (amount != null && amount > 0) {
+        final value = (amount * snapshot.chfRate).round();
+        calculations.add(
+          '${amount.toStringAsFixed(2).replaceAll('.', ',')} CHF = ${currencyFormat.format(value)}',
         );
       }
     }

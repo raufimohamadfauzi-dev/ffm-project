@@ -21,6 +21,17 @@ void main() {
     soundName: soundUri == null ? null : 'Nada pilihan',
   );
 
+  ReminderEntity autonomousReminder() => ReminderEntity(
+    id: 'autonomous-reminder-sound-test',
+    householdId: 'local-household',
+    title: 'Tes pengingat otonom',
+    scheduledAt: DateTime(2026, 8, 25, 7),
+    recurrenceType: ReminderRecurrenceType.once,
+    weekdays: const [],
+    notificationId: 1002,
+    origin: ReminderOrigin.autonomous,
+  );
+
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
@@ -66,5 +77,11 @@ void main() {
       reminderNotificationChannelId(defaultFirst),
       isNot(reminderNotificationChannelId(custom)),
     );
+  });
+
+  test('channel pengingat otonom memakai versi sound yang dimigrasikan', () {
+    final channelId = reminderNotificationChannelId(autonomousReminder());
+
+    expect(channelId, contains('_v2_'));
   });
 }

@@ -9,7 +9,6 @@ import '../../../../core/di/injection.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_personalization_repository.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
-import '../../../assistant/presentation/pages/telegram_setup_page.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_profile_tools.dart';
 
@@ -261,30 +260,6 @@ class _FamilyProfilePageState extends State<FamilyProfilePage> {
                           prefixIcon: Icon(Icons.person_outline),
                         ),
                         onChanged: (_) => _markDirty(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  _SectionCard(
-                    title: 'Telegram Bot Keluarga',
-                    subtitle:
-                        'Kirim laporan mingguan otomatis dan alarm boncos ke Telegram Suami & Istri.',
-                    icon: Icons.send_rounded,
-                    color: const Color(0xFF0284C7),
-                    children: [
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
-                        ),
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const TelegramSetupPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.settings_outlined),
-                        label: const Text('Kelola Pengaturan Telegram Bot'),
                       ),
                     ],
                   ),

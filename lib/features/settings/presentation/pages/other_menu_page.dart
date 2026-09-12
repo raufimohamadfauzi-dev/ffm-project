@@ -552,19 +552,6 @@ class _OtherMenuPageState extends State<OtherMenuPage> {
               ),
             ),
             _MenuCard(
-              icon: Icons.psychology_alt_rounded,
-              title: 'Asisten Log',
-              subtitle: 'Lihat masalah jawaban assistant, sumber tool, status perbaikan, dan salin laporan developer.',
-              iconColor: const Color(0xFF7C3AED),
-              iconBackgroundColor: const Color(0xFFEDE9FE),
-              badgeText: 'PERBAIKAN AI',
-              onTap: () => _open(context, const FfmAssistantIssueLogPage()),
-              visible: _matches(
-                'Asisten Log masalah assistant Gemini orkestrator jawaban developer',
-                'Lihat masalah jawaban assistant, sumber tool, status perbaikan, dan salin laporan developer.',
-              ),
-            ),
-            _MenuCard(
               icon: Icons.privacy_tip_rounded,
               title: 'Pusat privasi',
               subtitle: 'Lihat lokasi data, enkripsi, izin perangkat, dan kendali ekspor.',

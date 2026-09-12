@@ -22,6 +22,7 @@ class MarketNewsRadarService {
     var sgdRate = 11950.0;
     var eurRate = 16920.0;
     var sarRate = 4170.0;
+    var chfRate = 17800.0;
     var btcPrice = 1050000000.0;
     var ethPrice = 55000000.0;
     var usdtPrice = 15680.0;
@@ -30,7 +31,7 @@ class MarketNewsRadarService {
 
     final verifiedInstruments = <MarketInstrument>{};
 
-    // 1. Ambil Kurs Valas (USD, SGD, EUR, SAR ke IDR) via open.er-api.com
+    // 1. Ambil Kurs Valas (USD, SGD, EUR, SAR, CHF ke IDR) via open.er-api.com
     try {
       final res = await httpClient
           .get(Uri.parse('https://open.er-api.com/v6/latest/USD'))
@@ -65,6 +66,13 @@ class MarketNewsRadarService {
               verifiedInstruments.add(MarketInstrument.sar);
             }
           }
+          if (rates.containsKey('CHF')) {
+            final chfVal = (rates['CHF'] as num?)?.toDouble() ?? 0.0;
+            if (chfVal > 0) {
+              chfRate = idr / chfVal;
+              verifiedInstruments.add(MarketInstrument.chf);
+            }
+          }
         }
       }
     } catch (_) {
@@ -90,6 +98,7 @@ class MarketNewsRadarService {
           final sgd = (rates?['sgd'] as num?)?.toDouble();
           final eur = (rates?['eur'] as num?)?.toDouble();
           final sar = (rates?['sar'] as num?)?.toDouble();
+          final chf = (rates?['chf'] as num?)?.toDouble();
           if (!verifiedInstruments.contains(MarketInstrument.sgd) &&
               sgd != null &&
               sgd > 0) {
@@ -108,6 +117,12 @@ class MarketNewsRadarService {
             sarRate = idr / sar;
             verifiedInstruments.add(MarketInstrument.sar);
           }
+          if (!verifiedInstruments.contains(MarketInstrument.chf) &&
+              chf != null &&
+              chf > 0) {
+            chfRate = idr / chf;
+            verifiedInstruments.add(MarketInstrument.chf);
+          }
         }
       }
     } catch (_) {
@@ -118,29 +133,31 @@ class MarketNewsRadarService {
     try {
       final res = await httpClient
           .get(
-            Uri.parse(
-              'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr',
-            ),
-          )
+              Uri.parse(
+                  'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether&vs_currencies=idr'),
+              headers: {'Accept': 'application/json'})
           .timeout(_requestTimeout);
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data.containsKey('bitcoin')) {
-          btcPrice = (data['bitcoin']['idr'] as num).toDouble();
+          btcPrice =
+              (data['bitcoin']['idr'] as num?)?.toDouble() ?? btcPrice;
           verifiedInstruments.add(MarketInstrument.btc);
         }
         if (data.containsKey('ethereum')) {
-          ethPrice = (data['ethereum']['idr'] as num).toDouble();
+          ethPrice =
+              (data['ethereum']['idr'] as num?)?.toDouble() ?? ethPrice;
           verifiedInstruments.add(MarketInstrument.eth);
         }
         if (data.containsKey('tether')) {
-          usdtPrice = (data['tether']['idr'] as num).toDouble();
+          usdtPrice =
+              (data['tether']['idr'] as num?)?.toDouble() ?? usdtPrice;
           verifiedInstruments.add(MarketInstrument.usdt);
         }
       }
     } catch (_) {
-      // Graceful degradation
+      // Fallback kripto
     }
 
     // This is a display estimate only. It has no provider evidence and must
@@ -163,6 +180,7 @@ class MarketNewsRadarService {
       sgdRate: sgdRate,
       eurRate: eurRate,
       sarRate: sarRate,
+      chfRate: chfRate,
       btcPrice: btcPrice,
       ethPrice: ethPrice,
       usdtPrice: usdtPrice,
@@ -173,6 +191,7 @@ class MarketNewsRadarService {
            MarketInstrument.sgd,
            MarketInstrument.eur,
            MarketInstrument.sar,
+           MarketInstrument.chf,
          }.contains(instrument),
        ),
       verifiedInstruments: verifiedInstruments,

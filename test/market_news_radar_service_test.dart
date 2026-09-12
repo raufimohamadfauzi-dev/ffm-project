@@ -68,6 +68,7 @@ void main() {
         sgdRate: 12100.0,
         eurRate: 17300.0,
         sarRate: 4330.0,
+        chfRate: 18100.0,
         btcPrice: 1050000000.0,
         ethPrice: 42000000.0,
         usdtPrice: 16260.0,
@@ -81,6 +82,7 @@ void main() {
       expect(restored.goldPerGram24K, equals(1450000));
       expect(restored.usdToIdr, equals(16250.0));
       expect(restored.sarToIdr, equals(4330.0));
+      expect(restored.chfToIdr, equals(18100.0));
       expect(restored.btcToIdr, equals(1050000000.0));
       expect(restored.isOfflineCache, isFalse);
     });
@@ -446,6 +448,20 @@ void main() {
           ),
         );
 
+        // Insert CHF (Franc Swiss) asset
+        await db.assets.insertOne(
+          AssetsCompanion.insert(
+            id: 'asset-forex-3',
+            householdId: householdId,
+            name: 'Tabungan Franc Swiss',
+            assetType: 'Valuta Asing',
+            value: const drift.Value(1500000),
+            placement: const drift.Value('Rekening Valas'),
+            note: const drift.Value('[CHF 100]'),
+            createdAt: DateTime.now(),
+          ),
+        );
+
         final snapshot = MarketPriceSnapshot(
           goldPrice24K: 1400000,
           goldBuybackPrice: 1300000,
@@ -453,6 +469,7 @@ void main() {
           sgdRate: 12000.0,
           eurRate: 17000.0,
           sarRate: 4400.0,
+          chfRate: 18000.0,
           btcPrice: 1000000000,
           ethPrice: 40000000,
           usdtPrice: 16000,
@@ -460,7 +477,7 @@ void main() {
         );
 
         final count = await service.revalueAllAssets(householdId, snapshot);
-        expect(count, equals(2));
+        expect(count, equals(3));
 
         final usd = await (db.select(
           db.assets,
@@ -471,6 +488,11 @@ void main() {
           db.assets,
         )..where((a) => a.id.equals('asset-forex-2'))).getSingle();
         expect(sar.value, equals(2200000)); // 500 * 4400
+
+        final chf = await (db.select(
+          db.assets,
+        )..where((a) => a.id.equals('asset-forex-3'))).getSingle();
+        expect(chf.value, equals(1800000)); // 100 * 18000
       },
     );
 

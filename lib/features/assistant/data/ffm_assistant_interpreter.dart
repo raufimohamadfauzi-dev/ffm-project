@@ -299,6 +299,9 @@ class FfmAssistantInterpreter {
       }
       return FfmAssistantCloudRequestClass.summary;
     }
+    if (RegExp(r'\b(aktivitas|kegiatan|perjalanan|checkpoint|sesi)\b').hasMatch(normalized)) {
+      return FfmAssistantCloudRequestClass.general;
+    }
     if (RegExp(r'\b(rekening|akun)\b').hasMatch(normalized)) {
       return FfmAssistantCloudRequestClass.accounts;
     }
@@ -902,7 +905,9 @@ class FfmAssistantInterpreter {
           (geminiMetadata['usedReadCapability'] != null
               ? verifiedForIntent
               : null),
-      conversationHistory: conversationHistory,
+      conversationHistory: conversationHistory != null
+          ? '$rawText\n$conversationHistory'
+          : rawText,
       isGeneralOrHelp: isConversationalOrHelp,
     );
     if (groundingError != null) {
@@ -957,6 +962,26 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final budgetDraft = _tryExtractBudgetDraftFromText(rawText);
+    if (budgetDraft != null) {
+      final issues = FfmAssistantDraftValidator.validate(budgetDraft);
+      final budgetReview = FfmAssistantDraftReview(
+        draft: budgetDraft,
+        version: 1,
+        issues: issues,
+      );
+      return _InterpretResult.single(
+        _intentForDraft(rawText, normalized, budgetDraft).copyWith(
+          response: turn.text,
+          responseOrigin: FfmAssistantResponseOrigin.geminiCloud,
+          pluginName: 'gemini_cloud',
+          pluginCategory: 'gemini_cloud',
+          pluginMetadata: geminiMetadata,
+          review: budgetReview,
+        ),
+      );
+    }
+
     return _InterpretResult.single(
       FfmAssistantIntent(
         rawText: rawText,
@@ -972,6 +997,54 @@ class FfmAssistantInterpreter {
         analysisResults: analysisForIntent,
       ),
     );
+  }
+
+  FfmAssistantDraft? _tryExtractBudgetDraftFromText(String rawText) {
+    final normalized = rawText.toLowerCase();
+    final hasBudgetKeyword = RegExp(
+      r'(max|maks|maksimal|anggaran|limit|batasan|jatah|set\s+anggaran)',
+      caseSensitive: false,
+    ).hasMatch(normalized);
+
+    if (!hasBudgetKeyword) return null;
+
+    String? categoryName;
+    final categoryMatch = RegExp(
+      r'(?:anggaran|pos|kebutuhan|jatah)\s+([a-zA-Z0-9\s]+?)\s+(?:max|maks|maksimal|sebesar|rp|\d)',
+      caseSensitive: false,
+    ).firstMatch(normalized);
+    if (categoryMatch != null) {
+      categoryName = categoryMatch.group(1)?.trim();
+    } else if (normalized.contains('dapur')) {
+      categoryName = 'Kebutuhan Dapur';
+    } else if (normalized.contains('kebun')) {
+      categoryName = 'Operasional Kebun';
+    }
+
+    int? amount;
+    final parsedDigits = FfmAssistantGroundingValidator.expandTextNumbers(normalized);
+    if (parsedDigits.isNotEmpty) {
+      amount = int.tryParse(parsedDigits.first);
+    } else {
+      final numbers = RegExp(r'\d+').allMatches(normalized).map((m) => m.group(0)!).toList();
+      if (numbers.isNotEmpty) {
+        amount = int.tryParse(numbers.first);
+      }
+    }
+
+    if (amount != null && amount > 0) {
+      final titleCategory = (categoryName != null && categoryName.isNotEmpty)
+          ? categoryName.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ')
+          : 'Anggaran Bulanan';
+      return FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.budget,
+        createdAt: _clock(),
+        amount: amount,
+        categoryName: titleCategory,
+        formValues: const <String, dynamic>{'periodType': 'monthly'},
+      );
+    }
+    return null;
   }
 
   Future<FfmAssistantUnderstandingResult> interpretMany(
@@ -3820,6 +3893,55 @@ class FfmAssistantInterpreter {
       );
     }
 
+    // Mengabaikan percakapan santai (sapaan, waktu hari, dsb.) yang bukan merupakan perintah tema
+    final isCasualConversation =
+        clean.contains('selamat malam') ||
+        clean.contains('selamat siang') ||
+        clean.contains('sekarang malam') ||
+        clean.contains('sekarang siang') ||
+        clean.contains('tadi malam') ||
+        clean.contains('kemarin malam') ||
+        clean.contains('nanti malam') ||
+        clean.contains('tahu ya') ||
+        clean.contains('tau ya') ||
+        clean.contains('iya malam') ||
+        clean.contains('sudah malam');
+
+    if (isCasualConversation) return null;
+
+    // Kata-kata tema & aksi
+    final isThemeWord =
+        clean.contains('tema') ||
+        clean.contains('theme') ||
+        clean.contains('mode') ||
+        clean.contains('tampilan') ||
+        clean.contains('layar') ||
+        clean.contains('warna') ||
+        clean.contains('lampu');
+
+    final isActionWord =
+        clean.contains('ubah') ||
+        clean.contains('ganti') ||
+        clean.contains('tukar') ||
+        clean.contains('pindah') ||
+        clean.contains('aktifkan') ||
+        clean.contains('hidupkan') ||
+        clean.contains('gantiin') ||
+        clean.contains('bikin') ||
+        clean.contains('jadikan') ||
+        clean.contains('buat') ||
+        clean.contains('setel') ||
+        clean.contains('atur');
+
+    final isDirectThemeCommand =
+        clean.startsWith('gelapkan') ||
+        clean.startsWith('terangkan') ||
+        clean.startsWith('hitamkan') ||
+        clean.startsWith('mode ') ||
+        clean.startsWith('tema ');
+
+    if (!isThemeWord && !isActionWord && !isDirectThemeCommand) return null;
+
     // 2. Variasi Dark Mode: redup, gelap, hitam, malam, dark, black, matiin lampu
     final darkPatterns = [
       'gelap',
@@ -3865,38 +3987,6 @@ class FfmAssistantInterpreter {
         systemPatterns.any(matchesThemePattern) &&
         !clean.contains('jangan') &&
         !clean.contains('bukan');
-
-    // Kata-kata tema & aksi
-    final isThemeWord =
-        clean.contains('tema') ||
-        clean.contains('theme') ||
-        clean.contains('mode') ||
-        clean.contains('tampilan') ||
-        clean.contains('layar') ||
-        clean.contains('warna');
-
-    final isActionWord =
-        clean.contains('ubah') ||
-        clean.contains('ganti') ||
-        clean.contains('tukar') ||
-        clean.contains('pindah') ||
-        clean.contains('aktifkan') ||
-        clean.contains('hidupkan') ||
-        clean.contains('gantiin') ||
-        clean.contains('bikin') ||
-        clean.contains('jadikan') ||
-        clean.contains('buat') ||
-        clean.contains('setel') ||
-        clean.contains('atur');
-
-    final isDirectThemeCommand =
-        clean.endsWith('kan') ||
-        clean.endsWith('in') ||
-        clean.startsWith('gelap') ||
-        clean.startsWith('terang') ||
-        clean.startsWith('hitam') ||
-        clean.startsWith('redup') ||
-        clean.startsWith('putih');
 
     // hasSystem butuh konteks tema agar tidak false-positive
     // pada kalimat seperti "cek kalender perangkat" atau "data perangkat".

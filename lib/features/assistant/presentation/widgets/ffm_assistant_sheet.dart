@@ -826,7 +826,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
     await WidgetsBinding.instance.endOfFrame;
     await WidgetsBinding.instance.endOfFrame;
     if (!mounted || !_scrollController.hasClients) return;
-    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    _scrollToEnd(force: true, animated: false);
     setState(() {
       _followLatestMessages = true;
       _showScrollToBottom = false;
@@ -991,10 +991,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       await _checkAndInitiateGreetings();
       unawaited(_checkDueHabitPatterns());
       await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
       if (!mounted || !_scrollController.hasClients) return;
       // Greeting/onboarding dapat menambah entry setelah posisi awal dihitung.
-      // Hitung ulang setelah entry tersebut selesai dirender.
+      // Hitung ulang setelah entry tersebut selesai dirender agar scroll berada di paling bawah.
       _scrollToEnd(force: true, animated: false);
+      // Eksekusi ulang di frame berikutnya untuk mengantisipasi gambar atau card tinggi yang baru dirender.
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && _scrollController.hasClients) {
+          _scrollToEnd(force: true, animated: false);
+        }
+      });
     });
   }
 
@@ -1987,7 +1994,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         }
       }
 
-      _setActiveProcess('🔍 Menyiapkan konteks percakapan...');
+      final queryKeyword = text.length > 25 ? '${text.substring(0, 25)}...' : text;
+      _setActiveProcess('🔍 Menganalisis perintah: "$queryKeyword"...');
       await Future<void>.delayed(Duration.zero);
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud && !_cloudReady) {
         stopwatch.stop();
@@ -2029,20 +2037,20 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       FfmAssistantUnderstandingResult? understanding;
       final activeDraftForTurn = _activeDraftForTurn(text);
 
-      _setActiveProcess('📖 Membaca data finansial terikat via Indeks DB (read.summary/read.transactions)...');
+      _setActiveProcess('📖 Menyiapkan data finansial & indeks pencarian...');
       _interpreter.onProgress = (message) {
         if (message.contains('konteks') || message.contains('master') || message.contains('lokal')) {
-          _setActiveProcess('📖 Membaca data finansial terikat via Indeks DB (read.summary/read.transactions)...');
+          _setActiveProcess('📖 Membaca konteks data ($queryKeyword)...');
         } else if (message.contains('Gemini') || message.contains('Cloud')) {
           _setActiveProcess('🧠 Penalaran Gemini Cloud...');
         } else if (message.contains('respons') || message.contains('validasi')) {
-          _setActiveProcess('✏️ Menyusun respons akhir...');
+          _setActiveProcess('✏️ Memvalidasi & menyusun jawaban...');
         } else {
           _setActiveProcess(message);
         }
       };
       if (_routingMode == FfmAssistantRoutingMode.geminiCloud) {
-        _setActiveProcess('🧠 Penalaran Gemini Cloud...');
+        _setActiveProcess('🧠 Penalaran Gemini Cloud ($queryKeyword)...');
       }
       final intents = pending == null
           ? ((understanding = await _interpreter.interpretMany(
@@ -2076,10 +2084,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       _setActiveProcess('✏️ Menyusun respons akhir...');
       await Future<void>.delayed(Duration.zero);
 
-      if (!mounted) return;
       final readPlanIds = <String>[];
       final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
-      setState(() {
+      void applyTurnChanges() {
         for (final intent in intents) {
           String response = intent.response ?? intent.clarification ?? '';
           if (response.isEmpty) {
@@ -2181,7 +2188,14 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
             _queuedIntents.add(intent);
           }
         }
-      });
+      }
+
+      if (mounted) {
+        setState(applyTurnChanges);
+      } else {
+        applyTurnChanges();
+      }
+
       for (final planId in readPlanIds) {
         await _executeReadPlan(planId);
       }
@@ -2204,19 +2218,23 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ),
       );
     } catch (_) {
-      if (!mounted) return;
-      setState(
-        () => _appendEntry(
-          const FfmAssistantChatEntry(
-            isUser: false,
-            text: 'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
-          ),
-        ),
+      const errorEntry = FfmAssistantChatEntry(
+        isUser: false,
+        text:
+            'Maaf, aku belum bisa memproses itu. Coba ulangi dengan kalimat lebih singkat, ya.',
       );
+      if (mounted) {
+        setState(() => _appendEntry(errorEntry));
+      } else {
+        _appendEntry(errorEntry);
+        unawaited(_saveCurrentConversation());
+      }
     } finally {
       _processStopwatch.stop();
-      if (mounted) setState(() => _submitting = false);
-      _scrollToEnd(force: true);
+      if (mounted) {
+        setState(() => _submitting = false);
+        _scrollToEnd(force: true);
+      }
     }
   }
 

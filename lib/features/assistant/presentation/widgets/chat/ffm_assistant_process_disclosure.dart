@@ -196,6 +196,7 @@ class _FfmAssistantProcessDisclosureState
                     Expanded(
                       child: Text(
                         planSummary,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
                           fontWeight: FontWeight.w600,
@@ -203,6 +204,7 @@ class _FfmAssistantProcessDisclosureState
                         ),
                       ),
                     ),
+                    const SizedBox(width: 4),
                     Icon(
                       _expanded
                           ? Icons.keyboard_arrow_up_rounded
@@ -282,6 +284,7 @@ class _FfmAssistantProcessDisclosureState
                         Expanded(
                           child: Text(
                             event.label,
+                            softWrap: true,
                             style: theme.textTheme.bodySmall?.copyWith(
                               fontWeight: FontWeight.w700,
                             ),
@@ -291,7 +294,14 @@ class _FfmAssistantProcessDisclosureState
                     ),
                     if (event.detail != null) ...[
                       const SizedBox(height: 2),
-                      Text(event.detail!, style: theme.textTheme.bodySmall),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 60),
+                        child: Text(
+                          event.detail!,
+                          softWrap: true,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 8),
                   ],

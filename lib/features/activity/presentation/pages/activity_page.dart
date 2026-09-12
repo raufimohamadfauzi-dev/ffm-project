@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/di/injection.dart';
-import '../../../../shared/ffm_date_period.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../assistant/data/ffm_assistant_interpreter.dart';
@@ -20,6 +19,7 @@ import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
 import '../../domain/entities/activity_entity.dart';
 import '../bloc/activity_bloc.dart';
+import '../widgets/activity_filter_sheet.dart';
 import 'activity_detail_page.dart';
 
 class ActivityPage extends StatelessWidget {
@@ -352,56 +352,45 @@ class _ActivityViewState extends State<_ActivityView>
     );
   }
 
-  Future<void> _pickDay() async {
-    final picked = await showDatePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      initialDate: _dayFilter ?? DateTime.now(),
-    );
-    if (picked == null || !mounted) return;
-    setState(() {
-      _dayFilter = picked;
-      _startDateFilter = null;
-      _endDateFilter = null;
-    });
-    _onFilterChanged();
-  }
-
-  Future<void> _pickDateRange() async {
-    final now = DateTime.now();
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(now.year + 1, 12, 31),
-      initialDateRange: _startDateFilter != null && _endDateFilter != null
-          ? DateTimeRange(start: _startDateFilter!, end: _endDateFilter!)
-          : null,
-    );
-    if (range == null || !mounted) return;
-    setState(() {
-      _dayFilter = null;
-      _startDateFilter = range.start;
-      _endDateFilter = range.end;
-    });
-    _onFilterChanged();
-  }
-
-  void _applyPeriodPreset(FfmDatePeriodPreset preset) {
-    final period = FfmDatePeriod.fromPreset(preset);
-    setState(() {
-      _dayFilter = null;
-      _startDateFilter = period.start;
-      _endDateFilter = period.endInclusive;
-    });
-    _onFilterChanged();
-  }
-
   String _periodLabel() {
     if (_startDateFilter == null || _endDateFilter == null) {
       return 'Semua periode';
     }
     return '${_dateOnly(_startDateFilter!)} - ${_dateOnly(_endDateFilter!)}';
+  }
+
+  Future<void> _openFilterSheet() async {
+    final result = await showModalBottomSheet<ActivityFilterFilterState>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => ActivityFilterSheet(
+        initialState: ActivityFilterFilterState(
+          categoryId: _categoryFilterId,
+          dayFilter: _dayFilter,
+          startDateFilter: _startDateFilter,
+          endDateFilter: _endDateFilter,
+          modeFilter: _modeFilter,
+          includeArchived: _includeArchived,
+        ),
+        categories: _voiceCategories,
+        categoryIds: _activityCategoryIds,
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      _categoryFilterId = result.categoryId;
+      _dayFilter = result.dayFilter;
+      _startDateFilter = result.startDateFilter;
+      _endDateFilter = result.endDateFilter;
+      _modeFilter = result.modeFilter;
+      _includeArchived = result.includeArchived;
+    });
+    _onFilterChanged();
   }
 
   Future<void> _startSession({
@@ -766,30 +755,154 @@ class _ActivityViewState extends State<_ActivityView>
         ),
       );
       final proposal = interpretation.draft;
-      if (proposal?.kind != FfmAssistantDraftKind.activity ||
-          proposal?.title?.trim().isEmpty != false) {
-        return false;
+      final intentType = interpretation.type;
+
+      // Handle finish activity intent from LLM
+      if (intentType == FfmAssistantIntentType.finishActivity ||
+          (proposal?.formValues['action'] == 'finish' &&
+              state.activeSessions.isNotEmpty)) {
+        if (!mounted) return true;
+        final targetId = proposal?.formValues['sessionId'] ??
+            (state.activeSessions.length == 1
+                ? state.activeSessions.single.id
+                : null);
+        if (targetId != null) {
+          final session = state.activeSessions.firstWhere(
+            (s) => s.id == targetId,
+            orElse: () => state.activeSessions.first,
+          );
+          await context.read<ActivityBloc>().finishSession(sessionId: session.id);
+          final msg = 'Selesai! Aktivitas ${session.title} telah dihentikan.';
+          setState(() {
+            _voiceText = transcript;
+            _voiceError = null;
+            _voiceStatus = 'Aktivitas Selesai';
+          });
+          await _speechService.speak(msg);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Aktivitas "${session.title}" selesai.')),
+            );
+          }
+          return true;
+        }
       }
 
-      if (!mounted) return true;
-      setState(() {
-        _voiceText = transcript;
-        _voiceStatus = 'Membuka form draft dari LLM...';
-        _voiceError = null;
-      });
+      // Handle start child / sub-activity intent from LLM
+      if ((intentType == FfmAssistantIntentType.createActivity ||
+              proposal?.kind == FfmAssistantDraftKind.activity) &&
+          (proposal?.formValues['parentSessionId'] != null ||
+              transcript.toLowerCase().contains('di dalam') ||
+              transcript.toLowerCase().contains('sub aktivitas')) &&
+          state.activeSessions.isNotEmpty) {
+        if (!mounted) return true;
+        final parent = state.activeSessions.firstWhere(
+          (s) => s.id == proposal?.formValues['parentSessionId'],
+          orElse: () => state.activeSessions.first,
+        );
+        final childTitle = proposal?.title?.trim().isNotEmpty == true
+            ? proposal!.title!.trim()
+            : 'Sub-aktivitas';
+        setState(() {
+          _voiceText = transcript;
+          _voiceStatus = 'Membuka form Sub-aktivitas...';
+          _voiceError = null;
+        });
+        await _startSession(
+          parentSessionId: parent.id,
+          parentTitle: parent.title,
+          initialTitle: childTitle,
+          initialCategory: proposal?.categoryName?.trim(),
+          initialNotes: proposal?.note,
+          initialMode: ActivityMode.timeTracking,
+        );
+        final msg =
+            'Sub-aktivitas $childTitle di dalam ${parent.title} disiapkan.';
+        await _speechService.speak(msg);
+        return true;
+      }
 
-      final modeVal =
-          proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
-      await _startSession(
-        initialTitle: proposal.title!.trim(),
-        initialCategory: proposal.categoryName?.trim(),
-        initialNotes: proposal.note,
-        initialStartedAt: proposal.date,
-        initialMode: modeVal == 'history' || modeVal == 'catatan'
+      // Handle daily note draft from LLM
+      if (proposal?.kind == FfmAssistantDraftKind.dailyNote) {
+        if (!mounted) return true;
+        final noteTitle = (proposal?.title?.trim().isNotEmpty == true)
+            ? proposal!.title!.trim()
+            : 'Catatan Harian';
+        final noteBody = proposal?.note ?? transcript;
+        setState(() {
+          _voiceText = transcript;
+          _voiceStatus = 'Membuka form Catatan Harian...';
+          _voiceError = null;
+        });
+        await _startSession(
+          initialTitle: noteTitle,
+          initialCategory: proposal?.categoryName?.trim(),
+          initialNotes: noteBody,
+          initialMode: ActivityMode.history,
+        );
+        final spokenMsg = interpretation.response ??
+            'Catatan $noteTitle disiapkan di form Catatan Harian.';
+        await _speechService.speak(spokenMsg);
+        return true;
+      }
+
+      // Handle activity draft (timer vs history note) from LLM
+      if (proposal?.kind == FfmAssistantDraftKind.activity &&
+          proposal?.title?.trim().isNotEmpty == true) {
+        if (!mounted) return true;
+        setState(() {
+          _voiceText = transcript;
+          _voiceStatus = 'Membuka form draf dari LLM...';
+          _voiceError = null;
+        });
+
+        final modeVal =
+            proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
+        final mode = modeVal == 'history' || modeVal == 'catatan' || modeVal == 'note'
             ? ActivityMode.history
-            : ActivityMode.timeTracking,
-      );
-      return true;
+            : ActivityMode.timeTracking;
+        await _startSession(
+          initialTitle: proposal.title!.trim(),
+          initialCategory: proposal.categoryName?.trim(),
+          initialNotes: proposal.note,
+          initialStartedAt: proposal.date,
+          initialMode: mode,
+        );
+        final spokenMsg = interpretation.response ??
+            'Draf ${mode == ActivityMode.history ? "Catatan Harian" : "Timer Aktivitas"} ${proposal.title} disiapkan.';
+        await _speechService.speak(spokenMsg);
+        return true;
+      }
+
+      // If LLM generated a draft outside of activity or daily note (e.g. financial expense/income),
+      // lock the context to this page's domain and inform the user via voice and text.
+      if (proposal != null) {
+        if (!mounted) return true;
+        final msg =
+            'Tombol suara di halaman ini khusus untuk Timer Aktivitas dan Catatan Harian. Untuk mencatat transaksi keuangan, silakan gunakan Asisten AI utama.';
+        setState(() {
+          _voiceText = transcript;
+          _voiceError = msg;
+          _voiceStatus = 'Khusus Aktivitas & Catatan';
+        });
+        await _speechService.speak(msg);
+        return true;
+      }
+
+      // Handle direct LLM response/clarification out loud via TTS
+      final responseText = interpretation.response ?? interpretation.clarification;
+      if (responseText != null && responseText.trim().isNotEmpty) {
+        if (!mounted) return true;
+        setState(() {
+          _voiceText = transcript;
+          _voiceError = responseText;
+          _voiceStatus = 'Jawaban Asisten';
+        });
+        await _speechService.speak(responseText);
+        return true;
+      }
+
+      return false;
     } catch (_) {
       return false;
     }
@@ -1216,178 +1329,135 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                     onCancel: _cancelVoice,
                   ),
                   const SizedBox(height: 16),
-                  AppCard(
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        DropdownButton<String?>(
-                          value: _categoryFilterId,
-                          underline: const SizedBox.shrink(),
-                          items: [
-                            const DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text('Semua kategori'),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Cari aktivitas atau catatan...',
+                            isDense: true,
+                            prefixIcon: const Icon(Icons.search, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, size: 18),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                      _onFilterChanged();
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            ..._voiceCategories.map(
-                              (name) => DropdownMenuItem<String?>(
-                                value: _activityCategoryIds[name],
-                                child: Text(name),
-                              ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
                             ),
-                          ],
+                          ),
                           onChanged: (value) {
-                            setState(() => _categoryFilterId = value);
+                            setState(() => _searchQuery = value);
                             _onFilterChanged();
                           },
                         ),
-                        OutlinedButton.icon(
-                          onPressed: _pickDay,
-                          icon: const Icon(Icons.calendar_today_outlined),
-                          label: Text(
-                            _dayFilter == null
-                                ? 'Semua tanggal'
-                                : _dateOnly(_dayFilter!),
-                          ),
+                      ),
+                      const SizedBox(width: 8),
+                      Badge(
+                        isLabelVisible: _categoryFilterId != null ||
+                            _dayFilter != null ||
+                            _startDateFilter != null ||
+                            _modeFilter != 'Semua mode' ||
+                            _includeArchived,
+                        label: Text(
+                          '${(_categoryFilterId != null ? 1 : 0) + (_dayFilter != null || _startDateFilter != null ? 1 : 0) + (_modeFilter != 'Semua mode' ? 1 : 0) + (_includeArchived ? 1 : 0)}',
                         ),
+                        child: IconButton.filledTonal(
+                          onPressed: _openFilterSheet,
+                          icon: const Icon(Icons.tune_rounded),
+                          tooltip: 'Filter aktivitas & catatan',
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_categoryFilterId != null ||
+                      _dayFilter != null ||
+                      _startDateFilter != null ||
+                      _modeFilter != 'Semua mode' ||
+                      _includeArchived) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        if (_categoryFilterId != null)
+                          Chip(
+                            label: Text(
+                              _activityCategoryIds.entries
+                                  .firstWhere(
+                                    (e) => e.value == _categoryFilterId,
+                                    orElse: () =>
+                                        const MapEntry('', 'Kategori'),
+                                  )
+                                  .key,
+                            ),
+                            onDeleted: () {
+                              setState(() => _categoryFilterId = null);
+                              _onFilterChanged();
+                            },
+                          ),
                         if (_dayFilter != null)
-                          IconButton(
-                            tooltip: 'Hapus filter tanggal',
-                            onPressed: () {
+                          Chip(
+                            label: Text(_dateOnly(_dayFilter!)),
+                            onDeleted: () {
                               setState(() => _dayFilter = null);
                               _onFilterChanged();
                             },
-                            icon: const Icon(Icons.clear),
                           ),
-                        PopupMenuButton<FfmDatePeriodPreset>(
-                          tooltip: 'Pilih periode riwayat',
-                          onSelected: _applyPeriodPreset,
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.allTime,
-                              child: Text('Semua periode'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.thisMonth,
-                              child: Text('Bulan ini'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.lastMonth,
-                              child: Text('Bulan lalu'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.last3Months,
-                              child: Text('3 bulan terakhir'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.last6Months,
-                              child: Text('6 bulan terakhir'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.lastYear,
-                              child: Text('1 tahun terakhir'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.thisYear,
-                              child: Text('Tahun ini'),
-                            ),
-                            PopupMenuItem(
-                              value: FfmDatePeriodPreset.previousYear,
-                              child: Text('Tahun lalu'),
-                            ),
-                          ],
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.date_range_outlined, size: 18),
-                                const SizedBox(width: 8),
-                                Text(_periodLabel()),
-                              ],
-                            ),
-                          ),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: _pickDateRange,
-                          icon: const Icon(Icons.edit_calendar_outlined),
-                          label: const Text('Rentang custom'),
-                        ),
-                        if (_startDateFilter != null || _endDateFilter != null)
-                          IconButton(
-                            tooltip: 'Hapus filter periode',
-                            onPressed: () {
+                        if (_startDateFilter != null && _endDateFilter != null)
+                          Chip(
+                            label: Text(_periodLabel()),
+                            onDeleted: () {
                               setState(() {
                                 _startDateFilter = null;
                                 _endDateFilter = null;
                               });
                               _onFilterChanged();
                             },
-                            icon: const Icon(Icons.clear),
                           ),
-                        DropdownButton<String>(
-                          value: _modeFilter,
-                          underline: const SizedBox.shrink(),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'Semua mode',
-                              child: Text('Semua mode'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Timer',
-                              child: Text('Timer'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'Catatan',
-                              child: Text('Catatan'),
-                            ),
-                          ],
-                          onChanged: (value) {
-                            setState(() => _modeFilter = value ?? 'Semua mode');
-                            _onFilterChanged();
-                          },
-                        ),
-                        FilterChip(
-                          label: const Text('Arsip'),
-                          selected: _includeArchived,
-                          onSelected: (value) {
-                            setState(() => _includeArchived = value);
-                            _onFilterChanged();
-                          },
-                        ),
-                        SizedBox(
-                          width: 160,
-                          child: TextField(
-                            controller: _searchController,
-                            decoration: const InputDecoration(
-                              hintText: 'Cari...',
-                              isDense: true,
-                              prefixIcon: Icon(Icons.search, size: 18),
-                              border: OutlineInputBorder(),
-                              contentPadding: EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
-                              ),
-                            ),
-                            onChanged: (value) {
-                            setState(() => _searchQuery = value);
-                            _onFilterChanged();
-                          },
+                        if (_modeFilter != 'Semua mode')
+                          Chip(
+                            label: Text(_modeFilter),
+                            onDeleted: () {
+                              setState(() => _modeFilter = 'Semua mode');
+                              _onFilterChanged();
+                            },
                           ),
+                        if (_includeArchived)
+                          Chip(
+                            label: const Text('Arsip'),
+                            onDeleted: () {
+                              setState(() => _includeArchived = false);
+                              _onFilterChanged();
+                            },
+                          ),
+                        ActionChip(
+                          label: const Text('Reset Filter'),
+                          onPressed: () {
+                            setState(() {
+                              _categoryFilterId = null;
+                              _dayFilter = null;
+                              _startDateFilter = null;
+                              _endDateFilter = null;
+                              _modeFilter = 'Semua mode';
+                              _includeArchived = false;
+                            });
+                            _onFilterChanged();
+                          },
                         ),
                       ],
                     ),
-                  ),
+                  ],
                   if (state.habitSuggestions.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     _HabitSuggestionsCard(suggestions: state.habitSuggestions),
@@ -1499,16 +1569,28 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               children: [
                                 Expanded(
                                   child: _SectionTitle(
-                                    title: _riwayatTab == '🤖 Otonom'
-                                        ? 'Aksi Otonom Agen'
-                                        : _riwayatTab == 'Jurnal Harian'
+                                    title: (_riwayatTab == '📝 Catatan Harian' ||
+                                            _riwayatTab == 'Catatan' ||
+                                            _riwayatTab == 'Jurnal Harian')
                                         ? 'Catatan Harian'
-                                        : 'Riwayat Aktivitas',
-                                    count: _riwayatTab == '🤖 Otonom'
-                                        ? visibleAutonomous.length
-                                        : _riwayatTab == 'Jurnal Harian'
-                                        ? visibleDailyNotes.length
-                                        : visibleSessions.length,
+                                        : (_riwayatTab == '⏱️ Timer' ||
+                                                _riwayatTab == 'Timer')
+                                            ? 'Aktivitas Timer'
+                                            : 'Riwayat Aktivitas & Catatan',
+                                    count: (_riwayatTab == '📝 Catatan Harian' ||
+                                            _riwayatTab == 'Catatan' ||
+                                            _riwayatTab == 'Jurnal Harian')
+                                        ? (visibleDailyNotes.length +
+                                            visibleSessions
+                                                .where((s) => s.isHistory)
+                                                .length)
+                                        : (_riwayatTab == '⏱️ Timer' ||
+                                                _riwayatTab == 'Timer')
+                                            ? visibleSessions
+                                                .where((s) => s.isTimeTracking)
+                                                .length
+                                            : (visibleSessions.length +
+                                                visibleDailyNotes.length),
                                   ),
                                 ),
                                 FilledButton.tonalIcon(
@@ -1541,26 +1623,19 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               children: [
                                 for (final tab in [
                                   'Semua',
-                                  'Timer',
-                                  'Catatan',
-                                  'Jurnal Harian',
-                                  '🤖 Otonom',
+                                  '⏱️ Timer',
+                                  '📝 Catatan Harian',
                                 ])
                                   Padding(
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ChoiceChip(
-                                      label: Text(
-                                        tab == 'Timer'
-                                            ? '⏱️ Timer'
-                                            : (tab == 'Catatan'
-                                                  ? '📝 Catatan'
-                                                  : (tab == 'Jurnal Harian'
-                                                        ? '📓 Jurnal Harian'
-                                                        : (tab == '🤖 Otonom'
-                                                              ? '🤖 Otonom'
-                                                              : 'Semua'))),
-                                      ),
-                                      selected: _riwayatTab == tab,
+                                      label: Text(tab),
+                                      selected: _riwayatTab == tab ||
+                                          (tab == '📝 Catatan Harian' &&
+                                              (_riwayatTab == 'Catatan' ||
+                                                  _riwayatTab == 'Jurnal Harian')) ||
+                                          (tab == '⏱️ Timer' &&
+                                              _riwayatTab == 'Timer'),
                                       onSelected: (selected) {
                                         if (selected) {
                                           setState(() => _riwayatTab = tab);
@@ -1572,8 +1647,13 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          if (_riwayatTab == 'Jurnal Harian') ...[
-                            if (visibleDailyNotes.isEmpty)
+                          if (_riwayatTab == '📝 Catatan Harian' ||
+                              _riwayatTab == 'Catatan' ||
+                              _riwayatTab == 'Jurnal Harian') ...[
+                            if (visibleDailyNotes.isEmpty &&
+                                visibleSessions
+                                    .where((s) => s.isHistory)
+                                    .isEmpty)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 36),
                                 child: Center(
@@ -1582,7 +1662,7 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                   ),
                                 ),
                               )
-                            else
+                            else ...[
                               for (final note in visibleDailyNotes)
                                 Card(
                                   margin: const EdgeInsets.only(bottom: 10),
@@ -1613,6 +1693,13 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                     isThreeLine: true,
                                   ),
                                 ),
+                              ..._buildGroupedSessionCards(
+                                visibleSessions: visibleSessions
+                                    .where((s) => s.isHistory)
+                                    .toList(),
+                                state: state,
+                              ),
+                            ],
                             if (state.hasMoreDailyNotes)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
@@ -1646,6 +1733,31 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                   onRevert: () => _revertAutonomous(activity),
                                   onCorrect: () => _correctAutonomous(activity),
                                 ),
+                          ] else if (_riwayatTab == '⏱️ Timer' ||
+                              _riwayatTab == 'Timer') ...[
+                            if (visibleSessions
+                                .where((s) => s.isTimeTracking)
+                                .isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 36),
+                                child: Center(
+                                  child: Text(
+                                    'Belum ada Aktivitas Timer pada filter ini.',
+                                  ),
+                                ),
+                              )
+                            else
+                              ..._buildGroupedSessionCards(
+                                visibleSessions: visibleSessions
+                                    .where((s) => s.isTimeTracking)
+                                    .toList(),
+                                state: state,
+                              ),
+                            if (state.hasMoreSessions)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: _buildLoadMoreButton(state),
+                              ),
                           ] else ...[
                             if (_riwayatTab == 'Semua' &&
                                 visibleAutonomous.isNotEmpty) ...[

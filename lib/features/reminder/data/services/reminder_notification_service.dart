@@ -18,6 +18,7 @@ const _assistantMorningReminderEnabledKey =
 const _assistantMorningReminderNotificationId = 61006;
 const _assistantMorningReminderChannelId = 'ffm_assistant_morning';
 const _autonomousReminderSoundResource = 'ffm_autonomous_reminder';
+const _autonomousReminderChannelVersion = 'v2';
 const _autonomousReminderSoundName = 'Nada otonom FFM';
 const _reminderAccentColor = Color(0xFF7C3AED);
 const _reminderSubText = 'PENGINGAT FFM';
@@ -165,8 +166,11 @@ Future<void> _scheduleBackgroundSnooze(
   if (reminderId.isEmpty || occurrenceKey.isEmpty) return;
 
   final snoozeNotifId = stableSnoozeNotificationId(reminderId, occurrenceKey);
-  final channelId = '${payload['channelId'] ?? ''}'.trim().isNotEmpty
-      ? '${payload['channelId']}'.trim()
+  final payloadChannelId = '${payload['channelId'] ?? ''}'.trim();
+  final channelId = payload['origin'] == ReminderOrigin.autonomous.storageValue
+      ? _autonomousReminderChannelId(payload['reminderId'])
+      : payloadChannelId.isNotEmpty
+      ? payloadChannelId
       : 'reminder_snooze';
   final channelName = '${payload['title'] ?? 'Pengingat FFM'}'.trim();
   final androidSound = _androidSoundForPayload(payload);
@@ -296,7 +300,7 @@ abstract interface class ReminderNotificationLifecycleGateway {
 
 String reminderNotificationChannelId(ReminderEntity reminder) {
   final soundKey = reminder.origin == ReminderOrigin.autonomous
-      ? 'raw:$_autonomousReminderSoundResource'
+      ? 'autonomous:$_autonomousReminderChannelVersion:raw:$_autonomousReminderSoundResource'
       : reminder.soundUri?.trim().isNotEmpty == true
       ? reminder.soundUri!
       : 'default';
@@ -305,15 +309,26 @@ String reminderNotificationChannelId(ReminderEntity reminder) {
     hash = (hash ^ codeUnit) * 16777619;
     hash &= 0x7fffffff;
   }
-  return 'reminder_${reminder.id}_${hash == 0 ? 1 : hash}';
+  final version = reminder.origin == ReminderOrigin.autonomous
+      ? '_$_autonomousReminderChannelVersion'
+      : '';
+  return 'reminder_${reminder.id}${version}_${hash == 0 ? 1 : hash}';
+}
+
+String _autonomousReminderChannelId(Object? reminderId) {
+  final id = '$reminderId'.trim();
+  var hash = 2166136261;
+  for (final codeUnit
+      in 'autonomous:$_autonomousReminderChannelVersion:raw:$_autonomousReminderSoundResource'
+          .codeUnits) {
+    hash = (hash ^ codeUnit) * 16777619;
+    hash &= 0x7fffffff;
+  }
+  return 'reminder_${id}_${_autonomousReminderChannelVersion}_${hash == 0 ? 1 : hash}';
 }
 
 AndroidNotificationSound? _androidSoundForReminder(ReminderEntity reminder) {
-  if (reminder.origin == ReminderOrigin.autonomous) {
-    return const RawResourceAndroidNotificationSound(
-      _autonomousReminderSoundResource,
-    );
-  }
+  // If sound Uri is set, use it. Autonomous reminders fall back to default sound if custom sound resource is omitted.
   final soundUri = reminder.soundUri?.trim() ?? '';
   return soundUri.isEmpty ? null : UriAndroidNotificationSound(soundUri);
 }
@@ -321,11 +336,6 @@ AndroidNotificationSound? _androidSoundForReminder(ReminderEntity reminder) {
 AndroidNotificationSound? _androidSoundForPayload(
   Map<String, dynamic> payload,
 ) {
-  if (payload['origin'] == ReminderOrigin.autonomous.storageValue) {
-    return const RawResourceAndroidNotificationSound(
-      _autonomousReminderSoundResource,
-    );
-  }
   final soundUri = '${payload['soundUri'] ?? ''}'.trim();
   return soundUri.isEmpty ? null : UriAndroidNotificationSound(soundUri);
 }

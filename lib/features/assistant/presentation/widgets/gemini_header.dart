@@ -162,186 +162,38 @@ class GeminiHeader extends StatelessWidget {
                   ],
                 ),
               ),
-              if (showFullscreenToggle)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: isFullScreen ? 'Tampilan normal' : 'Layar penuh',
-                  onPressed: onToggleFullScreen,
-                  icon: Icon(
-                    isFullScreen
-                        ? Icons.fullscreen_exit_rounded
-                        : Icons.fullscreen_rounded,
-                    size: 22,
-                    color: isDark
-                        ? const Color(0xFF9A9590)
-                        : const Color(0xFF6B5E4F),
-                  ),
-                ),
-              if (onOpenConversations != null)
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'Percakapan',
-                  onPressed: onOpenConversations,
-                  icon: Icon(
-                    Icons.forum_outlined,
-                    size: 21,
-                    color: isDark
-                        ? const Color(0xFF9A9590)
-                        : const Color(0xFF6B5E4F),
-                  ),
-                ),
-              if (onOpenMemory != null)
-                Stack(
-                  alignment: Alignment.topRight,
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: 'Memori Pribadi ($memoryCount tersimpan)',
-                      onPressed: onOpenMemory,
-                      icon: Icon(
-                        Icons.psychology_outlined,
-                        size: 21,
-                        color: isDark
-                            ? const Color(0xFF9A9590)
-                            : const Color(0xFF6B5E4F),
-                      ),
-                    ),
-                    if (memoryCount > 0)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDark
-                                ? const Color(0xFF7BA37B)
-                                : const Color(0xFFC27B5F),
-                          ),
-                          child: Center(
-                            child: Text(
-                              memoryCount > 9 ? '9+' : '$memoryCount',
-                              style: const TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              if (onOpenInbox != null)
-                Stack(
-                  alignment: Alignment.topRight,
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: 'Kotak Masuk Asisten ($inboxCount catatan)',
-                      onPressed: onOpenInbox,
-                      icon: Icon(
-                        inboxCount > 0
-                            ? Icons.inbox_rounded
-                            : Icons.inbox_outlined,
-                        size: 21,
-                        color: inboxCount > 0
-                            ? (isDark
-                                  ? const Color(0xFFC49A6B)
-                                  : const Color(0xFFB07A4A))
-                            : (isDark
-                                  ? const Color(0xFF9A9590)
-                                  : const Color(0xFF6B5E4F)),
-                      ),
-                    ),
-                    if (inboxCount > 0)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDark
-                                ? const Color(0xFFC49A6B)
-                                : const Color(0xFFB07A4A),
-                          ),
-                          child: Center(
-                            child: Text(
-                              inboxCount > 9 ? '9+' : '$inboxCount',
-                              style: const TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              if (onOpenIssueLog != null)
-                Stack(
-                  alignment: Alignment.topRight,
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      tooltip: 'Asisten Log ($issueCount anomali)',
-                      onPressed: onOpenIssueLog,
-                      icon: Icon(
-                        issueCount > 0
-                            ? Icons.psychology_alt_rounded
-                            : Icons.psychology_alt_outlined,
-                        size: 21,
-                        color: issueCount > 0
-                            ? (isDark
-                                  ? const Color(0xFFC084FC)
-                                  : const Color(0xFF7C3AED))
-                            : (isDark
-                                  ? const Color(0xFF9A9590)
-                                  : const Color(0xFF6B5E4F)),
-                      ),
-                    ),
-                    if (issueCount > 0)
-                      Positioned(
-                        top: 6,
-                        right: 6,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isDark
-                                ? const Color(0xFFC084FC)
-                                : const Color(0xFF7C3AED),
-                          ),
-                          child: Center(
-                            child: Text(
-                              issueCount > 9 ? '9+' : '$issueCount',
-                              style: const TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+
               PopupMenuButton<String>(
                 tooltip: 'Menu Asisten',
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.more_vert),
+                    if (inboxCount > 0 || issueCount > 0)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
                 onSelected: (value) {
                   switch (value) {
                     case 'issueLog':
                       onOpenIssueLog?.call();
                     case 'inbox':
                       onOpenInbox?.call();
+                    case 'conversations':
+                      onOpenConversations?.call();
+                    case 'memory':
+                      onOpenMemory?.call();
                     case 'voice':
                       onOpenVoicePicker();
                     case 'reset':
@@ -350,21 +202,73 @@ class GeminiHeader extends StatelessWidget {
                 },
                 itemBuilder: (_) => [
                   if (onOpenIssueLog != null)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'issueLog',
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.psychology_alt_rounded),
-                        title: Text('Asisten Log (Anomali AI)'),
+                        leading: Stack(
+                          children: [
+                            const Icon(Icons.psychology_alt_rounded),
+                            if (issueCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        title: Text('Asisten Log ($issueCount anomali)'),
                       ),
                     ),
                   if (onOpenInbox != null)
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'inbox',
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.inbox_outlined),
-                        title: Text('Kotak Masuk Asisten'),
+                        leading: Stack(
+                          children: [
+                            const Icon(Icons.inbox_outlined),
+                            if (inboxCount > 0)
+                              Positioned(
+                                right: 0,
+                                top: 0,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        title: Text('Kotak Masuk Asisten ($inboxCount)'),
+                      ),
+                    ),
+                  if (onOpenConversations != null)
+                    const PopupMenuItem(
+                      value: 'conversations',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.forum_outlined),
+                        title: Text('Riwayat percakapan'),
+                      ),
+                    ),
+                  if (onOpenMemory != null)
+                    PopupMenuItem(
+                      value: 'memory',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.psychology_outlined),
+                        title: Text('Memori Pribadi ($memoryCount)'),
                       ),
                     ),
                   const PopupMenuItem(

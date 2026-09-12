@@ -145,6 +145,21 @@ void main() {
       expect(correctionIntent.type, FfmAssistantIntentType.changeTheme);
       expect(correctionIntent.pluginMetadata?['theme'], 'dark');
 
+      // 8. Percakapan santai (misal: "tau ya sekarang malam") TIDAK boleh mengubah tema
+      final casualPhrases = [
+        'tau ya sekarang malam',
+        'selamat malam pak',
+        'kemarin malam belanja 50rb',
+      ];
+      for (final phrase in casualPhrases) {
+        final res = await interpreter.interpret(phrase);
+        expect(
+          res.type,
+          isNot(FfmAssistantIntentType.changeTheme),
+          reason: 'Conversational phrase "$phrase" should NOT trigger theme change',
+        );
+      }
+
       await db.close();
     });
   });

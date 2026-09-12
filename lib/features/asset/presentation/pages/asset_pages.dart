@@ -916,6 +916,9 @@ class _AssetFormPageState extends State<AssetFormPage> {
                 case 'SAR':
                   rate = snapshot.sarToIdr;
                   break;
+                case 'CHF':
+                  rate = snapshot.chfToIdr;
+                  break;
                 case 'USD':
                 default:
                   rate = snapshot.usdToIdr;
@@ -1074,6 +1077,10 @@ class _AssetFormPageState extends State<AssetFormPage> {
                               DropdownMenuItem(
                                 value: 'SAR',
                                 child: Text('SAR (Riyal Haji)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'CHF',
+                                child: Text('CHF (Franc Swiss)'),
                               ),
                             ],
                             onChanged: (c) {

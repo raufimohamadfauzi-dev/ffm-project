@@ -43,7 +43,7 @@ enum GoldKarat {
 
 /// Instrumen yang mempunyai bukti harga sendiri dalam snapshot pasar.
 /// Nilai tampilan cadangan tidak pernah masuk ke set ini.
-enum MarketInstrument { gold24K, usd, sgd, eur, sar, btc, eth, usdt }
+enum MarketInstrument { gold24K, usd, sgd, eur, sar, chf, btc, eth, usdt }
 
 /// Snapshot harga pasar terkini (Emas, Valas, dan Kripto).
 class MarketPriceSnapshot {
@@ -54,6 +54,7 @@ class MarketPriceSnapshot {
     required this.sgdRate,
     required this.eurRate,
     required this.sarRate,
+    this.chfRate = 17800.0,
     required this.btcPrice,
     required this.ethPrice,
     required this.usdtPrice,
@@ -79,6 +80,9 @@ class MarketPriceSnapshot {
 
   /// Kurs 1 SAR (Riyal Arab Saudi) ke IDR (Tabungan Haji/Umrah).
   final double sarRate;
+
+  /// Kurs 1 CHF (Franc Swiss) ke IDR.
+  final double chfRate;
 
   /// Harga 1 Bitcoin (BTC) dalam IDR.
   final double btcPrice;
@@ -108,6 +112,7 @@ class MarketPriceSnapshot {
     sgdRate: 11950.0,
     eurRate: 16920.0,
     sarRate: 4170.0,
+    chfRate: 17800.0,
     btcPrice: 1050000000.0,
     ethPrice: 55000000.0,
     usdtPrice: 15680.0,
@@ -122,6 +127,7 @@ class MarketPriceSnapshot {
     'sgdRate': sgdRate,
     'eurRate': eurRate,
     'sarRate': sarRate,
+    'chfRate': chfRate,
     'btcPrice': btcPrice,
     'ethPrice': ethPrice,
     'usdtPrice': usdtPrice,
@@ -141,6 +147,7 @@ class MarketPriceSnapshot {
         sgdRate: (json['sgdRate'] as num?)?.toDouble() ?? 11950.0,
         eurRate: (json['eurRate'] as num?)?.toDouble() ?? 16920.0,
         sarRate: (json['sarRate'] as num?)?.toDouble() ?? 4170.0,
+        chfRate: (json['chfRate'] as num?)?.toDouble() ?? 17800.0,
         btcPrice: (json['btcPrice'] as num?)?.toDouble() ?? 1050000000.0,
         ethPrice: (json['ethPrice'] as num?)?.toDouble() ?? 55000000.0,
         usdtPrice: (json['usdtPrice'] as num?)?.toDouble() ?? 15680.0,
@@ -169,6 +176,7 @@ class MarketPriceSnapshot {
   double get sgdToIdr => sgdRate;
   double get eurToIdr => eurRate;
   double get sarToIdr => sarRate;
+  double get chfToIdr => chfRate;
   double get btcToIdr => btcPrice;
   double get ethToIdr => ethPrice;
   double get usdtToIdr => usdtPrice;
