@@ -11,6 +11,7 @@ import '../../../../core/localization/app_copy.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
 import '../../../../shared/widgets/date_time_components.dart';
+import '../../../assistant/data/ffm_assistant_goal_evidence_evaluator.dart';
 import '../../../assistant/data/ffm_assistant_widget_sync_service.dart';
 import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
@@ -176,6 +177,18 @@ class _SummaryPageState extends State<SummaryPage> {
           ),
         )
         .firstWhere((item) => item.placement == SuggestionPlacement.dashboard);
+    final goalEvaluator = FfmAssistantGoalEvidenceEvaluator(
+      database: getIt<AppDatabase>(),
+    );
+    final allGoalReports =
+        await goalEvaluator.evaluateAllGoals(AppContext.householdId);
+    final milestoneGoals = allGoalReports
+        .where((item) =>
+            item.status == FfmAssistantGoalProgressStatus.aheadOfSchedule ||
+            item.status == FfmAssistantGoalProgressStatus.targetReached ||
+            item.progressPercent >= 50.0)
+        .toList();
+
     final summary = _SummaryData(
       score: score,
       financialSuggestions: financialSuggestions,
@@ -199,6 +212,7 @@ class _SummaryPageState extends State<SummaryPage> {
       missingMasterData: missingMasterData,
       householdName: householdName?.isNotEmpty == true ? householdName : null,
       hijriToday: hijriToday,
+      milestoneGoals: milestoneGoals,
     );
     unawaited(
       const FfmAssistantWidgetSyncService().updateSummary(
@@ -355,6 +369,21 @@ class _SummaryContent extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               _HijriDateSummaryCard(date: data.hijriToday),
+              if (data.milestoneGoals.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const AppSectionHeader(
+                  title: 'Pencapaian Target',
+                  trailing: AppStatusChip(label: 'PROGRES ASISTEN'),
+                ),
+                const SizedBox(height: 8),
+                AssistantGoalMilestoneCard(
+                  milestones: data.milestoneGoals,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GoalListPage()),
+                  ).then((_) => onRefresh()),
+                ),
+              ],
               if (data.financialSuggestions.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 const AppSectionHeader(
@@ -663,6 +692,158 @@ class _HijriDateSummaryCard extends StatelessWidget {
   }
 }
 
+class AssistantGoalMilestoneCard extends StatelessWidget {
+  const AssistantGoalMilestoneCard({
+    super.key,
+    required this.milestones,
+    required this.onTap,
+  });
+
+  final List<FfmAssistantGoalEvidenceReport> milestones;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final primaryGoal = milestones.first;
+    final isAhead =
+        primaryGoal.status == FfmAssistantGoalProgressStatus.aheadOfSchedule;
+    final isDone =
+        primaryGoal.status == FfmAssistantGoalProgressStatus.targetReached;
+
+    final badgeColor = isDone
+        ? const Color(0xFFD97706)
+        : isAhead
+            ? const Color(0xFF059669)
+            : scheme.primary;
+
+    final badgeText = isDone
+        ? 'TARGET TERCAPAI!'
+        : isAhead
+            ? 'LEBIH CEPAT DARI TARGET'
+            : 'PROGRES POSITIF';
+
+    final badgeIcon = isDone
+        ? Icons.emoji_events_rounded
+        : isAhead
+            ? Icons.rocket_launch_rounded
+            : Icons.trending_up_rounded;
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(badgeIcon, color: badgeColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      badgeText,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: badgeColor,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Text(
+                      primaryGoal.goalName,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${primaryGoal.progressPercent.toStringAsFixed(1)}%',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: (primaryGoal.progressPercent / 100.0).clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: scheme.surfaceContainerHighest,
+              valueColor: AlwaysStoppedAnimation<Color>(badgeColor),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Terkumpul: ${formatRupiahInput(primaryGoal.currentAmount.toString())}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                'Target: ${formatRupiahInput(primaryGoal.targetAmount.toString())}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            primaryGoal.recommendation,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text(
+                milestones.length > 1
+                    ? 'Lihat Semua Target (${milestones.length})'
+                    : 'Buka Target',
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SummaryData {
   const _SummaryData({
     required this.score,
@@ -682,6 +863,7 @@ class _SummaryData {
     required this.missingMasterData,
     required this.householdName,
     required this.hijriToday,
+    required this.milestoneGoals,
   });
 
   final FinancialHealthScore score;
@@ -701,6 +883,7 @@ class _SummaryData {
   final List<String> missingMasterData;
   final String? householdName;
   final HijriDisplayDate hijriToday;
+  final List<FfmAssistantGoalEvidenceReport> milestoneGoals;
 
   int get netWorth => totalAssets - totalLiabilities;
 }
