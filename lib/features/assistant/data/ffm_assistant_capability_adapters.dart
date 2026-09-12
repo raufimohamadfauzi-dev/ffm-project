@@ -54,6 +54,7 @@ import 'autonomous_activity_repository.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_autonomy_repository.dart';
 import 'ffm_assistant_monitoring_job_service.dart';
+import 'ffm_assistant_goal_evidence_evaluator.dart';
 import '../domain/ffm_assistant_monitoring_job.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
@@ -246,6 +247,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.budget_mutation': _verifyBudgetMutation,
     'read.monitoring_jobs': _readMonitoringJobs,
     'read.monitoring_evaluation': _evaluateMonitoring,
+    'read.goal_evidence_evaluation': _evaluateGoalEvidence,
     'mutate.monitoring_job_save': _saveMonitoringJob,
     'mutate.monitoring_job_pause': _pauseMonitoringJob,
     'mutate.monitoring_job_resume': _resumeMonitoringJob,
@@ -300,6 +302,44 @@ class FfmAssistantCapabilityAdapterRegistry {
     final report =
         await _monitoringService.executeEvaluation(dummyJob, now: _clock());
     return FfmAssistantCapabilityExecutionResult.success(report.content);
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _evaluateGoalEvidence(
+    FfmAssistantActionStep step,
+  ) async {
+    final evaluator = FfmAssistantGoalEvidenceEvaluator(
+      database: _database,
+      clock: _clock,
+    );
+    final goalId = step.parameters['goalId']?.toString();
+    if (goalId != null && goalId.isNotEmpty) {
+      final report = await evaluator.evaluateGoal(goalId, now: _clock());
+      if (report == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Target keuangan tidak ditemukan.',
+        );
+      }
+      return FfmAssistantCapabilityExecutionResult.success(
+        report.toSummaryText(),
+      );
+    }
+
+    final reports =
+        await evaluator.evaluateAllGoals(_householdId, now: _clock());
+    if (reports.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'Tidak ada target keuangan aktif yang dapat dievaluasi.',
+      );
+    }
+    final buffer = StringBuffer()
+      ..writeln('Evaluasi Progres Target Keuangan Berdasarkan Arus Kas Riil:\n');
+    for (final r in reports) {
+      buffer.writeln(r.toSummaryText());
+      buffer.writeln('---');
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      buffer.toString().trim(),
+    );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _saveMonitoringJob(

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:uuid/uuid.dart';
 
+import '../domain/ffm_assistant_action_plan.dart';
+import '../domain/ffm_assistant_capabilities.dart';
 import 'ffm_assistant_memory_repository.dart';
 
 class FfmAssistantLearningCandidate {
@@ -102,6 +104,72 @@ class FfmAssistantLearningCandidateService {
 
   Future<void> reject(FfmAssistantLearningCandidate candidate) =>
       _memories.archive(candidate.id);
+
+  /// Mencari workflow yang telah disetujui (approved) berdasarkan kecocokan trigger.
+  Future<FfmAssistantLearningCandidate?> findApprovedWorkflow(
+    String text,
+  ) async {
+    final approved = await readApproved();
+    final normalized = text.toLowerCase().trim();
+    for (final candidate in approved) {
+      if (normalized.contains(candidate.trigger.toLowerCase())) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  /// Memetakan workflow approved menjadi FfmAssistantActionPlan dengan memvalidasi
+  /// setiap langkah ke daftar capability sah dan tetap memberlakukan konfirmasi
+  /// apabila ada mutasi data.
+  FfmAssistantActionPlan? resolveApprovedPlan(
+    FfmAssistantLearningCandidate candidate, {
+    String householdId = 'household-active',
+  }) {
+    if (!candidate.isApproved) return null;
+    final stepsRaw = candidate.workflowJson['steps'];
+    if (stepsRaw is! List || stepsRaw.isEmpty) return null;
+
+    final validatedSteps = <FfmAssistantActionStep>[];
+    var requiresConfirmation = false;
+
+    for (var i = 0; i < stepsRaw.length; i++) {
+      final step = stepsRaw[i];
+      if (step is! Map) return null;
+      final capabilityId = step['capabilityId']?.toString();
+      if (capabilityId == null) return null;
+
+      final cap = FfmAssistantCapabilityRegistry.find(capabilityId);
+      if (cap == null) return null; // Tolak unknown capability
+
+      if (!cap.readOnly || cap.requiresConfirmation) {
+        requiresConfirmation = true;
+      }
+
+      final params = step['parameters'];
+      final stepParams = params is Map
+          ? params.map((k, v) => MapEntry(k.toString(), v))
+          : const <String, Object?>{};
+
+      validatedSteps.add(
+        FfmAssistantActionStep(
+          id: 'step-${i + 1}-${const Uuid().v4().substring(0, 6)}',
+          capabilityId: capabilityId,
+          parameters: stepParams,
+        ),
+      );
+    }
+
+    if (validatedSteps.isEmpty) return null;
+
+    return FfmAssistantActionPlan(
+      id: 'plan-wf-${const Uuid().v4()}',
+      summary: 'Menjalankan workflow tersimpan: ${candidate.trigger}',
+      steps: validatedSteps,
+      requiresConfirmation: requiresConfirmation,
+      createdAt: DateTime.now(),
+    );
+  }
 
   FfmAssistantLearningCandidate _fromRecord(FfmAssistantMemoryRecord record) {
     Map<String, Object?> workflow = const {};

@@ -166,6 +166,16 @@ class FfmAssistantCapabilityRegistry {
       readOnly: true,
     ),
     const FfmAssistantCapability(
+      id: 'read.goal_evidence_evaluation',
+      label: 'Evaluasi bukti progres target',
+      description:
+          'Mengevaluasi pencapaian target keuangan terhadap data saldo dan arus kas riil secara deterministik.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      destination: FfmAssistantDestination.goals,
+      readOnly: true,
+      parameterNames: ['goalId'],
+    ),
+    const FfmAssistantCapability(
       id: 'draft.monitoring_job',
       label: 'Siapkan jadwal pemantauan',
       description: 'Membuat preview jadwal pemantauan berkala tanpa mengaktifkan langsung.',

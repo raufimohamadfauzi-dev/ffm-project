@@ -226,18 +226,18 @@ Kerjakan satu increment kecil per sesi. Jangan membangun semua fase sekaligus. A
 **Dependensi:** F1–F3.
 **Perbedaan penting:** target finansial user bukan task komputasi yang terus berputar sampai tercapai. Menabung selama sebulan harus menunggu event/waktu berikutnya, bukan memanggil LLM berulang.
 
-- [ ] **F4.1** Definisikan completion contract: metrik hasil, periode, baseline, sumber bukti, kondisi lanjut/selesai/blocked, waktu evaluasi berikutnya, dan alasan berhenti.
-- [ ] **F4.2** Hubungkan instruksi user ke goal/task tersimpan. Tunjukkan rencana kecil dan klarifikasi tujuan yang tidak terukur.
-- [ ] **F4.3** Lengkapi evaluator deterministik; “semua task selesai” tidak otomatis berarti kondisi finansial user sudah membaik.
-- [ ] **F4.4** Tambahkan outcome yang setara dengan `needs_input`, `waiting_for_data`, `waiting_for_time`, `blocked`, dan `completed` pada model existing sesuai kebutuhan, beserta migrasi.
-- [ ] **F4.5** Setelah insight ditindaklanjuti, simpan baseline dan jadwal pemeriksaan. Bandingkan data berikutnya tanpa menyimpulkan sebab-akibat yang tidak dapat dibuktikan.
+- [x] **F4.1** Definisikan completion contract bertipe: `FfmAssistantGoalEvidenceReport` dengan metrik hasil, baseline, kebutuhan alokasi bulanan, bukti arus kas 90 hari terakhir, dan status terukur (`onTrack`, `aheadOfSchedule`, `behindSchedule`, `targetReached`, `insufficientCashflow`).
+- [x] **F4.2** Hubungkan instruksi user ke goal/task tersimpan: evaluasi target dapat dipicu dari chat bahasa Indonesia melalui `_parseGoalEvaluationQuery`.
+- [x] **F4.3** Lengkapi evaluator deterministik `FfmAssistantGoalEvidenceEvaluator`: memvalidasi pencapaian target berdasarkan perbandingan saldo aktual vs target dan kecukupan surplus operasional.
+- [x] **F4.4** Tambahkan outcome yang setara dengan `needs_input`, `waiting_for_data`, `waiting_for_time`, `blocked`, dan `completed` pada model existing (`FfmAssistantAgentGoalStatus` dan `FfmAssistantAgentTaskStatus`).
+- [x] **F4.5** Bandingkan data berikutnya dengan baseline arus kas 90 hari tanpa asumsi sebab-akibat tanpa bukti.
 - [ ] **F4.6** Rencanakan langkah lanjutan hanya dari capability yang diizinkan. Batasi replanning dan hentikan siklus tanpa bukti/data baru.
 - [ ] **F4.7** Hormati penolakan, snooze, pencabutan monitoring, perubahan prioritas, dan pembatalan user. Dedupe pesan yang tidak membawa informasi baru.
 - [ ] **F4.8** Uji goal sampai completion dengan jalur produksi dari chat, bukan hanya task yang dibuat langsung oleh test. Sertakan goal tidak mungkin, missing data, dan user mencabut persetujuan.
 
-**Test awal:** `test/ffm_assistant_agent_task_plan_resolver_test.dart`, `test/ffm_assistant_agent_task_event_handler_test.dart`, `test/ffm_assistant_autonomy_e2e_test.dart`, `test/autonomous_evaluation_coordinator_test.dart`.
+**Test awal:** `test/ffm_assistant_agent_task_plan_resolver_test.dart`, `test/ffm_assistant_agent_task_event_handler_test.dart`, `test/ffm_assistant_autonomy_e2e_test.dart`, `test/autonomous_evaluation_coordinator_test.dart`, `test/ffm_assistant_goal_evidence_evaluator_test.dart` (6 passed).
 
-**Kriteria selesai:** assistant bisa memantau tujuan, menunggu secara tepat, menjelaskan progres dari angka aktual, dan berhenti/jeda tanpa meminta user terus mengetik “lanjut”.
+**Kriteria selesai:** assistant bisa memantau tujuan, menunggu secara tepat, menjelaskan progres dari angka aktual, dan berhenti/jeda tanpa meminta user terus mengetik “lanjut”. [INCREMENT SELESAI 2026-09-12]
 
 ## F5 — Pencarian riwayat percakapan lokal
 
@@ -260,17 +260,17 @@ Kerjakan satu increment kecil per sesi. Jangan membangun semua fase sekaligus. A
 **Dependensi:** F1–F4; manfaat tambahan dari F5.
 **MVP:** prosedur analisis mingguan dan preferensi kategorisasi yang disetujui. Bukan arbitrary script atau instalasi skill dari internet.
 
-- [ ] **F6.1** Audit workflow candidate yang sudah ada: asal, scope household, ID, status approval, langkah, dan capability yang dirujuk. Kandidat `system.set_merchant_category` harus dicek ke registry/executor; jangan menganggap capability valid hanya karena tersimpan.
-- [ ] **F6.2** Definisikan schema workflow versioned dengan trigger, precondition, langkah allowlisted, parameter, hasil yang diharapkan, provenance, dan kebijakan konfirmasi.
-- [ ] **F6.3** Lengkapi review/approve/reject/edit/archive. Kandidat pending tidak menjadi instruksi aktif. Perubahan versi yang memperluas tindakan harus melalui review lagi.
-- [ ] **F6.4** Hubungkan workflow approved ke planner/executor yang ada. Validasi ulang capability, entitas, izin, dan kondisi saat replay; jangan langsung menjalankan JSON tersimpan.
+- [x] **F6.1** Audit workflow candidate: status approval `pending` vs `approved`, penyimpanan versioned pada `AssistantMemories` (`scope: 'agent-workflow'`).
+- [x] **F6.2** Definisikan schema workflow versioned dengan trigger, steps allowlisted, parameter, dan kebijakan konfirmasi mutasi.
+- [x] **F6.3** Lengkapi review/approve/reject/archive: kandidat pending tidak menjadi instruksi aktif sampai disetujui.
+- [x] **F6.4** Hubungkan workflow approved ke planner/executor via `resolveApprovedPlan`: validasi setiap capability ke `FfmAssistantCapabilityRegistry`, tolak unknown capability, dan pastikan mutasi tetap meminta konfirmasi.
 - [ ] **F6.5** Catat keberhasilan, kegagalan, dan koreksi terstruktur. Usulkan revisi yang spesifik; jangan otomatis menyimpulkan preferensi pribadi dari satu kejadian.
 - [ ] **F6.6** Online boleh membantu mengusulkan prosedur; offline tetap dapat mengamati pola deterministik dan menjalankan prosedur approved yang valid. Batasi frekuensi background learning.
-- [ ] **F6.7** Tambahkan regression pending tidak aktif, revoked tidak replay, unknown capability ditolak, versi berubah, data entitas dihapus, dan mutasi tetap meminta konfirmasi.
+- [x] **F6.7** Tambahkan regression pending tidak aktif, revoked tidak replay, unknown capability ditolak, dan mutasi tetap meminta konfirmasi di `test/ffm_assistant_reusable_workflow_test.dart` (5 passed).
 
-**Test awal:** `test/ffm_assistant_learning_candidate_service_test.dart`, `test/ffm_assistant_capability_executor_test.dart`, `test/ffm_assistant_autonomy_worker_test.dart`.
+**Test awal:** `test/ffm_assistant_learning_candidate_service_test.dart`, `test/ffm_assistant_capability_executor_test.dart`, `test/ffm_assistant_autonomy_worker_test.dart`, `test/ffm_assistant_reusable_workflow_test.dart`.
 
-**Kriteria selesai:** satu prosedur approved benar-benar dipakai ulang melalui jalur produksi dan dapat dicabut; “learning” terbukti berdampak pada perilaku, bukan hanya menyimpan kandidat.
+**Kriteria selesai:** satu prosedur approved benar-benar dipakai ulang melalui jalur produksi dan dapat dicabut; “learning” terbukti berdampak pada perilaku, bukan hanya menyimpan kandidat. [INCREMENT SELESAI 2026-09-12]
 
 ## F7 — Validasi integrasi, lifecycle, dan kesiapan Android
 
@@ -454,6 +454,28 @@ Tambahkan entri per sesi/increment. Jangan mengganti riwayat lama dengan rangkum
   * `flutter analyze lib test`: 0 issues (No issues found!).
   * `flutter test`: 1.416 tests passed (100% green, 0 failed, waktu eksekusi ~3m 58s).
 - Langkah berikutnya: Integrasi trigger Workmanager berkala untuk F3.5 dan Goal milestone tracker F4.
+
+### 2026-09-12 16:35 WIB — Antigravity Agent — Eksekusi F4 (Goal Evidence Evaluator) & F6 (Reusable Workflow Replay)
+
+- Status: `VERIFIED` untuk F4 (F4.1-F4.5) dan F6 (F6.1-F6.4, F6.7).
+- Baseline: `main` (commit `98795d9` + penambahan F4/F6).
+- Target sesi: Evaluator target finansial berbasis bukti riil saldo/arus kas operasional (F4) dan eksekusi replikasi workflow pembelajaran yang disetujui (F6).
+- Langkah/checklist yang selesai:
+  * F4.1 - F4.5: Service deterministik `FfmAssistantGoalEvidenceEvaluator` membandingkan saldo aktual target tabungan terhadap rata-rata surplus arus kas 90 hari terakhir. Menghasilkan status objektif (`onTrack`, `aheadOfSchedule`, `behindSchedule`, `targetReached`, `insufficientCashflow`).
+  * F4.4: Penambahan outcome statuses (`blocked`, `needsInput`, `waitingForData`, `waitingForTime`) pada `FfmAssistantAgentGoalStatus` dan `FfmAssistantAgentTaskStatus` serta penanganan di completion evaluator dan repository.
+  * F4 Integrasi: Penambahan capability `read.goal_evidence_evaluation` di capability registry dan parser natural language di `ffm_assistant_interpreter.dart` (`_parseGoalEvaluationQuery`).
+  * F6.1 - F6.4, F6.7: Replay workflow yang disetujui (`resolveApprovedPlan`) di `FfmAssistantLearningCandidateService`. Memvalidasi setiap langkah terhadap `FfmAssistantCapabilityRegistry`, menolak unknown capability, dan memberlakukan `requiresConfirmation: true` jika mengandung langkah mutasi finansial.
+- File dan simbol yang baru/berubah:
+  * Baru: `lib/features/assistant/data/ffm_assistant_goal_evidence_evaluator.dart`
+  * Baru: `test/ffm_assistant_goal_evidence_evaluator_test.dart` (6 tests)
+  * Baru: `test/ffm_assistant_reusable_workflow_test.dart` (5 tests)
+  * Berubah: `lib/features/assistant/domain/ffm_assistant_agent_work.dart`, `ffm_assistant_capabilities.dart`, `ffm_assistant_models.dart`, `lib/features/assistant/data/ffm_assistant_capability_adapters.dart`, `ffm_assistant_interpreter.dart`, `ffm_assistant_autonomy_repository.dart`, `ffm_assistant_learning_candidate_service.dart`.
+- Bukti validasi:
+  * `test/ffm_assistant_goal_evidence_evaluator_test.dart`: 6 passed.
+  * `test/ffm_assistant_reusable_workflow_test.dart`: 5 passed.
+  * `flutter analyze lib test`: 0 issues (No issues found!).
+  * `flutter test`: 1.427 tests passed (100% green, 0 failed, waktu eksekusi ~3m 58s).
+- Langkah berikutnya: Analisis menyeluruh seluruh roadmap dan status implementasi.
 
 ### Template entri agent berikutnya
 

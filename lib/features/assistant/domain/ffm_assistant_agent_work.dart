@@ -1,6 +1,14 @@
 import 'dart:convert';
 
-enum FfmAssistantAgentGoalStatus { active, paused, completed, cancelled }
+enum FfmAssistantAgentGoalStatus {
+  active,
+  paused,
+  completed,
+  cancelled,
+  blocked,
+  needsInput,
+  waitingForTime,
+}
 
 enum FfmAssistantAgentTaskStatus {
   pending,
@@ -8,6 +16,10 @@ enum FfmAssistantAgentTaskStatus {
   completed,
   failed,
   cancelled,
+  blocked,
+  needsInput,
+  waitingForData,
+  waitingForTime,
 }
 
 enum FfmAssistantAgentTaskExecutionStatus {
@@ -15,6 +27,7 @@ enum FfmAssistantAgentTaskExecutionStatus {
   completed,
   failed,
   cancelled,
+  blocked,
 }
 
 class FfmAssistantAgentCompletionEvaluator {
@@ -34,6 +47,9 @@ class FfmAssistantAgentCompletionEvaluator {
       ),
       'any_task_completed' => statuses.any(
         (status) => status == FfmAssistantAgentTaskStatus.completed,
+      ),
+      'not_blocked' => statuses.every(
+        (status) => status != FfmAssistantAgentTaskStatus.blocked,
       ),
       _ => false,
     };

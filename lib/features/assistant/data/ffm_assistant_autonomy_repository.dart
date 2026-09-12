@@ -617,6 +617,16 @@ class FfmAssistantAutonomyRepository {
               updatedAt: Value(now),
             ),
           );
+        case FfmAssistantAgentTaskExecutionStatus.blocked:
+          await (_db.update(
+            _db.assistantAgentTasks,
+          )..where((row) => row.id.equals(task.id))).write(
+            AssistantAgentTasksCompanion(
+              status: Value(FfmAssistantAgentTaskStatus.blocked.name),
+              lastError: Value(execution.error),
+              updatedAt: Value(now),
+            ),
+          );
       }
     });
     return true;

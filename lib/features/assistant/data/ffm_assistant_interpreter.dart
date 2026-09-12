@@ -39,6 +39,7 @@ import 'ffm_gemini_cloud_orchestrator.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'ffm_assistant_autonomy_repository.dart';
 import 'ffm_assistant_monitoring_job_service.dart';
+import 'ffm_assistant_goal_evidence_evaluator.dart';
 import '../domain/ffm_assistant_monitoring_job.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_personal_memory_service.dart';
@@ -2363,7 +2364,16 @@ class FfmAssistantInterpreter {
       'simulasi pinjaman',
       'simulasi kredit',
     ]);
-    final financialEducation = isLoanAffordabilityQuery
+    final isGoalProgressQuery = _containsAny(normalized, const [
+      'progres target',
+      'progress target',
+      'evaluasi target',
+      'status target',
+      'perkembangan target',
+      'target tercapai',
+      'apakah target on track',
+    ]);
+    final financialEducation = (isLoanAffordabilityQuery || isGoalProgressQuery)
         ? null
         : _financialEducation.answer(normalized);
     final isActionRequest = _containsAny(normalized, const [
@@ -2858,6 +2868,9 @@ class FfmAssistantInterpreter {
 
     final goalMutation = await _parseGoalMutation(rawText, normalized);
     if (goalMutation != null) return goalMutation;
+
+    final goalEvaluation = await _parseGoalEvaluationQuery(rawText, normalized);
+    if (goalEvaluation != null) return goalEvaluation;
 
     final transactionMutation = await _parseTransactionMutation(
       rawText,
@@ -8023,6 +8036,92 @@ class FfmAssistantInterpreter {
 
   String _goalCandidateLabel(Goal row) =>
       '${row.name} • ${_money(row.currentAmount)} dari ${_money(row.targetAmount)}';
+
+  Future<FfmAssistantIntent?> _parseGoalEvaluationQuery(
+    String rawText,
+    String normalized,
+  ) async {
+    final isGoalQuery = _containsAny(normalized, const [
+          'progres target',
+          'progress target',
+          'evaluasi target',
+          'status target',
+          'perkembangan target',
+          'kapan target tercapai',
+          'apakah target on track',
+          'target tercapai',
+          'cek target',
+          'pantau target',
+        ]) ||
+        (normalized.contains('target') &&
+            _containsAny(normalized, const [
+              'tercapai',
+              'on track',
+              'bagaimana',
+              'gimana',
+              'berapa persen',
+              'sisa berapa',
+              'kurang berapa',
+            ]));
+
+    if (!isGoalQuery) return null;
+
+    final evaluator = FfmAssistantGoalEvidenceEvaluator(
+      database: _database,
+      clock: _clock,
+    );
+
+    // Cari apakah menyebutkan nama target tertentu
+    final candidates = await _findGoalCandidates(normalized);
+    if (candidates.length == 1) {
+      final report = await evaluator.evaluateGoal(
+        candidates.single.id,
+        now: _clock(),
+      );
+      if (report != null) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.evaluateGoalProgress,
+          destination: FfmAssistantDestination.goals,
+          confidence: 1.0,
+          response: report.toSummaryText(),
+        );
+      }
+    }
+
+    final reports = await evaluator.evaluateAllGoals(
+      AppContext.householdId,
+      now: _clock(),
+    );
+    if (reports.isEmpty) {
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.evaluateGoalProgress,
+        destination: FfmAssistantDestination.goals,
+        confidence: 1.0,
+        response:
+            'Kamu belum memiliki target keuangan aktif. Mau aku bantu buatkan draft target keuangan baru?',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('📊 **Evaluasi Bukti Progres Target Keuangan**:\n');
+    for (var i = 0; i < reports.length; i++) {
+      buffer.writeln(reports[i].toSummaryText());
+      if (i < reports.length - 1) buffer.writeln('\n---\n');
+    }
+
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.evaluateGoalProgress,
+      destination: FfmAssistantDestination.goals,
+      confidence: 1.0,
+      response: buffer.toString().trim(),
+    );
+  }
 
   Future<FfmAssistantIntent?> _parseTransactionMutation(
     String rawText,

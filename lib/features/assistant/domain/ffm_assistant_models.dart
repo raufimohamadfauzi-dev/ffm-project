@@ -154,6 +154,7 @@ enum FfmAssistantIntentType {
   createMonitoringJob,
   listMonitoringJobs,
   manageMonitoringJob,
+  evaluateGoalProgress,
   confirm,
   cancel,
   help,
