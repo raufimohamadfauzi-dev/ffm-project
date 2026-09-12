@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../core/database/app_database.dart';
 import 'ffm_assistant_autonomy_repository.dart';
 import 'ffm_assistant_learning_candidate_service.dart';
@@ -140,6 +142,10 @@ class FfmAssistantAutonomyWorker {
           }
         }
       }
-    } catch (_) {}
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('Background memory consolidation error: $e\n$st');
+      }
+    }
   }
 }

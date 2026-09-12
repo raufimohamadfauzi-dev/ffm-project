@@ -9,7 +9,13 @@ import '../domain/ffm_assistant_autonomy_policy.dart';
 import '../domain/ffm_assistant_agent_work.dart';
 import '../domain/ffm_assistant_tool_execution.dart';
 
-enum FfmAssistantAutonomyEventStatus { pending, processing, completed, failed }
+enum FfmAssistantAutonomyEventStatus {
+  pending,
+  processing,
+  completed,
+  failed,
+  cancelled,
+}
 
 enum FfmAssistantAutonomyEventProcessResult { processed, duplicate, failed }
 
@@ -44,8 +50,11 @@ typedef FfmAssistantAutonomyEventHandler = Future<void> Function(
 /// Payload hanya untuk metadata event terstruktur. Prompt dan input tool mentah
 /// tidak boleh disimpan di sini.
 class FfmAssistantAutonomyRepository {
-  FfmAssistantAutonomyRepository(this._db, {DateTime Function()? now})
-    : _now = now ?? DateTime.now;
+  FfmAssistantAutonomyRepository(
+    this._db, {
+    DateTime Function()? now,
+    this.leaseDuration = const Duration(minutes: 10),
+  }) : _now = now ?? DateTime.now;
 
   static const householdId = 'local-household';
   static const autonomyPolicyPreferenceKey = 'assistant.autonomy.policy.v1';
@@ -53,6 +62,7 @@ class FfmAssistantAutonomyRepository {
 
   final AppDatabase _db;
   final DateTime Function() _now;
+  final Duration leaseDuration;
   Future<void> _runWriteQueue = Future<void>.value();
 
   /// Memasukkan event satu kali. Event ID adalah idempotency key lintas sesi.
@@ -119,14 +129,16 @@ class FfmAssistantAutonomyRepository {
   }
 
   Future<bool> _claimEvent(String eventId) async {
+    final cutoff = _now().subtract(leaseDuration);
     final changed = await _db.customUpdate(
       'UPDATE assistant_agent_events '
       'SET status = ?, attempt_count = attempt_count + 1, last_attempt_at = ? '
-      "WHERE event_id = ? AND status IN ('pending', 'failed')",
+      "WHERE event_id = ? AND (status IN ('pending', 'failed') OR (status = 'processing' AND last_attempt_at < ?))",
       variables: [
         Variable.withString(FfmAssistantAutonomyEventStatus.processing.name),
         Variable.withDateTime(_now()),
         Variable.withString(eventId),
+        Variable.withDateTime(cutoff),
       ],
       updates: {_db.assistantAgentEvents},
     );
@@ -155,6 +167,23 @@ class FfmAssistantAutonomyRepository {
     _db.assistantAgentEvents,
   )..where((row) => row.eventId.equals(eventId))).getSingleOrNull();
 
+  /// Membatalkan event yang belum atau sedang berjalan dengan alasan tercatat.
+  Future<bool> cancelEvent(String eventId, {String? reason}) async {
+    final changed = await _db.customUpdate(
+      'UPDATE assistant_agent_events '
+      'SET status = ?, error = ?, processed_at = ? '
+      "WHERE event_id = ? AND status IN ('pending', 'processing')",
+      variables: [
+        Variable.withString(FfmAssistantAutonomyEventStatus.cancelled.name),
+        Variable.withString(reason ?? 'Dibatalkan oleh sistem atau pengguna'),
+        Variable.withDateTime(_now()),
+        Variable.withString(eventId),
+      ],
+      updates: {_db.assistantAgentEvents},
+    );
+    return changed == 1;
+  }
+
   Future<List<FfmAssistantAutonomyEvent>> pendingEvents({
     String householdId = FfmAssistantAutonomyRepository.householdId,
     int limit = 10,
@@ -165,12 +194,17 @@ class FfmAssistantAutonomyRepository {
         : limit > 100
         ? 100
         : limit;
+    final cutoff = _now().subtract(leaseDuration);
     final rows =
         await (_db.select(_db.assistantAgentEvents)
               ..where(
                 (row) =>
                     row.householdId.equals(householdId) &
-                    row.status.isIn(const ['pending', 'failed']),
+                    (row.status.isIn(const ['pending', 'failed']) |
+                        (row.status.equals(
+                              FfmAssistantAutonomyEventStatus.processing.name,
+                            ) &
+                            row.lastAttemptAt.isSmallerThanValue(cutoff))),
               )
               ..orderBy([(row) => OrderingTerm.asc(row.occurredAt)])
               ..limit(boundedLimit))

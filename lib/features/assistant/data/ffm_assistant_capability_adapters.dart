@@ -52,6 +52,9 @@ import 'ffm_activity_habit_learner.dart';
 import 'ffm_assistant_personalization_repository.dart';
 import 'autonomous_activity_repository.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
+import 'ffm_assistant_autonomy_repository.dart';
+import 'ffm_assistant_monitoring_job_service.dart';
+import '../domain/ffm_assistant_monitoring_job.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
   FfmAssistantCapabilityAdapterRegistry({
@@ -241,7 +244,186 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.category_mutation': _verifyCategoryMutation,
     'verify.account_mutation': _verifyAccountMutation,
     'verify.budget_mutation': _verifyBudgetMutation,
+    'read.monitoring_jobs': _readMonitoringJobs,
+    'read.monitoring_evaluation': _evaluateMonitoring,
+    'mutate.monitoring_job_save': _saveMonitoringJob,
+    'mutate.monitoring_job_pause': _pauseMonitoringJob,
+    'mutate.monitoring_job_resume': _resumeMonitoringJob,
+    'mutate.monitoring_job_cancel': _cancelMonitoringJob,
+    'verify.monitoring_job': _verifyMonitoringJob,
   };
+
+  FfmAssistantMonitoringJobService get _monitoringService =>
+      FfmAssistantMonitoringJobService(
+        database: _database,
+        autonomyRepository: FfmAssistantAutonomyRepository(_database),
+        clock: _clock,
+      );
+
+  Future<FfmAssistantCapabilityExecutionResult> _readMonitoringJobs(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobs = await _monitoringService.listJobs(_householdId);
+    if (jobs.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'Belum ada jadwal pemantauan otonom yang dibuat.',
+      );
+    }
+    final buffer = StringBuffer()
+      ..writeln('Daftar Jadwal Pemantauan Aktif (${jobs.length}):');
+    for (final job in jobs) {
+      final nextRunStr = job.nextRunAt != null
+          ? '${job.nextRunAt!.day}/${job.nextRunAt!.month}/${job.nextRunAt!.year} jam ${job.targetTimeMinutes ~/ 60}:${(job.targetTimeMinutes % 60).toString().padLeft(2, '0')}'
+          : 'Belum dijadwalkan';
+      buffer.writeln(
+        '• [${job.status.label}] ${job.title} (${job.cadence.label}) - Next run: $nextRunStr',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      buffer.toString().trim(),
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _evaluateMonitoring(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobId = step.parameters['jobId']?.toString();
+    if (jobId != null && jobId.isNotEmpty) {
+      final report = await _monitoringService.runJobNow(jobId);
+      return FfmAssistantCapabilityExecutionResult.success(report.content);
+    }
+    final dummyJob = FfmAssistantMonitoringJob.create(
+      householdId: _householdId,
+      preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
+      now: _clock(),
+    );
+    final report =
+        await _monitoringService.executeEvaluation(dummyJob, now: _clock());
+    return FfmAssistantCapabilityExecutionResult.success(report.content);
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveMonitoringJob(
+    FfmAssistantActionStep step,
+  ) async {
+    final presetName =
+        step.parameters['preset']?.toString() ?? 'weeklyEvaluation';
+    final cadenceName = step.parameters['cadence']?.toString() ?? 'weekly';
+    final targetTimeMinutes =
+        int.tryParse(step.parameters['targetTimeMinutes']?.toString() ?? '') ??
+            540;
+    final targetDay =
+        int.tryParse(step.parameters['targetDay']?.toString() ?? '');
+    final categoryFilter = step.parameters['categoryFilter']?.toString();
+    final title = step.parameters['title']?.toString();
+
+    final preset = FfmAssistantMonitoringPreset.values.firstWhere(
+      (p) => p.name == presetName,
+      orElse: () => FfmAssistantMonitoringPreset.weeklyEvaluation,
+    );
+    final cadence = FfmAssistantJobCadence.values.firstWhere(
+      (c) => c.name == cadenceName,
+      orElse: () => FfmAssistantJobCadence.weekly,
+    );
+
+    final job = FfmAssistantMonitoringJob.create(
+      householdId: _householdId,
+      preset: preset,
+      title: title,
+      cadence: cadence,
+      targetTimeMinutes: targetTimeMinutes,
+      targetDay: targetDay,
+      categoryFilter: categoryFilter,
+      now: _clock(),
+    );
+
+    final saved = await _monitoringService.createJob(job);
+    if (saved == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Gagal menyimpan jadwal pemantauan.',
+      );
+    }
+
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Jadwal pemantauan "${saved.title}" berhasil disimpan dan aktif.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _pauseMonitoringJob(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobId = step.parameters['jobId']?.toString();
+    if (jobId == null || jobId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Job ID monitoring diperlukan untuk menjeda.',
+      );
+    }
+    final ok = await _monitoringService.pauseJob(jobId);
+    return ok
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'Jadwal pemantauan berhasil dijeda.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Gagal menjeda jadwal pemantauan.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _resumeMonitoringJob(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobId = step.parameters['jobId']?.toString();
+    if (jobId == null || jobId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Job ID monitoring diperlukan untuk melanjutkan.',
+      );
+    }
+    final ok = await _monitoringService.resumeJob(jobId);
+    return ok
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'Jadwal pemantauan berhasil diaktifkan kembali.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Gagal mengaktifkan jadwal pemantauan.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _cancelMonitoringJob(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobId = step.parameters['jobId']?.toString();
+    if (jobId == null || jobId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Job ID monitoring diperlukan untuk membatalkan.',
+      );
+    }
+    final ok = await _monitoringService.cancelJob(jobId);
+    return ok
+        ? const FfmAssistantCapabilityExecutionResult.success(
+            'Jadwal pemantauan berhasil dibatalkan.',
+          )
+        : const FfmAssistantCapabilityExecutionResult.failure(
+            'Gagal membatalkan jadwal pemantauan.',
+          );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyMonitoringJob(
+    FfmAssistantActionStep step,
+  ) async {
+    final jobId = step.parameters['jobId']?.toString();
+    if (jobId == null || jobId.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Job ID diperlukan untuk verifikasi.',
+      );
+    }
+    final job = await _monitoringService.jobById(jobId);
+    if (job == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Jadwal pemantauan tidak ditemukan.',
+      );
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      'Status jadwal pemantauan "${job.title}": ${job.status.label}.',
+    );
+  }
 
   Future<FfmAssistantCapabilityExecutionResult> _readSummary(
     FfmAssistantActionStep step,
@@ -1966,7 +2148,8 @@ class FfmAssistantCapabilityAdapterRegistry {
         final place = step.parameters['place']?.toString();
         final note = step.parameters['note']?.toString();
         final checkpoint = ActivityCheckpointEntity(
-          id: 'checkpoint-${now.microsecondsSinceEpoch}',
+          id:
+              'checkpoint-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
           sessionId: targetId,
           label: label,
           place: place,

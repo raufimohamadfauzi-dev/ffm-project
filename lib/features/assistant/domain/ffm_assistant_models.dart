@@ -151,6 +151,9 @@ enum FfmAssistantIntentType {
   teachMemory,
   readLastResponse,
   diagnosticStatus,
+  createMonitoringJob,
+  listMonitoringJobs,
+  manageMonitoringJob,
   confirm,
   cancel,
   help,
@@ -269,6 +272,7 @@ enum FfmAssistantDraftKind {
   activityFinish,
   activityUpdate,
   activityEdit,
+  monitoringJob,
 }
 
 /// Tingkat masalah draft. Hanya [required] dan [conflict] yang menahan

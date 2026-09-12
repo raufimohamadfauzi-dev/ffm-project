@@ -48,7 +48,7 @@ The assistant may use (via orchestrator):
 - deterministic application logic,
 - local application/database context,
 - Supabase services and persistence,
-- Gemini Cloud for reasoning (bounded read capabilities `read.summary`/`read.transactions`),
+- Gemini Cloud for reasoning (bounded read capabilities defined in `FfmGeminiReadCapabilityPolicy`),
 - existing assistant tools and capability executors.
 
 Choose the correct layer for the task instead of forcing every task through one model or one provider.
@@ -255,7 +255,7 @@ The application should degrade gracefully when network services are unavailable,
 
 The primary reasoning path is **orkestrator → deterministic logic → Gemini Cloud (bounded)**.
 
-The orchestrator assembles bounded context (conversation, financial snapshot, page context, approved memory) and decides routing. Gemini Cloud is used via `FfmGeminiCloudOrchestrator` with allowlisted read capabilities `read.summary`/`read.transactions` (max 8 items, no merchant/category/account detail). Supabase is used for backend persistence where required. The application remains authoritative for financial truth.
+The orchestrator assembles bounded context (conversation, financial snapshot, page context, approved memory) and decides routing. Gemini Cloud is used via `FfmGeminiCloudOrchestrator` with allowlisted read capabilities defined in `FfmGeminiReadCapabilityPolicy` (canonical: `read.summary`, `read.transactions`, `read.goals`, `read.liabilities`, `read.receivables`, `read.activities`, `read.dailyNotes`, `read.reminders`, `read.assets`, `read.budget`, `read.hijriDate`, `read.schema`; max 8 items per digest, strictly bounded, no raw account numbers or sensitive credentials). Supabase is used for backend persistence where required. The application remains authoritative for financial truth.
 
 Do not let the model fabricate financial numbers; all claims must be grounded in authoritative application data. Do not let the model directly mutate state — it may only propose a draft/action plan that passes validation/confirmation/executor.
 

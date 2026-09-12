@@ -37,6 +37,9 @@ import 'ffm_assistant_knowledge_index.dart';
 import 'ffm_gemini_read_capability_service.dart';
 import 'ffm_gemini_cloud_orchestrator.dart';
 import 'ffm_assistant_personalization_repository.dart';
+import 'ffm_assistant_autonomy_repository.dart';
+import 'ffm_assistant_monitoring_job_service.dart';
+import '../domain/ffm_assistant_monitoring_job.dart';
 import 'ffm_personal_context_provider.dart';
 import 'ffm_personal_memory_service.dart';
 import 'ffm_assistant_typo_normalizer.dart';
@@ -2756,6 +2759,10 @@ class FfmAssistantInterpreter {
       );
     }
 
+    final monitoringIntent =
+        await _parseMonitoringJobIntent(rawText, normalized);
+    if (monitoringIntent != null) return monitoringIntent;
+
     if (_containsAny(normalized, const [
       'batal',
       'jangan jadi',
@@ -4545,6 +4552,270 @@ class FfmAssistantInterpreter {
     );
   }
 
+  Future<FfmAssistantIntent?> _parseMonitoringJobIntent(
+    String rawText,
+    String normalized,
+  ) async {
+    final asksMonitoring = normalized.contains('monitoring') ||
+        normalized.contains('jadwal pantau') ||
+        normalized.contains('evaluasi mingguan') ||
+        normalized.contains('pantau anggaran') ||
+        normalized.contains('monitor budget') ||
+        normalized.contains('cek tagihan dan target') ||
+        normalized.contains('pemeriksaan tagihan');
+
+    if (!asksMonitoring) return null;
+
+    final service = FfmAssistantMonitoringJobService(
+      database: _database,
+      autonomyRepository: FfmAssistantAutonomyRepository(_database),
+      clock: _clock,
+    );
+
+    // 1. List / Lihat jadwal monitoring
+    if (_containsAny(normalized, const [
+      'lihat',
+      'daftar',
+      'list',
+      'status',
+      'cek jadwal',
+      'apa saja',
+    ])) {
+      final jobs = await service.listJobs(AppContext.householdId);
+      if (jobs.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.listMonitoringJobs,
+          destination: FfmAssistantDestination.autonomyMonitor,
+          confidence: 1.0,
+          response:
+              'Belum ada jadwal pemantauan otonom aktif. Kamu bisa membuat jadwal baru seperti: "Jadwalkan evaluasi mingguan setiap Minggu jam 9 pagi".',
+        );
+      }
+      final buffer = StringBuffer()
+        ..writeln('📋 **Daftar Jadwal Pemantauan Aktif (${jobs.length})**:');
+      for (final job in jobs) {
+        final nextRun = job.nextRunAt != null
+            ? '${job.nextRunAt!.day}/${job.nextRunAt!.month}/${job.nextRunAt!.year} jam ${job.targetTimeMinutes ~/ 60}:${(job.targetTimeMinutes % 60).toString().padLeft(2, '0')}'
+            : 'Belum dijadwalkan';
+        buffer.writeln(
+          '• [${job.status.label}] **${job.title}** (${job.cadence.label}) — Next run: $nextRun',
+        );
+      }
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.listMonitoringJobs,
+        destination: FfmAssistantDestination.autonomyMonitor,
+        confidence: 1.0,
+        response: buffer.toString().trim(),
+      );
+    }
+
+    // 2. Pause / Jeda
+    if (_containsAny(
+      normalized,
+      const ['jeda', 'pause', 'hentikan sementara'],
+    )) {
+      final jobs = await service.listJobs(AppContext.householdId);
+      final activeJobs =
+          jobs.where((j) => j.status == FfmAssistantJobStatus.active).toList();
+      if (activeJobs.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.manageMonitoringJob,
+          destination: FfmAssistantDestination.autonomyMonitor,
+          confidence: 1.0,
+          response: 'Tidak ada jadwal pemantauan aktif yang dapat dijeda.',
+        );
+      }
+      final target = activeJobs.first;
+      await service.pauseJob(target.id);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.manageMonitoringJob,
+        destination: FfmAssistantDestination.autonomyMonitor,
+        confidence: 1.0,
+        response: 'Jadwal pemantauan **${target.title}** berhasil dijeda.',
+      );
+    }
+
+    // 3. Resume / Lanjutkan
+    if (_containsAny(
+      normalized,
+      const ['lanjutkan', 'resume', 'aktifkan kembali'],
+    )) {
+      final jobs = await service.listJobs(AppContext.householdId);
+      final pausedJobs =
+          jobs.where((j) => j.status == FfmAssistantJobStatus.paused).toList();
+      if (pausedJobs.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.manageMonitoringJob,
+          destination: FfmAssistantDestination.autonomyMonitor,
+          confidence: 1.0,
+          response: 'Tidak ada jadwal pemantauan yang sedang dijeda.',
+        );
+      }
+      final target = pausedJobs.first;
+      await service.resumeJob(target.id);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.manageMonitoringJob,
+        destination: FfmAssistantDestination.autonomyMonitor,
+        confidence: 1.0,
+        response:
+            'Jadwal pemantauan **${target.title}** berhasil diaktifkan kembali.',
+      );
+    }
+
+    // 4. Cancel / Batalkan
+    if (_containsAny(
+      normalized,
+      const ['batalkan', 'hapus', 'cancel', 'stop'],
+    )) {
+      final jobs = await service.listJobs(AppContext.householdId);
+      if (jobs.isEmpty) {
+        return FfmAssistantIntent(
+          rawText: rawText,
+          normalizedText: normalized,
+          type: FfmAssistantIntentType.manageMonitoringJob,
+          destination: FfmAssistantDestination.autonomyMonitor,
+          confidence: 1.0,
+          response:
+              'Tidak ada jadwal pemantauan yang ditemukan untuk dibatalkan.',
+        );
+      }
+      final target = jobs.first;
+      await service.cancelJob(target.id);
+      return FfmAssistantIntent(
+        rawText: rawText,
+        normalizedText: normalized,
+        type: FfmAssistantIntentType.manageMonitoringJob,
+        destination: FfmAssistantDestination.autonomyMonitor,
+        confidence: 1.0,
+        response: 'Jadwal pemantauan **${target.title}** telah dibatalkan.',
+      );
+    }
+
+    // 5. Create / Jadwalkan
+    // Tentukan Preset
+    FfmAssistantMonitoringPreset preset;
+    if (normalized.contains('anggaran') || normalized.contains('budget')) {
+      preset = FfmAssistantMonitoringPreset.budgetMonitor;
+    } else if (normalized.contains('tagihan') ||
+        normalized.contains('cicilan') ||
+        normalized.contains('target')) {
+      preset = FfmAssistantMonitoringPreset.dueCheck;
+    } else {
+      preset = FfmAssistantMonitoringPreset.weeklyEvaluation;
+    }
+
+    // Tentukan Cadence
+    FfmAssistantJobCadence cadence;
+    if (normalized.contains('setiap hari') ||
+        normalized.contains('tiap hari') ||
+        normalized.contains('harian')) {
+      cadence = FfmAssistantJobCadence.daily;
+    } else if (normalized.contains('setiap bulan') ||
+        normalized.contains('tiap bulan') ||
+        normalized.contains('bulanan')) {
+      cadence = FfmAssistantJobCadence.monthly;
+    } else {
+      cadence = FfmAssistantJobCadence.weekly;
+    }
+
+    // Deteksi Jam (misal "jam 9", "jam 09:00", "jam 20", "jam 8 malam")
+    int targetTimeMinutes = 540; // Default 09:00
+    final hourMatch =
+        RegExp(r'jam\s*(\d{1,2})(?::(\d{2}))?').firstMatch(normalized);
+    if (hourMatch != null) {
+      var hour = int.parse(hourMatch.group(1)!);
+      final minute =
+          hourMatch.group(2) != null ? int.parse(hourMatch.group(2)!) : 0;
+      if (normalized.contains('malam') && hour < 12) hour += 12;
+      targetTimeMinutes = (hour * 60 + minute).clamp(0, 1439);
+    } else if (normalized.contains('pagi')) {
+      targetTimeMinutes = 540; // 09:00
+    } else if (normalized.contains('malam')) {
+      targetTimeMinutes = 1200; // 20:00
+    } else if (normalized.contains('siang')) {
+      targetTimeMinutes = 720; // 12:00
+    } else if (normalized.contains('sore')) {
+      targetTimeMinutes = 960; // 16:00
+    }
+
+    // Deteksi Hari jika weekly
+    int? targetDay;
+    if (cadence == FfmAssistantJobCadence.weekly) {
+      if (normalized.contains('senin')) {
+        targetDay = DateTime.monday;
+      } else if (normalized.contains('selasa')) {
+        targetDay = DateTime.tuesday;
+      } else if (normalized.contains('rabu')) {
+        targetDay = DateTime.wednesday;
+      } else if (normalized.contains('kamis')) {
+        targetDay = DateTime.thursday;
+      } else if (normalized.contains('jumat')) {
+        targetDay = DateTime.friday;
+      } else if (normalized.contains('sabtu')) {
+        targetDay = DateTime.saturday;
+      } else if (normalized.contains('minggu')) {
+        targetDay = DateTime.sunday;
+      } else {
+        targetDay = DateTime.sunday; // Default hari Minggu
+      }
+    }
+
+    // Filter kategori untuk budget monitor jika ada
+    String? categoryFilter;
+    if (preset == FfmAssistantMonitoringPreset.budgetMonitor) {
+      final match = RegExp(
+        r'(?:anggaran|budget)\s+([a-zA-Z]+)',
+      ).firstMatch(normalized);
+      if (match != null &&
+          match.group(1) != 'setiap' &&
+          match.group(1) != 'harian') {
+        categoryFilter = match.group(1);
+      }
+    }
+
+    final hour = targetTimeMinutes ~/ 60;
+    final minute = (targetTimeMinutes % 60).toString().padLeft(2, '0');
+    final timeStr = 'pukul $hour:$minute';
+
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.monitoringJob,
+      title: preset.label,
+      note: '${preset.label} (${cadence.label} $timeStr)',
+      createdAt: _clock(),
+      formValues: <String, Object?>{
+        'preset': preset.name,
+        'cadence': cadence.name,
+        'targetTimeMinutes': targetTimeMinutes,
+        'targetDay': targetDay,
+        'categoryFilter': categoryFilter,
+        'deliveryChannel': 'inApp',
+      },
+    );
+
+    return FfmAssistantIntent(
+      rawText: rawText,
+      normalizedText: normalized,
+      type: FfmAssistantIntentType.createMonitoringJob,
+      destination: FfmAssistantDestination.autonomyMonitor,
+      draft: draft,
+      confidence: 1.0,
+      response:
+          'Aku sudah siapkan rancangan jadwal pemantauan **${preset.label}** (${cadence.label} $timeStr). Jadwal ini berjalan aman secara read-only di background dan tidak akan memutasi saldo Anda. Konfirmasi untuk mengaktifkan?',
+    );
+  }
+
   (DateTime, DateTime, String) _transactionPeriod(
     DateTime now,
     String normalized,
@@ -5249,6 +5520,11 @@ class FfmAssistantInterpreter {
         type: FfmAssistantIntentType.createCashFlowProfile,
         destination: FfmAssistantDestination.analysis,
         action: 'siklus kas / AgroTrack',
+      ),
+      FfmAssistantDraftKind.monitoringJob => (
+        type: FfmAssistantIntentType.createMonitoringJob,
+        destination: FfmAssistantDestination.autonomyMonitor,
+        action: 'jadwal pemantauan',
       ),
     };
     if (draft.kind == FfmAssistantDraftKind.masterData) {
@@ -9111,24 +9387,36 @@ class FfmAssistantInterpreter {
     'kenapa ada rancangan',
   ]);
 
-  bool _isFinancialWarningRequest(String text) => _containsAny(text, const [
-    'cek anggaran',
-    'cek budget',
-    'anggaran hampir habis',
-    'anggaran yang hampir habis',
-    'apakah ada anggaran',
-    'budget hampir habis',
-    'mendekati batas',
-    'pemakaian cepat',
-    'kondisi keuangan',
-    'peringatan keuangan',
-    'ada peringatan',
-    'ada warning',
-    'anggaran aman',
-    'anggaran saya',
-    'budget saya',
-    'arus kas saya',
-  ]);
+  bool _isFinancialWarningRequest(String text) {
+    if (_containsAny(text, const [
+      'cicil',
+      'utang',
+      'hutang',
+      'pinjam',
+      'target',
+      'tujuan',
+    ])) {
+      return false;
+    }
+    return _containsAny(text, const [
+      'cek anggaran',
+      'cek budget',
+      'anggaran hampir habis',
+      'anggaran yang hampir habis',
+      'apakah ada anggaran',
+      'budget hampir habis',
+      'mendekati batas',
+      'pemakaian cepat',
+      'kondisi keuangan',
+      'peringatan keuangan',
+      'ada peringatan',
+      'ada warning',
+      'anggaran aman',
+      'anggaran saya',
+      'budget saya',
+      'arus kas saya',
+    ]);
+  }
 
   bool _isReadRequest(String text) =>
       _containsAny(text, const ['baca', 'ulang']);

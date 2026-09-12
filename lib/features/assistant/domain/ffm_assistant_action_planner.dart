@@ -290,6 +290,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.activityUpdate => 'draft.activity_update',
     FfmAssistantDraftKind.activityEdit => 'draft.activity_edit',
     FfmAssistantDraftKind.cashFlowProfile => 'draft.cash_flow_profile',
+    FfmAssistantDraftKind.monitoringJob => 'draft.monitoring_job',
   };
 
   static String _mutationCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
@@ -407,6 +408,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.receivablePayment => 'verify.debt_payment',
     FfmAssistantDraftKind.reminderArchive => 'verify.reminder_mutation',
     FfmAssistantDraftKind.reminderUpdate => 'verify.reminder_mutation',
+    FfmAssistantDraftKind.monitoringJob => 'verify.monitoring_job',
     _ => 'verify.saved_draft',
   };
 

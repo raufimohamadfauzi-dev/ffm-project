@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../domain/ffm_assistant_models.dart';
@@ -125,7 +126,8 @@ class FfmAssistantLearningRepository {
     );
     if (sanitized.isEmpty || sanitized.length > 500) return null;
     final now = DateTime.now();
-    final id = 'assistant-learning-${now.microsecondsSinceEpoch}';
+    final id =
+        'assistant-learning-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}';
     await _database
         .into(_database.assistantLearningExamples)
         .insert(

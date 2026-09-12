@@ -692,6 +692,8 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+      case FfmAssistantDraftKind.monitoringJob:
+        break;
     }
     return issues;
   }
@@ -743,7 +745,8 @@ abstract final class FfmAssistantDraftValidator {
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete ||
     FfmAssistantDraftKind.activityArchive ||
-    FfmAssistantDraftKind.activityDelete => false,
+    FfmAssistantDraftKind.activityDelete ||
+    FfmAssistantDraftKind.monitoringJob => false,
     _ => true,
   };
 

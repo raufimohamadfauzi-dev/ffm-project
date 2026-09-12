@@ -94,6 +94,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     FfmAssistantDraftKind.activityUpdate => 'Preview Update Aktivitas',
     FfmAssistantDraftKind.activityEdit => 'Preview Edit Aktivitas',
     FfmAssistantDraftKind.cashFlowProfile => 'Draft Siklus Kas / AgroTrack',
+    FfmAssistantDraftKind.monitoringJob => 'Draft Jadwal Pemantauan',
   };
 
   static String rupiah(int amount) =>

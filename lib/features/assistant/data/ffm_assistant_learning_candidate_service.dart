@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:uuid/uuid.dart';
+
 import 'ffm_assistant_memory_repository.dart';
 
 class FfmAssistantLearningCandidate {
@@ -42,7 +44,8 @@ class FfmAssistantLearningCandidateService {
       throw ArgumentError('Pemicu dan langkah workflow wajib diisi.');
     }
     final now = DateTime.now();
-    final id = 'assistant-workflow-${now.microsecondsSinceEpoch}';
+    final id =
+        'assistant-workflow-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}';
     final workflow = <String, Object?>{
       'version': 1,
       'steps': steps,

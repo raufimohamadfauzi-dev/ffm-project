@@ -18,6 +18,7 @@ class FfmAssistantKnowledgeIndex {
     _KnowledgeIndexEntry('diagnostics', 'Error teknis dan Asisten Log', _IndexScope.diagnostics),
     _KnowledgeIndexEntry('memory', 'Memory yang sudah disetujui user', _IndexScope.profile),
     _KnowledgeIndexEntry('calendar', 'Tanggal lokal dan kalender Hijriah', _IndexScope.calendar),
+    _KnowledgeIndexEntry('chat_history', 'Riwayat obrolan dan percakapan sebelumnya', _IndexScope.profile),
   ];
 
   static FfmAssistantKnowledgeIndexPlan planForRequest(String request) {
@@ -47,6 +48,7 @@ class FfmAssistantKnowledgeIndex {
     if (RegExp(r'\b(error|masalah|bug|asisten log|diagnostik)\b').hasMatch(normalized)) add('diagnostics');
     if (RegExp(r'\b(memory|ingatanku|pernah saya ajarkan)\b').hasMatch(normalized)) add('memory');
     if (RegExp(r'\b(hari|tanggal|kalender|hijriah|rabu|kamis|jumat)\b').hasMatch(normalized)) add('calendar');
+    if (RegExp(r'\b(pernah dibahas|obrolan|riwayat chat|percakapan lalu|pernah kita bicarakan|pernah saya tanyakan)\b').hasMatch(normalized)) add('chat_history');
 
     if (selected.isEmpty) {
       add('onboarding');

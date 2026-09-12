@@ -30,4 +30,12 @@ void main() {
     expect(plan.sourceIds, contains('activity'));
     expect(plan.sourceIds, contains('reminders'));
   });
+
+  test('memilih sumber riwayat percakapan untuk pertanyaan obrolan lalu', () {
+    final plan = FfmAssistantKnowledgeIndex.planForRequest(
+      'Apa yang pernah kita bicarakan tentang target tabungan?',
+    );
+
+    expect(plan.sourceIds, contains('chat_history'));
+  });
 }

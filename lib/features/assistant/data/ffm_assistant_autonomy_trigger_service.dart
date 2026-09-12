@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'ffm_assistant_autonomy_repository.dart';
 
 class FfmAssistantAutonomyTriggerService {
@@ -74,9 +76,18 @@ class FfmAssistantAutonomyTriggerService {
       );
       final evaluate = evaluateNow;
       if (evaluate != null) {
-        unawaited(evaluate(householdId).catchError((_) {}));
+        unawaited(
+          evaluate(householdId).catchError((e, st) {
+            if (kDebugMode) {
+              debugPrint('Autonomy trigger evaluateNow error: $e\n$st');
+            }
+          }),
+        );
       }
-    } on Object {
+    } on Object catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('Autonomy trigger emit error: $e\n$st');
+      }
       // Trigger persistence must never roll back an authoritative data write.
     }
   }

@@ -65,6 +65,7 @@ class FfmAssistantQueryRegistry {
          _GoalStatusQueryTool(database),
          _DebtStatusQueryTool(database),
          _AssetSummaryQueryTool(database),
+         _CashflowCommitmentQueryTool(database),
          _LoanAffordabilityQueryTool(database),
          _DataCompletenessQueryTool(database),
          _PersonalProfileQueryTool(database),
@@ -1540,6 +1541,161 @@ class _LoanAffordabilityQueryTool extends FfmAssistantQueryTool {
         'Catatan: hasil ini adalah analisis berbasis data lokal FFM, bukan persetujuan kredit atau jaminan pinjaman aman.',
       );
     return buffer.toString();
+  }
+}
+
+class _CashflowCommitmentQueryTool extends FfmAssistantQueryTool {
+  _CashflowCommitmentQueryTool(this._database);
+
+  final AppDatabase _database;
+
+  @override
+  bool canHandle(String normalizedText) {
+    final asksCashflow = normalizedText.contains('arus kas') ||
+        normalizedText.contains('cashflow') ||
+        normalizedText.contains('kas saya') ||
+        normalizedText.contains('sisa uang') ||
+        normalizedText.contains('sisa kas');
+    final asksDebt = normalizedText.contains('cicil') ||
+        normalizedText.contains('utang') ||
+        normalizedText.contains('hutang') ||
+        normalizedText.contains('kewajiban') ||
+        normalizedText.contains('angsuran');
+    final asksGoal = normalizedText.contains('target') ||
+        normalizedText.contains('tujuan') ||
+        normalizedText.contains('tabungan') ||
+        normalizedText.contains('goal');
+    final asksSufficiency = normalizedText.contains('cukup') ||
+        normalizedText.contains('aman') ||
+        normalizedText.contains('bisa') ||
+        normalizedText.contains('mampu') ||
+        normalizedText.contains('sanggup') ||
+        normalizedText.contains('apakah');
+
+    return (asksCashflow && (asksDebt || asksGoal) && asksSufficiency) ||
+        (asksCashflow && asksDebt && asksGoal) ||
+        (asksDebt && asksGoal && asksSufficiency);
+  }
+
+  @override
+  Future<FfmAssistantQueryAnswer?> answer(
+    FfmAssistantQueryRequest request,
+  ) async {
+    final evidence = await FfmAssistantFinancialSnapshotService(
+      _database,
+      HijriCalendarService(_database),
+    ).readCurrentMonth(householdId: request.householdId, now: request.now);
+
+    final activeGoals = await (_database.select(_database.goals)
+          ..where(
+            (row) =>
+                row.householdId.equals(request.householdId) &
+                row.isActive.equals(true),
+          ))
+        .get();
+
+    int totalMonthlyGoalAllocation = 0;
+    final goalDetails = <String>[];
+
+    for (final goal in activeGoals) {
+      final remaining =
+          (goal.targetAmount - goal.currentAmount).clamp(0, goal.targetAmount);
+      if (remaining <= 0) continue;
+
+      int monthlyNeed;
+      if (goal.targetDate != null && goal.targetDate!.isAfter(request.now)) {
+        final monthsLeft = ((goal.targetDate!.year - request.now.year) * 12 +
+                (goal.targetDate!.month - request.now.month))
+            .clamp(1, 120);
+        monthlyNeed = (remaining / monthsLeft).ceil();
+      } else {
+        monthlyNeed =
+            remaining > 1000000 ? (remaining * 0.1).ceil() : remaining;
+      }
+      totalMonthlyGoalAllocation += monthlyNeed;
+      goalDetails.add(
+        '${goal.name}: ${_rupiah(monthlyNeed)}/bln (sisa ${_rupiah(remaining)})',
+      );
+    }
+
+    final cashflow = evidence.cashflowBeforeDebt;
+    final installments = evidence.currentInstallments;
+    final totalCommitment = installments + totalMonthlyGoalAllocation;
+    final netRemaining = cashflow - totalCommitment;
+
+    final buffer = StringBuffer()
+      ..writeln('Status: Evaluasi Arus Kas vs Komitmen.')
+      ..writeln('Periode: ${evidence.periodLabel}.')
+      ..writeln('Pemasukan tercatat: ${_rupiah(evidence.income)}.')
+      ..writeln('Pengeluaran operasional: ${_rupiah(evidence.expenses)}.')
+      ..writeln('Arus kas operasional: ${_rupiah(cashflow)}.')
+      ..writeln(
+        'Cicilan kewajiban aktif: ${_rupiah(installments)} '
+        '(${evidence.activeLiabilityCount} cicilan).',
+      )
+      ..writeln(
+        'Alokasi target aktif: ${_rupiah(totalMonthlyGoalAllocation)} '
+        '(${activeGoals.length} target).',
+      );
+
+    if (goalDetails.isNotEmpty) {
+      buffer.writeln('Rincian target: ${goalDetails.join(', ')}.');
+    }
+
+    buffer
+      ..writeln('Total komitmen bulanan: ${_rupiah(totalCommitment)}.')
+      ..writeln('Sisa arus kas bersih: ${_rupiah(netRemaining)}.')
+      ..writeln();
+
+    if (cashflow <= 0) {
+      buffer
+        ..writeln(
+          'Kesimpulan: **Arus kas saat ini tidak mencukupi** karena arus kas operasional sedang defisit atau nol.',
+        )
+        ..writeln(
+          'Saran: Tinjau dan kurangi pos pengeluaran yang tidak penting, tunda alokasi target baru, dan pastikan cicilan utang pokok tetap terbayar agar tidak terkena denda.',
+        );
+    } else if (netRemaining >= 0) {
+      buffer
+        ..writeln(
+          'Kesimpulan: **Arus kas mencukupi** untuk menutup seluruh cicilan dan rencana alokasi target bulan ini.',
+        )
+        ..writeln(
+          'Sisa surplus ${_rupiah(netRemaining)} dapat disimpan sebagai cadangan dana darurat.',
+        );
+    } else if (cashflow >= installments) {
+      final deficit = totalCommitment - cashflow;
+      buffer
+        ..writeln(
+          'Kesimpulan: **Arus kas cukup untuk cicilan utang, namun belum mencukupi penuh target tabungan**.',
+        )
+        ..writeln(
+          'Arus kas Anda aman menutup cicilan (${_rupiah(installments)}), tetapi ada kekurangan ${_rupiah(deficit)} untuk memenuhi seluruh alokasi target bulan ini.',
+        )
+        ..writeln(
+          'Saran: Sesuaikan jadwal target atau kurangi nominal setoran bulanan sementara waktu.',
+        );
+    } else {
+      final debtDeficit = installments - cashflow;
+      buffer
+        ..writeln(
+          'Kesimpulan: **Arus kas tidak mencukupi untuk membayar cicilan aktif** (kurang ${_rupiah(debtDeficit)}).',
+        )
+        ..writeln(
+          'Saran darurat: Segera restrukturisasi pengeluaran dan prioritaskan pemenuhan cicilan sebelum menyisihkan uang ke pos lainnya.',
+        );
+    }
+
+    buffer
+      ..writeln()
+      ..writeln(
+        'Catatan: Perhitungan ini bersifat deterministik dari data transaksi, cicilan, dan target lokal tanpa estimasi cloud.',
+      );
+
+    return FfmAssistantQueryAnswer(
+      title: 'Analisis Arus Kas, Cicilan & Target',
+      message: buffer.toString(),
+    );
   }
 }
 

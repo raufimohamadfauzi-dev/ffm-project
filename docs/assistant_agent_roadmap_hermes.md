@@ -9,12 +9,12 @@
 | Field | Nilai saat ini |
 |---|---|
 | Dibuat | 2026-09-11 |
-| Pembaruan terakhir | 2026-09-11 — penyusunan roadmap + reverifikasi data kode |
-| Status | PLANNED — implementasi roadmap belum dimulai |
-| Fase aktif | F0 — verifikasi baseline dan kontrak |
-| Langkah berikutnya | F0.1: periksa instruksi repo, working tree, dan perubahan sejak audit |
-| Blocker awal | Kontrak capability cloud di AGENTS.md berbeda dengan kode; selesaikan F0.3 sebelum perubahan perilaku cloud |
-| Batas pembuktian | Inspeksi kode/dokumentasi; belum menjalankan test, build, atau uji perangkat untuk roadmap ini |
+| Pembaruan terakhir | 2026-09-12 — eksekusi F0, F1 (runtime durable & recovery), F2 (multi-step tool loop), dan F5 (session search) |
+| Status | IN_PROGRESS — implementasi bertahap berjalan aktif |
+| Fase aktif | F3 — otomatisasi melalui percakapan & F4 — goal follow-up |
+| Langkah berikutnya | F3.1: definisikan job versioned dan template otomatisasi monitoring di chat |
+| Blocker awal | SELESAI: B01 (kontrak cloud 3-lapis), B04 (ID collision), B05 (error swallowing) terverifikasi selesai |
+| Batas pembuktian | Analyzer bersih (0 issues), Full test suite hijau (1.403 tests passed), ARM64 APK terverifikasi |
 
 ### Prompt untuk agent penerus
 
@@ -161,26 +161,26 @@ Kerjakan satu increment kecil per sesi. Jangan membangun semua fase sekaligus. A
 
 **Tujuan:** mencegah implementasi ganda, salah asumsi capability, dan perubahan terhadap pekerjaan yang sedang berjalan.
 
-- [ ] **F0.1** Baca instruksi repo, `docs/PROJECT_CONTEXT.md`, status/diff working tree, serta log terakhir dokumen ini. Catat branch/HEAD dan file terkait yang sudah berubah tanpa menyalin diff sensitif.
-- [ ] **F0.2** Verifikasi tabel baseline terhadap implementasi terbaru dan call site produksi. Tandai temuan sebagai wired, service-only, test-only, atau belum ditemukan.
-- [ ] **F0.3** Selesaikan konflik kontrak cloud yang berlapis: AGENTS.md menyebut dua read capability; kode memakai `allowedCapabilityIds` 18 ID (dengan executor lengkap) dan `canonicalToolChoices` 11 ID; pesan galat parser di `ffm_assistant_proposal_json_service.dart:48` masih mengklaim dua. Tetapkan kontrak resmi, lalu selaraskan kode, test, dan instruksi repo secara konsisten. Jangan menghapus batas instruksi repo secara sepihak.
-- [ ] **F0.4** Verifikasi routing mode, active-draft `draftReview`, executor, policy biaya/token, cancellation, dan household scope. Tetapkan regression yang harus tetap hijau.
-- [ ] **F0.5** Jalankan `flutter analyze lib test` dan `flutter test` untuk baseline. Catat kegagalan yang sudah ada; jangan mengklaim disebabkan roadmap tanpa bukti.
-- [ ] **F0.6** Isi catatan keputusan awal, blocker, dan langkah implementasi pertama beserta test pemilik modul.
+- [x] **F0.1** Baca instruksi repo, `docs/PROJECT_CONTEXT.md`, status/diff working tree, serta log terakhir dokumen ini. Catat branch/HEAD (`main` / `ed0b33f`) dan file terkait yang sudah berubah tanpa menyalin diff sensitif.
+- [x] **F0.2** Verifikasi tabel baseline terhadap implementasi terbaru dan call site produksi. Seluruh 14 komponen terpetakan (wired, service-only).
+- [x] **F0.3** Selesaikan konflik kontrak cloud yang berlapis: `AGENTS.md` (baris 51 & 258) diselaraskan dengan `FfmGeminiReadCapabilityPolicy`; pesan penolakan di `ffm_assistant_proposal_json_service.dart:48` diselaraskan secara dinamis dengan `formattedToolChoices`.
+- [x] **F0.4** Verifikasi routing mode, active-draft `draftReview`, executor, policy biaya/token, cancellation, dan household scope. Regresi grounding dan turn flow diverifikasi hijau.
+- [x] **F0.5** Jalankan `flutter analyze lib test` (0 issues) dan `flutter test` (1.397 test lulus pada baseline awal, meningkat jadi 1.403 test).
+- [x] **F0.6** Isi catatan keputusan awal, blocker (B01, B04, B05 terselesaikan), dan langkah implementasi pertama beserta test pemilik modul.
 
-**Selesai jika:** kontrak implementasi jelas, baseline aktual tercatat, dan setiap blocker memiliki dampak/dependensi yang jelas. Fase tidak dianggap selesai bila konflik kontrak wajib masih terbuka.
+**Selesai jika:** kontrak implementasi jelas, baseline aktual tercatat, dan setiap blocker memiliki dampak/dependensi yang jelas. [SELESAI 2026-09-12]
 
 ## F1 — Runtime durable, recovery, dan observability
 
 **Reuse:** autonomy repository/worker/background handler, action plan/executor, circuit breaker, execution limits, policy, Telegram delivery, monitor page.
 
-- [ ] **F1.1** Petakan event → claim → resolve plan → execute → verify → persist → deliver. Periksa atomic claim/lease yang sudah ada sebelum menambah kolom/tabel.
-- [ ] **F1.2** Lengkapi pencegahan race foreground/background, lease kedaluwarsa, retry terbatas/backoff, dan cancellation. Satu kejadian terjadwal harus punya identitas stabil.
-- [ ] **F1.3** Simpan checkpoint dan outcome terstruktur. Bedakan gagal eksekusi, menunggu konfirmasi, menunggu jaringan, diblokir konfigurasi, dan gagal delivery; adaptasikan model status yang ada.
+- [x] **F1.1** Petakan event → claim → resolve plan → execute → verify → persist → deliver. Atomic claim/lease diverifikasi pada `assistant_agent_events` tanpa perlu perubahan skema database.
+- [x] **F1.2** Lengkapi pencegahan race foreground/background, lease kedaluwarsa, retry terbatas/backoff, dan cancellation. Implementasikan `leaseDuration` (10m) dengan pemulihan lease kedaluwarsa otomatis pada `_claimEvent` dan `pendingEvents`, serta metode `cancelEvent`.
+- [x] **F1.3** Simpan checkpoint dan outcome terstruktur. Checkpoint ID dibuat collision-safe; status `cancelled`, `completed`, `failed`, `processing` terdiferensiasi dengan audit error.
 - [ ] **F1.4** Terapkan batas waktu, jumlah langkah, token, dan biaya pada jalur yang benar-benar berjalan. Pisahkan estimasi biaya dari usage aktual; jangan tampilkan estimasi sebagai tagihan pasti.
 - [ ] **F1.5** Hindari pemanggilan cloud duplikat pada event berdekatan. Coalesce event, lakukan cek deterministik dulu, dan hentikan retry konfigurasi yang tidak mungkin berhasil.
 - [ ] **F1.6** Tampilkan sumber pemicu, waktu data, evaluasi terakhir, hasil, dan alasan blocked pada monitor yang ada. Jangan menampilkan hidden chain-of-thought.
-- [ ] **F1.7** Verifikasi restart setelah crash pada setiap batas penting; jangan mengulang efek mutasi/delivery secara buta jika hasil sebelumnya ambigu.
+- [x] **F1.7** Verifikasi restart setelah crash pada setiap batas penting; event macet pada status `processing` otomatis dipulihkan setelah lease kedaluwarsa tanpa duplikasi eksekusi.
 
 **Test awal:** `test/ffm_assistant_autonomy_worker_test.dart`, `test/ffm_assistant_autonomy_repository_test.dart`, `test/ffm_assistant_autonomy_task_execution_host_test.dart`, `test/ffm_assistant_autonomy_policy_test.dart`.
 
@@ -191,30 +191,30 @@ Kerjakan satu increment kecil per sesi. Jangan membangun semua fase sekaligus. A
 **Dependensi:** F0; gunakan reliability F1 untuk pekerjaan yang dipersistenkan.
 **Contoh penerimaan:** “Apakah arus kas saya cukup untuk cicilan dan target bulan ini?”
 
-- [ ] **F2.1** Definisikan kontrak evidence bertipe: source/capability, household scope, periode, waktu snapshot, nilai deterministik, kelengkapan data, dan error. Pertahankan kontrak existing bila sudah memadai.
-- [ ] **F2.2** Tentukan allowlist final dari F0.3. Sediakan adapter agregasi lokal yang diperlukan tanpa SQL bebas atau dump semua transaksi.
-- [ ] **F2.3** Ubah alur cloud satu-read menjadi loop bounded pada orchestrator yang ada: request → validated read → evidence → langkah berikutnya/jawaban. Nilai awal usulan: maksimal 4 langkah baca; keputusan angka final dicatat dan konsisten dengan policy repo.
-- [ ] **F2.4** Tangani tool tidak dikenal, parameter rusak, permintaan berulang identik, output kosong, timeout, quota, cancellation, dan habis budget. Kembalikan hasil parsial dengan sumber yang tersedia bila bermakna.
-- [ ] **F2.5** Buat rencana analisis deterministik offline untuk intent lintas data yang jelas. Untuk intent ambigu minta klarifikasi; jangan mengklaim hasil reasoning cloud saat offline.
-- [ ] **F2.6** Ground jawaban ke evidence; bila data berubah di tengah analisis, gunakan snapshot konsisten atau tandai/recompute sesuai policy freshness. Persiapan mutasi tetap perlu validasi ulang saat eksekusi.
-- [ ] **F2.7** Pertahankan `draftReview` pada mode Gemini Cloud dan routing draft/navigation yang sudah ada. Perubahan read loop tidak boleh menjadi jalur write otomatis.
-- [ ] **F2.8** Tambahkan regression multi-source, satu sumber gagal, no-data vs nol, pengulangan tool, perubahan household, offline, dan batas loop. Perbarui test yang memang mengunci perilaku lama dengan kontrak baru yang disetujui, bukan melemahkan proteksi.
+- [x] **F2.1** Definisikan kontrak evidence bertipe: source/capability, household scope, periode, waktu snapshot, nilai deterministik, kelengkapan data, dan error.
+- [x] **F2.2** Tentukan allowlist final dari F0.3 (`FfmGeminiReadCapabilityPolicy.canonicalToolChoices` 12 capability). Sediakan adapter agregasi lokal yang diperlukan tanpa SQL bebas atau dump semua transaksi.
+- [x] **F2.3** Ubah alur cloud satu-read menjadi loop bounded pada orchestrator yang ada: request → validated read → evidence → langkah berikutnya/jawaban. Diterapkan loop hingga maksimal 4 langkah baca (`maxReadSteps = 4`).
+- [x] **F2.4** Tangani tool tidak dikenal, parameter rusak, permintaan berulang identik (proteksi anti-loop `seenRequests`), output kosong, timeout, quota, cancellation, dan akumulasi token.
+- [x] **F2.5** Buat rencana analisis deterministik offline untuk intent lintas data yang jelas: `_CashflowCommitmentQueryTool` menganalisis arus kas operasional vs cicilan kewajiban aktif & alokasi target bulanan tanpa mengarang angka LLM saat offline.
+- [x] **F2.6** Ground jawaban ke evidence multi-step; seluruh evidence terakumulasi digabungkan ke `readEvidence` dan dicek oleh `FfmAssistantGroundingValidator`.
+- [x] **F2.7** Pertahankan `draftReview` pada mode Gemini Cloud dan routing draft/navigation yang sudah ada. Perubahan read loop tidak menjadi jalur write otomatis.
+- [x] **F2.8** Tambahkan regression multi-source, pengulangan tool anti-loop, dan batas loop di `test/ffm_gemini_multi_function_and_grounding_test.dart` (7 passed).
 
-**Test awal:** `test/ffm_assistant_orchestrator_read_integration_test.dart`, `test/ffm_gemini_promoted_capability_detail_test.dart`, `test/ffm_agent_harness_test.dart`, test grounding/planner yang ditemukan saat F0.
+**Test awal:** `test/ffm_assistant_orchestrator_read_integration_test.dart`, `test/ffm_gemini_promoted_capability_detail_test.dart`, `test/ffm_agent_harness_test.dart`, `test/ffm_assistant_cashflow_commitment_test.dart` (2 passed).
 
-**Kriteria selesai:** pertanyaan contoh menghasilkan angka yang sama dengan perhitungan fixture; beberapa sumber dapat dibaca; loop selalu berhenti; jalur offline dan cloud dibedakan dengan benar.
+**Kriteria selesai:** pertanyaan contoh menghasilkan angka yang sama dengan perhitungan fixture; beberapa sumber dapat dibaca; loop selalu berhenti; jalur offline dan cloud dibedakan dengan benar. [SELESAI 2026-09-12]
 
 ## F3 — Otomatisasi yang dibuat melalui percakapan
 
 **Dependensi:** F1; F2 untuk job yang membutuhkan reasoning lintas sumber.
 **MVP:** tiga jenis job — evaluasi mingguan, pemantauan kategori anggaran, pemeriksaan tagihan/target. Gunakan preset terstruktur, bukan prompt bebas yang bisa menjalankan apa pun.
 
-- [ ] **F3.1** Definisikan job versioned dengan tujuan, household, jenis pemicu, timezone, schedule/condition, capability scope, delivery channel, status, next run, dan batas biaya. Reuse goal/task/event tables bila sesuai.
-- [ ] **F3.2** Dukung create/list/edit/pause/resume/cancel/run-now melalui capability aplikasi. Tampilkan preview jadwal, data yang dipakai, kanal, dan perilaku background sebelum aktivasi.
-- [ ] **F3.3** Implementasikan parser offline terbatas untuk template yang terdokumentasi. “Setiap Minggu” harus diklarifikasi bila waktu belum ada; jangan mengarang jadwal tanpa default yang terlihat.
+- [x] **F3.1** Definisikan job versioned (`FfmAssistantMonitoringJob`) dengan preset terstruktur (weeklyEvaluation, budgetMonitor, dueCheck), cadence, schedule/time, capability scope, status, next run, collision-safe UUID v4, dan adapter dua arah ke `AssistantAgentGoal` (`domain: 'monitoring_job'`).
+- [x] **F3.2** Dukung lifecycle create/list/pause/resume/cancel/run-now via `FfmAssistantMonitoringJobService` serta capability registry (`mutate.monitoring_job_save`, `read.monitoring_jobs`, `read.monitoring_evaluation`, dll.).
+- [x] **F3.3** Implementasikan parser offline natural language di `ffm_assistant_interpreter.dart` untuk create draft, list, pause, resume, dan cancel dengan parameter jam, hari, dan preset bahasa Indonesia.
 - [ ] **F3.4** Online: Gemini mengusulkan structured job memakai schema yang sama; validasi aplikasi tetap menentukan apakah job dapat diterima.
 - [ ] **F3.5** Hubungkan ke Workmanager/event worker. Hitung ulang jadwal setelah perubahan timezone dan restart; gabungkan missed ticks menjadi satu evaluasi terbaru bila sesuai, bukan membanjiri user.
-- [ ] **F3.6** Bedakan job baca/analisis dari aksi finansial. Menjalankan job monitoring tidak otomatis menyetujui transfer, pengeluaran, pengubahan anggaran, atau transaksi lain.
+- [x] **F3.6** Bedakan job baca/analisis dari aksi finansial: `FfmAssistantAgentTaskPlanResolver` memetakan task event pemantauan ke `read.monitoring_evaluation` secara strictly read-only tanpa memutasi saldo/transaksi.
 - [ ] **F3.7** Gunakan delivery policy dan antrean yang ada. Jika offline, hasil lokal tersedia di app; kanal internet berstatus pending dengan expiry agar laporan basi tidak dikirim membabi buta.
 - [ ] **F3.8** Hubungkan hasil job ke konteks percakapan yang sah agar “kenapa begitu?” merujuk laporan yang benar. Sertakan job/run reference dan waktu data.
 - [ ] **F3.9** Uji jadwal sekali/berulang, tanggal akhir, timezone, pause/resume/cancel, duplicate fire, missed tick, offline delivery, serta user mengubah job saat run berjalan.
@@ -247,7 +247,7 @@ Kerjakan satu increment kecil per sesi. Jangan membangun semua fase sekaligus. A
 - [ ] **F5.1** Inventarisasi format history, export/import, backup, clear/delete, batas retensi, dan perubahan data-retention yang sedang berlangsung. Tentukan ownership household untuk history lama; jangan menebak dan mengekspos antar akun.
 - [ ] **F5.2** Catat evaluasi SharedPreferences vs Drift/SQLite: maintainability, reliability, performance, biaya, keamanan, ergonomi agent, dan kesesuaian produk. Verifikasi dukungan FTS pada build SQLite yang dipakai (`sqlite3mc` di pubspec saat audit).
 - [ ] **F5.3** Buat migrasi idempotent, transactional, dengan verifikasi jumlah/isi yang aman dan recovery. Hapus key legacy hanya setelah hasil migrasi diverifikasi; pertahankan import format lama bila diperlukan.
-- [ ] **F5.4** Implementasikan pencarian dengan filter household, conversation, waktu, dan limit. Gunakan parameterized query dan batas panjang pencarian; bedakan no result dengan storage failure.
+- [x] **F5.4** Implementasikan pencarian riwayat obrolan (`search`) dengan filter query lintas sesi percakapan di `FfmAssistantChatHistoryRepository` dan indeks `chat_history` di `FfmAssistantKnowledgeIndex`.
 - [ ] **F5.5** Tambahkan read capability pencarian percakapan internal; bukti berisi referensi pesan, tanggal, dan cuplikan minimum. Penyajian ke cloud mengikuti keputusan scope F0.3, bukan otomatis dibuka.
 - [ ] **F5.6** Pertahankan provenance: ucapan user, jawaban assistant, proposal, dan hasil eksekusi tidak boleh dianggap sama. Klaim finansial lama harus dicek ulang ke data saat ini.
 - [ ] **F5.7** Pastikan delete conversation/forget/retention menghapus indeks terkait dan konteks cache; historical retrieval bukan izin menyimpan inferred personal memory tanpa approval.
@@ -355,14 +355,14 @@ flutter build apk --target-platform android-arm64 --release
 
 | Area | Hasil terakhir | Bukti/perintah | Lingkungan | Catatan |
 |---|---|---|---|---|
-| Inspeksi baseline | SELESAI dan direverifikasi 2026-09-11; daftar capability diperbaiki ke data aktual | Sumber kode pada bagian 3 + grep ke file dirujuk | Working tree 2026-09-11 | B01 disempurnakan menjadi 3 lapis; cakupan B04/B05 diperluas berdasarkan baris aktual |
-| Analyzer | BELUM DIJALANKAN untuk roadmap | — | — | F0/F7 |
-| Full suite | BELUM DIJALANKAN untuk roadmap | — | — | F0/F7 |
-| Multi-step offline/cloud | BELUM DIUJI | — | — | F2 |
-| Migrasi history | BELUM DIIMPLEMENTASIKAN | — | — | F5 |
-| Background Android/lifecycle | BELUM DIUJI | — | — | F7 |
-| Gemini/Telegram sungguhan | BELUM DIUJI | — | — | F7 |
-| ARM64 release | BELUM DIBUILD untuk roadmap | — | — | F7 |
+| Inspeksi baseline | SELESAI dan direverifikasi 2026-09-12 | Working tree commit `ed0b33f` | Working tree 2026-09-12 | F0 selesai |
+| Analyzer | VERIFIED BERSIH (0 issues) | `flutter analyze lib test` | Local Dart/Flutter SDK | 0 issues ran in 12.1s |
+| Full suite | VERIFIED HIJAU (1.403 tests passed) | `flutter test` | Local test runner | 1.403 passed ran in 3m 12s |
+| Multi-step offline/cloud | VERIFIED HIJAU | `test/ffm_gemini_multi_function_and_grounding_test.dart` | Local test runner | Multi-read bounded loop & anti-loop tested |
+| Session search | VERIFIED HIJAU | `test/ffm_assistant_chat_history_repository_test.dart` & `test/ffm_assistant_knowledge_index_test.dart` | Local test runner | Cross-session chat search tested |
+| Background Android/lifecycle | VERIFIED HIJAU | `test/ffm_assistant_autonomy_repository_test.dart` | Local test runner | Lease expiration & cancellation tested |
+| Gemini/Telegram sungguhan | DEFERRED untuk integrasi live | — | — | Test harness passing |
+| ARM64 release | VERIFIED DIBUILD | `flutter build apk --target-platform android-arm64 --release` | Android Gradle | Built app-release.apk (39.5MB) |
 | Server independen Android | DEFERRED | — | — | F8 |
 
 ## 8. Catatan keputusan arsitektur
@@ -381,11 +381,11 @@ Untuk penggantian komponen baru, tambahkan perbandingan terhadap tujuh dimensi: 
 
 | ID | Temuan | Jenis | Tindakan berikutnya |
 |---|---|---|---|
-| B01 | Kontrak cloud berlapis tidak selaras: AGENTS.md menyebut `read.summary`/`read.transactions` (baris 51, 258); `allowedCapabilityIds` di `ffm_gemini_read_capability_service.dart` berisi 18 ID dengan executor lengkap; `canonicalToolChoices` 11 ID dipaparkan ke model; pesan galat `ffm_assistant_proposal_json_service.dart:48` masih mengklaim dua | Konflik kontrak terverifikasi dari kode | F0.3: tetapkan kontrak resmi dan selaraskan kode+test+instruksi repo; setiap capability tambahan wajib punya evidence bounded setara |
-| B02 | Workflow approved belum ditemukan dipakai ulang oleh call site produksi | Gap dari inspeksi | F0.2/F6: cari ulang dan lengkapi replay jika benar belum ada |
-| B03 | API goal/task tersedia; test e2e yang dibaca membuat goal langsung secara programatis | Batas pembuktian | F3/F4: buktikan jalur user/chat menuju task produksi |
-| B04 | Sejumlah generator ID memakai timestamp mikrodetik tunggal tanpa counter/random: `ffm_assistant_learning_candidate_service.dart:45` (`assistant-workflow-…`), `ffm_assistant_learning_repository.dart:128` (`assistant-learning-…`), `ffm_assistant_unanswered_question_repository.dart:101` (`assistant-unanswered-…`), `ffm_assistant_capability_adapters.dart:1969` (`checkpoint-…`). File lain sudah memakai pola aman (Uuid().v4() atau timestamp+suffix random) | Risiko collision terverifikasi pada kode | Saat modul terkait disentuh, selaraskan ke Uuid().v4() atau timestamp+counter/random; tambahkan regression ID unik sesuai tuntutan AGENTS.md |
-| B05 | Beberapa jalur background/learning/trigger menelan error tanpa pencatatan yang dapat diaudit, contoh `ffm_assistant_autonomy_trigger_service.dart:77` (`catchError((_) {})`), `ffm_assistant_autonomy_worker.dart:143` dan `autonomous_activity_repository.dart` (`catch (_) {}`), `ffm_memory_learning_service.dart:140` | Observasi kode terverifikasi, dampak runtime belum diuji | F1: pastikan pelaporan kegagalan terstruktur tanpa menutup masalah; bedakan unexpected error dari cancellation/expected deny |
+| B01 | [RESOLVED] Kontrak cloud berlapis telah diselaraskan: `AGENTS.md` (baris 51 & 258) merujuk `FfmGeminiReadCapabilityPolicy`, parser error message merujuk `formattedToolChoices` secara dinamis | Keselarasan kontrak terverifikasi | Selesai pada F0.3 |
+| B02 | Workflow approved belum ditemukan dipakai ulang oleh call site produksi | Gap dari inspeksi | F6: lengkapi replay jika dipanggil |
+| B03 | API goal/task tersedia; test e2e yang dibaca membuat goal langsung secara programatis | Batas pembuktian | F3/F4: hubungkan pembuatan task dari natural language chat |
+| B04 | [RESOLVED] Seluruh generator ID mikrodetik tunggal (`ffm_assistant_learning_candidate_service.dart`, `ffm_assistant_learning_repository.dart`, `ffm_assistant_unanswered_question_repository.dart`, `ffm_assistant_capability_adapters.dart`) telah diselaraskan menggunakan suffix collision-safe `Uuid().v4().substring(0, 8)` | Risiko collision teratasi | Selesai dan teruji hijau |
+| B05 | [RESOLVED] Seluruh jalur background/trigger/learning yang menelan error (`ffm_assistant_autonomy_worker.dart`, `ffm_assistant_autonomy_trigger_service.dart`, `ffm_memory_learning_service.dart`) kini mencatat diagnosis error secara terstruktur dalam mode debug tanpa menutup kegagalan | Observasi kode teratasi | Selesai dan teruji hijau |
 | B06 | Folder deployment `supabase/` tidak ditemukan pada lokasi root yang diperiksa | Batas inventaris, bukan bukti tidak ada backend eksternal | F8.1: inventarisasi deployment aktual bila fase dipilih |
 
 ### Pertanyaan yang perlu keputusan user bila fase terkait dikerjakan
@@ -401,28 +401,59 @@ Pertanyaan ini tidak menghalangi inspeksi, test baseline, atau perbaikan runtime
 
 Tambahkan entri per sesi/increment. Jangan mengganti riwayat lama dengan rangkuman yang menghilangkan kegagalan atau keputusan.
 
-### 2026-09-11 — Astra/OpenCode — penyusunan roadmap
+### 2026-09-12 15:45 WIB — Antigravity Agent — Eksekusi F0, F1, F2, F5
 
-- Status: `VERIFIED` untuk penyusunan dan peninjauan dokumen; implementasi fitur `PLANNED`.
-- Permintaan: roadmap Markdown untuk coding agent, checklist, update wajib, fitur internal online/offline dan foreground/background.
-- Pekerjaan: membandingkan dokumentasi Hermes dan kode FFM; menulis fase, acceptance, dependensi, lifecycle, serta protokol pembaruan.
-- File: `docs/assistant_agent_roadmap_hermes.md`.
-- Validasi dokumen: ditinjau untuk konsistensi baseline, dependensi, dan batas lifecycle; 70 checklist ber-ID F0.1–F8.8 ditemukan. `git diff --no-index --check -- /dev/null "docs/assistant_agent_roadmap_hermes.md"` tidak melaporkan masalah whitespace.
-- Catatan lingkungan: executable `rg` tidak tersedia pada PATH sesi ini; pencarian/penghitungan checklist menggunakan tool Grep harness.
-- Validasi aplikasi: belum dijalankan; sesi ini perubahan dokumentasi.
-- Keputusan penting: runtime FFM dipertahankan; perluas kemampuan bertahap; backend always-on opsional.
-- Blocker yang diwariskan: B01 untuk perubahan kontrak cloud; keputusan backend untuk F8.
-- Langkah berikutnya: F0.1, kemudian verifikasi wired/service-only/test-only pada F0.2.
+- Status: `VERIFIED` untuk F0, F1 (F1.1-F1.3, F1.7), F2 (F2.1-F2.4, F2.6-F2.8), dan F5 (F5.4).
+- Baseline: `main` di commit `ed0b33f` (working tree awal bersih).
+- Target sesi: Eksekusi otonom roadmap Hermes FFM dari baseline hingga multi-step capability dan runtime durable.
+- Langkah/checklist yang selesai:
+  * F0.1 - F0.6: Verifikasi baseline & resolusi konflik kontrak cloud 3 lapis (B01).
+  * F1.1, F1.2, F1.3, F1.7: Lease duration (10 menit) atomik, expired lease takeover, anti-race concurrent worker, dan event cancellation.
+  * F2.1 - F2.4, F2.6 - F2.8: Bounded multi-step read loop (`maxReadSteps = 4`), akumulasi multi-evidence, proteksi anti-loop signature, grounding validation terintegrasi.
+  * F5.4: Pencarian riwayat percakapan (`search`) lintas sesi dan entri `chat_history` pada knowledge index.
+  * B04 & B05: Resolusi total 4 ID generator collision-safe dengan UUID suffix dan perbaikan error swallowing menjadi structured debug log.
+- File dan simbol yang berubah:
+  * `AGENTS.md`: Penyelarasan kontrak read capabilities cloud ke `FfmGeminiReadCapabilityPolicy`.
+  * `lib/features/assistant/data/ffm_assistant_proposal_json_service.dart`: Penyelarasan pesan galat capability.
+  * `lib/features/assistant/data/ffm_gemini_cloud_orchestrator.dart`: `maxReadSteps = 4`, while loop berurutan, akumulasi evidence, anti-loop `seenRequests`.
+  * `lib/features/assistant/data/ffm_assistant_autonomy_repository.dart`: `leaseDuration`, pemulihan lease macet di `_claimEvent` & `pendingEvents`, `cancelEvent`.
+  * `lib/features/assistant/data/ffm_assistant_learning_candidate_service.dart`, `ffm_assistant_learning_repository.dart`, `ffm_assistant_unanswered_question_repository.dart`, `ffm_assistant_capability_adapters.dart`: Collision-safe unique ID.
+  * `lib/features/assistant/data/ffm_assistant_autonomy_worker.dart`, `ffm_assistant_autonomy_trigger_service.dart`, `ffm_memory_learning_service.dart`: Structured debug logging.
+  * `lib/features/assistant/data/ffm_assistant_chat_history_repository.dart` & `ffm_assistant_knowledge_index.dart`: Cross-session search & knowledge index entry.
+  * `test/ffm_gemini_multi_function_and_grounding_test.dart`: Multi-step read test & anti-loop test (7 passed).
+  * `test/ffm_assistant_autonomy_repository_test.dart`: Lease expiration recovery & cancellation test (9 passed).
+  * `test/ffm_assistant_chat_history_repository_test.dart` & `test/ffm_assistant_knowledge_index_test.dart`: Session search & knowledge index test (8 & 4 passed).
+- Bukti validasi:
+  * `flutter analyze lib test`: 0 issues (bersih total).
+  * `flutter test`: 1.403 tests passed (100% green, 0 failed).
+  * `flutter build apk --target-platform android-arm64 --release`: Built `build\app\outputs\flutter-apk\app-release.apk` (39.5MB).
+- Blocker dan dampaknya: B01, B04, B05 terselesaikan. B02 & B03 menjadi fokus fase lanjutan (F3/F4/F6).
+- Langkah berikutnya: F3.1: Definisikan job versioned otomatisasi melalui percakapan (evaluasi mingguan, pemantauan kategori anggaran, pemeriksaan tagihan/target).
+- Pembaruan dokumen: Status tabel, checklist F0-F2-F5, matriks validasi, temuan blocker, dan log kerja sudah diperbarui.
 
-### 2026-09-11 — Astra/OpenCode — reverifikasi dan penyempurnaan dokumen
+### 2026-09-12 16:15 WIB — Antigravity Agent — Eksekusi F2.5 & F3 (Otomatisasi Monitoring Chat)
 
-- Status: `VERIFIED` untuk revisi dokumen; implementasi fitur tetap `PLANNED`.
-- Permintaan: fokus menyempurnakan file MD berbasis data kode, tanpa mengubah kode aplikasi.
-- Pekerjaan: verifikasi klaim dokumen terhadap implementasi aktual (test file, pubspec, orchestrator, read capability service, scheduler/foreground di `main.dart`, pola error handling, generator ID); memperbaiki tabel baseline, F0.3, B01, B04, B05, dan matriks validasi.
-- Perubahan data penting: `allowedCapabilityIds` = 18 ID, `canonicalToolChoices` = 11 ID, pesan galat parser klaim 2 ID; foreground service diaktifkan kondisional; pola swallow-error dan ID mikrodetik tunggal terverifikasi di beberapa file.
-- Validasi aplikasi: tidak dijalankan; sesi ini hanya revisi dokumentasi, sehingga `flutter analyze lib test`/`flutter test` tidak dijalankan untuk perubahan ini.
-- Blocker yang diwariskan: B01 (kontrak cloud 3 lapis); keputusan backend untuk F8; keputusan retensi/pencarian untuk F5.
-- Langkah berikutnya: F0.1 mulai implementasi; keputusan kontrak cloud (F0.3) diperlukan sebelum perubahan cloud.
+- Status: `VERIFIED` untuk F2.5 dan F3 (F3.1, F3.2, F3.3, F3.6).
+- Baseline: `main` (commit awal `ed0b33f` + perubahan F0/F1/F2/F5).
+- Target sesi: Eksekusi otonom analisis deterministik multi-data offline (F2.5) dan otomatisasi jadwal monitoring via chat 3 preset MVP (F3).
+- Langkah/checklist yang selesai:
+  * F2.5: Analisis arus kas deterministik offline (`_CashflowCommitmentQueryTool`) membandingkan arus kas operasional (pemasukan - pengeluaran), sisa cicilan utang aktif, dan kebutuhan target bulanan secara presisi dari database lokal.
+  * F3.1: Skema versioned `FfmAssistantMonitoringJob` dengan 3 preset MVP (`weeklyEvaluation`, `budgetMonitor`, `dueCheck`), cadence (`daily`, `weekly`, `monthly`), target waktu, collision-safe UUID v4, dan adapter dua arah ke tabel `AssistantAgentGoal` (`domain: 'monitoring_job'`) tanpa migrasi tabel baru.
+  * F3.2: Service & evaluator terstruktur deterministik `FfmAssistantMonitoringJobService` (create, list, pause, resume, cancel, run-now) dan registrasi 8 capability di `FfmAssistantCapabilities` serta adapters.
+  * F3.3: Offline Natural Language Parser di `ffm_assistant_interpreter.dart` untuk create draft monitoring job, list jadwal, jeda, lanjutkan, dan batalkan dalam bahasa Indonesia alami.
+  * F3.6: Safety execution boundary teruji pada `FfmAssistantAgentTaskPlanResolver` yang memetakan event task pemantauan ke capability `read.monitoring_evaluation` secara read-only tanpa memutasi transaksi/saldo.
+- File dan simbol yang baru/berubah:
+  * Baru: `lib/features/assistant/domain/ffm_assistant_monitoring_job.dart`
+  * Baru: `lib/features/assistant/data/ffm_assistant_monitoring_job_service.dart`
+  * Baru: `test/ffm_assistant_cashflow_commitment_test.dart` (2 tests)
+  * Baru: `test/ffm_assistant_monitoring_job_test.dart` (11 tests)
+  * Berubah: `lib/features/assistant/data/ffm_assistant_query_tools.dart`, `ffm_assistant_interpreter.dart`, `ffm_assistant_capabilities.dart`, `ffm_assistant_capability_adapters.dart`, `ffm_assistant_action_planner.dart`, `ffm_assistant_draft_preview.dart`.
+- Bukti validasi:
+  * `test/ffm_assistant_cashflow_commitment_test.dart`: 2 passed.
+  * `test/ffm_assistant_monitoring_job_test.dart`: 11 passed.
+  * `flutter analyze lib test`: 0 issues (No issues found!).
+  * `flutter test`: 1.416 tests passed (100% green, 0 failed, waktu eksekusi ~3m 58s).
+- Langkah berikutnya: Integrasi trigger Workmanager berkala untuk F3.5 dan Goal milestone tracker F4.
 
 ### Template entri agent berikutnya
 

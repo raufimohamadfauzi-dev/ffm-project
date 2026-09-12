@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/network/supabase_service.dart';
@@ -137,7 +138,10 @@ class FfmMemoryLearningService {
         if (memoryCandidate != null) {
           promoted.add(memoryCandidate);
         }
-      } catch (_) {
+      } catch (e, st) {
+        if (kDebugMode) {
+          debugPrint('Memory promotion error: $e\n$st');
+        }
         continue;
       }
     }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import 'ffm_assistant_fuzzy_matcher.dart';
@@ -98,7 +99,8 @@ class FfmAssistantUnansweredQuestionRepository {
         .into(_database.assistantUnansweredQuestions)
         .insert(
           AssistantUnansweredQuestionsCompanion.insert(
-            id: 'assistant-unanswered-${now.microsecondsSinceEpoch}',
+            id:
+                'assistant-unanswered-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
             householdId: householdId,
             questionText: sanitized,
             pageContext: Value(pageContext),

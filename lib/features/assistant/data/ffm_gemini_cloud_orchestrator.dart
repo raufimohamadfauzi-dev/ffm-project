@@ -56,6 +56,7 @@ class FfmGeminiCloudOrchestrator {
   final SupabaseConfig _config;
   final FfmGeminiReadCapabilityService readCapabilities;
   final DateTime Function() clock;
+  static const int maxReadSteps = 4;
   final Future<void> Function({
     required String code,
     required String model,
@@ -117,73 +118,99 @@ class FfmGeminiCloudOrchestrator {
     if (!result.ok) return _failure(result);
 
     var finalText = result.text ?? '';
-
-    if (result.functionCalls != null && result.functionCalls!.isNotEmpty) {
-      // Enforce single function call per turn.
-      if (result.functionCalls!.length > 1) {
-        return FfmGeminiCloudTurnResult.failure(
-          errorMessage: 'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
-          model: result.model,
-          statusCode: result.statusCode,
-          latency: result.latency,
-        );
-      }
-      // Process the single function call.
-      final call = result.functionCalls!.first;
-      final args = call.args;
-
-      if (call.name == 'navigate') {
-        final dest = args['destination'] ?? '';
-        finalText +=
-            '\n{"formatVersion":"ffm-assistant-proposal-v1","navigation":"$dest"}';
-      } else if (call.name == 'ask_clarification') {
-        final q = args['question'] ?? '';
-        finalText +=
-            '\n{"formatVersion":"ffm-assistant-proposal-v1","clarification":"$q"}';
-      } else if (call.name == 'create_draft') {
-        final type = args['type'];
-        final props = Map<String, dynamic>.from(args)..remove('type');
-        props['type'] = type;
-        final jsonStr = jsonEncode({
-          "formatVersion": "ffm-assistant-proposal-v1",
-          "proposal": props,
-        });
-        finalText += '\n$jsonStr';
-      } else if (call.name == 'read_data') {
-        final cap = args['capabilityId'];
-        final jsonStr = jsonEncode({
-          "formatVersion": "ffm-assistant-capability-request-v1",
-          "kind": "read_capability_request",
-          "capabilityId": cap,
-          if (args['startDate'] != null) "startDate": args['startDate'],
-          if (args['endDate'] != null) "endDate": args['endDate'],
-        });
-        finalText += '\n$jsonStr';
-      } else {
-        return FfmGeminiCloudTurnResult.failure(
-          errorMessage:
-              'Gemini memanggil fungsi yang tidak diizinkan: ${call.name}.',
-          model: result.model,
-          statusCode: result.statusCode,
-          latency: result.latency,
-        );
-      }
-    }
-
-    final request = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
-      finalText,
-    );
-    if (request.error != null) {
-      return FfmGeminiCloudTurnResult.failure(
-        errorMessage: request.error!,
-        model: result.model,
-        statusCode: result.statusCode,
-        latency: result.latency,
-      );
-    }
-    String? readEvidence;
+    final usedCapabilities = <String>[];
+    final accumulatedEvidence = <String>[];
+    final seenRequests = <String>{};
     var totalUsage = result.usageMetadata;
-    if (request.request != null) {
+    var readStep = 0;
+
+    while (readStep < maxReadSteps) {
+      if (result.functionCalls != null && result.functionCalls!.isNotEmpty) {
+        // Enforce single function call per turn.
+        if (result.functionCalls!.length > 1) {
+          return FfmGeminiCloudTurnResult.failure(
+            errorMessage:
+                'Gemini memanggil 2 fungsi sekaligus; hanya satu tindakan per putaran diizinkan.',
+            model: result.model,
+            statusCode: result.statusCode,
+            latency: result.latency,
+            usageMetadata: totalUsage,
+          );
+        }
+        // Process the single function call.
+        final call = result.functionCalls!.first;
+        final args = call.args;
+
+        if (call.name == 'navigate') {
+          final dest = args['destination'] ?? '';
+          finalText +=
+              '\n{"formatVersion":"ffm-assistant-proposal-v1","navigation":"$dest"}';
+        } else if (call.name == 'ask_clarification') {
+          final q = args['question'] ?? '';
+          finalText +=
+              '\n{"formatVersion":"ffm-assistant-proposal-v1","clarification":"$q"}';
+        } else if (call.name == 'create_draft') {
+          final type = args['type'];
+          final props = Map<String, dynamic>.from(args)..remove('type');
+          props['type'] = type;
+          final jsonStr = jsonEncode({
+            "formatVersion": "ffm-assistant-proposal-v1",
+            "proposal": props,
+          });
+          finalText += '\n$jsonStr';
+        } else if (call.name == 'read_data') {
+          final cap = args['capabilityId'];
+          final jsonStr = jsonEncode({
+            "formatVersion": "ffm-assistant-capability-request-v1",
+            "kind": "read_capability_request",
+            "capabilityId": cap,
+            if (args['startDate'] != null) "startDate": args['startDate'],
+            if (args['endDate'] != null) "endDate": args['endDate'],
+          });
+          finalText += '\n$jsonStr';
+        } else {
+          return FfmGeminiCloudTurnResult.failure(
+            errorMessage:
+                'Gemini memanggil fungsi yang tidak diizinkan: ${call.name}.',
+            model: result.model,
+            statusCode: result.statusCode,
+            latency: result.latency,
+            usageMetadata: totalUsage,
+          );
+        }
+      }
+
+      final request =
+          FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+        finalText,
+      );
+      if (request.error != null) {
+        return FfmGeminiCloudTurnResult.failure(
+          errorMessage: request.error!,
+          model: result.model,
+          statusCode: result.statusCode,
+          latency: result.latency,
+          usageMetadata: totalUsage,
+        );
+      }
+
+      // Jika tidak ada permintaan read capability, berhenti dari read loop.
+      if (request.request == null) {
+        break;
+      }
+
+      readStep++;
+      final capId = request.request!.capabilityId;
+      final reqSignature =
+          '$capId:${request.request!.startDate ?? ""}:${request.request!.endDate ?? ""}';
+
+      // Anti-loop: jika permintaan identik sudah dibaca pada giliran ini, hentikan perulangan.
+      if (seenRequests.contains(reqSignature)) {
+        break;
+      }
+      seenRequests.add(reqSignature);
+      usedCapabilities.add(capId);
+
       String facts;
       try {
         facts = await readCapabilities.execute(
@@ -191,23 +218,33 @@ class FfmGeminiCloudOrchestrator {
           householdId: householdId,
           now: clock(),
         );
-        readEvidence = facts;
+        accumulatedEvidence.add(facts);
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage: 'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
+          errorMessage:
+              'Data lokal untuk capability Gemini tidak dapat dibaca dengan aman.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
           usageMetadata: totalUsage,
         );
       }
+
+      final isLastAllowedStep = readStep >= maxReadSteps;
+      final allFacts = accumulatedEvidence.join('\n\n');
+
       try {
-        final secondInstruction = _boundedSecondInstruction(instruction, facts);
+        final nextInstruction = _boundedInstructionWithEvidence(
+          instruction,
+          allFacts,
+          isFinalStep: isLastAllowedStep,
+        );
         result = await _chat(
           key: key.trim(),
           model: model.trim(),
           userText: userText,
-          instruction: secondInstruction,
+          instruction: nextInstruction,
+          tools: isLastAllowedStep ? null : _buildTools(),
           image: image,
         );
         finalText = result.text?.trim() ?? '';
@@ -226,22 +263,32 @@ class FfmGeminiCloudOrchestrator {
         }
       } on Object {
         return FfmGeminiCloudTurnResult.failure(
-          errorMessage: 'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
+          errorMessage:
+              'Gemini tidak dapat menyelesaikan jawaban setelah membaca data lokal.',
           model: result.model,
           statusCode: result.statusCode,
           latency: result.latency,
           usageMetadata: totalUsage,
         );
       }
+
       if (!result.ok) return _failure(result);
+
+      // Jika langkah terakhir tercapai, akhiri loop
+      if (isLastAllowedStep) {
+        break;
+      }
     }
+
     return FfmGeminiCloudTurnResult.success(
       text: finalText,
       model: result.model,
       statusCode: result.statusCode,
       latency: result.latency,
-      usedReadCapability: request.request?.capabilityId,
-      readEvidence: readEvidence,
+      usedReadCapability:
+          usedCapabilities.isEmpty ? null : usedCapabilities.join(', '),
+      readEvidence:
+          accumulatedEvidence.isEmpty ? null : accumulatedEvidence.join('\n\n'),
       usageMetadata: totalUsage,
     );
   }
@@ -500,9 +547,14 @@ class FfmGeminiCloudOrchestrator {
     ];
   }
 
-  String _boundedSecondInstruction(String instruction, String facts) {
-    const suffix =
-        '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability baca lagi, dan jangan menyatakan data telah diubah jika belum disetujui pengguna.';
+  String _boundedInstructionWithEvidence(
+    String instruction,
+    String facts, {
+    bool isFinalStep = true,
+  }) {
+    final suffix = isFinalStep
+        ? '\n\nSekarang jawab pertanyaan pengguna hanya dari hasil capability dan konteks resmi di atas. Jangan meminta capability baca lagi, dan jangan menyatakan data telah diubah jika belum disetujui pengguna.'
+        : '\n\nHasil pembacaan data lokal terverifikasi sejauh ini tercantum di atas. Jika masih memerlukan sumber data lain yang relevan, panggil read_data berikutnya; jika data sudah mencukupi, jawab pertanyaan pengguna sekarang secara tuntas.';
     const header = '\n\nHASIL CAPABILITY LOKAL TERVERIFIKASI:\n';
     final combined = '$instruction$header$facts$suffix';
     if (combined.length <= 8000) return combined;

@@ -21,6 +21,22 @@ class FfmAssistantChatConversation {
   final List<FfmAssistantChatEntry> entries;
 }
 
+class FfmAssistantChatSearchResult {
+  const FfmAssistantChatSearchResult({
+    required this.conversationId,
+    required this.conversationTitle,
+    required this.text,
+    required this.isUser,
+    required this.createdAt,
+  });
+
+  final String conversationId;
+  final String conversationTitle;
+  final String text;
+  final bool isUser;
+  final DateTime createdAt;
+}
+
 class FfmAssistantChatHistoryRepository {
   FfmAssistantChatHistoryRepository({this._preferences});
 
@@ -131,6 +147,35 @@ class FfmAssistantChatHistoryRepository {
         jsonEncode(remaining.map(_encodeConversation).toList(growable: false)),
       );
     }
+  }
+
+  /// Mencari cuplikan percakapan dari riwayat obrolan lintas sesi secara lokal.
+  Future<List<FfmAssistantChatSearchResult>> search({
+    required String query,
+    int limit = 10,
+  }) async {
+    final cleanQuery = query.trim().toLowerCase();
+    if (cleanQuery.isEmpty) return const [];
+    final conversations = await loadConversations();
+    final results = <FfmAssistantChatSearchResult>[];
+
+    for (final conv in conversations) {
+      for (final entry in conv.entries) {
+        if (entry.text.toLowerCase().contains(cleanQuery)) {
+          results.add(
+            FfmAssistantChatSearchResult(
+              conversationId: conv.id,
+              conversationTitle: conv.title,
+              text: entry.text,
+              isUser: entry.isUser,
+              createdAt: entry.createdAt ?? conv.updatedAt,
+            ),
+          );
+          if (results.length >= limit) return results;
+        }
+      }
+    }
+    return results;
   }
 
   Future<List<Map<String, Object?>>> readConversationsRaw() async {

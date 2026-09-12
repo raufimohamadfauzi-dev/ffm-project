@@ -161,4 +161,51 @@ void main() {
     expect(restored.single.receivedAt, sentAt.add(const Duration(seconds: 4)));
     expect(restored.single.modelUsed, 'gemini-cloud');
   });
+
+  test('search mencari percakapan yang cocok lintas sesi percakapan', () async {
+    final repository = FfmAssistantChatHistoryRepository();
+    final conv1 = FfmAssistantChatConversation(
+      id: 'conv-1',
+      title: 'Diskusi Target',
+      updatedAt: DateTime(2026, 9, 1),
+      entries: [
+        FfmAssistantChatEntry(
+          isUser: true,
+          text: 'Bagaimana progres target tabungan rumah?',
+          createdAt: DateTime(2026, 9, 1, 10),
+        ),
+        FfmAssistantChatEntry(
+          isUser: false,
+          text: 'Target tabungan rumah saat ini mencapai 70%.',
+          createdAt: DateTime(2026, 9, 1, 10, 1),
+        ),
+      ],
+    );
+    final conv2 = FfmAssistantChatConversation(
+      id: 'conv-2',
+      title: 'Belanja Mingguan',
+      updatedAt: DateTime(2026, 9, 2),
+      entries: [
+        FfmAssistantChatEntry(
+          isUser: true,
+          text: 'Catat belanja sayur 50rb',
+          createdAt: DateTime(2026, 9, 2, 8),
+        ),
+      ],
+    );
+
+    await repository.saveConversation(conv1);
+    await repository.saveConversation(conv2);
+
+    final results = await repository.search(query: 'tabungan rumah');
+
+    expect(results, hasLength(2));
+    expect(results.first.conversationTitle, 'Diskusi Target');
+    expect(results.any((r) => r.isUser && r.text.contains('progres target')), isTrue);
+    expect(results.any((r) => !r.isUser && r.text.contains('mencapai 70%')), isTrue);
+
+    // Query tidak cocok menghasilkan list kosong
+    final noResults = await repository.search(query: 'cicilan motor');
+    expect(noResults, isEmpty);
+  });
 }

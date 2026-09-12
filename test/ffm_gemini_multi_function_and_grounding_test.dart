@@ -219,4 +219,153 @@ void main() {
       expect(error, isNull);
     });
   });
+
+  group('F2 Multi-Step Bounded Tool Loop', () {
+    test('Gemini memanggil beberapa read capability berurutan dan seluruh evidence terakumulasi', () async {
+      var callCount = 0;
+      final multiStepGemini = _CustomStepGeminiService((step) {
+        callCount++;
+        if (step == 1) {
+          return GeminiResult(
+            model: 'gemini-2.5-flash',
+            statusCode: 200,
+            message: 'OK',
+            functionCalls: const [
+              GeminiFunctionCall(
+                name: 'read_data',
+                args: {'capabilityId': 'read.summary'},
+              ),
+            ],
+          );
+        } else if (step == 2) {
+          return GeminiResult(
+            model: 'gemini-2.5-flash',
+            statusCode: 200,
+            message: 'OK',
+            functionCalls: const [
+              GeminiFunctionCall(
+                name: 'read_data',
+                args: {'capabilityId': 'read.goals'},
+              ),
+            ],
+          );
+        }
+        return const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'OK',
+          text: 'Arus kas Anda Rp 2.000.000 cukup untuk target tabungan Rp 500.000.',
+        );
+      });
+
+      final multiMockService = _DynamicMockReadCapabilityService({
+        'read.summary': 'Ringkasan: Arus kas bersih 2000000',
+        'read.goals': 'Target: Target tabungan 500000 tercapai 60%',
+      });
+
+      final orchestrator = FfmGeminiCloudOrchestrator(
+        gemini: multiStepGemini,
+        config: _TestConfig(),
+        readCapabilities: multiMockService,
+        clock: () => DateTime(2026, 9, 3),
+      );
+
+      final result = await orchestrator.run(
+        userText: 'Apakah arus kas saya cukup untuk target bulan ini?',
+        boundedContext: 'konteks dummy',
+        householdId: 'test-household',
+      );
+
+      expect(result.ok, isTrue);
+      expect(callCount, 3);
+      expect(result.usedReadCapability, contains('read.summary'));
+      expect(result.usedReadCapability, contains('read.goals'));
+      expect(result.readEvidence, contains('Arus kas bersih 2000000'));
+      expect(result.readEvidence, contains('Target tabungan 500000'));
+      expect(
+        result.text,
+        'Arus kas Anda Rp 2.000.000 cukup untuk target tabungan Rp 500.000.',
+      );
+
+      // Grounding validation mencakup angka dari kedua evidence
+      final groundError = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: result.text!,
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: result.readEvidence,
+      );
+      expect(groundError, isNull);
+    });
+
+    test('Perulangan capability yang identik dihentikan oleh proteksi anti-loop', () async {
+      var callCount = 0;
+      final loopingGemini = _CustomStepGeminiService((_) {
+        callCount++;
+        return const GeminiResult(
+          model: 'gemini-2.5-flash',
+          statusCode: 200,
+          message: 'OK',
+          functionCalls: [
+            GeminiFunctionCall(
+              name: 'read_data',
+              args: {'capabilityId': 'read.summary'},
+            ),
+          ],
+        );
+      });
+
+      final orchestrator = FfmGeminiCloudOrchestrator(
+        gemini: loopingGemini,
+        config: _TestConfig(),
+        readCapabilities: _MockReadCapabilityService('Ringkasan data'),
+        clock: () => DateTime(2026, 9, 3),
+      );
+
+      final result = await orchestrator.run(
+        userText: 'cek ringkasan terus menerus',
+        boundedContext: 'konteks dummy',
+        householdId: 'test-household',
+      );
+
+      expect(result.ok, isTrue);
+      // Dipanggil 2 kali (awal + 1 retry identik yang langsung di-break)
+      expect(callCount, 2);
+      expect(result.usedReadCapability, 'read.summary');
+    });
+  });
+}
+
+class _CustomStepGeminiService extends GeminiService {
+  _CustomStepGeminiService(this.handler);
+  final GeminiResult Function(int step) handler;
+  var stepCount = 0;
+
+  @override
+  Future<GeminiResult> chat({
+    required String prompt,
+    String? systemInstruction,
+    List<Map<String, String>> history = const [],
+    String? apiKey,
+    String? model,
+    List<Map<String, dynamic>>? tools,
+    GeminiImageInput? image,
+    int? maxOutputTokens,
+  }) async {
+    stepCount++;
+    return handler(stepCount);
+  }
+}
+
+class _DynamicMockReadCapabilityService extends FfmGeminiReadCapabilityService {
+  _DynamicMockReadCapabilityService(this.evidences) : super(_FakeSnapshotService());
+  final Map<String, String> evidences;
+
+  @override
+  Future<String> execute(
+    FfmAssistantReadCapabilityRequest request, {
+    required String householdId,
+    required DateTime now,
+  }) async {
+    return evidences[request.capabilityId] ?? 'Evidence kosong';
+  }
 }

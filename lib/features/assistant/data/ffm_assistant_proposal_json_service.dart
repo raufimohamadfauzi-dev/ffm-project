@@ -44,8 +44,8 @@ class FfmAssistantProposalJsonService {
       // Capability read yang boleh dipanggil model harus punya adapter hasil
       // bounded sendiri. Jangan mengizinkan ID registry lain secara otomatis.
       if (!geminiReadCapabilityIds.contains(capabilityId)) {
-        return const FfmAssistantReadCapabilityRequestParseResult.invalid(
-          'Capability Gemini tidak diizinkan. Hanya read.summary atau read.transactions yang tersedia.',
+        return FfmAssistantReadCapabilityRequestParseResult.invalid(
+          'Capability Gemini tidak diizinkan. Pilihan yang tersedia: ${FfmGeminiReadCapabilityPolicy.formattedToolChoices}.',
         );
       }
       final arguments = decoded['arguments'];
