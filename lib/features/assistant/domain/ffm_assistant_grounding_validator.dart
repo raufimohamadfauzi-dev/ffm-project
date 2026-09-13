@@ -11,6 +11,11 @@ class FfmAssistantGroundingValidator {
     caseSensitive: false,
   );
 
+  static final _historicalSaveReference = RegExp(
+    r'\byang(?:\s+(?:telah|memang|sebelumnya))?\s*$',
+    caseSensitive: false,
+  );
+
   static final _financialNumber = RegExp(
     r'(rp\s*\d[\d.,]*|\b\d[\d.,]{3,}\b|\b\d+\s*(juta|ribu|miliar|jt|m)\b)',
     caseSensitive: false,
@@ -33,7 +38,7 @@ class FfmAssistantGroundingValidator {
     final normalized = geminiText.toLowerCase();
 
     // Jangan pernah klaim save sebelum executor.
-    if (_saveClaim.hasMatch(normalized)) {
+    if (_hasUnsupportedSaveClaim(normalized)) {
       return 'Jawaban tidak dapat menampilkan klaim penyimpanan. Silakan cek riwayat atau minta ringkasan terbaru.';
     }
 
@@ -109,6 +114,15 @@ class FfmAssistantGroundingValidator {
     }
 
     return null;
+  }
+
+  static bool _hasUnsupportedSaveClaim(String text) {
+    for (final match in _saveClaim.allMatches(text)) {
+      final prefix = text.substring(0, match.start).trimRight();
+      if (_historicalSaveReference.hasMatch(prefix)) continue;
+      return true;
+    }
+    return false;
   }
 
   static List<String> _extractNumbers(String text) {

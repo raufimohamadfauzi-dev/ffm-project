@@ -2262,6 +2262,11 @@ class FfmAssistantInterpreter {
           final title = answers.length == 1
               ? answers.single.title
               : 'Data terbaru';
+          final usedReadCapabilities = answers
+              .map((answer) => answer.capabilityId)
+              .whereType<String>()
+              .toSet()
+              .toList(growable: false);
           return FfmAssistantIntent(
             rawText: rawText,
             normalizedText: normalized,
@@ -2272,6 +2277,13 @@ class FfmAssistantInterpreter {
             responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
             pluginName: 'local_latest_data',
             pluginCategory: 'query',
+            pluginMetadata: {
+              'localReadCompleted': true,
+              if (usedReadCapabilities.length == 1)
+                'usedReadCapability': usedReadCapabilities.single,
+              if (usedReadCapabilities.isNotEmpty)
+                'usedReadCapabilities': usedReadCapabilities,
+            },
           );
         }
       }
@@ -8486,7 +8498,7 @@ class FfmAssistantInterpreter {
     FfmAssistantDestination? currentDestination,
     ActivityLiveSnapshot? activitySnapshot,
   }) {
-    final now = DateTime.now();
+    final now = _clock();
     final amount = FfmAssistantAmountParser.parse(normalized);
     final adminFee = _parseAdminFee(normalized);
     final createCycle = _containsAny(normalized, const [

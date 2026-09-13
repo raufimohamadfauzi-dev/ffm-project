@@ -332,7 +332,15 @@ persisten via kolom nullable terpisah (schema 62), diverifikasi read-back DB.
 - Schema Database: **Versi 62** (Penambahan kolom `tax` dan `discount` pada `transactions`).
 - Kode Drift telah diregenerasi (`app_database.g.dart`).
 - Analyzer Bersih (0 issues).
-- Full Regression: **1.520 tests PASSED**.
+- Full Regression setelah perbaikan anomali: **1.525 tests PASSED**.
+- Post-Phase 1 anomaly fix: grounding tidak lagi memblokir referensi historis
+  `yang sudah dicatat`; local latest-data menyimpan provenance capability dan
+  tidak menjalankan ulang `read.transactions` setelah query lokal selesai.
+- Regression khusus memakai dua kalimat laporan asli: grounding Gemini dan
+  `read.dailyNotes` lulus; trace Catatan Harian tidak lagi salah sebagai transaksi.
+- Perbaikan determinisme: jalur pembuatan draft (reminder, aktivitas, aset, dll)
+  kini memakai injected clock `_clock()` bukan `DateTime.now()`, sehingga test
+  relatif hari (besok/lusa/kemarin) stabil di tanggal berapa pun.
 
 **Instruksi Mulai Besok (Phase 2: Goal):**
 1. Fokus ke perbaikan *create goal* (target amount/date/category/note).

@@ -652,6 +652,33 @@ void main() {
   });
 
   test(
+    'catatan terbaru memakai provenance daily notes tanpa read transaksi ulang',
+    () async {
+      await (database.into(database.dailyNotes)).insert(
+        DailyNotesCompanion.insert(
+          id: 'latest-note-provenance',
+          householdId: AppContext.householdId,
+          noteDate: DateTime(2026, 9, 13),
+          title: const Value('Evaluasi'),
+          body: 'Catatan yang benar-benar terbaru.',
+          createdAt: DateTime(2026, 9, 13),
+        ),
+      );
+
+      final intent = await interpreter.interpret(
+        'sekarang Bisa lihat catatan terbaru?',
+        routingMode: FfmAssistantRoutingMode.agent,
+      );
+      final plan = const FfmAssistantActionPlanner().planFor(intent);
+
+      expect(intent.response, contains('Catatan yang benar-benar terbaru'));
+      expect(intent.pluginMetadata?['usedReadCapability'], 'read.dailyNotes');
+      expect(intent.pluginMetadata?['localReadCompleted'], isTrue);
+      expect(plan?.steps.isEmpty ?? true, isTrue);
+    },
+  );
+
+  test(
     'follow-up kalau aktivitas membaca aktivitas terakhir secara lokal',
     () async {
       await (database.into(database.activityEntries)).insert(

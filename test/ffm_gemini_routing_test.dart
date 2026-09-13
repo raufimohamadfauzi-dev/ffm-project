@@ -183,6 +183,38 @@ void main() {
   );
 
   test(
+    'referensi historis Gemini tidak diblokir sebagai klaim penyimpanan',
+    () async {
+      const response =
+          'Sebelum itu, data lain yang sudah dicatat adalah catatan harian.';
+      final gemini = _FakeGemini(
+        const GeminiResult(
+          model: 'gemini-2.5-pro',
+          statusCode: 200,
+          message: response,
+          text: response,
+        ),
+      );
+      final interpreter = FfmAssistantInterpreter(
+        database,
+        config: _FakeConfig(mode: 'agent', verified: true),
+        geminiService: gemini,
+      );
+
+      final intent = await interpreter.interpret(
+        'sebelum itu ada data apa lagi yang sudah di catat?',
+        currentDestination: FfmAssistantDestination.summary,
+        routingMode: FfmAssistantRoutingMode.geminiCloud,
+      );
+
+      expect(gemini.calls, 1);
+      expect(intent.response, response);
+      expect(intent.pluginMetadata?['groundingBlocked'], isNot(true));
+      expect(intent.responseOrigin, FfmAssistantResponseOrigin.geminiCloud);
+    },
+  );
+
+  test(
     'kill switch context-first tidak diam-diam memanggil provider lain',
     () async {
       final gemini = _FakeGemini(

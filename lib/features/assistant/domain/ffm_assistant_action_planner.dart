@@ -532,6 +532,9 @@ class FfmAssistantActionPlanner {
 
   List<String> _prerequisiteReadCapabilitiesFor(FfmAssistantIntent intent) {
     final reads = <String>[];
+    if (intent.pluginMetadata?['localReadCompleted'] == true) {
+      return reads;
+    }
     // Gemini Cloud answers queries directly in its bounded orchestrator turn.
     // Do not plan redundant read capabilities if there is no draft to populate.
     final isGeminiCloudWithoutDraft =

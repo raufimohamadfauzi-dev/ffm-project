@@ -31,10 +31,15 @@ class FfmAssistantQueryRequest {
 }
 
 class FfmAssistantQueryAnswer {
-  const FfmAssistantQueryAnswer({required this.title, required this.message});
+  const FfmAssistantQueryAnswer({
+    required this.title,
+    required this.message,
+    this.capabilityId,
+  });
 
   final String title;
   final String message;
+  final String? capabilityId;
 }
 
 abstract interface class FfmAssistantQueryTool {
@@ -752,6 +757,7 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
       return FfmAssistantQueryAnswer(
         title: 'Catatan terbaru',
         message: 'Belum ada catatan harian yang tersimpan di FFM$periodSuffix.',
+        capabilityId: 'read.dailyNotes',
       );
     }
     final lines = notes.map((note) {
@@ -765,6 +771,7 @@ class _LatestDailyNoteQueryTool implements FfmAssistantQueryTool {
       title: 'Catatan terbaru',
       message:
           'Ini catatan harian ${period?.label ?? 'terbaru'} yang tersimpan:\n${lines.join('\n')}',
+      capabilityId: 'read.dailyNotes',
     );
   }
 

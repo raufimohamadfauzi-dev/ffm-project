@@ -14,6 +14,29 @@ void main() {
       expect(error, contains('tidak dapat menampilkan klaim penyimpanan'));
     });
 
+    test('mengizinkan referensi historis data yang sudah dicatat', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText:
+            'Sebelum itu, data lain yang sudah dicatat adalah catatan harian.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+      );
+
+      expect(error, isNull);
+    });
+
+    test('mengizinkan jawaban kosong dengan referensi historis', () {
+      final error = FfmAssistantGroundingValidator.validatePlainText(
+        geminiText: 'Belum ada transaksi lain yang sudah dicatat.',
+        verifiedFacts: null,
+        analysisFacts: null,
+        capabilityEvidence: null,
+      );
+
+      expect(error, isNull);
+    });
+
     test('memblokir angka besar tanpa evidence', () {
       final error = FfmAssistantGroundingValidator.validatePlainText(
         geminiText: 'Saldo Anda Rp 5.000.000',

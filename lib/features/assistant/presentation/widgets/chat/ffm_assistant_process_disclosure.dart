@@ -64,6 +64,7 @@ class _FfmAssistantProcessDisclosureState
     'read.transactions' => 'Membaca transaksi terbaru',
     'read.budget' => 'Memeriksa anggaran',
     'read.activity' => 'Membaca aktivitas',
+    'read.dailyNotes' => 'Membaca Catatan Harian terbaru',
     'read.accounts' => 'Memeriksa rekening dan saldo',
     'read.categories' => 'Memeriksa daftar kategori',
     'read.goals' => 'Memeriksa target keuangan',

@@ -86,6 +86,29 @@ void main() {
       expect(plan, isNotNull);
       expect(plan!.steps.any((s) => s.capabilityId == 'read.transactions'), isTrue);
     });
+
+    test(
+      'Local query yang sudah selesai tidak memicu read.transactions ulang',
+      () {
+        const planner = FfmAssistantActionPlanner();
+        final localIntent = FfmAssistantIntent(
+          rawText: 'lihat catatan terbaru',
+          normalizedText: 'lihat catatan terbaru',
+          type: FfmAssistantIntentType.queryData,
+          confidence: 1.0,
+          response: 'Berikut catatan terbaru.',
+          responseOrigin: FfmAssistantResponseOrigin.agentOrchestrator,
+          pluginName: 'local_latest_data',
+          pluginMetadata: const {
+            'localReadCompleted': true,
+            'usedReadCapability': 'read.dailyNotes',
+          },
+        );
+
+        final plan = planner.planFor(localIntent);
+        expect(plan?.steps.isEmpty ?? true, isTrue);
+      },
+    );
   });
 
   group('Item 06: Emergency Fund Logic Plugin & Goals Digest', () {

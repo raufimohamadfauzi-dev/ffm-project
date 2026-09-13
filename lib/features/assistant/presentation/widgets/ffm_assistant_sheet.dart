@@ -426,6 +426,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         'Daftar kategori aktif untuk validasi draft $draftKind.',
       'read.goals' => 'Target keuangan untuk konteks perencanaan.',
       'read.activity' => 'Sesi aktivitas aktif untuk konteks.',
+      'read.dailyNotes' => 'Catatan Harian terbaru dari database lokal.',
       _ => 'Data lokal terverifikasi untuk konteks jawaban.',
     };
   }
@@ -439,6 +440,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         'read.categories' => 'Membaca daftar kategori aktif',
         'read.goals' => 'Membaca target keuangan',
         'read.activity' => 'Membaca sesi aktivitas aktif',
+        'read.dailyNotes' => 'Membaca Catatan Harian terbaru',
         _ => 'Membaca data lokal terverifikasi',
       };
 
