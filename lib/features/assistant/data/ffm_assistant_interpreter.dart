@@ -3789,6 +3789,7 @@ class FfmAssistantInterpreter {
       );
     }
     final time = latest.occurredAt.toLocal();
+    final currentBuild = await _diagnostics.currentBuild();
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     final formattedTime =
         '${twoDigits(time.day)}/${twoDigits(time.month)}/${time.year} ${twoDigits(time.hour)}:${twoDigits(time.minute)}';
@@ -3799,7 +3800,11 @@ class FfmAssistantInterpreter {
       destination: FfmAssistantDestination.diagnostics,
       confidence: 1,
       response:
-          'Ada error teknis terbaru di ${latest.feature} pada $formattedTime. Kode: ${latest.code}. Ringkasan aman: ${latest.summary}. Dampak: ${latest.impact} Buka Bantuan perbaikan untuk lihat dan salin laporan yang sudah disaring.',
+          'Catatan error teknis terbaru di ${latest.feature} pada $formattedTime. '
+          'Kelompok: ${latest.buildStatus(currentBuild)}. Build saat kejadian: ${latest.build.label}. '
+          'Kode: ${latest.code}. Ringkasan aman: ${latest.summary}. Dampak: ${latest.impact} '
+          'Catatan ini saja belum membuktikan apakah perbaikan sudah berhasil. '
+          'Buka Bantuan perbaikan untuk lihat dan salin laporan yang sudah disaring.',
     );
   }
 

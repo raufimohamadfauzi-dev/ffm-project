@@ -23,6 +23,7 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
       widget.diagnostics ?? getIt<AppDiagnosticsService>();
   var _loading = true;
   List<FfmDiagnosticEntry> _entries = const [];
+  FfmDiagnosticBuild _build = const FfmDiagnosticBuild();
 
   @override
   void initState() {
@@ -32,10 +33,12 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
 
   Future<void> _reload() async {
     final entries = await _diagnostics.latest();
+    final build = await _diagnostics.currentBuild();
     if (!mounted) return;
     setState(() {
       _loading = false;
       _entries = entries;
+      _build = build;
     });
   }
 
@@ -80,6 +83,8 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final current = _entries.where((e) => e.build.matches(_build)).toList();
+    final history = _entries.where((e) => !e.build.matches(_build)).toList();
     return FfmAssistantPageContext(
       destination: FfmAssistantDestination.diagnostics,
       child: Scaffold(
@@ -99,13 +104,17 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 children: [
                   AppHelpBanner(
-                    title: _entries.isEmpty
-                        ? 'Belum ada error teknis'
-                        : '${_entries.length} error teknis tercatat',
-                    message: _entries.isEmpty
-                        ? 'Kalau masalah muncul lagi, coba ulangi lalu buka halaman ini. FFM hanya menampilkan error yang benar-benar tertangkap.'
-                        : 'Ringkasan ini aman untuk disalin saat melaporkan masalah. PIN, data keuangan, rekening, dan isi chat tidak dimasukkan.',
-                    icon: _entries.isEmpty
+                    title: !_build.isKnown
+                        ? 'Identitas build belum tersedia'
+                        : current.isEmpty
+                        ? 'Belum ada error pada build saat ini'
+                        : '${current.length} error pada build saat ini',
+                    message:
+                        'Build: ${_build.label}\n'
+                        'Riwayat build lain / tidak diketahui: ${history.length}. '
+                        'Belum ada error baru bukan bukti perbaikan sudah terverifikasi. '
+                        'Log disimpan 30 hari, maksimal 100 catatan.',
+                    icon: current.isEmpty
                         ? Icons.check_circle_outline
                         : Icons.bug_report_outlined,
                   ),
@@ -123,50 +132,72 @@ class _AppDiagnosticsPageState extends State<AppDiagnosticsPage> {
                       label: const Text('Hapus riwayat error'),
                     ),
                     const SizedBox(height: 20),
-                    const AppSectionHeader(title: 'Error terbaru'),
+                    const AppSectionHeader(title: 'Error build saat ini'),
                     const SizedBox(height: 8),
-                    ..._entries.map(
-                      (entry) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.error_outline,
-                                    color: scheme.error,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      entry.feature,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                    if (current.isEmpty)
+                      const Text(
+                        'Belum ada error tercatat yang cocok dengan build saat ini.',
+                      ),
+                    for (final group in [current, history])
+                      if (group.isNotEmpty)
+                        ExpansionTile(
+                          title: Text(
+                            identical(group, current)
+                                ? 'Build saat ini (${group.length})'
+                                : 'Riwayat build lain / tidak diketahui (${group.length})',
+                          ),
+                          initiallyExpanded: identical(group, current),
+                          children: group
+                              .map(
+                                (entry) => Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: AppCard(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.error_outline,
+                                              color: scheme.error,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                entry.feature,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text('Kode: ${entry.code}'),
+                                        Text(
+                                          'Build saat kejadian: ${entry.build.label}',
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Waktu: ${_formatDate(entry.occurredAt)}',
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(entry.summary),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          'Dampak: ${entry.impact}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 10),
-                              Text('Kode: ${entry.code}'),
-                              const SizedBox(height: 4),
-                              Text('Waktu: ${_formatDate(entry.occurredAt)}'),
-                              const SizedBox(height: 8),
-                              Text(entry.summary),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Dampak: ${entry.impact}',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
                                 ),
-                              ),
-                            ],
-                          ),
+                              )
+                              .toList(),
                         ),
-                      ),
-                    ),
                   ],
                 ],
               ),

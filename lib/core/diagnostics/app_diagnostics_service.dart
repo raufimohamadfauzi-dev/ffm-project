@@ -2,6 +2,53 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+class FfmDiagnosticBuild {
+  const FfmDiagnosticBuild({
+    this.version = '',
+    this.number = '',
+    this.commit = '',
+  });
+
+  final String version;
+  final String number;
+  final String commit;
+  bool get isKnown => version.isNotEmpty && number.isNotEmpty;
+  String get label => isKnown
+      ? '$version+$number (commit: ${commit.isEmpty ? 'tidak tersedia' : commit})'
+      : 'Build tidak diketahui';
+
+  bool matches(FfmDiagnosticBuild other) =>
+      isKnown &&
+      other.isKnown &&
+      version == other.version &&
+      number == other.number &&
+      commit == other.commit;
+
+  factory FfmDiagnosticBuild.fromJson(Map<String, dynamic> json) =>
+      FfmDiagnosticBuild(
+        version: json['version']?.toString() ?? '',
+        number: json['buildNumber']?.toString() ?? '',
+        commit: json['commit']?.toString() ?? '',
+      );
+
+  Map<String, String> toJson() => {
+    'version': version,
+    'buildNumber': number,
+    'commit': commit,
+  };
+
+  static Future<FfmDiagnosticBuild> load() async {
+    final info = await PackageInfo.fromPlatform();
+    const commit = String.fromEnvironment('FFM_BUILD_COMMIT');
+    return FfmDiagnosticBuild(
+      version: info.version,
+      number: info.buildNumber,
+      commit: RegExp(r'^[a-fA-F0-9]{7,40}$').hasMatch(commit) ? commit : '',
+    );
+  }
+}
 
 /// Penyimpanan lokal diagnostik yang dapat diganti dengan memori saat test.
 abstract interface class FfmDiagnosticsStore {
@@ -41,6 +88,7 @@ class FfmDiagnosticEntry {
     required this.summary,
     required this.stackTrace,
     required this.impact,
+    this.build = const FfmDiagnosticBuild(),
   });
 
   final String code;
@@ -49,6 +97,14 @@ class FfmDiagnosticEntry {
   final String summary;
   final String stackTrace;
   final String impact;
+  final FfmDiagnosticBuild build;
+
+  String buildStatus(FfmDiagnosticBuild current) =>
+      !build.isKnown || !current.isKnown
+      ? 'Build tidak diketahui / belum dapat dibandingkan'
+      : build.matches(current)
+      ? 'Build saat ini'
+      : 'Riwayat build lain';
 
   factory FfmDiagnosticEntry.fromJson(Map<String, dynamic> json) =>
       FfmDiagnosticEntry(
@@ -60,6 +116,7 @@ class FfmDiagnosticEntry {
         summary: json['summary']?.toString() ?? 'Tidak ada ringkasan.',
         stackTrace: json['stackTrace']?.toString() ?? '',
         impact: json['impact']?.toString() ?? 'Perlu dicoba ulang.',
+        build: FfmDiagnosticBuild.fromJson(json),
       );
 
   Map<String, String> toJson() => <String, String>{
@@ -69,6 +126,7 @@ class FfmDiagnosticEntry {
     'summary': summary,
     'stackTrace': stackTrace,
     'impact': impact,
+    ...build.toJson(),
   };
 }
 
@@ -80,17 +138,38 @@ class AppDiagnosticsService {
   AppDiagnosticsService({
     FfmDiagnosticsStore? store,
     DateTime Function()? clock,
+    Future<FfmDiagnosticBuild> Function()? buildLoader,
   }) : _store = store ?? SharedPreferencesDiagnosticsStore(),
+       _buildLoader = buildLoader ?? FfmDiagnosticBuild.load,
        _clock = clock ?? DateTime.now;
 
   static const _entriesKey = 'entries.v1';
   static const _startupKey = 'startup.v1';
-  static const maxEntries = 20;
+  static const maxEntries = 100;
+  static const retention = Duration(days: 30);
   static const _maxSummaryLength = 300;
   static const _maxStackLength = 1800;
 
   final FfmDiagnosticsStore _store;
   final DateTime Function() _clock;
+  final Future<FfmDiagnosticBuild> Function() _buildLoader;
+  Future<FfmDiagnosticBuild>? _build;
+  Future<void> _pending = Future.value();
+
+  Future<FfmDiagnosticBuild> currentBuild() => _build ??= () async {
+    try {
+      return await _buildLoader();
+    } catch (_) {
+      return const FfmDiagnosticBuild();
+    }
+  }();
+
+  // Serialize read-modify-write operations, including retention and manual clear.
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final result = _pending.then((_) => action());
+    _pending = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
+    return result;
+  }
 
   Future<void> markStartupStarted({required String phase}) async {
     try {
@@ -100,6 +179,7 @@ class AppDiagnosticsService {
           'status': 'started',
           'phase': _sanitize(phase, limit: 80),
           'startedAt': _clock().toIso8601String(),
+          ...(await currentBuild()).toJson(),
         }),
       );
     } catch (_) {
@@ -157,6 +237,8 @@ class AppDiagnosticsService {
       error:
           'Startup sebelumnya berhenti pada fase ${marker?['phase'] ?? 'tidak diketahui'}.',
       impact: 'Aplikasi berhasil dibuka kembali; periksa Bantuan perbaikan bila masalah berulang.',
+      buildAtOccurrence: FfmDiagnosticBuild.fromJson(marker!),
+      occurredAt: DateTime.tryParse(marker['startedAt'] ?? ''),
     );
   }
 
@@ -166,13 +248,16 @@ class AppDiagnosticsService {
     required Object error,
     StackTrace? stackTrace,
     required String impact,
-  }) async {
+    FfmDiagnosticBuild? buildAtOccurrence,
+    DateTime? occurredAt,
+  }) => _serialized(() async {
     try {
-      final entries = await latest();
+      final entries = await _readEntries();
       final entry = FfmDiagnosticEntry(
         code: _safeCode(code),
         feature: _sanitize(feature, limit: 80),
-        occurredAt: _clock(),
+        occurredAt: occurredAt ?? _clock(),
+        build: buildAtOccurrence ?? await currentBuild(),
         summary: _sanitize(error.toString(), limit: _maxSummaryLength),
         stackTrace: _sanitize(
           stackTrace?.toString() ?? '',
@@ -191,21 +276,34 @@ class AppDiagnosticsService {
     } catch (_) {
       // Diagnostik tidak boleh menggagalkan alur utama aplikasi.
     }
-  }
+  });
 
-  Future<List<FfmDiagnosticEntry>> latest() async {
+  Future<List<FfmDiagnosticEntry>> latest() => _serialized(_readEntries);
+
+  Future<List<FfmDiagnosticEntry>> _readEntries() async {
     try {
       final content = await _store.read(_entriesKey);
       if (content == null || content.trim().isEmpty) return const [];
       final decoded = jsonDecode(content);
       if (decoded is! List) return const [];
-      return decoded
+      final entries = decoded
           .whereType<Map>()
           .map(
             (item) =>
                 FfmDiagnosticEntry.fromJson(Map<String, dynamic>.from(item)),
           )
-          .toList(growable: false);
+          .where(
+            (entry) => !entry.occurredAt.isBefore(_clock().subtract(retention)),
+          )
+          .toList();
+      final retained = entries.take(maxEntries).toList(growable: false);
+      if (retained.length != decoded.length) {
+        await _store.write(
+          _entriesKey,
+          jsonEncode(retained.map((entry) => entry.toJson()).toList()),
+        );
+      }
+      return retained;
     } catch (_) {
       return const [];
     }
@@ -218,21 +316,32 @@ class AppDiagnosticsService {
 
   Future<bool> hasEntries() async => (await latest()).isNotEmpty;
 
-  Future<void> clear() async {
+  Future<void> clear() => _serialized(() async {
     try {
       await _store.delete(_entriesKey);
     } catch (_) {
       // Sama seperti pencatatan, pembersihan tidak boleh melempar ke UI.
     }
-  }
+  });
 
   Future<String> buildSafeReport() async {
     final entries = await latest();
+    final build = await currentBuild();
+    final currentCount = entries.where((e) => e.build.matches(build)).length;
     final buffer = StringBuffer()
       ..writeln('LAPORAN DIAGNOSTIK FFM (AMAN)')
-      ..writeln('Dibuat: ${_clock().toLocal().toIso8601String()}')
+      ..writeln('Dibuat (UTC): ${_clock().toUtc().toIso8601String()}')
       ..writeln('Platform: ${Platform.operatingSystem}')
+      ..writeln('Build aplikasi saat laporan dibuat: ${build.label}')
+      ..writeln('Error build saat ini: $currentCount')
+      ..writeln(
+        'Riwayat build lain / tidak diketahui: ${entries.length - currentCount}',
+      )
       ..writeln('Jumlah error tercatat: ${entries.length}')
+      ..writeln('Retensi: 30 hari, maksimal $maxEntries catatan terbaru.')
+      ..writeln(
+        'Tidak ada error baru bukan bukti perbaikan telah terverifikasi. Cocokkan build kejadian dengan commit perbaikan dan hasil uji ulang.',
+      )
       ..writeln(
         'Catatan: laporan ini tidak memuat PIN, token, data keuangan, rekening, atau isi transaksi.',
       );
@@ -245,7 +354,9 @@ class AppDiagnosticsService {
       buffer
         ..writeln('\n[${index + 1}] ${entry.code}')
         ..writeln('Fitur: ${entry.feature}')
-        ..writeln('Waktu: ${entry.occurredAt.toLocal().toIso8601String()}')
+        ..writeln('Waktu (UTC): ${entry.occurredAt.toUtc().toIso8601String()}')
+        ..writeln('Build saat kejadian: ${entry.build.label}')
+        ..writeln('Kelompok: ${entry.buildStatus(build)}')
         ..writeln('Dampak: ${entry.impact}')
         ..writeln('Ringkasan: ${entry.summary}');
       if (entry.stackTrace.isNotEmpty) {
