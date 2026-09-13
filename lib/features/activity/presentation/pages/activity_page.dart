@@ -5,6 +5,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
+import '../../../../core/database/audit_logger.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/app_components.dart';
@@ -14,6 +16,7 @@ import '../../../assistant/domain/ffm_assistant_models.dart';
 import '../../../assistant/presentation/widgets/autonomous_activity_dialogs.dart';
 import '../../../assistant/presentation/widgets/ffm_assistant_page_context.dart';
 import '../../../settings/data/category_repository.dart';
+import '../../../settings/data/tag_repository.dart';
 import '../../../settings/presentation/pages/master_data_page.dart';
 import '../../data/services/activity_speech_service.dart';
 import '../../domain/activity_voice.dart';
@@ -91,13 +94,20 @@ class _ActivityViewState extends State<_ActivityView>
   final _voiceParser = const ActivityVoiceParser();
   final _speechService = ActivitySpeechService();
   final _interpreter = getIt<FfmAssistantInterpreter>();
+  late final _tagRepository = TagRepository(
+    getIt<AppDatabase>(),
+    AuditLogger(getIt<AppDatabase>()),
+  );
   ActivityVoiceIntent? _voiceIntent;
+  VoiceActivityDraft? _voiceDraft;
   String _voiceText = '';
   String? _voiceError;
   String _voiceStatus = 'Siap bicara';
   bool _voiceInitialized = false;
   bool _processingFinalVoice = false;
+  bool _listenAfterVoicePrompt = false;
   List<String> _voiceCategories = const [];
+  List<Tag> _voiceTags = const [];
   Timer? _filterTimer;
   Map<String, String> _activityCategoryIds = const {};
 
@@ -106,6 +116,7 @@ class _ActivityViewState extends State<_ActivityView>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadVoiceCategories();
+    _loadVoiceTags();
     if (widget.initialTitle?.trim().isNotEmpty == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -146,6 +157,15 @@ class _ActivityViewState extends State<_ActivityView>
       }
     } catch (_) {
       // The voice form retains its fallback categories when master data is unavailable.
+    }
+  }
+
+  Future<void> _loadVoiceTags() async {
+    try {
+      final tags = await _tagRepository.readActive(AppContext.householdId);
+      if (mounted) setState(() => _voiceTags = tags);
+    } catch (_) {
+      // Tag loading failure is shown by the disabled required selector.
     }
   }
 
@@ -332,8 +352,19 @@ class _ActivityViewState extends State<_ActivityView>
 
   String _activityMonthLabel(DateTime date) {
     const months = [
-      '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+      '',
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
     ];
     return '${months[date.month]} ${date.year}';
   }
@@ -417,9 +448,19 @@ class _ActivityViewState extends State<_ActivityView>
         initialNotes: initialNotes,
         initialStartedAt: initialStartedAt,
         initialMode: initialMode,
+        activityTags: _voiceTags,
       ),
     );
     if (result == null || !mounted) return;
+    if (result.mode == ActivityMode.history) {
+      await context.read<ActivityBloc>().saveDailyNote(
+        title: result.title,
+        body: result.notes ?? result.title,
+        noteDate: result.startedAt,
+        tagIds: result.tagIds,
+      );
+      return;
+    }
     await context.read<ActivityBloc>().startSession(
       title: result.title,
       category: result.category,
@@ -652,11 +693,20 @@ class _ActivityViewState extends State<_ActivityView>
       await _previewVoice(transcript.trim());
     } finally {
       _processingFinalVoice = false;
+      if (_listenAfterVoicePrompt && mounted && !_speechService.isListening) {
+        _listenAfterVoicePrompt = false;
+        await _startVoiceCapture();
+      }
     }
   }
 
   Future<void> _previewVoice(String transcript) async {
     final state = context.read<ActivityBloc>().state;
+
+    if (_voiceDraft != null) {
+      await _continueVoiceDraft(transcript);
+      return;
+    }
 
     if (await _interpretVoiceWithAssistant(transcript, state)) return;
 
@@ -695,16 +745,14 @@ class _ActivityViewState extends State<_ActivityView>
     // Jika start, langsung buka form draft aktivitas agar pengguna dapat melihat & mengoreksi
     if (parsed.type == ActivityVoiceIntentType.start &&
         parsed.targetTitle != null) {
-      if (!mounted) return;
-      await _startSession(
-        initialTitle: parsed.targetTitle,
-        initialCategory: parsed.category.isNotEmpty ? parsed.category : null,
-        initialNotes:
-            (transcript.trim().toLowerCase() !=
-                parsed.targetTitle!.toLowerCase())
+      await _beginVoiceDraft(
+        title: parsed.targetTitle!,
+        category: parsed.category,
+        notes:
+            transcript.trim().toLowerCase() != parsed.targetTitle!.toLowerCase()
             ? transcript.trim()
             : null,
-        initialStartedAt: parsed.startedAt,
+        startedAt: parsed.startedAt,
       );
       return;
     }
@@ -762,7 +810,8 @@ class _ActivityViewState extends State<_ActivityView>
           (proposal?.formValues['action'] == 'finish' &&
               state.activeSessions.isNotEmpty)) {
         if (!mounted) return true;
-        final targetId = proposal?.formValues['sessionId'] ??
+        final targetId =
+            proposal?.formValues['sessionId'] ??
             (state.activeSessions.length == 1
                 ? state.activeSessions.single.id
                 : null);
@@ -771,19 +820,21 @@ class _ActivityViewState extends State<_ActivityView>
             (s) => s.id == targetId,
             orElse: () => state.activeSessions.first,
           );
-          await context.read<ActivityBloc>().finishSession(sessionId: session.id);
-          final msg = 'Selesai! Aktivitas ${session.title} telah dihentikan.';
           setState(() {
+            _voiceIntent = ActivityVoiceIntent(
+              rawTranscript: transcript,
+              normalizedText: transcript.toLowerCase(),
+              type: ActivityVoiceIntentType.finish,
+              status: ActivityVoiceStatus.preview,
+              targetSessionId: session.id,
+              targetTitle: session.title,
+              confidence: 1,
+            );
             _voiceText = transcript;
             _voiceError = null;
-            _voiceStatus = 'Aktivitas Selesai';
+            _voiceStatus = 'Cek dulu sebelum menyelesaikan';
           });
-          await _speechService.speak(msg);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Aktivitas "${session.title}" selesai.')),
-            );
-          }
+          await _speakVoicePreview(_voiceIntent!);
           return true;
         }
       }
@@ -824,24 +875,20 @@ class _ActivityViewState extends State<_ActivityView>
 
       // Handle daily note draft from LLM
       if (proposal?.kind == FfmAssistantDraftKind.dailyNote) {
-        if (!mounted) return true;
         final noteTitle = (proposal?.title?.trim().isNotEmpty == true)
             ? proposal!.title!.trim()
             : 'Catatan Harian';
         final noteBody = proposal?.note ?? transcript;
-        setState(() {
-          _voiceText = transcript;
-          _voiceStatus = 'Membuka form Catatan Harian...';
-          _voiceError = null;
-        });
-        await _startSession(
-          initialTitle: noteTitle,
-          initialCategory: proposal?.categoryName?.trim(),
-          initialNotes: noteBody,
-          initialMode: ActivityMode.history,
+        await _beginVoiceDraft(
+          title: noteTitle,
+          category: proposal?.categoryName,
+          notes: noteBody,
+          startedAt: proposal?.date,
+          kind: ActivityKind.note,
         );
-        final spokenMsg = interpretation.response ??
-            'Catatan $noteTitle disiapkan di form Catatan Harian.';
+        final spokenMsg =
+            interpretation.response ??
+            'Draf Catatan Harian $noteTitle sudah disiapkan.';
         await _speechService.speak(spokenMsg);
         return true;
       }
@@ -849,27 +896,24 @@ class _ActivityViewState extends State<_ActivityView>
       // Handle activity draft (timer vs history note) from LLM
       if (proposal?.kind == FfmAssistantDraftKind.activity &&
           proposal?.title?.trim().isNotEmpty == true) {
-        if (!mounted) return true;
-        setState(() {
-          _voiceText = transcript;
-          _voiceStatus = 'Membuka form draf dari LLM...';
-          _voiceError = null;
-        });
-
         final modeVal =
             proposal!.formValues['mode'] ?? proposal.formValues['activityKind'];
-        final mode = modeVal == 'history' || modeVal == 'catatan' || modeVal == 'note'
+        final mode =
+            modeVal == 'history' || modeVal == 'catatan' || modeVal == 'note'
             ? ActivityMode.history
             : ActivityMode.timeTracking;
-        await _startSession(
-          initialTitle: proposal.title!.trim(),
-          initialCategory: proposal.categoryName?.trim(),
-          initialNotes: proposal.note,
-          initialStartedAt: proposal.date,
-          initialMode: mode,
+        await _beginVoiceDraft(
+          title: proposal.title!.trim(),
+          category: proposal.categoryName,
+          notes: proposal.note,
+          startedAt: proposal.date,
+          kind: mode == ActivityMode.history
+              ? ActivityKind.note
+              : ActivityKind.timer,
         );
-        final spokenMsg = interpretation.response ??
-            'Draf ${mode == ActivityMode.history ? "Catatan Harian" : "Timer Aktivitas"} ${proposal.title} disiapkan.';
+        final spokenMsg =
+            interpretation.response ??
+            'Draf ${mode == ActivityMode.history ? "Catatan Harian" : "Timer Aktivitas"} ${proposal.title} sudah disiapkan.';
         await _speechService.speak(spokenMsg);
         return true;
       }
@@ -890,7 +934,8 @@ class _ActivityViewState extends State<_ActivityView>
       }
 
       // Handle direct LLM response/clarification out loud via TTS
-      final responseText = interpretation.response ?? interpretation.clarification;
+      final responseText =
+          interpretation.response ?? interpretation.clarification;
       if (responseText != null && responseText.trim().isNotEmpty) {
         if (!mounted) return true;
         setState(() {
@@ -930,14 +975,14 @@ class _ActivityViewState extends State<_ActivityView>
         final proposal = intent.draft!;
         final modeVal =
             proposal.formValues['mode'] ?? proposal.formValues['activityKind'];
-        await _startSession(
-          initialTitle: proposal.title!.trim(),
-          initialCategory: proposal.categoryName?.trim(),
-          initialNotes: proposal.note,
-          initialStartedAt: proposal.date,
-          initialMode: modeVal == 'history' || modeVal == 'catatan'
-              ? ActivityMode.history
-              : ActivityMode.timeTracking,
+        await _beginVoiceDraft(
+          title: proposal.title!.trim(),
+          category: proposal.categoryName,
+          notes: proposal.note,
+          startedAt: proposal.date,
+          kind: modeVal == 'history' || modeVal == 'catatan'
+              ? ActivityKind.note
+              : ActivityKind.timer,
         );
         if (!mounted) return;
         setState(() {
@@ -969,6 +1014,201 @@ class _ActivityViewState extends State<_ActivityView>
         _voiceText = transcript;
         _voiceError = 'Gagal memproses: ${e.toString()}';
         _voiceStatus = 'Error';
+      });
+    }
+  }
+
+  Future<void> _beginVoiceDraft({
+    required String title,
+    String? category,
+    String? notes,
+    DateTime? startedAt,
+    ActivityKind kind = ActivityKind.timer,
+  }) async {
+    final normalizedCategory = category?.trim() ?? '';
+    final resolvedCategory = _resolveVoiceCategory(normalizedCategory);
+    final categoryId = resolvedCategory == null
+        ? null
+        : _activityCategoryIds[resolvedCategory];
+    final draft = VoiceActivityDraft(
+      title: title.trim(),
+      categoryName: categoryId == null ? '' : resolvedCategory!,
+      categoryId: categoryId,
+      notes: notes?.trim().isEmpty == true ? null : notes?.trim(),
+      startedAt: startedAt,
+      kind: kind,
+    );
+    draft.conversationHistory.add('Mulai: $title');
+    if (notes?.trim().isNotEmpty == true) {
+      draft.conversationHistory.add('Catatan: ${notes!.trim()}');
+    }
+    if (!mounted) return;
+    setState(() {
+      _voiceDraft = draft;
+      _voiceIntent = null;
+      _voiceStatus = _draftStatus(draft);
+      _voiceError = null;
+    });
+    await _promptForVoiceDraft(draft);
+  }
+
+  String _draftStatus(VoiceActivityDraft draft) => draft.canConfirm
+      ? 'Draft siap dikonfirmasi'
+      : 'Menunggu ${draft.missingFields.first}';
+
+  String _draftPrompt(VoiceActivityDraft draft) {
+    if (draft.missingFields.contains('nama aktivitas')) {
+      return 'Aktivitasnya mau diberi nama apa?';
+    }
+    if (draft.missingFields.contains('kategori')) {
+      return 'Aktivitas ini masuk kategori apa?';
+    }
+    if (draft.missingFields.contains('tag/lahan')) {
+      return 'Catatan ini untuk tag atau lahan yang mana? Sebutkan nama tag yang ada di Data Utama.';
+    }
+    return 'Draft sudah lengkap. Bilang sudah benar atau tekan Konfirmasi.';
+  }
+
+  Future<void> _promptForVoiceDraft(VoiceActivityDraft draft) async {
+    final prompt = _draftPrompt(draft);
+    try {
+      await _speechService.speak(prompt);
+    } catch (_) {}
+    if (draft.missingFields.isNotEmpty || draft.canConfirm) {
+      _listenAfterVoicePrompt = true;
+    }
+  }
+
+  String? _categoryFromTranscript(String transcript) {
+    final lower = transcript.trim().toLowerCase();
+    for (final category in _voiceCategories) {
+      if (lower.contains(category.toLowerCase())) return category;
+    }
+    return null;
+  }
+
+  String? _resolveVoiceCategory(String value) {
+    if (value.trim().isEmpty) return null;
+    for (final category in _voiceCategories) {
+      if (category.toLowerCase() == value.trim().toLowerCase()) {
+        return category;
+      }
+    }
+    return _categoryFromTranscript(value);
+  }
+
+  String? _tagIdFromTranscript(String transcript) {
+    final lower = transcript.trim().toLowerCase();
+    for (final tag in _voiceTags) {
+      if (lower.contains(tag.name.toLowerCase())) return tag.id;
+    }
+    return null;
+  }
+
+  Future<void> _continueVoiceDraft(String transcript) async {
+    final draft = _voiceDraft;
+    if (draft == null) return;
+    final parsed = _voiceParser.parse(transcript);
+    if (parsed.type == ActivityVoiceIntentType.cancel) {
+      await _cancelVoice();
+      return;
+    }
+    if (parsed.type == ActivityVoiceIntentType.confirm) {
+      await _confirmVoiceDraft(draft);
+      return;
+    }
+
+    final category = _categoryFromTranscript(transcript);
+    final tagId = _tagIdFromTranscript(transcript);
+    final correctionApplied = draft.applyTextCorrection(transcript);
+    if (tagId != null && draft.missingFields.contains('tag/lahan')) {
+      draft
+        ..tagIds = [tagId]
+        ..conversationHistory.add(
+          'Tag/lahan: ${_voiceTags.firstWhere((tag) => tag.id == tagId).name}',
+        );
+    } else if (category != null) {
+      final resolvedCategory = _resolveVoiceCategory(category);
+      draft
+        ..categoryName = resolvedCategory ?? ''
+        ..categoryId = resolvedCategory == null
+            ? null
+            : _activityCategoryIds[resolvedCategory];
+      draft.conversationHistory.add(
+        'Kategori: ${resolvedCategory ?? category}',
+      );
+    } else if (!correctionApplied &&
+        draft.missingFields.contains('nama aktivitas')) {
+      draft.title = transcript.trim();
+      draft.conversationHistory.add('Nama: ${draft.title}');
+    } else if (!correctionApplied) {
+      draft.conversationHistory.add(transcript.trim());
+      if (draft.notes == null || draft.notes!.isEmpty) {
+        draft.notes = transcript.trim();
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _voiceText = transcript;
+      _voiceStatus = _draftStatus(draft);
+      _voiceError = null;
+    });
+    await _promptForVoiceDraft(draft);
+  }
+
+  ActivityVoiceIntent _intentFromVoiceDraft(VoiceActivityDraft draft) =>
+      ActivityVoiceIntent(
+        rawTranscript: draft.conversationHistory.join('. '),
+        normalizedText: draft.title.toLowerCase(),
+        type: ActivityVoiceIntentType.start,
+        status: ActivityVoiceStatus.preview,
+        kind: draft.kind,
+        category: draft.categoryName,
+        categoryId: draft.categoryId,
+        startedAt: draft.startedAt,
+        notes: draft.notes,
+        tagIds: draft.tagIds,
+        treatmentType: draft.treatmentType,
+        targetTitle: draft.title,
+        confidence: 1,
+      );
+
+  Future<void> _confirmVoiceDraft(VoiceActivityDraft draft) async {
+    if (!draft.canConfirm) {
+      if (mounted) {
+        setState(() {
+          _voiceError = 'Lengkapi dulu: ${draft.missingFields.join(', ')}.';
+          _voiceStatus = _draftStatus(draft);
+        });
+      }
+      await _promptForVoiceDraft(draft);
+      return;
+    }
+    final intent = _intentFromVoiceDraft(draft);
+    setState(() {
+      _voiceStatus = 'Menyimpan draft aktivitas...';
+      _voiceError = null;
+    });
+    try {
+      await context.read<ActivityBloc>().executeVoiceIntent(intent);
+      if (!mounted) return;
+      _listenAfterVoicePrompt = false;
+      setState(() {
+        _voiceDraft = null;
+        _voiceText = '';
+        _voiceStatus = 'Aktivitas berhasil dibuat';
+      });
+      await _speechService.speak('Aktivitas ${draft.title} sudah dibuat.');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Aktivitas "${draft.title}" sudah dibuat.')),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _voiceError = error.toString().replaceFirst('Bad state: ', '');
+        _voiceStatus = 'Belum disimpan';
       });
     }
   }
@@ -1005,6 +1245,11 @@ class _ActivityViewState extends State<_ActivityView>
   }
 
   Future<void> _confirmVoice() async {
+    final draft = _voiceDraft;
+    if (draft != null) {
+      await _confirmVoiceDraft(draft);
+      return;
+    }
     final intent = _voiceIntent;
     if (intent == null) return;
     if (!intent.canConfirm) {
@@ -1047,6 +1292,7 @@ class _ActivityViewState extends State<_ActivityView>
   }
 
   Future<void> _cancelVoice() async {
+    _listenAfterVoicePrompt = false;
     final intent = _voiceIntent;
     if (intent != null) {
       await context.read<ActivityBloc>().recordVoiceIntent(
@@ -1058,6 +1304,7 @@ class _ActivityViewState extends State<_ActivityView>
     if (!mounted) return;
     setState(() {
       _voiceIntent = null;
+      _voiceDraft = null;
       _voiceText = '';
       _voiceError = null;
       _voiceStatus = 'Dibatalkan';
@@ -1087,7 +1334,7 @@ class _ActivityViewState extends State<_ActivityView>
     if (updated != null) _speakVoicePreview(updated);
   }
 
-Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
+  Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1141,7 +1388,9 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Kembalikan dari arsip?'),
-        content: const Text('Catatan harian ini akan muncul kembali di daftar.'),
+        content: const Text(
+          'Catatan harian ini akan muncul kembali di daftar.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -1303,12 +1552,14 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                   const SizedBox(height: 16),
                   _VoiceActivityCard(
                     intent: _voiceIntent,
+                    draft: _voiceDraft,
                     text: _voiceText,
                     status: _voiceStatus,
                     error: _voiceError,
                     isListening: _speechService.isListening,
                     activeSessions: state.activeSessions,
                     activityCategories: _voiceCategories,
+                    activityTags: _voiceTags,
                     onListen: _startVoiceCapture,
                     onStop: _stopVoiceCapture,
                     onEdit: _editVoiceText,
@@ -1317,12 +1568,28 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                         : () => _speakVoicePreview(_voiceIntent!),
                     onSelectTarget: _selectVoiceTarget,
                     onCategoryChanged: (category) {
+                      if (_voiceDraft != null) {
+                        setState(() {
+                          _voiceDraft!
+                            ..categoryName = category
+                            ..categoryId = _activityCategoryIds[category];
+                          _voiceStatus = _draftStatus(_voiceDraft!);
+                        });
+                        return;
+                      }
                       if (_voiceIntent == null) return;
                       setState(() {
                         _voiceIntent = _voiceIntent!.copyWith(
                           category: category,
                           categoryId: _activityCategoryIds[category],
                         );
+                      });
+                    },
+                    onTagIdsChanged: (tagIds) {
+                      if (_voiceDraft == null) return;
+                      setState(() {
+                        _voiceDraft!.tagIds = tagIds;
+                        _voiceStatus = _draftStatus(_voiceDraft!);
                       });
                     },
                     onConfirm: _confirmVoice,
@@ -1364,7 +1631,8 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                       ),
                       const SizedBox(width: 8),
                       Badge(
-                        isLabelVisible: _categoryFilterId != null ||
+                        isLabelVisible:
+                            _categoryFilterId != null ||
                             _dayFilter != null ||
                             _startDateFilter != null ||
                             _modeFilter != 'Semua mode' ||
@@ -1519,6 +1787,16 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                     )),
                           )
                           .toList();
+                      final dailyNoteIds = visibleDailyNotes
+                          .map((note) => note.id)
+                          .toSet();
+                      final visibleHistorySessions = visibleSessions
+                          .where(
+                            (session) =>
+                                session.isHistory &&
+                                !dailyNoteIds.contains(session.id),
+                          )
+                          .toList();
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1527,6 +1805,7 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               _SectionTitle(
                                 title: 'Sedang berjalan',
                                 count: visibleActiveSessions.length,
+                                icon: Icons.play_circle_outline_rounded,
                               ),
                               for (final session in visibleActiveSessions)
                                 Padding(
@@ -1569,28 +1848,37 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               children: [
                                 Expanded(
                                   child: _SectionTitle(
-                                    title: (_riwayatTab == '📝 Catatan Harian' ||
+                                    title:
+                                        (_riwayatTab == '📝 Catatan Harian' ||
                                             _riwayatTab == 'Catatan' ||
                                             _riwayatTab == 'Jurnal Harian')
                                         ? 'Catatan Harian'
                                         : (_riwayatTab == '⏱️ Timer' ||
-                                                _riwayatTab == 'Timer')
-                                            ? 'Aktivitas Timer'
-                                            : 'Riwayat Aktivitas & Catatan',
-                                    count: (_riwayatTab == '📝 Catatan Harian' ||
+                                              _riwayatTab == 'Timer')
+                                        ? 'Aktivitas Timer'
+                                        : 'Riwayat Aktivitas & Catatan',
+                                    count:
+                                        (_riwayatTab == '📝 Catatan Harian' ||
                                             _riwayatTab == 'Catatan' ||
                                             _riwayatTab == 'Jurnal Harian')
                                         ? (visibleDailyNotes.length +
-                                            visibleSessions
-                                                .where((s) => s.isHistory)
-                                                .length)
+                                              visibleHistorySessions.length)
                                         : (_riwayatTab == '⏱️ Timer' ||
-                                                _riwayatTab == 'Timer')
-                                            ? visibleSessions
-                                                .where((s) => s.isTimeTracking)
-                                                .length
-                                            : (visibleSessions.length +
-                                                visibleDailyNotes.length),
+                                              _riwayatTab == 'Timer')
+                                        ? visibleSessions
+                                              .where((s) => s.isTimeTracking)
+                                              .length
+                                        : (visibleSessions.length +
+                                              visibleDailyNotes.length),
+                                    icon:
+                                        (_riwayatTab == '📝 Catatan Harian' ||
+                                            _riwayatTab == 'Catatan' ||
+                                            _riwayatTab == 'Jurnal Harian')
+                                        ? Icons.edit_note_rounded
+                                        : (_riwayatTab == '⏱️ Timer' ||
+                                              _riwayatTab == 'Timer')
+                                        ? Icons.timer_outlined
+                                        : Icons.check_circle_outline_rounded,
                                   ),
                                 ),
                                 FilledButton.tonalIcon(
@@ -1630,10 +1918,12 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                     padding: const EdgeInsets.only(right: 8),
                                     child: ChoiceChip(
                                       label: Text(tab),
-                                      selected: _riwayatTab == tab ||
+                                      selected:
+                                          _riwayatTab == tab ||
                                           (tab == '📝 Catatan Harian' &&
                                               (_riwayatTab == 'Catatan' ||
-                                                  _riwayatTab == 'Jurnal Harian')) ||
+                                                  _riwayatTab ==
+                                                      'Jurnal Harian')) ||
                                           (tab == '⏱️ Timer' &&
                                               _riwayatTab == 'Timer'),
                                       onSelected: (selected) {
@@ -1651,9 +1941,7 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               _riwayatTab == 'Catatan' ||
                               _riwayatTab == 'Jurnal Harian') ...[
                             if (visibleDailyNotes.isEmpty &&
-                                visibleSessions
-                                    .where((s) => s.isHistory)
-                                    .isEmpty)
+                                visibleHistorySessions.isEmpty)
                               const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 36),
                                 child: Center(
@@ -1664,41 +1952,63 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               )
                             else ...[
                               for (final note in visibleDailyNotes)
-                                Card(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  child: ListTile(
-                                    leading: const CircleAvatar(
-                                      child: Icon(Icons.menu_book_outlined),
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: AppCard(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .tertiaryContainer
+                                        .withValues(alpha: 0.55),
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        backgroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .tertiary,
+                                        foregroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .onTertiary,
+                                        child: const Icon(
+                                          Icons.edit_note_rounded,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        (note.title ?? '').trim().isEmpty
+                                            ? 'Catatan Harian'
+                                            : note.title!.trim(),
+                                      ),
+                                      subtitle: Text(
+                                        '${_dateOnly(note.noteDate)}\n${note.body}${note.isArchived ? '\nArsip' : ''}',
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      trailing: note.isArchived
+                                          ? IconButton(
+                                              tooltip: 'Pulihkan dari arsip',
+                                              icon: const Icon(
+                                                Icons.unarchive_outlined,
+                                              ),
+                                              onPressed: () =>
+                                                  _confirmRestoreDailyNote(
+                                                    note,
+                                                  ),
+                                            )
+                                          : null,
+                                      isThreeLine: true,
                                     ),
-                                    title: Text(
-                                      (note.title ?? '').trim().isEmpty
-                                          ? 'Catatan Harian'
-                                          : note.title!.trim(),
-                                    ),
-                                    subtitle: Text(
-                                      '${_dateOnly(note.noteDate)}\n${note.body}${note.isArchived ? '\nArsip' : ''}',
-                                      maxLines: 4,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    trailing: note.isArchived
-                                        ? IconButton(
-                                            tooltip: 'Pulihkan dari arsip',
-                                            icon: const Icon(
-                                              Icons.unarchive_outlined,
-                                            ),
-                                            onPressed: () =>
-                                                _confirmRestoreDailyNote(note),
-                                          )
-                                        : null,
-                                    isThreeLine: true,
                                   ),
                                 ),
-                              ..._buildGroupedSessionCards(
-                                visibleSessions: visibleSessions
-                                    .where((s) => s.isHistory)
-                                    .toList(),
-                                state: state,
-                              ),
+                              if (visibleHistorySessions.isNotEmpty) ...[
+                                _SectionTitle(
+                                  title: 'Catatan dari Aktivitas',
+                                  count: visibleHistorySessions.length,
+                                  icon: Icons.edit_note_outlined,
+                                ),
+                                ..._buildGroupedSessionCards(
+                                  visibleSessions: visibleHistorySessions,
+                                  state: state,
+                                ),
+                              ],
                             ],
                             if (state.hasMoreDailyNotes)
                               Padding(
@@ -1760,6 +2070,50 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                               ),
                           ] else ...[
                             if (_riwayatTab == 'Semua' &&
+                                visibleDailyNotes.isNotEmpty) ...[
+                              _SectionTitle(
+                                title: 'Catatan Harian',
+                                count: visibleDailyNotes.length,
+                                icon: Icons.edit_note_rounded,
+                              ),
+                              for (final note in visibleDailyNotes)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 10),
+                                  child: AppCard(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .tertiaryContainer
+                                        .withValues(alpha: 0.55),
+                                    child: ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        backgroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .tertiary,
+                                        foregroundColor: Theme.of(context)
+                                            .colorScheme
+                                            .onTertiary,
+                                        child: const Icon(
+                                          Icons.edit_note_rounded,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        (note.title ?? '').trim().isEmpty
+                                            ? 'Catatan Harian'
+                                            : note.title!.trim(),
+                                      ),
+                                      subtitle: Text(
+                                        '${_dateOnly(note.noteDate)}\n${note.body}',
+                                        maxLines: 4,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      isThreeLine: true,
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                            ],
+                            if (_riwayatTab == 'Semua' &&
                                 visibleAutonomous.isNotEmpty) ...[
                               _SectionTitle(
                                 title: 'Aksi Otonom Terbaru',
@@ -1774,12 +2128,14 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
                                 ),
                               const SizedBox(height: 10),
                               _SectionTitle(
-                                title: 'Sesi Kegiatan',
+                                title: 'Aktivitas selesai',
                                 count: visibleSessions.length,
+                                icon: Icons.check_circle_outline_rounded,
                               ),
                               const SizedBox(height: 6),
                             ],
-                            if (visibleSessions.isEmpty)
+                            if (visibleSessions.isEmpty &&
+                                visibleDailyNotes.isEmpty)
                               _SmartRoutineEmptyState(
                                 onStartRoutine: (title, category, mode) =>
                                     _startSession(
@@ -1815,9 +2171,10 @@ Future<void> _confirmArchiveSession(ActivitySessionEntity session) async {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, required this.count});
+  const _SectionTitle({required this.title, required this.count, this.icon});
   final String title;
   final int count;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -1826,6 +2183,10 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 10, top: 4),
       child: Row(
         children: [
+          if (icon != null) ...[
+            Icon(icon, size: 19, color: scheme.primary),
+            const SizedBox(width: 7),
+          ],
           Text(
             title,
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17),
@@ -2790,6 +3151,7 @@ class _SessionDraft {
     this.mode,
     this.notes,
     this.startedAt,
+    this.tagIds,
   );
   final String title;
   final String category;
@@ -2798,6 +3160,7 @@ class _SessionDraft {
   ActivityKind get kind => mode.activityKind;
   final String? notes;
   final DateTime startedAt;
+  final List<String> tagIds;
 }
 
 class _SessionForm extends StatefulWidget {
@@ -2808,6 +3171,7 @@ class _SessionForm extends StatefulWidget {
     this.initialNotes,
     this.initialStartedAt,
     this.initialMode,
+    this.activityTags = const [],
   });
 
   final String? parentSessionTitle;
@@ -2816,6 +3180,7 @@ class _SessionForm extends StatefulWidget {
   final String? initialNotes;
   final DateTime? initialStartedAt;
   final ActivityMode? initialMode;
+  final List<Tag> activityTags;
 
   @override
   State<_SessionForm> createState() => _SessionFormState();
@@ -2831,6 +3196,8 @@ class _SessionFormState extends State<_SessionForm> {
   final _formSpeechService = ActivitySpeechService();
   bool _isListeningFormVoice = false;
   List<String> _activityCategories = [];
+  late final List<Tag> _activityTags = widget.activityTags;
+  final Set<String> _selectedTagIds = <String>{};
   Map<String, String> _activityCategoryIds = const {};
   String? _selectedCategory;
   bool _loadingCategories = true;
@@ -3228,6 +3595,36 @@ class _SessionFormState extends State<_SessionForm> {
                 ],
               ),
             const SizedBox(height: 12),
+            if (_mode == ActivityMode.history) ...[
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Tag/lahan (wajib)',
+                  border: OutlineInputBorder(),
+                ),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: _activityTags
+                      .map(
+                        (tag) => FilterChip(
+                          label: Text(tag.name),
+                          selected: _selectedTagIds.contains(tag.id),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedTagIds.add(tag.id);
+                              } else {
+                                _selectedTagIds.remove(tag.id);
+                              }
+                            });
+                          },
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             InkWell(
               borderRadius: BorderRadius.circular(12),
               onTap: () async {
@@ -3329,6 +3726,15 @@ class _SessionFormState extends State<_SessionForm> {
                 ),
                 onPressed: () {
                   if (_title.text.trim().isEmpty) return;
+                  if (_mode == ActivityMode.history &&
+                      _selectedTagIds.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Pilih minimal satu tag/lahan.'),
+                      ),
+                    );
+                    return;
+                  }
                   FocusManager.instance.primaryFocus?.unfocus();
                   Navigator.pop(
                     context,
@@ -3339,6 +3745,7 @@ class _SessionFormState extends State<_SessionForm> {
                       _mode,
                       _notes.text.trim().isEmpty ? null : _notes.text.trim(),
                       _startedAt,
+                      _selectedTagIds.toList(growable: false),
                     ),
                   );
                 },
@@ -3470,35 +3877,41 @@ String _dateTime(DateTime value) =>
 class _VoiceActivityCard extends StatelessWidget {
   const _VoiceActivityCard({
     required this.intent,
+    required this.draft,
     required this.text,
     required this.status,
     required this.error,
     required this.isListening,
     required this.activeSessions,
     required this.activityCategories,
+    this.activityTags = const [],
     required this.onListen,
     required this.onStop,
     required this.onEdit,
     required this.onSpeak,
     required this.onSelectTarget,
     required this.onCategoryChanged,
+    required this.onTagIdsChanged,
     required this.onConfirm,
     required this.onCancel,
   });
 
   final ActivityVoiceIntent? intent;
+  final VoiceActivityDraft? draft;
   final String text;
   final String status;
   final String? error;
   final bool isListening;
   final List<ActivitySessionEntity> activeSessions;
   final List<String> activityCategories;
+  final List<Tag> activityTags;
   final VoidCallback onListen;
   final VoidCallback onStop;
   final VoidCallback onEdit;
   final VoidCallback? onSpeak;
   final ValueChanged<String?> onSelectTarget;
   final ValueChanged<String> onCategoryChanged;
+  final ValueChanged<List<String>> onTagIdsChanged;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
 
@@ -3587,6 +4000,109 @@ class _VoiceActivityCard extends StatelessWidget {
                   onPressed: onSpeak,
                   icon: const Icon(Icons.volume_up_outlined),
                   label: const Text('Bacakan lagi'),
+                ),
+              ],
+            ),
+          ],
+          if (draft != null) ...[
+            const Divider(height: 24),
+            Row(
+              children: [
+                Icon(Icons.edit_note_rounded, color: scheme.primary),
+                const SizedBox(width: 8),
+                const Text(
+                  'Draft aktivitas',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _DraftField(label: 'Nama', value: draft!.title),
+            _DraftField(
+              label: 'Jenis',
+              value: draft!.kind == ActivityKind.note
+                  ? 'Catatan saja'
+                  : 'Aktivitas berjalan',
+            ),
+            if (draft!.notes?.trim().isNotEmpty == true)
+              _DraftField(label: 'Catatan', value: draft!.notes!.trim()),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: categories.contains(draft!.categoryName)
+                  ? draft!.categoryName
+                  : null,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: draft!.missingFields.contains('kategori')
+                    ? 'Kategori (wajib)'
+                    : 'Kategori aktivitas',
+                border: const OutlineInputBorder(),
+              ),
+              items: categories
+                  .map(
+                    (category) => DropdownMenuItem(
+                      value: category,
+                      child: Text(category),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) onCategoryChanged(value);
+              },
+            ),
+            if (draft!.kind == ActivityKind.note) ...[
+              const SizedBox(height: 10),
+              InputDecorator(
+                decoration: InputDecoration(
+                  labelText: draft!.missingFields.contains('tag/lahan')
+                      ? 'Tag/lahan (wajib)'
+                      : 'Tag/lahan',
+                  border: const OutlineInputBorder(),
+                ),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: activityTags
+                      .map(
+                        (tag) => FilterChip(
+                          label: Text(tag.name),
+                          selected: draft!.tagIds.contains(tag.id),
+                          onSelected: (selected) {
+                            final selectedIds = {...draft!.tagIds};
+                            if (selected) {
+                              selectedIds.add(tag.id);
+                            } else {
+                              selectedIds.remove(tag.id);
+                            }
+                            onTagIdsChanged(
+                              selectedIds.toList(growable: false),
+                            );
+                          },
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              draft!.canConfirm
+                  ? 'Draft lengkap. Pastikan datanya benar sebelum membuat aktivitas.'
+                  : 'Asisten menunggu: ${draft!.missingFields.join(', ')}.',
+              style: TextStyle(
+                color: draft!.canConfirm ? scheme.primary : scheme.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                TextButton(onPressed: onCancel, child: const Text('Batal')),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: draft!.canConfirm ? onConfirm : null,
+                  icon: const Icon(Icons.check_circle_outline),
+                  label: const Text('Konfirmasi & buat'),
                 ),
               ],
             ),
@@ -3691,6 +4207,33 @@ class _VoiceActivityCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DraftField extends StatelessWidget {
+  const _DraftField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: RichText(
+      text: TextSpan(
+        text: '$label: ',
+        style: const TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.w700,
+        ),
+        children: [
+          TextSpan(
+            text: value.isEmpty ? 'Belum diisi' : value,
+            style: const TextStyle(fontWeight: FontWeight.normal),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _VoiceTextEditor extends StatefulWidget {

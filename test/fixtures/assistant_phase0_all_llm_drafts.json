@@ -1,0 +1,22 @@
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposals": [
+    {"type":"master_data","target":"category","name":"Belanja","fields":{"type":"expense","defaultBudgetPeriod":"monthly"}},
+    {"type":"transaction","kind":"income","amount":1500000,"toAccount":"BCA","category":"Gaji","party":"Kantor","date":"2026-09-13T08:00:00.000","note":"Gaji"},
+    {"type":"transaction","kind":"expense","amount":75000,"fromAccount":"BCA","category":"Belanja","merchant":"Supermarket","tags":["bulanan"],"date":"2026-09-13T08:30:00.000","note":"Belanja dapur"},
+    {"type":"transaction","kind":"transfer","amount":200000,"fromAccount":"BCA","toAccount":"Dompet","adminFee":2500,"date":"2026-09-13T09:00:00.000","note":"Pindah dana"},
+    {"type":"activity","title":"Belanja mingguan","category":"Rumah","parentSessionId":"activity-parent-1","date":"2026-09-13T10:00:00.000","note":"Catat kebutuhan dapur"},
+    {"type":"daily_note","title":"Catatan hari ini","body":"Hari produktif.","noteDate":"2026-09-13T11:00:00.000"},
+    {"type":"reminder","title":"Bayar tagihan","scheduledAt":"2026-09-14","time":"07:30","recurrence":"once","soundUri":"default://bell","soundName":"Bell"},
+    {"type":"goal","title":"Dana Darurat","amount":5000000,"targetDate":"2027-01-01","note":"Cadangan"},
+    {"type":"goal_deposit","goal":"Dana Darurat","amount":100000,"fromAccount":"BCA","date":"2026-09-13"},
+    {"type":"goal_usage","goal":"Dana Darurat","amount":50000,"toAccount":"BCA","date":"2026-09-14"},
+    {"type":"budget","title":"Belanja","amount":1000000,"period":"monthly","categoryIds":["category-belanja"],"note":"Batas bulanan"},
+    {"type":"liability","title":"Pinjaman Bank","party":"Bank","amount":10000000,"monthlyInstallment":500000,"interestRate":5,"dueDate":"2027-01-01","note":"Kredit"},
+    {"type":"receivable","title":"Piutang Rafi","party":"Rafi","amount":300000,"dueDate":"2026-10-01","note":"Pinjaman"},
+    {"type":"liability_payment","targetId":"liability-1","amount":500000,"accountId":"account-bca","fromAccount":"BCA","date":"2026-09-15","note":"Cicilan"},
+    {"type":"receivable_payment","targetId":"receivable-1","amount":100000,"accountId":"account-bca","toAccount":"BCA","date":"2026-09-15","note":"Pelunasan"},
+    {"type":"cash_flow_profile","title":"Siklus Kebun","commodity":"Pepaya","initialCapital":1000000,"estimatedInflow":3000000,"dailyLivingBudget":50000,"dailyOperationalBudget":25000,"targetHarvestDate":"2026-12-01","cycleProfileType":"agriculture","note":"Musim tanam"},
+    {"type":"monitoring_job","preset":"budgetMonitor","cadence":"weekly","targetTimeMinutes":540,"targetDay":1,"categoryFilter":"Belanja","deliveryChannel":"inApp"}
+  ]
+}

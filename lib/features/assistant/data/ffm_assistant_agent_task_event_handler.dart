@@ -21,16 +21,29 @@ class FfmAssistantAgentTaskEventHandler {
   final FfmAssistantAgentPlanExecutor _executePlan;
 
   Future<void> handle(FfmAssistantAutonomyEvent event) async {
+    final taskId = event.payload['taskId'];
+    if (taskId is! String) throw StateError('Event taskId tidak valid.');
+    final task = await _repository.taskById(taskId);
+    if (task == null) {
+      // Task sudah tidak ada; keluar dengan aman
+      return;
+    }
+
+    // Hormati pembatalan, jeda, atau penyelesaian goal/task oleh user (F4.7)
+    final goal = await _repository.goalById(task.goalId);
+    if (goal == null ||
+        goal.status != FfmAssistantAgentGoalStatus.active.name ||
+        task.status == FfmAssistantAgentTaskStatus.cancelled.name ||
+        task.status == FfmAssistantAgentTaskStatus.completed.name) {
+      return;
+    }
+
     final plan = await _resolver.resolve(event);
     if (plan == null) {
       throw StateError(
         'Event task tidak dapat diubah menjadi plan yang valid.',
       );
     }
-    final taskId = event.payload['taskId'];
-    if (taskId is! String) throw StateError('Event taskId tidak valid.');
-    final task = await _repository.taskById(taskId);
-    if (task == null) throw StateError('Task tidak ditemukan.');
     final attempt = task.retryCount + 1;
     final executionId = '${plan.id}:attempt:$attempt';
     await _repository.recordTaskExecution(

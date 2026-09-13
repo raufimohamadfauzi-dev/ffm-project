@@ -65,6 +65,7 @@ void main() {
       updatedAt: zombieStarted,
     );
     await activityRepo.saveSession(zombieSession);
+    await tester.pump(const Duration(milliseconds: 350));
 
     await tester.pumpWidget(
       const MaterialApp(

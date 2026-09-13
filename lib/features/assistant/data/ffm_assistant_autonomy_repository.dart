@@ -7,6 +7,7 @@ import '../../../core/database/app_database.dart';
 import '../domain/ffm_assistant_action_plan.dart';
 import '../domain/ffm_assistant_autonomy_policy.dart';
 import '../domain/ffm_assistant_agent_work.dart';
+import '../domain/ffm_assistant_capabilities.dart';
 import '../domain/ffm_assistant_tool_execution.dart';
 
 enum FfmAssistantAutonomyEventStatus {
@@ -348,15 +349,36 @@ class FfmAssistantAutonomyRepository {
     String goalId,
     FfmAssistantAgentGoalStatus status,
   ) async {
+    final now = _now();
     final changed =
         await (_db.update(
           _db.assistantAgentGoals,
         )..where((row) => row.id.equals(goalId))).write(
           AssistantAgentGoalsCompanion(
             status: Value(status.name),
-            updatedAt: Value(_now()),
+            updatedAt: Value(now),
           ),
         );
+
+    // Hormati pembatalan: ketika goal dibatalkan, batalkan seluruh task terkait yang belum selesai (F4.7)
+    if (changed > 0 && status == FfmAssistantAgentGoalStatus.cancelled) {
+      await (_db.update(_db.assistantAgentTasks)
+            ..where((row) =>
+                row.goalId.equals(goalId) &
+                row.status.isIn([
+                  FfmAssistantAgentTaskStatus.pending.name,
+                  FfmAssistantAgentTaskStatus.waitingForData.name,
+                  FfmAssistantAgentTaskStatus.waitingForTime.name,
+                  FfmAssistantAgentTaskStatus.needsInput.name,
+                ])))
+          .write(
+        AssistantAgentTasksCompanion(
+          status: Value(FfmAssistantAgentTaskStatus.cancelled.name),
+          updatedAt: Value(now),
+        ),
+      );
+    }
+
     return changed > 0;
   }
 
@@ -435,6 +457,18 @@ class FfmAssistantAutonomyRepository {
         task.title.trim().isEmpty) {
       return null;
     }
+
+    // Task otonom wajib memakai capability terdaftar yang aman tanpa mutasi diam-diam (F4.6)
+    final capId = task.capabilityId?.trim();
+    if (capId != null && capId.isNotEmpty) {
+      final capability = FfmAssistantCapabilityRegistry.find(capId);
+      if (capability == null ||
+          capability.risk.index >= FfmAssistantCapabilityRisk.mutation.index ||
+          capability.requiresConfirmation) {
+        return null;
+      }
+    }
+
     final existingById = await (_db.select(
       _db.assistantAgentTasks,
     )..where((row) => row.id.equals(task.id))).getSingleOrNull();
@@ -489,6 +523,19 @@ class FfmAssistantAutonomyRepository {
           accepted.any((item) => item.id == task.id)) {
         continue;
       }
+
+      // Validasi capability hanya dari allowlist yang diizinkan (F4.6)
+      final capId = task.capabilityId?.trim();
+      if (capId != null && capId.isNotEmpty) {
+        final capability = FfmAssistantCapabilityRegistry.find(capId);
+        if (capability == null ||
+            capability.risk.index >=
+                FfmAssistantCapabilityRisk.mutation.index ||
+            capability.requiresConfirmation) {
+          continue;
+        }
+      }
+
       accepted.add(task);
     }
     if (accepted.isEmpty) return const [];
@@ -635,6 +682,12 @@ class FfmAssistantAutonomyRepository {
   Future<List<AssistantAgentTaskExecution>> executionsForTask(String taskId) =>
       (_db.select(_db.assistantAgentTaskExecutions)
             ..where((row) => row.taskId.equals(taskId))
+            ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
+          .get();
+
+  Future<List<AssistantAgentTaskExecution>> executionsForGoal(String goalId) =>
+      (_db.select(_db.assistantAgentTaskExecutions)
+            ..where((row) => row.goalId.equals(goalId))
             ..orderBy([(row) => OrderingTerm.desc(row.startedAt)]))
           .get();
 

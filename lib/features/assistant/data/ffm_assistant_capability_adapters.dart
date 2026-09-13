@@ -41,6 +41,8 @@ import '../../recurring_transaction/domain/usecases/recurring_transaction_crud_u
 import '../../reminder/data/repositories/reminder_repository.dart';
 import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/domain/usecases/transaction_crud_usecases.dart';
+import '../domain/ffm_assistant_reference_resolver.dart';
+import 'ffm_assistant_database_reference_resolver.dart';
 import 'telegram_delivery_repository.dart';
 import 'telegram_config_repository.dart';
 import 'ffm_assistant_autonomy_trigger_service.dart';
@@ -55,6 +57,7 @@ import 'ffm_assistant_financial_snapshot_service.dart';
 import 'ffm_assistant_autonomy_repository.dart';
 import 'ffm_assistant_monitoring_job_service.dart';
 import 'ffm_assistant_goal_evidence_evaluator.dart';
+import 'ffm_assistant_chat_history_repository.dart';
 import '../domain/ffm_assistant_monitoring_job.dart';
 
 class FfmAssistantCapabilityAdapterRegistry {
@@ -129,6 +132,12 @@ class FfmAssistantCapabilityAdapterRegistry {
   final AppThemeController? _themeController;
   final SaveTransaction _saveTransaction;
   final SaveMixedTransactionBatch _saveMixedTransactionBatch;
+
+  FfmAssistantDatabaseReferenceResolver get _references =>
+      FfmAssistantDatabaseReferenceResolver(
+        database: _database,
+        householdId: _householdId,
+      );
 
   Map<String, FfmAssistantCapabilityHandler> get handlers => {
     'read.summary': _readSummary,
@@ -228,7 +237,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'verify.debt_payment': _verifyDebtPayment,
     'verify.transaction_mutation': _verifyTransactionMutation,
     'verify.activity_mutation': _verifyActivityMutation,
-    'verify.daily_note_mutation': _verifyActivityMutation,
+    'verify.daily_note_mutation': _verifyDailyNoteMutation,
     'verify.task_mutation': _verifyActivityMutation,
     'verify.routine_mutation': _verifyActivityMutation,
     'verify.schedule_mutation': _verifyActivityMutation,
@@ -248,6 +257,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     'read.monitoring_jobs': _readMonitoringJobs,
     'read.monitoring_evaluation': _evaluateMonitoring,
     'read.goal_evidence_evaluation': _evaluateGoalEvidence,
+    'read.history_search': _searchChatHistory,
     'mutate.monitoring_job_save': _saveMonitoringJob,
     'mutate.monitoring_job_pause': _pauseMonitoringJob,
     'mutate.monitoring_job_resume': _resumeMonitoringJob,
@@ -299,8 +309,10 @@ class FfmAssistantCapabilityAdapterRegistry {
       preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
       now: _clock(),
     );
-    final report =
-        await _monitoringService.executeEvaluation(dummyJob, now: _clock());
+    final report = await _monitoringService.executeEvaluation(
+      dummyJob,
+      now: _clock(),
+    );
     return FfmAssistantCapabilityExecutionResult.success(report.content);
   }
 
@@ -324,18 +336,54 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
-    final reports =
-        await evaluator.evaluateAllGoals(_householdId, now: _clock());
+    final reports = await evaluator.evaluateAllGoals(
+      _householdId,
+      now: _clock(),
+    );
     if (reports.isEmpty) {
       return const FfmAssistantCapabilityExecutionResult.success(
         'Tidak ada target keuangan aktif yang dapat dievaluasi.',
       );
     }
     final buffer = StringBuffer()
-      ..writeln('Evaluasi Progres Target Keuangan Berdasarkan Arus Kas Riil:\n');
+      ..writeln(
+        'Evaluasi Progres Target Keuangan Berdasarkan Arus Kas Riil:\n',
+      );
     for (final r in reports) {
       buffer.writeln(r.toSummaryText());
       buffer.writeln('---');
+    }
+    return FfmAssistantCapabilityExecutionResult.success(
+      buffer.toString().trim(),
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _searchChatHistory(
+    FfmAssistantActionStep step,
+  ) async {
+    final query = step.parameters['query']?.toString() ?? '';
+    if (query.trim().isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kata kunci pencarian riwayat obrolan tidak boleh kosong.',
+      );
+    }
+    final historyRepo = FfmAssistantChatHistoryRepository();
+    final matches = await historyRepo.search(query: query);
+
+    if (matches.isEmpty) {
+      return FfmAssistantCapabilityExecutionResult.success(
+        'Tidak ditemukan riwayat obrolan yang menyebut "$query".',
+      );
+    }
+
+    final buffer = StringBuffer()
+      ..writeln('Riwayat Percakapan Terdahulu Terkait "$query":');
+    for (final m in matches.take(5)) {
+      final role = m.isUser ? 'User' : 'Asisten';
+      final snippet = m.text.length > 120
+          ? '${m.text.substring(0, 120)}...'
+          : m.text;
+      buffer.writeln('• [$role - ${m.conversationTitle}]: $snippet');
     }
     return FfmAssistantCapabilityExecutionResult.success(
       buffer.toString().trim(),
@@ -350,9 +398,10 @@ class FfmAssistantCapabilityAdapterRegistry {
     final cadenceName = step.parameters['cadence']?.toString() ?? 'weekly';
     final targetTimeMinutes =
         int.tryParse(step.parameters['targetTimeMinutes']?.toString() ?? '') ??
-            540;
-    final targetDay =
-        int.tryParse(step.parameters['targetDay']?.toString() ?? '');
+        540;
+    final targetDay = int.tryParse(
+      step.parameters['targetDay']?.toString() ?? '',
+    );
     final categoryFilter = step.parameters['categoryFilter']?.toString();
     final title = step.parameters['title']?.toString();
 
@@ -607,7 +656,8 @@ class FfmAssistantCapabilityAdapterRegistry {
       'routine' ||
       'schedule' ||
       'reminder' ||
-      'master_data' => false,
+      'master_data' ||
+      'masterData' => false,
       _ => true,
     };
 
@@ -968,17 +1018,29 @@ class FfmAssistantCapabilityAdapterRegistry {
       targetIdVal = item.id;
       targetNameVal = item.name;
     }
-    final result = await ProcessDebtPayment(_database).call(
-      householdId: _householdId,
-      targetId: targetIdVal,
-      targetName: targetNameVal,
-      isLiability: isLiability,
-      amount: amount,
-      date: date,
-      accountId: accountId == null || accountId.isEmpty ? null : accountId,
-      note: note,
-      recordCashTransaction: accountId != null && accountId.isNotEmpty,
-    );
+    final normalizedAccountId = accountId == null || accountId.isEmpty
+        ? null
+        : accountId;
+    final idempotencyKey = step.parameters['_idempotencyKey']?.toString();
+    late final int result;
+    try {
+      result = await ProcessDebtPayment(_database).call(
+        householdId: _householdId,
+        targetId: targetIdVal,
+        targetName: targetNameVal,
+        isLiability: isLiability,
+        amount: amount,
+        date: date,
+        accountId: normalizedAccountId,
+        note: note,
+        recordCashTransaction: normalizedAccountId != null,
+        idempotencyKey: idempotencyKey == null || idempotencyKey.isEmpty
+            ? null
+            : _stableId(idempotencyKey),
+      );
+    } on Object catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.toString());
+    }
     return FfmAssistantCapabilityExecutionResult.success(
       'Tersimpan satu kali: ${isLiability ? 'pembayaran hutang' : 'penerimaan piutang'} ${_money(amount)} untuk $targetNameVal. Saldo baru: ${_money(result)}.',
     );
@@ -1030,6 +1092,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     final source = entity == 'liability'
         ? 'liability_payment'
         : 'receivable_payment';
+    final expectedAmount = _positiveInt(step.parameters['amount']);
+    final expectedDate = _dateParameter(step.parameters['date']);
+    final expectedAccount = step.parameters['accountId']?.toString().trim();
     final tx =
         await (_database.select(_database.transactions)
               ..where(
@@ -1062,9 +1127,13 @@ class FfmAssistantCapabilityAdapterRegistry {
               'Verifikasi gagal: pembayaran tidak terlihat di transaksi atau target tidak valid.',
             );
     }
-    final expectedAmount = _positiveInt(step.parameters['amount']);
     final payloadMatches =
-        expectedAmount == null || tx.amount.abs() == expectedAmount;
+        (expectedAmount == null || tx.amount.abs() == expectedAmount) &&
+        (expectedDate == null || tx.date == expectedDate) &&
+        (expectedAccount == null ||
+            expectedAccount.isEmpty ||
+            tx.accountId == expectedAccount) &&
+        tx.sourceId == targetId;
     return payloadMatches
         ? FfmAssistantCapabilityExecutionResult.success(
             'verified: ${entity == 'liability' ? 'pembayaran hutang' : 'penerimaan piutang'} sudah dibaca kembali dari transaksi lokal.',
@@ -2188,8 +2257,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         final place = step.parameters['place']?.toString();
         final note = step.parameters['note']?.toString();
         final checkpoint = ActivityCheckpointEntity(
-          id:
-              'checkpoint-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
+          id: 'checkpoint-${now.microsecondsSinceEpoch}-${const Uuid().v4().substring(0, 8)}',
           sessionId: targetId,
           label: label,
           place: place,
@@ -2551,6 +2619,32 @@ class FfmAssistantCapabilityAdapterRegistry {
     return const FfmAssistantCapabilityExecutionResult.failure(
       'Jenis perubahan aktivitas tidak dikenal saat verifikasi.',
     );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _verifyDailyNoteMutation(
+    FfmAssistantActionStep step,
+  ) async {
+    final key = step.parameters['_idempotencyKey']?.toString();
+    if (key == null || key.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kunci verifikasi Catatan Harian belum ada.',
+      );
+    }
+    final note =
+        await (_database.select(_database.dailyNotes)..where(
+              (row) =>
+                  row.householdId.equals(_householdId) &
+                  row.id.equals(_stableId(key)) &
+                  row.isArchived.equals(false),
+            ))
+            .getSingleOrNull();
+    return note == null
+        ? const FfmAssistantCapabilityExecutionResult.failure(
+            'Verifikasi gagal: Catatan Harian belum ditemukan setelah simpan.',
+          )
+        : FfmAssistantCapabilityExecutionResult.success(
+            'verified: Catatan Harian berhasil dibaca kembali dari data lokal.',
+          );
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareAssetMutation(
@@ -3000,6 +3094,52 @@ class FfmAssistantCapabilityAdapterRegistry {
   ) async {
     final targetId = _targetId(step);
     final operation = step.parameters['operation']?.toString();
+    if (operation == null && targetId == null) {
+      final key = step.parameters['_idempotencyKey']?.toString();
+      if (key == null || key.isEmpty) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Kunci verifikasi pembuatan Anggaran belum ada.',
+        );
+      }
+      final budget =
+          await (_database.select(_database.envelopeBudgets)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(_stableId(key)),
+              ))
+              .getSingleOrNull();
+      final amount = _positiveInt(step.parameters['amount']);
+      final expectedCategoryIds = _budgetCategoryIds(step.parameters);
+      final expectedStart = _dateParameter(
+        step.parameters['startDate'] ?? step.parameters['date'],
+      );
+      final expectedEnd = _dateParameter(step.parameters['endDate']);
+      final expectedAlert =
+          _nonNegativeInt(step.parameters['alertPercent']) ?? 80;
+      final expectedRollover =
+          _nonNegativeInt(step.parameters['rollover']) ?? 0;
+      final expectedNote = step.parameters['note']?.toString().trim();
+      return budget != null &&
+              budget.householdId == _householdId &&
+              budget.name == step.parameters['title']?.toString().trim() &&
+              budget.allocated == amount &&
+              budget.periodType ==
+                  (step.parameters['periodType']?.toString() ?? 'monthly') &&
+              (expectedCategoryIds == null ||
+                  budget.categoryIdsJson == jsonEncode(expectedCategoryIds)) &&
+              (expectedStart == null || budget.startDate == expectedStart) &&
+              (expectedEnd == null || budget.endDate == expectedEnd) &&
+              budget.alertPercent == expectedAlert &&
+              budget.rollover == expectedRollover &&
+              (expectedNote == null ||
+                  budget.note == (expectedNote.isEmpty ? null : expectedNote))
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: Anggaran baru berhasil dibaca kembali dari data lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: Anggaran baru belum sesuai draft.',
+            );
+    }
     if (targetId == null || (operation != 'update' && operation != 'archive')) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Payload verifikasi Anggaran tidak lengkap.',
@@ -3064,6 +3204,21 @@ class FfmAssistantCapabilityAdapterRegistry {
         : const FfmAssistantCapabilityExecutionResult.failure(
             'Verifikasi gagal: arsip Anggaran belum sesuai kontrak.',
           );
+  }
+
+  List<String>? _budgetCategoryIds(Map<String, Object?> parameters) {
+    final raw = parameters['categoryIdsJson'];
+    if (raw is! String || raw.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return null;
+      return decoded
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false);
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<FfmAssistantCapabilityExecutionResult> _prepareGoalMutation(
@@ -3176,8 +3331,69 @@ class FfmAssistantCapabilityAdapterRegistry {
   Future<FfmAssistantCapabilityExecutionResult> _verifyGoalMutation(
     FfmAssistantActionStep step,
   ) async {
-    final targetId = _targetId(step);
     final operation = step.parameters['operation']?.toString();
+    final kind = step.parameters['kind']?.toString();
+    final key = step.parameters['_idempotencyKey']?.toString();
+    final targetId =
+        _targetId(step) ??
+        (kind == 'goal' && key != null ? _stableId(key) : null);
+    if (kind == 'goal_deposit' || kind == 'goal_usage') {
+      final transactionId = _stableId(
+        step.parameters['_idempotencyKey']?.toString() ?? '',
+      );
+      final transaction =
+          await (_database.select(_database.transactions)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(transactionId),
+              ))
+              .getSingleOrNull();
+      final goalId = step.parameters['goalId']?.toString();
+      final accountId = step.parameters['accountId']?.toString();
+      final amount = _positiveInt(step.parameters['amount']);
+      final date = _dateParameter(step.parameters['date']);
+      final expectedSource = kind == 'goal_deposit'
+          ? 'goal_contribution'
+          : 'goal_usage';
+      final valid =
+          transaction != null &&
+          amount != null &&
+          transaction.amount == -amount &&
+          transaction.source == expectedSource &&
+          (goalId == null || transaction.goalId == goalId) &&
+          (accountId == null || transaction.accountId == accountId) &&
+          (date == null || transaction.date == date);
+      return valid
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: transaksi target, rekening, tanggal, dan nominal terbaca kembali dari database.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: transaksi target tidak sesuai dengan draft.',
+            );
+    }
+    if (kind == 'goal') {
+      final goal = targetId == null
+          ? null
+          : await GetGoal(_database)(_householdId, targetId);
+      final amount = _positiveInt(step.parameters['amount']);
+      final date = _dateParameter(step.parameters['date']);
+      final categoryId = step.parameters['categoryId']?.toString();
+      final note = step.parameters['note']?.toString().trim();
+      final valid =
+          goal != null &&
+          goal.name == step.parameters['title']?.toString().trim() &&
+          goal.targetAmount == amount &&
+          goal.targetDate == date &&
+          (categoryId == null || goal.categoryId == categoryId) &&
+          (note == null || goal.note == (note.isEmpty ? null : note));
+      return valid
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: target, nominal, batas waktu, dan kategori terbaca kembali dari database.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: target baru tidak sesuai dengan draft.',
+            );
+    }
     if (targetId == null || operation == null) {
       return const FfmAssistantCapabilityExecutionResult.failure(
         'Payload verifikasi perubahan target tidak lengkap.',
@@ -3308,12 +3524,14 @@ class FfmAssistantCapabilityAdapterRegistry {
     if (kind == 'transfer') return _saveTransfer(step, idempotencyKey);
     if (kind == 'profile') return _saveProfile(step, idempotencyKey);
     if (kind == 'activity') return _saveActivity(step, idempotencyKey);
-    if (kind == 'dailyNote') return _saveActivity(step, idempotencyKey);
+    if (kind == 'dailyNote') return _saveDailyNote(step, idempotencyKey);
     if (kind == 'task') return _saveActivity(step, idempotencyKey);
     if (kind == 'routine') return _saveActivity(step, idempotencyKey);
     if (kind == 'schedule') return _saveActivity(step, idempotencyKey);
     if (kind == 'reminder') return _saveReminder(step, idempotencyKey);
-    if (kind == 'master_data') return _saveMasterData(step, idempotencyKey);
+    if (kind == 'master_data' || kind == 'masterData') {
+      return _saveMasterData(step, idempotencyKey);
+    }
     if (kind == 'goal') return _saveGoal(step, idempotencyKey);
     if (kind == 'asset') return _saveAsset(step, idempotencyKey);
     if (kind == 'liability') return _saveLiability(step, idempotencyKey);
@@ -3325,9 +3543,7 @@ class FfmAssistantCapabilityAdapterRegistry {
       return _saveCashFlowProfile(step, idempotencyKey);
     }
     if (kind == 'budget') {
-      return const FfmAssistantCapabilityExecutionResult.failure(
-        'Pembuatan Anggaran oleh Agent tidak diizinkan. Buat pos Anggaran secara manual, atau ubah batas satu pos yang sudah ada melalui draft khusus.',
-      );
+      return _saveBudget(step, idempotencyKey);
     }
     if (kind == 'goal_deposit') {
       return _saveGoalTransaction(step, idempotencyKey, isDeposit: true);
@@ -3368,19 +3584,6 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final id = _stableId(idempotencyKey);
-    final previous = await GetTransaction(_database)(_householdId, id);
-    if (previous != null) {
-      final expectedAmount = kind == 'income' ? amount : -amount;
-      if (previous.transaction.amount == expectedAmount &&
-          previous.transaction.accountId == account.id) {
-        return FfmAssistantCapabilityExecutionResult.success(
-          'alreadyApplied: transaksi ${kind == 'income' ? 'pemasukan' : 'pengeluaran'} sudah tersimpan.',
-        );
-      }
-      return const FfmAssistantCapabilityExecutionResult.failure(
-        'Idempotency key sudah dipakai oleh transaksi dengan isi berbeda.',
-      );
-    }
     // merchantName = nama merchant untuk lookup dan transaksi. Didukung dari
     // tiga sumber: field eksplisit 'merchant'/'merchantName', atau field
     // metadata learning 'assistantMerchantName' (diisi oleh planner).
@@ -3393,7 +3596,12 @@ class FfmAssistantCapabilityAdapterRegistry {
         step.parameters['assistantMerchantName']?.toString().trim();
     final merchant = await _findMerchant(merchantName);
     final newMerchantName = _singleName(step.parameters['newMerchant']);
-    if (merchant != null && newMerchantName != null) {
+    final generatedMerchantId = newMerchantName == null
+        ? null
+        : _stableId('$idempotencyKey:merchant:$newMerchantName');
+    if (merchant != null &&
+        newMerchantName != null &&
+        merchant.id != generatedMerchantId) {
       return FfmAssistantCapabilityExecutionResult.failure(
         'Toko sudah ada; draft tidak perlu membuat toko baru.',
       );
@@ -3408,19 +3616,45 @@ class FfmAssistantCapabilityAdapterRegistry {
         );
       }
     }
-    // Jika merchant == null dan newMerchantName == null:
-    // merchantName hanya dipakai sebagai metadata learning, tidak membatalkan save.
+    // assistantMerchantName may be an unresolved learning hint. Only an
+    // existing merchant or an explicitly approved newMerchant becomes an FK.
     final tagNames = _csvValues(step.parameters['tags']);
-    final tags = await _findTags(tagNames);
-    final existingTagNames = tags.map((tag) => tag.name as String).toSet();
-    final missingTagNames = tagNames
-        .where((name) => !existingTagNames.contains(name))
-        .toSet();
+    final existingTags = await _findTags(tagNames);
+    final tags = <dynamic>[];
+    final missingTagNames = <String>{};
     final newTagNames = _csvValues(step.parameters['newTags']).toSet();
-    if (!_sameNames(missingTagNames, newTagNames)) {
-      return FfmAssistantCapabilityExecutionResult.failure(
-        'Tag baru pada draft harus sama persis dengan tag transaksi yang belum ada.',
+    if (!tagNames.toSet().containsAll(newTagNames)) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag baru harus termasuk dalam daftar tag transaksi.',
       );
+    }
+    for (final tagName in tagNames) {
+      final resolution = FfmAssistantReferenceResolver.resolve(
+        tagName,
+        existingTags,
+        (tag) => tag.name as String,
+      );
+      if (resolution.status == FfmAssistantReferenceStatus.ambiguous) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Tag "$tagName" ambigu: ditemukan lebih dari satu tag dengan nama yang sama.',
+        );
+      }
+      if (resolution.isResolved) {
+        if (newTagNames.contains(tagName) &&
+            resolution.value.id != _stableId('$idempotencyKey:tag:$tagName')) {
+          return FfmAssistantCapabilityExecutionResult.failure(
+            'Tag "$tagName" sudah ada; draft tidak perlu membuat tag baru.',
+          );
+        }
+        tags.add(resolution.value);
+      } else {
+        if (!newTagNames.contains(tagName)) {
+          return FfmAssistantCapabilityExecutionResult.failure(
+            'Tag "$tagName" tidak ditemukan. Tandai sebagai tag baru untuk membuatnya.',
+          );
+        }
+        missingTagNames.add(tagName);
+      }
     }
     final date = _dateParameter(step.parameters['date']) ?? _clock();
     final note = step.parameters['note']?.toString().trim();
@@ -3445,79 +3679,154 @@ class FfmAssistantCapabilityAdapterRegistry {
       step.parameters['itemsJson'],
       idempotencyKey,
     );
-    String? merchantId = merchant?.id;
-    final tagIds = <String>{for (final tag in tags) tag.id};
-    await _database.transaction(() async {
-      if (newMerchantName != null) {
-        merchantId = _stableId('$idempotencyKey:merchant:$newMerchantName');
-        await _database
-            .into(_database.merchants)
-            .insert(
-              MerchantsCompanion.insert(
-                id: merchantId!,
-                householdId: _householdId,
-                name: newMerchantName,
-                createdAt: _clock(),
-              ),
-            );
-      }
-      for (final tagName in missingTagNames) {
-        final tagId = _stableId('$idempotencyKey:tag:$tagName');
-        await _database
-            .into(_database.tags)
-            .insert(
-              TagsCompanion.insert(
-                id: tagId,
-                householdId: _householdId,
-                name: tagName,
-                createdAt: _clock(),
-              ),
-            );
-        tagIds.add(tagId);
-      }
-      final entity = TransactionEntity(
-        id: id,
-        householdId: _householdId,
-        date: date,
-        amount: kind == 'income' ? amount : -amount,
-        owner: 'Keluarga',
-        categoryId: category?.id,
-        note: note == null || note.isEmpty ? null : note,
-        source: 'assistant_orchestrator',
-        accountId: account.id,
-        merchantId: merchantId,
-        location: location == null || location.isEmpty ? null : location,
-        partyName: party == null || party.isEmpty ? null : party,
-        receiptRawText: receiptRawText == null || receiptRawText.isEmpty
-            ? null
-            : receiptRawText,
-        receiptNumber: receiptNumber == null || receiptNumber.isEmpty
-            ? null
-            : receiptNumber,
-        receiptPaidAmount: receiptPaidAmount,
-        receiptChangeAmount: receiptChangeAmount,
-        linkedActivityId: linkedActivityId,
-        recordedAt: _clock(),
-        updatedAt: _clock(),
+    if (items == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Rincian item struk tidak valid. Periksa nama, harga, dan jumlah item.',
       );
-      await _saveTransaction(entity, items: items);
-      await (_database.delete(
-        _database.transactionTags,
-      )..where((row) => row.transactionId.equals(id))).go();
-      for (final tagId in tagIds) {
-        await _database
-            .into(_database.transactionTags)
-            .insert(
-              TransactionTagsCompanion.insert(transactionId: id, tagId: tagId),
+    }
+    final receiptIssue = _validateReceiptTotals(
+      amount: amount,
+      items: items,
+      tax: _nonNegativeInt(step.parameters['tax']),
+      discount: _nonNegativeInt(step.parameters['discount']),
+      paidAmount: _nonNegativeInt(step.parameters['receiptPaidAmount']),
+      changeAmount: _nonNegativeInt(step.parameters['receiptChangeAmount']),
+    );
+    if (receiptIssue != null) {
+      return FfmAssistantCapabilityExecutionResult.failure(receiptIssue);
+    }
+    final attachmentPaths = _attachmentPaths(
+      step.parameters['attachmentPathsJson'],
+    );
+    if (attachmentPaths == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Daftar attachment tidak valid. Semua path harus berupa teks non-kosong.',
+      );
+    }
+    String? merchantId = merchant?.id ?? generatedMerchantId;
+    final tagIds = <String>{for (final tag in tags) tag.id};
+    tagIds.addAll(
+      missingTagNames.map((name) => _stableId('$idempotencyKey:tag:$name')),
+    );
+    final previous = await GetTransaction(_database)(_householdId, id);
+    if (previous != null) {
+      final matches = await _transactionMatchesDraft(
+        step: step,
+        kind: kind,
+        transaction: previous,
+        accountId: account.id,
+        categoryId: category?.id,
+        merchantId: merchantId,
+        tagIds: tagIds,
+        items: items,
+        attachmentPaths: attachmentPaths,
+      );
+      return matches
+          ? FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: transaksi ${kind == 'income' ? 'pemasukan' : 'pengeluaran'} sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh transaksi dengan isi berbeda.',
             );
-      }
+    }
+    try {
+      await _database.transaction(() async {
+        if (newMerchantName != null) {
+          merchantId = generatedMerchantId;
+          await _database
+              .into(_database.merchants)
+              .insert(
+                MerchantsCompanion.insert(
+                  id: merchantId!,
+                  householdId: _householdId,
+                  name: newMerchantName,
+                  createdAt: _clock(),
+                ),
+              );
+        }
+        for (final tagName in missingTagNames) {
+          final tagId = _stableId('$idempotencyKey:tag:$tagName');
+          await _database
+              .into(_database.tags)
+              .insert(
+                TagsCompanion.insert(
+                  id: tagId,
+                  householdId: _householdId,
+                  name: tagName,
+                  createdAt: _clock(),
+                ),
+              );
+          tagIds.add(tagId);
+        }
+        final entity = TransactionEntity(
+          id: id,
+          householdId: _householdId,
+          date: date,
+          amount: kind == 'income' ? amount : -amount,
+          owner: 'Keluarga',
+          categoryId: category?.id,
+          note: note == null || note.isEmpty ? null : note,
+          source:
+              step.parameters['source']?.toString().trim().isNotEmpty == true
+              ? step.parameters['source']!.toString().trim()
+              : 'assistant_orchestrator',
+          sourceId: step.parameters['sourceId']?.toString(),
+          recurringTransactionId: step.parameters['recurringTransactionId']
+              ?.toString(),
+          accountId: account.id,
+          merchantId: merchantId,
+          location: location == null || location.isEmpty ? null : location,
+          partyName: party == null || party.isEmpty ? null : party,
+          receiptRawText: receiptRawText == null || receiptRawText.isEmpty
+              ? null
+              : receiptRawText,
+          receiptNumber: receiptNumber == null || receiptNumber.isEmpty
+              ? null
+              : receiptNumber,
+          receiptPaidAmount: receiptPaidAmount,
+          receiptChangeAmount: receiptChangeAmount,
+          tax: _nonNegativeInt(step.parameters['tax']),
+          discount: _nonNegativeInt(step.parameters['discount']),
+          linkedActivityId: linkedActivityId,
+          recordedAt: _clock(),
+          updatedAt: _clock(),
+        );
+        await _saveTransaction(entity, items: items);
+        await (_database.delete(
+          _database.transactionTags,
+        )..where((row) => row.transactionId.equals(id))).go();
+        for (final tagId in tagIds) {
+          await _database
+              .into(_database.transactionTags)
+              .insert(
+                TransactionTagsCompanion.insert(
+                  transactionId: id,
+                  tagId: tagId,
+                ),
+              );
+        }
+        for (var index = 0; index < attachmentPaths.length; index++) {
+          await _database
+              .into(_database.attachments)
+              .insert(
+                AttachmentsCompanion.insert(
+                  id: _stableId('$idempotencyKey:attachment:$index'),
+                  transactionId: Value(id),
+                  path: attachmentPaths[index],
+                  createdAt: _clock(),
+                ),
+              );
+        }
 
-      // Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
-      await _executeUtilityProposal(step.parameters, transactionId: id);
+        // Eksekusi proposal utility meter (PLN) setelah transaksi berhasil disimpan
+        await _executeUtilityProposal(step.parameters, transactionId: id);
 
-      // Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
-      await _executeFuelProposal(step.parameters);
-    });
+        // Eksekusi proposal fuel log (BBM) setelah transaksi berhasil disimpan
+        await _executeFuelProposal(step.parameters);
+      });
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
     await _recordDraftCorrections(
       parameters: step.parameters,
       finalCategory: categoryName,
@@ -3808,6 +4117,27 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final transferId = _stableId(idempotencyKey);
+    final fee = _nonNegativeInt(step.parameters['adminFee']);
+    if (step.parameters['adminFee'] != null && fee == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Biaya admin tidak boleh negatif atau tidak valid.',
+      );
+    }
+    final effectiveFee = fee ?? 0;
+    final now = _clock();
+    final date = _dateParameter(step.parameters['date']) ?? now;
+    final note = _nullableText(step.parameters['note']);
+    final source =
+        _nullableText(step.parameters['source']) ?? 'assistant_orchestrator';
+    final feeId = effectiveFee > 0 ? '$transferId-fee' : null;
+    final feeCategory = effectiveFee > 0
+        ? await _findCategory('Biaya admin', 'expense')
+        : null;
+    if (effectiveFee > 0 && feeCategory == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori Biaya admin belum tersedia.',
+      );
+    }
     final existing =
         await (_database.select(_database.transfers)..where(
               (row) =>
@@ -3816,9 +4146,33 @@ class FfmAssistantCapabilityAdapterRegistry {
             ))
             .getSingleOrNull();
     if (existing != null) {
-      if (existing.amount == amount &&
+      final feeTransaction = feeId == null
+          ? null
+          : await (_database.select(_database.transactions)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.id.equals(feeId),
+                ))
+                .getSingleOrNull();
+      final matches =
+          existing.amount == amount &&
           existing.fromAccountId == from.id &&
-          existing.toAccountId == to.id) {
+          existing.toAccountId == to.id &&
+          existing.adminFee == effectiveFee &&
+          existing.date == date &&
+          existing.note == note &&
+          existing.source == source &&
+          existing.feeTransactionId == feeId &&
+          (effectiveFee == 0 ||
+              feeTransaction != null &&
+                  feeTransaction.amount == -effectiveFee &&
+                  feeTransaction.accountId == from.id &&
+                  feeTransaction.categoryId == feeCategory.id &&
+                  feeTransaction.date == date &&
+                  feeTransaction.note ==
+                      'Biaya admin transfer ${from.name} ke ${to.name}' &&
+                  feeTransaction.source == 'transfer_fee');
+      if (matches) {
         return const FfmAssistantCapabilityExecutionResult.success(
           'alreadyApplied: transfer sudah tersimpan.',
         );
@@ -3827,39 +4181,38 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Idempotency key sudah dipakai oleh transfer dengan isi berbeda.',
       );
     }
-    final fee = _positiveInt(step.parameters['adminFee']) ?? 0;
-    final now = _clock();
-    final feeId = fee > 0 ? '$transferId-fee' : null;
-    final feeCategory = fee > 0
-        ? await _findCategory('Biaya admin', 'expense')
-        : null;
-    if (fee > 0 && feeCategory == null) {
-      return const FfmAssistantCapabilityExecutionResult.failure(
-        'Kategori Biaya admin belum tersedia.',
+    final balance = await GetAccountBookBalance(_database)(
+      _householdId,
+      from.id,
+      asOf: date,
+    );
+    if (balance < amount + effectiveFee) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Saldo ${from.name} tidak mencukupi untuk transfer dan biaya admin.',
       );
     }
     final transfer = TransferEntity(
       id: transferId,
       householdId: _householdId,
-      date: _dateParameter(step.parameters['date']) ?? now,
+      date: date,
       recordedAt: now,
       amount: amount,
-      adminFee: fee,
+      adminFee: effectiveFee,
       feeTransactionId: feeId,
       fromAccountId: from.id,
       toAccountId: to.id,
-      note: step.parameters['note']?.toString().trim(),
-      source: 'assistant_orchestrator',
+      note: note,
+      source: source,
       updatedAt: now,
     );
     final entities = <TransactionEntity>[];
-    if (fee > 0) {
+    if (effectiveFee > 0) {
       entities.add(
         TransactionEntity(
           id: feeId!,
           householdId: _householdId,
           date: transfer.date,
-          amount: -fee,
+          amount: -effectiveFee,
           owner: 'Keluarga',
           categoryId: feeCategory!.id,
           note: 'Biaya admin transfer ${from.name} ke ${to.name}',
@@ -3898,9 +4251,55 @@ class FfmAssistantCapabilityAdapterRegistry {
                     row.householdId.equals(_householdId) & row.id.equals(id),
               ))
               .getSingleOrNull();
-      return transfer == null
+      final expectedAmount = _positiveInt(step.parameters['amount']);
+      final expectedFee = _nonNegativeInt(step.parameters['adminFee']) ?? 0;
+      final expectedDate = _dateParameter(step.parameters['date']);
+      final expectedFrom = await _findAccount(
+        step.parameters['fromAccount']?.toString().trim(),
+      );
+      final expectedTo = await _findAccount(
+        step.parameters['toAccount']?.toString().trim(),
+      );
+      final expectedSource =
+          _nullableText(step.parameters['source']) ?? 'assistant_orchestrator';
+      final expectedNote = _nullableText(step.parameters['note']);
+      final expectedFeeCategory = expectedFee == 0
+          ? null
+          : await _findCategory('Biaya admin', 'expense');
+      final feeTransaction = transfer?.feeTransactionId == null
+          ? null
+          : await (_database.select(_database.transactions)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.id.equals(transfer!.feeTransactionId!),
+                ))
+                .getSingleOrNull();
+      final matches =
+          transfer != null &&
+          expectedAmount != null &&
+          expectedFrom != null &&
+          expectedTo != null &&
+          transfer.amount == expectedAmount &&
+          transfer.fromAccountId == expectedFrom.id &&
+          transfer.toAccountId == expectedTo.id &&
+          transfer.adminFee == expectedFee &&
+          transfer.note == expectedNote &&
+          transfer.source == expectedSource &&
+          (expectedDate == null || transfer.date == expectedDate) &&
+          (expectedFee == 0
+              ? transfer.feeTransactionId == null
+              : feeTransaction != null &&
+                    expectedFeeCategory != null &&
+                    feeTransaction.amount == -expectedFee &&
+                    feeTransaction.accountId == expectedFrom.id &&
+                    feeTransaction.categoryId == expectedFeeCategory.id &&
+                    feeTransaction.date == transfer.date &&
+                    feeTransaction.note ==
+                        'Biaya admin transfer ${expectedFrom.name} ke ${expectedTo.name}' &&
+                    feeTransaction.source == 'transfer_fee');
+      return !matches
           ? const FfmAssistantCapabilityExecutionResult.failure(
-              'Transfer belum ditemukan saat verifikasi.',
+              'Verifikasi gagal: transfer belum ditemukan atau field-nya berbeda.',
             )
           : FfmAssistantCapabilityExecutionResult.success(
               'verified: transfer ${transfer.amount} berhasil dibaca kembali dari database lokal.',
@@ -3943,7 +4342,7 @@ class FfmAssistantCapabilityAdapterRegistry {
         kind == 'agrotrack') {
       return _verifyCashFlowProfileSaved(id);
     }
-    if (kind == 'master_data') {
+    if (kind == 'master_data' || kind == 'masterData') {
       return _verifyMasterDataSaved(step, id);
     }
     if (kind == 'goal') {
@@ -4022,9 +4421,60 @@ class FfmAssistantCapabilityAdapterRegistry {
             );
     }
     final transaction = await GetTransaction(_database)(_householdId, id);
-    return transaction == null
+    if (transaction == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: transaksi hasil draft belum ditemukan di data lokal.',
+      );
+    }
+    if (kind != 'income' && kind != 'expense') {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: jenis transaksi hasil draft tidak didukung.',
+      );
+    }
+    final account = await _findAccount(
+      (kind == 'income'
+              ? step.parameters['toAccount']
+              : step.parameters['fromAccount'])
+          ?.toString()
+          .trim(),
+    );
+    final categoryName = step.parameters['category']?.toString().trim();
+    final category = await _findCategory(categoryName, kind);
+    final merchantName =
+        step.parameters['merchant']?.toString().trim() ??
+        step.parameters['merchantName']?.toString().trim() ??
+        step.parameters['assistantMerchantName']?.toString().trim();
+    final merchant = await _findMerchant(merchantName);
+    final tagNames = _csvValues(step.parameters['tags']);
+    final tags = await _findTags(tagNames);
+    final items = _transactionItemsFromJson(step.parameters['itemsJson'], key);
+    final attachmentPaths = _attachmentPaths(
+      step.parameters['attachmentPathsJson'],
+    );
+    if (account == null ||
+        categoryName != null && categoryName.isNotEmpty && category == null ||
+        step.parameters['newMerchant'] != null && merchant == null ||
+        tags.length != tagNames.length ||
+        items == null ||
+        attachmentPaths == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Verifikasi gagal: referensi atau relasi draft tidak dapat di-resolve ulang.',
+      );
+    }
+    final matches = await _transactionMatchesDraft(
+      step: step,
+      kind: kind,
+      transaction: transaction,
+      accountId: account.id,
+      categoryId: category?.id,
+      merchantId: merchant?.id,
+      tagIds: tags.map<String>((tag) => tag.id as String).toSet(),
+      items: items,
+      attachmentPaths: attachmentPaths,
+    );
+    return !matches
         ? const FfmAssistantCapabilityExecutionResult.failure(
-            'Verifikasi gagal: transaksi hasil draft belum ditemukan di data lokal.',
+            'Verifikasi gagal: transaksi terbaca tetapi field canonical berbeda.',
           )
         : FfmAssistantCapabilityExecutionResult.success(
             'verified: transaksi ${transaction.transaction.amount} berhasil dibaca kembali dari database lokal.',
@@ -4107,7 +4557,35 @@ class FfmAssistantCapabilityAdapterRegistry {
               'verified: toko "${merchant.name}" berhasil dibaca kembali dari data lokal.',
             );
     }
-    if (category == 'kategori' || category == 'sumber_pemasukan') {
+    if (category == 'sumber_pemasukan') {
+      final source =
+          await (_database.select(_database.transactionParties)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (operation == 'delete') {
+        return source == null
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'verified: sumber pemasukan sudah tidak ditemukan di database lokal.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Verifikasi gagal: sumber pemasukan masih ditemukan setelah penghapusan.',
+              );
+      }
+      return source != null &&
+              !source.isArchived &&
+              source.name == step.parameters['title']?.toString().trim() &&
+              source.kind == IncomeSourceRepository.kind &&
+              source.role == IncomeSourceRepository.role
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'verified: sumber pemasukan canonical berhasil dibaca kembali dari database lokal.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Verifikasi gagal: sumber pemasukan belum sesuai row canonical.',
+            );
+    }
+    if (category == 'kategori') {
       final cat =
           await (_database.select(_database.categories)..where(
                 (row) =>
@@ -4161,44 +4639,15 @@ class FfmAssistantCapabilityAdapterRegistry {
   }
 
   Future<dynamic> _findAccount(String? name) async {
-    if (name == null || name.isEmpty) return null;
-    final rows =
-        await (_database.select(_database.accounts)..where(
-              (row) =>
-                  row.householdId.equals(_householdId) &
-                  row.isActive.equals(true) &
-                  row.isArchived.equals(false) &
-                  row.name.equals(name),
-            ))
-            .get();
-    return rows.length == 1 ? rows.single : null;
+    return (await _references.account(name)).value;
   }
 
   Future<dynamic> _findCategory(String? name, String type) async {
-    if (name == null || name.isEmpty) return null;
-    final rows =
-        await (_database.select(_database.categories)..where(
-              (row) =>
-                  row.householdId.equals(_householdId) &
-                  row.isActive.equals(true) &
-                  row.name.equals(name) &
-                  row.type.equals(type),
-            ))
-            .get();
-    return rows.length == 1 ? rows.single : null;
+    return (await _references.category(name, type: type)).value;
   }
 
   Future<dynamic> _findMerchant(String? name) async {
-    if (name == null || name.isEmpty) return null;
-    final rows =
-        await (_database.select(_database.merchants)..where(
-              (row) =>
-                  row.householdId.equals(_householdId) &
-                  row.isActive.equals(true) &
-                  row.name.equals(name),
-            ))
-            .get();
-    return rows.length == 1 ? rows.single : null;
+    return (await _references.merchant(name)).value;
   }
 
   Future<List<dynamic>> _findTags(List<String> names) async {
@@ -4207,11 +4656,13 @@ class FfmAssistantCapabilityAdapterRegistry {
         await (_database.select(_database.tags)..where(
               (row) =>
                   row.householdId.equals(_householdId) &
-                  row.isArchived.equals(false) &
-                  row.name.isIn(names),
+                  row.isArchived.equals(false),
             ))
             .get();
-    return rows;
+    final wanted = names.map((name) => name.toLowerCase()).toSet();
+    return rows
+        .where((row) => wanted.contains(row.name.toLowerCase()))
+        .toList(growable: false);
   }
 
   List<String> _csvValues(Object? value) {
@@ -4232,6 +4683,14 @@ class FfmAssistantCapabilityAdapterRegistry {
   bool _sameNames(Set<String> left, Set<String> right) =>
       left.length == right.length && left.containsAll(right);
 
+  bool _sameIntList(List<int> left, List<int> right) {
+    if (left.length != right.length) return false;
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) return false;
+    }
+    return true;
+  }
+
   int? _positiveInt(Object? value) {
     if (value is int) return value;
     if (value is num) return value.round();
@@ -4246,29 +4705,147 @@ class FfmAssistantCapabilityAdapterRegistry {
     return parsed == null || parsed < 0 ? null : parsed;
   }
 
+  List<String>? _attachmentPaths(Object? value) {
+    if (value == null) return const [];
+    if (value is! String || value.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(value);
+      if (decoded is! List || decoded.length > 20) return null;
+      final paths = <String>[];
+      for (final entry in decoded) {
+        if (entry is! String || entry.trim().isEmpty) return null;
+        paths.add(entry.trim());
+      }
+      return paths;
+    } on Object {
+      return null;
+    }
+  }
+
+  String? _nullableText(Object? value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  Future<bool> _transactionMatchesDraft({
+    required FfmAssistantActionStep step,
+    required String kind,
+    required dynamic transaction,
+    required String accountId,
+    required String? categoryId,
+    required String? merchantId,
+    required Set<String> tagIds,
+    required List<TransactionItemEntity> items,
+    required List<String> attachmentPaths,
+  }) async {
+    final row = transaction.transaction;
+    final amount = _positiveInt(step.parameters['amount']);
+    if (amount == null) return false;
+    final expectedAmount = kind == 'income' ? amount : -amount;
+    final expectedDate = _dateParameter(step.parameters['date']);
+    final expectedSource =
+        _nullableText(step.parameters['source']) ?? 'assistant_orchestrator';
+    final party =
+        _nullableText(step.parameters['party']) ??
+        _nullableText(step.parameters['incomeSource']) ??
+        _nullableText(step.parameters['partyName']);
+    if (row.type != kind ||
+        row.amount != expectedAmount ||
+        row.accountId != accountId ||
+        row.categoryId != categoryId ||
+        row.merchantId != merchantId ||
+        expectedDate != null && row.date != expectedDate ||
+        row.note != _nullableText(step.parameters['note']) ||
+        row.source != expectedSource ||
+        row.sourceId != _nullableText(step.parameters['sourceId']) ||
+        row.recurringTransactionId !=
+            _nullableText(step.parameters['recurringTransactionId']) ||
+        row.linkedActivityId !=
+            _nullableText(step.parameters['linkedActivityId']) ||
+        row.location != _nullableText(step.parameters['location']) ||
+        row.partyName != party ||
+        row.receiptRawText !=
+            _nullableText(step.parameters['receiptRawText']) ||
+        row.receiptNumber != _nullableText(step.parameters['receiptNumber']) ||
+        row.receiptPaidAmount !=
+            _nonNegativeInt(step.parameters['receiptPaidAmount']) ||
+        row.receiptChangeAmount !=
+            _nonNegativeInt(step.parameters['receiptChangeAmount']) ||
+        row.tax != _nonNegativeInt(step.parameters['tax']) ||
+        row.discount != _nonNegativeInt(step.parameters['discount'])) {
+      return false;
+    }
+
+    final persistedItems = transaction.items as List<TransactionItem>;
+    if (persistedItems.length != items.length) return false;
+    final expectedItems = {
+      for (final item in items)
+        item.id:
+            '${item.itemName}|${item.price}|${item.qty}|${(item.price * item.qty).round()}',
+    };
+    for (final item in persistedItems) {
+      if (expectedItems[item.id] !=
+          '${item.itemName}|${item.price}|${item.qty}|${item.amount}') {
+        return false;
+      }
+    }
+
+    final persistedTags = await (_database.select(
+      _database.transactionTags,
+    )..where((link) => link.transactionId.equals(row.id))).get();
+    if (!_sameNames(persistedTags.map((link) => link.tagId).toSet(), tagIds)) {
+      return false;
+    }
+    final persistedAttachments = await (_database.select(
+      _database.attachments,
+    )..where((attachment) => attachment.transactionId.equals(row.id))).get();
+    if (persistedAttachments.length != attachmentPaths.length) return false;
+    for (var index = 0; index < attachmentPaths.length; index++) {
+      final expectedId = _stableId(
+        '${step.parameters['_idempotencyKey']}:attachment:$index',
+      );
+      final matches = persistedAttachments.any(
+        (attachment) =>
+            attachment.id == expectedId &&
+            attachment.path == attachmentPaths[index],
+      );
+      if (!matches) return false;
+    }
+    return true;
+  }
+
   /// Item nota draft asisten disamakan dengan kolom transaction_items.
   /// Format sama dengan form: itemsJson list of {name/itemName, price, qty}.
-  List<TransactionItemEntity> _transactionItemsFromJson(
+  List<TransactionItemEntity>? _transactionItemsFromJson(
     Object? raw,
     String idempotencyKey,
   ) {
     if (raw is! String || raw.trim().isEmpty) return const [];
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
+      if (decoded is! List) return null;
       final items = <TransactionItemEntity>[];
       var index = 0;
       for (final entry in decoded) {
-        if (entry is! Map) continue;
+        if (entry is! Map) return null;
         final name =
             entry['name']?.toString() ?? entry['itemName']?.toString() ?? '';
-        if (name.trim().isEmpty) continue;
-        final price = int.tryParse(entry['price']?.toString() ?? '0') ?? 0;
-        final qty =
-            double.tryParse(
-              entry['qty']?.toString() ?? entry['quantity']?.toString() ?? '1',
-            ) ??
-            1.0;
+        if (name.trim().isEmpty) return null;
+        final price = int.tryParse(entry['price']?.toString() ?? '0');
+        if (price == null || price < 0) return null;
+        final qty = double.tryParse(
+          entry['qty']?.toString() ?? entry['quantity']?.toString() ?? '1',
+        );
+        if (qty == null || qty <= 0) return null;
+        final lineTotal = entry['lineTotal'] ?? entry['amount'];
+        if (lineTotal != null) {
+          final parsedLineTotal = int.tryParse(lineTotal.toString());
+          if (parsedLineTotal == null ||
+              parsedLineTotal < 0 ||
+              parsedLineTotal != (price * qty).round()) {
+            return null;
+          }
+        }
         items.add(
           TransactionItemEntity(
             id: _stableId('$idempotencyKey:item:$index:$name'),
@@ -4282,8 +4859,50 @@ class FfmAssistantCapabilityAdapterRegistry {
       }
       return items;
     } on Object {
-      return const [];
+      return null;
     }
+  }
+
+  String? _validateReceiptTotals({
+    required int amount,
+    required List<TransactionItemEntity> items,
+    required int? tax,
+    required int? discount,
+    required int? paidAmount,
+    required int? changeAmount,
+  }) {
+    if (tax != null && tax < 0 || discount != null && discount < 0) {
+      return 'Pajak dan diskon tidak boleh negatif.';
+    }
+    if ((tax != null || discount != null) && items.isEmpty) {
+      return 'Pajak atau diskon harus disertai rincian item agar total dapat diverifikasi.';
+    }
+    if (tax != null && discount != null && tax - discount < 0) {
+      return 'Pajak dan diskon menghasilkan total negatif.';
+    }
+    if (items.isNotEmpty) {
+      final subtotal = items.fold<double>(
+        0,
+        (sum, item) => sum + item.price * item.qty,
+      );
+      final expected = subtotal.round() + (tax ?? 0) - (discount ?? 0);
+      if (expected != amount) {
+        return 'Total struk tidak cocok: rincian item menghasilkan ${_money(expected)}, tetapi nominal draft ${_money(amount)}.';
+      }
+    }
+    if (paidAmount != null && paidAmount < 0 ||
+        changeAmount != null && changeAmount < 0) {
+      return 'Nominal dibayar dan kembalian tidak boleh negatif.';
+    }
+    if (changeAmount != null && paidAmount == null) {
+      return 'Nominal dibayar wajib diisi jika kembalian diberikan.';
+    }
+    if (paidAmount != null &&
+        changeAmount != null &&
+        (changeAmount > paidAmount || paidAmount - changeAmount != amount)) {
+      return 'Nominal dibayar dikurangi kembalian tidak sama dengan total transaksi.';
+    }
+    return null;
   }
 
   String _stableId(String key) {
@@ -4696,28 +5315,32 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
 
-    await _database.transaction(() async {
-      Future<void> save(String key, String? val) async {
-        if (val != null && val.isNotEmpty) {
-          await _database
-              .into(_database.userPreferences)
-              .insertOnConflictUpdate(
-                UserPreferencesCompanion.insert(
-                  id: 'pref-$key',
-                  householdId: _householdId,
-                  preferenceKey: key,
-                  preferenceValue: val,
-                  updatedAt: _clock(),
-                ),
-              );
+    try {
+      await _database.transaction(() async {
+        Future<void> save(String key, String? val) async {
+          if (val != null && val.isNotEmpty) {
+            await _database
+                .into(_database.userPreferences)
+                .insertOnConflictUpdate(
+                  UserPreferencesCompanion.insert(
+                    id: 'pref-$key',
+                    householdId: _householdId,
+                    preferenceKey: key,
+                    preferenceValue: val,
+                    updatedAt: _clock(),
+                  ),
+                );
+          }
         }
-      }
 
-      await save('profile_name', name);
-      await save('profile_occupation', occupation);
-      await save('profile_routine', routine);
-      await save('profile_goals', goals);
-    });
+        await save('profile_name', name);
+        await save('profile_occupation', occupation);
+        await save('profile_routine', routine);
+        await save('profile_goals', goals);
+      });
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
 
     return const FfmAssistantCapabilityExecutionResult.success(
       'Profil personalisasi berhasil disimpan.',
@@ -4745,21 +5368,14 @@ class FfmAssistantCapabilityAdapterRegistry {
             ? 'event'
             : 'timer');
     final activityKind = ActivityKind.fromValue(kindParam);
+    final requestedMode = ActivityMode.tryParse(
+      (step.parameters['activityMode'] ?? step.parameters['mode'])?.toString(),
+    );
+    final effectiveMode =
+        requestedMode ?? ActivityMode.defaultForKind(activityKind);
 
     final now = _clock();
     final id = _stableId(idempotencyKey);
-    final previous =
-        await (_database.select(_database.activitySessions)..where(
-              (row) => row.householdId.equals(_householdId) & row.id.equals(id),
-            ))
-            .getSingleOrNull();
-
-    if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'alreadyApplied: aktivitas sudah tersimpan sebelumnya.',
-      );
-    }
-
     final categoryName =
         step.parameters['category']?.toString().trim() ?? 'Lainnya';
     final category = await _findCategory(categoryName, 'activity');
@@ -4769,6 +5385,17 @@ class FfmAssistantCapabilityAdapterRegistry {
       );
     }
     final parentId = step.parameters['parentSessionId']?.toString();
+    if (parentId != null && parentId.trim().isNotEmpty) {
+      final parentResolution = await _references.activity(parentId);
+      final parent = parentResolution.value;
+      if (parentResolution.status != FfmAssistantReferenceStatus.resolved ||
+          parent == null ||
+          parent.status != ActivitySessionStatus.active.value) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Aktivitas induk tidak ditemukan, tidak unik, atau sudah tidak aktif.',
+        );
+      }
+    }
     final notes =
         step.parameters['note']?.toString() ??
         step.parameters['body']?.toString();
@@ -4777,12 +5404,44 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
     final scheduledAt = _dateParameter(step.parameters['scheduledAt']);
     final isAllDay = _boolParameter(step.parameters['isAllDay']) ?? false;
-    final occurredAt = activityKind == ActivityKind.timer
+    final startNow =
+        _boolParameter(step.parameters['startNow']) ??
+        scheduledAt == null || !scheduledAt.isAfter(now);
+    final occurredAt = effectiveMode == ActivityMode.timeTracking && !startNow
+        ? scheduledAt!
+        : effectiveMode == ActivityMode.timeTracking
         ? now
         : dueDate ?? now;
     final activityGroupId = step.parameters['activityGroupId']?.toString();
     final subjectType = step.parameters['subjectType']?.toString();
     final subjectId = step.parameters['subjectId']?.toString();
+
+    final previous = await (_database.select(
+      _database.activitySessions,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (previous != null) {
+      if (previous.householdId != _householdId) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Idempotency key sudah terikat pada household lain.',
+        );
+      }
+      final same =
+          previous.title == title.trim() &&
+          previous.categoryId == category.id &&
+          previous.kind == activityKind.value &&
+          previous.mode == effectiveMode.value &&
+          previous.parentSessionId == parentId &&
+          previous.startedAt == occurredAt &&
+          previous.notes == notes;
+      if (!same) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Idempotency key sudah dipakai oleh aktivitas dengan isi berbeda.',
+        );
+      }
+      return const FfmAssistantCapabilityExecutionResult.success(
+        'alreadyApplied: aktivitas sudah tersimpan sebelumnya.',
+      );
+    }
 
     await _database
         .into(_database.activitySessions)
@@ -4795,6 +5454,7 @@ class FfmAssistantCapabilityAdapterRegistry {
             categoryId: Value(category.id),
             category: Value(category.name),
             kind: Value(activityKind.value),
+            mode: Value(effectiveMode.value),
             activityGroupId: Value(activityGroupId),
             subjectType: Value(subjectType),
             subjectId: Value(subjectId),
@@ -4802,15 +5462,10 @@ class FfmAssistantCapabilityAdapterRegistry {
             dueDate: Value(dueDate),
             scheduledAt: Value(scheduledAt),
             isAllDay: Value(isAllDay),
-            status:
-                (activityKind == ActivityKind.timer ||
-                    activityKind == ActivityKind.task)
+            status: (effectiveMode == ActivityMode.timeTracking)
                 ? const Value('active')
                 : const Value('completed'),
-            isCompleted: Value(
-              activityKind != ActivityKind.timer &&
-                  activityKind != ActivityKind.task,
-            ),
+            isCompleted: Value(effectiveMode != ActivityMode.timeTracking),
             notes: Value(notes),
             createdAt: now,
             updatedAt: Value(now),
@@ -4820,6 +5475,90 @@ class FfmAssistantCapabilityAdapterRegistry {
     await _observeActivityHabit(title, occurredAt);
     return FfmAssistantCapabilityExecutionResult.success(
       'Aktivitas “${title.trim()}” (${activityKind.name}) berhasil disimpan.',
+    );
+  }
+
+  Future<FfmAssistantCapabilityExecutionResult> _saveDailyNote(
+    FfmAssistantActionStep step,
+    String idempotencyKey,
+  ) async {
+    final body = (step.parameters['body'] ?? step.parameters['note'])
+        ?.toString()
+        .trim();
+    if (body == null || body.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Isi Catatan Harian belum diisi.',
+      );
+    }
+    final tagNames = _csvValues(
+      step.parameters['tags'] ??
+          step.parameters['tag'] ??
+          step.parameters['lahan'],
+    );
+    final tags = tagNames.isEmpty
+        ? const <dynamic>[]
+        : await _findTags(tagNames);
+    if (tagNames.isNotEmpty && tags.length != tagNames.length) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tag/lahan tidak ditemukan di Data Utama. Pilih tag yang tersedia atau buat tag baru terlebih dahulu.',
+      );
+    }
+    final id = _stableId(idempotencyKey);
+    final existing = await (_database.select(
+      _database.dailyNotes,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (existing != null) {
+      if (existing.householdId != _householdId) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Idempotency key sudah terikat pada household lain.',
+        );
+      }
+      return existing.body == body
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: Catatan Harian sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh Catatan Harian berbeda.',
+            );
+    }
+    final now = _clock();
+    final noteDate = _dateParameter(step.parameters['date']) ?? now;
+    await _database.transaction(() async {
+      await _database
+          .into(_database.dailyNotes)
+          .insert(
+            DailyNotesCompanion.insert(
+              id: id,
+              householdId: _householdId,
+              noteDate: noteDate,
+              title: Value(step.parameters['title']?.toString().trim()),
+              body: body,
+              treatmentType: Value(
+                step.parameters['treatmentType']
+                    ?.toString()
+                    .trim()
+                    .toLowerCase(),
+              ),
+              createdAt: now,
+              updatedAt: Value(now),
+            ),
+          );
+      await _database.batch((batch) {
+        batch.insertAll(
+          _database.dailyNoteTags,
+          tags
+              .map(
+                (tag) => DailyNoteTagsCompanion.insert(
+                  dailyNoteId: id,
+                  tagId: tag.id as String,
+                ),
+              )
+              .toList(growable: false),
+        );
+      });
+    });
+    return const FfmAssistantCapabilityExecutionResult.success(
+      'Catatan Harian berhasil disimpan.',
     );
   }
 
@@ -4864,20 +5603,6 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final now = _clock();
     final id = _stableId(idempotencyKey);
-    final previous =
-        await (_database.select(_database.reminders)..where(
-              (row) => row.householdId.equals(_householdId) & row.id.equals(id),
-            ))
-            .getSingleOrNull();
-    if (previous != null) {
-      return previous.title == title.trim() && previous.scheduledAt == date
-          ? const FfmAssistantCapabilityExecutionResult.success(
-              'alreadyApplied: pengingat sudah tersimpan sebelumnya.',
-            )
-          : const FfmAssistantCapabilityExecutionResult.failure(
-              'Idempotency key sudah dipakai oleh pengingat dengan isi berbeda.',
-            );
-    }
     try {
       final rawRecurrence =
           (step.parameters['recurrence'] ?? step.parameters['recurrenceType'])
@@ -4898,6 +5623,36 @@ class FfmAssistantCapabilityAdapterRegistry {
           : const [];
 
       final note = step.parameters['note']?.toString() ?? '';
+      final soundUri = step.parameters['soundUri']?.toString();
+      final soundName = step.parameters['soundName']?.toString();
+      final originRaw = step.parameters['origin']?.toString();
+      final origin = ReminderOriginX.fromStorage(originRaw);
+      final sourceTypeRaw = step.parameters['sourceType']?.toString();
+      final sourceType = ReminderSourceTypeX.fromStorage(sourceTypeRaw);
+      final sourceId = step.parameters['sourceId']?.toString();
+      final previous = await ReminderRepository(_database)
+          .getReminder(_householdId, id);
+      if (previous != null) {
+        final samePayload =
+            previous.title == title.trim() &&
+            previous.note == (note.isEmpty ? null : note) &&
+            previous.scheduledAt == date &&
+            previous.recurrenceType == recurrenceType &&
+            _sameIntList(previous.weekdays, weekdays) &&
+            previous.soundUri == soundUri &&
+            previous.soundName == soundName &&
+            previous.sourceType == sourceType &&
+            previous.sourceId == sourceId &&
+            previous.origin == origin;
+        return samePayload
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: pengingat sudah tersimpan sebelumnya.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh pengingat dengan isi berbeda.',
+              );
+      }
+
       await reminderMutations.save(
         ReminderEntity(
           id: id,
@@ -4907,7 +5662,12 @@ class FfmAssistantCapabilityAdapterRegistry {
           scheduledAt: date,
           recurrenceType: recurrenceType,
           weekdays: weekdays,
-          notificationId: id.hashCode.abs(),
+          notificationId: stableReminderNotificationId(id, 'initial'),
+          soundUri: soundUri,
+          soundName: soundName,
+          sourceType: sourceType,
+          sourceId: sourceId,
+          origin: origin,
           createdAt: now,
         ),
       );
@@ -4955,6 +5715,19 @@ class FfmAssistantCapabilityAdapterRegistry {
                 'Idempotency key sudah dipakai oleh rekening dengan isi berbeda.',
               );
       }
+      final duplicate =
+          await (_database.select(_database.accounts)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.name.equals(title.trim()) &
+                    row.isArchived.equals(false),
+              ))
+              .getSingleOrNull();
+      if (duplicate != null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Nama rekening sudah dipakai household ini.',
+        );
+      }
       final accountType = formValues['accountType']?.toString() ?? 'cash';
       final type = switch (accountType) {
         'cash' || 'tunai' => 'tunai',
@@ -4992,6 +5765,19 @@ class FfmAssistantCapabilityAdapterRegistry {
                 'Idempotency key sudah dipakai oleh toko dengan isi berbeda.',
               );
       }
+      final duplicate =
+          await (_database.select(_database.merchants)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.name.equals(title.trim()) &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+      if (duplicate != null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Nama toko sudah dipakai household ini.',
+        );
+      }
       final details = formValues['details']?.toString();
       await _database
           .into(_database.merchants)
@@ -5004,7 +5790,7 @@ class FfmAssistantCapabilityAdapterRegistry {
               createdAt: now,
             ),
           );
-    } else if (category == 'kategori' || category == 'sumber_pemasukan') {
+    } else if (category == 'kategori') {
       final previous =
           await (_database.select(_database.categories)..where(
                 (row) =>
@@ -5038,6 +5824,49 @@ class FfmAssistantCapabilityAdapterRegistry {
               name: title.trim(),
               type: type,
               defaultBudgetPeriod: Value(budgetPeriod),
+              createdAt: now,
+            ),
+          );
+    } else if (category == 'sumber_pemasukan') {
+      final previous =
+          await (_database.select(_database.transactionParties)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) & row.id.equals(id),
+              ))
+              .getSingleOrNull();
+      if (previous != null) {
+        return previous.name == title.trim()
+            ? const FfmAssistantCapabilityExecutionResult.success(
+                'alreadyApplied: sumber pemasukan sudah tersimpan.',
+              )
+            : const FfmAssistantCapabilityExecutionResult.failure(
+                'Idempotency key sudah dipakai oleh sumber pemasukan dengan isi berbeda.',
+              );
+      }
+      final duplicate =
+          await (_database.select(_database.transactionParties)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.name.equals(title.trim()) &
+                    row.isArchived.equals(false) &
+                    row.kind.equals(IncomeSourceRepository.kind) &
+                    row.role.equals(IncomeSourceRepository.role),
+              ))
+              .getSingleOrNull();
+      if (duplicate != null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Nama sumber pemasukan sudah dipakai household ini.',
+        );
+      }
+      await _database
+          .into(_database.transactionParties)
+          .insert(
+            TransactionPartiesCompanion.insert(
+              id: id,
+              householdId: _householdId,
+              name: title.trim(),
+              role: Value(IncomeSourceRepository.role),
+              kind: Value(IncomeSourceRepository.kind),
               createdAt: now,
             ),
           );
@@ -5085,6 +5914,7 @@ class FfmAssistantCapabilityAdapterRegistry {
     final title = step.parameters['title']?.toString();
     final amount = _positiveInt(step.parameters['amount']);
     final dateStr = step.parameters['date']?.toString();
+    final note = step.parameters['note']?.toString().trim();
     if (title == null ||
         title.trim().isEmpty ||
         amount == null ||
@@ -5096,14 +5926,45 @@ class FfmAssistantCapabilityAdapterRegistry {
     final date =
         _dateParameter(dateStr) ?? _clock().add(const Duration(days: 30));
     final now = _clock();
+    final categoryName = step.parameters['category']?.toString().trim();
+    final explicitCategoryId = step.parameters['categoryId']?.toString().trim();
+    final category = explicitCategoryId == null || explicitCategoryId.isEmpty
+        ? await _findCategory(categoryName, 'expense')
+        : await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(explicitCategoryId) &
+                    row.type.equals('expense') &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+    if (categoryName != null && categoryName.isNotEmpty && category == null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori target "$categoryName" tidak ditemukan atau tidak unik.',
+      );
+    }
     final id = _stableId(idempotencyKey);
-    final previous =
-        await (_database.select(_database.goals)..where(
-              (row) => row.householdId.equals(_householdId) & row.id.equals(id),
-            ))
-            .getSingleOrNull();
+    final previous = await (_database.select(
+      _database.goals,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (((categoryName != null && categoryName.isNotEmpty) ||
+            (explicitCategoryId != null && explicitCategoryId.isNotEmpty)) &&
+        category == null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Kategori target "$categoryName" tidak ditemukan atau tidak unik.',
+      );
+    }
     if (previous != null) {
-      return previous.name == title.trim() && previous.targetAmount == amount
+      if (previous.householdId != _householdId) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Idempotency key sudah terikat pada household lain.',
+        );
+      }
+      return previous.name == title.trim() &&
+              previous.targetAmount == amount &&
+              previous.targetDate == date &&
+              previous.categoryId == (category?.id ?? explicitCategoryId) &&
+              previous.note == (note == null || note.isEmpty ? null : note)
           ? const FfmAssistantCapabilityExecutionResult.success(
               'alreadyApplied: target sudah tersimpan.',
             )
@@ -5120,6 +5981,8 @@ class FfmAssistantCapabilityAdapterRegistry {
             name: title.trim(),
             targetAmount: amount,
             targetDate: Value(date),
+            categoryId: Value(category?.id),
+            note: Value(note == null || note.isEmpty ? null : note),
             createdAt: now,
           ),
         );
@@ -5316,7 +6179,6 @@ class FfmAssistantCapabilityAdapterRegistry {
     );
   }
 
-  // ignore: unused_element
   Future<FfmAssistantCapabilityExecutionResult> _saveBudget(
     FfmAssistantActionStep step,
     String idempotencyKey,
@@ -5329,13 +6191,130 @@ class FfmAssistantCapabilityAdapterRegistry {
     }
     final now = _clock();
     final id = _stableId(idempotencyKey);
+    final name = step.parameters['title']?.toString().trim();
+    final note = step.parameters['note']?.toString().trim();
+    if (name == null || name.isEmpty) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Nama pos anggaran belum diisi.',
+      );
+    }
+    final periodType = step.parameters['periodType']?.toString() ?? 'monthly';
+    const periodTypes = {
+      'weekly',
+      'biweekly',
+      'monthly',
+      'bimonthly',
+      'fourmonthly',
+      'fivemonthly',
+      'nonrecurring',
+    };
+    if (!periodTypes.contains(periodType)) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        'Periode anggaran "$periodType" tidak didukung.',
+      );
+    }
+    final startDate = _dateParameter(step.parameters['date']) ?? now;
+    final endDateOverride = _dateParameter(step.parameters['endDate']);
+    final endDate =
+        endDateOverride ??
+        switch (periodType) {
+          'nonrecurring' => DateTime(2099, 12, 31, 23, 59, 59),
+          'weekly' => startDate.add(
+            const Duration(days: 6, hours: 23, minutes: 59, seconds: 59),
+          ),
+          'biweekly' => startDate.add(
+            const Duration(days: 13, hours: 23, minutes: 59, seconds: 59),
+          ),
+          'bimonthly' => DateTime(
+            startDate.year,
+            startDate.month + 2,
+            startDate.day,
+          ).subtract(const Duration(seconds: 1)),
+          'fourmonthly' => DateTime(
+            startDate.year,
+            startDate.month + 4,
+            startDate.day,
+          ).subtract(const Duration(seconds: 1)),
+          'fivemonthly' => DateTime(
+            startDate.year,
+            startDate.month + 5,
+            startDate.day,
+          ).subtract(const Duration(seconds: 1)),
+          _ => DateTime(
+            startDate.year,
+            startDate.month + 1,
+            startDate.day,
+          ).subtract(const Duration(seconds: 1)),
+        };
+    final rawCategoryIds = step.parameters['categoryIdsJson'];
+    final categoryIds = <String>[];
+    if (rawCategoryIds is String && rawCategoryIds.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawCategoryIds);
+        if (decoded is List) {
+          categoryIds.addAll(
+            decoded
+                .map((value) => value.toString().trim())
+                .where((value) => value.isNotEmpty),
+          );
+        }
+      } on FormatException {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Daftar kategori anggaran tidak valid.',
+        );
+      }
+    }
+    if (categoryIds.isEmpty) {
+      final categoryName = step.parameters['category']?.toString().trim();
+      final category = await _findCategory(categoryName, 'expense');
+      if (categoryName != null && categoryName.isNotEmpty && category == null) {
+        return FfmAssistantCapabilityExecutionResult.failure(
+          'Kategori anggaran "$categoryName" tidak ditemukan atau tidak unik.',
+        );
+      }
+      if (category != null) categoryIds.add(category.id);
+    }
+    if (categoryIds.isNotEmpty) {
+      final validCategories =
+          await (_database.select(_database.categories)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.isIn(categoryIds) &
+                    row.type.equals('expense') &
+                    row.isActive.equals(true),
+              ))
+              .get();
+      if (validCategories.length != categoryIds.toSet().length) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Ada kategori anggaran yang tidak aktif atau tidak ditemukan.',
+        );
+      }
+    }
+    final alertPercent = _nonNegativeInt(step.parameters['alertPercent']) ?? 80;
+    final rollover = _nonNegativeInt(step.parameters['rollover']) ?? 0;
+    if (alertPercent < 0 || alertPercent > 100) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Ambang peringatan Anggaran harus berada antara 0 dan 100 persen.',
+      );
+    }
     final previous =
         await (_database.select(_database.envelopeBudgets)..where(
               (row) => row.householdId.equals(_householdId) & row.id.equals(id),
             ))
             .getSingleOrNull();
     if (previous != null) {
-      return previous.allocated == amount
+      final samePayload =
+          previous.name == name &&
+          previous.allocated == amount &&
+          previous.categoryIdsJson == jsonEncode(categoryIds) &&
+          previous.periodType == periodType &&
+          previous.startDate == startDate &&
+          previous.endDate == endDate &&
+          previous.alertPercent == alertPercent &&
+          previous.rollover == rollover &&
+          previous.note == (note == null || note.isEmpty ? null : note) &&
+          previous.householdId == _householdId;
+      return samePayload
           ? const FfmAssistantCapabilityExecutionResult.success(
               'alreadyApplied: anggaran sudah tersimpan.',
             )
@@ -5349,11 +6328,19 @@ class FfmAssistantCapabilityAdapterRegistry {
           EnvelopeBudgetsCompanion.insert(
             id: id,
             householdId: _householdId,
-            name: 'Anggaran Asisten',
-            periodType: const Value('monthly'),
+            name: name,
+            note: Value(note == null || note.isEmpty ? null : note),
+            categoryId: Value(categoryIds.firstOrNull),
+            categoryIdsJson: Value(jsonEncode(categoryIds)),
+            month: Value(
+              '${startDate.year}-${startDate.month.toString().padLeft(2, '0')}',
+            ),
+            periodType: Value(periodType),
             allocated: Value(amount),
-            startDate: DateTime(now.year, now.month, 1),
-            endDate: DateTime(now.year, now.month + 1, 0),
+            startDate: startDate,
+            endDate: endDate,
+            alertPercent: Value(alertPercent),
+            rollover: Value(rollover),
             createdAt: now,
             updatedAt: Value(now),
           ),
@@ -5375,60 +6362,189 @@ class FfmAssistantCapabilityAdapterRegistry {
         'Nominal atau nama target belum diisi.',
       );
     }
-    final goal =
-        await (_database.select(_database.goals)..where(
-              (row) =>
-                  row.householdId.equals(_householdId) &
-                  row.name.equals(goalName),
-            ))
-            .getSingleOrNull();
-    if (goal == null) {
+    final goalId = step.parameters['goalId']?.toString().trim();
+    final FfmAssistantReferenceResolution<dynamic> goalResolution;
+    if (goalId == null || goalId.isEmpty) {
+      goalResolution = await _references.goal(goalName);
+    } else {
+      final goalById =
+          await (_database.select(_database.goals)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(goalId) &
+                    row.isActive.equals(true),
+              ))
+              .getSingleOrNull();
+      if (goalById == null) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Target keuangan tidak ditemukan atau tidak aktif.',
+        );
+      }
+      goalResolution = FfmAssistantReferenceResolution.resolved(goalById);
+    }
+    final goal = goalResolution.value;
+    if (goalResolution.status != FfmAssistantReferenceStatus.resolved ||
+        goal == null) {
       return FfmAssistantCapabilityExecutionResult.failure(
-        'Target keuangan "$goalName" tidak ditemukan.',
+        'Target keuangan "$goalName" tidak ditemukan atau tidak unik.',
+      );
+    }
+    final accountName =
+        (isDeposit
+                ? step.parameters['fromAccount']
+                : step.parameters['toAccount'])
+            ?.toString()
+            .trim();
+    final accountId = step.parameters['accountId']?.toString().trim();
+    final account = accountId == null || accountId.isEmpty
+        ? await _findAccount(accountName)
+        : await (_database.select(_database.accounts)..where(
+                (row) =>
+                    row.householdId.equals(_householdId) &
+                    row.id.equals(accountId) &
+                    row.isActive.equals(true) &
+                    row.isArchived.equals(false),
+              ))
+              .getSingleOrNull();
+    if (account == null) {
+      return FfmAssistantCapabilityExecutionResult.failure(
+        accountName == null || accountName.isEmpty
+            ? 'Rekening alokasi target belum disebutkan.'
+            : 'Rekening "$accountName" tidak ditemukan atau tidak unik.',
       );
     }
     final now = _clock();
-    final id = _stableId(idempotencyKey);
-    final previous =
-        await (_database.select(_database.transactions)..where(
-              (row) => row.householdId.equals(_householdId) & row.id.equals(id),
-            ))
-            .getSingleOrNull();
-    if (previous != null) {
-      return const FfmAssistantCapabilityExecutionResult.success(
-        'Transaksi target sudah tersimpan.',
+    final date = _dateParameter(step.parameters['date']);
+    if (date == null) {
+      return const FfmAssistantCapabilityExecutionResult.failure(
+        'Tanggal alokasi target belum valid.',
       );
     }
+    final id = _stableId(idempotencyKey);
+    final previous = await (_database.select(
+      _database.transactions,
+    )..where((row) => row.id.equals(id))).getSingleOrNull();
+    if (previous != null) {
+      if (previous.householdId != _householdId) {
+        return const FfmAssistantCapabilityExecutionResult.failure(
+          'Idempotency key sudah terikat pada household lain.',
+        );
+      }
+      final same =
+          previous.amount == -amount &&
+          previous.accountId == account.id &&
+          previous.goalId == goal.id &&
+          previous.date == date &&
+          previous.source == (isDeposit ? 'goal_contribution' : 'goal_usage') &&
+          previous.note == step.parameters['note']?.toString();
+      return same
+          ? const FfmAssistantCapabilityExecutionResult.success(
+              'alreadyApplied: transaksi target sudah tersimpan.',
+            )
+          : const FfmAssistantCapabilityExecutionResult.failure(
+              'Idempotency key sudah dipakai oleh transaksi target dengan isi berbeda.',
+            );
+    }
 
-    await _database.transaction(() async {
-      await _database
-          .into(_database.transactions)
-          .insert(
-            TransactionsCompanion.insert(
-              id: id,
-              householdId: _householdId,
-              type: isDeposit ? 'expense' : 'income',
-              date: now,
-              recordedAt: now,
-              amount: amount,
-              owner: const Value('Keluarga'),
-              note: Value(step.parameters['note']?.toString()),
-              source: const Value('manual'),
-              goalId: Value(goal.id),
-              createdAt: now,
-              updatedAt: Value(now),
-              isDeleted: const Value(false),
-            ),
+    try {
+      await _database.transaction(() async {
+        final currentGoal =
+            await (_database.select(_database.goals)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.id.equals(goal.id),
+                ))
+                .getSingleOrNull();
+        if (currentGoal == null || !currentGoal.isActive) {
+          throw StateError('Target keuangan tidak ditemukan atau tidak aktif.');
+        }
+        final accountRow =
+            await (_database.select(_database.accounts)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.id.equals(account.id) &
+                      row.isActive.equals(true) &
+                      row.isArchived.equals(false),
+                ))
+                .getSingleOrNull();
+        if (accountRow == null) throw StateError('Rekening tidak aktif.');
+        final accountTransactions =
+            await (_database.select(_database.transactions)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.accountId.equals(account.id) &
+                      row.isArchived.equals(false) &
+                      row.isDeleted.equals(false) &
+                      row.date.isSmallerOrEqualValue(date),
+                ))
+                .get();
+        final transfers =
+            await (_database.select(_database.transfers)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.isDeleted.equals(false) &
+                      row.date.isSmallerOrEqualValue(date) &
+                      (row.fromAccountId.equals(account.id) |
+                          row.toAccountId.equals(account.id)),
+                ))
+                .get();
+        var balance =
+            accountRow.openingBalance +
+            accountTransactions.fold<int>(0, (sum, row) => sum + row.amount);
+        for (final transfer in transfers) {
+          balance += transfer.toAccountId == account.id
+              ? transfer.amount
+              : -transfer.amount;
+        }
+        if (balance < amount) {
+          throw StateError('Saldo rekening tidak mencukupi.');
+        }
+        if (!isDeposit && amount > currentGoal.currentAmount) {
+          throw StateError(
+            'Nominal pemakaian melebihi dana target yang tersedia.',
           );
+        }
+        await _database
+            .into(_database.transactions)
+            .insert(
+              TransactionsCompanion.insert(
+                id: id,
+                householdId: _householdId,
+                type: 'expense',
+                date: date,
+                recordedAt: now,
+                amount: -amount,
+                owner: const Value('Keluarga'),
+                note: Value(step.parameters['note']?.toString()),
+                source: Value(isDeposit ? 'goal_contribution' : 'goal_usage'),
+                accountId: Value(account.id),
+                categoryId: Value(goal.categoryId),
+                goalId: Value(currentGoal.id),
+                createdAt: now,
+                updatedAt: Value(now),
+                isDeleted: const Value(false),
+              ),
+            );
 
-      final newAmount = isDeposit
-          ? goal.currentAmount + amount
-          : goal.currentAmount - amount;
+        final newAmount = isDeposit
+            ? currentGoal.currentAmount + amount
+            : currentGoal.currentAmount - amount;
 
-      await (_database.update(_database.goals)
-            ..where((row) => row.id.equals(goal.id)))
-          .write(GoalsCompanion(currentAmount: Value(newAmount)));
-    });
+        final updated =
+            await (_database.update(_database.goals)..where(
+                  (row) =>
+                      row.householdId.equals(_householdId) &
+                      row.id.equals(currentGoal.id) &
+                      row.currentAmount.equals(currentGoal.currentAmount),
+                ))
+                .write(GoalsCompanion(currentAmount: Value(newAmount)));
+        if (updated != 1) {
+          throw StateError('Saldo target berubah, silakan ulangi.');
+        }
+      });
+    } on StateError catch (error) {
+      return FfmAssistantCapabilityExecutionResult.failure(error.message);
+    }
 
     return const FfmAssistantCapabilityExecutionResult.success(
       'Transaksi target berhasil disimpan.',

@@ -98,6 +98,28 @@ void main() {
       expect(gateway.scheduled, isEmpty);
     },
   );
+
+  test('write di-rollback bila scheduling gagal setelah database write', () async {
+    gateway.failScheduling = true;
+    final created = ReminderEntity(
+      id: 'rollback-reminder',
+      householdId: householdId,
+      title: 'Tes rollback',
+      note: 'catatan',
+      scheduledAt: DateTime(2026, 8, 30, 8),
+      recurrenceType: ReminderRecurrenceType.weekly,
+      weekdays: const [1, 3],
+      soundUri: 'content://ringtone/custom',
+      soundName: 'Nada keluarga',
+      sourceType: ReminderSourceType.budgetSetup,
+      sourceId: 'budget-1',
+      notificationId: 999,
+      createdAt: now,
+    );
+
+    await expectLater(service.save(created), throwsStateError);
+    expect(await repository.getReminder(householdId, created.id), isNull);
+  });
 }
 
 class _Gateway implements ReminderNotificationGateway {
@@ -108,6 +130,7 @@ class _Gateway implements ReminderNotificationGateway {
   final cancelled = <int>[];
   final scheduled =
       <({ReminderEntity reminder, ReminderOccurrence occurrence})>[];
+  bool failScheduling = false;
 
   @override
   Future<void> Function(String action, Map<String, dynamic> payload)? onAction;
@@ -136,6 +159,7 @@ class _Gateway implements ReminderNotificationGateway {
     required ReminderOccurrence occurrence,
     String? historyId,
   }) async {
+    if (failScheduling) throw StateError('schedule failed');
     scheduled.add((reminder: reminder, occurrence: occurrence));
   }
 }

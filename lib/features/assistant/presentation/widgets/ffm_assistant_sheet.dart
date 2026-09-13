@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
 
 import 'package:flutter/material.dart';
+import 'package:drift/drift.dart' hide Column;
 
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -765,6 +766,22 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         if (primary.destination != null) 'topic': primary.destination!.name,
       },
     );
+  }
+
+  Future<List<String>> _loadActiveTagSuggestions() async {
+    if (!getIt.isRegistered<AppDatabase>()) return const [];
+    try {
+      final db = getIt<AppDatabase>();
+      final tags = await (db.select(db.tags)
+            ..where((t) =>
+                t.householdId.equals(AppContext.householdId) &
+                t.isArchived.equals(false))
+            ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+          .get();
+      return tags.map((t) => '#${t.name}').toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<void> _refreshProactiveSuggestion() async {
@@ -2037,21 +2054,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       FfmAssistantUnderstandingResult? understanding;
       final activeDraftForTurn = _activeDraftForTurn(text);
 
-      _setActiveProcess('📖 Menyiapkan data finansial & indeks pencarian...');
+      _setActiveProcess('📖 Membaca Data Finansial & Indeks Pencarian...');
       _interpreter.onProgress = (message) {
-        if (message.contains('konteks') || message.contains('master') || message.contains('lokal')) {
-          _setActiveProcess('📖 Membaca konteks data ($queryKeyword)...');
-        } else if (message.contains('Gemini') || message.contains('Cloud')) {
-          _setActiveProcess('🧠 Penalaran Gemini Cloud...');
-        } else if (message.contains('respons') || message.contains('validasi')) {
-          _setActiveProcess('✏️ Memvalidasi & menyusun jawaban...');
-        } else {
-          _setActiveProcess(message);
-        }
+        _setActiveProcess(message);
       };
-      if (_routingMode == FfmAssistantRoutingMode.geminiCloud) {
-        _setActiveProcess('🧠 Penalaran Gemini Cloud ($queryKeyword)...');
-      }
       final intents = pending == null
           ? ((understanding = await _interpreter.interpretMany(
               text,
@@ -2083,6 +2089,17 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       stopwatch.stop();
       _setActiveProcess('✏️ Menyusun respons akhir...');
       await Future<void>.delayed(Duration.zero);
+
+      List<String> tagSuggestions = const [];
+      final hasTagClarification = intents.any(
+        (intent) =>
+            intent.needsClarification &&
+            ((intent.response?.toLowerCase().contains('tag') == true) ||
+                (intent.clarification?.toLowerCase().contains('tag') == true)),
+      );
+      if (hasTagClarification) {
+        tagSuggestions = await _loadActiveTagSuggestions();
+      }
 
       final readPlanIds = <String>[];
       final traceSnapshots = <(FfmAssistantProcessTrace, int)>[];
@@ -2161,6 +2178,9 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
           widget.session.lastAssistantText = response;
           final traceEventCount = _activeProcessEvents.length;
           final processTrace = _traceFor(entryIntent, stopwatch.elapsed);
+          final isThisTagClarification = intent.needsClarification &&
+              ((response.toLowerCase().contains('tag')) ||
+                  (intent.clarification?.toLowerCase().contains('tag') == true));
           _appendEntry(
             FfmAssistantChatEntry(
               isUser: false,
@@ -2170,6 +2190,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
               processTrace: processTrace,
               verifiedFacts: intent.verifiedFacts,
               analysisResults: intent.analysisResults,
+              suggestedQuestions:
+                  isThisTagClarification ? tagSuggestions : const [],
             ),
           );
           traceSnapshots.add((processTrace, traceEventCount));
@@ -3626,7 +3648,6 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
       if (!mounted) return;
       Navigator.of(context).pop();
       await Future<void>.delayed(const Duration(milliseconds: 180));
-      if (!mounted) return;
       await handler(intent);
       return;
     }
@@ -4726,9 +4747,10 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
   }
 
   Future<void> _showVerifiedFacts(FfmAssistantChatEntry entry) async {
-    final facts = entry.verifiedFacts;
-    if (facts == null || facts.trim().isEmpty || !mounted) return;
+    if (!mounted) return;
     final blocked = entry.intent?.pluginMetadata?['groundingBlocked'] == true;
+    final factsText = _buildEnrichedVerifiedFactsText(entry);
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -4741,10 +4763,15 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                   : const Color(0xFF2E7D32),
             ),
             const SizedBox(width: 8),
-            Text(blocked ? 'Verifikasi Gagal' : 'Fakta Sumber'),
+            Text(blocked ? 'Verifikasi Gagal' : 'Fakta Sumber & Bukti Orkestrator'),
           ],
         ),
-        content: SingleChildScrollView(child: Text(facts)),
+        content: SingleChildScrollView(
+          child: Text(
+            factsText,
+            style: const TextStyle(fontSize: 12.5, height: 1.4),
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
@@ -4753,6 +4780,79 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
         ],
       ),
     );
+  }
+
+  String _buildEnrichedVerifiedFactsText(FfmAssistantChatEntry entry) {
+    final buffer = StringBuffer();
+    final rawFacts = entry.verifiedFacts ?? entry.intent?.verifiedFacts;
+    if (rawFacts != null && rawFacts.trim().isNotEmpty) {
+      buffer.writeln('📋 FAKTA FINANSIAL TERVERIFIKASI:');
+      buffer.writeln(rawFacts.trim());
+      buffer.writeln();
+    }
+
+    final tokenUsage = entry.processTrace?.tokenUsage ?? (entry.intent?.pluginMetadata?['tokenUsage'] as Map<String, dynamic>?);
+    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
+    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+
+    if (totalTokens != null && totalTokens > 0) {
+      buffer.writeln('🪙 KONSUMSI TOKEN AI:');
+      buffer.writeln('• Kirim (Prompt/Sistem): ${promptTokens ?? 0} token');
+      buffer.writeln('• Terima (Hasil Model): ${candidateTokens ?? 0} token');
+      buffer.writeln('• Total Pemakaian: $totalTokens token');
+      buffer.writeln();
+    }
+
+    final meta = entry.intent?.pluginMetadata;
+    final trace = entry.processTrace;
+
+    buffer.writeln('🔍 INFORMASI ORKESTRATOR & SUMBER LLM:');
+    if (entry.modelUsed != null && entry.modelUsed!.isNotEmpty) {
+      buffer.writeln('• Model/Provider: ${entry.modelUsed}');
+    }
+    if (meta != null) {
+      if (meta['usedReadCapability'] != null) {
+        buffer.writeln('• Capability Dibaca: ${meta['usedReadCapability']}');
+      }
+      if (meta['requestClass'] != null) {
+        buffer.writeln('• Kelas Permintaan: ${meta['requestClass']}');
+      }
+      if (meta['evidenceScope'] is Map) {
+        final scope = meta['evidenceScope'] as Map;
+        final active = scope.entries
+            .where((e) => e.value == true)
+            .map((e) => e.key)
+            .join(', ');
+        if (active.isNotEmpty) {
+          buffer.writeln('• Cakupan Bukti: $active');
+        }
+      }
+      if (meta['knowledgeIndexSources'] is List) {
+        final sources = (meta['knowledgeIndexSources'] as List).join(', ');
+        if (sources.isNotEmpty) {
+          buffer.writeln('• Indeks Pengetahuan: $sources');
+        }
+      }
+    }
+    if (entry.absorbedMemory != null && entry.absorbedMemory!.isNotEmpty) {
+      buffer.writeln('• Memori Terserap: ${entry.absorbedMemory}');
+    }
+    if (trace != null) {
+      buffer.writeln('• Waktu Eksekusi Total: ${trace.elapsed.inMilliseconds} ms');
+      if (trace.events.isNotEmpty) {
+        buffer.writeln('• Tahap Orkestrator:');
+        for (final ev in trace.events) {
+          buffer.writeln('  - ${ev.label} (+${ev.elapsed.inMilliseconds}ms)');
+        }
+      }
+    }
+
+    if (buffer.isEmpty) {
+      return 'Fakta sumber dan bukti orkestrator tidak tersedia untuk pesan ini.';
+    }
+
+    return buffer.toString().trim();
   }
 
   Future<void> _copyEntryText(FfmAssistantChatEntry entry) async {
@@ -5242,7 +5342,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                               _reportedAssistantIssueSourceIds.contains(
                                 _sourceMessageId(entry),
                               ),
-                          onToggleTechnicalDetails: entry.intent == null
+                          onToggleTechnicalDetails: entry.isUser
                               ? null
                               : () {
                                   setState(() {
@@ -5255,7 +5355,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                     }
                                   });
                                 },
-                          onShowVerifiedFacts: entry.verifiedFacts == null
+                          onShowVerifiedFacts: entry.isUser
                               ? null
                               : () => _showVerifiedFacts(entry),
                           showTechnicalDetails: _technicalDetailsExpanded
@@ -5305,7 +5405,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                     ),
                     Positioned(
                       right: 18,
-                      bottom: 14,
+                      bottom: 22,
                       child: AnimatedOpacity(
                         opacity: _showScrollToBottom ? 1 : 0,
                         duration: const Duration(milliseconds: 180),
@@ -5506,7 +5606,7 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                           ),
                                         ),
                                         Text(
-                                          'Ketik catatan/instruksi lalu kirim',
+                                          'Foto struk siap dikirim • Estimasi ~1.000–2.000 token Gemini Vision',
                                           style: theme.textTheme.labelSmall
                                               ?.copyWith(
                                                 color:
@@ -5563,7 +5663,8 @@ class _FfmAssistantSheetState extends State<FfmAssistantSheet> {
                                       ? null
                                       : _toggleListening,
                                   icon: Icon(
-                                    _listening ? Icons.stop : Icons.mic_none,
+                                    _listening ? Icons.stop_circle : Icons.mic_none,
+                                    color: _listening ? Colors.redAccent : null,
                                   ),
                                 ),
                                 IconButton(

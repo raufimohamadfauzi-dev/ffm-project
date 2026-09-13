@@ -3,6 +3,7 @@
 library;
 
 import '../../activity/domain/activity_voice.dart';
+import '../../activity/domain/entities/activity_entity.dart';
 import '../../transaction/data/services/receipt_import_models.dart';
 
 enum FfmAssistantResponseMode { localRules }
@@ -457,6 +458,15 @@ class FfmAssistantDraft {
     this.note,
     this.date,
     this.linkedActivityId,
+    this.parentSessionId,
+    this.activityMode,
+    this.scheduledAt,
+    this.sourceId,
+    this.source,
+    this.recurringTransactionId,
+    this.tags,
+    this.newTags,
+    this.newMerchant,
     this.formValues = const <String, dynamic>{},
     this.merchantName,
     this.location,
@@ -475,7 +485,10 @@ class FfmAssistantDraft {
     this.receiptPaidAmount,
     this.receiptChangeAmount,
     this.receiptNumber,
+    this.receiptRawText,
     this.attachmentPaths = const <String>[],
+    this.soundUri,
+    this.soundName,
   });
 
   final FfmAssistantDraftKind kind;
@@ -491,6 +504,15 @@ class FfmAssistantDraft {
   final String? note;
   final DateTime? date;
   final String? linkedActivityId;
+  final String? parentSessionId;
+  final ActivityMode? activityMode;
+  final DateTime? scheduledAt;
+  final String? sourceId;
+  final String? source;
+  final String? recurringTransactionId;
+  final String? tags;
+  final String? newTags;
+  final String? newMerchant;
   final Map<String, dynamic> formValues;
 
   /// Merchant dan nilai field yang berasal dari tebakan awal SLM/rule parser.
@@ -518,7 +540,10 @@ class FfmAssistantDraft {
   final int? receiptPaidAmount;
   final int? receiptChangeAmount;
   final String? receiptNumber;
+  final String? receiptRawText;
   final List<String> attachmentPaths;
+  final String? soundUri;
+  final String? soundName;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -535,6 +560,15 @@ class FfmAssistantDraft {
     String? note,
     DateTime? date,
     String? linkedActivityId,
+    String? parentSessionId,
+    ActivityMode? activityMode,
+    DateTime? scheduledAt,
+    String? sourceId,
+    String? source,
+    String? recurringTransactionId,
+    String? tags,
+    String? newTags,
+    String? newMerchant,
     Map<String, dynamic>? formValues,
     String? merchantName,
     String? location,
@@ -553,7 +587,10 @@ class FfmAssistantDraft {
     int? receiptPaidAmount,
     int? receiptChangeAmount,
     String? receiptNumber,
+    String? receiptRawText,
     List<String>? attachmentPaths,
+    String? soundUri,
+    String? soundName,
     bool clearFromAccountName = false,
     bool clearToAccountName = false,
   }) => FfmAssistantDraft(
@@ -574,6 +611,16 @@ class FfmAssistantDraft {
     note: note ?? this.note,
     date: date ?? this.date,
     linkedActivityId: linkedActivityId ?? this.linkedActivityId,
+    parentSessionId: parentSessionId ?? this.parentSessionId,
+    activityMode: activityMode ?? this.activityMode,
+    scheduledAt: scheduledAt ?? this.scheduledAt,
+    sourceId: sourceId ?? this.sourceId,
+    source: source ?? this.source,
+    recurringTransactionId:
+        recurringTransactionId ?? this.recurringTransactionId,
+    tags: tags ?? this.tags,
+    newTags: newTags ?? this.newTags,
+    newMerchant: newMerchant ?? this.newMerchant,
     formValues: formValues ?? this.formValues,
     merchantName: merchantName ?? this.merchantName,
     location: location ?? this.location,
@@ -594,7 +641,10 @@ class FfmAssistantDraft {
     receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
     receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
     receiptNumber: receiptNumber ?? this.receiptNumber,
+    receiptRawText: receiptRawText ?? this.receiptRawText,
     attachmentPaths: attachmentPaths ?? this.attachmentPaths,
+    soundUri: soundUri ?? this.soundUri,
+    soundName: soundName ?? this.soundName,
   );
 }
 
@@ -1322,8 +1372,7 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantPage(
       destination: FfmAssistantDestination.assistantIssueLog,
       name: 'Asisten Log',
-      description:
-          'Melihat masalah jawaban asisten, pertanyaan belum terjawab, dan ekspor laporan developer.',
+      description: 'Melihat masalah jawaban asisten, pertanyaan belum terjawab, dan ekspor laporan developer.',
       aliases: [
         'asisten log',
         'log asisten',
@@ -1529,8 +1578,7 @@ abstract final class FfmAssistantCatalog {
     FfmAssistantDestination.databaseStructure =>
       'Struktur database memperlihatkan tabel dan gambaran database lokal FFM.',
     FfmAssistantDestination.otherMenu => 'Lainnya berisi jalan ke fitur pendukung seperti Data Utama, aset, target, hutang & piutang, aktivitas, pengingat, laporan, dan cadangan.',
-    FfmAssistantDestination.assistantIssueLog =>
-      'Asisten Log & Anomali mencatat jawaban asisten yang keliru, kurang lengkap, atau tidak sesuai, serta pertanyaan yang gagal dijawab. Dilengkapi riwayat trace eksekusi dan ekspor diagnostik siap pakai untuk dianalisis developer atau LLM.',
+    FfmAssistantDestination.assistantIssueLog => 'Asisten Log & Anomali mencatat jawaban asisten yang keliru, kurang lengkap, atau tidak sesuai, serta pertanyaan yang gagal dijawab. Dilengkapi riwayat trace eksekusi dan ekspor diagnostik siap pakai untuk dianalisis developer atau LLM.',
     FfmAssistantDestination.intelligenceDashboard => 'Intelligence Dashboard menyimpan dan menguji key serta model Gemini Cloud, mengatur koneksi Supabase, dan menampilkan status konfigurasi yang dipakai chatbot.',
     FfmAssistantDestination.paymentDetector => 'Pendeteksi notifikasi pembayaran menangkap notifikasi transaksi dari aplikasi bank (BCA, Mandiri, BRI, BNI, SeaBank) dan e-wallet (GoPay, OVO, DANA, ShopeePay) secara otomatis dan lokal di perangkat untuk dijadikan draft pencatatan.',
     FfmAssistantDestination.telegramSetup => 'Telegram Bot Keluarga mengirimkan laporan mingguan dan notifikasi peringatan boncos ke grup chat keluarga.',

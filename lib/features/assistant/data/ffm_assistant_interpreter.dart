@@ -436,6 +436,8 @@ class FfmAssistantInterpreter {
         requestClass == FfmAssistantCloudRequestClass.draftReview
         ? activeDraft
         : null;
+    onProgress?.call('🔍 Membaca Ringkasan Finansial & Saldo Aktif...');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     final financialContext = evidenceScope.includeFinancialSummary
         ? _financialSnapshot.buildBoundedPrompt(
             await _financialSnapshot.readCurrentMonth(
@@ -444,8 +446,8 @@ class FfmAssistantInterpreter {
             ),
           )
         : '';
-    onProgress?.call('Menyusun konteks keuangan...');
-    await Future<void>.delayed(Duration.zero);
+    onProgress?.call('📖 Menghubungkan Profil Keluarga & Master Data...');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     final householdContext = await _financialSnapshot
         .buildHouseholdProfileContext(householdId: AppContext.householdId);
     final masterDataContext = evidenceScope.includeMasterData
@@ -563,6 +565,27 @@ class FfmAssistantInterpreter {
             householdId: AppContext.householdId,
           )
         : '';
+    final monitoringJobsContext = _containsAny(normalized, const [
+      'monitoring',
+      'pantau',
+      'jadwal pantau',
+      'evaluasi mingguan',
+      'laporan evaluasi',
+      'laporan kemarin',
+      'cek tagihan',
+      'budget monitor',
+      'kenapa begitu',
+      'kenapa evaluasi',
+      'kenapa laporan',
+    ])
+        ? (getIt.isRegistered<FfmAssistantMonitoringJobService>()
+            ? await getIt<FfmAssistantMonitoringJobService>()
+                .buildMonitoringDigest(
+                  householdId: AppContext.householdId,
+                  now: capturedAt,
+                )
+            : '')
+        : '';
     final correctionsContext = await FfmAssistantCorrectionService(
       _taughtMemory,
     ).buildCorrectionsContext(query: normalized);
@@ -615,6 +638,7 @@ class FfmAssistantInterpreter {
         liabilitiesContext,
         goalsContext,
         schemaContext,
+        monitoringJobsContext,
         correctionsContext,
       ].where((value) => value.trim().isNotEmpty).join('\n'),
       capabilityIds: capabilityIds,
@@ -726,8 +750,8 @@ class FfmAssistantInterpreter {
       boundedContext: geminiContext,
       householdId: AppContext.householdId,
     );
-    onProgress?.call('Gemini merespons, memvalidasi jawaban...');
-    await Future<void>.delayed(Duration.zero);
+    onProgress?.call('🛡️ Memverifikasi Kebenaran Finansial & Grounding...');
+    await Future<void>.delayed(const Duration(milliseconds: 120));
     if (!turn.ok) {
       return _InterpretResult.single(
         _cloudError(
@@ -1444,6 +1468,19 @@ class FfmAssistantInterpreter {
         );
       }
     }
+    if (pending.prompt.toLowerCase().contains('tag') ||
+        pending.missingFields.contains('tag penanda') ||
+        rawText.trim().startsWith('#')) {
+      final cleanTag = rawText.replaceAll('#', '').trim().toLowerCase();
+      if (cleanTag.isNotEmpty) {
+        draft = draft.copyWith(
+          formValues: {
+            ...draft.formValues,
+            'tags': cleanTag,
+          },
+        );
+      }
+    }
 
     final resolved = _intentForDraft(
       pending.originalRequest,
@@ -1746,6 +1783,22 @@ class FfmAssistantInterpreter {
       final today = DateTime.now();
       revised = revised.copyWith(date: today);
       changes.add('Tanggal diubah ke hari ini');
+    }
+
+    // 8. Koreksi Jam / Waktu (pengingat atau draft dengan waktu)
+    if (_hasExplicitTimeInText(normalized)) {
+      final baseDate = revised.date ?? DateTime.now();
+      final updatedTime = _parseTimeFromText(normalized, baseDate);
+      final newFormValues = Map<String, dynamic>.from(revised.formValues);
+      final hourStr = updatedTime.hour.toString().padLeft(2, '0');
+      final minuteStr = updatedTime.minute.toString().padLeft(2, '0');
+      newFormValues['time'] = '$hourStr:$minuteStr';
+      newFormValues['hasExplicitTime'] = true;
+      revised = revised.copyWith(
+        date: updatedTime,
+        formValues: newFormValues,
+      );
+      changes.add('Jam diubah ke $hourStr:$minuteStr WIB');
     }
 
     // 8. Koreksi Siklus Kas / AgroTrack (jika draft aktif adalah cashFlowProfile)
@@ -2272,8 +2325,8 @@ class FfmAssistantInterpreter {
     // proposal yang dikembalikan tetap diparse dan divalidasi oleh FFM;
     // Gemini tidak pernah menulis state aplikasi secara langsung.
     if (isGeminiConversationMode) {
-      onProgress?.call('Menghubungi Gemini Cloud...');
-      await Future<void>.delayed(Duration.zero);
+      onProgress?.call('🧠 Menghubungi Gemini Cloud untuk Penalaran...');
+      await Future<void>.delayed(const Duration(milliseconds: 150));
       final geminiResult = await _tryGeminiResponse(
         rawText,
         normalized,
@@ -5596,6 +5649,14 @@ class FfmAssistantInterpreter {
         (draft.partyName == null || draft.partyName!.isEmpty)) {
       missing.add('nama orangnya');
     }
+    if (draft.kind == FfmAssistantDraftKind.reminder) {
+      if (draft.title == null || draft.title!.isEmpty) {
+        missing.add('judul pengingat');
+      }
+      if (draft.formValues['hasExplicitTime'] != true) {
+        missing.add('jam pengingat');
+      }
+    }
     if (draft.kind == FfmAssistantDraftKind.profile &&
         draft.formValues.isNotEmpty) {
       for (final field in const ['Nama', 'Pekerjaan', 'Rutinitas', 'Tujuan']) {
@@ -5646,6 +5707,10 @@ class FfmAssistantInterpreter {
         clarification =
             '${missingItems.map((e) => e[0].toUpperCase() + e.substring(1)).join(' dan ')} draft belum lengkap. '
             'Sebut nama yang tersedia di Data Utama supaya draft bisa divalidasi.';
+      } else if (draft.kind == FfmAssistantDraftKind.reminder &&
+          missing.contains('jam pengingat')) {
+        clarification =
+            'Mau saya ingatkan jam berapa untuk ${draft.title ?? "pengingat ini"}? (Misalnya jam 08:00 pagi atau 19:00 malam)';
       } else {
         clarification =
             'Aku sudah menyiapkan draft ${config.action}, tapi masih butuh ${missing.join(', ')}.';
@@ -5673,7 +5738,7 @@ class FfmAssistantInterpreter {
       clarification: clarification,
       response: missing.isEmpty
           ? 'Draft ${config.action} sudah siap.$categoryHint Cek dulu, lalu konfirmasi di halaman terkait.'
-          : null,
+          : (draft.kind == FfmAssistantDraftKind.reminder ? clarification : null),
     );
   }
 
@@ -8637,6 +8702,7 @@ class FfmAssistantInterpreter {
           : rawText.trim();
 
       // Parse waktu yang diminta dari teks
+      final hasExplicitTime = _hasExplicitTimeInText(normalized);
       final parsedTime = _parseTimeFromText(normalized, now);
 
       return FfmAssistantDraft(
@@ -8645,6 +8711,13 @@ class FfmAssistantInterpreter {
         title: title,
         note: note,
         date: parsedTime,
+        formValues: {
+          'time':
+              '${parsedTime.hour.toString().padLeft(2, '0')}:${parsedTime.minute.toString().padLeft(2, '0')}',
+          'targetDate':
+              '${parsedTime.year}-${parsedTime.month.toString().padLeft(2, '0')}-${parsedTime.day.toString().padLeft(2, '0')}',
+          'hasExplicitTime': hasExplicitTime,
+        },
         metadata: billReminder
             ? {'calendar_sync': true, 'is_bill_reminder': true}
             : null,
@@ -9857,51 +9930,91 @@ class FfmAssistantInterpreter {
   String _capitalize(String word) =>
       word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}';
 
+  bool _hasExplicitTimeInText(String text) {
+    final timePattern = RegExp(
+      r'(?:jam|pukul|pk|pada)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam)?',
+      caseSensitive: false,
+    );
+    if (timePattern.hasMatch(text)) return true;
+    final colonPattern = RegExp(r'\b([01]?\d|2[0-3])[:.]([0-5]\d)\b');
+    if (colonPattern.hasMatch(text)) return true;
+    if (RegExp(r'\b\d+\s*(?:menit|jam)\s+lagi\b', caseSensitive: false).hasMatch(text)) {
+      return true;
+    }
+    return false;
+  }
+
   /// Parse waktu dari teks untuk pengingat
   DateTime _parseTimeFromText(String text, DateTime now) {
-    // Cek jam spesifik (07.30, 7:30, jam 7 pagi, dll)
+    // 1. Tentukan tanggal dasar: besok, lusa, atau hari tertentu
+    DateTime baseDate = now;
+    if (text.contains('besok')) {
+      baseDate = now.add(const Duration(days: 1));
+    } else if (text.contains('lusa')) {
+      baseDate = now.add(const Duration(days: 2));
+    } else {
+      final weekday = _weekdayDateFromText(text);
+      if (weekday != null) {
+        baseDate = weekday;
+      }
+    }
+
+    // 2. Cek jam spesifik (07.30, 7:30, jam 7 pagi, pukul 14, dll)
     final timePattern = RegExp(
-      r'(?:jam|pukul|pk|pada)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:pagi|siang|sore|malam)?',
+      r'(?:jam|pukul|pk|pada)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(pagi|siang|sore|malam)?',
       caseSensitive: false,
     );
     final timeMatch = timePattern.firstMatch(text);
+    final colonPattern = RegExp(r'\b([01]?\d|2[0-3])[:.]([0-5]\d)\b');
+    final colonMatch = colonPattern.firstMatch(text);
 
-    if (timeMatch != null) {
-      final hour = int.tryParse(timeMatch.group(1) ?? '') ?? 0;
-      final minute = int.tryParse(timeMatch.group(2) ?? '') ?? 0;
-      final period = timeMatch.group(3)?.toLowerCase();
+    if (timeMatch != null || colonMatch != null) {
+      final hour = timeMatch != null
+          ? (int.tryParse(timeMatch.group(1) ?? '') ?? 0)
+          : (int.tryParse(colonMatch!.group(1) ?? '') ?? 0);
+      final minute = (timeMatch != null && timeMatch.group(2) != null)
+          ? (int.tryParse(timeMatch.group(2)!) ?? 0)
+          : (colonMatch != null && colonMatch.group(2) != null)
+              ? (int.tryParse(colonMatch.group(2)!) ?? 0)
+              : 0;
+      final period = (timeMatch != null && timeMatch.groupCount >= 3)
+          ? timeMatch.group(3)?.toLowerCase()
+          : null;
 
-      // Tentukan jam berdasarkan periode
       int adjustedHour = hour;
       if (period != null) {
         if (period.contains('pagi')) {
-          adjustedHour = hour.clamp(1, 11);
+          adjustedHour = hour == 12 ? 0 : hour.clamp(0, 11);
         } else if (period.contains('siang')) {
-          adjustedHour = hour.clamp(11, 14);
+          adjustedHour = (hour >= 1 && hour <= 6) ? hour + 12 : hour.clamp(11, 14);
         } else if (period.contains('sore')) {
-          adjustedHour = hour.clamp(15, 18);
+          adjustedHour = (hour >= 1 && hour <= 6) ? hour + 12 : hour.clamp(15, 18);
         } else if (period.contains('malam')) {
-          adjustedHour = hour.clamp(18, 23);
+          adjustedHour = (hour >= 1 && hour <= 11) ? hour + 12 : hour.clamp(18, 23);
         }
-      } else {
-        // Default: 1-12 dianggap pagi, 13-23 tetap
-        if (hour <= 12 && hour >= 1) {
+      } else if (timeMatch != null) {
+        if (hour <= 12 && hour >= 1 && !text.contains(':') && !text.contains('.')) {
           adjustedHour = hour;
-        } else if (hour == 0) {
-          adjustedHour = 12; // 12 pagi
         }
       }
 
-      return DateTime(
-        now.year,
-        now.month,
-        now.day,
+      var candidate = DateTime(
+        baseDate.year,
+        baseDate.month,
+        baseDate.day,
         adjustedHour.clamp(0, 23),
         minute.clamp(0, 59),
       );
+      if (candidate.isBefore(now) &&
+          !text.contains('kemarin') &&
+          !text.contains('besok') &&
+          !text.contains('lusa')) {
+        candidate = candidate.add(const Duration(days: 1));
+      }
+      return candidate;
     }
 
-    // Cek ekspresi relatif waktu (30 menit lagi, 1 jam lagi, besok, dll)
+    // 3. Cek ekspresi relatif waktu (30 menit lagi, 1 jam lagi)
     if (text.contains('menit')) {
       final minutePattern = RegExp(r'(\d+)\s*menit');
       final minuteMatch = minutePattern.firstMatch(text);

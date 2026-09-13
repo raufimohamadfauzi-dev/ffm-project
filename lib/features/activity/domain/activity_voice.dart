@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+
 import 'entities/activity_entity.dart';
 
 enum ActivityVoiceIntentType {
@@ -31,6 +32,9 @@ class ActivityVoiceIntent {
     this.category = '',
     this.categoryId,
     this.startedAt,
+    this.notes,
+    this.tagIds = const [],
+    this.treatmentType,
     this.targetTitle,
     this.targetSessionId,
     this.parentTitle,
@@ -49,6 +53,9 @@ class ActivityVoiceIntent {
   final String category;
   final String? categoryId;
   final DateTime? startedAt;
+  final String? notes;
+  final List<String> tagIds;
+  final String? treatmentType;
   final String? targetTitle;
   final String? targetSessionId;
   final String? parentTitle;
@@ -65,6 +72,9 @@ class ActivityVoiceIntent {
     String? category,
     String? categoryId,
     DateTime? startedAt,
+    String? notes,
+    List<String>? tagIds,
+    String? treatmentType,
     String? targetTitle,
     String? targetSessionId,
     String? parentTitle,
@@ -83,6 +93,9 @@ class ActivityVoiceIntent {
     category: category ?? this.category,
     categoryId: categoryId ?? this.categoryId,
     startedAt: startedAt ?? this.startedAt,
+    notes: notes ?? this.notes,
+    tagIds: tagIds ?? this.tagIds,
+    treatmentType: treatmentType ?? this.treatmentType,
     targetTitle: targetTitle ?? this.targetTitle,
     targetSessionId: targetSessionId ?? this.targetSessionId,
     parentTitle: parentTitle ?? this.parentTitle,
@@ -123,6 +136,9 @@ class VoiceActivityDraft {
     this.categoryId,
     this.categoryName = '',
     this.notes,
+    this.kind = ActivityKind.timer,
+    this.tagIds = const [],
+    this.treatmentType,
     DateTime? startedAt,
   }) : draftId = 'voice-${const Uuid().v4()}',
        startedAt = startedAt ?? DateTime.now();
@@ -132,6 +148,9 @@ class VoiceActivityDraft {
   String? categoryId;
   String categoryName;
   String? notes;
+  List<String> tagIds;
+  String? treatmentType;
+  ActivityKind kind;
   DateTime startedAt;
   String? parentActivityId;
   String? parentTitle;
@@ -145,6 +164,7 @@ class VoiceActivityDraft {
   List<String> get missingFields => [
     if (title.trim().isEmpty) 'nama aktivitas',
     if (categoryId == null || categoryName.trim().isEmpty) 'kategori',
+    if (kind == ActivityKind.note && tagIds.isEmpty) 'tag/lahan',
   ];
 
   bool get canConfirm => missingFields.isEmpty && validationErrors.isEmpty;
@@ -179,8 +199,7 @@ class VoiceActivityDraft {
       notes = notes == null || notes!.isEmpty ? value : '$notes; $value';
       return true;
     }
-    final hour =
-        RegExp(r'\bjam\s+(\d{1,2})(?:[.:](\d{2}))?').firstMatch(lower);
+    final hour = RegExp(r'\bjam\s+(\d{1,2})(?:[.:](\d{2}))?').firstMatch(lower);
     if (hour != null &&
         (lower.contains('mulai') ||
             lower.contains('waktu') ||

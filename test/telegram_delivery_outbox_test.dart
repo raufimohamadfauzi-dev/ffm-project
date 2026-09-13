@@ -203,6 +203,34 @@ void main() {
     );
 
     test(
+      'pendingDue marks stale deliveries (>24h) as expired so outdated reports are not sent',
+      () async {
+        await repo.enqueue(
+          deliveryId: 'stale-1',
+          householdId: 'house',
+          operation: 'monitoring',
+          messageText: 'laporan basi',
+          createdAt: fixed.subtract(const Duration(hours: 25)),
+        );
+        await repo.enqueue(
+          deliveryId: 'fresh-1',
+          householdId: 'house',
+          operation: 'monitoring',
+          messageText: 'laporan baru',
+          createdAt: fixed.subtract(const Duration(hours: 2)),
+        );
+
+        final pending = await repo.pendingDue(householdId: 'house', now: fixed);
+        expect(pending.map((d) => d.deliveryId), ['fresh-1']);
+
+        final staleRow = await repo.deliveryById('stale-1');
+        expect(staleRow?.status, 'expired');
+        expect(staleRow?.retryable, isFalse);
+        expect(staleRow?.lastError, contains('kedaluwarsa'));
+      },
+    );
+
+    test(
       'claim is atomic: single winner, increments attempt, respects due time',
       () async {
         await repo.enqueue(

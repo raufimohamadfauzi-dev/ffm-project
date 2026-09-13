@@ -1,4 +1,6 @@
+import '../../../core/di/injection.dart';
 import 'ffm_assistant_financial_snapshot_service.dart';
+import 'ffm_assistant_monitoring_job_service.dart';
 import 'ffm_assistant_proposal_json_service.dart';
 
 /// Kebijakan resmi dan tersentralisasi untuk seluruh capability baca Gemini Cloud.
@@ -29,6 +31,8 @@ class FfmGeminiReadCapabilityPolicy {
     'read.budgets',
     'read.schema',
     'read.tables',
+    'read.monitoring',
+    'read.monitoring_jobs',
   };
 
   static const List<String> canonicalToolChoices = <String>[
@@ -44,6 +48,7 @@ class FfmGeminiReadCapabilityPolicy {
     'read.budget',
     'read.hijriDate',
     'read.schema',
+    'read.monitoring',
   ];
 
   static String get formattedToolChoices =>
@@ -119,6 +124,8 @@ class FfmGeminiReadCapabilityService {
           householdId: householdId,
           periodStart: request.startDate,
           periodEndExclusive: request.endDate?.add(const Duration(days: 1)),
+          tagNames: request.tagNames,
+          treatmentType: request.treatmentType,
         );
       case 'read.reminders':
       case 'read.reminder':
@@ -141,6 +148,16 @@ class FfmGeminiReadCapabilityService {
         return await _financialSnapshot.buildSchemaContext(
           householdId: householdId,
         );
+      case 'read.monitoring':
+      case 'read.monitoring_jobs':
+        if (getIt.isRegistered<FfmAssistantMonitoringJobService>()) {
+          return await getIt<FfmAssistantMonitoringJobService>()
+              .buildMonitoringDigest(
+                householdId: householdId,
+                now: now,
+              );
+        }
+        return 'Data pemantauan tidak tersedia.';
       default:
         throw StateError('Capability baca tidak diizinkan.');
     }

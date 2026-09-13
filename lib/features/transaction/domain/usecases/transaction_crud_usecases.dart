@@ -35,6 +35,8 @@ class TransactionEntity {
     this.receiptNumber,
     this.receiptPaidAmount,
     this.receiptChangeAmount,
+    this.tax,
+    this.discount,
     required this.recordedAt,
     this.updatedAt,
   });
@@ -59,6 +61,8 @@ class TransactionEntity {
   final String? receiptNumber;
   final int? receiptPaidAmount;
   final int? receiptChangeAmount;
+  final int? tax;
+  final int? discount;
   final DateTime recordedAt;
   final DateTime? updatedAt;
 
@@ -87,6 +91,8 @@ class TransactionEntity {
     String? receiptNumber,
     int? receiptPaidAmount,
     int? receiptChangeAmount,
+    int? tax,
+    int? discount,
     DateTime? recordedAt,
     DateTime? updatedAt,
   }) {
@@ -112,6 +118,8 @@ class TransactionEntity {
       receiptNumber: receiptNumber ?? this.receiptNumber,
       receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
+      tax: tax ?? this.tax,
+      discount: discount ?? this.discount,
       recordedAt: recordedAt ?? this.recordedAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -394,6 +402,8 @@ class SaveTransaction {
               receiptNumber: Value(effectiveEntity.receiptNumber),
               receiptPaidAmount: Value(effectiveEntity.receiptPaidAmount),
               receiptChangeAmount: Value(effectiveEntity.receiptChangeAmount),
+              tax: Value(effectiveEntity.tax),
+              discount: Value(effectiveEntity.discount),
               createdAt: effectiveEntity.recordedAt,
               updatedAt: Value(effectiveEntity.updatedAt ?? DateTime.now()),
             ),
@@ -609,6 +619,8 @@ class SaveTransactionBatch {
                 receiptNumber: Value(entity.receiptNumber),
                 receiptPaidAmount: Value(entity.receiptPaidAmount),
                 receiptChangeAmount: Value(entity.receiptChangeAmount),
+                tax: Value(entity.tax),
+                discount: Value(entity.discount),
                 createdAt: entity.recordedAt,
                 updatedAt: Value(entity.updatedAt ?? DateTime.now()),
               ),
@@ -746,6 +758,8 @@ class SaveMixedTransactionBatch {
                 receiptNumber: Value(entity.receiptNumber),
                 receiptPaidAmount: Value(entity.receiptPaidAmount),
                 receiptChangeAmount: Value(entity.receiptChangeAmount),
+                tax: Value(entity.tax),
+                discount: Value(entity.discount),
                 createdAt: entity.recordedAt,
                 updatedAt: Value(entity.updatedAt),
               ),

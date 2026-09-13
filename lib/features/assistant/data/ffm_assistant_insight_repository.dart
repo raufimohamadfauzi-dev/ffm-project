@@ -155,21 +155,26 @@ class FfmAssistantInsightRepository {
     await _ensureTable();
     final now = _clock().millisecondsSinceEpoch;
 
-    // Bersihkan status expired terlebih dahulu
-    await _db.customUpdate(
-      '''
-      UPDATE assistant_insights
-      SET status = 'expired', updated_at = ?
-      WHERE household_id = ?
-        AND status NOT IN ('dismissed', 'acted', 'expired')
-        AND expires_at > 0 AND expires_at <= ?
-      ''',
-      variables: [
-        Variable.withInt(now),
-        Variable.withString(householdId),
-        Variable.withInt(now),
-      ],
-    );
+    // Bersihkan status expired terlebih dahulu secara best-effort
+    try {
+      await _db.customUpdate(
+        '''
+        UPDATE assistant_insights
+        SET status = 'expired', updated_at = ?
+        WHERE household_id = ?
+          AND status NOT IN ('dismissed', 'acted', 'expired')
+          AND expires_at > 0 AND expires_at <= ?
+        ''',
+        variables: [
+          Variable.withInt(now),
+          Variable.withString(householdId),
+          Variable.withInt(now),
+        ],
+      );
+    } catch (_) {
+      // Housekeeping status expired bersifat best effort agar tidak memblokir
+      // atau memicu unhandled async error bila database sedang sibuk.
+    }
 
     final rows = await _db
         .customSelect(

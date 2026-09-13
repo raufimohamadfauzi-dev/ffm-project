@@ -160,6 +160,95 @@ class ActivityRepository {
     return rows;
   }
 
+  /// Menyimpan Catatan Harian beserta tag/lahan secara atomik.
+  /// Catatan baru wajib memiliki minimal satu tag aktif dari household yang sama.
+  Future<void> saveDailyNote({
+    required String id,
+    required String householdId,
+    required DateTime noteDate,
+    required String body,
+    required List<String> tagIds,
+    String? title,
+    String? treatmentType,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) async {
+    final cleanBody = body.trim();
+    final cleanTagIds = tagIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    if (cleanBody.isEmpty) {
+      throw ArgumentError.value(
+        body,
+        'body',
+        'Isi Catatan Harian wajib diisi.',
+      );
+    }
+    if (cleanTagIds.isEmpty) {
+      throw StateError('Pilih minimal satu tag/lahan untuk Catatan Harian.');
+    }
+    final cleanTreatment = treatmentType?.trim().toLowerCase();
+    if (cleanTreatment != null &&
+        cleanTreatment.isNotEmpty &&
+        cleanTreatment != 'obat' &&
+        cleanTreatment != 'pupuk') {
+      throw ArgumentError.value(
+        treatmentType,
+        'treatmentType',
+        'Jenis perlakuan hanya boleh obat atau pupuk.',
+      );
+    }
+    await database.transaction(() async {
+      final tags =
+          await (database.select(database.tags)..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false) &
+                    row.id.isIn(cleanTagIds),
+              ))
+              .get();
+      if (tags.length != cleanTagIds.length) {
+        throw StateError('Tag/lahan tidak valid atau sudah diarsipkan.');
+      }
+      await database
+          .into(database.dailyNotes)
+          .insertOnConflictUpdate(
+            DailyNotesCompanion.insert(
+              id: id,
+              householdId: householdId,
+              noteDate: noteDate,
+              title: Value(
+                title?.trim().isEmpty == true ? null : title?.trim(),
+              ),
+              body: cleanBody,
+              treatmentType: Value(
+                cleanTreatment?.isEmpty == true ? null : cleanTreatment,
+              ),
+              createdAt: createdAt ?? DateTime.now(),
+              updatedAt: Value(updatedAt ?? DateTime.now()),
+            ),
+          );
+      await (database.delete(
+        database.dailyNoteTags,
+      )..where((row) => row.dailyNoteId.equals(id))).go();
+      await database.batch((batch) {
+        batch.insertAll(
+          database.dailyNoteTags,
+          cleanTagIds
+              .map(
+                (tagId) => DailyNoteTagsCompanion.insert(
+                  dailyNoteId: id,
+                  tagId: tagId,
+                ),
+              )
+              .toList(growable: false),
+        );
+      });
+    });
+  }
+
   Future<void> saveSession(ActivitySessionEntity entity) async {
     final category = await _resolveActivityCategory(entity);
     await database
@@ -173,7 +262,9 @@ class ActivityRepository {
             categoryId: Value(category?.id ?? entity.categoryId),
             category: Value(category?.name ?? entity.category),
             kind: Value(entity.kind.value),
-            mode: Value(entity.effectiveMode.value),
+            // Persist the requested mode; effectiveMode is only the legacy
+            // fallback when old rows do not have an explicit mode.
+            mode: Value(entity.mode?.value ?? entity.effectiveMode.value),
             // Activity Intelligence Upgrade fields
             activityGroupId: Value(entity.activityGroupId),
             subjectType: Value(entity.subjectType),
@@ -701,31 +792,10 @@ class ActivityRepository {
         );
       }
 
-      // 2. Migrate Daily Notes
-      final notes = await (database.select(
-        database.dailyNotes,
-      )..where((row) => row.householdId.equals(householdId))).get();
-      for (final note in notes) {
-        await saveSession(
-          ActivitySessionEntity(
-            id: note.id,
-            householdId: householdId,
-            title: note.title ?? 'Catatan',
-            category: 'catatan',
-            kind: ActivityKind.note,
-            startedAt: note.noteDate,
-            endedAt: note.noteDate,
-            isCompleted: true,
-            status: ActivitySessionStatus.completed,
-            notes: note.body,
-            isArchived: note.isArchived,
-            createdAt: note.createdAt,
-            updatedAt: note.updatedAt,
-          ),
-        );
-      }
+      // Daily Notes already have their own authoritative table. Do not copy
+      // them into activity_sessions during legacy migration.
 
-      // 3. Migrate Schedule Entries
+      // 2. Migrate Schedule Entries
       final schedules = await (database.select(
         database.scheduleEntries,
       )..where((row) => row.householdId.equals(householdId))).get();
@@ -804,6 +874,7 @@ class ActivityRepository {
         category: row.category,
         categoryId: row.categoryId,
         kind: ActivityKind.fromValue(row.kind),
+        mode: ActivityMode.tryParse(row.mode),
         parentSessionId: row.parentSessionId,
         // Activity Intelligence Upgrade fields
         activityGroupId: row.activityGroupId,

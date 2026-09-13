@@ -4119,6 +4119,26 @@ class $TransactionsTable extends Transactions
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _taxMeta = const VerificationMeta('tax');
+  @override
+  late final GeneratedColumn<int> tax = GeneratedColumn<int>(
+    'tax',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _discountMeta = const VerificationMeta(
+    'discount',
+  );
+  @override
+  late final GeneratedColumn<int> discount = GeneratedColumn<int>(
+    'discount',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isArchivedMeta = const VerificationMeta(
     'isArchived',
   );
@@ -4196,6 +4216,8 @@ class $TransactionsTable extends Transactions
     receiptNumber,
     receiptPaidAmount,
     receiptChangeAmount,
+    tax,
+    discount,
     isArchived,
     isDeleted,
     createdAt,
@@ -4381,6 +4403,18 @@ class $TransactionsTable extends Transactions
         ),
       );
     }
+    if (data.containsKey('tax')) {
+      context.handle(
+        _taxMeta,
+        tax.isAcceptableOrUnknown(data['tax']!, _taxMeta),
+      );
+    }
+    if (data.containsKey('discount')) {
+      context.handle(
+        _discountMeta,
+        discount.isAcceptableOrUnknown(data['discount']!, _discountMeta),
+      );
+    }
     if (data.containsKey('is_archived')) {
       context.handle(
         _isArchivedMeta,
@@ -4508,6 +4542,14 @@ class $TransactionsTable extends Transactions
         DriftSqlType.int,
         data['${effectivePrefix}receipt_change_amount'],
       ),
+      tax: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tax'],
+      ),
+      discount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}discount'],
+      ),
       isArchived: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_archived'],
@@ -4557,6 +4599,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? receiptNumber;
   final int? receiptPaidAmount;
   final int? receiptChangeAmount;
+  final int? tax;
+  final int? discount;
   final bool isArchived;
   final bool isDeleted;
   final DateTime createdAt;
@@ -4585,6 +4629,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     this.receiptNumber,
     this.receiptPaidAmount,
     this.receiptChangeAmount,
+    this.tax,
+    this.discount,
     required this.isArchived,
     required this.isDeleted,
     required this.createdAt,
@@ -4652,6 +4698,12 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     if (!nullToAbsent || receiptChangeAmount != null) {
       map['receipt_change_amount'] = Variable<int>(receiptChangeAmount);
     }
+    if (!nullToAbsent || tax != null) {
+      map['tax'] = Variable<int>(tax);
+    }
+    if (!nullToAbsent || discount != null) {
+      map['discount'] = Variable<int>(discount);
+    }
     map['is_archived'] = Variable<bool>(isArchived);
     map['is_deleted'] = Variable<bool>(isDeleted);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -4718,6 +4770,10 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       receiptChangeAmount: receiptChangeAmount == null && nullToAbsent
           ? const Value.absent()
           : Value(receiptChangeAmount),
+      tax: tax == null && nullToAbsent ? const Value.absent() : Value(tax),
+      discount: discount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(discount),
       isArchived: Value(isArchived),
       isDeleted: Value(isDeleted),
       createdAt: Value(createdAt),
@@ -4760,6 +4816,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       receiptChangeAmount: serializer.fromJson<int?>(
         json['receiptChangeAmount'],
       ),
+      tax: serializer.fromJson<int?>(json['tax']),
+      discount: serializer.fromJson<int?>(json['discount']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -4795,6 +4853,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'receiptNumber': serializer.toJson<String?>(receiptNumber),
       'receiptPaidAmount': serializer.toJson<int?>(receiptPaidAmount),
       'receiptChangeAmount': serializer.toJson<int?>(receiptChangeAmount),
+      'tax': serializer.toJson<int?>(tax),
+      'discount': serializer.toJson<int?>(discount),
       'isArchived': serializer.toJson<bool>(isArchived),
       'isDeleted': serializer.toJson<bool>(isDeleted),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -4826,6 +4886,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     Value<String?> receiptNumber = const Value.absent(),
     Value<int?> receiptPaidAmount = const Value.absent(),
     Value<int?> receiptChangeAmount = const Value.absent(),
+    Value<int?> tax = const Value.absent(),
+    Value<int?> discount = const Value.absent(),
     bool? isArchived,
     bool? isDeleted,
     DateTime? createdAt,
@@ -4866,6 +4928,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     receiptChangeAmount: receiptChangeAmount.present
         ? receiptChangeAmount.value
         : this.receiptChangeAmount,
+    tax: tax.present ? tax.value : this.tax,
+    discount: discount.present ? discount.value : this.discount,
     isArchived: isArchived ?? this.isArchived,
     isDeleted: isDeleted ?? this.isDeleted,
     createdAt: createdAt ?? this.createdAt,
@@ -4918,6 +4982,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       receiptChangeAmount: data.receiptChangeAmount.present
           ? data.receiptChangeAmount.value
           : this.receiptChangeAmount,
+      tax: data.tax.present ? data.tax.value : this.tax,
+      discount: data.discount.present ? data.discount.value : this.discount,
       isArchived: data.isArchived.present
           ? data.isArchived.value
           : this.isArchived,
@@ -4953,6 +5019,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('receiptNumber: $receiptNumber, ')
           ..write('receiptPaidAmount: $receiptPaidAmount, ')
           ..write('receiptChangeAmount: $receiptChangeAmount, ')
+          ..write('tax: $tax, ')
+          ..write('discount: $discount, ')
           ..write('isArchived: $isArchived, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('createdAt: $createdAt, ')
@@ -4986,6 +5054,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
     receiptNumber,
     receiptPaidAmount,
     receiptChangeAmount,
+    tax,
+    discount,
     isArchived,
     isDeleted,
     createdAt,
@@ -5018,6 +5088,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.receiptNumber == this.receiptNumber &&
           other.receiptPaidAmount == this.receiptPaidAmount &&
           other.receiptChangeAmount == this.receiptChangeAmount &&
+          other.tax == this.tax &&
+          other.discount == this.discount &&
           other.isArchived == this.isArchived &&
           other.isDeleted == this.isDeleted &&
           other.createdAt == this.createdAt &&
@@ -5048,6 +5120,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> receiptNumber;
   final Value<int?> receiptPaidAmount;
   final Value<int?> receiptChangeAmount;
+  final Value<int?> tax;
+  final Value<int?> discount;
   final Value<bool> isArchived;
   final Value<bool> isDeleted;
   final Value<DateTime> createdAt;
@@ -5077,6 +5151,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.receiptNumber = const Value.absent(),
     this.receiptPaidAmount = const Value.absent(),
     this.receiptChangeAmount = const Value.absent(),
+    this.tax = const Value.absent(),
+    this.discount = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -5107,6 +5183,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.receiptNumber = const Value.absent(),
     this.receiptPaidAmount = const Value.absent(),
     this.receiptChangeAmount = const Value.absent(),
+    this.tax = const Value.absent(),
+    this.discount = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.isDeleted = const Value.absent(),
     required DateTime createdAt,
@@ -5143,6 +5221,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? receiptNumber,
     Expression<int>? receiptPaidAmount,
     Expression<int>? receiptChangeAmount,
+    Expression<int>? tax,
+    Expression<int>? discount,
     Expression<bool>? isArchived,
     Expression<bool>? isDeleted,
     Expression<DateTime>? createdAt,
@@ -5175,6 +5255,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (receiptPaidAmount != null) 'receipt_paid_amount': receiptPaidAmount,
       if (receiptChangeAmount != null)
         'receipt_change_amount': receiptChangeAmount,
+      if (tax != null) 'tax': tax,
+      if (discount != null) 'discount': discount,
       if (isArchived != null) 'is_archived': isArchived,
       if (isDeleted != null) 'is_deleted': isDeleted,
       if (createdAt != null) 'created_at': createdAt,
@@ -5207,6 +5289,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Value<String?>? receiptNumber,
     Value<int?>? receiptPaidAmount,
     Value<int?>? receiptChangeAmount,
+    Value<int?>? tax,
+    Value<int?>? discount,
     Value<bool>? isArchived,
     Value<bool>? isDeleted,
     Value<DateTime>? createdAt,
@@ -5238,6 +5322,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       receiptNumber: receiptNumber ?? this.receiptNumber,
       receiptPaidAmount: receiptPaidAmount ?? this.receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount ?? this.receiptChangeAmount,
+      tax: tax ?? this.tax,
+      discount: discount ?? this.discount,
       isArchived: isArchived ?? this.isArchived,
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
@@ -5320,6 +5406,12 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     if (receiptChangeAmount.present) {
       map['receipt_change_amount'] = Variable<int>(receiptChangeAmount.value);
     }
+    if (tax.present) {
+      map['tax'] = Variable<int>(tax.value);
+    }
+    if (discount.present) {
+      map['discount'] = Variable<int>(discount.value);
+    }
     if (isArchived.present) {
       map['is_archived'] = Variable<bool>(isArchived.value);
     }
@@ -5364,6 +5456,8 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('receiptNumber: $receiptNumber, ')
           ..write('receiptPaidAmount: $receiptPaidAmount, ')
           ..write('receiptChangeAmount: $receiptChangeAmount, ')
+          ..write('tax: $tax, ')
+          ..write('discount: $discount, ')
           ..write('isArchived: $isArchived, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('createdAt: $createdAt, ')
@@ -6090,6 +6184,226 @@ class TransactionTagsCompanion extends UpdateCompanion<TransactionTag> {
   String toString() {
     return (StringBuffer('TransactionTagsCompanion(')
           ..write('transactionId: $transactionId, ')
+          ..write('tagId: $tagId, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DailyNoteTagsTable extends DailyNoteTags
+    with TableInfo<$DailyNoteTagsTable, DailyNoteTag> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyNoteTagsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _dailyNoteIdMeta = const VerificationMeta(
+    'dailyNoteId',
+  );
+  @override
+  late final GeneratedColumn<String> dailyNoteId = GeneratedColumn<String>(
+    'daily_note_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tagIdMeta = const VerificationMeta('tagId');
+  @override
+  late final GeneratedColumn<String> tagId = GeneratedColumn<String>(
+    'tag_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [dailyNoteId, tagId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_note_tags';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyNoteTag> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('daily_note_id')) {
+      context.handle(
+        _dailyNoteIdMeta,
+        dailyNoteId.isAcceptableOrUnknown(
+          data['daily_note_id']!,
+          _dailyNoteIdMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_dailyNoteIdMeta);
+    }
+    if (data.containsKey('tag_id')) {
+      context.handle(
+        _tagIdMeta,
+        tagId.isAcceptableOrUnknown(data['tag_id']!, _tagIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tagIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {dailyNoteId, tagId};
+  @override
+  DailyNoteTag map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyNoteTag(
+      dailyNoteId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}daily_note_id'],
+      )!,
+      tagId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tag_id'],
+      )!,
+    );
+  }
+
+  @override
+  $DailyNoteTagsTable createAlias(String alias) {
+    return $DailyNoteTagsTable(attachedDatabase, alias);
+  }
+}
+
+class DailyNoteTag extends DataClass implements Insertable<DailyNoteTag> {
+  final String dailyNoteId;
+  final String tagId;
+  const DailyNoteTag({required this.dailyNoteId, required this.tagId});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['daily_note_id'] = Variable<String>(dailyNoteId);
+    map['tag_id'] = Variable<String>(tagId);
+    return map;
+  }
+
+  DailyNoteTagsCompanion toCompanion(bool nullToAbsent) {
+    return DailyNoteTagsCompanion(
+      dailyNoteId: Value(dailyNoteId),
+      tagId: Value(tagId),
+    );
+  }
+
+  factory DailyNoteTag.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyNoteTag(
+      dailyNoteId: serializer.fromJson<String>(json['dailyNoteId']),
+      tagId: serializer.fromJson<String>(json['tagId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'dailyNoteId': serializer.toJson<String>(dailyNoteId),
+      'tagId': serializer.toJson<String>(tagId),
+    };
+  }
+
+  DailyNoteTag copyWith({String? dailyNoteId, String? tagId}) => DailyNoteTag(
+    dailyNoteId: dailyNoteId ?? this.dailyNoteId,
+    tagId: tagId ?? this.tagId,
+  );
+  DailyNoteTag copyWithCompanion(DailyNoteTagsCompanion data) {
+    return DailyNoteTag(
+      dailyNoteId: data.dailyNoteId.present
+          ? data.dailyNoteId.value
+          : this.dailyNoteId,
+      tagId: data.tagId.present ? data.tagId.value : this.tagId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyNoteTag(')
+          ..write('dailyNoteId: $dailyNoteId, ')
+          ..write('tagId: $tagId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(dailyNoteId, tagId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyNoteTag &&
+          other.dailyNoteId == this.dailyNoteId &&
+          other.tagId == this.tagId);
+}
+
+class DailyNoteTagsCompanion extends UpdateCompanion<DailyNoteTag> {
+  final Value<String> dailyNoteId;
+  final Value<String> tagId;
+  final Value<int> rowid;
+  const DailyNoteTagsCompanion({
+    this.dailyNoteId = const Value.absent(),
+    this.tagId = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyNoteTagsCompanion.insert({
+    required String dailyNoteId,
+    required String tagId,
+    this.rowid = const Value.absent(),
+  }) : dailyNoteId = Value(dailyNoteId),
+       tagId = Value(tagId);
+  static Insertable<DailyNoteTag> custom({
+    Expression<String>? dailyNoteId,
+    Expression<String>? tagId,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (dailyNoteId != null) 'daily_note_id': dailyNoteId,
+      if (tagId != null) 'tag_id': tagId,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyNoteTagsCompanion copyWith({
+    Value<String>? dailyNoteId,
+    Value<String>? tagId,
+    Value<int>? rowid,
+  }) {
+    return DailyNoteTagsCompanion(
+      dailyNoteId: dailyNoteId ?? this.dailyNoteId,
+      tagId: tagId ?? this.tagId,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (dailyNoteId.present) {
+      map['daily_note_id'] = Variable<String>(dailyNoteId.value);
+    }
+    if (tagId.present) {
+      map['tag_id'] = Variable<String>(tagId.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyNoteTagsCompanion(')
+          ..write('dailyNoteId: $dailyNoteId, ')
           ..write('tagId: $tagId, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -7825,6 +8139,15 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _monthMeta = const VerificationMeta('month');
   @override
   late final GeneratedColumn<String> month = GeneratedColumn<String>(
@@ -7948,6 +8271,7 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
     categoryId,
     categoryIdsJson,
     name,
+    note,
     month,
     allocated,
     periodType,
@@ -8009,6 +8333,12 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
     }
     if (data.containsKey('month')) {
       context.handle(
@@ -8108,6 +8438,10 @@ class $EnvelopeBudgetsTable extends EnvelopeBudgets
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
       month: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}month'],
@@ -8163,6 +8497,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
   final String? categoryId;
   final String categoryIdsJson;
   final String name;
+  final String? note;
   final String? month;
   final int allocated;
   final String periodType;
@@ -8179,6 +8514,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     this.categoryId,
     required this.categoryIdsJson,
     required this.name,
+    this.note,
     this.month,
     required this.allocated,
     required this.periodType,
@@ -8200,6 +8536,9 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     }
     map['category_ids_json'] = Variable<String>(categoryIdsJson);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
     if (!nullToAbsent || month != null) {
       map['month'] = Variable<String>(month);
     }
@@ -8226,6 +8565,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           : Value(categoryId),
       categoryIdsJson: Value(categoryIdsJson),
       name: Value(name),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       month: month == null && nullToAbsent
           ? const Value.absent()
           : Value(month),
@@ -8254,6 +8594,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       categoryId: serializer.fromJson<String?>(json['categoryId']),
       categoryIdsJson: serializer.fromJson<String>(json['categoryIdsJson']),
       name: serializer.fromJson<String>(json['name']),
+      note: serializer.fromJson<String?>(json['note']),
       month: serializer.fromJson<String?>(json['month']),
       allocated: serializer.fromJson<int>(json['allocated']),
       periodType: serializer.fromJson<String>(json['periodType']),
@@ -8275,6 +8616,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
       'categoryId': serializer.toJson<String?>(categoryId),
       'categoryIdsJson': serializer.toJson<String>(categoryIdsJson),
       'name': serializer.toJson<String>(name),
+      'note': serializer.toJson<String?>(note),
       'month': serializer.toJson<String?>(month),
       'allocated': serializer.toJson<int>(allocated),
       'periodType': serializer.toJson<String>(periodType),
@@ -8294,6 +8636,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     Value<String?> categoryId = const Value.absent(),
     String? categoryIdsJson,
     String? name,
+    Value<String?> note = const Value.absent(),
     Value<String?> month = const Value.absent(),
     int? allocated,
     String? periodType,
@@ -8310,6 +8653,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     categoryId: categoryId.present ? categoryId.value : this.categoryId,
     categoryIdsJson: categoryIdsJson ?? this.categoryIdsJson,
     name: name ?? this.name,
+    note: note.present ? note.value : this.note,
     month: month.present ? month.value : this.month,
     allocated: allocated ?? this.allocated,
     periodType: periodType ?? this.periodType,
@@ -8334,6 +8678,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           ? data.categoryIdsJson.value
           : this.categoryIdsJson,
       name: data.name.present ? data.name.value : this.name,
+      note: data.note.present ? data.note.value : this.note,
       month: data.month.present ? data.month.value : this.month,
       allocated: data.allocated.present ? data.allocated.value : this.allocated,
       periodType: data.periodType.present
@@ -8359,6 +8704,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           ..write('categoryId: $categoryId, ')
           ..write('categoryIdsJson: $categoryIdsJson, ')
           ..write('name: $name, ')
+          ..write('note: $note, ')
           ..write('month: $month, ')
           ..write('allocated: $allocated, ')
           ..write('periodType: $periodType, ')
@@ -8380,6 +8726,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
     categoryId,
     categoryIdsJson,
     name,
+    note,
     month,
     allocated,
     periodType,
@@ -8400,6 +8747,7 @@ class EnvelopeBudget extends DataClass implements Insertable<EnvelopeBudget> {
           other.categoryId == this.categoryId &&
           other.categoryIdsJson == this.categoryIdsJson &&
           other.name == this.name &&
+          other.note == this.note &&
           other.month == this.month &&
           other.allocated == this.allocated &&
           other.periodType == this.periodType &&
@@ -8418,6 +8766,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
   final Value<String?> categoryId;
   final Value<String> categoryIdsJson;
   final Value<String> name;
+  final Value<String?> note;
   final Value<String?> month;
   final Value<int> allocated;
   final Value<String> periodType;
@@ -8435,6 +8784,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     this.categoryId = const Value.absent(),
     this.categoryIdsJson = const Value.absent(),
     this.name = const Value.absent(),
+    this.note = const Value.absent(),
     this.month = const Value.absent(),
     this.allocated = const Value.absent(),
     this.periodType = const Value.absent(),
@@ -8453,6 +8803,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     this.categoryId = const Value.absent(),
     this.categoryIdsJson = const Value.absent(),
     required String name,
+    this.note = const Value.absent(),
     this.month = const Value.absent(),
     this.allocated = const Value.absent(),
     this.periodType = const Value.absent(),
@@ -8476,6 +8827,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     Expression<String>? categoryId,
     Expression<String>? categoryIdsJson,
     Expression<String>? name,
+    Expression<String>? note,
     Expression<String>? month,
     Expression<int>? allocated,
     Expression<String>? periodType,
@@ -8494,6 +8846,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
       if (categoryId != null) 'category_id': categoryId,
       if (categoryIdsJson != null) 'category_ids_json': categoryIdsJson,
       if (name != null) 'name': name,
+      if (note != null) 'note': note,
       if (month != null) 'month': month,
       if (allocated != null) 'allocated': allocated,
       if (periodType != null) 'period_type': periodType,
@@ -8514,6 +8867,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     Value<String?>? categoryId,
     Value<String>? categoryIdsJson,
     Value<String>? name,
+    Value<String?>? note,
     Value<String?>? month,
     Value<int>? allocated,
     Value<String>? periodType,
@@ -8532,6 +8886,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
       categoryId: categoryId ?? this.categoryId,
       categoryIdsJson: categoryIdsJson ?? this.categoryIdsJson,
       name: name ?? this.name,
+      note: note ?? this.note,
       month: month ?? this.month,
       allocated: allocated ?? this.allocated,
       periodType: periodType ?? this.periodType,
@@ -8563,6 +8918,9 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
     }
     if (month.present) {
       map['month'] = Variable<String>(month.value);
@@ -8608,6 +8966,7 @@ class EnvelopeBudgetsCompanion extends UpdateCompanion<EnvelopeBudget> {
           ..write('categoryId: $categoryId, ')
           ..write('categoryIdsJson: $categoryIdsJson, ')
           ..write('name: $name, ')
+          ..write('note: $note, ')
           ..write('month: $month, ')
           ..write('allocated: $allocated, ')
           ..write('periodType: $periodType, ')
@@ -9881,6 +10240,15 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _targetAmountMeta = const VerificationMeta(
     'targetAmount',
   );
@@ -9957,6 +10325,7 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
     id,
     householdId,
     name,
+    note,
     targetAmount,
     currentAmount,
     targetDate,
@@ -9999,6 +10368,12 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
       );
     } else if (isInserting) {
       context.missing(_nameMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
     }
     if (data.containsKey('target_amount')) {
       context.handle(
@@ -10067,6 +10442,10 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
         DriftSqlType.string,
         data['${effectivePrefix}name'],
       )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
       targetAmount: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}target_amount'],
@@ -10104,6 +10483,7 @@ class Goal extends DataClass implements Insertable<Goal> {
   final String id;
   final String householdId;
   final String name;
+  final String? note;
   final int targetAmount;
   final int currentAmount;
   final DateTime? targetDate;
@@ -10114,6 +10494,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     required this.id,
     required this.householdId,
     required this.name,
+    this.note,
     required this.targetAmount,
     required this.currentAmount,
     this.targetDate,
@@ -10127,6 +10508,9 @@ class Goal extends DataClass implements Insertable<Goal> {
     map['id'] = Variable<String>(id);
     map['household_id'] = Variable<String>(householdId);
     map['name'] = Variable<String>(name);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
     map['target_amount'] = Variable<int>(targetAmount);
     map['current_amount'] = Variable<int>(currentAmount);
     if (!nullToAbsent || targetDate != null) {
@@ -10145,6 +10529,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       id: Value(id),
       householdId: Value(householdId),
       name: Value(name),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       targetAmount: Value(targetAmount),
       currentAmount: Value(currentAmount),
       targetDate: targetDate == null && nullToAbsent
@@ -10167,6 +10552,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       id: serializer.fromJson<String>(json['id']),
       householdId: serializer.fromJson<String>(json['householdId']),
       name: serializer.fromJson<String>(json['name']),
+      note: serializer.fromJson<String?>(json['note']),
       targetAmount: serializer.fromJson<int>(json['targetAmount']),
       currentAmount: serializer.fromJson<int>(json['currentAmount']),
       targetDate: serializer.fromJson<DateTime?>(json['targetDate']),
@@ -10182,6 +10568,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       'id': serializer.toJson<String>(id),
       'householdId': serializer.toJson<String>(householdId),
       'name': serializer.toJson<String>(name),
+      'note': serializer.toJson<String?>(note),
       'targetAmount': serializer.toJson<int>(targetAmount),
       'currentAmount': serializer.toJson<int>(currentAmount),
       'targetDate': serializer.toJson<DateTime?>(targetDate),
@@ -10195,6 +10582,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     String? id,
     String? householdId,
     String? name,
+    Value<String?> note = const Value.absent(),
     int? targetAmount,
     int? currentAmount,
     Value<DateTime?> targetDate = const Value.absent(),
@@ -10205,6 +10593,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     id: id ?? this.id,
     householdId: householdId ?? this.householdId,
     name: name ?? this.name,
+    note: note.present ? note.value : this.note,
     targetAmount: targetAmount ?? this.targetAmount,
     currentAmount: currentAmount ?? this.currentAmount,
     targetDate: targetDate.present ? targetDate.value : this.targetDate,
@@ -10219,6 +10608,7 @@ class Goal extends DataClass implements Insertable<Goal> {
           ? data.householdId.value
           : this.householdId,
       name: data.name.present ? data.name.value : this.name,
+      note: data.note.present ? data.note.value : this.note,
       targetAmount: data.targetAmount.present
           ? data.targetAmount.value
           : this.targetAmount,
@@ -10242,6 +10632,7 @@ class Goal extends DataClass implements Insertable<Goal> {
           ..write('id: $id, ')
           ..write('householdId: $householdId, ')
           ..write('name: $name, ')
+          ..write('note: $note, ')
           ..write('targetAmount: $targetAmount, ')
           ..write('currentAmount: $currentAmount, ')
           ..write('targetDate: $targetDate, ')
@@ -10257,6 +10648,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     id,
     householdId,
     name,
+    note,
     targetAmount,
     currentAmount,
     targetDate,
@@ -10271,6 +10663,7 @@ class Goal extends DataClass implements Insertable<Goal> {
           other.id == this.id &&
           other.householdId == this.householdId &&
           other.name == this.name &&
+          other.note == this.note &&
           other.targetAmount == this.targetAmount &&
           other.currentAmount == this.currentAmount &&
           other.targetDate == this.targetDate &&
@@ -10283,6 +10676,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
   final Value<String> id;
   final Value<String> householdId;
   final Value<String> name;
+  final Value<String?> note;
   final Value<int> targetAmount;
   final Value<int> currentAmount;
   final Value<DateTime?> targetDate;
@@ -10294,6 +10688,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     this.id = const Value.absent(),
     this.householdId = const Value.absent(),
     this.name = const Value.absent(),
+    this.note = const Value.absent(),
     this.targetAmount = const Value.absent(),
     this.currentAmount = const Value.absent(),
     this.targetDate = const Value.absent(),
@@ -10306,6 +10701,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     required String id,
     required String householdId,
     required String name,
+    this.note = const Value.absent(),
     required int targetAmount,
     this.currentAmount = const Value.absent(),
     this.targetDate = const Value.absent(),
@@ -10322,6 +10718,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     Expression<String>? id,
     Expression<String>? householdId,
     Expression<String>? name,
+    Expression<String>? note,
     Expression<int>? targetAmount,
     Expression<int>? currentAmount,
     Expression<DateTime>? targetDate,
@@ -10334,6 +10731,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
       if (id != null) 'id': id,
       if (householdId != null) 'household_id': householdId,
       if (name != null) 'name': name,
+      if (note != null) 'note': note,
       if (targetAmount != null) 'target_amount': targetAmount,
       if (currentAmount != null) 'current_amount': currentAmount,
       if (targetDate != null) 'target_date': targetDate,
@@ -10348,6 +10746,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     Value<String>? id,
     Value<String>? householdId,
     Value<String>? name,
+    Value<String?>? note,
     Value<int>? targetAmount,
     Value<int>? currentAmount,
     Value<DateTime?>? targetDate,
@@ -10360,6 +10759,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
       id: id ?? this.id,
       householdId: householdId ?? this.householdId,
       name: name ?? this.name,
+      note: note ?? this.note,
       targetAmount: targetAmount ?? this.targetAmount,
       currentAmount: currentAmount ?? this.currentAmount,
       targetDate: targetDate ?? this.targetDate,
@@ -10381,6 +10781,9 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     }
     if (name.present) {
       map['name'] = Variable<String>(name.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
     }
     if (targetAmount.present) {
       map['target_amount'] = Variable<int>(targetAmount.value);
@@ -10412,6 +10815,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
           ..write('id: $id, ')
           ..write('householdId: $householdId, ')
           ..write('name: $name, ')
+          ..write('note: $note, ')
           ..write('targetAmount: $targetAmount, ')
           ..write('currentAmount: $currentAmount, ')
           ..write('targetDate: $targetDate, ')
@@ -18775,6 +19179,17 @@ class $DailyNotesTable extends DailyNotes
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _treatmentTypeMeta = const VerificationMeta(
+    'treatmentType',
+  );
+  @override
+  late final GeneratedColumn<String> treatmentType = GeneratedColumn<String>(
+    'treatment_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isArchivedMeta = const VerificationMeta(
     'isArchived',
   );
@@ -18819,6 +19234,7 @@ class $DailyNotesTable extends DailyNotes
     noteDate,
     title,
     body,
+    treatmentType,
     isArchived,
     createdAt,
     updatedAt,
@@ -18873,6 +19289,15 @@ class $DailyNotesTable extends DailyNotes
     } else if (isInserting) {
       context.missing(_bodyMeta);
     }
+    if (data.containsKey('treatment_type')) {
+      context.handle(
+        _treatmentTypeMeta,
+        treatmentType.isAcceptableOrUnknown(
+          data['treatment_type']!,
+          _treatmentTypeMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_archived')) {
       context.handle(
         _isArchivedMeta,
@@ -18922,6 +19347,10 @@ class $DailyNotesTable extends DailyNotes
         DriftSqlType.string,
         data['${effectivePrefix}body'],
       )!,
+      treatmentType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}treatment_type'],
+      ),
       isArchived: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_archived'],
@@ -18949,6 +19378,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
   final DateTime noteDate;
   final String? title;
   final String body;
+  final String? treatmentType;
   final bool isArchived;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -18958,6 +19388,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     required this.noteDate,
     this.title,
     required this.body,
+    this.treatmentType,
     required this.isArchived,
     required this.createdAt,
     this.updatedAt,
@@ -18972,6 +19403,9 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       map['title'] = Variable<String>(title);
     }
     map['body'] = Variable<String>(body);
+    if (!nullToAbsent || treatmentType != null) {
+      map['treatment_type'] = Variable<String>(treatmentType);
+    }
     map['is_archived'] = Variable<bool>(isArchived);
     map['created_at'] = Variable<DateTime>(createdAt);
     if (!nullToAbsent || updatedAt != null) {
@@ -18989,6 +19423,9 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
           ? const Value.absent()
           : Value(title),
       body: Value(body),
+      treatmentType: treatmentType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(treatmentType),
       isArchived: Value(isArchived),
       createdAt: Value(createdAt),
       updatedAt: updatedAt == null && nullToAbsent
@@ -19008,6 +19445,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       noteDate: serializer.fromJson<DateTime>(json['noteDate']),
       title: serializer.fromJson<String?>(json['title']),
       body: serializer.fromJson<String>(json['body']),
+      treatmentType: serializer.fromJson<String?>(json['treatmentType']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime?>(json['updatedAt']),
@@ -19022,6 +19460,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       'noteDate': serializer.toJson<DateTime>(noteDate),
       'title': serializer.toJson<String?>(title),
       'body': serializer.toJson<String>(body),
+      'treatmentType': serializer.toJson<String?>(treatmentType),
       'isArchived': serializer.toJson<bool>(isArchived),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime?>(updatedAt),
@@ -19034,6 +19473,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     DateTime? noteDate,
     Value<String?> title = const Value.absent(),
     String? body,
+    Value<String?> treatmentType = const Value.absent(),
     bool? isArchived,
     DateTime? createdAt,
     Value<DateTime?> updatedAt = const Value.absent(),
@@ -19043,6 +19483,9 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     noteDate: noteDate ?? this.noteDate,
     title: title.present ? title.value : this.title,
     body: body ?? this.body,
+    treatmentType: treatmentType.present
+        ? treatmentType.value
+        : this.treatmentType,
     isArchived: isArchived ?? this.isArchived,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt.present ? updatedAt.value : this.updatedAt,
@@ -19056,6 +19499,9 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
       noteDate: data.noteDate.present ? data.noteDate.value : this.noteDate,
       title: data.title.present ? data.title.value : this.title,
       body: data.body.present ? data.body.value : this.body,
+      treatmentType: data.treatmentType.present
+          ? data.treatmentType.value
+          : this.treatmentType,
       isArchived: data.isArchived.present
           ? data.isArchived.value
           : this.isArchived,
@@ -19072,6 +19518,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
           ..write('noteDate: $noteDate, ')
           ..write('title: $title, ')
           ..write('body: $body, ')
+          ..write('treatmentType: $treatmentType, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt')
@@ -19086,6 +19533,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
     noteDate,
     title,
     body,
+    treatmentType,
     isArchived,
     createdAt,
     updatedAt,
@@ -19099,6 +19547,7 @@ class DailyNote extends DataClass implements Insertable<DailyNote> {
           other.noteDate == this.noteDate &&
           other.title == this.title &&
           other.body == this.body &&
+          other.treatmentType == this.treatmentType &&
           other.isArchived == this.isArchived &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt);
@@ -19110,6 +19559,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
   final Value<DateTime> noteDate;
   final Value<String?> title;
   final Value<String> body;
+  final Value<String?> treatmentType;
   final Value<bool> isArchived;
   final Value<DateTime> createdAt;
   final Value<DateTime?> updatedAt;
@@ -19120,6 +19570,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     this.noteDate = const Value.absent(),
     this.title = const Value.absent(),
     this.body = const Value.absent(),
+    this.treatmentType = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -19131,6 +19582,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     required DateTime noteDate,
     this.title = const Value.absent(),
     required String body,
+    this.treatmentType = const Value.absent(),
     this.isArchived = const Value.absent(),
     required DateTime createdAt,
     this.updatedAt = const Value.absent(),
@@ -19146,6 +19598,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     Expression<DateTime>? noteDate,
     Expression<String>? title,
     Expression<String>? body,
+    Expression<String>? treatmentType,
     Expression<bool>? isArchived,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -19157,6 +19610,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
       if (noteDate != null) 'note_date': noteDate,
       if (title != null) 'title': title,
       if (body != null) 'body': body,
+      if (treatmentType != null) 'treatment_type': treatmentType,
       if (isArchived != null) 'is_archived': isArchived,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -19170,6 +19624,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     Value<DateTime>? noteDate,
     Value<String?>? title,
     Value<String>? body,
+    Value<String?>? treatmentType,
     Value<bool>? isArchived,
     Value<DateTime>? createdAt,
     Value<DateTime?>? updatedAt,
@@ -19181,6 +19636,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
       noteDate: noteDate ?? this.noteDate,
       title: title ?? this.title,
       body: body ?? this.body,
+      treatmentType: treatmentType ?? this.treatmentType,
       isArchived: isArchived ?? this.isArchived,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -19206,6 +19662,9 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
     if (body.present) {
       map['body'] = Variable<String>(body.value);
     }
+    if (treatmentType.present) {
+      map['treatment_type'] = Variable<String>(treatmentType.value);
+    }
     if (isArchived.present) {
       map['is_archived'] = Variable<bool>(isArchived.value);
     }
@@ -19229,6 +19688,7 @@ class DailyNotesCompanion extends UpdateCompanion<DailyNote> {
           ..write('noteDate: $noteDate, ')
           ..write('title: $title, ')
           ..write('body: $body, ')
+          ..write('treatmentType: $treatmentType, ')
           ..write('isArchived: $isArchived, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -33755,6 +34215,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TransactionTagsTable transactionTags = $TransactionTagsTable(
     this,
   );
+  late final $DailyNoteTagsTable dailyNoteTags = $DailyNoteTagsTable(this);
   late final $AttachmentsTable attachments = $AttachmentsTable(this);
   late final $UtilityTokenPurchasesTable utilityTokenPurchases =
       $UtilityTokenPurchasesTable(this);
@@ -33831,6 +34292,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $AssistantAgentTaskExecutionsTable(this);
   late final $TelegramDeliveriesTable telegramDeliveries =
       $TelegramDeliveriesTable(this);
+  late final Index idxTransactionsCategoryDate = Index(
+    'idx_transactions_category_date',
+    'CREATE INDEX idx_transactions_category_date ON transactions (household_id, category_id, is_deleted, date DESC)',
+  );
+  late final Index idxTransactionsMerchantDate = Index(
+    'idx_transactions_merchant_date',
+    'CREATE INDEX idx_transactions_merchant_date ON transactions (household_id, merchant_id, is_deleted, date DESC)',
+  );
   late final Index idxTransactionsHouseholdVisibilityDateId = Index(
     'idx_transactions_household_visibility_date_id',
     'CREATE INDEX idx_transactions_household_visibility_date_id ON transactions (household_id, is_archived, is_deleted, date DESC, id DESC)',
@@ -33843,6 +34312,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_transfers_household_deleted_date_id',
     'CREATE INDEX idx_transfers_household_deleted_date_id ON transfers (household_id, is_deleted, date DESC, id DESC)',
   );
+  late final Index idxRemindersStatusDue = Index(
+    'idx_reminders_status_due',
+    'CREATE INDEX idx_reminders_status_due ON reminders (household_id, is_active, scheduled_at)',
+  );
   late final Index idxActivitySessionsHouseholdArchivedStartedId = Index(
     'idx_activity_sessions_household_archived_started_id',
     'CREATE INDEX idx_activity_sessions_household_archived_started_id ON activity_sessions (household_id, is_archived, started_at DESC, id DESC)',
@@ -33854,6 +34327,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final Index idxDailyNotesHouseholdArchivedDateId = Index(
     'idx_daily_notes_household_archived_date_id',
     'CREATE INDEX idx_daily_notes_household_archived_date_id ON daily_notes (household_id, is_archived, note_date DESC, id DESC)',
+  );
+  late final Index idxAssistantMemoriesKind = Index(
+    'idx_assistant_memories_kind',
+    'CREATE INDEX idx_assistant_memories_kind ON assistant_memories (household_id, kind, is_archived)',
   );
   late final Index idxTelegramDeliveriesDue = Index(
     'idx_telegram_deliveries_due',
@@ -33875,6 +34352,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transactions,
     transactionItems,
     transactionTags,
+    dailyNoteTags,
     attachments,
     utilityTokenPurchases,
     transfers,
@@ -33916,12 +34394,16 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     assistantAgentTasks,
     assistantAgentTaskExecutions,
     telegramDeliveries,
+    idxTransactionsCategoryDate,
+    idxTransactionsMerchantDate,
     idxTransactionsHouseholdVisibilityDateId,
     idxTransactionItemsTransaction,
     idxTransfersHouseholdDeletedDateId,
+    idxRemindersStatusDue,
     idxActivitySessionsHouseholdArchivedStartedId,
     idxActivityEntriesHouseholdArchivedStartedId,
     idxDailyNotesHouseholdArchivedDateId,
+    idxAssistantMemoriesKind,
     idxTelegramDeliveriesDue,
   ];
 }
@@ -35927,6 +36409,8 @@ typedef $$TransactionsTableCreateCompanionBuilder =
       Value<String?> receiptNumber,
       Value<int?> receiptPaidAmount,
       Value<int?> receiptChangeAmount,
+      Value<int?> tax,
+      Value<int?> discount,
       Value<bool> isArchived,
       Value<bool> isDeleted,
       required DateTime createdAt,
@@ -35958,6 +36442,8 @@ typedef $$TransactionsTableUpdateCompanionBuilder =
       Value<String?> receiptNumber,
       Value<int?> receiptPaidAmount,
       Value<int?> receiptChangeAmount,
+      Value<int?> tax,
+      Value<int?> discount,
       Value<bool> isArchived,
       Value<bool> isDeleted,
       Value<DateTime> createdAt,
@@ -36086,6 +36572,16 @@ class $$TransactionsTableFilterComposer
 
   ColumnFilters<int> get receiptChangeAmount => $composableBuilder(
     column: $table.receiptChangeAmount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tax => $composableBuilder(
+    column: $table.tax,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get discount => $composableBuilder(
+    column: $table.discount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36234,6 +36730,16 @@ class $$TransactionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get tax => $composableBuilder(
+    column: $table.tax,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get discount => $composableBuilder(
+    column: $table.discount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
     builder: (column) => ColumnOrderings(column),
@@ -36355,6 +36861,12 @@ class $$TransactionsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get tax =>
+      $composableBuilder(column: $table.tax, builder: (column) => column);
+
+  GeneratedColumn<int> get discount =>
+      $composableBuilder(column: $table.discount, builder: (column) => column);
+
   GeneratedColumn<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
     builder: (column) => column,
@@ -36424,6 +36936,8 @@ class $$TransactionsTableTableManager
                 Value<String?> receiptNumber = const Value.absent(),
                 Value<int?> receiptPaidAmount = const Value.absent(),
                 Value<int?> receiptChangeAmount = const Value.absent(),
+                Value<int?> tax = const Value.absent(),
+                Value<int?> discount = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -36453,6 +36967,8 @@ class $$TransactionsTableTableManager
                 receiptNumber: receiptNumber,
                 receiptPaidAmount: receiptPaidAmount,
                 receiptChangeAmount: receiptChangeAmount,
+                tax: tax,
+                discount: discount,
                 isArchived: isArchived,
                 isDeleted: isDeleted,
                 createdAt: createdAt,
@@ -36484,6 +37000,8 @@ class $$TransactionsTableTableManager
                 Value<String?> receiptNumber = const Value.absent(),
                 Value<int?> receiptPaidAmount = const Value.absent(),
                 Value<int?> receiptChangeAmount = const Value.absent(),
+                Value<int?> tax = const Value.absent(),
+                Value<int?> discount = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 required DateTime createdAt,
@@ -36513,6 +37031,8 @@ class $$TransactionsTableTableManager
                 receiptNumber: receiptNumber,
                 receiptPaidAmount: receiptPaidAmount,
                 receiptChangeAmount: receiptChangeAmount,
+                tax: tax,
+                discount: discount,
                 isArchived: isArchived,
                 isDeleted: isDeleted,
                 createdAt: createdAt,
@@ -36958,6 +37478,151 @@ typedef $$TransactionTagsTableProcessedTableManager =
         BaseReferences<_$AppDatabase, $TransactionTagsTable, TransactionTag>,
       ),
       TransactionTag,
+      PrefetchHooks Function()
+    >;
+typedef $$DailyNoteTagsTableCreateCompanionBuilder =
+    DailyNoteTagsCompanion Function({
+      required String dailyNoteId,
+      required String tagId,
+      Value<int> rowid,
+    });
+typedef $$DailyNoteTagsTableUpdateCompanionBuilder =
+    DailyNoteTagsCompanion Function({
+      Value<String> dailyNoteId,
+      Value<String> tagId,
+      Value<int> rowid,
+    });
+
+class $$DailyNoteTagsTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyNoteTagsTable> {
+  $$DailyNoteTagsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get dailyNoteId => $composableBuilder(
+    column: $table.dailyNoteId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyNoteTagsTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyNoteTagsTable> {
+  $$DailyNoteTagsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get dailyNoteId => $composableBuilder(
+    column: $table.dailyNoteId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get tagId => $composableBuilder(
+    column: $table.tagId,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyNoteTagsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyNoteTagsTable> {
+  $$DailyNoteTagsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get dailyNoteId => $composableBuilder(
+    column: $table.dailyNoteId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tagId =>
+      $composableBuilder(column: $table.tagId, builder: (column) => column);
+}
+
+class $$DailyNoteTagsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyNoteTagsTable,
+          DailyNoteTag,
+          $$DailyNoteTagsTableFilterComposer,
+          $$DailyNoteTagsTableOrderingComposer,
+          $$DailyNoteTagsTableAnnotationComposer,
+          $$DailyNoteTagsTableCreateCompanionBuilder,
+          $$DailyNoteTagsTableUpdateCompanionBuilder,
+          (
+            DailyNoteTag,
+            BaseReferences<_$AppDatabase, $DailyNoteTagsTable, DailyNoteTag>,
+          ),
+          DailyNoteTag,
+          PrefetchHooks Function()
+        > {
+  $$DailyNoteTagsTableTableManager(_$AppDatabase db, $DailyNoteTagsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyNoteTagsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyNoteTagsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyNoteTagsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> dailyNoteId = const Value.absent(),
+                Value<String> tagId = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyNoteTagsCompanion(
+                dailyNoteId: dailyNoteId,
+                tagId: tagId,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String dailyNoteId,
+                required String tagId,
+                Value<int> rowid = const Value.absent(),
+              }) => DailyNoteTagsCompanion.insert(
+                dailyNoteId: dailyNoteId,
+                tagId: tagId,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyNoteTagsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyNoteTagsTable,
+      DailyNoteTag,
+      $$DailyNoteTagsTableFilterComposer,
+      $$DailyNoteTagsTableOrderingComposer,
+      $$DailyNoteTagsTableAnnotationComposer,
+      $$DailyNoteTagsTableCreateCompanionBuilder,
+      $$DailyNoteTagsTableUpdateCompanionBuilder,
+      (
+        DailyNoteTag,
+        BaseReferences<_$AppDatabase, $DailyNoteTagsTable, DailyNoteTag>,
+      ),
+      DailyNoteTag,
       PrefetchHooks Function()
     >;
 typedef $$AttachmentsTableCreateCompanionBuilder =
@@ -37809,6 +38474,7 @@ typedef $$EnvelopeBudgetsTableCreateCompanionBuilder =
       Value<String?> categoryId,
       Value<String> categoryIdsJson,
       required String name,
+      Value<String?> note,
       Value<String?> month,
       Value<int> allocated,
       Value<String> periodType,
@@ -37828,6 +38494,7 @@ typedef $$EnvelopeBudgetsTableUpdateCompanionBuilder =
       Value<String?> categoryId,
       Value<String> categoryIdsJson,
       Value<String> name,
+      Value<String?> note,
       Value<String?> month,
       Value<int> allocated,
       Value<String> periodType,
@@ -37872,6 +38539,11 @@ class $$EnvelopeBudgetsTableFilterComposer
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37960,6 +38632,11 @@ class $$EnvelopeBudgetsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get month => $composableBuilder(
     column: $table.month,
     builder: (column) => ColumnOrderings(column),
@@ -38041,6 +38718,9 @@ class $$EnvelopeBudgetsTableAnnotationComposer
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
 
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
   GeneratedColumn<String> get month =>
       $composableBuilder(column: $table.month, builder: (column) => column);
 
@@ -38118,6 +38798,7 @@ class $$EnvelopeBudgetsTableTableManager
                 Value<String?> categoryId = const Value.absent(),
                 Value<String> categoryIdsJson = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> note = const Value.absent(),
                 Value<String?> month = const Value.absent(),
                 Value<int> allocated = const Value.absent(),
                 Value<String> periodType = const Value.absent(),
@@ -38135,6 +38816,7 @@ class $$EnvelopeBudgetsTableTableManager
                 categoryId: categoryId,
                 categoryIdsJson: categoryIdsJson,
                 name: name,
+                note: note,
                 month: month,
                 allocated: allocated,
                 periodType: periodType,
@@ -38154,6 +38836,7 @@ class $$EnvelopeBudgetsTableTableManager
                 Value<String?> categoryId = const Value.absent(),
                 Value<String> categoryIdsJson = const Value.absent(),
                 required String name,
+                Value<String?> note = const Value.absent(),
                 Value<String?> month = const Value.absent(),
                 Value<int> allocated = const Value.absent(),
                 Value<String> periodType = const Value.absent(),
@@ -38171,6 +38854,7 @@ class $$EnvelopeBudgetsTableTableManager
                 categoryId: categoryId,
                 categoryIdsJson: categoryIdsJson,
                 name: name,
+                note: note,
                 month: month,
                 allocated: allocated,
                 periodType: periodType,
@@ -38822,6 +39506,7 @@ typedef $$GoalsTableCreateCompanionBuilder =
       required String id,
       required String householdId,
       required String name,
+      Value<String?> note,
       required int targetAmount,
       Value<int> currentAmount,
       Value<DateTime?> targetDate,
@@ -38835,6 +39520,7 @@ typedef $$GoalsTableUpdateCompanionBuilder =
       Value<String> id,
       Value<String> householdId,
       Value<String> name,
+      Value<String?> note,
       Value<int> targetAmount,
       Value<int> currentAmount,
       Value<DateTime?> targetDate,
@@ -38864,6 +39550,11 @@ class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
 
   ColumnFilters<String> get name => $composableBuilder(
     column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -38922,6 +39613,11 @@ class $$GoalsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get targetAmount => $composableBuilder(
     column: $table.targetAmount,
     builder: (column) => ColumnOrderings(column),
@@ -38972,6 +39668,9 @@ class $$GoalsTableAnnotationComposer
 
   GeneratedColumn<String> get name =>
       $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
 
   GeneratedColumn<int> get targetAmount => $composableBuilder(
     column: $table.targetAmount,
@@ -39031,6 +39730,7 @@ class $$GoalsTableTableManager
                 Value<String> id = const Value.absent(),
                 Value<String> householdId = const Value.absent(),
                 Value<String> name = const Value.absent(),
+                Value<String?> note = const Value.absent(),
                 Value<int> targetAmount = const Value.absent(),
                 Value<int> currentAmount = const Value.absent(),
                 Value<DateTime?> targetDate = const Value.absent(),
@@ -39042,6 +39742,7 @@ class $$GoalsTableTableManager
                 id: id,
                 householdId: householdId,
                 name: name,
+                note: note,
                 targetAmount: targetAmount,
                 currentAmount: currentAmount,
                 targetDate: targetDate,
@@ -39055,6 +39756,7 @@ class $$GoalsTableTableManager
                 required String id,
                 required String householdId,
                 required String name,
+                Value<String?> note = const Value.absent(),
                 required int targetAmount,
                 Value<int> currentAmount = const Value.absent(),
                 Value<DateTime?> targetDate = const Value.absent(),
@@ -39066,6 +39768,7 @@ class $$GoalsTableTableManager
                 id: id,
                 householdId: householdId,
                 name: name,
+                note: note,
                 targetAmount: targetAmount,
                 currentAmount: currentAmount,
                 targetDate: targetDate,
@@ -43002,6 +43705,7 @@ typedef $$DailyNotesTableCreateCompanionBuilder =
       required DateTime noteDate,
       Value<String?> title,
       required String body,
+      Value<String?> treatmentType,
       Value<bool> isArchived,
       required DateTime createdAt,
       Value<DateTime?> updatedAt,
@@ -43014,6 +43718,7 @@ typedef $$DailyNotesTableUpdateCompanionBuilder =
       Value<DateTime> noteDate,
       Value<String?> title,
       Value<String> body,
+      Value<String?> treatmentType,
       Value<bool> isArchived,
       Value<DateTime> createdAt,
       Value<DateTime?> updatedAt,
@@ -43051,6 +43756,11 @@ class $$DailyNotesTableFilterComposer
 
   ColumnFilters<String> get body => $composableBuilder(
     column: $table.body,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get treatmentType => $composableBuilder(
+    column: $table.treatmentType,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -43104,6 +43814,11 @@ class $$DailyNotesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get treatmentType => $composableBuilder(
+    column: $table.treatmentType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
     builder: (column) => ColumnOrderings(column),
@@ -43145,6 +43860,11 @@ class $$DailyNotesTableAnnotationComposer
 
   GeneratedColumn<String> get body =>
       $composableBuilder(column: $table.body, builder: (column) => column);
+
+  GeneratedColumn<String> get treatmentType => $composableBuilder(
+    column: $table.treatmentType,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get isArchived => $composableBuilder(
     column: $table.isArchived,
@@ -43194,6 +43914,7 @@ class $$DailyNotesTableTableManager
                 Value<DateTime> noteDate = const Value.absent(),
                 Value<String?> title = const Value.absent(),
                 Value<String> body = const Value.absent(),
+                Value<String?> treatmentType = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -43204,6 +43925,7 @@ class $$DailyNotesTableTableManager
                 noteDate: noteDate,
                 title: title,
                 body: body,
+                treatmentType: treatmentType,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -43216,6 +43938,7 @@ class $$DailyNotesTableTableManager
                 required DateTime noteDate,
                 Value<String?> title = const Value.absent(),
                 required String body,
+                Value<String?> treatmentType = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 required DateTime createdAt,
                 Value<DateTime?> updatedAt = const Value.absent(),
@@ -43226,6 +43949,7 @@ class $$DailyNotesTableTableManager
                 noteDate: noteDate,
                 title: title,
                 body: body,
+                treatmentType: treatmentType,
                 isArchived: isArchived,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -50562,6 +51286,8 @@ class $AppDatabaseManager {
       $$TransactionItemsTableTableManager(_db, _db.transactionItems);
   $$TransactionTagsTableTableManager get transactionTags =>
       $$TransactionTagsTableTableManager(_db, _db.transactionTags);
+  $$DailyNoteTagsTableTableManager get dailyNoteTags =>
+      $$DailyNoteTagsTableTableManager(_db, _db.dailyNoteTags);
   $$AttachmentsTableTableManager get attachments =>
       $$AttachmentsTableTableManager(_db, _db.attachments);
   $$UtilityTokenPurchasesTableTableManager get utilityTokenPurchases =>

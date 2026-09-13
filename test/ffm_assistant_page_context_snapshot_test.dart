@@ -28,6 +28,23 @@ void main() {
     expect(controller.value, isNull);
   });
 
+  test('halaman Aktivitas mengiklankan aktivitas dan Catatan Harian', () {
+    final controller = FfmAssistantPageContextController();
+    addTearDown(controller.dispose);
+
+    controller.setShellTab(FfmAssistantDestination.activity);
+
+    final snapshot = controller.currentSnapshot;
+    expect(snapshot?.capabilityIds, contains('read.activity'));
+    expect(snapshot?.capabilityIds, contains('read.dailyNotes'));
+
+    final prompt = FfmAssistantScreenContextPolicy.forPrompt(
+      snapshot: snapshot,
+    );
+    expect(prompt, contains('Catatan Harian'));
+    expect(prompt, contains('jurnal teks'));
+  });
+
   test('screen awareness memakai ringkasan generik tanpa data mentah', () {
     final snapshot = FfmAssistantPageContextSnapshot(
       destination: FfmAssistantDestination.transactions,

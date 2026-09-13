@@ -1,9 +1,15 @@
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 
-import '../../domain/ffm_assistant_models.dart';
-import '../../data/ffm_assistant_draft_feedback_service.dart';
+import '../../../../core/database/app_context.dart';
+import '../../../../core/database/app_database.dart';
+import '../../../../core/di/injection.dart';
 import '../../../activity/domain/entities/activity_entity.dart';
+import '../../../reminder/data/services/reminder_sound_picker.dart';
 import '../../../transaction/data/services/receipt_import_models.dart';
+import '../../data/ffm_assistant_draft_feedback_service.dart';
+import '../../domain/ffm_assistant_draft_validator.dart';
+import '../../domain/ffm_assistant_models.dart';
 
 /// Dialog mandiri untuk memperbaiki draft yang masih berada di sesi chat.
 /// Tidak menyimpan data; caller wajib memvalidasi lalu meneruskan ke form.
@@ -14,6 +20,8 @@ class FfmAssistantDraftEditDialog extends StatefulWidget {
     required this.draft,
     required this.feedbackService,
     this.accounts = const [],
+    this.masterTags = const [],
+    this.parties = const [],
   });
 
   final FfmAssistantDraft draft;
@@ -21,6 +29,12 @@ class FfmAssistantDraftEditDialog extends StatefulWidget {
 
   /// Daftar nama rekening aktif (Data Utama) untuk dropdown sumber/tujuan.
   final List<String> accounts;
+
+  /// Daftar nama tag Data Utama (opsional, jika kosong dimuat dari AppDatabase).
+  final List<String> masterTags;
+
+  /// Daftar nama pihak Data Utama (opsional, jika kosong dimuat dari AppDatabase).
+  final List<String> parties;
 
   @override
   State<FfmAssistantDraftEditDialog> createState() =>
@@ -48,10 +62,14 @@ class _FfmAssistantDraftEditDialogState
   late List<ReceiptOcrItem> _items;
   late String _budgetPeriod;
   late final List<String> _tags;
+  late List<String> _masterTags;
+  late List<String> _parties;
   late String? _fromAccount;
   late String? _toAccount;
   late DateTime? _date;
   late TimeOfDay? _time; // only used for reminder drafts
+  String? _soundUri;
+  String? _soundName;
   late ActivityMode _activityMode;
   late FfmAssistantDraftKind _selectedKind;
 
@@ -76,10 +94,7 @@ class _FfmAssistantDraftEditDialogState
           '',
     );
     _locationController = TextEditingController(
-      text:
-          widget.draft.location ??
-          widget.draft.formValues['location'] ??
-          '',
+      text: widget.draft.location ?? widget.draft.formValues['location'] ?? '',
     );
     _partyController = TextEditingController(
       text:
@@ -104,18 +119,64 @@ class _FfmAssistantDraftEditDialogState
           '',
     );
     _budgetPeriod = widget.draft.formValues['periodType'] ?? 'monthly';
-    _tagsController = TextEditingController(
-      text: widget.draft.formValues['tags'] ?? '',
-    );
-    _tags = _csvValues(_tagsController);
+
+    final initialTagsList = <String>[];
+    if (widget.draft.tags != null && widget.draft.tags!.trim().isNotEmpty) {
+      initialTagsList.addAll(
+        widget.draft.tags!
+            .split(',')
+            .map((s) => s.trim().replaceAll('#', ''))
+            .where((s) => s.isNotEmpty),
+      );
+    }
+    if (widget.draft.newTags != null &&
+        widget.draft.newTags!.trim().isNotEmpty) {
+      initialTagsList.addAll(
+        widget.draft.newTags!
+            .split(',')
+            .map((s) => s.trim().replaceAll('#', ''))
+            .where((s) => s.isNotEmpty),
+      );
+    }
+    final formTags = widget.draft.formValues['tags']?.toString();
+    if (formTags != null && formTags.trim().isNotEmpty) {
+      initialTagsList.addAll(
+        formTags
+            .split(',')
+            .map((s) => s.trim().replaceAll('#', ''))
+            .where((s) => s.isNotEmpty),
+      );
+    }
+    final formNewTags = widget.draft.formValues['newTags']?.toString();
+    if (formNewTags != null && formNewTags.trim().isNotEmpty) {
+      initialTagsList.addAll(
+        formNewTags
+            .split(',')
+            .map((s) => s.trim().replaceAll('#', ''))
+            .where((s) => s.isNotEmpty),
+      );
+    }
+    _tags = initialTagsList.map((t) => t.toLowerCase()).toSet().toList();
+    _tagsController = TextEditingController();
+
+    _masterTags = List<String>.from(widget.masterTags);
+    _parties = List<String>.from(widget.parties);
+    if (_masterTags.isEmpty || _parties.isEmpty) {
+      _loadMasterData();
+    }
+
     _fromAccount = widget.draft.fromAccountName?.trim();
     _toAccount = widget.draft.toAccountName?.trim();
     _date = widget.draft.date;
     // For reminder drafts, preserve the time-of-day separately so changing
     // date doesn't reset the time and vice-versa.
-    _time = widget.draft.kind == FfmAssistantDraftKind.reminder && widget.draft.date != null
+    _time =
+        widget.draft.kind == FfmAssistantDraftKind.reminder &&
+            widget.draft.date != null
         ? TimeOfDay.fromDateTime(widget.draft.date!)
         : null;
+    _soundUri = widget.draft.formValues['soundUri']?.toString();
+    _soundName = widget.draft.formValues['soundName']?.toString();
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -125,31 +186,36 @@ class _FfmAssistantDraftEditDialogState
 
     _items = List<ReceiptOcrItem>.from(widget.draft.items);
     _receiptNumberController = TextEditingController(
-      text: widget.draft.receiptNumber ??
+      text:
+          widget.draft.receiptNumber ??
           widget.draft.formValues['receiptNumber'] ??
           widget.draft.formValues['receipt_number'] ??
           '',
     );
     _receiptPaidAmountController = TextEditingController(
-      text: widget.draft.receiptPaidAmount?.toString() ??
+      text:
+          widget.draft.receiptPaidAmount?.toString() ??
           widget.draft.formValues['receiptPaidAmount'] ??
           widget.draft.formValues['paid_amount'] ??
           '',
     );
     _receiptChangeAmountController = TextEditingController(
-      text: widget.draft.receiptChangeAmount?.toString() ??
+      text:
+          widget.draft.receiptChangeAmount?.toString() ??
           widget.draft.formValues['receiptChangeAmount'] ??
           widget.draft.formValues['change_amount'] ??
           '',
     );
     _taxController = TextEditingController(
-      text: widget.draft.tax?.toString() ??
+      text:
+          widget.draft.tax?.toString() ??
           widget.draft.formValues['tax'] ??
           widget.draft.formValues['pajak'] ??
           '',
     );
     _discountController = TextEditingController(
-      text: widget.draft.discount?.toString() ??
+      text:
+          widget.draft.discount?.toString() ??
           widget.draft.formValues['discount'] ??
           widget.draft.formValues['diskon'] ??
           '',
@@ -182,8 +248,13 @@ class _FfmAssistantDraftEditDialogState
     final subtotal = _items.fold<int>(0, (sum, i) => sum + i.calculatedTotal);
     final taxText = _taxController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final tax = taxText.isEmpty ? 0 : (int.tryParse(taxText) ?? 0);
-    final discountText = _discountController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final discount = discountText.isEmpty ? 0 : (int.tryParse(discountText) ?? 0);
+    final discountText = _discountController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    final discount = discountText.isEmpty
+        ? 0
+        : (int.tryParse(discountText) ?? 0);
     final total = subtotal + tax - discount;
     if (total > 0) {
       _amountController.text = total.toString();
@@ -215,35 +286,110 @@ class _FfmAssistantDraftEditDialogState
     return text.isEmpty ? null : text;
   }
 
-  List<String> _csvValues(TextEditingController controller) {
-    return controller.text
-        .split(',')
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .toSet()
-        .toList(growable: false);
-  }
+  Future<void> _loadMasterData() async {
+    if (!getIt.isRegistered<AppDatabase>()) return;
+    try {
+      final db = getIt<AppDatabase>();
+      final tagsFuture = _masterTags.isEmpty
+          ? (db.select(db.tags)
+                  ..where(
+                    (t) =>
+                        t.householdId.equals(AppContext.householdId) &
+                        t.isArchived.equals(false),
+                  )
+                  ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+                .get()
+          : Future.value(const <Tag>[]);
+      final partiesFuture = _parties.isEmpty
+          ? (db.select(db.transactionParties)
+                  ..where(
+                    (t) =>
+                        t.householdId.equals(AppContext.householdId) &
+                        t.isArchived.equals(false),
+                  )
+                  ..orderBy([(t) => OrderingTerm.asc(t.name)]))
+                .get()
+          : Future.value(const <TransactionParty>[]);
 
-  void _syncTagsText() {
-    _tagsController.text = _tags.join(', ');
+      final results = await Future.wait([tagsFuture, partiesFuture]);
+      if (!mounted) return;
+      final tags = results[0] as List<Tag>;
+      final parties = results[1] as List<TransactionParty>;
+      setState(() {
+        if (_masterTags.isEmpty && tags.isNotEmpty) {
+          _masterTags = tags
+              .map((t) => t.name.trim().toLowerCase())
+              .where((n) => n.isNotEmpty)
+              .toList();
+        }
+        if (_parties.isEmpty && parties.isNotEmpty) {
+          _parties = parties
+              .map((p) => p.name.trim())
+              .where((n) => n.isNotEmpty)
+              .toSet()
+              .toList();
+        }
+      });
+    } catch (_) {}
   }
 
   void _addTag(String raw) {
-    final value = raw.trim();
+    final value = raw.trim().replaceAll('#', '');
     if (value.isEmpty) return;
     final normalized = value.toLowerCase();
     if (_tags.any((item) => item.toLowerCase() == normalized)) return;
     setState(() {
-      _tags.add(value);
-      _syncTagsText();
+      _tags.add(normalized);
     });
   }
 
   void _removeTag(String value) {
+    final normalized = value.trim().replaceAll('#', '').toLowerCase();
     setState(() {
-      _tags.removeWhere((item) => item.toLowerCase() == value.toLowerCase());
-      _syncTagsText();
+      _tags.removeWhere((item) => item.toLowerCase() == normalized);
     });
+  }
+
+  Future<void> _showAddNewTagDialog() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tambah Tag Baru'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Contoh: operasional, belanja, darurat',
+            labelText: 'Nama Tag',
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (val) {
+            final clean = val.trim().replaceAll('#', '').toLowerCase();
+            if (clean.isNotEmpty) Navigator.of(ctx).pop(clean);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final clean = controller.text
+                  .trim()
+                  .replaceAll('#', '')
+                  .toLowerCase();
+              if (clean.isNotEmpty) Navigator.of(ctx).pop(clean);
+            },
+            child: const Text('Tambah'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty && mounted) {
+      _addTag(result);
+    }
   }
 
   void _save() {
@@ -266,8 +412,8 @@ class _FfmAssistantDraftEditDialogState
     final goalName = _textOrNull(_goalController);
     final title = _isGoalContribution
         ? (widget.draft.kind == FfmAssistantDraftKind.goalDeposit
-            ? 'Setor Target ${goalName ?? ''}'.trim()
-            : 'Pakai Target ${goalName ?? ''}'.trim())
+              ? 'Setor Target ${goalName ?? ''}'.trim()
+              : 'Pakai Target ${goalName ?? ''}'.trim())
         : _textOrNull(_titleController);
     final merchantName = _isTransaction
         ? _textOrNull(_merchantController)
@@ -284,30 +430,50 @@ class _FfmAssistantDraftEditDialogState
     final partyName = (_isTransaction || _isDebtOrReceivable)
         ? _textOrNull(_partyController)
         : widget.draft.partyName;
+
     final isIncome = _selectedKind == FfmAssistantDraftKind.income;
     final isExpense = _selectedKind == FfmAssistantDraftKind.expense;
+    if (isExpense && _tags.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Pilih atau tambahkan minimal 1 tag untuk transaksi pengeluaran.',
+          ),
+        ),
+      );
+      return;
+    }
     final fromAcc = isIncome
         ? null
         : (_fromAccount?.trim().isNotEmpty == true
-            ? _fromAccount!.trim()
-            : _toAccount?.trim());
+              ? _fromAccount!.trim()
+              : _toAccount?.trim());
     final toAcc = isExpense
         ? null
         : (_toAccount?.trim().isNotEmpty == true
-            ? _toAccount!.trim()
-            : _fromAccount?.trim());
+              ? _toAccount!.trim()
+              : _fromAccount?.trim());
 
     final receiptNumber = _textOrNull(_receiptNumberController);
-    final receiptPaidAmountText = _receiptPaidAmountController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final receiptPaidAmount = receiptPaidAmountText.isEmpty ? null : int.tryParse(receiptPaidAmountText);
-    final receiptChangeAmountText = _receiptChangeAmountController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final receiptChangeAmount = receiptChangeAmountText.isEmpty ? null : int.tryParse(receiptChangeAmountText);
+    final receiptPaidAmountText = _receiptPaidAmountController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
+    final receiptPaidAmount = receiptPaidAmountText.isEmpty
+        ? null
+        : int.tryParse(receiptPaidAmountText);
+    final receiptChangeAmountText = _receiptChangeAmountController.text
+        .replaceAll(RegExp(r'[^0-9]'), '');
+    final receiptChangeAmount = receiptChangeAmountText.isEmpty
+        ? null
+        : int.tryParse(receiptChangeAmountText);
     final taxText = _taxController.text.replaceAll(RegExp(r'[^0-9]'), '');
     final tax = taxText.isEmpty ? null : int.tryParse(taxText);
-    final discountText = _discountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    final discountText = _discountController.text.replaceAll(
+      RegExp(r'[^0-9]'),
+      '',
+    );
     final discount = discountText.isEmpty ? null : int.tryParse(discountText);
-
-    final validItems = _items.where((i) => i.name.trim().isNotEmpty).toList(growable: false);
 
     final newFormValues = Map<String, String>.from(widget.draft.formValues);
     if (_selectedKind == FfmAssistantDraftKind.budget) {
@@ -405,6 +571,18 @@ class _FfmAssistantDraftEditDialogState
         _time!.minute,
       );
     }
+    if (_selectedKind == FfmAssistantDraftKind.reminder) {
+      if (_soundUri != null && _soundUri!.isNotEmpty) {
+        newFormValues['soundUri'] = _soundUri!;
+      } else {
+        newFormValues.remove('soundUri');
+      }
+      if (_soundName != null && _soundName!.isNotEmpty) {
+        newFormValues['soundName'] = _soundName!;
+      } else {
+        newFormValues.remove('soundName');
+      }
+    }
 
     final editedDraft = FfmAssistantDraft(
       kind: _selectedKind,
@@ -422,12 +600,23 @@ class _FfmAssistantDraftEditDialogState
       note: _textOrNull(_noteController),
       date: effectiveDate,
       linkedActivityId: widget.draft.linkedActivityId,
-      items: validItems,
+      parentSessionId: widget.draft.parentSessionId,
+      activityMode: widget.draft.activityMode,
+      scheduledAt: widget.draft.scheduledAt,
+      sourceId: widget.draft.sourceId,
+      source: widget.draft.source,
+      recurringTransactionId: widget.draft.recurringTransactionId,
+      newTags: widget.draft.newTags,
+      newMerchant: widget.draft.newMerchant,
+      items: List<ReceiptOcrItem>.unmodifiable(_items),
       receiptNumber: receiptNumber,
       receiptPaidAmount: receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount,
+      receiptRawText: widget.draft.receiptRawText,
       tax: tax,
       discount: discount,
+      attachmentPaths: widget.draft.attachmentPaths,
+      tags: _tags.isNotEmpty ? _tags.join(', ') : null,
       formValues: newFormValues,
       merchantName: merchantName,
       location: location,
@@ -441,7 +630,30 @@ class _FfmAssistantDraftEditDialogState
       dailyLivingBudget: widget.draft.dailyLivingBudget,
       dailyOperationalBudget: widget.draft.dailyOperationalBudget,
       cycleProfileType: widget.draft.cycleProfileType,
+      soundUri: widget.draft.soundUri,
+      soundName: widget.draft.soundName,
     );
+
+    if (_isTransaction) {
+      const blockingCodes = {
+        'transfer_same_account',
+        'admin_fee_invalid',
+        'receipt_adjustment_invalid',
+        'receipt_payment_invalid',
+        'receipt_total_mismatch',
+        'receipt_item_invalid',
+        'receipt_items_required',
+        'receipt_payment_mismatch',
+      };
+      final blockingIssue = FfmAssistantDraftValidator.validate(editedDraft)
+          .where((issue) => blockingCodes.contains(issue.code))
+          .firstOrNull;
+      if (blockingIssue != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(blockingIssue.message)));
+        return;
+      }
+    }
 
     // Record the draft edit for LLM feedback
     widget.feedbackService.recordDraftEdit(
@@ -460,7 +672,7 @@ class _FfmAssistantDraftEditDialogState
     _ => false,
   };
 
-  bool get _isDebtOrReceivable => switch (widget.draft.kind) {
+  bool get _isDebtOrReceivable => switch (_selectedKind) {
     FfmAssistantDraftKind.liability ||
     FfmAssistantDraftKind.liabilityPayment ||
     FfmAssistantDraftKind.receivable ||
@@ -471,17 +683,17 @@ class _FfmAssistantDraftEditDialogState
   bool get _showsDate =>
       _isTransaction ||
       _isDebtOrReceivable ||
-      widget.draft.kind == FfmAssistantDraftKind.goal ||
-      widget.draft.kind == FfmAssistantDraftKind.reminder ||
+      _selectedKind == FfmAssistantDraftKind.goal ||
+      _selectedKind == FfmAssistantDraftKind.reminder ||
       _isActivityDraft;
 
   bool get _isGoalContribution =>
-      widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
-      widget.draft.kind == FfmAssistantDraftKind.goalUsage;
+      _selectedKind == FfmAssistantDraftKind.goalDeposit ||
+      _selectedKind == FfmAssistantDraftKind.goalUsage;
 
   bool get _isActivityDraft =>
-      widget.draft.kind == FfmAssistantDraftKind.activity ||
-      widget.draft.kind == FfmAssistantDraftKind.activityEdit;
+      _selectedKind == FfmAssistantDraftKind.activity ||
+      _selectedKind == FfmAssistantDraftKind.activityEdit;
 
   /// Menyusun daftar opsi rekening untuk dropdown. Nilai draft yang belum ada
   /// di Data Utama tetap disertakan supaya tidak hilang saat koreksi.
@@ -503,6 +715,7 @@ class _FfmAssistantDraftEditDialogState
     required ValueChanged<String?> onChanged,
     required String label,
     required String hint,
+    String? helperText,
   }) {
     final options = _accountOptions(initial, widget.accounts);
     return DropdownButtonFormField<String?>(
@@ -511,6 +724,7 @@ class _FfmAssistantDraftEditDialogState
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
+        helperText: helperText,
       ),
       items: [
         const DropdownMenuItem<String?>(
@@ -529,7 +743,7 @@ class _FfmAssistantDraftEditDialogState
       _isTransaction ||
       _isGoalContribution ||
       widget.draft.amount != null ||
-      switch (widget.draft.kind) {
+      switch (_selectedKind) {
         FfmAssistantDraftKind.goal ||
         FfmAssistantDraftKind.budget ||
         FfmAssistantDraftKind.asset ||
@@ -584,9 +798,8 @@ class _FfmAssistantDraftEditDialogState
             margin: const EdgeInsets.only(bottom: 14),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Theme.of(
-                context,
-              ).colorScheme.secondaryContainer.withValues(alpha: .45),
+              color: Theme.of(context).colorScheme.secondaryContainer
+                  .withValues(alpha: .45),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(
@@ -642,17 +855,17 @@ class _FfmAssistantDraftEditDialogState
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
-                labelText: widget.draft.kind == FfmAssistantDraftKind.masterData
+                labelText: _selectedKind == FfmAssistantDraftKind.masterData
                     ? 'Nama ${widget.draft.categoryName ?? 'data'}'
-                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    : _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Nama target'
                     : 'Nama/Judul',
-                hintText: widget.draft.kind == FfmAssistantDraftKind.goal
+                hintText: _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Contoh: Dana Darurat, Liburan'
                     : null,
               ),
             ),
-            if (widget.draft.kind == FfmAssistantDraftKind.masterData)
+            if (_selectedKind == FfmAssistantDraftKind.masterData)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Align(
@@ -666,8 +879,7 @@ class _FfmAssistantDraftEditDialogState
                 ),
               ),
           ],
-          if (widget.draft.kind == FfmAssistantDraftKind.goalDeposit ||
-              widget.draft.kind == FfmAssistantDraftKind.goalUsage)
+          if (_isGoalContribution)
             TextField(
               controller: _goalController,
               decoration: const InputDecoration(
@@ -680,11 +892,11 @@ class _FfmAssistantDraftEditDialogState
               controller: _amountController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
-                labelText: widget.draft.kind == FfmAssistantDraftKind.goalDeposit
+                labelText: _selectedKind == FfmAssistantDraftKind.goalDeposit
                     ? 'Nominal setor (Rp)'
-                    : widget.draft.kind == FfmAssistantDraftKind.goalUsage
+                    : _selectedKind == FfmAssistantDraftKind.goalUsage
                     ? 'Nominal pakai (Rp)'
-                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    : _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Target nominal (Rp)'
                     : 'Nominal (Rp)',
                 hintText: 'Contoh: 500000',
@@ -697,13 +909,17 @@ class _FfmAssistantDraftEditDialogState
             _accountField(
               initial: _fromAccount,
               onChanged: (value) => setState(() => _fromAccount = value),
-              label:
-                  _selectedKind == FfmAssistantDraftKind.goalDeposit
+              label: _selectedKind == FfmAssistantDraftKind.goalDeposit
                   ? 'Rekening sumber dana'
                   : _selectedKind == FfmAssistantDraftKind.liabilityPayment
                   ? 'Rekening sumber bayar'
+                  : _selectedKind == FfmAssistantDraftKind.expense
+                  ? 'Rekening sumber pengeluaran'
                   : 'Rekening asal',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
+              helperText: _selectedKind == FfmAssistantDraftKind.expense
+                  ? 'Pengeluaran akan mengurangi saldo rekening ini.'
+                  : null,
             ),
           if (_selectedKind == FfmAssistantDraftKind.income ||
               _selectedKind == FfmAssistantDraftKind.transfer ||
@@ -712,15 +928,19 @@ class _FfmAssistantDraftEditDialogState
             _accountField(
               initial: _toAccount,
               onChanged: (value) => setState(() => _toAccount = value),
-              label:
-                  _selectedKind == FfmAssistantDraftKind.goalUsage
+              label: _selectedKind == FfmAssistantDraftKind.goalUsage
                   ? 'Rekening tujuan dana'
                   : _selectedKind == FfmAssistantDraftKind.receivablePayment
                   ? 'Rekening tujuan terima'
+                  : _selectedKind == FfmAssistantDraftKind.income
+                  ? 'Rekening tujuan pemasukan'
                   : 'Rekening tujuan',
               hint: 'Pilih rekening yang terdaftar, atau Belum terlacak',
+              helperText: _selectedKind == FfmAssistantDraftKind.income
+                  ? 'Pemasukan akan menambah saldo rekening ini.'
+                  : null,
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.activity) ...[
+          if (_selectedKind == FfmAssistantDraftKind.activity) ...[
             const SizedBox(height: 8),
             DropdownButtonFormField<ActivityMode>(
               initialValue: _activityMode,
@@ -736,9 +956,9 @@ class _FfmAssistantDraftEditDialogState
               },
             ),
           ],
-          if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.expense ||
-              widget.draft.kind == FfmAssistantDraftKind.budget ||
+          if (_selectedKind == FfmAssistantDraftKind.income ||
+              _selectedKind == FfmAssistantDraftKind.expense ||
+              _selectedKind == FfmAssistantDraftKind.budget ||
               _isActivityDraft)
             TextField(
               controller: _categoryController,
@@ -749,8 +969,8 @@ class _FfmAssistantDraftEditDialogState
             ),
           // Kolom transaksi disamakan dengan form resmi + database:
           // merchant, lokasi, tanggal, pihak, biaya admin (transfer).
-          if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.expense)
+          if (_selectedKind == FfmAssistantDraftKind.income ||
+              _selectedKind == FfmAssistantDraftKind.expense)
             TextField(
               controller: _merchantController,
               decoration: const InputDecoration(
@@ -758,8 +978,8 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Indomaret, Pasar',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.expense)
+          if (_selectedKind == FfmAssistantDraftKind.income ||
+              _selectedKind == FfmAssistantDraftKind.expense)
             TextField(
               controller: _locationController,
               decoration: const InputDecoration(
@@ -776,9 +996,9 @@ class _FfmAssistantDraftEditDialogState
                     ? 'Tanggal kejadian'
                     : _isDebtOrReceivable
                     ? 'Tanggal jatuh tempo'
-                    : widget.draft.kind == FfmAssistantDraftKind.goal
+                    : _selectedKind == FfmAssistantDraftKind.goal
                     ? 'Target tanggal tercapai'
-                    : widget.draft.kind == FfmAssistantDraftKind.reminder
+                    : _selectedKind == FfmAssistantDraftKind.reminder
                     ? 'Tanggal pengingat'
                     : 'Tanggal aktivitas',
               ),
@@ -796,9 +1016,9 @@ class _FfmAssistantDraftEditDialogState
                     initialDate: _date ?? DateTime.now(),
                     helpText: _isDebtOrReceivable
                         ? 'Pilih tanggal jatuh tempo'
-                        : widget.draft.kind == FfmAssistantDraftKind.goal
+                        : _selectedKind == FfmAssistantDraftKind.goal
                         ? 'Pilih target tanggal tercapai'
-                        : widget.draft.kind == FfmAssistantDraftKind.reminder
+                        : _selectedKind == FfmAssistantDraftKind.reminder
                         ? 'Pilih tanggal pengingat'
                         : 'Pilih tanggal transaksi',
                   );
@@ -811,7 +1031,7 @@ class _FfmAssistantDraftEditDialogState
             ),
           // Reminder-only: dedicated time picker so changing the date doesn't
           // reset the hour/minute and the full scheduledAt is visible.
-          if (widget.draft.kind == FfmAssistantDraftKind.reminder)
+          if (_selectedKind == FfmAssistantDraftKind.reminder) ...[
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.access_time_outlined),
@@ -835,7 +1055,95 @@ class _FfmAssistantDraftEditDialogState
                 child: const Text('Ganti'),
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.budget) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(top: 4, bottom: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerLowest,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.music_note_outlined,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Nada notifikasi pengingat',
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _soundName ?? 'Bawaan FFM',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final selection =
+                                  await getIt<ReminderSoundPicker>().pick(
+                                    currentUri: _soundUri,
+                                  );
+                              if (!mounted || selection == null) return;
+                              setState(() {
+                                _soundUri = selection.uri;
+                                _soundName = selection.name;
+                              });
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(this.context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Nada dering belum bisa dipilih: $e',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(
+                            Icons.folder_open_outlined,
+                            size: 18,
+                          ),
+                          label: const Text('Pilih nada dering'),
+                        ),
+                      ),
+                      if (_soundUri != null) ...[
+                        const SizedBox(width: 8),
+                        IconButton.outlined(
+                          tooltip: 'Kembalikan ke nada bawaan',
+                          onPressed: () {
+                            setState(() {
+                              _soundUri = null;
+                              _soundName = null;
+                            });
+                          },
+                          icon: const Icon(Icons.restart_alt_rounded),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_selectedKind == FfmAssistantDraftKind.budget) ...[
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               initialValue: _budgetPeriod,
@@ -843,15 +1151,21 @@ class _FfmAssistantDraftEditDialogState
               items: const [
                 DropdownMenuItem(value: 'monthly', child: Text('Bulanan')),
                 DropdownMenuItem(value: 'weekly', child: Text('Mingguan')),
-                DropdownMenuItem(value: 'biweekly', child: Text('Per Dua Minggu')),
-                DropdownMenuItem(value: 'nonrecurring', child: Text('Tidak Rutin')),
+                DropdownMenuItem(
+                  value: 'biweekly',
+                  child: Text('Per Dua Minggu'),
+                ),
+                DropdownMenuItem(
+                  value: 'nonrecurring',
+                  child: Text('Tidak Rutin'),
+                ),
               ],
               onChanged: (value) {
                 if (value != null) setState(() => _budgetPeriod = value);
               },
             ),
           ],
-          if (widget.draft.kind == FfmAssistantDraftKind.transfer)
+          if (_selectedKind == FfmAssistantDraftKind.transfer)
             TextField(
               controller: _adminFeeController,
               keyboardType: TextInputType.number,
@@ -862,23 +1176,63 @@ class _FfmAssistantDraftEditDialogState
                     'Dipisahkan sebagai pengeluaran dari rekening asal.',
               ),
             ),
-          if (_selectedKind == FfmAssistantDraftKind.income)
+          if (_selectedKind == FfmAssistantDraftKind.income) ...[
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(
-                labelText: 'Sumber pemasukan',
-                hintText: 'Contoh: Gaji, Usaha',
+                labelText: 'Sumber pemasukan (opsional)',
+                hintText: 'Contoh: Gaji, Usaha, Klien',
+                helperText: 'Nama instansi, klien, atau pemberi dana',
               ),
             ),
-          if (_selectedKind == FfmAssistantDraftKind.expense)
+            if (_parties.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final p in _parties)
+                      ActionChip(
+                        avatar: const Icon(Icons.add, size: 14),
+                        label: Text(p),
+                        onPressed: () {
+                          setState(() => _partyController.text = p);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+          ],
+          if (_selectedKind == FfmAssistantDraftKind.expense) ...[
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(
                 labelText: 'Dipakai oleh (opsional)',
                 hintText: 'Contoh: Ayah, Ibu',
+                helperText: 'Penanda rincian pemakai keluarga',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.liability)
+            if (_parties.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 6),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final p in _parties)
+                      ActionChip(
+                        avatar: const Icon(Icons.add, size: 14),
+                        label: Text(p),
+                        onPressed: () {
+                          setState(() => _partyController.text = p);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+          ],
+          if (_selectedKind == FfmAssistantDraftKind.liability)
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(
@@ -886,7 +1240,7 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Bank Mandiri, Teman, Keluarga',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.receivable)
+          if (_selectedKind == FfmAssistantDraftKind.receivable)
             TextField(
               controller: _partyController,
               decoration: const InputDecoration(
@@ -894,8 +1248,8 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: Budi, Saudara, Karyawan',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.liability ||
-              widget.draft.kind == FfmAssistantDraftKind.receivable)
+          if (_selectedKind == FfmAssistantDraftKind.liability ||
+              _selectedKind == FfmAssistantDraftKind.receivable)
             TextField(
               controller: _monthlyInstallmentController,
               keyboardType: TextInputType.number,
@@ -904,26 +1258,86 @@ class _FfmAssistantDraftEditDialogState
                 hintText: 'Contoh: 500000',
               ),
             ),
-          if (widget.draft.kind == FfmAssistantDraftKind.income ||
-              widget.draft.kind == FfmAssistantDraftKind.expense)
-            _MultiValueEditor(
-              label: 'Tags (opsional)',
-              hint: 'Tambah tag',
-              values: _tags,
-              onAdd: _addTag,
-              onRemove: _removeTag,
-              controller: _tagsController,
+          if (_selectedKind == FfmAssistantDraftKind.income ||
+              _selectedKind == FfmAssistantDraftKind.expense) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.label_outline,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selectedKind == FfmAssistantDraftKind.expense
+                        ? 'Tag penanda (wajib)'
+                        : 'Tags (opsional)',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 4),
+            Text(
+              _selectedKind == FfmAssistantDraftKind.expense
+                  ? 'Wajib: Pilih minimal satu penanda dari Data Utama atau tambahkan tag baru.'
+                  : 'Opsional. Tag untuk penanda pengelompokan transaksi.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final tagName in _masterTags)
+                  FilterChip(
+                    label: Text('#$tagName'),
+                    selected: _tags.any(
+                      (t) => t.toLowerCase() == tagName.toLowerCase(),
+                    ),
+                    onSelected: (selected) {
+                      if (selected) {
+                        _addTag(tagName);
+                      } else {
+                        _removeTag(tagName);
+                      }
+                    },
+                  ),
+                for (final customTag in _tags.where(
+                  (t) => !_masterTags.any(
+                    (m) => m.toLowerCase() == t.toLowerCase(),
+                  ),
+                ))
+                  InputChip(
+                    label: Text('#$customTag'),
+                    selected: true,
+                    onDeleted: () => _removeTag(customTag),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Tag baru'),
+                  onPressed: _showAddNewTagDialog,
+                ),
+              ],
+            ),
+          ],
           if (_isTransaction) ...[
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  color: Theme.of(context).colorScheme.outlineVariant
+                      .withValues(alpha: 0.5),
                 ),
               ),
               child: Column(
@@ -976,7 +1390,8 @@ class _FfmAssistantDraftEditDialogState
             ),
             const SizedBox(height: 8),
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 leading: const Icon(Icons.receipt_long_outlined),
@@ -1092,7 +1507,8 @@ class _DraftReceiptItemRow extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.35),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1111,7 +1527,11 @@ class _DraftReceiptItemRow extends StatelessWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.red,
+                  size: 20,
+                ),
                 tooltip: 'Hapus Item',
                 onPressed: onDeleted,
               ),
@@ -1123,15 +1543,20 @@ class _DraftReceiptItemRow extends StatelessWidget {
               Expanded(
                 flex: 2,
                 child: TextFormField(
-                  initialValue: item.quantity == 1 ? '1' : item.quantity.toString(),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  initialValue: item.quantity == 1
+                      ? '1'
+                      : item.quantity.toString(),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: const InputDecoration(
                     isDense: true,
                     labelText: 'Qty',
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (val) {
-                    final qty = double.tryParse(val.replaceAll(',', '.')) ?? 1.0;
+                    final qty =
+                        double.tryParse(val.replaceAll(',', '.')) ?? 1.0;
                     onChanged(item.copyWith(quantity: qty));
                   },
                 ),
@@ -1148,7 +1573,9 @@ class _DraftReceiptItemRow extends StatelessWidget {
                     border: OutlineInputBorder(),
                   ),
                   onChanged: (val) {
-                    final p = int.tryParse(val.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+                    final p =
+                        int.tryParse(val.replaceAll(RegExp(r'[^0-9]'), '')) ??
+                        0;
                     onChanged(item.copyWith(price: p));
                   },
                 ),
@@ -1156,71 +1583,15 @@ class _DraftReceiptItemRow extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Rp${item.calculatedTotal}',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-}
-
-class _MultiValueEditor extends StatelessWidget {
-  const _MultiValueEditor({
-    required this.label,
-    required this.hint,
-    required this.values,
-    required this.onAdd,
-    required this.onRemove,
-    required this.controller,
-  });
-
-  final String label;
-  final String hint;
-  final List<String> values;
-  final ValueChanged<String> onAdd;
-  final ValueChanged<String> onRemove;
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: hint,
-            suffixIcon: IconButton(
-              onPressed: () {
-                onAdd(controller.text);
-                controller.clear();
-              },
-              icon: const Icon(Icons.add_circle_outline),
-            ),
-          ),
-          onSubmitted: (value) {
-            onAdd(value);
-            controller.clear();
-          },
-        ),
-        if (values.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: values
-                .map(
-                  (value) => Chip(
-                    label: Text(value),
-                    onDeleted: () => onRemove(value),
-                  ),
-                )
-                .toList(growable: false),
-          ),
-        ],
-      ],
     );
   }
 }

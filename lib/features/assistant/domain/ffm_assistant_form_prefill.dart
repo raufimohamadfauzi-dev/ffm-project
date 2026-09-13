@@ -40,6 +40,9 @@ class FfmAssistantFormCheck {
 abstract final class FfmAssistantFormPrefillMapper {
   static FfmAssistantFormPrefill fromDraft(FfmAssistantDraft draft) {
     final values = <String, String>{
+      // UI-only form values are preserved, but typed draft fields below are
+      // authoritative when both representations contain the same key.
+      ...draft.formValues,
       'kind': draft.kind.name,
       if (draft.amount != null) 'amount': draft.amount.toString(),
       if (draft.title?.trim().isNotEmpty ?? false) 'title': draft.title!.trim(),
@@ -55,12 +58,24 @@ abstract final class FfmAssistantFormPrefillMapper {
         'categoryName': draft.categoryName!.trim(),
       if (draft.note?.trim().isNotEmpty ?? false) 'note': draft.note!.trim(),
       if (draft.date != null) 'date': _date(draft.date!),
+      if (draft.sourceId?.trim().isNotEmpty ?? false)
+        'sourceId': draft.sourceId!.trim(),
+      if (draft.source?.trim().isNotEmpty ?? false)
+        'source': draft.source!.trim(),
+      if (draft.recurringTransactionId?.trim().isNotEmpty ?? false)
+        'recurringTransactionId': draft.recurringTransactionId!.trim(),
+      if (draft.tags?.trim().isNotEmpty ?? false) 'tags': draft.tags!.trim(),
+      if (draft.newTags?.trim().isNotEmpty ?? false)
+        'newTags': draft.newTags!.trim(),
+      if (draft.newMerchant?.trim().isNotEmpty ?? false)
+        'newMerchant': draft.newMerchant!.trim(),
+      if (draft.parentSessionId?.trim().isNotEmpty ?? false)
+        'parentSessionId': draft.parentSessionId!.trim(),
+      if (draft.linkedActivityId?.trim().isNotEmpty ?? false)
+        'linkedActivityId': draft.linkedActivityId!.trim(),
       if (draft.adminFee != null) 'adminFee': draft.adminFee.toString(),
       if (draft.location?.trim().isNotEmpty ?? false)
         'location': draft.location!.trim(),
-      if ((draft.formValues['location']?.trim().isNotEmpty ?? false) &&
-          (draft.location?.trim().isEmpty ?? true))
-        'location': draft.formValues['location']!.trim(),
       if (draft.goalName?.trim().isNotEmpty ?? false)
         'goalName': draft.goalName!.trim(),
       if (draft.receiptNumber?.trim().isNotEmpty ?? false)
@@ -71,6 +86,8 @@ abstract final class FfmAssistantFormPrefillMapper {
         'receiptChangeAmount': draft.receiptChangeAmount.toString(),
       if (draft.tax != null) 'tax': draft.tax.toString(),
       if (draft.discount != null) 'discount': draft.discount.toString(),
+      if (draft.receiptRawText?.trim().isNotEmpty ?? false)
+        'receiptRawText': draft.receiptRawText!.trim(),
       if (draft.items.isNotEmpty)
         'itemsJson': jsonEncode(
           draft.items
@@ -85,7 +102,8 @@ abstract final class FfmAssistantFormPrefillMapper {
               )
               .toList(),
         ),
-      ...draft.formValues,
+      if (draft.attachmentPaths.isNotEmpty)
+        'attachmentPathsJson': jsonEncode(draft.attachmentPaths),
     };
     final issues = FfmAssistantDraftValidator.validate(draft);
     return FfmAssistantFormPrefill(
@@ -115,41 +133,41 @@ abstract final class FfmAssistantFormPrefillMapper {
   static String _date(DateTime value) =>
       '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 
-  static FfmAssistantDestination _targetFor(
-    FfmAssistantDraftKind kind,
-  ) => switch (kind) {
-    FfmAssistantDraftKind.income ||
-    FfmAssistantDraftKind.expense ||
-    FfmAssistantDraftKind.transfer ||
-    FfmAssistantDraftKind.goalDeposit ||
-    FfmAssistantDraftKind.goalUsage => FfmAssistantDestination.transactions,
-    FfmAssistantDraftKind.budget ||
-    FfmAssistantDraftKind.budgetUpdate ||
-    FfmAssistantDraftKind.budgetArchive => FfmAssistantDestination.budget,
-    FfmAssistantDraftKind.goal ||
-    FfmAssistantDraftKind.goalUpdate ||
-    FfmAssistantDraftKind.goalArchive => FfmAssistantDestination.goals,
-    FfmAssistantDraftKind.asset ||
-    FfmAssistantDraftKind.assetUpdate ||
-    FfmAssistantDraftKind.assetArchive => FfmAssistantDestination.assets,
-    FfmAssistantDraftKind.liability ||
-    FfmAssistantDraftKind.liabilityUpdate ||
-    FfmAssistantDraftKind.liabilityArchive ||
-    FfmAssistantDraftKind.liabilityPayment ||
-    FfmAssistantDraftKind.receivable ||
-    FfmAssistantDraftKind.receivableUpdate ||
-    FfmAssistantDraftKind.receivableArchive ||
-    FfmAssistantDraftKind.receivablePayment =>
-      FfmAssistantDestination.liabilities,
-    FfmAssistantDraftKind.reminder ||
-    FfmAssistantDraftKind.reminderUpdate ||
-    FfmAssistantDraftKind.reminderArchive => FfmAssistantDestination.reminders,
-    FfmAssistantDraftKind.activity ||
-    FfmAssistantDraftKind.activityArchive ||
-    FfmAssistantDraftKind.activityDelete ||
-    FfmAssistantDraftKind.activityFinish ||
-    FfmAssistantDraftKind.activityUpdate ||
-    FfmAssistantDraftKind.activityEdit => FfmAssistantDestination.activity,
-    _ => FfmAssistantDestination.masterData,
-  };
+  static FfmAssistantDestination _targetFor(FfmAssistantDraftKind kind) =>
+      switch (kind) {
+        FfmAssistantDraftKind.income ||
+        FfmAssistantDraftKind.expense ||
+        FfmAssistantDraftKind.transfer ||
+        FfmAssistantDraftKind.goalDeposit ||
+        FfmAssistantDraftKind.goalUsage => FfmAssistantDestination.transactions,
+        FfmAssistantDraftKind.budget ||
+        FfmAssistantDraftKind.budgetUpdate ||
+        FfmAssistantDraftKind.budgetArchive => FfmAssistantDestination.budget,
+        FfmAssistantDraftKind.goal ||
+        FfmAssistantDraftKind.goalUpdate ||
+        FfmAssistantDraftKind.goalArchive => FfmAssistantDestination.goals,
+        FfmAssistantDraftKind.asset ||
+        FfmAssistantDraftKind.assetUpdate ||
+        FfmAssistantDraftKind.assetArchive => FfmAssistantDestination.assets,
+        FfmAssistantDraftKind.liability ||
+        FfmAssistantDraftKind.liabilityUpdate ||
+        FfmAssistantDraftKind.liabilityArchive ||
+        FfmAssistantDraftKind.liabilityPayment ||
+        FfmAssistantDraftKind.receivable ||
+        FfmAssistantDraftKind.receivableUpdate ||
+        FfmAssistantDraftKind.receivableArchive ||
+        FfmAssistantDraftKind.receivablePayment =>
+          FfmAssistantDestination.liabilities,
+        FfmAssistantDraftKind.reminder ||
+        FfmAssistantDraftKind.reminderUpdate ||
+        FfmAssistantDraftKind.reminderArchive =>
+          FfmAssistantDestination.reminders,
+        FfmAssistantDraftKind.activity ||
+        FfmAssistantDraftKind.activityArchive ||
+        FfmAssistantDraftKind.activityDelete ||
+        FfmAssistantDraftKind.activityFinish ||
+        FfmAssistantDraftKind.activityUpdate ||
+        FfmAssistantDraftKind.activityEdit => FfmAssistantDestination.activity,
+        _ => FfmAssistantDestination.masterData,
+      };
 }

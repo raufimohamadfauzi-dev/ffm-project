@@ -30,7 +30,12 @@ abstract final class FfmAssistantDraftValidator {
     switch (draft.kind) {
       case FfmAssistantDraftKind.transfer:
         _validateTransfer(draft, issues);
+        _validateTransactionDate(draft, issues);
+        _validateTransactionReferences(draft, issues);
       case FfmAssistantDraftKind.income:
+        _validateReceiptFields(draft, issues);
+        _validateTransactionDate(draft, issues);
+        _validateTransactionReferences(draft, issues);
         if (_isBlank(draft.toAccountName)) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -52,6 +57,9 @@ abstract final class FfmAssistantDraftValidator {
           );
         }
       case FfmAssistantDraftKind.expense:
+        _validateReceiptFields(draft, issues);
+        _validateTransactionDate(draft, issues);
+        _validateTransactionReferences(draft, issues);
         if (_isBlank(draft.fromAccountName)) {
           issues.add(
             const FfmAssistantDraftIssue(
@@ -93,7 +101,48 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+        if (draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tanggal',
+              message: 'Tanggal alokasi belum dipilih.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.goalUsage:
+        if (_isBlank(draft.goalName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'target',
+              message:
+                  'Pilih target keuangan dulu supaya dana tidak salah diambil.',
+            ),
+          );
+        }
+        if (_isBlank(draft.toAccountName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_destination_untracked',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'rekening tujuan',
+              message: 'Rekening tujuan belum dipilih.',
+            ),
+          );
+        }
+        if (draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tanggal',
+              message: 'Tanggal alokasi belum dipilih.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.goal:
         if (_isBlank(draft.title)) {
           issues.add(
@@ -102,6 +151,16 @@ abstract final class FfmAssistantDraftValidator {
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'nama target',
               message: 'Nama targetnya belum ada.',
+            ),
+          );
+        }
+        if (draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'batas waktu',
+              message: 'Batas waktu target belum dipilih.',
             ),
           );
         }
@@ -136,8 +195,7 @@ abstract final class FfmAssistantDraftValidator {
               code: 'party_required',
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'nama orang',
-              message:
-                  'Sebut nama orang atau nama hutang/piutang dulu supaya catatan tidak tertukar.',
+              message: 'Sebut nama orang atau nama hutang/piutang dulu supaya catatan tidak tertukar.',
             ),
           );
         }
@@ -417,7 +475,6 @@ abstract final class FfmAssistantDraftValidator {
       case FfmAssistantDraftKind.asset:
       case FfmAssistantDraftKind.masterData:
       case FfmAssistantDraftKind.reminder:
-      case FfmAssistantDraftKind.activity:
       case FfmAssistantDraftKind.profile:
         if (_isBlank(draft.title)) {
           issues.add(
@@ -472,6 +529,16 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+        if (draft.date == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'daily_note_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tanggal catatan',
+              message: 'Tanggal Catatan Harian belum valid.',
+            ),
+          );
+        }
       case FfmAssistantDraftKind.dailyNoteArchive:
         if (_isBlank(draft.formValues['targetId'])) {
           issues.add(
@@ -480,6 +547,27 @@ abstract final class FfmAssistantDraftValidator {
               severity: FfmAssistantDraftIssueSeverity.required,
               field: 'Catatan Harian',
               message: 'Catatan Harian target belum ditemukan secara unik.',
+            ),
+          );
+        }
+      case FfmAssistantDraftKind.activity:
+        if (_isBlank(draft.title)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'activity_title_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'judul aktivitas',
+              message: 'Judul aktivitas belum ada.',
+            ),
+          );
+        }
+        if (draft.date == null && draft.scheduledAt == null) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'activity_date_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'tanggal aktivitas',
+              message: 'Tanggal atau waktu aktivitas belum valid.',
             ),
           );
         }
@@ -682,7 +770,8 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
-        if (draft.dailyOperationalBudget != null && draft.dailyOperationalBudget! < 0) {
+        if (draft.dailyOperationalBudget != null &&
+            draft.dailyOperationalBudget! < 0) {
           issues.add(
             const FfmAssistantDraftIssue(
               code: 'daily_operational_budget_negative',
@@ -807,6 +896,187 @@ abstract final class FfmAssistantDraftValidator {
           severity: FfmAssistantDraftIssueSeverity.warning,
           field: 'biaya admin',
           message: 'Biaya admin lebih besar dari nominal transfer. Cek lagi kalau memang benar.',
+        ),
+      );
+    }
+  }
+
+  static void _validateReceiptFields(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    if (draft.tax != null && draft.tax! < 0 ||
+        draft.discount != null && draft.discount! < 0) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'receipt_adjustment_invalid',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'pajak/diskon',
+          message: 'Pajak dan diskon tidak boleh negatif.',
+        ),
+      );
+    }
+    if (draft.receiptPaidAmount != null && draft.receiptPaidAmount! < 0 ||
+        draft.receiptChangeAmount != null && draft.receiptChangeAmount! < 0 ||
+        draft.receiptChangeAmount != null && draft.receiptPaidAmount == null) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'receipt_payment_invalid',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'dibayar/kembalian',
+          message: 'Nominal dibayar dan kembalian harus valid dan konsisten.',
+        ),
+      );
+    }
+    if (draft.items.isNotEmpty) {
+      final subtotal = draft.items.fold<int>(
+        0,
+        (sum, item) => sum + item.calculatedTotal,
+      );
+      final expected = subtotal + (draft.tax ?? 0) - (draft.discount ?? 0);
+      if (draft.amount != null && expected != draft.amount) {
+        issues.add(
+          const FfmAssistantDraftIssue(
+            code: 'receipt_total_mismatch',
+            severity: FfmAssistantDraftIssueSeverity.conflict,
+            field: 'nominal',
+            message: 'Total harus sama dengan subtotal + pajak - diskon.',
+          ),
+        );
+      }
+      for (final item in draft.items) {
+        final calculatedSubtotal = (item.price * item.quantity).round();
+        if (item.name.trim().isEmpty ||
+            item.price <= 0 ||
+            item.quantity <= 0 ||
+            item.lineTotal != null && item.lineTotal != calculatedSubtotal) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'receipt_item_invalid',
+              severity: FfmAssistantDraftIssueSeverity.conflict,
+              field: 'items',
+              message: 'Setiap item harus memiliki nama, harga, jumlah, dan total yang valid.',
+            ),
+          );
+          break;
+        }
+      }
+    } else if (draft.tax != null || draft.discount != null) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'receipt_items_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'items',
+          message: 'Pajak atau diskon membutuhkan rincian item untuk verifikasi total.',
+        ),
+      );
+    }
+    if (draft.receiptPaidAmount != null &&
+        draft.amount != null &&
+        draft.receiptPaidAmount! - (draft.receiptChangeAmount ?? 0) !=
+            draft.amount) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'receipt_payment_mismatch',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'dibayar/kembalian',
+          message:
+              'Nominal dibayar dikurangi kembalian harus sama dengan total.',
+        ),
+      );
+    }
+  }
+
+  static void _validateTransactionDate(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    if (draft.date == null) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'transaction_date_required',
+          severity: FfmAssistantDraftIssueSeverity.required,
+          field: 'tanggal',
+          message: 'Tanggal transaksi belum valid.',
+        ),
+      );
+    }
+  }
+
+  static void _validateTransactionReferences(
+    FfmAssistantDraft draft,
+    List<FfmAssistantDraftIssue> issues,
+  ) {
+    final statusKeys = switch (draft.kind) {
+      FfmAssistantDraftKind.income => const [
+        'accountReferenceStatus',
+        'toAccountReferenceStatus',
+        'categoryReferenceStatus',
+        'merchantReferenceStatus',
+      ],
+      FfmAssistantDraftKind.expense => const [
+        'accountReferenceStatus',
+        'fromAccountReferenceStatus',
+        'categoryReferenceStatus',
+        'merchantReferenceStatus',
+      ],
+      FfmAssistantDraftKind.transfer => const [
+        'fromAccountReferenceStatus',
+        'toAccountReferenceStatus',
+      ],
+      _ => const <String>[],
+    };
+    for (final key in statusKeys) {
+      final status = draft.formValues[key]?.toString().trim().toLowerCase();
+      if (status != null && status.isNotEmpty && status != 'resolved') {
+        issues.add(
+          FfmAssistantDraftIssue(
+            code: 'transaction_reference_unresolved',
+            severity: FfmAssistantDraftIssueSeverity.conflict,
+            field: key,
+            message: 'Referensi rekening, kategori, atau toko belum ditemukan secara unik.',
+          ),
+        );
+      }
+    }
+    for (final key in const [
+      'accountIsArchived',
+      'fromAccountIsArchived',
+      'toAccountIsArchived',
+      'categoryIsArchived',
+      'merchantIsArchived',
+    ]) {
+      if (draft.formValues[key] == true ||
+          draft.formValues[key]?.toString().toLowerCase() == 'true') {
+        issues.add(
+          FfmAssistantDraftIssue(
+            code: 'transaction_reference_archived',
+            severity: FfmAssistantDraftIssueSeverity.conflict,
+            field: key,
+            message: 'Referensi transaksi sudah diarsipkan dan tidak dapat digunakan.',
+          ),
+        );
+      }
+    }
+    final categoryType = draft.formValues['categoryType']
+        ?.toString()
+        .trim()
+        .toLowerCase();
+    final expectedType = draft.kind == FfmAssistantDraftKind.income
+        ? 'income'
+        : draft.kind == FfmAssistantDraftKind.expense
+        ? 'expense'
+        : null;
+    if (categoryType != null &&
+        categoryType.isNotEmpty &&
+        expectedType != null &&
+        categoryType != expectedType) {
+      issues.add(
+        const FfmAssistantDraftIssue(
+          code: 'transaction_category_type_mismatch',
+          severity: FfmAssistantDraftIssueSeverity.conflict,
+          field: 'kategori',
+          message: 'Jenis kategori tidak sesuai dengan jenis transaksi.',
         ),
       );
     }

@@ -4,6 +4,95 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ffm_manager/core/database/app_database.dart';
 
 void main() {
+  test('schema 60 menambahkan note nullable pada Goal dan Budget tanpa menghapus data', () async {
+    final executor = NativeDatabase.memory(
+      setup: (database) {
+        database.execute(
+          'CREATE TABLE goals ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, name TEXT NOT NULL, '
+          'target_amount INTEGER NOT NULL, current_amount INTEGER NOT NULL DEFAULT 0, '
+          'target_date INTEGER, category_id TEXT, is_active INTEGER NOT NULL DEFAULT 1, '
+          'created_at INTEGER NOT NULL)',
+        );
+        database.execute(
+          "INSERT INTO goals (id, household_id, name, target_amount, created_at) "
+          "VALUES ('legacy-goal', 'household', 'Dana Lama', 1000, 1)",
+        );
+        database.execute(
+          'CREATE TABLE envelope_budgets ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, category_id TEXT, '
+          "category_ids_json TEXT NOT NULL DEFAULT '[]', name TEXT NOT NULL, month TEXT, "
+          'allocated INTEGER NOT NULL DEFAULT 0, period_type TEXT NOT NULL DEFAULT \'monthly\', '
+          'start_date INTEGER NOT NULL, end_date INTEGER NOT NULL, alert_percent INTEGER NOT NULL DEFAULT 80, '
+          'rollover INTEGER NOT NULL DEFAULT 0, is_active INTEGER NOT NULL DEFAULT 1, '
+          'created_at INTEGER NOT NULL, updated_at INTEGER)',
+        );
+        database.execute(
+          "INSERT INTO envelope_budgets (id, household_id, name, start_date, end_date, created_at) "
+          "VALUES ('legacy-budget', 'household', 'Makan Lama', 1, 2, 1)",
+        );
+        database.execute('PRAGMA user_version = 60');
+      },
+    );
+    final database = AppDatabase(executor);
+    addTearDown(database.close);
+
+    final goalColumns = await database.customSelect('PRAGMA table_info("goals")').get();
+    final budgetColumns = await database.customSelect('PRAGMA table_info("envelope_budgets")').get();
+    expect(goalColumns.where((row) => row.read<String>('name') == 'note'), hasLength(1));
+    expect(budgetColumns.where((row) => row.read<String>('name') == 'note'), hasLength(1));
+    expect((await database.select(database.goals).get()).single.name, 'Dana Lama');
+    expect((await database.select(database.goals).get()).single.note, isNull);
+    expect((await database.select(database.envelopeBudgets).get()).single.name, 'Makan Lama');
+    expect((await database.select(database.envelopeBudgets).get()).single.note, isNull);
+  });
+
+  test('schema 62 menambahkan kolom nullable tax dan discount pada transactions tanpa menghapus data', () async {
+    final executor = NativeDatabase.memory(
+      setup: (database) {
+        database.execute(
+          'CREATE TABLE transactions ('
+          'id TEXT PRIMARY KEY, household_id TEXT NOT NULL, category_id TEXT, '
+          'merchant_id TEXT, account_id TEXT, amount INTEGER NOT NULL, date INTEGER NOT NULL, '
+          'recorded_at INTEGER NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER, '
+          'owner TEXT, note TEXT, source TEXT, source_id TEXT, location TEXT, '
+          'receipt_raw_text TEXT, receipt_number TEXT, '
+          'receipt_paid_amount INTEGER, receipt_change_amount INTEGER)',
+        );
+        database.execute(
+          "INSERT INTO transactions "
+          "(id, household_id, amount, date, recorded_at, created_at, source, receipt_paid_amount) "
+          "VALUES ('legacy-txn', 'household', -25000, 1, 1, 1, 'assistant', 30000)",
+        );
+        database.execute('PRAGMA user_version = 61');
+      },
+    );
+    final database = AppDatabase(executor);
+    addTearDown(database.close);
+
+    final columns = await database
+        .customSelect('PRAGMA table_info("transactions")')
+        .get();
+    expect(
+      columns.where((row) => row.read<String>('name') == 'tax'),
+      hasLength(1),
+    );
+    expect(
+      columns.where((row) => row.read<String>('name') == 'discount'),
+      hasLength(1),
+    );
+    final legacy = await database
+        .customSelect(
+          "SELECT amount, receipt_paid_amount, tax, discount "
+          "FROM transactions WHERE id = 'legacy-txn'",
+        )
+        .getSingle();
+    expect(legacy.data['amount'], -25000);
+    expect(legacy.data['receipt_paid_amount'], 30000);
+    expect(legacy.data['tax'], isNull);
+    expect(legacy.data['discount'], isNull);
+  });
+
   group('Migrasi database v41', () {
     test('upgrade dari schema 30 mempertahankan data lama dan membuat tabel Asisten, personalisasi, feedback, Catatan Harian, Tugas, Rutinitas, serta Jadwal', () async {
       final executor = NativeDatabase.memory(
@@ -106,7 +195,7 @@ void main() {
           )
           .getSingleOrNull();
 
-      expect(version.data['user_version'], 59);
+      expect(version.data['user_version'], database.schemaVersion);
       expect(legacy.data['label'], 'tetap ada');
       expect(category.data['name'], 'Tetap Ada');
       expect(assistantTable, isNotNull);
@@ -307,7 +396,7 @@ void main() {
           )
           .get();
 
-      expect(version.data['user_version'], 59);
+      expect(version.data['user_version'], database.schemaVersion);
       expect(schema59Indexes, hasLength(4));
     });
   });

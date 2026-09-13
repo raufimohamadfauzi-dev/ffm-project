@@ -71,6 +71,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   var _categories = <Category>[];
   var _merchants = <Merchant>[];
   var _accounts = <Account>[];
+  var _tags = <Tag>[];
   final _transfers = <Transfer>[];
   Set<String>? _ftsTransactionIds;
   var _loading = true;
@@ -82,6 +83,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
   String? _categoryFilter;
   String? _merchantFilter;
   String? _ownerFilter;
+  String? _tagFilter;
   DateTime? _startDateFilter;
   DateTime? _endDateFilter;
   var _isSearchOpen = false;
@@ -229,7 +231,18 @@ class _TransactionListPageState extends State<TransactionListPage> {
       return false;
     }
     final categoryId = assistantCategoryIdForDraft(draft);
-    return categoryId != null && assistantAccountIdForDraft(draft) != null;
+    if (categoryId == null || assistantAccountIdForDraft(draft) == null) {
+      return false;
+    }
+    // Tag wajib untuk transaksi pengeluaran (not null / tidak boleh kosong).
+    // Jika belum ada tag, jangan simpan langsung; alihkan ke form agar user melengkapi tag.
+    if (draft.kind == FfmAssistantDraftKind.expense) {
+      final tags = _assistantTagNames(draft);
+      if (tags.isEmpty) {
+        return false;
+      }
+    }
+    return true;
   }
 
   String? assistantCategoryIdForDraft(FfmAssistantDraft draft) {
@@ -298,7 +311,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
     final receiptChangeAmount =
         draft.receiptChangeAmount ??
         int.tryParse(draft.formValues['receiptChangeAmount'] ?? '');
-    final receiptRawText = draft.note ?? draft.formValues['receiptRawText'];
+    final receiptRawText =
+        draft.receiptRawText ?? draft.formValues['receiptRawText'];
     var items = const <ReceiptItemDraft>[];
     if (draft.items.isNotEmpty) {
       items = draft.items
@@ -351,7 +365,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
       amount: draft.amount!,
       note: draft.note ?? '',
       location: draft.location ?? draft.formValues['location'],
-      source: 'assistant',
+      source: draft.source ?? 'assistant',
+      sourceId: draft.sourceId,
+      recurringTransactionId: draft.recurringTransactionId,
+      linkedActivityId: draft.linkedActivityId,
       accountId: accountId,
       merchantId: merchantId,
       goalId: null,
@@ -363,6 +380,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       receiptNumber: receiptNumber,
       receiptPaidAmount: receiptPaidAmount,
       receiptChangeAmount: receiptChangeAmount,
+      tax: draft.tax,
+      discount: draft.discount,
       items: items,
       attachmentPaths: draft.attachmentPaths,
       tags: _assistantTagNames(draft),
@@ -373,13 +392,29 @@ class _TransactionListPageState extends State<TransactionListPage> {
   }
 
   /// Tag draft asisten disamakan dengan kolom tag form + database.
+  /// Membaca dari seluruh sumber: draft.tags, draft.newTags, dan formValues.
   /// Filter final terhadap Data Utama dilakukan di [_saveMetadata].
   List<String> _assistantTagNames(FfmAssistantDraft draft) {
-    final raw = draft.formValues['tags'] ?? draft.formValues['newTags'] ?? '';
-    if (raw.trim().isEmpty) return const [];
-    return raw
+    final rawParts = <String>[];
+    if (draft.tags != null && draft.tags!.trim().isNotEmpty) {
+      rawParts.add(draft.tags!.trim());
+    }
+    if (draft.newTags != null && draft.newTags!.trim().isNotEmpty) {
+      rawParts.add(draft.newTags!.trim());
+    }
+    final fromForm = draft.formValues['tags']?.toString();
+    if (fromForm != null && fromForm.trim().isNotEmpty) {
+      rawParts.add(fromForm.trim());
+    }
+    final fromNewTagsForm = draft.formValues['newTags']?.toString();
+    if (fromNewTagsForm != null && fromNewTagsForm.trim().isNotEmpty) {
+      rawParts.add(fromNewTagsForm.trim());
+    }
+    if (rawParts.isEmpty) return const [];
+    return rawParts
+        .join(',')
         .split(',')
-        .map((item) => item.trim().toLowerCase())
+        .map((item) => item.replaceAll('#', '').trim().toLowerCase())
         .where((item) => item.isNotEmpty)
         .toSet()
         .toList();
@@ -416,6 +451,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
       adminFee: draft.adminFee ?? 0,
       date: date,
       note: draft.note ?? '',
+      source: draft.source?.trim().isNotEmpty == true
+          ? draft.source!.trim()
+          : 'assistant',
     );
     final now = DateTime.now();
     final transferDate = DateTime(
@@ -485,7 +523,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               fromAccountId: transfer.fromAccountId,
               toAccountId: transfer.toAccountId,
               note: Value(transfer.note.isEmpty ? null : transfer.note),
-              source: const Value('assistant'),
+              source: Value(transfer.source),
               updatedAt: Value(now),
             ),
           );
@@ -499,7 +537,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         'from_account_id': transfer.fromAccountId,
         'to_account_id': transfer.toAccountId,
         'admin_fee': transfer.adminFee,
-        'source': 'assistant',
+        'source': transfer.source,
       },
     );
     await _loadTransactions();
@@ -562,6 +600,15 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 )
                 ..orderBy([(table) => OrderingTerm.asc(table.name)]))
               .get();
+      final tags =
+          await (database.select(database.tags)
+                ..where(
+                  (table) =>
+                      table.householdId.equals(AppContext.householdId) &
+                      table.isArchived.equals(false),
+                )
+                ..orderBy([(table) => OrderingTerm.asc(table.name)]))
+              .get();
       final transfersResult = await getIt<GetTransfersPage>()(
         AppContext.householdId,
         limit: _pageSize,
@@ -577,6 +624,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
         _categories = categories;
         _merchants = merchants;
         _accounts = accounts;
+        _tags = tags;
         _transfers
           ..clear()
           ..addAll(transfersResult.items);
@@ -609,7 +657,11 @@ class _TransactionListPageState extends State<TransactionListPage> {
         startDate: _startDateFilter,
         endDate: _endDateExclusive,
       );
-      var transfersResult = const TransferPageResult(items: [], hasMore: false, totalCount: 0);
+      var transfersResult = const TransferPageResult(
+        items: [],
+        hasMore: false,
+        totalCount: 0,
+      );
       if (_hasMoreTransfers) {
         transfersResult = await getIt<GetTransfersPage>()(
           AppContext.householdId,
@@ -786,7 +838,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 fromAccountId: draft.fromAccountId,
                 toAccountId: draft.toAccountId,
                 note: Value(draft.note.isEmpty ? null : draft.note),
-                source: const Value('manual'),
+                source: Value(draft.source),
                 updatedAt: Value(now),
               ),
             );
@@ -1200,6 +1252,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         receiptNumber: draft.receiptNumber,
         receiptPaidAmount: draft.receiptPaidAmount,
         receiptChangeAmount: draft.receiptChangeAmount,
+        tax: draft.tax,
+        discount: draft.discount,
         recordedAt: now,
         updatedAt: now,
       );
@@ -1552,6 +1606,12 @@ class _TransactionListPageState extends State<TransactionListPage> {
               transaction.merchantId == _merchantFilter;
           final matchesOwner =
               _ownerFilter == null || transaction.owner == _ownerFilter;
+          final matchesTag =
+              _tagFilter == null ||
+              entry.tags.any(
+                (t) =>
+                    t.trim().toLowerCase() == _tagFilter!.trim().toLowerCase(),
+              );
           final searchText = [
             _categoryLabel(transaction.categoryId),
             transaction.owner ?? '',
@@ -1560,6 +1620,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
             _accountLabel(transaction.accountId),
             ...entry.items.map((item) => item.itemName),
             _dateLabel(transaction.date),
+            ...entry.tags.map((t) => '#$t $t'),
           ].join(' ').toLowerCase();
           final matchesFts =
               _ftsTransactionIds == null ||
@@ -1572,6 +1633,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
               matchesCategory &&
               matchesMerchant &&
               matchesOwner &&
+              matchesTag &&
               (query.isEmpty || matchesFts || searchText.contains(query));
         })
         .toList(growable: false);
@@ -1581,7 +1643,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
     if (_typeFilter == 'Pemasukan' ||
         _typeFilter == 'Pengeluaran' ||
         _merchantFilter != null ||
-        _ownerFilter != null) {
+        _ownerFilter != null ||
+        _tagFilter != null) {
       return const [];
     }
     final query = _query.trim().toLowerCase();
@@ -1671,16 +1734,19 @@ class _TransactionListPageState extends State<TransactionListPage> {
         categories: _categories,
         merchants: _merchants,
         owners: owners,
+        tags: _tags,
         accountId: _accountFilter,
         categoryId: _categoryFilter,
         merchantId: _merchantFilter,
         owner: _ownerFilter,
+        tag: _tagFilter,
         startDate: _startDateFilter,
         endDate: _endDateFilter,
       ),
     );
     if (result == null || !mounted) return;
-    final dateChanged = result.startDate != _startDateFilter ||
+    final dateChanged =
+        result.startDate != _startDateFilter ||
         result.endDate != _endDateFilter;
     setState(() {
       _typeFilter = result.typeFilter;
@@ -1689,6 +1755,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       _categoryFilter = result.categoryId;
       _merchantFilter = result.merchantId;
       _ownerFilter = result.owner;
+      _tagFilter = result.tag;
       _startDateFilter = result.startDate;
       _endDateFilter = result.endDate;
     });
@@ -1711,7 +1778,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
       for (final rawTag in draft.tags) {
         final tagName = rawTag.trim().toLowerCase();
         if (tagName.isEmpty) continue;
-        final existing =
+        var existing =
             await (database.select(database.tags)..where(
                   (table) =>
                       table.householdId.equals(AppContext.householdId) &
@@ -1719,7 +1786,16 @@ class _TransactionListPageState extends State<TransactionListPage> {
                       table.isArchived.equals(false),
                 ))
                 .getSingleOrNull();
-        if (existing == null) continue;
+        existing ??= await database
+            .into(database.tags)
+            .insertReturning(
+              TagsCompanion.insert(
+                id: const Uuid().v4(),
+                householdId: AppContext.householdId,
+                name: tagName,
+                createdAt: DateTime.now(),
+              ),
+            );
         final tagId = existing.id;
         await database
             .into(database.transactionTags)
@@ -1754,6 +1830,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
     categoryId: row.categoryId,
     note: row.note,
     source: row.source ?? 'manual',
+    sourceId: row.sourceId,
+    recurringTransactionId: row.recurringTransactionId,
+    linkedActivityId: row.linkedActivityId,
     accountId: row.accountId,
     merchantId: row.merchantId,
     location: row.location,
@@ -1763,6 +1842,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
     receiptNumber: row.receiptNumber,
     receiptPaidAmount: row.receiptPaidAmount,
     receiptChangeAmount: row.receiptChangeAmount,
+    tax: row.tax,
+    discount: row.discount,
     recordedAt: row.recordedAt,
     updatedAt: row.updatedAt,
   );
@@ -1822,6 +1903,9 @@ class _TransactionListPageState extends State<TransactionListPage> {
         categoryId: draft.categoryId,
         note: draft.note.isEmpty ? null : draft.note,
         source: draft.source,
+        sourceId: draft.sourceId,
+        recurringTransactionId: draft.recurringTransactionId,
+        linkedActivityId: draft.linkedActivityId,
         accountId: draft.accountId,
         merchantId: draft.merchantId,
         location: draft.location,
@@ -1831,6 +1915,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
         receiptNumber: draft.receiptNumber,
         receiptPaidAmount: draft.receiptPaidAmount,
         receiptChangeAmount: draft.receiptChangeAmount,
+        tax: draft.tax,
+        discount: draft.discount,
         recordedAt: now,
         updatedAt: now,
       );
@@ -1915,6 +2001,8 @@ class _TransactionListPageState extends State<TransactionListPage> {
       receiptNumber: draft.receiptNumber,
       receiptPaidAmount: draft.receiptPaidAmount,
       receiptChangeAmount: draft.receiptChangeAmount,
+      tax: draft.tax,
+      discount: draft.discount,
       recordedAt: transactionId == null
           ? confirmationTime
           : (previous?.transaction.recordedAt ?? confirmationTime),
@@ -2022,6 +2110,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
     if (_categoryFilter != null) count++;
     if (_merchantFilter != null) count++;
     if (_ownerFilter != null) count++;
+    if (_tagFilter != null) count++;
     if (_startDateFilter != null && _endDateFilter != null) count++;
     return count;
   }
@@ -2104,6 +2193,14 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   onDeleted: () => setState(() => _ownerFilter = null),
                 ),
               ),
+            if (_tagFilter != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: InputChip(
+                  label: Text('Tag: #$_tagFilter'),
+                  onDeleted: () => setState(() => _tagFilter = null),
+                ),
+              ),
             TextButton.icon(
               onPressed: () => setState(() {
                 _typeFilter = 'Semua';
@@ -2112,6 +2209,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                 _categoryFilter = null;
                 _merchantFilter = null;
                 _ownerFilter = null;
+                _tagFilter = null;
                 _startDateFilter = null;
                 _endDateFilter = null;
               }),
@@ -2377,7 +2475,7 @@ class _TransactionListPageState extends State<TransactionListPage> {
                   (transaction: null, transfer: transfer, date: transfer.date),
             ),
           ]
-            ..sort((left, right) => right.date.compareTo(left.date));
+          ..sort((left, right) => right.date.compareTo(left.date));
 
     final groups = <(String label, int startIndex)>[];
     String? lastMonth;
@@ -2408,10 +2506,10 @@ class _TransactionListPageState extends State<TransactionListPage> {
           );
         }
         if (index == 1) {
-return AccountBalancesCard(
-                householdId: AppContext.householdId,
-                accounts: _accounts,
-              );
+          return AccountBalancesCard(
+            householdId: AppContext.householdId,
+            accounts: _accounts,
+          );
         }
         final itemIndex = index - 2;
 
@@ -2467,8 +2565,7 @@ return AccountBalancesCard(
         final entry = timelineItem.transaction!;
         final item = entry.transaction;
         final isIncome = item.amount >= 0;
-        final isGoalUsage =
-            item.goalId != null && item.source == 'goal_usage';
+        final isGoalUsage = item.goalId != null && item.source == 'goal_usage';
         final isGoalContribution = item.goalId != null && !isGoalUsage;
         final merchantName = _merchantLabel(item.merchantId);
         final color = isGoalContribution
@@ -2518,19 +2615,14 @@ return AccountBalancesCard(
                                     : _categoryLabel(item.categoryId),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .titleSmall
+                                style: Theme.of(context).textTheme.titleSmall
                                     ?.copyWith(
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13,
                                     ),
                               ),
                             ),
-                            if (isDataSusulan(
-                              item.date,
-                              now: item.recordedAt,
-                            ))
+                            if (isDataSusulan(item.date, now: item.recordedAt))
                               const Padding(
                                 padding: EdgeInsets.only(left: 4),
                                 child: AppStatusChip(
@@ -2549,9 +2641,7 @@ return AccountBalancesCard(
                             _categoryLabel(item.categoryId),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .bodySmall
+                            style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: AppColors.inkMuted,
                                   fontSize: 11,

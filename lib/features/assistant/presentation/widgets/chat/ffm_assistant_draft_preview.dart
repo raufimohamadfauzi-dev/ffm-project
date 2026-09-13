@@ -98,7 +98,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
   };
 
   static String rupiah(int amount) =>
-      'Rp${amount.toString().replaceAllMapped(RegExp(r'(?=(\d{3})+(?!\d))'), (match) => '.')}';
+      'Rp${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => '.')}';
 
   static String formFieldLabel(String field) => switch (field) {
     'type' => 'Jenis Kategori',
@@ -128,6 +128,11 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     'receiptChangeAmount' => 'Kembalian',
     'receiptRawText' => 'Teks Nota',
     'itemsJson' => 'Rincian Item',
+    'tax' => 'Pajak',
+    'discount' => 'Diskon',
+    'sourceId' => 'Referensi Sumber',
+    'recurringTransactionId' => 'Transaksi Berkala',
+    'attachmentPathsJson' => 'Lampiran',
     'adminFee' => 'Biaya Admin',
     'date' => 'Tanggal',
     'fromAccount' => 'Sumber Dana',
@@ -137,6 +142,7 @@ class FfmAssistantDraftPreview extends StatefulWidget {
     'category' => 'Kategori',
     'categoryName' => 'Kategori',
     'amount' => 'Nominal',
+    'soundName' => 'Nada Notifikasi',
     _ => field,
   };
 
@@ -175,6 +181,16 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
     final theme = Theme.of(context);
     final draft = widget.draft;
     final review = widget.review;
+    final isTransaction = switch (draft.kind) {
+      FfmAssistantDraftKind.income ||
+      FfmAssistantDraftKind.expense ||
+      FfmAssistantDraftKind.transfer => true,
+      _ => false,
+    };
+    final itemSubtotal = draft.items.fold<int>(
+      0,
+      (sum, item) => sum + item.calculatedTotal,
+    );
 
     final fields = <MapEntry<String, String>>[
       MapEntry(
@@ -211,53 +227,133 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
               ? 'Jatuh Tempo'
               : draft.kind == FfmAssistantDraftKind.goal
               ? 'Target Tanggal'
+              : draft.kind == FfmAssistantDraftKind.reminder
+              ? 'Jadwal Pengingat'
               : 'Tanggal',
-          '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year}',
+          draft.kind == FfmAssistantDraftKind.reminder
+              ? '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year} ${draft.date!.hour.toString().padLeft(2, '0')}:${draft.date!.minute.toString().padLeft(2, '0')} WIB'
+              : '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year}',
         ),
-      ...draft.formValues.entries
-          .where(
-            (field) =>
-                field.value.trim().isNotEmpty &&
-                !const {
-                  'location',
-                  'date',
-                  'merchant',
-                  'merchantName',
-                  'category',
-                  'categoryName',
-                  'fromAccount',
-                  'toAccount',
-                  'fromAccountName',
-                  'toAccountName',
-                  'amount',
-                  'note',
-                  'party',
-                  'partyName',
-                  'source',
-                }.contains(field.key),
-          )
-          .map(
-            (field) => MapEntry(
-              FfmAssistantDraftPreview.formFieldLabel(field.key),
-              FfmAssistantDraftPreview.formFieldValue(field.key, field.value),
+      if (draft.tags?.trim().isNotEmpty == true)
+        MapEntry('Tag transaksi', draft.tags!.trim()),
+      if (draft.newTags?.trim().isNotEmpty == true)
+        MapEntry('Tag baru', draft.newTags!.trim()),
+      if (draft.newMerchant?.trim().isNotEmpty == true)
+        MapEntry('Toko baru', draft.newMerchant!.trim()),
+      if (!isTransaction)
+        ...draft.formValues.entries
+            .where(
+              (field) =>
+                  field.value.trim().isNotEmpty &&
+                  !const {
+                    'location',
+                    'date',
+                    'merchant',
+                    'merchantName',
+                    'category',
+                    'categoryName',
+                    'fromAccount',
+                    'toAccount',
+                    'fromAccountName',
+                    'toAccountName',
+                    'amount',
+                    'note',
+                    'party',
+                    'partyName',
+                    'source',
+                    'sourceId',
+                    'recurringTransactionId',
+                    'receiptNumber',
+                    'receiptPaidAmount',
+                    'receiptChangeAmount',
+                    'receiptRawText',
+                    'itemsJson',
+                    'tax',
+                    'discount',
+                    'attachmentPathsJson',
+                    'soundUri',
+                  }.contains(field.key),
+            )
+            .map(
+              (field) => MapEntry(
+                FfmAssistantDraftPreview.formFieldLabel(field.key),
+                FfmAssistantDraftPreview.formFieldValue(field.key, field.value),
+              ),
             ),
-          ),
       if (draft.goalName != null) MapEntry('Target', draft.goalName!),
       if (draft.adminFee != null && draft.adminFee! > 0)
         MapEntry(
           'Biaya Admin',
           FfmAssistantDraftPreview.rupiah(draft.adminFee!),
         ),
+      if (draft.tax != null)
+        MapEntry('Pajak', FfmAssistantDraftPreview.rupiah(draft.tax!)),
+      if (draft.discount != null)
+        MapEntry('Diskon', FfmAssistantDraftPreview.rupiah(draft.discount!)),
+      if (draft.receiptPaidAmount != null)
+        MapEntry(
+          'Nominal Dibayar',
+          FfmAssistantDraftPreview.rupiah(draft.receiptPaidAmount!),
+        ),
+      if (draft.receiptChangeAmount != null)
+        MapEntry(
+          'Kembalian',
+          FfmAssistantDraftPreview.rupiah(draft.receiptChangeAmount!),
+        ),
+      if (draft.receiptNumber?.trim().isNotEmpty == true)
+        MapEntry('No. Nota', draft.receiptNumber!.trim()),
+      if (draft.receiptRawText?.trim().isNotEmpty == true)
+        MapEntry('Isi Nota', draft.receiptRawText!.trim()),
+      for (var index = 0; index < draft.items.length; index++)
+        MapEntry(
+          'Item ${index + 1}',
+          '${draft.items[index].name} · ${draft.items[index].quantity} x '
+              '${FfmAssistantDraftPreview.rupiah(draft.items[index].price)} = '
+              '${FfmAssistantDraftPreview.rupiah(draft.items[index].calculatedTotal)}'
+              '${draft.items[index].unit?.trim().isNotEmpty == true ? ' · ${draft.items[index].unit}' : ''}',
+        ),
+      if (draft.items.isNotEmpty)
+        MapEntry(
+          'Subtotal item',
+          FfmAssistantDraftPreview.rupiah(itemSubtotal),
+        ),
+      for (var index = 0; index < draft.attachmentPaths.length; index++)
+        MapEntry(
+          'Lampiran ${index + 1}',
+          draft.attachmentPaths[index]
+                  .split(RegExp(r'[/\\]'))
+                  .where((part) => part.isNotEmpty)
+                  .lastOrNull ??
+              draft.attachmentPaths[index],
+        ),
+      if (draft.sourceId?.trim().isNotEmpty == true)
+        MapEntry('Referensi Sumber', draft.sourceId!.trim()),
+      if (draft.source?.trim().isNotEmpty == true)
+        MapEntry('Sumber', draft.source!.trim()),
+      if (draft.recurringTransactionId?.trim().isNotEmpty == true)
+        MapEntry('Transaksi Berkala', draft.recurringTransactionId!.trim()),
       if (draft.commodityOrBusinessType != null)
         MapEntry('Komoditas/Usaha', draft.commodityOrBusinessType!),
       if (draft.initialCapital != null)
-        MapEntry('Modal Awal', FfmAssistantDraftPreview.rupiah(draft.initialCapital!)),
+        MapEntry(
+          'Modal Awal',
+          FfmAssistantDraftPreview.rupiah(draft.initialCapital!),
+        ),
       if (draft.estimatedInflow != null)
-        MapEntry('Estimasi Panen/Masuk', FfmAssistantDraftPreview.rupiah(draft.estimatedInflow!)),
+        MapEntry(
+          'Estimasi Panen/Masuk',
+          FfmAssistantDraftPreview.rupiah(draft.estimatedInflow!),
+        ),
       if (draft.dailyLivingBudget != null)
-        MapEntry('Jatah Dapur Harian', FfmAssistantDraftPreview.rupiah(draft.dailyLivingBudget!)),
+        MapEntry(
+          'Jatah Dapur Harian',
+          FfmAssistantDraftPreview.rupiah(draft.dailyLivingBudget!),
+        ),
       if (draft.dailyOperationalBudget != null)
-        MapEntry('Operasional Harian', FfmAssistantDraftPreview.rupiah(draft.dailyOperationalBudget!)),
+        MapEntry(
+          'Operasional Harian',
+          FfmAssistantDraftPreview.rupiah(draft.dailyOperationalBudget!),
+        ),
       if (draft.targetHarvestDate != null)
         MapEntry(
           'Target Panen/Selesai',

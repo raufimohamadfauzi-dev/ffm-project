@@ -2,7 +2,9 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_form_prefill.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_reference_resolver.dart';
 
 void main() {
   test('planner membuat navigasi untuk intent halaman', () {
@@ -50,6 +52,89 @@ void main() {
     expect(plan.hasMutation, isTrue);
     expect(plan.workflowSafetyIssue, isNull);
     expect(const FfmAssistantActionPlanner().planFor(intent)!.id, plan.id);
+  });
+
+  test('canonical draft fields tidak dapat ditimpa formValues', () {
+    final intent = FfmAssistantIntent(
+      rawText: 'transfer 100000',
+      normalizedText: 'transfer 100000',
+      type: FfmAssistantIntentType.createTransfer,
+      draft: FfmAssistantDraft(
+        kind: FfmAssistantDraftKind.transfer,
+        createdAt: DateTime(2026, 8, 23),
+        amount: 100000,
+        fromAccountName: 'Bank Utama',
+        toAccountName: 'Tunai',
+        adminFee: 2500,
+        formValues: const {
+          'amount': '999',
+          'fromAccount': 'Rekening Salah',
+          'toAccount': 'Tujuan Salah',
+          'adminFee': '1',
+          'uiOnly': 'preserved',
+        },
+      ),
+    );
+
+    final plan = const FfmAssistantActionPlanner().planFor(intent)!;
+    final parameters = plan.steps
+        .firstWhere((step) => step.id == 'save')
+        .parameters;
+
+    expect(parameters['amount'], 100000);
+    expect(parameters['fromAccount'], 'Bank Utama');
+    expect(parameters['toAccount'], 'Tunai');
+    expect(parameters['adminFee'], 2500);
+    expect(parameters['uiOnly'], 'preserved');
+  });
+
+  test('prefill mempertahankan metadata tetapi memprioritaskan field canonical', () {
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.expense,
+      createdAt: DateTime(2026, 8, 23),
+      amount: 75000,
+      fromAccountName: 'BCA',
+      categoryName: 'Belanja',
+      receiptRawText: 'TOTAL 75.000',
+      formValues: const {
+        'amount': '999',
+        'fromAccountName': 'Rekening Salah',
+        'uiOnly': 'preserved',
+      },
+    );
+
+    final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
+
+    expect(prefill.values['amount'], '75000');
+    expect(prefill.values['fromAccountName'], 'BCA');
+    expect(prefill.values['receiptRawText'], 'TOTAL 75.000');
+    expect(prefill.values['uiOnly'], 'preserved');
+  });
+
+  test('reference resolver membedakan resolved, missing, dan ambiguous', () {
+    const candidates = ['BCA', 'Tunai', 'BCA'];
+
+    final resolved = FfmAssistantReferenceResolver.resolve(
+      ' tunai ',
+      candidates,
+      (value) => value,
+    );
+    final missing = FfmAssistantReferenceResolver.resolve(
+      'Jago',
+      candidates,
+      (value) => value,
+    );
+    final ambiguous = FfmAssistantReferenceResolver.resolve(
+      'bca',
+      candidates,
+      (value) => value,
+    );
+
+    expect(resolved.status, FfmAssistantReferenceStatus.resolved);
+    expect(resolved.value, 'Tunai');
+    expect(missing.status, FfmAssistantReferenceStatus.missing);
+    expect(ambiguous.status, FfmAssistantReferenceStatus.ambiguous);
+    expect(ambiguous.matches, hasLength(2));
   });
 
   test('planner menyiapkan alur payment Hutang dan Piutang dengan satu mutasi dan verifikasi', () {

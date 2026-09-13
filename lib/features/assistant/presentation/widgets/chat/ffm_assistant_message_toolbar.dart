@@ -107,51 +107,48 @@ class FfmAssistantMessageToolbar extends StatelessWidget {
         onMarkIssue != null ||
         onRetryGemini != null;
     if (isUser) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onCopyText != null)
-              Tooltip(
-                message: 'Salin pesan',
-                child: IconButton(
-                  onPressed: onCopyText,
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                  style: IconButton.styleFrom(foregroundColor: foregroundColor),
-                  icon: const Icon(Icons.copy_outlined, size: 16),
-                ),
-              ),
-            if (hasMoreActions)
-              PopupMenuButton<FfmAssistantMessageMenuAction>(
-                iconColor: foregroundColor,
-                icon: const Icon(Icons.more_horiz, size: 16),
-                tooltip: 'Aksi lainnya',
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (onCopyText != null)
+            Tooltip(
+              message: 'Salin pesan',
+              child: IconButton(
+                onPressed: onCopyText,
+                visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-                onSelected: (action) {
-                  switch (action) {
-                    case FfmAssistantMessageMenuAction.correct:
-                      onCorrectMessage?.call();
-                      return;
-                    default:
-                      return;
-                  }
-                },
-                itemBuilder: (context) => [
-                  if (onCorrectMessage != null)
-                    const PopupMenuItem(
-                      value: FfmAssistantMessageMenuAction.correct,
-                      child: FfmAssistantMenuLabel(
-                        icon: Icons.spellcheck_outlined,
-                        label: 'Benarkan & kirim ulang',
-                      ),
-                    ),
-                ],
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                style: IconButton.styleFrom(foregroundColor: foregroundColor),
+                icon: const Icon(Icons.copy_outlined, size: 15),
               ),
-          ],
-        ),
+            ),
+          if (hasMoreActions)
+            PopupMenuButton<FfmAssistantMessageMenuAction>(
+              iconColor: foregroundColor,
+              icon: const Icon(Icons.more_horiz, size: 15),
+              tooltip: 'Aksi lainnya',
+              padding: EdgeInsets.zero,
+              onSelected: (action) {
+                switch (action) {
+                  case FfmAssistantMessageMenuAction.correct:
+                    onCorrectMessage?.call();
+                    return;
+                  default:
+                    return;
+                }
+              },
+              itemBuilder: (context) => [
+                if (onCorrectMessage != null)
+                  const PopupMenuItem(
+                    value: FfmAssistantMessageMenuAction.correct,
+                    child: FfmAssistantMenuLabel(
+                      icon: Icons.spellcheck_outlined,
+                      label: 'Benarkan & kirim ulang',
+                    ),
+                  ),
+              ],
+            ),
+        ],
       );
     }
 

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_capability_adapters.dart';
@@ -94,6 +95,112 @@ void main() {
     expect(verified.message, contains('aset “Dana darurat”'));
   });
 
+  test(
+    'draft Catatan Harian disimpan dan diverifikasi di tabel daily_notes',
+    () async {
+      await database
+          .into(database.tags)
+          .insert(
+            TagsCompanion.insert(
+              id: 'tag-pepaya',
+              householdId: 'local-household',
+              name: 'Pepaya',
+              createdAt: DateTime(2026, 8, 23),
+            ),
+          );
+      final save = const FfmAssistantActionStep(
+        id: 'save-note',
+        capabilityId: 'mutate.save_draft',
+        parameters: {
+          'kind': 'dailyNote',
+          'title': 'Panen hari ini',
+          'note': 'Panen pepaya 100 kg.',
+          'tags': 'Pepaya',
+          'date': '2026-08-23T08:00:00.000',
+          '_idempotencyKey': 'daily-note-regression',
+        },
+      );
+      const verify = FfmAssistantActionStep(
+        id: 'verify-note',
+        capabilityId: 'verify.daily_note_mutation',
+        parameters: {
+          'kind': 'dailyNote',
+          '_idempotencyKey': 'daily-note-regression',
+        },
+      );
+
+      final saved = await adapters.handlers['mutate.save_draft']!(save);
+      final verified = await adapters.handlers['verify.daily_note_mutation']!(
+        verify,
+      );
+      final notes = await database.select(database.dailyNotes).get();
+      final sessions = await database.select(database.activitySessions).get();
+
+      expect(saved.isSuccess, isTrue);
+      expect(verified.isSuccess, isTrue);
+      expect(notes, hasLength(1));
+      expect(notes.single.body, 'Panen pepaya 100 kg.');
+      expect(notes.single.noteDate, DateTime(2026, 8, 23, 8));
+      expect(sessions, isEmpty);
+    },
+  );
+
+  test(
+    'draft setor target memakai rekening, tanggal, dan amount transaksi resmi',
+    () async {
+      final now = DateTime(2026, 8, 23, 9);
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'cash-goal',
+              householdId: 'local-household',
+              name: 'Tunai',
+              type: 'cash',
+              openingBalance: const Value(1000000),
+              createdAt: now,
+            ),
+          );
+      await database
+          .into(database.goals)
+          .insert(
+            GoalsCompanion.insert(
+              id: 'goal-1',
+              householdId: 'local-household',
+              name: 'Dana Darurat',
+              targetAmount: 1000000,
+              currentAmount: const Value(100000),
+              createdAt: now,
+            ),
+          );
+      const save = FfmAssistantActionStep(
+        id: 'save-goal',
+        capabilityId: 'mutate.save_draft',
+        parameters: {
+          'kind': 'goal_deposit',
+          'goal': 'Dana Darurat',
+          'fromAccount': 'Tunai',
+          'amount': 50000,
+          'date': '2026-08-22T08:00:00.000',
+          '_idempotencyKey': 'goal-deposit-regression',
+        },
+      );
+
+      final result = await adapters.handlers['mutate.save_draft']!(save);
+      final transaction = await database
+          .select(database.transactions)
+          .getSingle();
+      final goal = await database.select(database.goals).getSingle();
+
+      expect(result.isSuccess, isTrue);
+      expect(transaction.accountId, 'cash-goal');
+      expect(transaction.amount, -50000);
+      expect(transaction.date, DateTime(2026, 8, 22, 8));
+      expect(transaction.source, 'goal_contribution');
+      expect(goal.currentAmount, 150000);
+    },
+  );
+
   test('simpan draft transaksi menghubungkan toko dan tag resmi', () async {
     final now = DateTime(2026, 8, 23);
     await database
@@ -139,7 +246,7 @@ void main() {
           'amount': 25000,
           'fromAccount': 'Tunai',
           'assistantMerchantName': 'Toko Tani',
-          'tags': 'Cabai,Pupuk',
+          'tags': 'cabai,pupuk',
           '_idempotencyKey': 'transaction-tags',
         },
       ),
@@ -153,6 +260,41 @@ void main() {
     final links = await database.select(database.transactionTags).get();
     expect(links.map((row) => row.tagId).toSet(), {'cabai', 'pupuk'});
   });
+
+  test(
+    'total struk tidak konsisten ditolak sebelum transaksi ditulis',
+    () async {
+      final now = DateTime(2026, 8, 23);
+      await database
+          .into(database.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              id: 'cash-receipt',
+              householdId: 'local-household',
+              name: 'Tunai',
+              type: 'cash',
+              createdAt: now,
+            ),
+          );
+
+      final result = await adapters.handlers['mutate.save_draft']!(
+        const FfmAssistantActionStep(
+          id: 'reject-receipt-total',
+          capabilityId: 'mutate.save_draft',
+          parameters: {
+            'kind': 'expense',
+            'amount': 75000,
+            'fromAccount': 'Tunai',
+            'itemsJson': '[{"name":"Beras","price":40000,"qty":1}]',
+            '_idempotencyKey': 'reject-receipt-total',
+          },
+        ),
+      );
+
+      expect(result.isSuccess, isFalse);
+      expect(await database.select(database.transactions).get(), isEmpty);
+    },
+  );
 
   test('simpan draft atomik membuat toko, tag, dan transaksi baru', () async {
     final now = DateTime(2026, 8, 23);
@@ -179,6 +321,7 @@ void main() {
         'newMerchant': 'Toko Tani Baru',
         'tags': 'Pupuk',
         'newTags': 'Pupuk',
+        'attachmentPathsJson': '["/receipts/pupuk.jpg"]',
         '_idempotencyKey': 'transaction-new-master-data',
       },
     );
@@ -192,6 +335,9 @@ void main() {
     expect((await database.select(database.tags).getSingle()).name, 'Pupuk');
     expect(await database.select(database.transactions).get(), hasLength(1));
     expect(await database.select(database.transactionTags).get(), hasLength(1));
+    final attachment = await database.select(database.attachments).getSingle();
+    expect(attachment.transactionId != null, isTrue);
+    expect(attachment.path, '/receipts/pupuk.jpg');
 
     final retried = await adapters.handlers['mutate.save_draft']!(step);
     expect(retried.isSuccess, isTrue, reason: retried.message);

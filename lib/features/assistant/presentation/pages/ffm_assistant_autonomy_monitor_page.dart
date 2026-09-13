@@ -837,10 +837,21 @@ class _RunCard extends StatelessWidget {
         subtitle: Text('${run.status} • ${_formatDate(run.updatedAt)}'),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         children: [
+          _InfoLine(label: 'Sumber Pemicu', value: run.trigger),
+          _InfoLine(
+            label: 'Waktu Eksekusi Data',
+            value:
+                '${_formatDate(run.startedAt)}${run.finishedAt != null ? ' s/d ${_formatDate(run.finishedAt!)}' : ' (sedang berjalan)'}',
+          ),
           if (run.decisionSummary?.isNotEmpty == true)
-            _InfoLine(label: 'Keputusan', value: run.decisionSummary!),
-          if (run.error?.isNotEmpty == true)
-            _InfoLine(label: 'Catatan', value: run.error!),
+            _InfoLine(label: 'Hasil Evaluasi', value: run.decisionSummary!),
+          if (run.status.contains('blocked'))
+            _InfoLine(
+              label: 'Alasan Blocked',
+              value: run.error ?? 'Dibatasi oleh kebijakan otonomi.',
+            )
+          else if (run.error?.isNotEmpty == true)
+            _InfoLine(label: 'Catatan / Status', value: run.error!),
           FutureBuilder<List<AssistantAgentToolExecution>>(
             future: repository.toolExecutionsForRun(
               run.id,

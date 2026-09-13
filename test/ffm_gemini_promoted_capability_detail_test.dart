@@ -62,6 +62,38 @@ void main() {
       }
     });
 
+    test('read.dailyNotes mempertahankan rentang tanggal dan membaca catatan', () async {
+      final noteDate = DateTime(2026, 8, 15);
+      await database.into(database.dailyNotes).insert(
+            DailyNotesCompanion.insert(
+              id: 'note-1',
+              householdId: AppContext.householdId,
+              noteDate: noteDate,
+              createdAt: noteDate,
+              body: 'Bayar tagihan listrik',
+            ),
+          );
+
+      final request = FfmAssistantProposalJsonService.parseReadCapabilityRequest(
+        '{"formatVersion":"ffm-assistant-capability-request-v1",'
+        '"kind":"read_capability_request",'
+        '"capabilityId":"read.dailyNotes",'
+        '"arguments":{"startDate":"2026-08-15","endDate":"2026-08-15"}}',
+      ).request!;
+
+      expect(request.startDate, DateTime(2026, 8, 15));
+      expect(request.endDate, DateTime(2026, 8, 15));
+
+      final evidence = await readService.execute(
+        request,
+        householdId: AppContext.householdId,
+        now: noteDate,
+      );
+
+      expect(evidence, contains('Daily Notes digest'));
+      expect(evidence, contains('Bayar tagihan listrik'));
+    });
+
     test('read.summary evidence bounded, privacy, wording', () async {
       final now = DateTime(2026, 8, 15);
       await database

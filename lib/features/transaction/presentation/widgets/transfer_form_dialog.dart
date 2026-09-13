@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../../../core/database/app_database.dart';
 import '../../../../core/localization/app_copy.dart';
 import '../../../../shared/widgets/app_components.dart';
@@ -14,6 +15,7 @@ class TransferDraft {
     required this.adminFee,
     required this.date,
     required this.note,
+    this.source = 'manual',
   });
 
   final String fromAccountId;
@@ -22,6 +24,7 @@ class TransferDraft {
   final int adminFee;
   final DateTime date;
   final String note;
+  final String source;
 }
 
 class TransferFormDialog extends StatefulWidget {
@@ -76,10 +79,20 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
     final prefill = FfmAssistantFormPrefillMapper.fromDraft(draft);
     _prefillCheck = prefill.check;
 
-    final fromAccountId = _accountIdForName(draft.fromAccountName);
-    final toAccountId = _accountIdForName(draft.toAccountName);
-    _fromAccountId = fromAccountId ?? _fromAccountId;
-    _toAccountId = toAccountId ?? _toAccountId;
+    final fromAccountMatches = _accountsForName(draft.fromAccountName);
+    final toAccountMatches = _accountsForName(draft.toAccountName);
+    final fromAccountId = fromAccountMatches.length == 1
+        ? fromAccountMatches.single.id
+        : null;
+    final toAccountId = toAccountMatches.length == 1
+        ? toAccountMatches.single.id
+        : null;
+    if (draft.fromAccountName?.trim().isNotEmpty == true) {
+      _fromAccountId = fromAccountId;
+    }
+    if (draft.toAccountName?.trim().isNotEmpty == true) {
+      _toAccountId = toAccountId;
+    }
     final unresolvedAccounts = <String>[
       if (draft.fromAccountName?.trim().isNotEmpty == true &&
           fromAccountId == null)
@@ -87,7 +100,16 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
       if (draft.toAccountName?.trim().isNotEmpty == true && toAccountId == null)
         'rekening tujuan “${draft.toAccountName}”',
     ];
-    if (unresolvedAccounts.isNotEmpty) {
+    final ambiguousAccounts = <String>[
+      if (fromAccountMatches.length > 1)
+        'rekening asal “${draft.fromAccountName}”',
+      if (toAccountMatches.length > 1)
+        'rekening tujuan “${draft.toAccountName}”',
+    ];
+    if (ambiguousAccounts.isNotEmpty) {
+      _assistantReferenceWarning =
+          '${ambiguousAccounts.join(' dan ')} cocok dengan lebih dari satu rekening. Pilih rekening yang benar sebelum menyimpan.';
+    } else if (unresolvedAccounts.isNotEmpty) {
       _assistantReferenceWarning =
           '${unresolvedAccounts.join(' dan ')} belum cocok dengan Data Utama. Pilih rekening yang benar sebelum menyimpan.';
     }
@@ -99,13 +121,12 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
     _date = draft.date ?? _date;
   }
 
-  String? _accountIdForName(String? name) {
+  List<Account> _accountsForName(String? name) {
     final normalized = name?.trim().toLowerCase();
-    if (normalized == null || normalized.isEmpty) return null;
+    if (normalized == null || normalized.isEmpty) return const [];
     return widget.accounts
         .where((account) => account.name.trim().toLowerCase() == normalized)
-        .firstOrNull
-        ?.id;
+        .toList(growable: false);
   }
 
   @override
@@ -179,6 +200,11 @@ class _TransferFormDialogState extends State<TransferFormDialog> {
         adminFee: parseRupiah(_adminFeeController.text),
         date: _date,
         note: _noteController.text.trim(),
+        source: widget.assistantDraft?.source?.trim().isNotEmpty == true
+            ? widget.assistantDraft!.source!.trim()
+            : widget.assistantDraft != null
+            ? 'assistant'
+            : widget.existingTransfer?.source ?? 'manual',
       ),
     );
   }

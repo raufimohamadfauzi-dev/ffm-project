@@ -11,6 +11,7 @@ class TransactionFilter {
     this.categoryId,
     this.merchantId,
     this.owner,
+    this.tag,
     this.startDate,
     this.endDate,
   });
@@ -21,6 +22,7 @@ class TransactionFilter {
   final String? categoryId;
   final String? merchantId;
   final String? owner;
+  final String? tag;
   final DateTime? startDate;
   final DateTime? endDate;
 }
@@ -34,10 +36,12 @@ class TransactionFilterSheet extends StatefulWidget {
     required this.categories,
     this.merchants = const [],
     this.owners = const [],
+    this.tags = const [],
     this.accountId,
     this.categoryId,
     this.merchantId,
     this.owner,
+    this.tag,
     this.startDate,
     this.endDate,
   });
@@ -48,10 +52,12 @@ class TransactionFilterSheet extends StatefulWidget {
   final List<Category> categories;
   final List<Merchant> merchants;
   final List<String> owners;
+  final List<Tag> tags;
   final String? accountId;
   final String? categoryId;
   final String? merchantId;
   final String? owner;
+  final String? tag;
   final DateTime? startDate;
   final DateTime? endDate;
 
@@ -66,6 +72,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
   String? _categoryId;
   String? _merchantId;
   String? _owner;
+  String? _tag;
   String _periodPreset = 'Semua waktu';
 
   @override
@@ -77,6 +84,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
     _categoryId = widget.categoryId;
     _merchantId = widget.merchantId;
     _owner = widget.owner;
+    _tag = widget.tag;
     _startDate = widget.startDate;
     _endDate = widget.endDate;
     _periodPreset = widget.currentMonthOnly
@@ -320,6 +328,28 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
                 onChanged: (value) => setState(() => _owner = value),
               ),
             ],
+            if (widget.tags.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String?>(
+                initialValue: _tag,
+                decoration: const InputDecoration(
+                  labelText: 'Tag penanda',
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Semua tag'),
+                  ),
+                  ...widget.tags.map(
+                    (t) => DropdownMenuItem<String?>(
+                      value: t.name,
+                      child: Text('#${t.name}'),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => _tag = value),
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [
@@ -334,6 +364,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
                         categoryId: null,
                         merchantId: null,
                         owner: null,
+                        tag: null,
                         startDate: null,
                         endDate: null,
                       ),
@@ -353,6 +384,7 @@ class _TransactionFilterSheetState extends State<TransactionFilterSheet> {
                         categoryId: _categoryId,
                         merchantId: _merchantId,
                         owner: _owner,
+                        tag: _tag,
                         startDate: _startDate,
                         endDate: _endDate,
                       ),

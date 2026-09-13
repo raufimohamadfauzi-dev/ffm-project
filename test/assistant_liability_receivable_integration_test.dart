@@ -5,6 +5,8 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_capability_ada
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_capability_executor.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_draft_validator.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 
@@ -241,6 +243,119 @@ void main() {
       expect(receivables.first.remainingBalance, 2500000);
       expect(receivables.first.dueDate, DateTime(2026, 11, 30));
       expect(receivables.first.note, 'Jatuh tempo pasca panen');
+    });
+  });
+
+  group('Acceptance canonical database boundary', () {
+    Future<FfmAssistantActionPlan?> executePlan(
+      FfmAssistantActionPlan plan,
+    ) async {
+      final controller = FfmAssistantActionPlanController(
+        now: () => DateTime(2026, 9, 3),
+      )
+        ..register(plan)
+        ..markAwaitingConfirmation(plan.id)
+        ..confirm(plan.id);
+      return FfmAssistantCapabilityExecutor(
+        controller: controller,
+        handlers: FfmAssistantCapabilityAdapterRegistry(
+          database: db,
+          householdId: 'local-household',
+          clock: () => DateTime(2026, 9, 3),
+        ).handlers,
+      ).execute(plan.id);
+    }
+
+    test('JSON master data sumber pemasukan menyimpan row canonical dan verifier', () async {
+      final parsed = FfmAssistantProposalJsonService.parse('''
+        {"formatVersion":"ffm-assistant-proposal-v1","proposal":
+        {"type":"master_data","target":"sumber_pemasukan","name":"Panen Sawah",
+        "fields":{"details":"Musim 2026"}}}
+      ''', createdAt: DateTime(2026, 9, 3));
+      final draft = parsed.draft!;
+      final plan = FfmAssistantActionPlanner(now: () => DateTime(2026, 9, 3))
+          .planFor(FfmAssistantIntent(
+            rawText: 'buat sumber pemasukan Panen Sawah',
+            normalizedText: 'buat sumber pemasukan panen sawah',
+            type: FfmAssistantIntentType.createMasterData,
+            draft: draft,
+          ))!;
+      expect(plan.steps.map((step) => step.capabilityId), contains('verify.saved_draft'));
+      final executed = await executePlan(plan);
+      expect(executed?.status, FfmAssistantActionPlanStatus.completed,
+          reason: executed?.blockedReason ??
+              executed?.steps.map((step) => '${step.id}:${step.error}').join(', '));
+      final rows = (await (db.select(db.transactionParties)..where(
+            (row) => row.householdId.equals('local-household'),
+          )).get()).where((row) => row.name == 'Panen Sawah').toList();
+      expect(rows, hasLength(1));
+      expect(rows.single.kind, 'income_source');
+      expect(rows.single.role, 'Sumber pemasukan');
+      expect(
+        (await db.select(db.categories).get()).where((row) => row.name == 'Panen Sawah'),
+        isEmpty,
+      );
+    });
+
+    test('payment memakai relasi target dan retry idempotent, payload berbeda ditolak', () async {
+      await db.into(db.liabilities).insert(LiabilitiesCompanion.insert(
+        id: 'liability-1', householdId: 'local-household', name: 'Hutang Budi',
+        originalAmount: 1000, remainingBalance: 1000,
+        startDate: DateTime(2026, 1, 1), createdAt: DateTime(2026, 1, 1),
+      ));
+      final parameters = <String, Object?>{
+        'kind': 'liabilityPayment', 'entity': 'liability', 'targetId': 'liability-1',
+        'amount': 250, 'date': '2026-09-03T00:00:00.000', 'accountId': 'acc-tunai',
+        '_idempotencyKey': 'payment-key',
+      };
+      final handler = FfmAssistantCapabilityAdapterRegistry(
+        database: db, householdId: 'local-household', clock: () => DateTime(2026, 9, 3),
+      ).handlers;
+      final step = FfmAssistantActionStep(
+        id: 'payment', capabilityId: 'mutate.debt_payment', parameters: parameters,
+      );
+      expect((await handler['mutate.debt_payment']!(step)).isSuccess, isTrue);
+      expect((await handler['mutate.debt_payment']!(step)).isSuccess, isTrue);
+      final liability = await (db.select(db.liabilities)..where((r) => r.id.equals('liability-1'))).getSingle();
+      expect(liability.remainingBalance, 750);
+      expect(await (db.select(db.transactions)..where((r) => r.source.equals('liability_payment'))).get(), hasLength(1));
+      final verified = await handler['verify.debt_payment']!(FfmAssistantActionStep(
+        id: 'verify-payment', capabilityId: 'verify.debt_payment', parameters: parameters,
+      ));
+      expect(verified.isSuccess, isTrue);
+      final wrongDate = await handler['verify.debt_payment']!(FfmAssistantActionStep(
+        id: 'verify-wrong-date', capabilityId: 'verify.debt_payment',
+        parameters: {...parameters, 'date': '2026-09-04'},
+      ));
+      expect(wrongDate.isSuccess, isFalse);
+      final mismatch = await handler['mutate.debt_payment']!(FfmAssistantActionStep(
+        id: 'payment-2', capabilityId: 'mutate.debt_payment',
+        parameters: {...parameters, 'amount': 300},
+      ));
+      expect(mismatch.isSuccess, isFalse);
+    });
+
+    test('payment menolak rekening dari household lain dan verifier menolak tanggal berbeda', () async {
+      await db.into(db.accounts).insert(AccountsCompanion.insert(
+        id: 'other-account', householdId: 'other-household', name: 'Other', type: 'cash',
+        createdAt: DateTime(2026, 1, 1),
+      ));
+      await db.into(db.receivables).insert(ReceivablesCompanion.insert(
+        id: 'receivable-1', householdId: 'local-household', name: 'Piutang Andi',
+        originalAmount: 500, remainingBalance: 500,
+        startDate: DateTime(2026, 1, 1), createdAt: DateTime(2026, 1, 1),
+      ));
+      final handler = FfmAssistantCapabilityAdapterRegistry(
+        database: db, householdId: 'local-household', clock: () => DateTime(2026, 9, 3),
+      ).handlers;
+      final result = await handler['mutate.debt_payment']!(FfmAssistantActionStep(
+        id: 'foreign', capabilityId: 'mutate.debt_payment', parameters: {
+          'entity': 'receivable', 'targetId': 'receivable-1', 'amount': 100,
+          'accountId': 'other-account', 'date': '2026-09-03', '_idempotencyKey': 'foreign-key',
+        },
+      ));
+      expect(result.isSuccess, isFalse);
+      expect(await (db.select(db.transactions)..where((r) => r.householdId.equals('local-household'))).get(), isEmpty);
     });
   });
 }

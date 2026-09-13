@@ -1,0 +1,21 @@
+{
+  "rows": [
+    {"kind":"masterData","entity":"categories","canonical":["title","category"]},
+    {"kind":"income","entity":"transactions","canonical":["amount","toAccount","category","date","note"]},
+    {"kind":"expense","entity":"transactions","canonical":["amount","fromAccount","category","date","note","merchant","tags"]},
+    {"kind":"transfer","entity":"transactions","canonical":["amount","fromAccount","toAccount","adminFee","date","note"]},
+    {"kind":"activity","entity":"activitySessions","canonical":["title","category","parentSessionId","date","note"]},
+    {"kind":"dailyNote","entity":"dailyNotes","canonical":["title","note","date"]},
+    {"kind":"reminder","entity":"reminders","canonical":["title","date","soundUri","soundName"]},
+    {"kind":"goal","entity":"goals","canonical":["title","amount","date","note"]},
+    {"kind":"goalDeposit","entity":"transactions","canonical":["amount","goal","fromAccount","date"]},
+    {"kind":"goalUsage","entity":"transactions","canonical":["amount","goal","toAccount","date"]},
+    {"kind":"budget","entity":"envelopeBudgets","canonical":["title","amount","periodType","categoryIdsJson","note"]},
+    {"kind":"liability","entity":"liabilities","canonical":["title","party","amount","date","note"]},
+    {"kind":"receivable","entity":"receivables","canonical":["title","party","amount","date","note"]},
+    {"kind":"liabilityPayment","entity":"transactions","canonical":["amount","targetId","date","accountId"]},
+    {"kind":"receivablePayment","entity":"transactions","canonical":["amount","targetId","date","accountId"]},
+    {"kind":"cashFlowProfile","entity":"cashFlowProfiles","canonical":["title","initialCapital","estimatedInflow","targetHarvestDate","cycleProfileType"]},
+    {"kind":"monitoringJob","entity":"monitoringJobs","canonical":["title","preset","cadence","targetTimeMinutes"]}
+  ]
+}

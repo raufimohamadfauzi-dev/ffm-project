@@ -164,8 +164,10 @@ class FfmGeminiCloudOrchestrator {
             "formatVersion": "ffm-assistant-capability-request-v1",
             "kind": "read_capability_request",
             "capabilityId": cap,
-            if (args['startDate'] != null) "startDate": args['startDate'],
-            if (args['endDate'] != null) "endDate": args['endDate'],
+            "arguments": {
+              if (args['startDate'] != null) "startDate": args['startDate'],
+              if (args['endDate'] != null) "endDate": args['endDate'],
+            },
           });
           finalText += '\n$jsonStr';
         } else {
@@ -500,6 +502,16 @@ class FfmGeminiCloudOrchestrator {
                   'type': 'STRING',
                   'description': 'Tanggal YYYY-MM-DD',
                 },
+                'time': {
+                  'type': 'STRING',
+                  'description':
+                      'Jam dan menit pengingat format HH:mm (contoh: "08:00", "14:30", "19:00"). Wajib diisi untuk pengingat (type: "reminder").',
+                },
+                'soundName': {
+                  'type': 'STRING',
+                  'description':
+                      'Nama nada dering pengingat jika pengguna menyebutkan preferensi nada (contoh: "Standar", "Adzan", "Gentle Bells")',
+                },
                 'dueDate': {
                   'type': 'STRING',
                   'description': 'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',
@@ -640,6 +652,13 @@ ATURAN DATA & TRANSAKSI:
 - Fitur hutang & piutang mendukung: catat hutang baru (`type: "liability"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), catat piutang baru (`type: "receivable"`, `title`, `party`, `amount`, `dueDate`, `monthlyInstallment`), bayar cicilan/pelunasan hutang (`type: "liability_payment"`, `targetId`, `amount`, `accountId`, `date`, `note`), dan penerimaan piutang (`type: "receivable_payment"`, `targetId`, `amount`, `accountId`, `date`, `note`). PENTING: Gunakan type yang sesuai (liability_payment/receivable_payment) agar sisa hutang/piutang berkurang otomatis. Jangan gunakan expense/income biasa untuk pembayaran hutang/piutang.
 - Fitur Siklus Kas / AgroTrack: catat siklus kas tani/usaha baru (`type: "cash_flow_profile"`, `title`, `commodity`, `initialCapital`, `estimatedInflow`, `dailyLivingBudget`, `dailyOperationalBudget`, `targetHarvestDate` atau `daysRemaining`, `cycleProfileType`).
 - WAJIB KLARIFIKASI: Jika perintah pembuatan data/pengingat/transaksi tidak lengkap atau ambigu (misalnya "buatkan pengingat tanggal 7 Desember" tanpa judul/jam, atau transaksi tanpa nominal), JANGAN mengarang atau menebak sendiri. Gunakan tool `ask_clarification` untuk bertanya balik secara ramah dan spesifik agar draft yang dibuat presisi sesuai keinginan pengguna.
+- ATURAN WAJIB TAG TRANSAKSI PEMBELIAN / PENGELUARAN:
+  * Transaksi pengeluaran/pembelian (`type: "expense"`, belanja, beli barang/jasa) WAJIB memiliki tag penanda.
+  * Jika pengguna meminta mencatat pembelian/pengeluaran tetapi BELUM menyebutkan tag (misalnya: "beli pupuk 75rb", "catat belanja beras 100rb"):
+    - JANGAN membuat draf tanpa tag atau menebak-nebak tag sendiri.
+    - KAMU WAJIB MEMANGGIL tool `ask_clarification` untuk bertanya balik secara ramah dan menyebutkan pilihan tag yang sudah ada dari `tag_aktif` di KONTEKS TERARAH (contoh: "Untuk pembelian ini, mau dikelompokkan ke tag apa? Pilihan yang sudah ada di Data Utama: #kebun, #pribadi, #operasional (atau sebutkan tag baru jika ingin dibuatkan).").
+  * Jika pengguna menyebutkan tag baru yang belum ada di `tag_aktif`: langsung buat draf transaksi dengan `newTags: "nama_tag_baru"` dan `tags: "nama_tag_baru"`. Aplikasi akan membuat tag baru di Data Utama dan transaksi secara atomik dalam satu konfirmasi tanpa perlu dialog tambahan.
+  * Jika pengguna sudah menyebutkan tag (atau setelah pengguna memilih/menjawab tag dari pertanyaan klarifikasi): SEGERA panggil tool `create_draft` lengkap dengan `tags` (atau `newTags`) beserta detail nominal, rekening, kategori, dsb. agar kartu konfirmasi draf transaksi langsung muncul di layar pengguna.
 - Nama rekening dan kategori harus sesuai dengan daftar aktif di KONTEKS TERARAH. Tag untuk transaksi diisi dari `tag_aktif`, dipisah koma; toko dari `toko_aktif`.
 - Jika user meminta tag atau toko yang belum tersedia, buat SATU draft transaksi saja: isi `tags`/`merchant` dengan nama yang diminta, lalu isi `newTags`/`newMerchant` dengan nama baru tersebut. Aplikasi akan menampilkan seluruh perubahan dalam satu preview, meminta satu konfirmasi, lalu membuat Data Utama dan transaksi secara atomik. Jangan membuat lebih dari satu `create_draft` untuk satu transaksi.
 - JANGAN menyatakan bahwa data sudah diubah/disimpan. Kamu hanya membuat draft yang akan diverifikasi oleh aplikasi.
@@ -652,6 +671,15 @@ ATURAN HOLISTIK ASET & ANGGARAN:
 
 ATURAN AKTIVITAS & TARGET & PENGINGAT:
 - Aktivitas, Target (Goal), dan Pengingat (Reminder) menggunakan `create_draft` (contoh: type "activity", "goal", atau "reminder").
+- ATURAN WAJIB PENGINGAT (REMINDER) SUPER LENGKAP:
+  * DRAF PENGINGAT HARUS SUPER LENGKAP BESERTA JAM: Draf pengingat (`type: "reminder"`) WAJIB memiliki `title` yang jelas, `targetDate` (format YYYY-MM-DD), dan JAM (`time` format HH:mm, contoh "08:00", "14:30", "19:00"). Jangan membuat draf tanpa jam atau berasumsi jam 00:00!
+  * WAJIB KLARIFIKASI JIKA JAM BELUM LENGKAP:
+    - Jika pengguna meminta membuat pengingat tetapi BELUM menyebutkan jam/waktu spesifiknya (misalnya: "ingatkan bayar listrik besok", "ingatkan beli pulsa", "buat pengingat bayar pdam tanggal 20"):
+      KAMU WAJIB MEMANGGIL tool `ask_clarification` TERLEBIH DAHULU untuk menanyakan jam berapa ingin diingatkan (contoh: "Mau saya ingatkan jam berapa untuk [judul]? Misalnya jam 08:00 pagi atau 19:00 malam?").
+      JANGAN memanggil `create_draft` sebelum jam/waktunya jelas!
+    - Begitu pengguna menyebutkan jamnya (misal: "jam 8 pagi", "jam 19.30", "pukul 14.00") ATAU jika pengguna sejak awal sudah menyebutkan jam (misal: "ingatkan bayar listrik besok jam 8 pagi"):
+      Panggil tool `create_draft` dengan `type: "reminder"`, `title`, `targetDate`, dan `time` (format HH:mm) yang presisi.
+    - Dengan draf yang super lengkap ini, pengguna tinggal mengklik satu kali konfirmasi tanpa perlu repot mengedit apa pun lagi.
 - Untuk melihat pengingat/alarm yang sudah dijadwalkan pengguna, gunakan `read_data` dengan `read.reminders`. Gunakan ini saat user bertanya tentang alarm, jadwal, pengingat, atau ketika kamu perlu mengkorelasikan topik percakapan dengan pengingat yang sudah ada.
 - Kalender Hijriah lokal tersedia di konteks, gunakan untuk referensi tanggal Islam.
 

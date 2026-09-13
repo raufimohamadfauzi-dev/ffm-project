@@ -21,8 +21,54 @@ class ProcessDebtPayment {
     String? accountId,
     String? note,
     bool recordCashTransaction = true,
+    String? idempotencyKey,
   }) async {
     return database.transaction<int>(() async {
+      final transactionId = idempotencyKey == null || idempotencyKey.isEmpty
+          ? null
+          : idempotencyKey;
+      if (transactionId != null) {
+        final existingTransaction = await (database.select(database.transactions)
+              ..where(
+                (row) =>
+                    row.householdId.equals(householdId) &
+                    row.id.equals(transactionId),
+              ))
+            .getSingleOrNull();
+        if (existingTransaction != null) {
+          final expectedAmount = isLiability ? -amount : amount;
+          if (existingTransaction.source ==
+                  (isLiability ? 'liability_payment' : 'receivable_payment') &&
+              existingTransaction.sourceId == targetId &&
+              existingTransaction.amount == expectedAmount &&
+              existingTransaction.date.isAtSameMomentAs(date) &&
+              existingTransaction.accountId == accountId) {
+            if (isLiability) {
+              final target = await (database.select(database.liabilities)..where(
+                    (row) =>
+                        row.householdId.equals(householdId) &
+                        row.id.equals(targetId),
+                  ))
+                  .getSingleOrNull();
+              if (target == null) {
+                throw StateError('Target pembayaran tidak ditemukan.');
+              }
+              return target.remainingBalance;
+            }
+            final target = await (database.select(database.receivables)..where(
+                  (row) =>
+                      row.householdId.equals(householdId) &
+                      row.id.equals(targetId),
+                ))
+                .getSingleOrNull();
+            if (target == null) {
+              throw StateError('Target pembayaran tidak ditemukan.');
+            }
+            return target.remainingBalance;
+          }
+          throw StateError('Idempotency key sudah dipakai oleh pembayaran dengan isi berbeda.');
+        }
+      }
       int newRemaining;
 
       if (isLiability) {
@@ -89,8 +135,17 @@ class ProcessDebtPayment {
 
       // Catat mutasi kas bila dipilih dan rekening tersedia
       if (recordCashTransaction && accountId != null && accountId.isNotEmpty) {
+        final account = await (database.select(database.accounts)..where(
+              (row) =>
+                  row.householdId.equals(householdId) &
+                  row.id.equals(accountId) &
+                  row.isActive.equals(true) &
+                  row.isArchived.equals(false),
+            ))
+            .getSingleOrNull();
+        if (account == null) throw StateError('Rekening pembayaran tidak ditemukan atau bukan milik household ini.');
         final now = DateTime.now();
-        final txId = const Uuid().v4();
+        final txId = transactionId ?? const Uuid().v4();
         final defaultNote = isLiability
             ? 'Pembayaran hutang: $targetName'
             : 'Penerimaan piutang: $targetName';

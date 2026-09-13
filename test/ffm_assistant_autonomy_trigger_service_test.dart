@@ -65,4 +65,37 @@ void main() {
       expect(event.payload, {'entityId': 'asset-1', 'count': 2});
     },
   );
+
+  test(
+    'emitSafely coalesces multiple rapid triggers into a single evaluateNow call (F1.5)',
+    () async {
+      var callCount = 0;
+      final coalescedService = FfmAssistantAutonomyTriggerService(
+        repository,
+        evaluateNow: (hId) async {
+          callCount++;
+        },
+        coalesceWindow: const Duration(milliseconds: 50),
+      );
+
+      // Emit 5 triggers in rapid burst
+      for (var i = 0; i < 5; i++) {
+        await coalescedService.emitSafely(
+          triggerId: 'burst-$i',
+          type: 'transaction.created',
+          householdId: 'household-a',
+        );
+      }
+
+      // Immediately call count is 0 because of debounce window
+      expect(callCount, 0);
+
+      // Wait for coalesce window to settle
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+
+      // Only 1 call executed for all 5 events
+      expect(callCount, 1);
+      coalescedService.dispose();
+    },
+  );
 }

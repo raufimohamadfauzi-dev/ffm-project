@@ -1,0 +1,30 @@
+{
+  "transactions": [
+    {
+      "type": "expense",
+      "amount": -75000,
+      "accountId": "account-bca",
+      "categoryId": "category-belanja",
+      "merchantId": "merchant-supermarket",
+      "note": "Belanja dapur",
+      "date": "2026-09-13T08:30:00.000"
+    }
+  ],
+  "goalTransactions": [
+    {
+      "type": "expense",
+      "amount": -100000,
+      "accountId": "account-bca",
+      "goalId": "goal-darurat",
+      "date": "2026-09-13T09:00:00.000"
+    }
+  ],
+  "activitySessions": [
+    {
+      "id": "generated-from-plan",
+      "parentSessionId": "activity-parent-1",
+      "categoryId": "category-rumah",
+      "title": "Belanja mingguan"
+    }
+  ]
+}

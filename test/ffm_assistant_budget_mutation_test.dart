@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' hide isNotNull;
+import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_context.dart';
@@ -10,6 +10,7 @@ import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_capability_executor.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/budget/data/budget_repository.dart';
 
 void main() {
@@ -56,6 +57,102 @@ void main() {
             updatedAt: Value(now),
           ),
         );
+  });
+
+  test('create budget draft menyimpan field canonical dan berhasil diverifikasi', () async {
+    final adapters = FfmAssistantCapabilityAdapterRegistry(
+      database: database,
+      householdId: AppContext.householdId,
+      clock: () => now,
+    );
+    const save = FfmAssistantActionStep(
+      id: 'save-budget-create',
+      capabilityId: 'mutate.save_draft',
+      parameters: {
+        'kind': 'budget',
+        'title': 'Makan Baru',
+        'category': 'Makan',
+        'amount': 750000,
+        'periodType': 'monthly',
+        'date': '2026-08-01T00:00:00.000',
+        'endDate': '2026-08-31T23:59:59.000',
+        'alertPercent': 75,
+        'rollover': 125000,
+        'note': 'Khusus makan keluarga',
+        '_idempotencyKey': 'budget-create-regression',
+      },
+    );
+    const verify = FfmAssistantActionStep(
+      id: 'verify-budget-create',
+      capabilityId: 'verify.budget_mutation',
+      parameters: {
+        'kind': 'budget',
+        'title': 'Makan Baru',
+        'amount': 750000,
+        'periodType': 'monthly',
+        'date': '2026-08-01T00:00:00.000',
+        'endDate': '2026-08-31T23:59:59.000',
+        'alertPercent': 75,
+        'rollover': 125000,
+        'note': 'Khusus makan keluarga',
+        '_idempotencyKey': 'budget-create-regression',
+      },
+    );
+
+    final saved = await adapters.handlers['mutate.save_draft']!(save);
+    final verified = await adapters.handlers['verify.budget_mutation']!(verify);
+    final rows = await database.select(database.envelopeBudgets).get();
+    final created = rows.singleWhere((row) => row.name == 'Makan Baru');
+
+    expect(saved.isSuccess, isTrue);
+    expect(verified.isSuccess, isTrue);
+    expect(created.allocated, 750000);
+    expect(created.categoryId, 'category-food');
+    expect(created.periodType, 'monthly');
+    expect(created.startDate, DateTime(2026, 8, 1));
+    expect(created.endDate, DateTime(2026, 8, 31, 23, 59, 59));
+    expect(created.alertPercent, 75);
+    expect(created.rollover, 125000);
+    expect(created.note, 'Khusus makan keluarga');
+
+    final retry = await adapters.handlers['mutate.save_draft']!(save);
+    expect(retry.isSuccess, isTrue);
+    final changedPayload = FfmAssistantActionStep(
+      id: 'save-budget-create-different',
+      capabilityId: 'mutate.save_draft',
+      parameters: {
+        ...save.parameters,
+        'rollover': 200000,
+      },
+    );
+    final rejected = await adapters.handlers['mutate.save_draft']!(
+      changedPayload,
+    );
+    expect(rejected.isSuccess, isFalse);
+  });
+
+  test('note Budget mengalir dari JSON ke draft, plan, executor, dan verifier', () async {
+    final parsed = FfmAssistantProposalJsonService.parse(
+      '{"formatVersion":"ffm-assistant-proposal-v1",'
+      '"proposal":{"type":"budget","title":"Makan Baru",'
+      '"amount":750000,"periodType":"monthly",'
+      '"startDate":"2026-08-01T00:00:00.000",'
+      '"endDate":"2026-08-31T23:59:59.000",'
+      '"categoryIds":["category-food"],"note":"Catatan anggaran"}}',
+      createdAt: now,
+    );
+    expect(parsed.error, isNull);
+    final draft = parsed.draft!;
+    final plan = const FfmAssistantActionPlanner().planFor(
+      FfmAssistantIntent(
+        rawText: 'buat anggaran',
+        normalizedText: 'buat anggaran',
+        type: FfmAssistantIntentType.createBudget,
+        draft: draft,
+      ),
+    )!;
+    final save = plan.steps.singleWhere((step) => step.id == 'save');
+    expect(save.parameters['note'], 'Catatan anggaran');
   });
 
   tearDown(() => database.close());

@@ -122,7 +122,7 @@ abstract final class FfmAssistantScreenContextPolicy {
     FfmAssistantDestination.goals => 'Sedang melihat target keuangan.',
     FfmAssistantDestination.liabilities => 'Sedang melihat hutang dan piutang.',
     FfmAssistantDestination.activity =>
-      'Sedang melihat aktivitas dan durasinya.',
+      'Sedang melihat aktivitas bertimer, durasi, dan Catatan Harian atau jurnal teks.',
     FfmAssistantDestination.reminders => 'Sedang melihat pengingat lokal.',
     FfmAssistantDestination.monthlyReport =>
       'Sedang melihat laporan periode bulanan.',

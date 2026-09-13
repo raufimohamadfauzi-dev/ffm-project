@@ -227,6 +227,11 @@ class FfmDatabaseStructureService {
       'Aktivitas & Jurnal',
       'Refleksi atau ringkasan harian yang terpisah dari sesi aktivitas bertimer.',
     ),
+    'daily_note_tags': _TableDefinition(
+      'Tag Catatan Harian',
+      'Aktivitas & Jurnal',
+      'Relasi antara Catatan Harian dengan master tag atau lahan.',
+    ),
     'tasks': _TableDefinition(
       'Tugas',
       'Aktivitas & Jurnal',

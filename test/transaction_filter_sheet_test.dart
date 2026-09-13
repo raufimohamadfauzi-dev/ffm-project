@@ -47,6 +47,8 @@ void main() {
     String? categoryId,
     String? merchantId,
     String? owner,
+    String? tag,
+    List<Tag> tags = const [],
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -62,10 +64,12 @@ void main() {
                   categories: categories,
                   merchants: merchants,
                   owners: owners,
+                  tags: tags,
                   accountId: accountId,
                   categoryId: categoryId,
                   merchantId: merchantId,
                   owner: owner,
+                  tag: tag,
                 ),
               );
               if (result != null) onResult(result);
@@ -183,6 +187,51 @@ void main() {
       expect(result?.categoryId, isNull);
       expect(result?.merchantId, isNull);
       expect(result?.owner, isNull);
+      expect(result?.tag, isNull);
     },
   );
+
+  testWidgets('menerapkan filter tag dari dropdown', (tester) async {
+    TransactionFilter? result;
+    tester.view.physicalSize = const Size(800, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      buildLauncher(
+        onResult: (value) => result = value,
+        tags: [
+          Tag(
+            id: 't-1',
+            householdId: 'h-1',
+            name: 'makan-siang',
+            createdAt: now,
+            isArchived: false,
+          ),
+          Tag(
+            id: 't-2',
+            householdId: 'h-1',
+            name: 'proyek',
+            createdAt: now,
+            isArchived: false,
+          ),
+        ],
+      ),
+    );
+
+    await tester.tap(find.text('Buka'));
+    await tester.pumpAndSettle();
+
+    // Pilih Tag
+    await tester.tap(find.text('Semua tag'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('#makan-siang').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Terapkan'));
+    await tester.pumpAndSettle();
+
+    expect(result?.tag, 'makan-siang');
+  });
 }

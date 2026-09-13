@@ -126,8 +126,9 @@ class _FfmThinkingJourneyBubbleState extends State<FfmThinkingJourneyBubble>
                   ],
                 ),
                 const SizedBox(width: 12),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
+                Flexible(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
                   transitionBuilder: (child, animation) {
                     return FadeTransition(
                       opacity: animation,
@@ -187,6 +188,7 @@ class _FfmThinkingJourneyBubbleState extends State<FfmThinkingJourneyBubble>
                       ),
                     ],
                   ),
+                ),
                 ),
               ],
             ),

@@ -102,5 +102,47 @@ void main() {
       final allAfterActed = await repo.getAllInsights(householdId: 'house-1');
       expect(allAfterActed.first.status, FfmAssistantInsightStatus.acted);
     });
+
+    test('Cleans up and ignores expired insights gracefully', () async {
+      final activeInsight = FfmAssistantInsight(
+        id: 'ins-active',
+        householdId: 'house-1',
+        type: FfmAssistantInsightType.runwayRisk,
+        severity: FfmAssistantInsightSeverity.warning,
+        priority: 85,
+        confidence: 0.95,
+        title: 'Aktif',
+        summary: 'Masih berlaku',
+        evidence: {},
+        createdAt: fixedClock,
+        expiresAt: fixedClock.add(const Duration(hours: 2)),
+        dedupeKey: 'active_1',
+      );
+      final expiredInsight = FfmAssistantInsight(
+        id: 'ins-expired',
+        householdId: 'house-1',
+        type: FfmAssistantInsightType.runwayRisk,
+        severity: FfmAssistantInsightSeverity.info,
+        priority: 50,
+        confidence: 0.8,
+        title: 'Kedaluwarsa',
+        summary: 'Sudah lewat',
+        evidence: {},
+        createdAt: fixedClock.subtract(const Duration(days: 2)),
+        expiresAt: fixedClock.subtract(const Duration(days: 1)),
+        dedupeKey: 'expired_1',
+      );
+
+      await repo.saveInsight(activeInsight);
+      await repo.saveInsight(expiredInsight);
+
+      final active = await repo.getActiveInsights(householdId: 'house-1');
+      expect(active.length, 1);
+      expect(active.first.id, 'ins-active');
+
+      final all = await repo.getAllInsights(householdId: 'house-1');
+      final expiredInDb = all.firstWhere((i) => i.id == 'ins-expired');
+      expect(expiredInDb.status, FfmAssistantInsightStatus.expired);
+    });
   });
 }

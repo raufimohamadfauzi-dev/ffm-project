@@ -21,6 +21,8 @@ class ReminderPage extends StatelessWidget {
     this.initialRecurrence,
     this.initialSourceType,
     this.initialSourceId,
+    this.initialSoundUri,
+    this.initialSoundName,
     this.focusReminderId,
     this.focusHistoryId,
   });
@@ -33,6 +35,8 @@ class ReminderPage extends StatelessWidget {
   final ReminderRecurrenceType? initialRecurrence;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
+  final String? initialSoundUri;
+  final String? initialSoundName;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -57,6 +61,8 @@ class ReminderPage extends StatelessWidget {
               initialRecurrence: initialRecurrence,
               initialSourceType: initialSourceType,
               initialSourceId: initialSourceId,
+              initialSoundUri: initialSoundUri,
+              initialSoundName: initialSoundName,
               focusReminderId: focusReminderId,
               focusHistoryId: focusHistoryId,
             ),
@@ -75,6 +81,8 @@ class _ReminderView extends StatefulWidget {
     this.initialRecurrence,
     this.initialSourceType,
     this.initialSourceId,
+    this.initialSoundUri,
+    this.initialSoundName,
     this.focusReminderId,
     this.focusHistoryId,
   });
@@ -85,6 +93,8 @@ class _ReminderView extends StatefulWidget {
   final ReminderRecurrenceType? initialRecurrence;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
+  final String? initialSoundUri;
+  final String? initialSoundName;
   final String? focusReminderId;
   final String? focusHistoryId;
 
@@ -113,6 +123,8 @@ class _ReminderViewState extends State<_ReminderView> {
             initialRecurrence: widget.initialRecurrence,
             initialSourceType: widget.initialSourceType,
             initialSourceId: widget.initialSourceId,
+            initialSoundUri: widget.initialSoundUri,
+            initialSoundName: widget.initialSoundName,
           );
         }
       });
@@ -128,6 +140,8 @@ class _ReminderViewState extends State<_ReminderView> {
     ReminderRecurrenceType? initialRecurrence,
     ReminderSourceType? initialSourceType,
     String? initialSourceId,
+    String? initialSoundUri,
+    String? initialSoundName,
   }) async {
     final reminder = await showDialog<ReminderEntity>(
       context: context,
@@ -139,6 +153,8 @@ class _ReminderViewState extends State<_ReminderView> {
         initialRecurrence: initialRecurrence,
         initialSourceType: initialSourceType,
         initialSourceId: initialSourceId,
+        initialSoundUri: initialSoundUri,
+        initialSoundName: initialSoundName,
       ),
     );
     if (reminder != null && context.mounted) {
@@ -224,11 +240,30 @@ class _ReminderViewState extends State<_ReminderView> {
             : state.history
                   .where((item) => item.history.status == _historyFilter)
                   .toList(growable: false);
-        final reminders = _originFilter == null
+        final rawReminders = _originFilter == null
             ? state.reminders
             : state.reminders
                   .where((item) => item.origin == _originFilter)
                   .toList(growable: false);
+        final now = DateTime.now();
+        final reminders = List<ReminderEntity>.from(rawReminders)
+          ..sort((a, b) {
+            final aIsPastDue = a.recurrenceType == ReminderRecurrenceType.once &&
+                a.scheduledAt.isBefore(now);
+            final bIsPastDue = b.recurrenceType == ReminderRecurrenceType.once &&
+                b.scheduledAt.isBefore(now);
+            final aIsUpcoming = a.isActive && !aIsPastDue;
+            final bIsUpcoming = b.isActive && !bIsPastDue;
+
+            if (aIsUpcoming && !bIsUpcoming) return -1;
+            if (!aIsUpcoming && bIsUpcoming) return 1;
+
+            if (aIsUpcoming && bIsUpcoming) {
+              return a.scheduledAt.compareTo(b.scheduledAt);
+            } else {
+              return b.scheduledAt.compareTo(a.scheduledAt);
+            }
+          });
         if (state.reminders.isEmpty && history.isEmpty) {
           return AppEmptyState(
             icon: Icons.notifications_none_outlined,
@@ -470,6 +505,114 @@ class _ReminderViewState extends State<_ReminderView> {
   };
 }
 
+enum _CountdownStatus { upcoming, pastDue, recurringWait, inactive }
+
+/// Badge penanda asal entitas/pemicu dibuatnya pengingat (Trigger Provenance).
+class _ReminderSourceTypeBadge extends StatelessWidget {
+  const _ReminderSourceTypeBadge({required this.sourceType});
+
+  final ReminderSourceType sourceType;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (icon, label, color) = switch (sourceType) {
+      ReminderSourceType.diagnostics => (
+        Icons.build_circle_outlined,
+        'Diagnostik Aplikasi',
+        Colors.amber.shade800,
+      ),
+      ReminderSourceType.liability => (
+        Icons.credit_card_outlined,
+        'Hutang / Cicilan',
+        Colors.red.shade700,
+      ),
+      ReminderSourceType.receivable => (
+        Icons.account_balance_wallet_outlined,
+        'Tagihan Piutang',
+        Colors.teal.shade700,
+      ),
+      ReminderSourceType.recurringTransaction => (
+        Icons.sync_rounded,
+        'Transaksi Rutin',
+        Colors.blue.shade700,
+      ),
+      ReminderSourceType.goal || ReminderSourceType.goalSetup => (
+        Icons.flag_outlined,
+        'Target Keuangan',
+        Colors.green.shade700,
+      ),
+      ReminderSourceType.activity => (
+        Icons.timer_outlined,
+        'Aktivitas',
+        Colors.indigo.shade700,
+      ),
+      ReminderSourceType.task => (
+        Icons.check_circle_outline,
+        'Tugas',
+        Colors.orange.shade800,
+      ),
+      ReminderSourceType.budgetSetup => (
+        Icons.pie_chart_outline,
+        'Anggaran',
+        Colors.cyan.shade800,
+      ),
+      ReminderSourceType.accountSetup => (
+        Icons.account_balance_outlined,
+        'Rekening',
+        Colors.blueGrey.shade700,
+      ),
+      ReminderSourceType.cashFlowProfile => (
+        Icons.trending_up,
+        'Siklus Kas',
+        Colors.lightGreen.shade800,
+      ),
+      ReminderSourceType.telegram => (
+        Icons.send_rounded,
+        'Telegram',
+        Colors.lightBlue.shade700,
+      ),
+      ReminderSourceType.familyProfile => (
+        Icons.family_restroom,
+        'Profil Keluarga',
+        Colors.purple.shade700,
+      ),
+      _ => (
+        Icons.info_outline,
+        sourceType.label,
+        colorScheme.primary,
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withAlpha(160),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: color.withAlpha(90),
+          width: 0.8,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 3.5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 10.5,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Compact reminder summary that keeps the title independent from its controls.
 class ReminderScheduleCard extends StatelessWidget {
   const ReminderScheduleCard({
@@ -490,177 +633,352 @@ class ReminderScheduleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final isPastDue = reminder.recurrenceType == ReminderRecurrenceType.once &&
+        reminder.scheduledAt.isBefore(now);
+    final isUpcoming =
+        reminder.isActive && !isPastDue && !reminder.scheduledAt.isBefore(now);
     final countdownText = _buildReminderCountdownText(
       reminder.scheduledAt,
       reminder.isActive,
+      recurrenceType: reminder.recurrenceType,
     );
-    final isUpcoming =
-        reminder.isActive && !reminder.scheduledAt.isBefore(DateTime.now());
+    final countdownStatus = !reminder.isActive
+        ? _CountdownStatus.inactive
+        : (isPastDue
+            ? _CountdownStatus.pastDue
+            : (isUpcoming
+                ? _CountdownStatus.upcoming
+                : _CountdownStatus.recurringWait));
 
-    return AppCard(
-      padding: EdgeInsets.zero,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(
-                    reminder.isActive
-                        ? Icons.notifications_active_outlined
-                        : Icons.notifications_off_outlined,
-                    color: reminder.isActive ? colorScheme.primary : null,
-                  ),
+    final cardContent = Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(
+                  reminder.isActive
+                      ? (isPastDue
+                          ? Icons.alarm_off_outlined
+                          : Icons.notifications_active_outlined)
+                      : Icons.notifications_off_outlined,
+                  color: reminder.isActive
+                      ? (isPastDue ? colorScheme.error : colorScheme.primary)
+                      : null,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        reminder.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      reminder.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: isPastDue
+                            ? colorScheme.onSurface.withAlpha(190)
+                            : colorScheme.onSurface,
                       ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          // Origin Badge with high visual contrast
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: reminder.origin == ReminderOrigin.autonomous
+                                  ? (colorScheme.brightness == Brightness.dark
+                                      ? Colors.deepPurple.shade900.withAlpha(190)
+                                      : Colors.deepPurple.shade50)
+                                  : colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: reminder.origin == ReminderOrigin.autonomous
+                                    ? (colorScheme.brightness == Brightness.dark
+                                        ? Colors.purple.shade300.withAlpha(140)
+                                        : Colors.deepPurple.shade400)
+                                    : colorScheme.outlineVariant,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  reminder.origin == ReminderOrigin.autonomous
+                                      ? Icons.auto_awesome
+                                      : Icons.person_outline,
+                                  size: 12,
+                                  color: reminder.origin == ReminderOrigin.autonomous
+                                      ? (colorScheme.brightness == Brightness.dark
+                                          ? Colors.purple.shade200
+                                          : Colors.deepPurple.shade800)
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  reminder.origin.label,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: reminder.origin ==
+                                                ReminderOrigin.autonomous
+                                            ? (colorScheme.brightness ==
+                                                    Brightness.dark
+                                                ? Colors.purple.shade100
+                                                : Colors.deepPurple.shade900)
+                                            : colorScheme.onSurfaceVariant,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Provenance / Trigger Badge
+                          if (reminder.sourceType != null)
+                            _ReminderSourceTypeBadge(
+                              sourceType: reminder.sourceType!,
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_formatReminderDateTime(reminder.scheduledAt)} · ${reminder.recurrenceType.label}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    HijriDateLabel(date: reminder.scheduledAt),
+                    // Sound indicator
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Row(
+                        children: [
+                          Icon(
+                            reminder.soundName != null &&
+                                    reminder.soundName!.isNotEmpty
+                                ? Icons.music_note_rounded
+                                : Icons.notifications_none_rounded,
+                            size: 13,
+                            color: reminder.soundName != null &&
+                                    reminder.soundName!.isNotEmpty
+                                ? colorScheme.primary
+                                : colorScheme.outline,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              reminder.soundName != null &&
+                                      reminder.soundName!.isNotEmpty
+                                  ? 'Nada: ${reminder.soundName}'
+                                  : 'Nada: Bawaan FFM',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    fontSize: 11,
+                                    color: reminder.soundName != null &&
+                                            reminder.soundName!.isNotEmpty
+                                        ? colorScheme.primary
+                                        : colorScheme.outline,
+                                    fontWeight: reminder.soundName != null &&
+                                            reminder.soundName!.isNotEmpty
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Explanatory note if present
+                    if (reminder.note != null &&
+                        reminder.note!.trim().isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.only(top: 5),
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                            horizontal: 8,
+                            vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: reminder.origin == ReminderOrigin.autonomous
-                                ? colorScheme.secondaryContainer
-                                : colorScheme.surfaceContainerHighest,
+                            color: colorScheme.surfaceContainerLowest,
                             borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: colorScheme.outlineVariant.withAlpha(100),
+                            ),
                           ),
-                          child: Text(
-                            reminder.origin.label,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color:
-                                      reminder.origin ==
-                                          ReminderOrigin.autonomous
-                                      ? colorScheme.onSecondaryContainer
-                                      : colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${_formatReminderDateTime(reminder.scheduledAt)} · ${reminder.recurrenceType.label}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      HijriDateLabel(date: reminder.scheduledAt),
-                      if (reminder.soundName case final soundName?
-                          when soundName.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Icon(
-                                Icons.music_note_outlined,
-                                size: 14,
+                                Icons.notes_rounded,
+                                size: 13,
                                 color: colorScheme.outline,
                               ),
-                              const SizedBox(width: 4),
+                              const SizedBox(width: 5),
                               Expanded(
                                 child: Text(
-                                  soundName,
-                                  maxLines: 1,
+                                  reminder.note!.trim(),
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                        fontSize: 11,
+                                      ),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Aksi pengingat',
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      onEdit();
-                    } else if (value == 'hapus') {
-                      onDelete();
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    PopupMenuItem(value: 'hapus', child: Text('Hapus')),
+                      ),
                   ],
                 ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _ReminderCountdownChip(
-                      text: countdownText,
-                      isUpcoming: isUpcoming,
-                    ),
+              ),
+              PopupMenuButton<String>(
+                tooltip: 'Aksi pengingat',
+                onSelected: (value) {
+                  if (value == 'edit') {
+                    onEdit();
+                  } else if (value == 'hapus') {
+                    onDelete();
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  PopupMenuItem(value: 'hapus', child: Text('Hapus')),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _ReminderCountdownChip(
+                    text: countdownText,
+                    status: countdownStatus,
                   ),
                 ),
-                Semantics(
-                  label: reminder.isActive
-                      ? 'Pengingat aktif'
-                      : 'Pengingat nonaktif',
-                  child: Switch(
-                    value: reminder.isActive,
-                    onChanged: onActiveChanged,
-                  ),
+              ),
+              Semantics(
+                label: reminder.isActive
+                    ? 'Pengingat aktif'
+                    : 'Pengingat nonaktif',
+                child: Switch(
+                  value: reminder.isActive,
+                  onChanged: onActiveChanged,
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
+    );
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: isPastDue
+          ? Opacity(
+              opacity: 0.72,
+              child: cardContent,
+            )
+          : cardContent,
     );
   }
 }
 
 class _ReminderCountdownChip extends StatelessWidget {
-  const _ReminderCountdownChip({required this.text, required this.isUpcoming});
+  const _ReminderCountdownChip({
+    required this.text,
+    this.status,
+  });
 
   final String text;
-  final bool isUpcoming;
+  final _CountdownStatus? status;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final effectiveStatus = status ?? _CountdownStatus.inactive;
+
+    final (bg, fg, border) = switch (effectiveStatus) {
+      _CountdownStatus.pastDue => (
+        colorScheme.errorContainer.withAlpha(190),
+        colorScheme.onErrorContainer,
+        Border.all(color: colorScheme.error.withAlpha(110), width: 0.8),
+      ),
+      _CountdownStatus.upcoming => (
+        colorScheme.primaryContainer,
+        colorScheme.onPrimaryContainer,
+        null,
+      ),
+      _CountdownStatus.recurringWait => (
+        colorScheme.tertiaryContainer.withAlpha(150),
+        colorScheme.onTertiaryContainer,
+        null,
+      ),
+      _CountdownStatus.inactive => (
+        colorScheme.surfaceContainerHighest,
+        colorScheme.onSurfaceVariant,
+        null,
+      ),
+    };
+
+    final icon = switch (effectiveStatus) {
+      _CountdownStatus.pastDue => Icons.history_rounded,
+      _CountdownStatus.upcoming => Icons.hourglass_top_rounded,
+      _CountdownStatus.recurringWait => Icons.update_rounded,
+      _CountdownStatus.inactive => Icons.pause_circle_outline_rounded,
+    };
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: isUpcoming
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainerHighest,
+        color: bg,
         borderRadius: BorderRadius.circular(6),
+        border: border,
       ),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: isUpcoming
-              ? colorScheme.onPrimaryContainer
-              : colorScheme.onSurfaceVariant,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: fg,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -672,11 +990,20 @@ String _formatReminderDateTime(DateTime value) {
   return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}';
 }
 
-String _buildReminderCountdownText(DateTime scheduledAt, bool isActive) {
+String _buildReminderCountdownText(
+  DateTime scheduledAt,
+  bool isActive, {
+  ReminderRecurrenceType recurrenceType = ReminderRecurrenceType.once,
+}) {
   if (!isActive) return 'Nonaktif';
   final now = DateTime.now();
   final diff = scheduledAt.difference(now);
-  if (diff.isNegative) return 'Menunggu giliran / Ditunda';
+  if (diff.isNegative) {
+    if (recurrenceType == ReminderRecurrenceType.once) {
+      return 'Waktu sudah lewat';
+    }
+    return 'Menunggu jadwal berikutnya';
+  }
   if (diff.inDays >= 1) {
     final days = diff.inDays;
     final hours = diff.inHours % 24;
@@ -688,7 +1015,7 @@ String _buildReminderCountdownText(DateTime scheduledAt, bool isActive) {
     return minutes > 0 ? '$hours jam $minutes mnt lagi' : '$hours jam lagi';
   }
   if (diff.inMinutes >= 1) return '${diff.inMinutes} mnt lagi';
-  return 'Beberapa detik lagi';
+  return '< 1 mnt lagi';
 }
 
 class _ReminderDialog extends StatefulWidget {
@@ -700,6 +1027,8 @@ class _ReminderDialog extends StatefulWidget {
     this.initialRecurrence,
     this.initialSourceType,
     this.initialSourceId,
+    this.initialSoundUri,
+    this.initialSoundName,
   });
 
   final ReminderEntity? initial;
@@ -711,6 +1040,8 @@ class _ReminderDialog extends StatefulWidget {
   final ReminderRecurrenceType? initialRecurrence;
   final ReminderSourceType? initialSourceType;
   final String? initialSourceId;
+  final String? initialSoundUri;
+  final String? initialSoundName;
 
   @override
   State<_ReminderDialog> createState() => _ReminderDialogState();
@@ -745,8 +1076,8 @@ class _ReminderDialogState extends State<_ReminderDialog> {
         widget.initialRecurrence ??
         ReminderRecurrenceType.once;
     _weekday = [...?initial?.weekdays];
-    _soundUri = initial?.soundUri;
-    _soundName = initial?.soundName;
+    _soundUri = initial?.soundUri ?? widget.initialSoundUri;
+    _soundName = initial?.soundName ?? widget.initialSoundName;
   }
 
   @override

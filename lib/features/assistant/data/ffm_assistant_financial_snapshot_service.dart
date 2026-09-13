@@ -122,17 +122,47 @@ class FfmAssistantFinancialSnapshotService {
               )
               ..orderBy([(row) => OrderingTerm.desc(row.date)]))
             .get();
-    final visible = rows
+    final visibleRows = rows
         .where(
           (row) =>
               !row.date.isBefore(rangeStart) &&
               row.date.isBefore(rangeEndExclusive),
         )
         .take(maxItems)
+        .toList(growable: false);
+
+    final txIds = visibleRows.map((r) => r.id).toSet();
+    final tagsByTxId = <String, List<String>>{};
+    if (txIds.isNotEmpty) {
+      try {
+        final txTags = await (_database.select(
+          _database.transactionTags,
+        )..where((table) => table.transactionId.isIn(txIds))).get();
+        if (txTags.isNotEmpty) {
+          final tagIds = txTags.map((tt) => tt.tagId).toSet();
+          final allTags = await (_database.select(
+            _database.tags,
+          )..where((t) => t.id.isIn(tagIds))).get();
+          final tagNameById = {for (final t in allTags) t.id: t.name};
+          for (final tt in txTags) {
+            final name = tagNameById[tt.tagId];
+            if (name != null) {
+              tagsByTxId.putIfAbsent(tt.transactionId, () => []).add(name);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    final visible = visibleRows
         .map((row) {
           final date = row.date.toIso8601String().substring(0, 10);
           final kind = row.type == 'income' ? 'income' : 'expense';
-          return '$date|$kind|amount=${row.amount.abs()}';
+          final txTags = tagsByTxId[row.id];
+          final tagPart = txTags != null && txTags.isNotEmpty
+              ? '|tags=${txTags.join(",")}'
+              : '';
+          return '$date|$kind|amount=${row.amount.abs()}$tagPart';
         })
         .toList(growable: false);
     final periodAndRange = (startDate != null && endDate != null)
@@ -797,36 +827,84 @@ class FfmAssistantFinancialSnapshotService {
     int maxCharacters = 800,
     DateTime? periodStart,
     DateTime? periodEndExclusive,
+    List<String> tagNames = const [],
+    String? treatmentType,
   }) async {
-    final notes = await (_database.select(_database.dailyNotes)
-          ..where((row) {
-            final filter =
-                row.householdId.equals(householdId) &
-                row.isArchived.equals(false);
-            if (periodStart == null || periodEndExclusive == null) {
-              return filter;
-            }
-            return filter &
-                row.noteDate.isBiggerOrEqualValue(periodStart) &
-                row.noteDate.isSmallerThanValue(periodEndExclusive);
-          })
-          ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
-          ..limit(maxItems))
-        .get();
-    if (notes.isEmpty) {
+    final normalizedTags = tagNames
+        .map((tag) => tag.trim().toLowerCase())
+        .where((tag) => tag.isNotEmpty)
+        .toSet();
+    final tagRows = normalizedTags.isEmpty
+        ? const <String>[]
+        : (await (_database.select(_database.tags)..where(
+                    (row) =>
+                        row.householdId.equals(householdId) &
+                        row.isArchived.equals(false) &
+                        row.name.lower().isIn(normalizedTags),
+                  ))
+                  .get())
+              .map((tag) => tag.id)
+              .toList(growable: false);
+    final taggedNoteIds = normalizedTags.isEmpty
+        ? null
+        : (await (_database.select(
+                _database.dailyNoteTags,
+              )..where((row) => row.tagId.isIn(tagRows))).get())
+              .map((row) => row.dailyNoteId)
+              .toSet();
+    final notes =
+        await (_database.select(_database.dailyNotes)
+              ..where((row) {
+                final filter =
+                    row.householdId.equals(householdId) &
+                    row.isArchived.equals(false);
+                if (periodStart == null || periodEndExclusive == null) {
+                  return taggedNoteIds == null
+                      ? filter
+                      : filter & row.id.isIn(taggedNoteIds);
+                }
+                final dateFilter =
+                    filter &
+                    row.noteDate.isBiggerOrEqualValue(periodStart) &
+                    row.noteDate.isSmallerThanValue(periodEndExclusive);
+                return taggedNoteIds == null
+                    ? dateFilter
+                    : dateFilter & row.id.isIn(taggedNoteIds);
+              })
+              ..orderBy([(row) => OrderingTerm.desc(row.noteDate)])
+              ..limit(maxItems))
+            .get();
+    final filteredNotes = treatmentType == null || treatmentType.trim().isEmpty
+        ? notes
+        : notes
+              .where((note) => note.treatmentType == treatmentType)
+              .toList(growable: false);
+    if (filteredNotes.isEmpty) {
       return 'Daily Notes digest: belum ada catatan harian / jurnal teks yang tersimpan.';
     }
-    final lines = notes.map((row) {
-      final title = row.title != null && row.title!.trim().isNotEmpty
-          ? row.title!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim()
-          : 'Catatan Harian';
-      final date = row.noteDate.toIso8601String().substring(0, 10);
-      final body = row.body.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
-      return 'note:$date|$title|isi=$body';
-    }).toList(growable: false);
-    final suffix = notes.length >= maxItems ? '; … (sebagian note disingkat)' : '';
+    final orderedDates = filteredNotes.map((note) => note.noteDate).toList()
+      ..sort();
+    final intervals = <int>[];
+    for (var index = 1; index < orderedDates.length; index++) {
+      intervals.add(
+        orderedDates[index].difference(orderedDates[index - 1]).inDays,
+      );
+    }
+    final lines = filteredNotes
+        .map((row) {
+          final title = row.title != null && row.title!.trim().isNotEmpty
+              ? row.title!.replaceAll(RegExp(r'[\r\n]+'), ' ').trim()
+              : 'Catatan Harian';
+          final date = row.noteDate.toIso8601String().substring(0, 10);
+          final body = row.body.replaceAll(RegExp(r'[\r\n]+'), ' ').trim();
+          return 'note:$date|jenis=${row.treatmentType ?? "lainnya"}|$title|isi=$body';
+        })
+        .toList(growable: false);
+    final suffix = notes.length >= maxItems
+        ? '; … (sebagian note disingkat)'
+        : '';
     return _clip(
-      'Daily Notes digest (catatan harian & jurnal): ${lines.join('; ')}$suffix.',
+      'Daily Notes digest analytics: jumlah=${filteredNotes.length}; interval_hari=${intervals.isEmpty ? "-" : intervals.join(",")}; ${lines.join('; ')}$suffix.',
       maxCharacters,
     );
   }
@@ -952,9 +1030,9 @@ class FfmAssistantFinancialSnapshotService {
       final tableName = entry.key;
       final description = entry.value;
       try {
-        final countResult = await _database.customSelect(
-          'SELECT COUNT(*) as c FROM "$tableName"',
-        ).getSingleOrNull();
+        final countResult = await _database
+            .customSelect('SELECT COUNT(*) as c FROM "$tableName"')
+            .getSingleOrNull();
         final count = countResult?.read<int>('c') ?? 0;
         lines.add('• $tableName ($description): $count baris');
       } catch (_) {
@@ -973,4 +1051,3 @@ class FfmAssistantFinancialSnapshotService {
     return _clip(context, maxCharacters);
   }
 }
-

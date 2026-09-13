@@ -153,6 +153,8 @@ class Transactions extends Table {
   TextColumn get receiptNumber => text().nullable()();
   IntColumn get receiptPaidAmount => integer().nullable()();
   IntColumn get receiptChangeAmount => integer().nullable()();
+  IntColumn get tax => integer().nullable()();
+  IntColumn get discount => integer().nullable()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
@@ -186,6 +188,16 @@ class TransactionTags extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {transactionId, tagId};
+}
+
+/// Tag/lahan yang melekat pada Catatan Harian.
+/// Satu catatan wajib memiliki minimal satu relasi aktif saat disimpan.
+class DailyNoteTags extends Table {
+  TextColumn get dailyNoteId => text()();
+  TextColumn get tagId => text()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {dailyNoteId, tagId};
 }
 
 class Attachments extends Table {
@@ -247,6 +259,7 @@ class EnvelopeBudgets extends Table {
   TextColumn get categoryId => text().nullable()();
   TextColumn get categoryIdsJson => text().withDefault(const Constant('[]'))();
   TextColumn get name => text()();
+  TextColumn get note => text().nullable()();
   TextColumn get month => text().nullable()();
   IntColumn get allocated => integer().withDefault(const Constant(0))();
   TextColumn get periodType => text().withDefault(const Constant('monthly'))();
@@ -298,6 +311,7 @@ class Goals extends Table {
   TextColumn get id => text()();
   TextColumn get householdId => text()();
   TextColumn get name => text()();
+  TextColumn get note => text().nullable()();
   IntColumn get targetAmount => integer()();
   IntColumn get currentAmount => integer().withDefault(const Constant(0))();
   DateTimeColumn get targetDate => dateTime().nullable()();
@@ -569,6 +583,7 @@ class DailyNotes extends Table {
   DateTimeColumn get noteDate => dateTime()();
   TextColumn get title => text().nullable()();
   TextColumn get body => text()();
+  TextColumn get treatmentType => text().nullable()();
   BoolColumn get isArchived => boolean().withDefault(const Constant(false))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime().nullable()();

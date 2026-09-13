@@ -29,6 +29,7 @@ class GetGoals {
     currentAmount: row.currentAmount,
     targetDate: row.targetDate ?? DateTime.now(),
     categoryId: row.categoryId,
+    note: row.note,
     isActive: row.isActive,
     createdAt: row.createdAt,
   );
@@ -54,6 +55,7 @@ class GetGoal {
       currentAmount: row.currentAmount,
       targetDate: row.targetDate ?? DateTime.now(),
       categoryId: row.categoryId,
+      note: row.note,
       isActive: row.isActive,
       createdAt: row.createdAt,
     );
@@ -76,6 +78,7 @@ class SaveGoal {
             currentAmount: Value(entity.currentAmount),
             targetDate: Value(entity.targetDate),
             categoryId: Value(entity.categoryId),
+            note: Value(entity.note),
             isActive: Value(entity.isActive),
             createdAt: entity.createdAt ?? DateTime.now(),
           ),

@@ -9,6 +9,78 @@ class FfmAssistantActionPlanner {
 
   final DateTime Function()? now;
 
+  /// Returns canonical values that must survive into a save/preview step.
+  /// This is deliberately non-throwing: the draft validator owns user-facing
+  /// errors, while tests and callers can assert the plan contract explicitly.
+  static List<String> missingRequiredParameters(
+    FfmAssistantDraft draft,
+    Map<String, Object?> parameters,
+  ) {
+    bool present(String key) {
+      final value = parameters[key];
+      return value != null && value.toString().trim().isNotEmpty;
+    }
+
+    final required = switch (draft.kind) {
+      FfmAssistantDraftKind.income => const ['amount', 'toAccount', 'category'],
+      FfmAssistantDraftKind.expense => const [
+        'amount',
+        'fromAccount',
+        'category',
+      ],
+      FfmAssistantDraftKind.transfer => const [
+        'amount',
+        'fromAccount',
+        'toAccount',
+      ],
+      FfmAssistantDraftKind.goal => const ['title', 'amount', 'date'],
+      FfmAssistantDraftKind.goalDeposit => const [
+        'amount',
+        'goal',
+        'fromAccount',
+        'date',
+      ],
+      FfmAssistantDraftKind.goalUsage => const [
+        'amount',
+        'goal',
+        'toAccount',
+        'date',
+      ],
+      FfmAssistantDraftKind.activity => const ['title', 'date'],
+      FfmAssistantDraftKind.dailyNote => const ['note', 'date'],
+      FfmAssistantDraftKind.reminder => const ['title', 'date'],
+      FfmAssistantDraftKind.budget => const ['title', 'amount', 'periodType'],
+      FfmAssistantDraftKind.liability || FfmAssistantDraftKind.receivable =>
+        const ['title', 'party', 'amount', 'date'],
+      FfmAssistantDraftKind.liabilityPayment ||
+      FfmAssistantDraftKind.receivablePayment => const [
+        'amount',
+        'targetId',
+        'date',
+        'accountId',
+      ],
+      FfmAssistantDraftKind.cashFlowProfile => const [
+        'title',
+        'initialCapital',
+        'estimatedInflow',
+        'targetHarvestDate',
+        'cycleProfileType',
+      ],
+      FfmAssistantDraftKind.monitoringJob => const [
+        'title',
+        'preset',
+        'cadence',
+        'targetTimeMinutes',
+      ],
+      FfmAssistantDraftKind.masterData => const ['title', 'category'],
+      _ => const <String>[],
+    };
+    return [
+      for (final key in required)
+        if (!present(key)) key,
+    ];
+  }
+
   FfmAssistantActionPlan? planFor(FfmAssistantIntent intent) {
     final steps = <FfmAssistantActionStep>[];
     final planId = _planId(intent);
@@ -117,7 +189,8 @@ class FfmAssistantActionPlanner {
     String? customPlanId,
   }) {
     if (drafts.isEmpty) return null;
-    final planId = customPlanId ??
+    final planId =
+        customPlanId ??
         'composite-plan-${_stableHash(summary).toRadixString(16)}';
     final steps = <FfmAssistantActionStep>[];
 
@@ -215,7 +288,9 @@ class FfmAssistantActionPlanner {
     _ => null,
   };
 
-  static String _draftCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
+  static String _draftCapabilityFor(
+    FfmAssistantDraftKind kind,
+  ) => switch (kind) {
     FfmAssistantDraftKind.income => 'draft.income',
     FfmAssistantDraftKind.expense => 'draft.expense',
     FfmAssistantDraftKind.transfer => 'draft.transfer',
@@ -293,63 +368,66 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.monitoringJob => 'draft.monitoring_job',
   };
 
-  static String _mutationCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
-    FfmAssistantDraftKind.goalUpdate => 'mutate.update',
-    FfmAssistantDraftKind.goalArchive => 'mutate.archive',
-    FfmAssistantDraftKind.assetUpdate => 'mutate.update',
-    FfmAssistantDraftKind.assetArchive => 'mutate.archive',
-    FfmAssistantDraftKind.liabilityUpdate => 'mutate.update',
-    FfmAssistantDraftKind.liabilityArchive => 'mutate.archive',
-    FfmAssistantDraftKind.liabilityPayment => 'mutate.debt_payment',
-    FfmAssistantDraftKind.receivableUpdate => 'mutate.update',
-    FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
-    FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
-    FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
-    FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
-    FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
-    FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
-    FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.activityArchive => 'mutate.archive',
-    FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.activityFinish => 'mutate.update',
-    FfmAssistantDraftKind.activityUpdate => 'mutate.update',
-    FfmAssistantDraftKind.activityEdit => 'mutate.update',
-    FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
-    FfmAssistantDraftKind.taskUpdate => 'mutate.update',
-    FfmAssistantDraftKind.taskComplete => 'mutate.update',
-    FfmAssistantDraftKind.taskReopen => 'mutate.update',
-    FfmAssistantDraftKind.taskArchive => 'mutate.archive',
-    FfmAssistantDraftKind.routineUpdate ||
-    FfmAssistantDraftKind.routineMarkComplete ||
-    FfmAssistantDraftKind.routineUnmarkComplete ||
-    FfmAssistantDraftKind.routineActivate ||
-    FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
-    FfmAssistantDraftKind.routineArchive => 'mutate.archive',
-    FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
-    FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
-    FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
-    FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
-    FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
-    FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
-    FfmAssistantDraftKind.merchantDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.tagUpdate => 'mutate.update',
-    FfmAssistantDraftKind.tagArchive => 'mutate.archive',
-    FfmAssistantDraftKind.tagDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.incomeSourceUpdate => 'mutate.update',
-    FfmAssistantDraftKind.incomeSourceArchive => 'mutate.archive',
-    FfmAssistantDraftKind.incomeSourceDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.categoryUpdate => 'mutate.update',
-    FfmAssistantDraftKind.categoryArchive => 'mutate.archive',
-    FfmAssistantDraftKind.categoryDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.accountUpdate => 'mutate.update',
-    FfmAssistantDraftKind.accountArchive => 'mutate.archive',
-    FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
-    FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
-    FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
-    _ => 'mutate.save_draft',
-  };
+  static String _mutationCapabilityFor(FfmAssistantDraftKind kind) =>
+      switch (kind) {
+        FfmAssistantDraftKind.goalUpdate => 'mutate.update',
+        FfmAssistantDraftKind.goalArchive => 'mutate.archive',
+        FfmAssistantDraftKind.assetUpdate => 'mutate.update',
+        FfmAssistantDraftKind.assetArchive => 'mutate.archive',
+        FfmAssistantDraftKind.liabilityUpdate => 'mutate.update',
+        FfmAssistantDraftKind.liabilityArchive => 'mutate.archive',
+        FfmAssistantDraftKind.liabilityPayment => 'mutate.debt_payment',
+        FfmAssistantDraftKind.receivableUpdate => 'mutate.update',
+        FfmAssistantDraftKind.receivableArchive => 'mutate.archive',
+        FfmAssistantDraftKind.receivablePayment => 'mutate.debt_payment',
+        FfmAssistantDraftKind.reminderArchive => 'mutate.archive',
+        FfmAssistantDraftKind.reminderUpdate => 'mutate.update',
+        FfmAssistantDraftKind.transactionUpdate => 'mutate.update',
+        FfmAssistantDraftKind.transactionArchive => 'mutate.archive',
+        FfmAssistantDraftKind.transactionDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.activityArchive => 'mutate.archive',
+        FfmAssistantDraftKind.activityDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.activityFinish => 'mutate.update',
+        FfmAssistantDraftKind.activityUpdate => 'mutate.update',
+        FfmAssistantDraftKind.activityEdit => 'mutate.update',
+        FfmAssistantDraftKind.dailyNoteArchive => 'mutate.archive',
+        FfmAssistantDraftKind.taskUpdate => 'mutate.update',
+        FfmAssistantDraftKind.taskComplete => 'mutate.update',
+        FfmAssistantDraftKind.taskReopen => 'mutate.update',
+        FfmAssistantDraftKind.taskArchive => 'mutate.archive',
+        FfmAssistantDraftKind.routineUpdate ||
+        FfmAssistantDraftKind.routineMarkComplete ||
+        FfmAssistantDraftKind.routineUnmarkComplete ||
+        FfmAssistantDraftKind.routineActivate ||
+        FfmAssistantDraftKind.routineDeactivate => 'mutate.update',
+        FfmAssistantDraftKind.routineArchive => 'mutate.archive',
+        FfmAssistantDraftKind.scheduleUpdate => 'mutate.update',
+        FfmAssistantDraftKind.scheduleArchive => 'mutate.archive',
+        FfmAssistantDraftKind.recurringTransactionUpdate => 'mutate.update',
+        FfmAssistantDraftKind.recurringTransactionArchive => 'mutate.archive',
+        FfmAssistantDraftKind.merchantUpdate => 'mutate.update',
+        FfmAssistantDraftKind.merchantArchive => 'mutate.archive',
+        FfmAssistantDraftKind.merchantDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.tagUpdate => 'mutate.update',
+        FfmAssistantDraftKind.tagArchive => 'mutate.archive',
+        FfmAssistantDraftKind.tagDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.incomeSourceUpdate => 'mutate.update',
+        FfmAssistantDraftKind.incomeSourceArchive => 'mutate.archive',
+        FfmAssistantDraftKind.incomeSourceDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.categoryUpdate => 'mutate.update',
+        FfmAssistantDraftKind.categoryArchive => 'mutate.archive',
+        FfmAssistantDraftKind.categoryDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.accountUpdate => 'mutate.update',
+        FfmAssistantDraftKind.accountArchive => 'mutate.archive',
+        FfmAssistantDraftKind.accountDelete => 'sensitive.delete',
+        FfmAssistantDraftKind.budgetUpdate => 'mutate.update',
+        FfmAssistantDraftKind.budgetArchive => 'mutate.archive',
+        _ => 'mutate.save_draft',
+      };
 
-  static String _verifyCapabilityFor(FfmAssistantDraftKind kind) => switch (kind) {
+  static String _verifyCapabilityFor(
+    FfmAssistantDraftKind kind,
+  ) => switch (kind) {
     FfmAssistantDraftKind.transactionUpdate ||
     FfmAssistantDraftKind.transactionArchive ||
     FfmAssistantDraftKind.transactionDelete => 'verify.transaction_mutation',
@@ -386,8 +464,7 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.tagDelete => 'verify.tag_mutation',
     FfmAssistantDraftKind.incomeSourceUpdate ||
     FfmAssistantDraftKind.incomeSourceArchive ||
-    FfmAssistantDraftKind.incomeSourceDelete =>
-      'verify.income_source_mutation',
+    FfmAssistantDraftKind.incomeSourceDelete => 'verify.income_source_mutation',
     FfmAssistantDraftKind.categoryUpdate ||
     FfmAssistantDraftKind.categoryArchive ||
     FfmAssistantDraftKind.categoryDelete => 'verify.category_mutation',
@@ -397,7 +474,10 @@ class FfmAssistantActionPlanner {
     FfmAssistantDraftKind.budgetUpdate ||
     FfmAssistantDraftKind.budgetArchive => 'verify.budget_mutation',
     FfmAssistantDraftKind.goalUpdate ||
-    FfmAssistantDraftKind.goalArchive => 'verify.goal_mutation',
+    FfmAssistantDraftKind.goalArchive ||
+    FfmAssistantDraftKind.goalDeposit ||
+    FfmAssistantDraftKind.goalUsage ||
+    FfmAssistantDraftKind.goal => 'verify.goal_mutation',
     FfmAssistantDraftKind.assetUpdate ||
     FfmAssistantDraftKind.assetArchive => 'verify.asset_mutation',
     FfmAssistantDraftKind.liabilityUpdate ||
@@ -414,15 +494,14 @@ class FfmAssistantActionPlanner {
 
   static List<String> _prerequisiteReadsForDraft(FfmAssistantDraftKind kind) =>
       switch (kind) {
-        FfmAssistantDraftKind.income ||
-        FfmAssistantDraftKind.expense => const [
+        FfmAssistantDraftKind.income || FfmAssistantDraftKind.expense => const [
           'read.accounts',
           'read.categories',
         ],
         FfmAssistantDraftKind.transfer => const ['read.accounts'],
         FfmAssistantDraftKind.goalDeposit ||
         FfmAssistantDraftKind.goalUsage ||
-        FfmAssistantDraftKind.goal ||
+        FfmAssistantDraftKind.goal => const ['read.goals', 'read.accounts'],
         FfmAssistantDraftKind.goalUpdate ||
         FfmAssistantDraftKind.goalArchive => const ['read.goals'],
         FfmAssistantDraftKind.liability ||
@@ -479,6 +558,9 @@ class FfmAssistantActionPlanner {
   }
 
   Map<String, Object?> _draftParameters(FfmAssistantDraft draft) => {
+    // Form values may contain UI-only metadata, but must not override the
+    // canonical values that came from the typed draft fields.
+    ...draft.formValues,
     'kind': draft.kind.name,
     if (draft.amount != null) 'amount': draft.amount,
     if (draft.title != null) 'title': draft.title,
@@ -490,7 +572,22 @@ class FfmAssistantActionPlanner {
     if (draft.note != null) 'note': draft.note,
     if (draft.date != null) 'date': draft.date!.toIso8601String(),
     if (draft.location != null) 'location': draft.location,
-    if (draft.linkedActivityId != null) 'linkedActivityId': draft.linkedActivityId,
+    if (draft.linkedActivityId != null)
+      'linkedActivityId': draft.linkedActivityId,
+    if (draft.parentSessionId != null) 'parentSessionId': draft.parentSessionId,
+    if (draft.activityMode != null) 'activityMode': draft.activityMode!.value,
+    if (draft.scheduledAt != null)
+      'scheduledAt': draft.scheduledAt!.toIso8601String(),
+    if (draft.sourceId != null) 'sourceId': draft.sourceId,
+    if (draft.source != null) 'source': draft.source,
+    if (draft.recurringTransactionId != null)
+      'recurringTransactionId': draft.recurringTransactionId,
+    if (draft.tags != null) 'tags': draft.tags,
+    if (draft.newTags != null) 'newTags': draft.newTags,
+    if (draft.newMerchant != null) 'newMerchant': draft.newMerchant,
+    if (draft.attachmentPaths.isNotEmpty)
+      'attachmentPathsJson': jsonEncode(draft.attachmentPaths),
+    if (draft.adminFee != null) 'adminFee': draft.adminFee,
     if (draft.commodityOrBusinessType != null)
       'commodityOrBusinessType': draft.commodityOrBusinessType,
     if (draft.targetHarvestDate != null)
@@ -505,11 +602,11 @@ class FfmAssistantActionPlanner {
       'cycleProfileType': draft.cycleProfileType,
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.
-    if (draft.merchantName != null)
-      'assistantMerchantName': draft.merchantName,
+    if (draft.merchantName != null) 'merchant': draft.merchantName,
+    if (draft.merchantName != null) 'assistantMerchantName': draft.merchantName,
     if (draft.slmFieldValues.isNotEmpty)
       'assistantSlmFieldValues': draft.slmFieldValues,
-    
+
     // Gunakan draft.items sebagai sumber kebenaran, bukan formValues.itemsJson
     // untuk menghindari kontradiksi antara dua representasi data
     if (draft.items.isNotEmpty)
@@ -521,8 +618,10 @@ class FfmAssistantActionPlanner {
                 'itemName': i.name,
                 'price': i.price,
                 'qty': i.quantity,
+                'quantity': i.quantity,
                 'unit': i.unit,
                 'lineTotal': i.lineTotal,
+                'subtotal': i.lineTotal,
               },
             )
             .toList(),
@@ -532,12 +631,13 @@ class FfmAssistantActionPlanner {
       'receiptPaidAmount': draft.receiptPaidAmount,
     if (draft.receiptChangeAmount != null)
       'receiptChangeAmount': draft.receiptChangeAmount,
+    if (draft.receiptRawText != null) 'receiptRawText': draft.receiptRawText,
     if (draft.tax != null) 'tax': draft.tax,
     if (draft.discount != null) 'discount': draft.discount,
     if (draft.metadata != null) 'metadata': draft.metadata,
-    
-    // Tambahkan formValues hanya untuk field yang tidak sudah di-set di atas
-    // untuk menghindari menimpa nilai yang sudah ada
-    ...draft.formValues,
+    if (draft.attachmentPaths.isNotEmpty)
+      'attachmentPaths': draft.attachmentPaths,
+    if (draft.soundUri != null) 'soundUri': draft.soundUri,
+    if (draft.soundName != null) 'soundName': draft.soundName,
   };
 }

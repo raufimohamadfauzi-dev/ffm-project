@@ -16,13 +16,19 @@ void main() {
   late AppDatabase database;
   late FfmAssistantAutonomyRepository autonomyRepo;
   late FfmAssistantMonitoringJobService service;
+  DateTime testClock = DateTime(2026, 9, 12, 10, 0);
 
   setUp(() {
+    testClock = DateTime(2026, 9, 12, 10, 0);
     database = createInMemoryDatabaseForTests();
-    autonomyRepo = FfmAssistantAutonomyRepository(database);
+    autonomyRepo = FfmAssistantAutonomyRepository(
+      database,
+      now: () => testClock,
+    );
     service = FfmAssistantMonitoringJobService(
       database: database,
       autonomyRepository: autonomyRepo,
+      clock: () => testClock,
     );
   });
 
@@ -375,6 +381,108 @@ void main() {
       expect(plan, isNotNull);
       expect(plan!.requiresConfirmation, isFalse);
       expect(plan.steps.first.capabilityId, 'read.monitoring_evaluation');
+    });
+
+    test('F3.8: buildMonitoringDigest compiles active jobs and execution summary for conversation',
+        () async {
+      final now = DateTime(2026, 9, 12, 10, 0);
+      final job = FfmAssistantMonitoringJob.create(
+        householdId: AppContext.householdId,
+        preset: FfmAssistantMonitoringPreset.weeklyEvaluation,
+        now: now,
+      );
+      await service.createJob(job);
+      await service.executeEvaluation(job, now: now);
+
+      final digest = await service.buildMonitoringDigest(
+        householdId: AppContext.householdId,
+        now: now,
+      );
+
+      expect(digest, contains('JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):'));
+      expect(digest, contains('Evaluasi Mingguan Otomatis'));
+      expect(digest, contains('Evaluasi terakhir'));
+    });
+
+    test('F4.7: Goal cancellation cascades cancellation to pending tasks and stops execution',
+        () async {
+      final now = DateTime(2026, 9, 12, 10, 0);
+      final job = FfmAssistantMonitoringJob.create(
+        householdId: AppContext.householdId,
+        preset: FfmAssistantMonitoringPreset.dueCheck,
+        now: now,
+      );
+      await service.createJob(job);
+
+      // Pastikan task pending terbuat
+      var tasks = await autonomyRepo.tasksForGoal(job.id);
+      expect(tasks.first.status, 'pending');
+
+      // Batalkan goal
+      final cancelResult = await service.cancelJob(job.id);
+      expect(cancelResult, isTrue);
+
+      // Task harus ter-cascade menjadi cancelled
+      tasks = await autonomyRepo.tasksForGoal(job.id);
+      expect(tasks.first.status, 'cancelled');
+
+      // Plan resolver harus menolak task yang goal-nya sudah batal
+      final resolver =
+          FfmAssistantAgentTaskPlanResolver(autonomyRepo, now: () => now);
+      final event = FfmAssistantAutonomyEvent(
+        id: 'event-cancel-test',
+        type: 'agent.task.due',
+        occurredAt: now,
+        entityId: job.id,
+        payload: {'taskId': tasks.first.id, 'goalId': job.id},
+      );
+      final plan = await resolver.resolve(event);
+      expect(plan, isNull);
+    });
+
+    test('F4.6: Autonomous task creation rejects unknown capabilities and mutations',
+        () async {
+      final now = DateTime(2026, 9, 12, 10, 0);
+      final goal = FfmAssistantAgentGoal(
+        id: 'safety-goal-1',
+        householdId: AppContext.householdId,
+        domain: 'safety_test',
+        title: 'Safety Test Goal',
+        objective: 'Objective',
+        createdAt: now,
+        updatedAt: now,
+        status: FfmAssistantAgentGoalStatus.active,
+        priority: 1,
+      );
+      await autonomyRepo.createGoal(goal);
+
+      // Task dengan unknown capability harus ditolak
+      final badCapTask = FfmAssistantAgentTask(
+        id: 'bad-cap-task',
+        goalId: goal.id,
+        householdId: goal.householdId,
+        title: 'Bad Cap Task',
+        status: FfmAssistantAgentTaskStatus.pending,
+        capabilityId: 'hack.database_drop_all',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final result1 = await autonomyRepo.createTask(badCapTask);
+      expect(result1, isNull);
+
+      // Task dengan mutasi finansial harus ditolak dari autonomous task creation
+      final mutationTask = FfmAssistantAgentTask(
+        id: 'mutation-task',
+        goalId: goal.id,
+        householdId: goal.householdId,
+        title: 'Mutate Task',
+        status: FfmAssistantAgentTaskStatus.pending,
+        capabilityId: 'mutate.transaction_save',
+        createdAt: now,
+        updatedAt: now,
+      );
+      final result2 = await autonomyRepo.createTask(mutationTask);
+      expect(result2, isNull);
     });
   });
 }

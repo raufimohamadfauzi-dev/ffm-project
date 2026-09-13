@@ -169,7 +169,90 @@ class FfmAssistantMonitoringJobService {
       ),
     );
 
+    // Simpan riwayat evaluasi ke executions agar dapat dirujuk percakapan (F3.8)
+    try {
+      final tasks = await autonomyRepository.tasksForGoal(job.id);
+      if (tasks.isNotEmpty) {
+        await autonomyRepository.recordTaskExecution(
+          FfmAssistantAgentTaskExecution(
+            id: const Uuid().v4(),
+            taskId: tasks.first.id,
+            goalId: job.id,
+            householdId: job.householdId,
+            runId: 'monitoring:${job.preset.name}:${job.id}',
+            status: FfmAssistantAgentTaskExecutionStatus.completed,
+            startedAt: effectiveNow,
+            finishedAt: effectiveNow,
+            summary: report.summary,
+          ),
+        );
+      }
+    } catch (_) {
+      // Perekaman ringkasan eksekusi bersifat non-blocking
+    }
+
     return report;
+  }
+
+  /// Mengevaluasi seluruh job monitoring aktif yang sudah jatuh tempo (due).
+  Future<List<FfmAssistantMonitoringReport>> evaluateDueJobs(
+    String householdId, {
+    DateTime? now,
+  }) async {
+    final effectiveNow = now ?? _clock();
+    final jobs = await listJobs(householdId);
+    final reports = <FfmAssistantMonitoringReport>[];
+
+    for (final job in jobs) {
+      if (job.status != FfmAssistantJobStatus.active) continue;
+      if (job.nextRunAt != null && job.nextRunAt!.isAfter(effectiveNow)) {
+        continue;
+      }
+
+      try {
+        final report = await executeEvaluation(job, now: effectiveNow);
+        reports.add(report);
+      } catch (_) {
+        // Jangan hentikan evaluasi job lain jika satu job mengalami kendala data
+      }
+    }
+    return reports;
+  }
+
+  /// Membangun ringkasan jadwal dan laporan evaluasi terakhir untuk konteks percakapan (F3.8).
+  Future<String> buildMonitoringDigest({
+    required String householdId,
+    DateTime? now,
+  }) async {
+    final jobs = await listJobs(householdId);
+    if (jobs.isEmpty) {
+      return 'JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):\nBelum ada jadwal pemantauan aktif.';
+    }
+
+    final buffer = StringBuffer('JADWAL PEMANTAUAN OTOMATIS (MONITORING JOBS):\n');
+    for (final job in jobs) {
+      final statusLabel = switch (job.status) {
+        FfmAssistantJobStatus.active => 'Aktif',
+        FfmAssistantJobStatus.paused => 'Dijeda',
+        FfmAssistantJobStatus.cancelled => 'Dibatalkan',
+        FfmAssistantJobStatus.completed => 'Selesai',
+      };
+      final nextRunStr =
+          job.nextRunAt != null ? _formatDate(job.nextRunAt!) : 'Belum dijadwalkan';
+      buffer.writeln(
+        '• [Job ID: ${job.id}] ${job.title} (${job.preset.name}): Status $statusLabel, Waktu run berikutnya: $nextRunStr',
+      );
+
+      final executions = await autonomyRepository.executionsForGoal(job.id);
+      if (executions.isNotEmpty) {
+        final latest = executions.first;
+        final runTime = _formatDate(latest.startedAt);
+        buffer.writeln(
+          '  - Evaluasi terakhir ($runTime): ${latest.summary ?? "Selesai tanpa catatan"}',
+        );
+      }
+    }
+    return buffer.toString().trim();
   }
 
   // 1. Evaluasi Mingguan (Weekly Evaluation)

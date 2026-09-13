@@ -5,6 +5,7 @@ import 'package:ffm_manager/core/database/audit_logger.dart';
 import 'package:ffm_manager/features/activity/data/repositories/activity_repository.dart';
 import 'package:ffm_manager/features/activity/domain/entities/activity_entity.dart';
 import 'package:ffm_manager/features/assistant/data/ffm_assistant_capability_adapters.dart';
+import 'package:ffm_manager/features/assistant/data/ffm_assistant_proposal_json_service.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_capability_executor.dart';
@@ -40,6 +41,40 @@ void main() {
       updatedAt: now,
     ),
   );
+
+  Future<void> seedActivityCategory() => database.customStatement(
+    'INSERT INTO categories '
+    '(id, household_id, name, type, default_budget_period, is_active, created_at) '
+    'VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [
+      'activity-test',
+      householdId,
+      'Aktivitas',
+      'activity',
+      'none',
+      1,
+      now.millisecondsSinceEpoch,
+    ],
+  );
+
+  Future<FfmAssistantCapabilityExecutionResult> saveDraft(
+    Map<String, Object?> parameters,
+  ) =>
+      FfmAssistantCapabilityAdapterRegistry(
+        database: database,
+        householdId: householdId,
+        clock: () => now,
+      ).handlers['mutate.save_draft']!(
+        FfmAssistantActionStep(
+          id: 'save',
+          capabilityId: 'mutate.save_draft',
+          parameters: {
+            ...parameters,
+            '_idempotencyKey':
+                parameters['_idempotencyKey'] ?? 'activity-test-key',
+          },
+        ),
+      );
 
   FfmAssistantIntent mutationIntent({
     required FfmAssistantDraftKind kind,
@@ -112,6 +147,195 @@ void main() {
         .get();
     expect(logs.map((row) => row.read<String>('action')), contains('archive'));
   });
+
+  test(
+    'main timer terjadwal mempertahankan scheduledAt dan tidak mulai sekarang',
+    () async {
+      await seedActivityCategory();
+      final scheduled = now.add(const Duration(hours: 2));
+      final result = await saveDraft({
+        'kind': 'activity',
+        'title': 'Timer utama',
+        'category': 'Aktivitas',
+        'activityMode': 'timeTracking',
+        'scheduledAt': scheduled.toIso8601String(),
+        'startNow': false,
+        '_idempotencyKey': 'main-timer',
+      });
+
+      final rows = await database.select(database.activitySessions).get();
+      expect(result.isSuccess, isTrue);
+      expect(rows.single.startedAt, scheduled);
+      expect(rows.single.scheduledAt, scheduled);
+      expect(rows.single.mode, 'timeTracking');
+      expect(rows.single.status, 'active');
+    },
+  );
+
+  test('child timer hanya boleh dibuat di parent aktif dan menyimpan parentSessionId', () async {
+    await seedActivityCategory();
+    await seedActivity(
+      id: 'parent-active',
+      title: 'Parent',
+      status: ActivitySessionStatus.active,
+    );
+    final result = await saveDraft({
+      'kind': 'activity',
+      'title': 'Child timer',
+      'category': 'Aktivitas',
+      'activityMode': 'timeTracking',
+      'startNow': true,
+      'parentSessionId': 'parent-active',
+      '_idempotencyKey': 'child-timer',
+    });
+
+    final rows = await database.select(database.activitySessions).get();
+    final child = rows.singleWhere((row) => row.id != 'parent-active');
+    expect(result.isSuccess, isTrue);
+    expect(child.parentSessionId, 'parent-active');
+    expect(child.startedAt, now);
+    expect(child.mode, 'timeTracking');
+  });
+
+  test('activity note memakai mode history pada activity_sessions', () async {
+    await seedActivityCategory();
+    final result = await saveDraft({
+      'kind': 'activity',
+      'title': 'Catatan aktivitas',
+      'category': 'Aktivitas',
+      'activityMode': 'history',
+      'note': 'Selesai mengecek kebun.',
+      'date': now.toIso8601String(),
+      '_idempotencyKey': 'activity-note',
+    });
+
+    final rows = await database.select(database.activitySessions).get();
+    expect(result.isSuccess, isTrue);
+    expect(rows.single.mode, 'history');
+    expect(rows.single.kind, 'timer');
+    expect(rows.single.status, 'completed');
+    expect(rows.single.notes, 'Selesai mengecek kebun.');
+  });
+
+  test(
+    'daily note hanya membuat row daily_notes, bukan activity_sessions',
+    () async {
+      final result = await saveDraft({
+        'kind': 'dailyNote',
+        'title': 'Catatan harian',
+        'note': 'Panen berjalan baik.',
+        'date': now.toIso8601String(),
+        '_idempotencyKey': 'daily-note',
+      });
+
+      final notes = await database.select(database.dailyNotes).get();
+      final sessions = await database.select(database.activitySessions).get();
+      expect(result.isSuccess, isTrue);
+      expect(notes.single.body, 'Panen berjalan baik.');
+      expect(notes.single.noteDate, now);
+      expect(sessions, isEmpty);
+    },
+  );
+
+  test(
+    'legacy migration tidak menyalin daily note ke activity_sessions',
+    () async {
+      await database
+          .into(database.dailyNotes)
+          .insert(
+            DailyNotesCompanion.insert(
+              id: 'legacy-note',
+              householdId: householdId,
+              noteDate: now,
+              body: 'Catatan lama tetap terpisah.',
+              createdAt: now,
+            ),
+          );
+
+      await ActivityRepository(
+        database,
+        AuditLogger(database),
+      ).migrateOldData(householdId);
+
+      expect(
+        await (database.select(
+          database.dailyNotes,
+        )..where((row) => row.id.equals('legacy-note'))).getSingle(),
+        isNotNull,
+      );
+      expect(
+        await (database.select(
+          database.activitySessions,
+        )..where((row) => row.id.equals('legacy-note'))).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'activity retry dengan payload berbeda ditolak tanpa row kedua',
+    () async {
+      await seedActivityCategory();
+      final first = await saveDraft({
+        'kind': 'activity',
+        'title': 'Aktivitas asli',
+        'category': 'Aktivitas',
+        'activityMode': 'history',
+        'date': now.toIso8601String(),
+        '_idempotencyKey': 'activity-idempotency',
+      });
+      final second = await saveDraft({
+        'kind': 'activity',
+        'title': 'Aktivitas berbeda',
+        'category': 'Aktivitas',
+        'activityMode': 'history',
+        'date': now.toIso8601String(),
+        '_idempotencyKey': 'activity-idempotency',
+      });
+
+      expect(first.isSuccess, isTrue);
+      expect(second.isSuccess, isFalse);
+      expect(
+        await database.select(database.activitySessions).get(),
+        hasLength(1),
+      );
+    },
+  );
+
+  test(
+    'daily_note JSON melewati draft, plan, executor, dan verifier',
+    () async {
+      final parsed = FfmAssistantProposalJsonService.parse(
+        '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"daily_note","title":"Catatan panen","body":"Panen berjalan baik.","noteDate":"2026-08-23T07:30:00.000"}}',
+        createdAt: now,
+      );
+      expect(parsed.draft?.kind, FfmAssistantDraftKind.dailyNote);
+      final intent = FfmAssistantIntent(
+        rawText: 'catat harian',
+        normalizedText: 'catat harian',
+        type: FfmAssistantIntentType.createDailyNote,
+        destination: FfmAssistantDestination.activity,
+        draft: parsed.draft,
+      );
+      final plan = FfmAssistantActionPlanner(now: () => now).planFor(intent)!;
+      final completed = await executeConfirmed(plan);
+
+      expect(completed?.status, FfmAssistantActionPlanStatus.completed);
+      expect(
+        completed?.steps.map((step) => step.capabilityId),
+        containsAll(<String>[
+          'draft.daily_note',
+          'mutate.save_draft',
+          'verify.daily_note_mutation',
+        ]),
+      );
+      expect(await database.select(database.activitySessions).get(), isEmpty);
+      expect(
+        (await database.select(database.dailyNotes).get()).single.body,
+        'Panen berjalan baik.',
+      );
+    },
+  );
 
   test('delete aktivitas selesai menghapus session dan data turunan secara permanen', () async {
     await seedActivity(id: 'visit', title: 'Kunjungan keluarga');
@@ -188,10 +412,7 @@ void main() {
     () async {
       const homeA = 'home-A';
       const homeB = 'home-B';
-      await ActivityRepository(
-        database,
-        AuditLogger(database),
-      ).saveSession(
+      await ActivityRepository(database, AuditLogger(database)).saveSession(
         ActivitySessionEntity(
           id: 'a-travel',
           householdId: homeA,
@@ -204,10 +425,7 @@ void main() {
           updatedAt: now,
         ),
       );
-      await ActivityRepository(
-        database,
-        AuditLogger(database),
-      ).saveSession(
+      await ActivityRepository(database, AuditLogger(database)).saveSession(
         ActivitySessionEntity(
           id: 'b-travel',
           householdId: homeB,
@@ -275,13 +493,29 @@ void main() {
         'INSERT INTO categories '
         '(id, household_id, name, type, default_budget_period, is_active, created_at) '
         'VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['cat-farm', householdId, 'Pertanian', 'activity', 'none', 1, now.millisecondsSinceEpoch],
+        [
+          'cat-farm',
+          householdId,
+          'Pertanian',
+          'activity',
+          'none',
+          1,
+          now.millisecondsSinceEpoch,
+        ],
       );
       await database.customStatement(
         'INSERT INTO categories '
         '(id, household_id, name, type, default_budget_period, is_active, created_at) '
         'VALUES (?, ?, ?, ?, ?, ?, ?)',
-        ['cat-shop', householdId, 'Belanja', 'activity', 'none', 1, now.millisecondsSinceEpoch],
+        [
+          'cat-shop',
+          householdId,
+          'Belanja',
+          'activity',
+          'none',
+          1,
+          now.millisecondsSinceEpoch,
+        ],
       );
 
       final repo = ActivityRepository(database, AuditLogger(database));

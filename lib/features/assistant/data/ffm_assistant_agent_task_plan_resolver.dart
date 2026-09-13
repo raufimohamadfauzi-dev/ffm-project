@@ -26,6 +26,13 @@ class FfmAssistantAgentTaskPlanResolver {
         task.status != FfmAssistantAgentTaskStatus.failed.name) {
       return null;
     }
+
+    // Pastikan goal induk masih berstatus aktif (hormati jeda/batal/selesai) (F4.7)
+    final goal = await _repository.goalById(task.goalId);
+    if (goal == null ||
+        goal.status != FfmAssistantAgentGoalStatus.active.name) {
+      return null;
+    }
     final capabilityId = task.capabilityId?.trim();
     if (capabilityId == null || capabilityId.isEmpty) return null;
     final capability = FfmAssistantCapabilityRegistry.find(capabilityId);

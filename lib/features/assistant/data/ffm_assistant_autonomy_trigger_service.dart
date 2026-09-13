@@ -5,7 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'ffm_assistant_autonomy_repository.dart';
 
 class FfmAssistantAutonomyTriggerService {
-  FfmAssistantAutonomyTriggerService(this._repository, {this.evaluateNow});
+  FfmAssistantAutonomyTriggerService(
+    this._repository, {
+    this.evaluateNow,
+    this.coalesceWindow = const Duration(milliseconds: 300),
+  });
 
   static const _maxPayloadEntries = 12;
   static const _maxStringLength = 200;
@@ -22,6 +26,16 @@ class FfmAssistantAutonomyTriggerService {
 
   final FfmAssistantAutonomyRepository _repository;
   final Future<void> Function(String householdId)? evaluateNow;
+  final Duration coalesceWindow;
+  final Map<String, Timer> _debounceTimers = {};
+
+  /// Menghentikan seluruh timer debounce yang aktif.
+  void dispose() {
+    for (final timer in _debounceTimers.values) {
+      timer.cancel();
+    }
+    _debounceTimers.clear();
+  }
 
   /// Mengantrekan trigger aplikasi tanpa menjalankan capability atau LLM.
   /// Hanya metadata scalar yang aman dan terbatas yang boleh masuk payload.
@@ -76,13 +90,28 @@ class FfmAssistantAutonomyTriggerService {
       );
       final evaluate = evaluateNow;
       if (evaluate != null) {
-        unawaited(
-          evaluate(householdId).catchError((e, st) {
-            if (kDebugMode) {
-              debugPrint('Autonomy trigger evaluateNow error: $e\n$st');
-            }
-          }),
-        );
+        if (coalesceWindow == Duration.zero) {
+          unawaited(
+            evaluate(householdId).catchError((e, st) {
+              if (kDebugMode) {
+                debugPrint('Autonomy trigger evaluateNow error: $e\n$st');
+              }
+            }),
+          );
+        } else {
+          // Coalesce event berdekatan agar tidak memicu eksekusi evaluasi ganda (F1.5)
+          _debounceTimers[householdId]?.cancel();
+          _debounceTimers[householdId] = Timer(coalesceWindow, () {
+            _debounceTimers.remove(householdId);
+            unawaited(
+              evaluate(householdId).catchError((e, st) {
+                if (kDebugMode) {
+                  debugPrint('Autonomy trigger evaluateNow error: $e\n$st');
+                }
+              }),
+            );
+          });
+        }
       }
     } on Object catch (e, st) {
       if (kDebugMode) {

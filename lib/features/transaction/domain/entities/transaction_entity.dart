@@ -33,8 +33,10 @@ class TransactionDraft {
     this.partyName,
     this.receiptRawText,
     this.receiptNumber,
-    this.receiptPaidAmount, // Used as tax for calculation
-    this.receiptChangeAmount, // Used as discount for calculation
+    this.receiptPaidAmount,
+    this.receiptChangeAmount,
+    this.tax,
+    this.discount,
     required this.items,
     this.tags = const [],
     this.attachmentPaths = const [],
@@ -61,6 +63,8 @@ class TransactionDraft {
   final String? receiptNumber;
   final int? receiptPaidAmount;
   final int? receiptChangeAmount;
+  final int? tax;
+  final int? discount;
   final List<ReceiptItemDraft> items;
   final List<String> tags;
   final List<String> attachmentPaths;

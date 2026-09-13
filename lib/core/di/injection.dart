@@ -36,6 +36,8 @@ import '../../features/assistant/data/ffm_memory_maintenance_service.dart';
 import '../../features/assistant/data/ffm_error_logging_service.dart';
 import '../../features/assistant/data/ffm_assistant_chat_history_repository.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_repository.dart';
+import '../../features/assistant/data/ffm_assistant_goal_evidence_evaluator.dart';
+import '../../features/assistant/data/ffm_assistant_monitoring_job_service.dart';
 import '../../features/assistant/data/ffm_assistant_agent_task_plan_resolver.dart';
 import '../../features/assistant/data/ffm_assistant_agent_task_event_handler.dart';
 import '../../features/assistant/data/ffm_assistant_autonomy_trigger_service.dart';
@@ -293,6 +295,17 @@ Future<void> configureDependencies({AppDatabase? database}) async {
   }
   getIt.registerLazySingleton<FfmAssistantAutonomyRepository>(
     () => FfmAssistantAutonomyRepository(db),
+  );
+  getIt.registerLazySingleton<FfmAssistantMonitoringJobService>(
+    () => FfmAssistantMonitoringJobService(
+      database: db,
+      autonomyRepository: getIt<FfmAssistantAutonomyRepository>(),
+    ),
+  );
+  getIt.registerLazySingleton<FfmAssistantGoalEvidenceEvaluator>(
+    () => FfmAssistantGoalEvidenceEvaluator(
+      database: db,
+    ),
   );
   getIt.registerLazySingleton<AutonomousActivityRepository>(
     () => AutonomousActivityRepository(

@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/database/app_context.dart';
 import '../../../../core/database/app_database.dart';
@@ -182,6 +183,20 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
     }
     if (existing == null && widget.assistantPrefill != null) {
       final prefillValues = widget.assistantPrefill!.values;
+      _source = prefillValues['source']?.trim().isNotEmpty == true
+          ? prefillValues['source']!.trim()
+          : 'assistant';
+      _sourceId = prefillValues['sourceId']?.trim().isNotEmpty == true
+          ? prefillValues['sourceId']!.trim()
+          : null;
+      _recurringTransactionId =
+          prefillValues['recurringTransactionId']?.trim().isNotEmpty == true
+          ? prefillValues['recurringTransactionId']!.trim()
+          : null;
+      _linkedActivityId =
+          prefillValues['linkedActivityId']?.trim().isNotEmpty == true
+          ? prefillValues['linkedActivityId']!.trim()
+          : null;
       if (_locationController.text.trim().isEmpty &&
           prefillValues['location']?.isNotEmpty == true) {
         _locationController.text = prefillValues['location']!;
@@ -486,7 +501,7 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         )
         .get();
 
-    // Load existing transaction to get tax and discount
+    // Load existing transaction to preserve receipt totals while editing.
     final tx = await (database.select(
       database.transactions,
     )..where((row) => row.id.equals(transactionId))).getSingleOrNull();
@@ -502,38 +517,98 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
           .where((value) => value.isNotEmpty)
           .toList();
 
-      // Preserve tax (receiptPaidAmount) and discount (receiptChangeAmount) from existing transaction
       if (tx != null) {
-        _tax = tx.receiptPaidAmount;
-        _discount = tx.receiptChangeAmount;
+        _tax = tx.tax;
+        _discount = tx.discount;
       }
     });
   }
 
   void _addTag(String value) {
-    final allowed = _masterTags
-        .map((tag) => tag.name.trim().toLowerCase())
-        .where((name) => name.isNotEmpty)
-        .toSet();
     final incoming = value
         .split(',')
-        .map((item) => item.trim().toLowerCase())
+        .map((item) => item.replaceAll('#', '').trim().toLowerCase())
         .where((item) => item.isNotEmpty)
-        .where((item) => allowed.contains(item))
         .where((item) => !_tags.contains(item))
         .toList();
-    if (incoming.isEmpty) {
-      if (allowed.isEmpty && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Buat tag di Data Utama dulu kalau mau memakainya.'),
-          ),
-        );
-      }
-      return;
-    }
+    if (incoming.isEmpty) return;
     setState(() => _tags = [..._tags, ...incoming]);
     _tagController.clear();
+  }
+
+  void _toggleTag(String value) {
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) return;
+    if (_tags.contains(normalized)) {
+      setState(() => _tags = [..._tags]..remove(normalized));
+    } else {
+      _addTag(normalized);
+    }
+  }
+
+  Future<void> _showAddNewTagDialog() async {
+    final controller = TextEditingController();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tambah Tag Baru'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textInputAction: TextInputAction.done,
+          decoration: const InputDecoration(
+            hintText: 'Misalnya: makan-siang, kantor, liburan',
+            labelText: 'Nama tag',
+            prefixText: '#',
+          ),
+          onSubmitted: (val) {
+            final clean = val.trim().replaceAll('#', '').toLowerCase();
+            if (clean.isNotEmpty) Navigator.of(ctx).pop(clean);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final clean = controller.text
+                  .trim()
+                  .replaceAll('#', '')
+                  .toLowerCase();
+              if (clean.isNotEmpty) Navigator.of(ctx).pop(clean);
+            },
+            child: const Text('Simpan & Pakai'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.isNotEmpty) {
+      _addTag(result);
+      final db = getIt<AppDatabase>();
+      final existing =
+          await (db.select(db.tags)..where(
+                (t) =>
+                    t.householdId.equals(AppContext.householdId) &
+                    t.name.equals(result) &
+                    t.isArchived.equals(false),
+              ))
+              .getSingleOrNull();
+      if (existing == null) {
+        await db
+            .into(db.tags)
+            .insert(
+              TagsCompanion.insert(
+                id: const Uuid().v4(),
+                householdId: AppContext.householdId,
+                name: result,
+                createdAt: DateTime.now(),
+              ),
+            );
+        await _loadMasterTags();
+      }
+    }
   }
 
   Future<void> _showTagInfo() async {
@@ -852,6 +927,21 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
       }
       return;
     }
+    if (_type == TransactionType.expense && _tags.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _masterTags.isEmpty
+                ? 'Buat tag di Data Utama dulu untuk menandai pengeluaran ini.'
+                : 'Pilih minimal satu tag penanda dari Data Utama untuk pengeluaran.',
+          ),
+          action: _masterTags.isEmpty
+              ? SnackBarAction(label: 'Data Utama', onPressed: _openMasterData)
+              : null,
+        ),
+      );
+      return;
+    }
     final amount = parseRupiah(_amountController.text);
     Navigator.of(context).pop([
       TransactionDraft(
@@ -876,6 +966,8 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
         receiptNumber: _receiptNumber,
         receiptPaidAmount: _receiptPaidAmount,
         receiptChangeAmount: _receiptChangeAmount,
+        tax: _tax,
+        discount: _discount,
         items: _items,
         tags: _tags,
         attachmentPaths: _attachmentPaths,
@@ -1860,10 +1952,10 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
               AppSectionHeader(
                 title: isIncome
                     ? '4. Opsi tambahan pemasukan (opsional)'
-                    : '4. Tag dan lampiran',
+                    : '4. Tag penanda (wajib) dan lampiran',
                 helpText: isIncome
                     ? 'Tag untuk menandai sumber pemasukan. Lampiran untuk bukti penerimaan bila ada.'
-                    : 'Tag membantu pencarian dan pengelompokan. Lampiran hanya sebagai bukti transaksi.',
+                    : 'Wajib memilih minimal satu tag penanda dari Data Utama untuk pengelompokan dan sortir belanja.',
               ),
               const SizedBox(height: 4),
               AppCard(
@@ -1875,7 +1967,9 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                       children: [
                         Expanded(
                           child: Text(
-                            isIncome ? 'Bukti dan penanda' : 'Tag dan lampiran',
+                            isIncome
+                                ? 'Bukti dan penanda'
+                                : 'Tag penanda (wajib)',
                             style: AppTextStyles.labelCaps,
                           ),
                         ),
@@ -1889,53 +1983,53 @@ class _TransactionFormPageState extends State<TransactionFormPage> {
                     const SizedBox(height: 4),
                     Text(
                       _masterTags.isEmpty
-                          ? 'Belum ada tag. Atur dulu dari Data Utama.'
+                          ? 'Belum ada tag. Atur dulu dari Data Utama agar pengeluaran bisa disimpan.'
                           : (isIncome
                                 ? 'Opsional. Tag tidak mengubah saldo; lampiran hanya sebagai bukti penerimaan.'
-                                : 'Pilih penanda dari Data Utama. Tag tidak mengubah saldo.'),
+                                : 'Wajib: Pilih minimal satu penanda dari Data Utama. Tag mencerminkan kelompok belanja.'),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    if (_masterTags.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          for (final tag in _masterTags)
-                            FilterChip(
-                              label: Text('#${tag.name}'),
-                              selected: _tags.contains(
-                                tag.name.trim().toLowerCase(),
-                              ),
-                              onSelected: (_) => _addTag(tag.name),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: [
+                        for (final tag in _masterTags)
+                          FilterChip(
+                            label: Text('#${tag.name}'),
+                            selected: _tags.contains(
+                              tag.name.trim().toLowerCase(),
                             ),
-                        ],
-                      ),
-                    ] else
+                            onSelected: (_) => _toggleTag(tag.name),
+                          ),
+                        for (final customTag in _tags.where(
+                          (t) => !_masterTags.any(
+                            (m) => m.name.toLowerCase() == t.toLowerCase(),
+                          ),
+                        ))
+                          InputChip(
+                            label: Text('#$customTag'),
+                            selected: true,
+                            onDeleted: () => setState(
+                              () => _tags = [..._tags]..remove(customTag),
+                            ),
+                          ),
+                        ActionChip(
+                          avatar: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Tag baru'),
+                          onPressed: _showAddNewTagDialog,
+                        ),
+                      ],
+                    ),
+                    if (_masterTags.isEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 10),
+                        padding: const EdgeInsets.only(top: 8),
                         child: TextButton.icon(
                           onPressed: _openMasterData,
                           icon: const Icon(Icons.tune_rounded),
                           label: const Text('Atur tag di Data Utama'),
                         ),
                       ),
-                    if (_tags.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          for (final tag in _tags)
-                            InputChip(
-                              label: Text('#$tag'),
-                              onDeleted: () => setState(
-                                () => _tags = [..._tags]..remove(tag),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: _pickAttachments,

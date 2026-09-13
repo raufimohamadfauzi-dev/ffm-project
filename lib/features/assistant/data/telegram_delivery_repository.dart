@@ -60,19 +60,53 @@ class TelegramDeliveryRepository {
     return inserted == 1;
   }
 
+  /// Masa kedaluwarsa bawaan untuk antrean pengiriman agar laporan basi tidak terkirim (F3.7).
+  static const Duration defaultDeliveryExpiry = Duration(hours: 24);
+
+  /// Menandai laporan pending/failed yang melewati batas usia sebagai kedaluwarsa (expired).
+  Future<int> expireStaleDeliveries({
+    Duration maxAge = defaultDeliveryExpiry,
+    String householdId = TelegramDeliveryRepository.householdId,
+    DateTime? now,
+  }) async {
+    final current = now ?? _now();
+    final cutoff = current.subtract(maxAge);
+    final changed = await (_db.update(_db.telegramDeliveries)
+          ..where(
+            (row) =>
+                row.householdId.equals(householdId) &
+                row.status.isIn(const ['pending', 'failed']) &
+                row.createdAt.isSmallerThanValue(cutoff),
+          ))
+        .write(
+      TelegramDeliveriesCompanion(
+        status: const Value('expired'),
+        retryable: const Value(false),
+        lastError: const Value('Laporan kedaluwarsa sebelum sempat terkirim.'),
+        lastAttemptAt: Value(current),
+      ),
+    );
+    return changed;
+  }
+
   /// Pesan yang layak dikirim: pending/failed, masih dapat dicoba diulang,
-  /// dan sudah jatuh tempo (tanpa `nextAttemptAt` atau sudah lewat).
+  /// belum kedaluwarsa, dan sudah jatuh tempo (tanpa `nextAttemptAt` atau sudah lewat).
   Future<List<TelegramDelivery>> pendingDue({
     String householdId = TelegramDeliveryRepository.householdId,
     int limit = 10,
     DateTime? now,
   }) async {
+    final current = now ?? _now();
+    await expireStaleDeliveries(
+      householdId: householdId,
+      now: current,
+    );
+
     final boundedLimit = limit < 1
         ? 1
         : limit > 100
         ? 100
         : limit;
-    final current = now ?? _now();
     return (_db.select(_db.telegramDeliveries)
           ..where(
             (row) =>

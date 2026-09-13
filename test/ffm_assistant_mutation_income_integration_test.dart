@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:ffm_manager/core/database/app_database.dart';
@@ -21,6 +22,7 @@ void main() {
           householdId: 'local-household',
           name: 'Kas Utama',
           type: 'cash',
+          openingBalance: const Value(100000),
           createdAt: now,
         ),
       );

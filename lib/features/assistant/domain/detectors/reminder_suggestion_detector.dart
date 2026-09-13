@@ -493,13 +493,25 @@ class ReminderSuggestionDetector {
       final sourceId =
           '${latestError.code}:${latestError.occurredAt.toIso8601String()}';
       if (!linkedSources.contains('diagnostics:$sourceId')) {
+        final featureName = latestError.feature.isNotEmpty
+            ? latestError.feature
+            : 'layanan aplikasi';
+        final friendlySummary = latestError.summary
+            .split('\n')
+            .first
+            .replaceAll(RegExp(r'SqliteException\(\d+\):\s*'), '')
+            .replaceAll('database is locked', 'antrean data sempat padat')
+            .trim();
+        final noteText =
+            'Terdeteksi catatan pada $featureName: $friendlySummary. Sistem telah memulihkan proses dengan aman.';
+
         candidates.add(
           _Candidate(
             sourceType: ReminderSourceType.diagnostics,
             sourceId: sourceId,
-            sourceName: latestError.feature,
-            title: 'Periksa masalah aplikasi',
-            note: '${latestError.code}: ${latestError.summary}',
+            sourceName: featureName,
+            title: 'Periksa catatan aplikasi',
+            note: noteText,
             at: setupAt,
             priority: 80,
             isCompleteness: true,

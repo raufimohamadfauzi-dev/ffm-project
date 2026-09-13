@@ -105,6 +105,7 @@ class ActivitySessionEntity {
     required this.category,
     this.categoryId,
     this.kind = ActivityKind.timer,
+    this.mode,
     this.parentSessionId,
     required this.startedAt,
     required this.status,
@@ -132,6 +133,7 @@ class ActivitySessionEntity {
   /// ID Categories bertipe activity; nullable untuk data legacy.
   final String? categoryId;
   final ActivityKind kind;
+  final ActivityMode? mode;
   final String? parentSessionId;
 
   /// Activity Intelligence Upgrade - Grouping & Subject Linking
@@ -156,9 +158,7 @@ class ActivitySessionEntity {
   final DateTime? updatedAt;
 
   /// Mendapatkan mode aktual (hitung dari kind/status)
-  ActivityMode get effectiveMode {
-    return ActivityMode.defaultForKind(kind);
-  }
+  ActivityMode get effectiveMode => mode ?? ActivityMode.defaultForKind(kind);
 
   /// Apakah ini mode time tracking?
   bool get isTimeTracking => effectiveMode == ActivityMode.timeTracking;
@@ -171,6 +171,7 @@ class ActivitySessionEntity {
     String? category,
     String? categoryId,
     ActivityKind? kind,
+    ActivityMode? mode,
     DateTime? startedAt,
     DateTime? endedAt,
     DateTime? scheduledAt,
@@ -193,6 +194,7 @@ class ActivitySessionEntity {
     category: category ?? this.category,
     categoryId: categoryId ?? this.categoryId,
     kind: kind ?? this.kind,
+    mode: mode ?? this.mode,
     parentSessionId: parentSessionId,
     startedAt: startedAt ?? this.startedAt,
     endedAt: endedAt ?? this.endedAt,

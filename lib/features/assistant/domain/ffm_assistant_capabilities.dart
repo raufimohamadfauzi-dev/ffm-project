@@ -102,6 +102,14 @@ class FfmAssistantCapabilityRegistry {
       readOnly: true,
     ),
     const FfmAssistantCapability(
+      id: 'read.dailyNotes',
+      label: 'Baca catatan harian',
+      description: 'Membaca Catatan Harian dan jurnal teks lokal.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      destination: FfmAssistantDestination.activity,
+      readOnly: true,
+    ),
+    const FfmAssistantCapability(
       id: 'read.goals',
       label: 'Baca target',
       description: 'Membaca daftar target keuangan lokal.',
@@ -174,6 +182,15 @@ class FfmAssistantCapabilityRegistry {
       destination: FfmAssistantDestination.goals,
       readOnly: true,
       parameterNames: ['goalId'],
+    ),
+    const FfmAssistantCapability(
+      id: 'read.history_search',
+      label: 'Cari riwayat percakapan',
+      description:
+          'Mencari cuplikan dan intisari riwayat obrolan masa lalu secara aman.',
+      risk: FfmAssistantCapabilityRisk.readOnly,
+      readOnly: true,
+      parameterNames: ['query'],
     ),
     const FfmAssistantCapability(
       id: 'draft.monitoring_job',

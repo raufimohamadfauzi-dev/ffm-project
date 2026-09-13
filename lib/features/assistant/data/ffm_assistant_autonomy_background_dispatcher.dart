@@ -14,6 +14,7 @@ import 'ffm_assistant_autonomy_background_scheduler.dart';
 import 'ffm_assistant_autonomy_worker.dart';
 import 'telegram_delivery_processor.dart';
 
+import 'ffm_assistant_monitoring_job_service.dart';
 import 'ffm_assistant_proactive_evaluation_task.dart';
 
 @pragma('vm:entry-point')
@@ -79,6 +80,11 @@ void ffmAssistantAutonomyCallbackDispatcher() {
       final result = await getIt<FfmAssistantAutonomyWorker>().runOnce(
         getIt<FfmAssistantAutonomyBackgroundEventHandler>().handle,
       );
+      if (getIt.isRegistered<FfmAssistantMonitoringJobService>()) {
+        await getIt<FfmAssistantMonitoringJobService>().evaluateDueJobs(
+          AppContext.householdId,
+        );
+      }
       if (getIt.isRegistered<TelegramDeliveryProcessor>()) {
         // Proses antrean pengiriman Telegram yang durabel (transaksi, laporan
         // mingguan, dan alarm) pada siklus background.

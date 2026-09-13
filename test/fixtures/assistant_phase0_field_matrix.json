@@ -1,0 +1,22 @@
+{
+  "canonical": {
+    "income":["amount","toAccount","category","party","date","note"],
+    "expense":["amount","fromAccount","category","merchant","tags","date","note"],
+    "transfer":["amount","fromAccount","toAccount","adminFee","date","note"],
+    "goal":["title","amount","date","note"],
+    "goalDeposit":["amount","goal","fromAccount","date","note"],
+    "goalUsage":["amount","goal","toAccount","date","note"],
+    "activity":["title","category","parentSessionId","date","note"],
+    "dailyNote":["title","note","date"],
+    "reminder":["title","date","soundUri","soundName"],
+    "budget":["title","amount","periodType","categoryIdsJson","note"],
+    "liability":["title","party","amount","date","note"],
+    "receivable":["title","party","amount","date","note"],
+    "liabilityPayment":["amount","targetId","date","accountId"],
+    "receivablePayment":["amount","targetId","date","accountId"],
+    "cashFlowProfile":["title","initialCapital","estimatedInflow","targetHarvestDate","cycleProfileType"],
+    "monitoringJob":["title","preset","cadence","targetTimeMinutes"],
+    "masterData":["title","category","metadata"]
+  },
+  "metadata": ["source","uiOnly","modeNeedsConfirmation","deliveryChannel"]
+}

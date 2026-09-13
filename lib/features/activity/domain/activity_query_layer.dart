@@ -97,7 +97,8 @@ class ActivityQueryLayer {
     }
 
     // Ordering default: terbaru dulu
-    query = query..orderBy([
+    query = query
+      ..orderBy([
         (row) => OrderingTerm.desc(row.startedAt),
         (row) => OrderingTerm.desc(row.id),
       ]);
@@ -128,10 +129,12 @@ class ActivityQueryLayer {
       query = query..where((row) => row.isArchived.equals(false));
     }
     if (startDate != null) {
-      query = query..where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
+      query = query
+        ..where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
     }
     if (endDate != null) {
-      query = query..where((row) => row.startedAt.isSmallerOrEqualValue(endDate));
+      query = query
+        ..where((row) => row.startedAt.isSmallerOrEqualValue(endDate));
     }
     if (categoryId != null) {
       query = query..where((row) => row.categoryId.equals(categoryId));
@@ -141,12 +144,13 @@ class ActivityQueryLayer {
     }
     if (keyword != null && keyword.isNotEmpty) {
       final k = keyword.toLowerCase();
-      query = query..where(
-        (row) =>
-            row.title.lower().contains(k) |
-            row.notes.lower().contains(k) |
-            row.category.lower().contains(k),
-      );
+      query = query
+        ..where(
+          (row) =>
+              row.title.lower().contains(k) |
+              row.notes.lower().contains(k) |
+              row.category.lower().contains(k),
+        );
     }
 
     final countQuery = database.selectOnly(database.activitySessions)
@@ -156,10 +160,14 @@ class ActivityQueryLayer {
       countQuery.where(database.activitySessions.isArchived.equals(false));
     }
     if (startDate != null) {
-      countQuery.where(database.activitySessions.startedAt.isBiggerOrEqualValue(startDate));
+      countQuery.where(
+        database.activitySessions.startedAt.isBiggerOrEqualValue(startDate),
+      );
     }
     if (endDate != null) {
-      countQuery.where(database.activitySessions.startedAt.isSmallerOrEqualValue(endDate));
+      countQuery.where(
+        database.activitySessions.startedAt.isSmallerOrEqualValue(endDate),
+      );
     }
     if (categoryId != null) {
       countQuery.where(database.activitySessions.categoryId.equals(categoryId));
@@ -171,18 +179,21 @@ class ActivityQueryLayer {
       final k = keyword.toLowerCase();
       countQuery.where(
         database.activitySessions.title.lower().contains(k) |
-        database.activitySessions.notes.lower().contains(k) |
-        database.activitySessions.category.lower().contains(k),
+            database.activitySessions.notes.lower().contains(k) |
+            database.activitySessions.category.lower().contains(k),
       );
     }
 
     final countResult = await countQuery.getSingle();
-    final totalCount = countResult.read(database.activitySessions.id.count()) ?? 0;
+    final totalCount =
+        countResult.read(database.activitySessions.id.count()) ?? 0;
 
-    query = query..orderBy([
-      (row) => OrderingTerm.desc(row.startedAt),
-      (row) => OrderingTerm.desc(row.id),
-    ])..limit(limit, offset: offset);
+    query = query
+      ..orderBy([
+        (row) => OrderingTerm.desc(row.startedAt),
+        (row) => OrderingTerm.desc(row.id),
+      ])
+      ..limit(limit, offset: offset);
 
     final rows = await query.get();
     return ActivitySessionPageResult(
@@ -324,6 +335,7 @@ class ActivityQueryLayer {
     category: row.category,
     categoryId: row.categoryId,
     kind: ActivityKind.fromValue(row.kind),
+    mode: ActivityMode.tryParse(row.mode),
     parentSessionId: row.parentSessionId,
     activityGroupId: row.activityGroupId,
     subjectType: row.subjectType,
@@ -352,8 +364,7 @@ class ActivityQueryLayer {
     var query = database.select(database.activityEntries)
       ..where(
         (row) =>
-            row.householdId.equals(householdId) &
-            row.isArchived.equals(false),
+            row.householdId.equals(householdId) & row.isArchived.equals(false),
       );
     if (startDate != null) {
       query.where((row) => row.startedAt.isBiggerOrEqualValue(startDate));
@@ -365,7 +376,7 @@ class ActivityQueryLayer {
       ..addColumns([database.activityEntries.id.count()])
       ..where(
         database.activityEntries.householdId.equals(householdId) &
-        database.activityEntries.isArchived.equals(false),
+            database.activityEntries.isArchived.equals(false),
       );
     if (startDate != null) {
       countQuery.where(
@@ -407,29 +418,29 @@ class ActivityQueryLayer {
       ..where(
         (row) =>
             row.householdId.equals(householdId) &
-            (includeArchived ? const Constant(true) : row.isArchived.equals(false)),
+            (includeArchived
+                ? const Constant(true)
+                : row.isArchived.equals(false)),
       );
     if (startDate != null) {
       query.where((row) => row.noteDate.isBiggerOrEqualValue(startDate));
     }
     if (endDate != null) {
-      query.where((row) => row.noteDate.isSmallerThanValue(endDate));
+      query.where((row) => row.noteDate.isSmallerOrEqualValue(endDate));
     }
     if (keyword != null && keyword.isNotEmpty) {
       final k = keyword.toLowerCase();
       query.where(
-        (row) =>
-            row.title.lower().contains(k) |
-            row.body.lower().contains(k),
+        (row) => row.title.lower().contains(k) | row.body.lower().contains(k),
       );
     }
     final countQuery = database.selectOnly(database.dailyNotes)
       ..addColumns([database.dailyNotes.id.count()])
       ..where(
         database.dailyNotes.householdId.equals(householdId) &
-        (includeArchived
-            ? const Constant(true)
-            : database.dailyNotes.isArchived.equals(false)),
+            (includeArchived
+                ? const Constant(true)
+                : database.dailyNotes.isArchived.equals(false)),
       );
     if (startDate != null) {
       countQuery.where(
@@ -438,19 +449,18 @@ class ActivityQueryLayer {
     }
     if (endDate != null) {
       countQuery.where(
-        database.dailyNotes.noteDate.isSmallerThanValue(endDate),
+        database.dailyNotes.noteDate.isSmallerOrEqualValue(endDate),
       );
     }
     if (keyword != null && keyword.isNotEmpty) {
       final k = keyword.toLowerCase();
       countQuery.where(
         database.dailyNotes.title.lower().contains(k) |
-        database.dailyNotes.body.lower().contains(k),
+            database.dailyNotes.body.lower().contains(k),
       );
     }
     final countResult = await countQuery.getSingle();
-    final totalCount =
-        countResult.read(database.dailyNotes.id.count()) ?? 0;
+    final totalCount = countResult.read(database.dailyNotes.id.count()) ?? 0;
     query
       ..orderBy([
         (row) => OrderingTerm.desc(row.noteDate),

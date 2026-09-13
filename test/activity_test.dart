@@ -448,26 +448,75 @@ void main() {
     },
   );
 
-  test('ActivityBloc voice intent membuat sesi baru dengan kategori yang dipilih', () async {
+  test(
+    'ActivityBloc voice intent membuat sesi baru dengan kategori yang dipilih',
+    () async {
+      final bloc = ActivityBloc(repository);
+      addTearDown(bloc.close);
+
+      final intent = ActivityVoiceIntent(
+        rawTranscript: 'mulai belanja sayur',
+        normalizedText: 'mulai belanja sayur',
+        type: ActivityVoiceIntentType.start,
+        status: ActivityVoiceStatus.preview,
+        category: 'Belanja',
+        targetTitle: 'Belanja sayur',
+        confidence: 1,
+      );
+
+      await bloc.executeVoiceIntent(intent);
+
+      final active = await repository.getActiveSessions('local-household');
+      expect(active, hasLength(1));
+      expect(active.single.title, 'Belanja sayur');
+      expect(active.single.category, 'Belanja');
+    },
+  );
+
+  test('ActivityBloc voice intent catatan menyimpan ke Daily Notes', () async {
+    await database
+        .into(database.tags)
+        .insert(
+          TagsCompanion.insert(
+            id: 'tag-panenn',
+            householdId: 'local-household',
+            name: 'Panen',
+            createdAt: DateTime(2026, 8, 23),
+          ),
+        );
     final bloc = ActivityBloc(repository);
     addTearDown(bloc.close);
 
+    await database
+        .into(database.tags)
+        .insert(
+          TagsCompanion.insert(
+            id: 'tag-kebun',
+            householdId: 'local-household',
+            name: 'Kebun Tomat',
+            createdAt: DateTime(2026, 8, 24),
+          ),
+        );
+
     final intent = ActivityVoiceIntent(
-      rawTranscript: 'mulai belanja sayur',
-      normalizedText: 'mulai belanja sayur',
+      rawTranscript: 'catat hasil panen hari ini',
+      normalizedText: 'catat hasil panen hari ini',
       type: ActivityVoiceIntentType.start,
       status: ActivityVoiceStatus.preview,
-      category: 'Belanja',
-      targetTitle: 'Belanja sayur',
+      kind: ActivityKind.note,
+      tagIds: const ['tag-kebun'],
+      notes: 'Tomat siap dipanen',
+      targetTitle: 'Hasil panen hari ini',
+      startedAt: DateTime(2026, 8, 24, 9),
       confidence: 1,
     );
 
     await bloc.executeVoiceIntent(intent);
 
-    final active = await repository.getActiveSessions('local-household');
-    expect(active, hasLength(1));
-    expect(active.single.title, 'Belanja sayur');
-    expect(active.single.category, 'Belanja');
+    final notes = await (database.select(database.dailyNotes)).get();
+    expect(notes, hasLength(1));
+    expect(notes.single.title, 'Hasil panen hari ini');
+    expect(notes.single.body, 'Tomat siap dipanen');
   });
 
   test('ActivityBloc mengosongkan kartu aktif setelah sesi dihapus', () async {
@@ -516,57 +565,65 @@ void main() {
 
     await bloc.load();
 
-    final healed = bloc.state.sessions.firstWhere((s) => s.id == 'old-note-broken');
+    final healed = bloc.state.sessions.firstWhere(
+      (s) => s.id == 'old-note-broken',
+    );
     expect(healed.status, ActivitySessionStatus.completed);
     expect(healed.endedAt, oldTime);
     expect(healed.isCompleted, isTrue);
     // Memastikan tidak muncul di activeSessions
-    expect(bloc.state.activeSessions.where((s) => s.id == 'old-note-broken'), isEmpty);
+    expect(
+      bloc.state.activeSessions.where((s) => s.id == 'old-note-broken'),
+      isEmpty,
+    );
   });
 
-  test('ActivityBloc editCheckpoint dan deleteCheckpoint bekerja dengan benar', () async {
-    final now = DateTime(2026, 8, 20, 10);
-    await repository.saveSession(
-      ActivitySessionEntity(
-        id: 'session-cp',
-        householdId: 'local-household',
-        title: 'Sesi untuk Checkpoint',
-        category: 'Kerja',
-        startedAt: now,
-        status: ActivitySessionStatus.active,
-        createdAt: now,
-      ),
-    );
-    final bloc = ActivityBloc(repository);
-    addTearDown(bloc.close);
-    await bloc.load();
+  test(
+    'ActivityBloc editCheckpoint dan deleteCheckpoint bekerja dengan benar',
+    () async {
+      final now = DateTime(2026, 8, 20, 10);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 'session-cp',
+          householdId: 'local-household',
+          title: 'Sesi untuk Checkpoint',
+          category: 'Kerja',
+          startedAt: now,
+          status: ActivitySessionStatus.active,
+          createdAt: now,
+        ),
+      );
+      final bloc = ActivityBloc(repository);
+      addTearDown(bloc.close);
+      await bloc.load();
 
-    await bloc.addCheckpoint(
-      sessionId: 'session-cp',
-      label: 'Typo Checkpoint',
-      place: 'Kantor',
-      note: 'Catatan awal',
-    );
+      await bloc.addCheckpoint(
+        sessionId: 'session-cp',
+        label: 'Typo Checkpoint',
+        place: 'Kantor',
+        note: 'Catatan awal',
+      );
 
-    var checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
-    expect(checkpoints, hasLength(1));
-    final cpId = checkpoints.first.id;
+      var checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+      expect(checkpoints, hasLength(1));
+      final cpId = checkpoints.first.id;
 
-    // Edit checkpoint untuk memperbaiki typo
-    await bloc.editCheckpoint(
-      checkpointId: cpId,
-      label: 'Label yang Benar',
-      place: 'Kantor Pusat',
-      note: 'Catatan diperbaiki',
-    );
+      // Edit checkpoint untuk memperbaiki typo
+      await bloc.editCheckpoint(
+        checkpointId: cpId,
+        label: 'Label yang Benar',
+        place: 'Kantor Pusat',
+        note: 'Catatan diperbaiki',
+      );
 
-    checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
-    expect(checkpoints.first.label, 'Label yang Benar');
-    expect(checkpoints.first.place, 'Kantor Pusat');
+      checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+      expect(checkpoints.first.label, 'Label yang Benar');
+      expect(checkpoints.first.place, 'Kantor Pusat');
 
-    // Hapus checkpoint
-    await bloc.deleteCheckpoint(cpId);
-    checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
-    expect(checkpoints, isEmpty);
-  });
+      // Hapus checkpoint
+      await bloc.deleteCheckpoint(cpId);
+      checkpoints = bloc.state.checkpoints['session-cp'] ?? [];
+      expect(checkpoints, isEmpty);
+    },
+  );
 }

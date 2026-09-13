@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'tables.dart';
 
@@ -22,6 +23,7 @@ part 'app_database.g.dart';
     Transactions,
     TransactionItems,
     TransactionTags,
+    DailyNoteTags,
     Attachments,
     UtilityTokenPurchases,
     Transfers,
@@ -71,7 +73,7 @@ class AppDatabase extends _$AppDatabase {
   factory AppDatabase.openDefault() => AppDatabase(_openConnection());
 
   @override
-  int get schemaVersion => 59;
+  int get schemaVersion => 62;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -402,6 +404,37 @@ class AppDatabase extends _$AppDatabase {
             'CREATE INDEX IF NOT EXISTS idx_assistant_memories_kind '
             'ON assistant_memories (household_id, kind, is_archived)',
           );
+        }
+      }
+      if (from < 60) {
+        if (await _hasTable('daily_notes') &&
+            !await _hasColumns('daily_notes', const ['treatment_type'])) {
+          await m.addColumn(dailyNotes, dailyNotes.treatmentType);
+        }
+        if (!await _hasTable('daily_note_tags')) {
+          await m.createTable(dailyNoteTags);
+        }
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_daily_note_tags_tag '
+          'ON daily_note_tags (tag_id, daily_note_id)',
+        );
+      }
+      if (from < 61) {
+        if (await _hasTable('envelope_budgets') &&
+            !await _hasColumns('envelope_budgets', const ['note'])) {
+          await m.addColumn(envelopeBudgets, envelopeBudgets.note);
+        }
+        if (await _hasTable('goals') &&
+            !await _hasColumns('goals', const ['note'])) {
+          await m.addColumn(goals, goals.note);
+        }
+      }
+      if (from < 62 && await _hasTable('transactions')) {
+        if (!await _hasColumns('transactions', const ['tax'])) {
+          await m.addColumn(transactions, transactions.tax);
+        }
+        if (!await _hasColumns('transactions', const ['discount'])) {
+          await m.addColumn(transactions, transactions.discount);
         }
       }
     },
@@ -791,11 +824,21 @@ class AppDatabase extends _$AppDatabase {
   }
 }
 
+@pragma('vm:entry-point')
+void _setupDatabase(sqlite.Database database) {
+  database.execute('PRAGMA journal_mode = WAL;');
+  database.execute('PRAGMA busy_timeout = 5000;');
+  database.execute('PRAGMA synchronous = NORMAL;');
+}
+
 QueryExecutor _openConnection() {
   return LazyDatabase(() async {
     final directory = await getApplicationDocumentsDirectory();
     final file = File(p.join(directory.path, 'ffm.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase.createInBackground(
+      file,
+      setup: _setupDatabase,
+    );
   });
 }
 

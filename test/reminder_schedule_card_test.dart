@@ -64,6 +64,95 @@ void main() {
       );
       expect(find.byType(Switch), findsOneWidget);
       expect(find.text('Dibuat pengguna'), findsOneWidget);
+      expect(find.text('Nada: Liec.io classic notification sound'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'menampilkan badge otonom, asal pemicu diagnostik, dan catatan penjelasan',
+    (tester) async {
+      final reminder = ReminderEntity(
+        id: 'reminder-auto',
+        householdId: 'local-household',
+        title: 'Periksa catatan aplikasi',
+        note: 'Terdeteksi antrean data sempat padat. Sistem telah pulih.',
+        scheduledAt: DateTime.now().add(const Duration(hours: 4)),
+        recurrenceType: ReminderRecurrenceType.once,
+        weekdays: const [],
+        notificationId: 102,
+        origin: ReminderOrigin.autonomous,
+        sourceType: ReminderSourceType.diagnostics,
+        sourceId: 'diag-1',
+        soundName: 'Nada Custom Otonom',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReminderScheduleCard(
+              reminder: reminder,
+              onTap: () {},
+              onActiveChanged: (_) {},
+              onEdit: () {},
+              onDelete: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Dibuat otonom'), findsOneWidget);
+      expect(find.byIcon(Icons.auto_awesome), findsOneWidget);
+      expect(find.text('Diagnostik Aplikasi'), findsOneWidget);
+      expect(find.byIcon(Icons.build_circle_outlined), findsOneWidget);
+      expect(
+        find.text('Terdeteksi antrean data sempat padat. Sistem telah pulih.'),
+        findsOneWidget,
+      );
+      expect(find.text('Nada: Nada Custom Otonom'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'menandai pengingat yang sudah lewat dengan status waktu sudah lewat dan redup',
+    (tester) async {
+      final reminder = ReminderEntity(
+        id: 'reminder-past-due',
+        householdId: 'local-household',
+        title: 'Jemput anak sekolah kemarin',
+        scheduledAt: DateTime.now().subtract(const Duration(hours: 2)),
+        recurrenceType: ReminderRecurrenceType.once,
+        weekdays: const [],
+        notificationId: 103,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ReminderScheduleCard(
+              reminder: reminder,
+              onTap: () {},
+              onActiveChanged: (_) {},
+              onEdit: () {},
+              onDelete: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Waktu sudah lewat'), findsOneWidget);
+      expect(find.byIcon(Icons.alarm_off_outlined), findsOneWidget);
+      expect(find.text('Nada: Bawaan FFM'), findsOneWidget);
+
+      final opacityFinder = find.byWidgetPredicate(
+        (widget) => widget is Opacity && widget.opacity < 1.0,
+      );
+      expect(opacityFinder, findsOneWidget);
+      final Opacity opacityWidget = tester.widget(opacityFinder);
+      expect(opacityWidget.opacity, closeTo(0.72, 0.01));
       expect(tester.takeException(), isNull);
     },
   );

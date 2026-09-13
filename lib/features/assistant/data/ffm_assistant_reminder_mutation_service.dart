@@ -35,12 +35,32 @@ class FfmAssistantReminderMutationService {
     }
     final previous = await _repository.getReminder(next.householdId, next.id);
     if (previous != null) await _cancelScheduled(previous);
-    await _repository.saveReminder(next);
-    if (next.isActive) await _scheduleUpcoming(next);
+    try {
+      await _repository.saveReminder(next);
+      if (next.isActive) await _scheduleUpcoming(next);
 
-    // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
-    if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
-      await _syncToCalendar(next);
+      // Sync to calendar if calendar bridge is available and reminder has calendar sync marker
+      if (_calendarBridge != null && _shouldSyncToCalendar(next)) {
+        await _syncToCalendar(next);
+      }
+    } on Object {
+      // A reminder is not considered persisted when scheduling did not finish.
+      // Remove the new row or restore the previous row and its alarm.
+      try {
+        await _cancelScheduled(next);
+      } on Object {
+        // The original failure remains the useful error for the caller.
+      }
+      if (previous == null) {
+        await _repository.deleteReminder(
+          householdId: next.householdId,
+          reminderId: next.id,
+        );
+      } else {
+        await _repository.saveReminder(previous);
+        if (previous.isActive) await _scheduleUpcoming(previous);
+      }
+      rethrow;
     }
   }
 
@@ -97,6 +117,11 @@ class FfmAssistantReminderMutationService {
     } on Object {
       // Mengembalikan data serta alarm lama sebagai pemulihan terbaik bila
       // penjadwalan ulang gagal setelah pembatalan alarm sebelumnya.
+      try {
+        await _cancelScheduled(next);
+      } on Object {
+        // Best effort cleanup; the database rollback below is authoritative.
+      }
       await _repository.saveReminder(previous);
       if (previous.isActive) await _scheduleUpcoming(previous);
       rethrow;
@@ -105,11 +130,16 @@ class FfmAssistantReminderMutationService {
 
   Future<void> archive(ReminderEntity reminder) async {
     await _cancelScheduled(reminder);
-    await _repository.setActive(
-      householdId: reminder.householdId,
-      reminderId: reminder.id,
-      isActive: false,
-    );
+    try {
+      await _repository.setActive(
+        householdId: reminder.householdId,
+        reminderId: reminder.id,
+        isActive: false,
+      );
+    } on Object {
+      if (reminder.isActive) await _scheduleUpcoming(reminder);
+      rethrow;
+    }
   }
 
   Future<void> _cancelScheduled(ReminderEntity reminder) async {

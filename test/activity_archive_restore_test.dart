@@ -78,89 +78,123 @@ void main() {
     expect(defaultPage.items.single.isArchived, isFalse);
   });
 
-  test('arsip catatan harian ikut query includeArsip lalu bisa dipulihkan', () async {
-    await database.into(database.dailyNotes).insert(
-      DailyNotesCompanion.insert(
-        id: 'note-arsip',
+  test(
+    'arsip catatan harian ikut query includeArsip lalu bisa dipulihkan',
+    () async {
+      await database
+          .into(database.dailyNotes)
+          .insert(
+            DailyNotesCompanion.insert(
+              id: 'note-arsip',
+              householdId: AppContext.householdId,
+              noteDate: DateTime(2026, 8, 20),
+              body: 'Catatan yang diarsipkan',
+              createdAt: DateTime.now(),
+            ),
+          );
+
+      final archivedOnly = await queryLayer.queryDailyNotesPage(
         householdId: AppContext.householdId,
-        noteDate: DateTime(2026, 8, 20),
-        body: 'Catatan yang diarsipkan',
-        createdAt: DateTime.now(),
-      ),
-    );
+        includeArchived: true,
+      );
+      // includeArchived menampilkan semua data, termasuk yang belum diarsipkan.
+      expect(archivedOnly.items.single.id, 'note-arsip');
 
-    final archivedOnly = await queryLayer.queryDailyNotesPage(
-      householdId: AppContext.householdId,
-      includeArchived: true,
-    );
-    // includeArchived menampilkan semua data, termasuk yang belum diarsipkan.
-    expect(archivedOnly.items.single.id, 'note-arsip');
-
-    await database
-        .update(database.dailyNotes)
-        .write(const DailyNotesCompanion(isArchived: Value(true)));
-    final archivedPage = await queryLayer.queryDailyNotesPage(
-      householdId: AppContext.householdId,
-      includeArchived: true,
-    );
-    expect(archivedPage.items.single.id, 'note-arsip');
-    expect(archivedPage.items.single.isArchived, isTrue);
-
-    final defaultPage = await queryLayer.queryDailyNotesPage(
-      householdId: AppContext.householdId,
-    );
-    expect(defaultPage.items, isEmpty);
-
-    await repository.restoreDailyNote(AppContext.householdId, 'note-arsip');
-    final restoredPage = await queryLayer.queryDailyNotesPage(
-      householdId: AppContext.householdId,
-    );
-    expect(restoredPage.items.single.id, 'note-arsip');
-    expect(restoredPage.items.single.isArchived, isFalse);
-  });
-
-  test('query default mengecualikan arsip tapi catatan aktif tetap tampil', () async {
-    final start = DateTime(2026, 8, 20, 9);
-    await repository.saveSession(
-      ActivitySessionEntity(
-        id: 's-aktif',
+      await database
+          .update(database.dailyNotes)
+          .write(const DailyNotesCompanion(isArchived: Value(true)));
+      final archivedPage = await queryLayer.queryDailyNotesPage(
         householdId: AppContext.householdId,
-        title: 'Sesi aktif',
-        category: 'Kebun',
-        startedAt: start,
-        endedAt: start.add(const Duration(minutes: 30)),
-        status: ActivitySessionStatus.completed,
-        isCompleted: true,
-        createdAt: start,
-      ),
-    );
-    await repository.saveSession(
-      ActivitySessionEntity(
-        id: 's-arsip',
+        includeArchived: true,
+      );
+      expect(archivedPage.items.single.id, 'note-arsip');
+      expect(archivedPage.items.single.isArchived, isTrue);
+
+      final defaultPage = await queryLayer.queryDailyNotesPage(
         householdId: AppContext.householdId,
-        title: 'Sesi arsip',
-        category: 'Kebun',
-        startedAt: start,
-        endedAt: start.add(const Duration(minutes: 30)),
-        status: ActivitySessionStatus.completed,
-        isCompleted: true,
-        createdAt: start,
-      ),
-    );
-    await repository.archiveSession(AppContext.householdId, 's-arsip');
+      );
+      expect(defaultPage.items, isEmpty);
 
-    final defaultPage = await queryLayer.querySessionsPage(
-      householdId: AppContext.householdId,
-    );
-    expect(defaultPage.items.map((s) => s.id), ['s-aktif']);
+      await repository.restoreDailyNote(AppContext.householdId, 'note-arsip');
+      final restoredPage = await queryLayer.queryDailyNotesPage(
+        householdId: AppContext.householdId,
+      );
+      expect(restoredPage.items.single.id, 'note-arsip');
+      expect(restoredPage.items.single.isArchived, isFalse);
+    },
+  );
 
-    final includePage = await queryLayer.querySessionsPage(
-      householdId: AppContext.householdId,
-      includeArchived: true,
-    );
-    expect(
-      includePage.items.map((s) => s.id),
-      containsAll(['s-aktif', 's-arsip']),
-    );
-  });
+  test(
+    'query default mengecualikan arsip tapi catatan aktif tetap tampil',
+    () async {
+      final start = DateTime(2026, 8, 20, 9);
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 's-aktif',
+          householdId: AppContext.householdId,
+          title: 'Sesi aktif',
+          category: 'Kebun',
+          startedAt: start,
+          endedAt: start.add(const Duration(minutes: 30)),
+          status: ActivitySessionStatus.completed,
+          isCompleted: true,
+          createdAt: start,
+        ),
+      );
+      await repository.saveSession(
+        ActivitySessionEntity(
+          id: 's-arsip',
+          householdId: AppContext.householdId,
+          title: 'Sesi arsip',
+          category: 'Kebun',
+          startedAt: start,
+          endedAt: start.add(const Duration(minutes: 30)),
+          status: ActivitySessionStatus.completed,
+          isCompleted: true,
+          createdAt: start,
+        ),
+      );
+      await repository.archiveSession(AppContext.householdId, 's-arsip');
+
+      final defaultPage = await queryLayer.querySessionsPage(
+        householdId: AppContext.householdId,
+      );
+      expect(defaultPage.items.map((s) => s.id), ['s-aktif']);
+
+      final includePage = await queryLayer.querySessionsPage(
+        householdId: AppContext.householdId,
+        includeArchived: true,
+      );
+      expect(
+        includePage.items.map((s) => s.id),
+        containsAll(['s-aktif', 's-arsip']),
+      );
+    },
+  );
+
+  test(
+    'filter tanggal catatan menyertakan waktu tepat di batas akhir',
+    () async {
+      final end = DateTime(2026, 8, 20, 23, 59, 59, 999);
+      await database
+          .into(database.dailyNotes)
+          .insert(
+            DailyNotesCompanion.insert(
+              id: 'note-end-boundary',
+              householdId: AppContext.householdId,
+              noteDate: end,
+              body: 'Catatan di batas akhir',
+              createdAt: end,
+            ),
+          );
+
+      final page = await queryLayer.queryDailyNotesPage(
+        householdId: AppContext.householdId,
+        startDate: DateTime(2026, 8, 20),
+        endDate: end,
+      );
+
+      expect(page.items.map((note) => note.id), contains('note-end-boundary'));
+    },
+  );
 }

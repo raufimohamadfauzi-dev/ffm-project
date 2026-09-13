@@ -12,6 +12,26 @@ import 'ffm_assistant_message_toolbar.dart';
 import 'ffm_assistant_feedback_toolbar.dart';
 import 'ffm_json_expandable.dart';
 
+Map<String, dynamic>? _extractTokenUsage(
+  FfmAssistantChatEntry entry,
+  FfmAssistantIntent? intent,
+) {
+  if (entry.processTrace?.tokenUsage != null) {
+    return entry.processTrace!.tokenUsage;
+  }
+  if (intent?.pluginMetadata?['tokenUsage'] is Map) {
+    return intent!.pluginMetadata!['tokenUsage'] as Map<String, dynamic>;
+  }
+  return null;
+}
+
+String _formatTokens(int number) {
+  return number.toString().replaceAllMapped(
+    RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+    (m) => '${m[1]}.',
+  );
+}
+
 class FfmAssistantMessageCard extends StatelessWidget {
   const FfmAssistantMessageCard({
     super.key,
@@ -53,6 +73,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
     this.onFeedbackReportIssue,
     this.onFeedbackProvideCorrection,
     this.onShowFollowUpQuestions,
+    this.onSelectSuggestion,
     this.statusMessage,
   });
 
@@ -81,6 +102,7 @@ class FfmAssistantMessageCard extends StatelessWidget {
   final bool activityConfirmed;
   final FfmAssistantActionPlan? actionPlan;
   final void Function(List<String> questions)? onShowFollowUpQuestions;
+  final void Function(String suggestion)? onSelectSuggestion;
 
   /// Teks yang ditampilkan (progressive reveal saat streaming).
   /// Null berarti gunakan entry.text biasa.
@@ -164,45 +186,98 @@ class FfmAssistantMessageCard extends StatelessWidget {
         ? (isDark ? Colors.white : Colors.black)
         : (isDark ? Colors.white : Colors.black);
 
+    final tokenUsage = _extractTokenUsage(entry, intent);
+    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
+    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+
     final content = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!isUser) ...[
-          Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: assistantBorderColor.withValues(
-                alpha: isDark ? 0.18 : 0.12,
-              ),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: assistantBorderColor.withValues(alpha: 0.35),
-                width: 0.8,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  assistantOriginIcon,
-                  size: 12,
-                  color: assistantBorderColor,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  assistantOriginLabel,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: assistantBorderColor,
-                    letterSpacing: -0.2,
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: assistantBorderColor.withValues(
+                    alpha: isDark ? 0.18 : 0.12,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: assistantBorderColor.withValues(alpha: 0.35),
+                    width: 0.8,
                   ),
                 ),
-              ],
-            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      assistantOriginIcon,
+                      size: 12,
+                      color: assistantBorderColor,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      assistantOriginLabel,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: assistantBorderColor,
+                        letterSpacing: -0.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (totalTokens != null && totalTokens > 0)
+                Tooltip(
+                  message: promptTokens != null && candidateTokens != null
+                      ? 'Konsumsi Token: Kirim ${_formatTokens(promptTokens)} · Terima ${_formatTokens(candidateTokens)}'
+                      : 'Total Konsumsi Token: ${_formatTokens(totalTokens)}',
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? const Color(0xFF2A2215)
+                          : const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFFD97706).withValues(alpha: 0.4),
+                        width: 0.8,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.token_outlined,
+                          size: 12,
+                          color: Color(0xFFD97706),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '🪙 ${_formatTokens(totalTokens)} token',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? const Color(0xFFFBBF24)
+                                : const Color(0xFFB45309),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
+          const SizedBox(height: 6),
         ],
 
         if (statusMessage != null && statusMessage!.isNotEmpty) ...[
@@ -387,6 +462,50 @@ class FfmAssistantMessageCard extends StatelessWidget {
             return const SizedBox.shrink();
           }(),
         ],
+        if (!isUser &&
+            entry.suggestedQuestions.isNotEmpty &&
+            onSelectSuggestion != null) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final suggestion in entry.suggestedQuestions)
+                ActionChip(
+                  avatar: Icon(
+                    suggestion.startsWith('#')
+                        ? Icons.sell_outlined
+                        : Icons.touch_app_outlined,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  label: Text(
+                    suggestion,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: suggestion.startsWith('#')
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primaryContainer
+                      .withValues(alpha: 0.35),
+                  side: BorderSide(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.25),
+                  ),
+                  onPressed: () => onSelectSuggestion!(suggestion),
+                ),
+            ],
+          ),
+        ],
         if (intent?.draft != null) ...[
           const SizedBox(height: 7),
           FfmAssistantDraftPreview(
@@ -470,17 +589,67 @@ class FfmAssistantMessageCard extends StatelessWidget {
             followUpCount: entry.suggestedQuestions.length,
           ),
         ],
-        if (showTechnicalDetails && intent != null) ...[
+        if (showTechnicalDetails && (intent != null || entry.processTrace != null)) ...[
           const SizedBox(height: 8),
           _AssistantExecutionMethodologyCard(
             entry: entry,
-            intent: intent,
+            intent: intent ??
+                FfmAssistantIntent(
+                  rawText: entry.text,
+                  normalizedText: entry.text,
+                  type: FfmAssistantIntentType.unknown,
+                  confidence: 1.0,
+                  response: entry.text,
+                ),
             isDark: isDark,
           ),
-          const SizedBox(height: 6),
-          FfmJsonExpandable(intent: intent, initiallyExpanded: true),
+          if (intent != null) ...[
+            const SizedBox(height: 6),
+            FfmJsonExpandable(intent: intent, initiallyExpanded: true),
+          ],
         ],
       ],
+    );
+
+    final hasUserActions = onCopyText != null || onCorrectMessage != null;
+
+    final userToolbar = hasUserActions
+        ? FfmAssistantMessageToolbar(
+            isUser: true,
+            hasPrimaryAction: false,
+            primaryActionLabel: '',
+            isSpeaking: false,
+            activityConfirmed: activityConfirmed,
+            onCopyText: onCopyText,
+            onCorrectMessage: onCorrectMessage,
+            teachingSaved: teachingSaved,
+            foregroundColor: textColor,
+          )
+        : null;
+
+    final userBubbleDecoration = BoxDecoration(
+      color: userBubbleColor,
+      border: Border.all(
+        color: isDark ? const Color(0xFF666666) : const Color(0xFF333333),
+        width: 2.0,
+      ),
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(20),
+        topRight: Radius.circular(20),
+        bottomLeft: Radius.circular(20),
+        bottomRight: Radius.circular(4),
+      ),
+    );
+
+    final userTextWidget = Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 14,
+        vertical: 10,
+      ),
+      child: FfmAssistantMarkdownText(
+        text: visibleText ?? entry.text,
+        color: textColor,
+      ),
     );
 
     return LayoutBuilder(
@@ -489,40 +658,36 @@ class FfmAssistantMessageCard extends StatelessWidget {
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: isUser
-                ? constraints.maxWidth * .78
-                : constraints.maxWidth * .90,
+                ? constraints.maxWidth * .88
+                : constraints.maxWidth * .95,
           ),
           child: _BubbleTapReveal(
+            entry: entry,
             isUser: isUser,
             sentAt: entry.sentAt ?? entry.createdAt,
             receivedAt: entry.receivedAt,
             modelUsed: entry.modelUsed,
             textColor: textColor,
             child: isUser
-                ? DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: userBubbleColor,
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFF666666)
-                            : const Color(0xFF333333),
-                        width: 2.0,
-                      ),
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(20),
-                        topRight: Radius.circular(20),
-                        bottomLeft: Radius.circular(20),
-                        bottomRight: Radius.circular(4),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: content,
-                    ),
-                  )
+                ? (hasUserActions
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          userToolbar!,
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: DecoratedBox(
+                              decoration: userBubbleDecoration,
+                              child: userTextWidget,
+                            ),
+                          ),
+                        ],
+                      )
+                    : DecoratedBox(
+                        decoration: userBubbleDecoration,
+                        child: userTextWidget,
+                      ))
                 : DecoratedBox(
                     decoration: BoxDecoration(
                       color: assistantBgColor,
@@ -754,7 +919,7 @@ class FfmChatFileCard extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Foto struk • Ketuk untuk lihat',
+                        'Foto struk • Est. ~1.000–2.000 token AI • Ketuk untuk lihat',
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: theme.colorScheme.primary,
                         ),
@@ -825,6 +990,7 @@ class FfmChatFileCard extends StatelessWidget {
 /// Memberi transparansi eksekusi tanpa mencemari tampilan percakapan.
 class _BubbleTapReveal extends StatefulWidget {
   const _BubbleTapReveal({
+    required this.entry,
     required this.isUser,
     required this.sentAt,
     required this.receivedAt,
@@ -833,6 +999,7 @@ class _BubbleTapReveal extends StatefulWidget {
     required this.child,
   });
 
+  final FfmAssistantChatEntry entry;
   final bool isUser;
   final DateTime? sentAt;
   final DateTime? receivedAt;
@@ -921,6 +1088,22 @@ class _BubbleTapRevealState extends State<_BubbleTapReveal> {
     }
     final model = widget.modelUsed;
     if (model != null && model.isNotEmpty) parts.add(model);
+
+    final tokenUsage = _extractTokenUsage(widget.entry, widget.entry.intent);
+    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
+    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
+
+    if (totalTokens != null && totalTokens > 0) {
+      if (promptTokens != null && candidateTokens != null) {
+        parts.add('🪙 ${_formatTokens(totalTokens)} token (${_formatTokens(promptTokens)} in · ${_formatTokens(candidateTokens)} out)');
+      } else {
+        parts.add('🪙 ${_formatTokens(totalTokens)} token');
+      }
+    } else if (widget.isUser && widget.entry.filePath != null) {
+      parts.add('📷 Foto Struk (Est. ~1.000–2.000 token AI)');
+    }
+
     if (parts.isEmpty) parts.add('Pesan');
     return Text(
       parts.join(' • '),
@@ -953,6 +1136,10 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final trace = entry.processTrace;
     final events = trace?.events ?? const [];
+    final tokenUsage = _extractTokenUsage(entry, intent);
+    final totalTokens = (tokenUsage?['totalTokenCount'] ?? tokenUsage?['totalTokens']) as int?;
+    final promptTokens = (tokenUsage?['promptTokenCount'] ?? tokenUsage?['promptTokens']) as int?;
+    final candidateTokens = (tokenUsage?['candidatesTokenCount'] ?? tokenUsage?['candidateTokens']) as int?;
 
     return Container(
       margin: const EdgeInsets.only(top: 8),
@@ -1041,6 +1228,39 @@ class _AssistantExecutionMethodologyCard extends StatelessWidget {
                 ),
               );
             }),
+          ],
+          if (totalTokens != null && totalTokens > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF2A2215) : const Color(0xFFFEF3C7),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.token_outlined,
+                    size: 14,
+                    color: Color(0xFFD97706),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Konsumsi Token AI: Kirim ${_formatTokens(promptTokens ?? 0)} · Terima ${_formatTokens(candidateTokens ?? 0)} · Total ${_formatTokens(totalTokens)} token',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
           const SizedBox(height: 10),
           const Divider(height: 1),

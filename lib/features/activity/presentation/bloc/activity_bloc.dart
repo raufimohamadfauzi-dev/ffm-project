@@ -129,6 +129,22 @@ class ActivityBloc extends Cubit<ActivityState> {
   bool _migrated = false;
   bool _healingDone = false;
 
+  Future<void> saveDailyNote({
+    required String title,
+    required String body,
+    required DateTime noteDate,
+    required List<String> tagIds,
+    String? treatmentType,
+  }) => repository.saveDailyNote(
+    id: _uuid.v4(),
+    householdId: AppContext.householdId,
+    noteDate: noteDate,
+    title: title,
+    body: body,
+    tagIds: tagIds,
+    treatmentType: treatmentType,
+  );
+
   Future<void> load() async {
     emit(state.copyWith(loading: true, clearError: true));
     try {
@@ -293,7 +309,9 @@ class ActivityBloc extends Cubit<ActivityState> {
       final costMap = <String, int>{};
       for (final session in sessionPage.items) {
         checkpointMap[session.id] = await repository.getCheckpoints(session.id);
-        costMap[session.id] = await repository.getActivityLinkedCost(session.id);
+        costMap[session.id] = await repository.getActivityLinkedCost(
+          session.id,
+        );
       }
       emit(
         state.copyWith(
@@ -310,7 +328,9 @@ class ActivityBloc extends Cubit<ActivityState> {
         ),
       );
     } catch (error) {
-      emit(state.copyWith(loading: false, error: 'Gagal memuat riwayat: $error'));
+      emit(
+        state.copyWith(loading: false, error: 'Gagal memuat riwayat: $error'),
+      );
     }
   }
 
@@ -321,7 +341,10 @@ class ActivityBloc extends Cubit<ActivityState> {
     String? categoryId,
     bool? includeArchived,
   }) async {
-    if (state.isLoadingMore || (!state.hasMoreSessions && !state.hasMoreDailyNotes)) return;
+    if (state.isLoadingMore ||
+        (!state.hasMoreSessions && !state.hasMoreDailyNotes)) {
+      return;
+    }
     emit(state.copyWith(isLoadingMore: true));
     try {
       final resolvedIncludeArchived = includeArchived ?? state.includeArchived;
@@ -358,11 +381,15 @@ class ActivityBloc extends Cubit<ActivityState> {
         newHasMoreDailyNotes = page.hasMore;
       }
 
-      final checkpointMap = Map<String, List<ActivityCheckpointEntity>>.of(state.checkpoints);
+      final checkpointMap = Map<String, List<ActivityCheckpointEntity>>.of(
+        state.checkpoints,
+      );
       final costMap = Map<String, int>.of(state.linkedCosts);
       for (final session in newSessions.skip(state.sessions.length)) {
         checkpointMap[session.id] = await repository.getCheckpoints(session.id);
-        costMap[session.id] = await repository.getActivityLinkedCost(session.id);
+        costMap[session.id] = await repository.getActivityLinkedCost(
+          session.id,
+        );
       }
 
       emit(
@@ -652,6 +679,23 @@ class ActivityBloc extends Cubit<ActivityState> {
         if (title.trim().isEmpty) {
           throw StateError('Nama aktivitasnya belum jelas.');
         }
+        if (intent.kind == ActivityKind.note) {
+          if (intent.tagIds.isEmpty) {
+            throw StateError('Tag/lahan wajib dipilih untuk Catatan Harian.');
+          }
+          await repository.saveDailyNote(
+            id: _uuid.v4(),
+            householdId: AppContext.householdId,
+            noteDate: intent.startedAt ?? DateTime.now(),
+            body: intent.notes?.trim().isNotEmpty == true
+                ? intent.notes!.trim()
+                : intent.rawTranscript.trim(),
+            tagIds: intent.tagIds,
+            title: title.trim(),
+            treatmentType: intent.treatmentType,
+          );
+          break;
+        }
         final cleanNotes =
             (intent.rawTranscript.trim().isNotEmpty &&
                 intent.rawTranscript.trim().toLowerCase() !=
@@ -663,7 +707,7 @@ class ActivityBloc extends Cubit<ActivityState> {
           category: intent.category,
           categoryId: intent.categoryId,
           kind: intent.kind,
-          notes: cleanNotes,
+          notes: intent.notes ?? cleanNotes,
           startedAt: intent.startedAt,
         );
       case ActivityVoiceIntentType.startChild:
@@ -1007,6 +1051,7 @@ class ActivityBloc extends Cubit<ActivityState> {
       await load();
     } catch (error) {
       emit(state.copyWith(saving: false, error: error.toString()));
+      rethrow;
     }
   }
 }

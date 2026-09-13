@@ -1,0 +1,30 @@
+{
+  "formatVersion": "ffm-assistant-proposal-v1",
+  "proposals": [
+    {
+      "type": "transaction",
+      "kind": "expense",
+      "amount": 75000,
+      "fromAccount": "BCA",
+      "category": "Belanja",
+      "merchant": "Supermarket",
+      "tags": ["bulanan"],
+      "date": "2026-09-13T08:30:00.000",
+      "note": "Belanja dapur"
+    },
+    {
+      "type": "goal_deposit",
+      "goal": "Dana Darurat",
+      "amount": 100000,
+      "fromAccount": "BCA",
+      "date": "2026-09-13T09:00:00.000"
+    },
+    {
+      "type": "activity",
+      "title": "Belanja mingguan",
+      "category": "Rumah",
+      "parentSessionId": "activity-parent-1",
+      "note": "Catat kebutuhan dapur"
+    }
+  ]
+}

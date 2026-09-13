@@ -78,14 +78,16 @@ class GeminiTypingIndicator extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Text(
-                          message,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: isDark
-                                ? const Color(0xFF9A9590)
-                                : const Color(0xFF6B5E4F),
-                            fontWeight: FontWeight.w600,
-                            fontStyle: FontStyle.italic,
+                        Flexible(
+                          child: Text(
+                            message,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: isDark
+                                  ? const Color(0xFF9A9590)
+                                  : const Color(0xFF6B5E4F),
+                              fontWeight: FontWeight.w600,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                         ),
                         if (onTap != null) ...[

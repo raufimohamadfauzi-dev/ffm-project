@@ -1110,6 +1110,12 @@ class _AppShellState extends State<AppShell> {
               initialRecurrence: draft?.kind == FfmAssistantDraftKind.reminder
                   ? _parseRecurrenceFromDraft(draft!)
                   : null,
+              initialSoundUri: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.formValues['soundUri']?.toString()
+                  : null,
+              initialSoundName: draft?.kind == FfmAssistantDraftKind.reminder
+                  ? draft?.formValues['soundName']?.toString()
+                  : null,
             ),
           ),
         );
