@@ -7,6 +7,7 @@ import 'package:ffm_manager/features/assistant/data/ffm_assistant_interpreter.da
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_plan.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_action_planner.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_capability_executor.dart';
+import 'package:ffm_manager/features/assistant/domain/ffm_assistant_draft_validator.dart';
 import 'package:ffm_manager/features/assistant/domain/ffm_assistant_models.dart';
 import 'package:ffm_manager/features/goal/domain/entities/goal_entity.dart';
 import 'package:ffm_manager/features/goal/domain/usecases/goal_crud_usecases.dart';
@@ -164,6 +165,24 @@ void main() {
       'goal-emergency',
     );
     expect(goal?.targetAmount, 5000000);
+  });
+
+  test('validator goal memblokir create goal tanpa kategori', () {
+    final draft = FfmAssistantDraft(
+      kind: FfmAssistantDraftKind.goal,
+      createdAt: now,
+      title: 'Renovasi rumah',
+      amount: 12000000,
+      date: DateTime(2027, 1, 15),
+      note: 'Renovasi bertahap',
+    );
+
+    final issues = FfmAssistantDraftValidator.validate(draft);
+
+    expect(
+      issues.any((issue) => issue.code == 'goal_category_required'),
+      isTrue,
+    );
   });
 
   test('setor target atomik menolak saldo rekening yang tidak cukup', () async {

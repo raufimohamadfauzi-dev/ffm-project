@@ -154,6 +154,16 @@ abstract final class FfmAssistantDraftValidator {
             ),
           );
         }
+        if (_isBlank(draft.categoryName)) {
+          issues.add(
+            const FfmAssistantDraftIssue(
+              code: 'goal_category_required',
+              severity: FfmAssistantDraftIssueSeverity.required,
+              field: 'kategori',
+              message: 'Kategori target belum ada. Sebut nama kategori yang ada di Data Utama.',
+            ),
+          );
+        }
         if (draft.date == null) {
           issues.add(
             const FfmAssistantDraftIssue(

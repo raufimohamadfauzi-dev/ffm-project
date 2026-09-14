@@ -81,6 +81,9 @@ class ReminderSuggestionDetector {
         'scheduledAt': scheduledAt.toIso8601String(),
         'sourceType': candidate.sourceType.storageValue,
         'sourceId': candidate.sourceId,
+        'reminderMode': candidate.sourceType == ReminderSourceType.liability
+            ? 'alarm'
+            : 'notification',
       },
       createdAt: now,
       expiresAt: scheduledAt.add(const Duration(days: 7)),

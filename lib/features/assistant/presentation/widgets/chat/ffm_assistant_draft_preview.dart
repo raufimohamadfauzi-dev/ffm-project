@@ -234,6 +234,20 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
               ? '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year} ${draft.date!.hour.toString().padLeft(2, '0')}:${draft.date!.minute.toString().padLeft(2, '0')} WIB'
               : '${draft.date!.day.toString().padLeft(2, '0')}/${draft.date!.month.toString().padLeft(2, '0')}/${draft.date!.year}',
         ),
+      if (draft.kind == FfmAssistantDraftKind.reminder) ...[
+        MapEntry(
+          'Tipe Pengingat',
+          (draft.formValues['reminderMode'] == 'alarm' ||
+                  draft.formValues['mode'] == 'alarm')
+              ? 'Alarm Nyaring ⏰'
+              : 'Notifikasi Biasa 🔔',
+        ),
+        if (draft.soundName != null || draft.formValues['soundName'] != null)
+          MapEntry(
+            'Nada Notifikasi',
+            draft.soundName ?? draft.formValues['soundName'].toString(),
+          ),
+      ],
       if (draft.tags?.trim().isNotEmpty == true)
         MapEntry('Tag transaksi', draft.tags!.trim()),
       if (draft.newTags?.trim().isNotEmpty == true)
@@ -244,7 +258,7 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
         ...draft.formValues.entries
             .where(
               (field) =>
-                  field.value.trim().isNotEmpty &&
+                  field.value.toString().trim().isNotEmpty &&
                   !const {
                     'location',
                     'date',
@@ -272,6 +286,11 @@ class _FfmAssistantDraftPreviewState extends State<FfmAssistantDraftPreview> {
                     'discount',
                     'attachmentPathsJson',
                     'soundUri',
+                    'soundName',
+                    'reminderMode',
+                    'mode',
+                    'hasExplicitTime',
+                    'targetDate',
                   }.contains(field.key),
             )
             .map(

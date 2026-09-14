@@ -603,6 +603,11 @@ class FfmAssistantActionPlanner {
       'dailyOperationalBudget': draft.dailyOperationalBudget,
     if (draft.cycleProfileType != null)
       'cycleProfileType': draft.cycleProfileType,
+    if (draft.soundUri != null) 'soundUri': draft.soundUri,
+    if (draft.soundName != null) 'soundName': draft.soundName,
+    if (draft.reminderMode != null)
+      'reminderMode': draft.reminderMode!.name,
+    if (draft.reminderMode != null) 'mode': draft.reminderMode!.name,
     // Payload pembelajaran: tebakan awal + merchant agar adapter simpan
     // dapat merekam koreksi user terhadap nilai SLM/rule.
     if (draft.merchantName != null) 'merchant': draft.merchantName,

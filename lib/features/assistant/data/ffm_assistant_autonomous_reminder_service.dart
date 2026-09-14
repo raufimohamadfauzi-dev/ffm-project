@@ -47,6 +47,10 @@ class FfmAssistantAutonomousReminderService {
       return null;
     }
 
+    final modeRaw =
+        payload['reminderMode']?.toString() ?? payload['mode']?.toString();
+    final mode = ReminderModeX.fromStorage(modeRaw);
+
     final id = const Uuid().v4();
     final reminder = ReminderEntity(
       id: id,
@@ -60,6 +64,7 @@ class FfmAssistantAutonomousReminderService {
       sourceType: sourceType,
       sourceId: sourceId,
       origin: ReminderOrigin.autonomous,
+      mode: mode,
     );
     await _reminders.saveReminder(reminder);
     await _scheduleReplenisher?.replenish(householdId: insight.householdId);

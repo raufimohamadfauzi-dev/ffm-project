@@ -81,7 +81,7 @@ void main() {
       createdAt: DateTime(2026, 9, 13),
     );
 
-    expect(result.drafts, hasLength(3));
+    expect(result.drafts, hasLength(4)); // 4 proposals in fixture
     final expense = result.drafts.singleWhere(
       (draft) => draft.kind == FfmAssistantDraftKind.expense,
     );

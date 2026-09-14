@@ -2,6 +2,23 @@ enum ReminderRecurrenceType { once, daily, weekly }
 
 enum ReminderOrigin { user, autonomous }
 
+enum ReminderMode { notification, alarm }
+
+extension ReminderModeX on ReminderMode {
+  String get storageValue => switch (this) {
+    ReminderMode.notification => 'notification',
+    ReminderMode.alarm => 'alarm',
+  };
+
+  String get label => switch (this) {
+    ReminderMode.notification => 'Notifikasi Biasa',
+    ReminderMode.alarm => 'Alarm Nyaring',
+  };
+
+  static ReminderMode fromStorage(String? value) =>
+      value == 'alarm' ? ReminderMode.alarm : ReminderMode.notification;
+}
+
 extension ReminderOriginX on ReminderOrigin {
   String get storageValue => switch (this) {
     ReminderOrigin.user => 'user',
@@ -162,6 +179,7 @@ class ReminderEntity {
     this.sourceType,
     this.sourceId,
     this.origin = ReminderOrigin.user,
+    this.mode = ReminderMode.notification,
   });
 
   final String id;
@@ -184,6 +202,7 @@ class ReminderEntity {
   final ReminderSourceType? sourceType;
   final String? sourceId;
   final ReminderOrigin origin;
+  final ReminderMode mode;
 }
 
 class ReminderHistoryEntity {

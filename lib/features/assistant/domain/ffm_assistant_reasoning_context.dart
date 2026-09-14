@@ -40,7 +40,11 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
       r'\b(aktivitas|kegiatan|perjalanan|checkpoint|sesi|durasi|live activity)\b',
     ).hasMatch(normalized);
     final needsDailyNotes = RegExp(
-      r'\b(catatan harian|jurnal|note|panen|kg|pupuk|sebar|hasil tani|tanaman|kebun)\b',
+      r'\b(catatan harian|jurnal|note|panen|kg|pupuk|sebar|hasil tani|tanaman|kebun|amistar|obat|pestisida|bibit|spray|semprot)\b',
+    ).hasMatch(normalized);
+    // Search query spesifik untuk item di catatan harian tidak butuh data finansial
+    final isItemSearchQuery = RegExp(
+      r'\b(cari|ada|lihat)\b.*\b(amistar|obat|pestisida|pupuk|spray|bibit|tanaman)\b',
     ).hasMatch(normalized);
     final needsMasterData = needsOnboarding || needsActivity || needsDailyNotes || RegExp(
       r'\b(tambah|buat|catat|ubah|ganti|koreksi|transfer|rekening|kategori|toko|data utama|membagi|rencana|kebutuhan|pendapatan|target|goal|anggaran|budget|saran|rekomendasi|suami|istri|pasangan|keluarga|rumah tangga|nama)\b',
@@ -59,10 +63,10 @@ abstract final class FfmAssistantReasoningEvidencePolicy {
     final specificMaster =
         needsBudget || needsCategories || needsGoals || needsAccounts || needsFamily;
     return FfmAssistantReasoningEvidenceScope(
-      includeFinancialSummary: needsFinancial || (specificMaster && !needsFamily),
+      includeFinancialSummary: needsFinancial && !isItemSearchQuery || (specificMaster && !needsFamily),
       includeMasterData: needsMasterData || specificMaster,
       includeRecentTransactions:
-          (needsRecentTransactions || needsOnboarding) && needsFinancial,
+          (needsRecentTransactions || needsOnboarding) && needsFinancial && !isItemSearchQuery,
     );
   }
 }

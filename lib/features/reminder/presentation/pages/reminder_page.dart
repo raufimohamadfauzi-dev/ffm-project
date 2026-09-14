@@ -788,7 +788,9 @@ class ReminderScheduleCard extends StatelessWidget {
                               reminder.soundName != null &&
                                       reminder.soundName!.isNotEmpty
                                   ? 'Nada: ${reminder.soundName}'
-                                  : 'Nada: Bawaan FFM',
+                                  : (reminder.origin == ReminderOrigin.autonomous
+                                      ? 'Nada: Nada otonom FFM'
+                                      : 'Nada: Bawaan FFM'),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context)

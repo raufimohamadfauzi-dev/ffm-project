@@ -686,14 +686,35 @@ class FfmAssistantProposalJsonService {
         'Isi Catatan Harian wajib diisi.',
       );
     }
+    final dateValue =
+        proposal['noteDate'] ?? proposal['targetDate'] ?? proposal['date'];
+    final noteDate = DateTime.tryParse(dateValue?.toString() ?? '');
+    if (noteDate == null) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Tanggal Catatan Harian wajib diisi dan valid.',
+      );
+    }
+    
+    // Tag wajib untuk daily_note
+    final tagsValue = proposal['tags'] ?? proposal['tag'];
+    final tags = _boundedText(tagsValue, 300);
+    if (tags == null || tags.isEmpty) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Tag atau lahan wajib diisi untuk Catatan Harian. Sebutkan tag yang ada di Data Utama.',
+      );
+    }
+    
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
         kind: FfmAssistantDraftKind.dailyNote,
         createdAt: createdAt,
         title: _boundedText(proposal['title'] ?? proposal['name'], 120),
         note: body,
-        date: _dateOr(proposal['noteDate'] ?? proposal['date'], createdAt),
-        formValues: const {'source': 'gemini_proposal'},
+        date: noteDate,
+        formValues: {
+          'source': 'gemini_proposal',
+          'tags': tags,
+        },
       ),
     );
   }
@@ -758,12 +779,20 @@ class FfmAssistantProposalJsonService {
       );
     }
 
+    final rawMode =
+        proposal['reminderMode'] ?? proposal['mode'] ?? proposal['type'];
+    final modeValue = rawMode?.toString().toLowerCase() == 'alarm'
+        ? 'alarm'
+        : 'notification';
+
     final formValues = <String, dynamic>{
       'time':
           '${targetDate.hour.toString().padLeft(2, '0')}:${targetDate.minute.toString().padLeft(2, '0')}',
       'targetDate':
           '${targetDate.year}-${targetDate.month.toString().padLeft(2, '0')}-${targetDate.day.toString().padLeft(2, '0')}',
       'hasExplicitTime': timeRaw != null && timeRaw.isNotEmpty,
+      'reminderMode': modeValue,
+      'mode': modeValue,
     };
     if (recurrence != null) {
       formValues['recurrence'] = recurrence;
@@ -846,10 +875,17 @@ class FfmAssistantProposalJsonService {
       proposal['category'] ?? proposal['categoryName'] ?? proposal['kategori'],
       100,
     );
-    final date = _dateOr(
-      proposal['targetDate'],
-      createdAt.add(const Duration(days: 30)),
-    );
+    final rawTargetDate = proposal['targetDate']?.toString().trim();
+    if (rawTargetDate != null &&
+        rawTargetDate.isNotEmpty &&
+        !_isValidTransactionDate(rawTargetDate)) {
+      return const FfmAssistantProposalParseResult.invalid(
+        'Batas waktu target harus berupa tanggal yang valid.',
+      );
+    }
+    final date = rawTargetDate == null || rawTargetDate.isEmpty
+        ? null
+        : DateTime.parse(rawTargetDate);
 
     return FfmAssistantProposalParseResult.draft(
       FfmAssistantDraft(
@@ -1686,6 +1722,8 @@ class FfmAssistantProposalParseResult {
 
   bool get isProposal =>
       draft != null || teachingProposal != null || error != null;
+
+  bool get isValid => isProposal && error == null;
 }
 
 class FfmAssistantMultiProposalParseResult {

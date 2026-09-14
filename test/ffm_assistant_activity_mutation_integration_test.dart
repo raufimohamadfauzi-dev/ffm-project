@@ -16,14 +16,6 @@ void main() {
   final now = DateTime(2026, 8, 24, 11);
   late AppDatabase database;
 
-  setUp(() async {
-    database = createInMemoryDatabaseForTests();
-  });
-
-  tearDown(() async {
-    await database.close();
-  });
-
   Future<void> seedActivity({
     required String id,
     required String title,
@@ -56,6 +48,28 @@ void main() {
       now.millisecondsSinceEpoch,
     ],
   );
+
+  Future<void> seedTag() => database.customStatement(
+    'INSERT INTO tags '
+    '(id, household_id, name, is_archived, created_at) '
+    'VALUES (?, ?, ?, ?, ?)',
+    [
+      'tag-pertanian',
+      householdId,
+      'pertanian',
+      0,
+      now.millisecondsSinceEpoch,
+    ],
+  );
+
+  setUp(() async {
+    database = createInMemoryDatabaseForTests();
+    await seedTag();
+  });
+
+  tearDown(() async {
+    await database.close();
+  });
 
   Future<FfmAssistantCapabilityExecutionResult> saveDraft(
     Map<String, Object?> parameters,
@@ -113,9 +127,21 @@ void main() {
       householdId: householdId,
       clock: () => now,
     );
+    
+    // Create a custom executor that skips navigation steps
+    final originalHandlers = adapters.handlers;
+    final modifiedHandlers = <String, FfmAssistantCapabilityHandler>{};
+    for (final entry in originalHandlers.entries) {
+      if (entry.key.startsWith('navigate.')) {
+        modifiedHandlers[entry.key] = (step) async => FfmAssistantCapabilityExecutionResult.success('Navigation skipped in test');
+      } else {
+        modifiedHandlers[entry.key] = entry.value;
+      }
+    }
+    
     return FfmAssistantCapabilityExecutor(
       controller: controller,
-      handlers: adapters.handlers,
+      handlers: modifiedHandlers,
     ).execute(plan.id);
   }
 
@@ -306,7 +332,7 @@ void main() {
     'daily_note JSON melewati draft, plan, executor, dan verifier',
     () async {
       final parsed = FfmAssistantProposalJsonService.parse(
-        '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"daily_note","title":"Catatan panen","body":"Panen berjalan baik.","noteDate":"2026-08-23T07:30:00.000"}}',
+        '{"formatVersion":"ffm-assistant-proposal-v1","proposal":{"type":"daily_note","title":"Catatan panen","body":"Panen berjalan baik.","tags":["pertanian"],"noteDate":"2026-08-23T07:30:00.000"}}',
         createdAt: now,
       );
       expect(parsed.draft?.kind, FfmAssistantDraftKind.dailyNote);

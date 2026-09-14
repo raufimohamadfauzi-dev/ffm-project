@@ -175,8 +175,10 @@ class _FfmAssistantDraftEditDialogState
             widget.draft.date != null
         ? TimeOfDay.fromDateTime(widget.draft.date!)
         : null;
-    _soundUri = widget.draft.formValues['soundUri']?.toString();
-    _soundName = widget.draft.formValues['soundName']?.toString();
+    _soundUri =
+        widget.draft.soundUri ?? widget.draft.formValues['soundUri']?.toString();
+    _soundName =
+        widget.draft.soundName ?? widget.draft.formValues['soundName']?.toString();
     _activityMode =
         ActivityMode.tryParse(
           widget.draft.formValues['activityMode'] ??
@@ -572,6 +574,10 @@ class _FfmAssistantDraftEditDialogState
       );
     }
     if (_selectedKind == FfmAssistantDraftKind.reminder) {
+      if (_time != null) {
+        newFormValues['time'] =
+            '${_time!.hour.toString().padLeft(2, '0')}:${_time!.minute.toString().padLeft(2, '0')}';
+      }
       if (_soundUri != null && _soundUri!.isNotEmpty) {
         newFormValues['soundUri'] = _soundUri!;
       } else {
@@ -630,8 +636,8 @@ class _FfmAssistantDraftEditDialogState
       dailyLivingBudget: widget.draft.dailyLivingBudget,
       dailyOperationalBudget: widget.draft.dailyOperationalBudget,
       cycleProfileType: widget.draft.cycleProfileType,
-      soundUri: widget.draft.soundUri,
-      soundName: widget.draft.soundName,
+      soundUri: _soundUri,
+      soundName: _soundName,
     );
 
     if (_isTransaction) {
@@ -1020,6 +1026,8 @@ class _FfmAssistantDraftEditDialogState
                         ? 'Pilih target tanggal tercapai'
                         : _selectedKind == FfmAssistantDraftKind.reminder
                         ? 'Pilih tanggal pengingat'
+                        : _selectedKind == FfmAssistantDraftKind.dailyNote
+                        ? 'Pilih tanggal catatan'
                         : 'Pilih tanggal transaksi',
                   );
                   if (picked != null && mounted) {
@@ -1032,6 +1040,55 @@ class _FfmAssistantDraftEditDialogState
           // Reminder-only: dedicated time picker so changing the date doesn't
           // reset the hour/minute and the full scheduledAt is visible.
           if (_selectedKind == FfmAssistantDraftKind.reminder) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Tipe Pengingat',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: double.infinity,
+              child: DropdownButtonFormField<String>(
+                initialValue: widget.draft.formValues['reminderMode'] ?? 'notification',
+                decoration: const InputDecoration(
+                  labelText: 'Tipe Pengingat',
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'notification',
+                    child: Row(
+                      children: [
+                        Icon(Icons.notifications_none_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Notifikasi'),
+                      ],
+                    ),
+                  ),
+                  DropdownMenuItem(
+                    value: 'alarm',
+                    child: Row(
+                      children: [
+                        Icon(Icons.alarm_rounded, size: 18),
+                        SizedBox(width: 8),
+                        Text('Alarm Nyaring'),
+                      ],
+                    ),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      widget.draft.formValues['reminderMode'] = value;
+                      widget.draft.formValues['mode'] = value;
+                    });
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.access_time_outlined),

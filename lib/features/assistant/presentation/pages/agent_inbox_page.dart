@@ -679,6 +679,7 @@ class _AgentInboxPageState extends State<AgentInboxPage>
                     : null,
               ),
             ),
+            _buildActivityPayloadDetails(activity, theme, isDark),
             if (activity.status == AutonomousActivityStatus.active) ...[
               const SizedBox(height: 12),
               Row(
@@ -710,6 +711,96 @@ class _AgentInboxPageState extends State<AgentInboxPage>
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildActivityPayloadDetails(
+    AutonomousActivityRecord activity,
+    ThemeData theme,
+    bool isDark,
+  ) {
+    final payload = activity.payload;
+    if (payload.isEmpty) return const SizedBox.shrink();
+
+    final entries = <MapEntry<String, String>>[];
+    for (final entry in payload.entries) {
+      if (entry.value == null || entry.value.toString().trim().isEmpty) continue;
+      final label = switch (entry.key) {
+        'scheduledAt' => 'Jadwal',
+        'reminderMode' || 'mode' => 'Tipe Pengingat',
+        'vehicleId' => 'ID Kendaraan',
+        'fuelLogId' || 'logId' => 'ID Catatan BBM',
+        'liters' => 'Volume (Liter)',
+        'amount' => 'Nominal',
+        'meterNumber' => 'Nomor Meteran',
+        'profileName' => 'Profil Tani/Siklus',
+        'transferAmount' => 'Nominal Alokasi',
+        'targetHarvestDate' => 'Target Panen Baru',
+        'previousHarvestDate' => 'Target Panen Lama',
+        _ => entry.key,
+      };
+      var valStr = entry.value.toString().trim();
+      if (entry.key == 'scheduledAt' ||
+          entry.key == 'targetHarvestDate' ||
+          entry.key == 'previousHarvestDate') {
+        final dt = DateTime.tryParse(valStr);
+        if (dt != null) {
+          valStr =
+              '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')}/${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')} WIB';
+        }
+      } else if (entry.key == 'reminderMode' || entry.key == 'mode') {
+        valStr = valStr == 'alarm' ? 'Alarm Nyaring ⏰' : 'Notifikasi Biasa 🔔';
+      }
+      entries.add(MapEntry(label, valStr));
+    }
+
+    if (entries.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+          width: 0.8,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: entries
+            .map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 120,
+                      child: Text(
+                        e.key,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: isDark ? Colors.grey[400] : Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        e.value,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }

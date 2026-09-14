@@ -4,6 +4,7 @@ library;
 
 import '../../activity/domain/activity_voice.dart';
 import '../../activity/domain/entities/activity_entity.dart';
+import '../../reminder/domain/entities/reminder_entity.dart';
 import '../../transaction/data/services/receipt_import_models.dart';
 
 enum FfmAssistantResponseMode { localRules }
@@ -489,6 +490,7 @@ class FfmAssistantDraft {
     this.attachmentPaths = const <String>[],
     this.soundUri,
     this.soundName,
+    this.reminderMode,
   });
 
   final FfmAssistantDraftKind kind;
@@ -544,6 +546,7 @@ class FfmAssistantDraft {
   final List<String> attachmentPaths;
   final String? soundUri;
   final String? soundName;
+  final ReminderMode? reminderMode;
 
   bool get hasAmount => amount != null && amount! > 0;
 
@@ -591,6 +594,7 @@ class FfmAssistantDraft {
     List<String>? attachmentPaths,
     String? soundUri,
     String? soundName,
+    ReminderMode? reminderMode,
     bool clearFromAccountName = false,
     bool clearToAccountName = false,
   }) => FfmAssistantDraft(
@@ -645,6 +649,7 @@ class FfmAssistantDraft {
     attachmentPaths: attachmentPaths ?? this.attachmentPaths,
     soundUri: soundUri ?? this.soundUri,
     soundName: soundName ?? this.soundName,
+    reminderMode: reminderMode ?? this.reminderMode,
   );
 }
 

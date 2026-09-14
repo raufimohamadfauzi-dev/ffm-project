@@ -20,6 +20,13 @@
       "date": "2026-09-13T09:00:00.000"
     },
     {
+      "type": "daily_note",
+      "title": "Catatan hari ini",
+      "body": "Hari produktif.",
+      "tags": ["pertanian"],
+      "noteDate": "2026-09-13T11:00:00.000"
+    },
+    {
       "type": "activity",
       "title": "Belanja mingguan",
       "category": "Rumah",

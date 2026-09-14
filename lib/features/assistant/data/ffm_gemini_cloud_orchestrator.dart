@@ -512,6 +512,11 @@ class FfmGeminiCloudOrchestrator {
                   'description':
                       'Nama nada dering pengingat jika pengguna menyebutkan preferensi nada (contoh: "Standar", "Adzan", "Gentle Bells")',
                 },
+                'reminderMode': {
+                  'type': 'STRING',
+                  'description':
+                      'Mode pengingat: "notification" (notifikasi biasa) atau "alarm" (alarm nyaring berdering). Default "notification" kecuali jika pengguna secara eksplisit meminta alarm/jam weker/bunyi nyaring.',
+                },
                 'dueDate': {
                   'type': 'STRING',
                   'description': 'Tanggal jatuh tempo YYYY-MM-DD (untuk type liability atau receivable)',

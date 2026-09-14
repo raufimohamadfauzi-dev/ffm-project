@@ -170,6 +170,7 @@ void main() {
             "type": "daily_note",
             "title": "Panen hari ini",
             "body": "Panen pepaya 100 kg.",
+            "tags": ["pertanian"],
             "noteDate": "2026-03-01T08:00:00.000"
           }
         }
@@ -180,6 +181,8 @@ void main() {
       expect(result.draft!.title, 'Panen hari ini');
       expect(result.draft!.note, 'Panen pepaya 100 kg.');
       expect(result.draft!.date, DateTime(2026, 3, 1, 8));
+      // Tags are stored as comma-separated string in formValues
+      expect(result.draft!.formValues['tags'], isNotNull);
     });
 
     testWidgets('TransferFormDialog prefills adminFee from assistant draft', (

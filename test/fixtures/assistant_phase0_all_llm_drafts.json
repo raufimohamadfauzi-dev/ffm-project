@@ -6,7 +6,7 @@
     {"type":"transaction","kind":"expense","amount":75000,"fromAccount":"BCA","category":"Belanja","merchant":"Supermarket","tags":["bulanan"],"date":"2026-09-13T08:30:00.000","note":"Belanja dapur"},
     {"type":"transaction","kind":"transfer","amount":200000,"fromAccount":"BCA","toAccount":"Dompet","adminFee":2500,"date":"2026-09-13T09:00:00.000","note":"Pindah dana"},
     {"type":"activity","title":"Belanja mingguan","category":"Rumah","parentSessionId":"activity-parent-1","date":"2026-09-13T10:00:00.000","note":"Catat kebutuhan dapur"},
-    {"type":"daily_note","title":"Catatan hari ini","body":"Hari produktif.","noteDate":"2026-09-13T11:00:00.000"},
+    {"type":"daily_note","title":"Catatan hari ini","body":"Hari produktif.","tags":["pertanian"],"noteDate":"2026-09-13T11:00:00.000"},
     {"type":"reminder","title":"Bayar tagihan","scheduledAt":"2026-09-14","time":"07:30","recurrence":"once","soundUri":"default://bell","soundName":"Bell"},
     {"type":"goal","title":"Dana Darurat","amount":5000000,"targetDate":"2027-01-01","note":"Cadangan"},
     {"type":"goal_deposit","goal":"Dana Darurat","amount":100000,"fromAccount":"BCA","date":"2026-09-13"},

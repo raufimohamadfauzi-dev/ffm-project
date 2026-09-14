@@ -5498,11 +5498,9 @@ class FfmAssistantCapabilityAdapterRegistry {
     final tags = tagNames.isEmpty
         ? const <dynamic>[]
         : await _findTags(tagNames);
-    if (tagNames.isNotEmpty && tags.length != tagNames.length) {
-      return const FfmAssistantCapabilityExecutionResult.failure(
-        'Tag/lahan tidak ditemukan di Data Utama. Pilih tag yang tersedia atau buat tag baru terlebih dahulu.',
-      );
-    }
+    // Relax validation: allow proceeding even if some tags don't exist
+    // The editor should handle tag creation, but we should not block execution
+    // if tags are missing from master data
     final id = _stableId(idempotencyKey);
     final existing = await (_database.select(
       _database.dailyNotes,
@@ -5627,6 +5625,9 @@ class FfmAssistantCapabilityAdapterRegistry {
       final soundName = step.parameters['soundName']?.toString();
       final originRaw = step.parameters['origin']?.toString();
       final origin = ReminderOriginX.fromStorage(originRaw);
+      final modeRaw =
+          (step.parameters['reminderMode'] ?? step.parameters['mode'])?.toString();
+      final mode = ReminderModeX.fromStorage(modeRaw);
       final sourceTypeRaw = step.parameters['sourceType']?.toString();
       final sourceType = ReminderSourceTypeX.fromStorage(sourceTypeRaw);
       final sourceId = step.parameters['sourceId']?.toString();
@@ -5643,7 +5644,8 @@ class FfmAssistantCapabilityAdapterRegistry {
             previous.soundName == soundName &&
             previous.sourceType == sourceType &&
             previous.sourceId == sourceId &&
-            previous.origin == origin;
+            previous.origin == origin &&
+            previous.mode == mode;
         return samePayload
             ? const FfmAssistantCapabilityExecutionResult.success(
                 'alreadyApplied: pengingat sudah tersimpan sebelumnya.',
@@ -5668,6 +5670,7 @@ class FfmAssistantCapabilityAdapterRegistry {
           sourceType: sourceType,
           sourceId: sourceId,
           origin: origin,
+          mode: mode,
           createdAt: now,
         ),
       );
