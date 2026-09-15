@@ -1,6 +1,6 @@
 # 💎 FFM — Family Financial Manager
 
-> **Aplikasi Pengelola Keuangan Keluarga dan AI Financial Agent untuk Android berbasis Hybrid AI (logika lokal, model lokal opsional, dan Gemini Cloud Orchestrator), dengan pembaca NFC e-Money, pendeteksi notifikasi bank/QRIS, serta integrasi kalender.**
+> **Aplikasi Pengelola Keuangan Keluarga dan AI Financial Agent untuk Android berbasis Hybrid AI (logika lokal dan Gemini Cloud Orchestrator), dengan pembaca NFC e-Money, pendeteksi notifikasi bank/QRIS, serta integrasi kalender.**
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
@@ -213,7 +213,7 @@ lib/
 │   ├── advisor/           # Smart Budget Engine, Rebalance, & Penasehat Keuangan
 │   ├── budget/            # Halaman anggaran, baseline, runway, & proyeksi belanja
 │   ├── asset/             # Valuation Aset & Radar Pasar Emas/Valas
-│   ├── assistant/         # Agent, capability, Action Plan, model lokal, Gemini, NFC, & notification listener
+│   ├── assistant/         # Agent, capability, Action Plan, Gemini, NFC, & notification listener
 │   ├── audit/             # Audit log jejak perubahan data
 │   ├── backup/            # Ekspor/impor data, laporan PDF & Excel
 │   ├── goal/              # Target finansial (saving goals)
